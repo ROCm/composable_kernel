@@ -10,7 +10,7 @@
 #include "ck/tensor_operation/gpu/device/device_normalization.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_layernorm_welford_variance.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_normalization_welford_variance.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_set_buffer_value.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -24,17 +24,17 @@ template <typename GridwiseReduction,
           typename AccDataType,
           typename AccElementwiseOperation,
           typename GridDesc_M_K>
-__global__ void kernel_layernorm(const GridDesc_M_K x_grid_desc_m_k,
-                                 const GridDesc_M_K gamma_grid_desc_m_k,
-                                 const GridDesc_M_K beta_grid_desc_m_k,
-                                 const GridDesc_M_K y_grid_desc_m_k,
-                                 index_t num_k_block_tile_iteration,
-                                 AccDataType epsilon,
-                                 const XDataType* const __restrict__ p_x_global,
-                                 const GammaDataType* const __restrict__ p_gamma_global,
-                                 const BetaDataType* const __restrict__ p_beta_global,
-                                 YDataType* const __restrict__ p_y_global,
-                                 const AccElementwiseOperation acc_elementwise_op)
+__global__ void kernel_normalization(const GridDesc_M_K x_grid_desc_m_k,
+                                     const GridDesc_M_K gamma_grid_desc_m_k,
+                                     const GridDesc_M_K beta_grid_desc_m_k,
+                                     const GridDesc_M_K y_grid_desc_m_k,
+                                     index_t num_k_block_tile_iteration,
+                                     AccDataType epsilon,
+                                     const XDataType* const __restrict__ p_x_global,
+                                     const GammaDataType* const __restrict__ p_gamma_global,
+                                     const BetaDataType* const __restrict__ p_beta_global,
+                                     YDataType* const __restrict__ p_y_global,
+                                     const AccElementwiseOperation acc_elementwise_op)
 {
     GridwiseReduction::Run(x_grid_desc_m_k,
                            gamma_grid_desc_m_k,
@@ -168,49 +168,49 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
     using GridDesc_M_K = decltype(MakeSrc2dDescriptor({1}, {1}, 1, 1));
 
     using GridwiseReduceLayernormGeneric =
-        GridwiseLayernormWelfordVariance_mk_to_mk<XDataType,
-                                                  GammaDataType,
-                                                  BetaDataType,
-                                                  YDataType,
-                                                  AccDataType,
-                                                  AccElementwiseOperation,
-                                                  GridDesc_M_K,
-                                                  BlockSize,
-                                                  MThreadClusterSize,
-                                                  KThreadClusterSize,
-                                                  MThreadSliceSize,
-                                                  KThreadSliceSize,
-                                                  XYSrcVectorDim,
-                                                  XSrcVectorSize,
-                                                  GammaSrcVectorDim,
-                                                  GammaSrcVectorSize,
-                                                  BetaSrcVectorDim,
-                                                  BetaSrcVectorSize,
-                                                  XYSrcVectorDim,
-                                                  YDstVectorSize,
-                                                  false>;
-    using GridwiseReduceLayernormSweepOnce =
-        GridwiseLayernormWelfordVariance_mk_to_mk<XDataType,
-                                                  GammaDataType,
-                                                  BetaDataType,
-                                                  YDataType,
-                                                  AccDataType,
-                                                  AccElementwiseOperation,
-                                                  GridDesc_M_K,
-                                                  BlockSize,
-                                                  MThreadClusterSize,
-                                                  KThreadClusterSize,
-                                                  MThreadSliceSize,
-                                                  KThreadSliceSize,
-                                                  XYSrcVectorDim,
-                                                  XSrcVectorSize,
-                                                  GammaSrcVectorDim,
-                                                  GammaSrcVectorSize,
-                                                  BetaSrcVectorDim,
-                                                  BetaSrcVectorSize,
-                                                  XYSrcVectorDim,
-                                                  YDstVectorSize,
-                                                  true>;
+        GridwiseNormalizationWelfordVariance_mk_to_mk<XDataType,
+                                                      GammaDataType,
+                                                      BetaDataType,
+                                                      YDataType,
+                                                      AccDataType,
+                                                      AccElementwiseOperation,
+                                                      GridDesc_M_K,
+                                                      BlockSize,
+                                                      MThreadClusterSize,
+                                                      KThreadClusterSize,
+                                                      MThreadSliceSize,
+                                                      KThreadSliceSize,
+                                                      XYSrcVectorDim,
+                                                      XSrcVectorSize,
+                                                      GammaSrcVectorDim,
+                                                      GammaSrcVectorSize,
+                                                      BetaSrcVectorDim,
+                                                      BetaSrcVectorSize,
+                                                      XYSrcVectorDim,
+                                                      YDstVectorSize,
+                                                      false>;
+    using GridwiseNormalizationSweepOnce =
+        GridwiseNormalizationWelfordVariance_mk_to_mk<XDataType,
+                                                      GammaDataType,
+                                                      BetaDataType,
+                                                      YDataType,
+                                                      AccDataType,
+                                                      AccElementwiseOperation,
+                                                      GridDesc_M_K,
+                                                      BlockSize,
+                                                      MThreadClusterSize,
+                                                      KThreadClusterSize,
+                                                      MThreadSliceSize,
+                                                      KThreadSliceSize,
+                                                      XYSrcVectorDim,
+                                                      XSrcVectorSize,
+                                                      GammaSrcVectorDim,
+                                                      GammaSrcVectorSize,
+                                                      BetaSrcVectorDim,
+                                                      BetaSrcVectorSize,
+                                                      XYSrcVectorDim,
+                                                      YDstVectorSize,
+                                                      true>;
 
     struct Argument : public BaseArgument
     {
@@ -295,22 +295,22 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             const auto kernel_main = arg.isSweeponce_
-                                         ? kernel_layernorm<GridwiseReduceLayernormSweepOnce,
-                                                            XDataType,
-                                                            GammaDataType,
-                                                            BetaDataType,
-                                                            YDataType,
-                                                            AccDataType,
-                                                            AccElementwiseOperation,
-                                                            GridDesc_M_K>
-                                         : kernel_layernorm<GridwiseReduceLayernormGeneric,
-                                                            XDataType,
-                                                            GammaDataType,
-                                                            BetaDataType,
-                                                            YDataType,
-                                                            AccDataType,
-                                                            AccElementwiseOperation,
-                                                            GridDesc_M_K>;
+                                         ? kernel_normalization<GridwiseNormalizationSweepOnce,
+                                                                XDataType,
+                                                                GammaDataType,
+                                                                BetaDataType,
+                                                                YDataType,
+                                                                AccDataType,
+                                                                AccElementwiseOperation,
+                                                                GridDesc_M_K>
+                                         : kernel_normalization<GridwiseReduceLayernormGeneric,
+                                                                XDataType,
+                                                                GammaDataType,
+                                                                BetaDataType,
+                                                                YDataType,
+                                                                AccDataType,
+                                                                AccElementwiseOperation,
+                                                                GridDesc_M_K>;
 
             float avg_time = 0;
             avg_time += launch_and_time_kernel(stream_config,

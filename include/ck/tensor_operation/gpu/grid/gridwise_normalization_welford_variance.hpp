@@ -33,7 +33,7 @@ template <typename XDataType,
           index_t YDstVectorDim,
           index_t YDstVectorSize,
           bool SweepOnce>
-struct GridwiseLayernormWelfordVariance_mk_to_mk
+struct GridwiseNormalizationWelfordVariance_mk_to_mk
 {
     static_assert((XSrcVectorDim == 0 && MThreadSliceSize % XSrcVectorSize == 0) ||
                       (XSrcVectorDim == 1 && KThreadSliceSize % XSrcVectorSize == 0),
