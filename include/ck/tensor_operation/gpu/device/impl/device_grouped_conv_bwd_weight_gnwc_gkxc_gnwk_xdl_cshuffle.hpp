@@ -155,21 +155,21 @@ template <ck::index_t NDimSpatial,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
-struct DeviceGroupedConvNdBwdWeightNwcKxcNwk_Xdl_CShuffle
+struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Xdl_CShuffle
     : public DeviceGroupedConvBwdWeight<
           NDimSpatial,
           ck::tuple_element_t<NDimSpatial - 1,
-                              ck::Tuple<ck::tensor_layout::convolution::NWC,
-                                        ck::tensor_layout::convolution::NHWC,
-                                        ck::tensor_layout::convolution::NDHWC>>,
+                              ck::Tuple<ck::tensor_layout::convolution::GNWC,
+                                        ck::tensor_layout::convolution::GNHWC,
+                                        ck::tensor_layout::convolution::GNDHWC>>,
           ck::tuple_element_t<NDimSpatial - 1,
-                              ck::Tuple<ck::tensor_layout::convolution::KXC,
-                                        ck::tensor_layout::convolution::KYXC,
-                                        ck::tensor_layout::convolution::KZYXC>>,
+                              ck::Tuple<ck::tensor_layout::convolution::GKXC,
+                                        ck::tensor_layout::convolution::GKYXC,
+                                        ck::tensor_layout::convolution::GKZYXC>>,
           ck::tuple_element_t<NDimSpatial - 1,
-                              ck::Tuple<ck::tensor_layout::convolution::NWK,
-                                        ck::tensor_layout::convolution::NHWK,
-                                        ck::tensor_layout::convolution::NDHWK>>,
+                              ck::Tuple<ck::tensor_layout::convolution::GNWK,
+                                        ck::tensor_layout::convolution::GNHWK,
+                                        ck::tensor_layout::convolution::GNDHWK>>,
           InDataType,
           WeiDataType,
           OutDataType,
@@ -177,7 +177,7 @@ struct DeviceGroupedConvNdBwdWeightNwcKxcNwk_Xdl_CShuffle
           WeiElementwiseOperation,
           OutElementwiseOperation>
 {
-    using DeviceOp = DeviceGroupedConvNdBwdWeightNwcKxcNwk_Xdl_CShuffle;
+    using DeviceOp = DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Xdl_CShuffle;
 
     using ADataType = OutDataType;
     using BDataType = InDataType;

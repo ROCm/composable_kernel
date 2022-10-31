@@ -3,7 +3,7 @@
 
 template <ck::index_t NDimSpatial>
 using DeviceConvBwdWeightInstance =
-    ck::tensor_operation::device::DeviceGroupedConvNdBwdWeightNwcKxcNwk_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Xdl_CShuffle<
         NDimSpatial,          // NDimSpatial
         InDataType,           // InDataType
         WeiDataType,          // WeiDataType
