@@ -54,7 +54,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-// Y = LayerNorm(X, Beta, Gamma)
+// Y = Normalization(X, Beta, Gamma)
 template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
