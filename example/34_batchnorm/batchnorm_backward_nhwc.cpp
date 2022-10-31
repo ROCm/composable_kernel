@@ -393,7 +393,7 @@ bool bnorm_bwd_nhwc_test(bool do_verification,
                            bnBiasDiff.mData, bnBiasDiff_ref.mData, "BiasDiff result:", 1e-5, 1e-5);
         pass =
             pass && ck::utils::check_err(
-                        bnScaleDiff.mData, bnScaleDiff_ref.mData, "ScaleDiff result:", 1e-5, 5e-5);
+                        bnScaleDiff.mData, bnScaleDiff_ref.mData, "ScaleDiff result:", 1e-5, 2e-4);
         pass = pass && ck::utils::check_err(dx.mData, dx_ref.mData, "dx result:");
     };
 
