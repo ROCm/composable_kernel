@@ -1395,7 +1395,7 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Dl
         {
             return false;
         }
-        
+
         if constexpr(ConvBackwardDataSpecialization ==
                      ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0)
         {
