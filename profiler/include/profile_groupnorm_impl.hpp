@@ -196,7 +196,7 @@ bool profile_groupnorm_impl(int do_verification,
 
     if(num_kernel == 0)
     {
-        std::cout << "Error: No kernel is tested" << std::endl;
+        std::cout << "Error: No kernel is applicable" << std::endl;
         return false;
     }
 

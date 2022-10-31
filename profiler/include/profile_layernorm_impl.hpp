@@ -52,7 +52,6 @@ bool profile_layernorm_impl(int do_verification,
 
     switch(init_method)
     {
-    // case 0: break;
     case 0:
         x.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
         gamma.GenerateTensorValue(GeneratorTensor_1<GammaDataType>{});
@@ -215,7 +214,7 @@ bool profile_layernorm_impl(int do_verification,
 
     if(num_kernel == 0)
     {
-        std::cout << "Error: No kernel is tested" << std::endl;
+        std::cout << "Error: No kernel is applicable" << std::endl;
         return false;
     }
 

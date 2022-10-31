@@ -20,7 +20,7 @@ class TestLayernorm2d : public ::testing::Test
 
     void Run()
     {
-        // N, H, W, G, C
+        // [N, D], reduce D
         std::vector<std::vector<ck::index_t>> lengths = {
             {4, 256}, {8, 511}, {9, 1032}, {4, 2048}, {1, 8192}, {4000, 2000}};
 
