@@ -66,6 +66,7 @@ template <index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t K0PerBlock,
+          index_t K1Value,
           index_t M1PerThreadM111,
           index_t N1PerThreadN111,
           index_t KPerThread,
@@ -96,7 +97,7 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
     static constexpr auto I3 = Number<3>{};
 
     // K1 should be Number<...>
-    static constexpr auto K1 = AGridDesc_K0_M_K1{}.GetLength(I2);
+    static constexpr auto K1 = Number<K1Value>{};
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
