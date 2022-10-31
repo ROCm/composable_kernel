@@ -20,14 +20,15 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 template <typename Tuple>
 struct TestBatchedGemmSoftmaxGemm : public ::testing::Test
 {
-    using ADataType  = std::tuple_element_t<0, Tuple>;
-    using B0DataType = std::tuple_element_t<1, Tuple>;
-    using B1DataType = std::tuple_element_t<2, Tuple>;
-    using CDataType  = std::tuple_element_t<3, Tuple>;
-    using ALayout    = std::tuple_element_t<4, Tuple>;
-    using B0Layout   = std::tuple_element_t<5, Tuple>;
-    using B1Layout   = std::tuple_element_t<6, Tuple>;
-    using CLayout    = std::tuple_element_t<7, Tuple>;
+    using ADataType   = std::tuple_element_t<0, Tuple>;
+    using B0DataType  = std::tuple_element_t<1, Tuple>;
+    using B1DataType  = std::tuple_element_t<2, Tuple>;
+    using CDataType   = std::tuple_element_t<3, Tuple>;
+    using ALayout     = std::tuple_element_t<4, Tuple>;
+    using B0Layout    = std::tuple_element_t<5, Tuple>;
+    using B1Layout    = std::tuple_element_t<6, Tuple>;
+    using CLayout     = std::tuple_element_t<7, Tuple>;
+    using MaskingType = std::tuple_element_t<8, Tuple>;
 
     std::vector<std::vector<int>> lengths_ = {{256, 256, 64, 64, 4},
                                               {256, 256, 128, 128, 4},
@@ -54,7 +55,8 @@ struct TestBatchedGemmSoftmaxGemm : public ::testing::Test
                                                                          ALayout,
                                                                          B0Layout,
                                                                          B1Layout,
-                                                                         CLayout>(
+                                                                         CLayout,
+                                                                         MaskingType::value>(
             verify_, 1, false, bench_, M, N, K, O, BatchCount);
 
         EXPECT_TRUE(pass);
