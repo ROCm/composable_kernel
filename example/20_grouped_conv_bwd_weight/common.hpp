@@ -82,7 +82,7 @@ struct ExecutionConfig final
 #define DefaultConvParam                                                       \
     ck::utils::conv::ConvParam                                                 \
     {                                                                          \
-        2, 1, 32, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, { 1, 1 } \
+        2, 16, 1, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, { 1, 1 } \
     }
 
 inline void print_help_msg()

@@ -18,8 +18,8 @@ int profile_conv_fwd(int, char*[]);
 int profile_conv_fwd_bias_relu(int, char*[]);
 int profile_conv_fwd_bias_relu_add(int, char*[]);
 int profile_conv_bwd_data(int, char*[]);
-int profile_conv_bwd_weight(int, char*[]);
 int profile_grouped_conv_fwd(int, char*[]);
+int profile_grouped_conv_bwd_weight(int, char*[]);
 int profile_normalization(int, char*[]);
 int profile_layernorm(int, char*[]);
 int profile_groupnorm(int, char*[]);
@@ -43,8 +43,8 @@ static void print_helper_message()
            "                        conv_fwd_bias_relu: ForwardConvolution+Bias+ReLU\n"
            "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add\n"
            "                        conv_bwd_data: Convolution Backward Data\n"
-           "                        conv_bwd_weight: Convolution Backward Weight\n"
            "                        grouped_conv_fwd: Grouped Convolution Forward\n"
+           "                        grouped_conv_bwd_weight: Grouped Convolution Backward Weight\n"
            "                        reduce: Reduce\n");
     // clang-format on
 }
@@ -117,13 +117,13 @@ int main(int argc, char* argv[])
     {
         return profile_conv_bwd_data(argc, argv);
     }
-    else if(strcmp(argv[1], "conv_bwd_weight") == 0)
-    {
-        return profile_conv_bwd_weight(argc, argv);
-    }
     else if(strcmp(argv[1], "grouped_conv_fwd") == 0)
     {
         return profile_grouped_conv_fwd(argc, argv);
+    }
+    else if(strcmp(argv[1], "conv_bwd_weight") == 0)
+    {
+        return profile_grouped_conv_bwd_weight(argc, argv);
     }
     else if(strcmp(argv[1], "reduce") == 0)
     {

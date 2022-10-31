@@ -27,32 +27,6 @@
 namespace ck {
 namespace profiler {
 
-template <typename DataType>
-void show_data_nhwc_layout(Tensor<DataType>& nhwc)
-{
-    std::cout << "[";
-    for(int n = 0; n < ck::type_convert<int>(nhwc.mDesc.GetLengths()[0]); n++)
-    {
-        std::cout << "[";
-        for(int hi = 0; hi < ck::type_convert<int>(nhwc.mDesc.GetLengths()[2]); hi++)
-        {
-            std::cout << "[";
-            for(int wi = 0; wi < ck::type_convert<int>(nhwc.mDesc.GetLengths()[3]); wi++)
-            {
-                std::cout << "[";
-                for(int c = 0; c < ck::type_convert<int>(nhwc.mDesc.GetLengths()[1]); c++)
-                {
-                    std::cout << static_cast<float>(nhwc(n, c, hi, wi)) << "  ";
-                }
-                std::cout << "]";
-            }
-            std::cout << "]";
-        }
-        std::cout << "]";
-    }
-    std::cout << "]";
-}
-
 template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
@@ -60,12 +34,12 @@ template <ck::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,
           typename OutDataType>
-bool profile_conv_bwd_weight_impl(int do_verification,
-                                  int init_method,
-                                  bool do_log,
-                                  bool time_kernel,
-                                  const ck::utils::conv::ConvParam& conv_param,
-                                  ck::index_t split_k)
+bool profile_grouped_conv_bwd_weight_impl(int do_verification,
+                                          int init_method,
+                                          bool do_log,
+                                          bool time_kernel,
+                                          const ck::utils::conv::ConvParam& conv_param,
+                                          ck::index_t split_k)
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -137,16 +111,16 @@ bool profile_conv_bwd_weight_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
-    using DeviceOp = ck::tensor_operation::device::DeviceConvBwdWeight<NDimSpatial,
-                                                                       InLayout,
-                                                                       WeiLayout,
-                                                                       OutLayout,
-                                                                       InDataType,
-                                                                       WeiDataType,
-                                                                       OutDataType,
-                                                                       InElementOp,
-                                                                       WeiElementOp,
-                                                                       OutElementOp>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvBwdWeight<NDimSpatial,
+                                                                              InLayout,
+                                                                              WeiLayout,
+                                                                              OutLayout,
+                                                                              InDataType,
+                                                                              WeiDataType,
+                                                                              OutDataType,
+                                                                              InElementOp,
+                                                                              WeiElementOp,
+                                                                              OutElementOp>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -186,6 +160,7 @@ bool profile_conv_bwd_weight_impl(int do_verification,
             op_ptr->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
                                         static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
                                         static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+                                        conv_param.G_,
                                         conv_param.N_,
                                         conv_param.K_,
                                         conv_param.C_,
@@ -235,32 +210,29 @@ bool profile_conv_bwd_weight_impl(int do_verification,
                 wei_device_buf.FromDevice(weight_device_result.mData.data());
 
                 bool pass =
-                    ck::utils::check_err(weight_host_result.mData, weight_device_result.mData);
+                    ck::utils::check_err(weight_device_result.mData, weight_host_result.mData);
 
                 if(!pass)
                 {
-                    std::cout << "Fail info:" << op_ptr->GetTypeString() << std::endl;
+                    std::cout << "Fail info: " << op_ptr->GetTypeString() << std::endl;
                 }
 
                 all_pass &= pass;
 
                 if(do_log)
                 {
-                    std::cout << "in : ";
-                    show_data_nhwc_layout(output);
-                    std::cout << std::endl;
-
-                    std::cout << "wei: ";
-                    show_data_nhwc_layout(weight_host_result);
-                    std::cout << std::endl;
-
-                    std::cout << "out  : ";
-                    show_data_nhwc_layout(input);
-                    std::cout << std::endl;
-
-                    std::cout << "wei_device: ";
-                    show_data_nhwc_layout(weight_device_result);
-                    std::cout << std::endl;
+                    LogRangeAsType<float>(std::cout << "output : ", output.mData, ",") << std::endl;
+                    ;
+                    LogRangeAsType<float>(
+                        std::cout << "weight (device): ", weight_device_result.mData, ",")
+                        << std::endl;
+                    ;
+                    LogRangeAsType<float>(
+                        std::cout << "weight (host): ", weight_host_result.mData, ",")
+                        << std::endl;
+                    ;
+                    LogRangeAsType<float>(std::cout << "input: ", input.mData, ",") << std::endl;
+                    ;
                 }
             }
         }

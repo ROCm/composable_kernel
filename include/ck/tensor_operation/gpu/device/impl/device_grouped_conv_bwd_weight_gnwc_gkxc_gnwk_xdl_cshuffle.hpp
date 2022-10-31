@@ -940,6 +940,11 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Xdl_CShuffle
                                 index_t{1},
                                 std::multiplies<>{});
 
+            std::cout << "Stride A: " << compute_ptr_offset_of_batch_.BatchStrideA_ << std::endl;
+            std::cout << "Stride B: " << compute_ptr_offset_of_batch_.BatchStrideB_ << std::endl;
+            std::cout << "Stride C: " << compute_ptr_offset_of_batch_.BatchStrideC_ << std::endl;
+            std::cout << "Conv_G: " << Conv_G_ << std::endl;
+
             if(GridwiseGemm::CheckValidity(a_grid_desc_kbatch_k0_m_k1_,
                                            b_grid_desc_kbatch_k0_n_k1_,
                                            c_grid_desc_m_n_,
@@ -1002,14 +1007,12 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Xdl_CShuffle
                       << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I2) << ", "
                       << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I3) << "}" << std::endl;
 
-            std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
+            std::cout << "arg.c_grid_desc_m_n_{" << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                       << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
         }
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            ShowInfo(arg);
-
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
                                             arg.b_grid_desc_kbatch_k0_n_k1_,
                                             arg.c_grid_desc_m_n_,
@@ -1222,7 +1225,7 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Xdl_CShuffle
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceConvNdBwdWeightNwcKxcNwk_Xdl_CShuffle"
+        str << "DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
