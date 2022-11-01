@@ -126,6 +126,8 @@ bool profile_groupnorm_impl(int do_verification,
             gamma_dev.GetDeviceBuffer(),
             beta_dev.GetDeviceBuffer(),
             y_dev.GetDeviceBuffer(),
+            nullptr,
+            nullptr,
             PassThrough{});
 
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))

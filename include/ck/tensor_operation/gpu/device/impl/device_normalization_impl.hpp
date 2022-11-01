@@ -426,8 +426,16 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                         const void* p_gamma,
                         const void* p_beta,
                         void* p_y,
+                        void* p_saveMean,
+                        void* p_saveInvVar,
                         AccElementwiseOperation acc_elementwise_op) override
     {
+        // TODO
+        // Optional cache of the intermediate results (mean and InvVariance) during the
+        // forward pass could speedup in the backward
+        ignore = p_saveMean;
+        ignore = p_saveInvVar;
+
         return std::make_unique<Argument>(lengths,
                                           xStrides,
                                           gammaStrides,
