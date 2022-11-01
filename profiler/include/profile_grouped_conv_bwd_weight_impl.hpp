@@ -14,7 +14,7 @@
 #include "ck/tensor_operation/gpu/device/device_conv_fwd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/convolution_backward_weight.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_backward_weight.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
