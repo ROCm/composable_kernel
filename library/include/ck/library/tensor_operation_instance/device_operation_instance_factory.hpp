@@ -81,7 +81,7 @@ using Scale          = ck::tensor_operation::element_wise::Scale;
 using Bilinear       = ck::tensor_operation::element_wise::Bilinear;
 using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
 
-template <typename DeviceOp>
+template <typename DeviceOp, typename Tag = void>
 struct DeviceOperationInstanceFactory;
 
 } // namespace instance
