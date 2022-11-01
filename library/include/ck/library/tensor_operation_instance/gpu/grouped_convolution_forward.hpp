@@ -177,6 +177,10 @@ void add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_int8_instances(
                                                      PassThrough,
                                                      PassThrough>>>& instances);
 
+struct ConvXDL
+{
+};
+
 template <ck::index_t NumDimSpatial,
           typename InLayout,
           typename WeiLayout,
@@ -185,16 +189,17 @@ template <ck::index_t NumDimSpatial,
           typename WeiDataType,
           typename OutDataType>
 struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupedConvFwd<
-    NumDimSpatial,
-    InLayout,
-    WeiLayout,
-    OutLayout,
-    InDataType,
-    WeiDataType,
-    OutDataType,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough>>
+                                          NumDimSpatial,
+                                          InLayout,
+                                          WeiLayout,
+                                          OutLayout,
+                                          InDataType,
+                                          WeiDataType,
+                                          OutDataType,
+                                          ck::tensor_operation::element_wise::PassThrough,
+                                          ck::tensor_operation::element_wise::PassThrough,
+                                          ck::tensor_operation::element_wise::PassThrough>,
+                                      ConvXDL>
 {
     using DeviceOp = DeviceGroupedConvFwd<NumDimSpatial,
                                           InLayout,
