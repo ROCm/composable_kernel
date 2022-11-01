@@ -115,7 +115,7 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
                 desc,
                 make_tuple(make_merge_transform(mLengths), make_merge_transform(nLengths)),
                 make_tuple(mDimIds, nDimIds),
-                make_tuple(Sequence<1>{}, Sequence<0>{}));
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
 
             return PadDescriptor_MN_2d(desc_mn, gridSize, blockSize);
         }
@@ -150,6 +150,8 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
                                                        ElementwiseOperation,
                                                        MPerThread,
                                                        NPerThread,
+						       //num_threads_m,
+						       //num_threads_n,
                                                        InScalarPerVectorSeq,
                                                        OutScalarPerVectorSeq>;
 
@@ -199,6 +201,9 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
                         lengths, outStridesArray[I.value], gridSize_, blockSize_);
                 },
                 Number<NumOutput>{});
+
+	    //num_threads_m = 1;
+	    //num_threads_n = gridSize_ * blockSize_;
         }
 
         InDataTypePointerTuple in_dev_buffers_;
@@ -264,14 +269,6 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
                                           const std::array<index_t, NumDim>& strides,
                                           index_t scalarPerVector,
                                           index_t vectorDim) {
-            // std::cout << "scalarPerVector: " << scalarPerVector << std::endl;
-            // std::cout << "stride back: " << strides.back() << std::endl;
-            // std::cout << "len back: " << lengths.back() << std::endl;
-            // std::cout << "NumDim-1: " << NumDim - 1 << std::endl;
-            // std::cout << "stride[nd-1]: " << strides[NumDim - 1] << std::endl;
-            // std::cout << "NumDim_m-1: " << NumDim_m - 1 << std::endl;
-            // std::cout << std::endl;
-            // std::cout << "ISPVV Check 1 starting" << std::endl;
             if(strides[vectorDim] == 1 &&
                (lengths[vectorDim] % scalarPerVector == 0 ||
                 lengths[vectorDim] % scalarPerVector == lengths[vectorDim]))
@@ -293,18 +290,6 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
             return false;
         };
 
-        /**auto IsOutScalarPerVectorValid =
-            [&](const std::array<index_t, NumDim>& lengths,
-                const std::array<index_t, NumDim>& strides,
-                index_t scalarPerVector) {
-                std::cout << "ISPVV Check 1 starting" << std::endl;
-                if(strides.back() != 1 && lengths.back() % scalarPerVector == strides[NumDim - 1])
-                {
-                    std::cout << "Check 1 passed " << std::endl;
-                    return true;
-                }
-                std::cout << "Check 1 failed" << std::endl;
-            };**/
 
         bool valid = true;
         static_for<0, NumInput, 1>{}([&](auto I) {

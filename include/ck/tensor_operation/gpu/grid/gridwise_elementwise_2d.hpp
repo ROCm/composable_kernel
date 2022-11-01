@@ -104,18 +104,22 @@ struct GridwiseElementwise_2D
         const index_t blockSize      = get_block_size();
         const index_t blockPerGrid   = get_grid_size();
         const index_t totalNumThread = blockSize * blockPerGrid;
+	const index_t num_threads_m = 4;
+	const index_t num_threads_n = totalNumThread/4;
+	//static_assert(num_threads_m * num_threads_n == totalNumThread, "error: threads per dimension not equal to total threads");
+
 
         const auto M = in_grid_2d_desc_tuple[I0].GetLength(I0);
         const auto N = in_grid_2d_desc_tuple[I0].GetLength(I1);
 
-        const index_t loop_step_m = MPerThread;
-        const index_t loop_step_n = totalNumThread * NPerThread;
+        const index_t loop_step_m = num_threads_m * MPerThread;
+        const index_t loop_step_n = num_threads_n * NPerThread;
 
         const index_t thread_1d_id = get_thread_global_1d_id();
-        // index_t tid_m              = thread_1d_id / (N / NPerThread);
-        // index_t tid_n              = thread_1d_id % (N / NPerThread);
+        index_t tid_m              = thread_1d_id / num_threads_n;
+        index_t tid_n              = thread_1d_id % num_threads_n;
 
-        const auto thread_global_offset = make_multi_index(0, thread_1d_id * NPerThread);
+        const auto thread_global_offset = make_multi_index(tid_m * MPerThread, tid_n * NPerThread);
 
         auto in_global_load_tuple = generate_tuple(
             [&](auto I) {
