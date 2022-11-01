@@ -12,6 +12,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_softmax_gemm_xdl_cshuffle_v1.hpp"
 #include "ck/host_utility/device_prop.hpp"
@@ -196,7 +197,8 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                           BElementwiseOperation,
                                           AccElementwiseOperation,
                                           B1ElementwiseOperation,
-                                          CElementwiseOperation>
+                                          CElementwiseOperation,
+                                          MaskOutUpperTriangle>
 {
     using DeviceOp = DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle;
 
@@ -315,29 +317,6 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         return matrix_padder.PadCDescriptor_M_N(c_grid_desc_mraw_nraw);
     }
 
-    // to track the points which need to be set to -inf on C0
-    // Note: no need to reset M padding value, because they will not be stored out.
-    struct C0MatrixMask
-    {
-        C0MatrixMask(index_t NRaw) : NRaw_(NRaw) {}
-
-        __host__ __device__ bool IsUpperTriangle(index_t m, index_t n) const { return n > m; }
-
-        __host__ __device__ bool IsNOutOfBound(/*index_t m, */ index_t n) const
-        {
-            return n >= NRaw_;
-        }
-
-        __host__ __device__ bool IsMaskedElement(index_t m, index_t n) const
-        {
-            return IsUpperTriangle(m, n) || IsNOutOfBound(n);
-        }
-
-        private:
-        // index_t MRaw_;
-        index_t NRaw_;
-    };
-
     struct ComputeBasePtrOfStridedBatch
     {
         ComputeBasePtrOfStridedBatch(index_t BatchStrideA,
@@ -382,6 +361,10 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
     using BGridDesc_BK0_N_BK1  = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
     using B1GridDesc_BK0_N_BK1 = decltype(MakeB1GridDescriptor_BK0_N_BK1(1, 1, 1));
     using CGridDesc_M_N        = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+
+    using C0MatrixMask = conditional_t<MaskOutUpperTriangle,
+                                       C0MatrixMask_impl<MaskOutUpperTrianglePredicate>,
+                                       C0MatrixMask_impl<MaskDisabledPredicate>>;
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle<
