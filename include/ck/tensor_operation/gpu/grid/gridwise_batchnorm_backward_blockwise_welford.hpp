@@ -410,6 +410,7 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                 BlockwiseWelford::Run(mean_thread_buf(I), var_thread_buf(I), count);
             });
 
+            // calculate inv-variance as 1/sqrt(epsilon+variance)
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
                 inv_var_thread_buf(I) =
                     type_convert<AccDataType>(1.0) / sqrt(var_thread_buf[I] + epsilon);

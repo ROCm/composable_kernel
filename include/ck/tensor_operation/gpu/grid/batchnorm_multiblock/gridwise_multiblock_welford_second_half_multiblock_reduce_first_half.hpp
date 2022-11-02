@@ -359,7 +359,7 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
                                       welford_count_thread_buf(I));
             });
 
-            // calculate inv-variance from variance, stored in place
+            // calculate inv-variance as 1/sqrt(epsilon+variance), stored in place of variance
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
                 welford_var_thread_buf(I) =
                     type_convert<AccDataType>(1.0) / sqrt(welford_var_thread_buf[I] + epsilon);
