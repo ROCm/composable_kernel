@@ -1,51 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <iostream>
-#include <numeric>
-#include <initializer_list>
-#include <cstdlib>
-
-#include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-
-#include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/device_memory.hpp"
-#include "ck/library/utility/host_tensor.hpp"
-#include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/utility/convolution_parameter.hpp"
-#include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
-
-void print_helper_msg()
-{
-    std::cout << "arg1: verification (0=no, 1=yes)\n"
-              << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
-              << "arg3: time kernel (0=no, 1=yes)\n"
-              << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
-}
-
-template <ck::index_t NDimSpatial,
-          typename OutDataType,
-          typename WeiDataType,
-          typename BiasDataType,
-          typename InDataType,
-          typename OutElementOp,
-          typename WeiElementOp,
-          typename InElementOp,
-          typename DeviceInstance>
-int run_conv_bwd_data_bias_relu(bool do_verification,
-                                int init_method,
-                                bool time_kernel,
-                                const ck::utils::conv::ConvParam& conv_param,
-                                const HostTensorDescriptor& out_g_n_k_wos_desc,
-                                const HostTensorDescriptor& wei_g_k_c_xs_desc,
-                                const HostTensorDescriptor& bias_g_n_c_wis_desc,
-                                const HostTensorDescriptor& in_g_n_c_wis_desc,
-                                const OutElementOp& out_element_op,
-                                const WeiElementOp& wei_element_op,
-                                const InElementOp& in_element_op)
+bool run_conv_bwd_data_bias_relu(const ExecutionConfig& config,
+                                 const ck::utils::conv::ConvParam& conv_params,
+                                 const HostTensorDescriptor& out_g_n_k_wos_desc,
+                                 const HostTensorDescriptor& wei_g_k_c_xs_desc,
+                                 const HostTensorDescriptor& bias_g_n_c_wis_desc,
+                                 const HostTensorDescriptor& in_g_n_c_wis_desc,
+                                 const OutElementOp& out_element_op,
+                                 const WeiElementOp& wei_element_op,
+                                 const InElementOp& in_element_op)
 {
     Tensor<OutDataType> out(out_g_n_k_wos_desc);
     Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
@@ -58,7 +22,7 @@ int run_conv_bwd_data_bias_relu(bool do_verification,
     std::cout << "bias: " << bias.mDesc << std::endl;
     std::cout << "in: " << in_host.mDesc << std::endl;
 
-    switch(init_method)
+    switch(config.init_method)
     {
     case 0: break;
     case 1:
@@ -107,13 +71,15 @@ int run_conv_bwd_data_bias_relu(bool do_verification,
     copy(bias_g_n_c_wis_desc.GetStrides(), d0_g_n_c_wis_strides);
     copy(in_g_n_c_wis_desc.GetLengths(), e_g_n_c_wis_lengths);
     copy(in_g_n_c_wis_desc.GetStrides(), e_g_n_c_wis_strides);
-    copy(conv_param.conv_filter_strides_, conv_filter_strides);
-    copy(conv_param.conv_filter_dilations_, conv_filter_dilations);
-    copy(conv_param.input_left_pads_, input_left_pads);
-    copy(conv_param.input_right_pads_, input_right_pads);
+    copy(conv_params.conv_filter_strides_, conv_filter_strides);
+    copy(conv_params.conv_filter_dilations_, conv_filter_dilations);
+    copy(conv_params.input_left_pads_, input_left_pads);
+    copy(conv_params.input_right_pads_, input_right_pads);
+
+    static_assert(std::is_default_constructible_v<DeviceConvInstance>);
 
     // do conv
-    auto conv     = DeviceInstance{};
+    auto conv     = DeviceConvInstance{};
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(
         out_device_buf.GetDeviceBuffer(),
@@ -138,16 +104,17 @@ int run_conv_bwd_data_bias_relu(bool do_verification,
 
     if(!conv.IsSupportedArgument(argument))
     {
-        printf("wrong! device_conv with the specified compilation parameters does "
-               "not support this Conv problem\n");
+        std::cerr << "wrong! device_conv with the specified compilation parameters does "
+                     "not support this Conv problem"
+                  << std::endl;
 
-        return 1;
+        return false;
     }
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
 
-    std::size_t flop      = conv_param.GetFlops();
-    std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
+    std::size_t flop      = conv_params.GetFlops();
+    std::size_t num_btype = conv_params.GetByte<InDataType, WeiDataType, OutDataType>();
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -156,10 +123,8 @@ int run_conv_bwd_data_bias_relu(bool do_verification,
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
 
-    if(do_verification)
+    if(config.do_verification)
     {
-        using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
         // c doesn't physically exist, any layout is fine
         Tensor<float> c_host(in_g_n_c_wis_desc);
 
@@ -176,10 +141,10 @@ int run_conv_bwd_data_bias_relu(bool do_verification,
         auto ref_argument = ref_conv.MakeArgument(c_host,
                                                   wei,
                                                   out,
-                                                  conv_param.conv_filter_strides_,
-                                                  conv_param.conv_filter_dilations_,
-                                                  conv_param.input_left_pads_,
-                                                  conv_param.input_right_pads_,
+                                                  conv_params.conv_filter_strides_,
+                                                  conv_params.conv_filter_dilations_,
+                                                  conv_params.input_left_pads_,
+                                                  conv_params.input_right_pads_,
                                                   PassThrough{},
                                                   wei_element_op,
                                                   out_element_op);
@@ -192,8 +157,68 @@ int run_conv_bwd_data_bias_relu(bool do_verification,
 
         in_device_buf.FromDevice(in_device.mData.data());
 
-        return ck::utils::check_err(in_device.mData, in_host.mData) ? 0 : 1;
+        return ck::utils::check_err(in_device.mData, in_host.mData);
     }
 
-    return 0;
+    return true;
+}
+
+int run_grouped_conv_bwd_data_bias_relu_example(int argc, char* argv[])
+{
+    namespace ctc = ck::tensor_layout::convolution;
+
+    ExecutionConfig config;
+    ck::utils::conv::ConvParam conv_params = DefaultConvParams;
+
+    if(!parse_cmd_args(argc, argv, config, conv_params))
+    {
+        return EXIT_FAILURE;
+    }
+
+    const auto in_element_op  = InElementOp{};
+    const auto wei_element_op = WeiElementOp{};
+    const auto out_element_op = OutElementOp{};
+
+    if(conv_params.num_dim_spatial_ != NDimSpatial)
+    {
+        std::cerr << "unsupported # of spatials dimensions" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    // output image: GNHWK
+    const auto out_g_n_k_wos_desc =
+        ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
+            conv_params);
+
+    // weight: GKYXC
+    const auto wei_g_k_c_xs_desc =
+        ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(conv_params);
+
+    // input image bias: G_C
+    const auto bias_g_n_c_wis_desc = HostTensorDescriptor({conv_params.G_,
+                                                           conv_params.N_,
+                                                           conv_params.C_,
+                                                           conv_params.input_spatial_lengths_[0],
+                                                           conv_params.input_spatial_lengths_[1]},
+                                                          {
+                                                              conv_params.C_, // g
+                                                              0,              // n
+                                                              1,              // c
+                                                              0,              // hi
+                                                              0               // wi
+                                                          });
+
+    // input image: GNHWC
+    const auto in_g_n_c_wis_desc =
+        ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_params);
+
+    return !run_conv_bwd_data_bias_relu(config,
+                                        conv_params,
+                                        out_g_n_k_wos_desc,
+                                        wei_g_k_c_xs_desc,
+                                        bias_g_n_c_wis_desc,
+                                        in_g_n_c_wis_desc,
+                                        wei_element_op,
+                                        out_element_op,
+                                        in_element_op);
 }
