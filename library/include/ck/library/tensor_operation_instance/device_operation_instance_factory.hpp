@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "ck/utility/data_type.hpp"
-#include "ck/utility/tuple.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/tuple.hpp"
 
 namespace ck {
 namespace tensor_operation {
