@@ -100,6 +100,8 @@ int main()
         gamma_dev.GetDeviceBuffer(),
         beta_dev.GetDeviceBuffer(),
         y_dev.GetDeviceBuffer(),
+        nullptr,
+        nullptr,
         PassThrough{});
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
