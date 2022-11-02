@@ -7,6 +7,7 @@
 #include "ck/utility/math_v2.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/quantization_operation.hpp"
 
 namespace ck {
 namespace tensor_operation {
