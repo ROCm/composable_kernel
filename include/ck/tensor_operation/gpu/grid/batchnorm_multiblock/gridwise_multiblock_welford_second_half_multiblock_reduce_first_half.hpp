@@ -145,6 +145,11 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
+    // clang-format off
+    // Two of the steps of Multiblock BatchNorm Backward
+    // Step 1: Second half of Welford method to calculate mean and variance, as well as getting inv-variance = 1/sqrt(epsilon+variance) 
+    // Step 2: First half of Reduction: dbias = sum(dy), dscale = sum(dy * (x-mean) * inv-variance)
+    // clang-format on
     __device__ static void Run(const XYGridDesc_M_K& x_grid_desc_m_k,
                                const XYGridDesc_M_K& dy_grid_desc_m_k,
                                const MeanVarGridDesc_M& mean_var_grid_desc_m,
@@ -196,7 +201,7 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
             dy_thread_buf;
 
-        // buffer of values of dy * (x-mean) * invVariance, used as input of Blockwise reduction
+        // buffer of values of dy * (x-mean) * inv-variance, used as input of Blockwise reduction
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
             tmp1_thread_buf;
 
@@ -226,8 +231,9 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
         constexpr auto thread_buffer_desc_m_1 = make_naive_tensor_descriptor_packed(
             make_tuple(Number<MThreadSliceSize>{}, Number<1>{}));
 
-        // Step 1: load existing mean and inv-variance do final welford reduction on mean and
-        // variance
+        // clang-format off
+        // Step 1: load existing mean and inv-variance, or do final welford reduction on mean and variance as well as get inv-variance = 1/sqrt(epsilon+variance)
+        // clang-format on
 
         if(haveSavedMeanInvVar)
         {
@@ -451,7 +457,9 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
             reduce_dbias_thread_buf(I)  = type_convert<AccDataType>(0);
         });
 
-        // Step 2: do first-half reduction on dy and dy * (x-mean) * inv-variance
+        // clang-format off
+        // Step 2: first-half of reduction: dbias = sum(dy), dscale = sum(dy * (x-mean) * inv-variance)
+        // clang-format on
 
         for(index_t reducedTiles = 0; reducedTiles < num_xy_k_block_tile_iteration; ++reducedTiles)
         {

@@ -153,9 +153,9 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
     // Blockwise BatchNorm Backward
     // Input: x, dy, scale, savedMean and savedInvVar (optional), reduce_size
     // Output: dx, dscale, dbias
-    // Step 1: calculate to get mean and invVariance using welford method (if savedMean and savedInvVar not available)
-    // Step 2: reduce on dy and dy * (x - mean) * invVariance to get dbias and dscale respectively
-    // Step 3: calculate 1/reduce_size * invVariance * scale * (reduce_size * dy - dbias - dscale * (x - mean) * invVariance)) to get dx elementwise-ly
+    // Step 1: calculating mean and inv-variance using welford method (if savedMean/savedInvVar not available), where inv-variance = 1/sqrt(epsilon+variance)
+    // Step 2: reduction: dbias = sum(dy),  dscale = sum(dy *(x-mean) * inv-variance)
+    // Step 3: calculating dx = 1/reduce_size * inv-variance * scale * (reduce_size * dy - dbias - dscale * (x - mean) * inv-variance)) elementwise-ly
     // clang-format on
     __device__ static void Run(const XYGridDesc_M_K x_grid_desc_m_k,
                                const XYGridDesc_M_K dy_grid_desc_m_k,
@@ -344,6 +344,10 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
         auto dbias_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_dbias, bias_grid_desc_m.GetElementSpaceSize());
 
+        // clang-format off
+        // Step 1: calculating mean and inv-variance using welford method (if savedMean/savedInvVar not available), where inv-variance = 1/sqrt(epsilon+variance)
+        // clang-format on
+
         if(haveSavedMeanInvVar)
         {
             const auto mean_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -423,6 +427,10 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                                  thread_k_cluster_id * KThreadSliceSize));
         };
 
+        // clang-format off
+        // Step 2: reduction: dbias = sum(dy),  dscale = sum(dy *(x-mean) * inv-variance)
+        // clang-format on
+
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             dscale_thread_buf(I) = type_convert<AccDataType>(0);
             dbias_thread_buf(I)  = type_convert<AccDataType>(0);
@@ -481,6 +489,10 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                                        bias_grid_desc_m,
                                        dbias_global_buf);
         };
+
+        // clang-format off
+        // Step 3: calculating dx = 1/reduce_size * inv-variance * scale * (reduce_size * dy - dbias - dscale * (x - mean) * inv-variance)) elementwise-ly
+        // clang-format on
 
         threadwise_scale_load.Run(scale_grid_desc_m,
                                   scale_global_buf,

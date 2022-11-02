@@ -140,6 +140,11 @@ struct GridwiseReduceSecondHalfBatchNormBackwardFinal
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
+    // clang-format off
+    // Two of the steps of Multiblock BatchNorm Backward
+    // Step 1: Second half of Reduction: dbias = sum(dy), dscale = sum(dy * (x-mean) * inv-variance)
+    // Step 2: calculating dx = 1/reduce_size * inv-variance * scale * (reduce_size * dy - dbias - dscale * (x - mean) * inv-variance)) elementwise-ly
+    // clang-format on
     __device__ static void Run(const XYGridDesc_M_K& x_grid_desc_m_k,
                                const XYGridDesc_M_K& dy_grid_desc_m_k,
                                const XYGridDesc_M_K& dx_grid_desc_m_k,
@@ -208,7 +213,9 @@ struct GridwiseReduceSecondHalfBatchNormBackwardFinal
         constexpr auto thread_buffer_desc_m_1 = make_naive_tensor_descriptor_packed(
             make_tuple(Number<MThreadSliceSize>{}, Number<1>{}));
 
-        // Step 1: do final reduction for scale_diff and bias_diff and output
+        // clang-format off
+        // Step 1: do final reduction of dbias = sum(dy), dscale = sum(dy * (x-mean) * inv-variance)
+        // clang-format on
 
         auto threadwise_dscale_load_m_k =
             ThreadwiseTensorSliceTransfer_v2<ScaleDataType,
@@ -340,8 +347,9 @@ struct GridwiseReduceSecondHalfBatchNormBackwardFinal
                                      bias_grid_desc_m,
                                      dbias_global_buf);
 
-        // Step 2: calculate dx = 1/N * invVar * scale * (N * dy - biasDiff - scaleDiff * (x - mean)
-        // * invVar) and output
+        // clang-format off
+        // Step 2: calculate dx = 1/N * inv-variance * scale * (N * dy - dbias - dscale * (x - mean) * inv-variance)
+        // clang-format on
 
         const index_t workSizePerBlock = K_BlockTileSize * num_xy_k_block_tile_iteration;
 
