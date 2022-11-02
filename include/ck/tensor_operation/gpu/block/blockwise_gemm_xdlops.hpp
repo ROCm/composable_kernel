@@ -18,11 +18,11 @@ enum struct LoopScheduler
 
 constexpr LoopScheduler make_default_loop_scheduler()
 {
-#if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
+#if CK_EXPERIMENTAL_DEFAULT_TO_INTER_WAVE_SCHEDULING
     return LoopScheduler::Interwave;
 #else
     return LoopScheduler::Default;
-#endif // if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
+#endif // if CK_EXPERIMENTAL_DEFAULT_TO_INTER_WAVE_SCHEDULING
 }
 
 template <index_t MNXdlPerWave, index_t MNWaves, index_t MNPerXdl, typename TileDesc_K0_MN_K1>
