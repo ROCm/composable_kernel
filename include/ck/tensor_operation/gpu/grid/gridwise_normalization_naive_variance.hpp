@@ -14,7 +14,7 @@
 
 namespace ck {
 
-// Y = LayerNorm(X, Beta, Gamma)
+// Y = Normalization(X, Beta, Gamma)
 template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
@@ -36,7 +36,7 @@ template <typename XDataType,
           index_t YDstVectorDim,
           index_t YDstVectorSize,
           bool SweepOnce>
-struct GridwiseLayernormNaiveVariance_mk_to_mk
+struct GridwiseNormalizationNaiveVariance_mk_to_mk
 {
     static_assert((XSrcVectorDim == 0 && MThreadSliceSize % XSrcVectorSize == 0) ||
                       (XSrcVectorDim == 1 && KThreadSliceSize % XSrcVectorSize == 0),
