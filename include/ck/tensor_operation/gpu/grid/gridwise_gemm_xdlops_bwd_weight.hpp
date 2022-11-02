@@ -8,7 +8,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
@@ -243,7 +243,8 @@ template <index_t BlockSize,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           bool ABlockLdsExtraM1Wrw      = false,
           bool BBlockLdsExtraN1Wrw      = false,
-          index_t NumGemmKPrefetchStage = 1>
+          index_t NumGemmKPrefetchStage = 1,
+          PipelineVersion PipelineVer   = PipelineVersion::v1>
 struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
 {
     static constexpr auto I0 = Number<0>{};
@@ -258,8 +259,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
     // K1 should be Number<...>
     static constexpr auto K1 = Number<K1Value>{};
 
-    using ThisThreadBlock  = ThisThreadBlock<BlockSize>;
-    using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemmKPrefetchStage>;
+    using ThisThreadBlock = ThisThreadBlock<BlockSize>;
+
+    using GridwiseGemmPipe = remove_cvref_t<decltype(
+        GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage>())>;
 
     // M0/M1/M1Padding
     static constexpr auto M1PerBlock = Number<ABlockLdsM1PerBlock>{};
