@@ -109,8 +109,9 @@ int main()
                                                                         PassThrough,
                                                                         PassThrough>;
     // get device op instances
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
+    namespace instance = ck::tensor_operation::device::instance;
+    const auto op_ptrs =
+        instance::DeviceOperationInstanceFactory<DeviceOp, instance::ConvXDL>::GetInstances();
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
