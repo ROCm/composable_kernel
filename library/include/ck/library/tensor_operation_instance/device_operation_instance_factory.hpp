@@ -28,6 +28,8 @@ using F16_F16_Tuple = ck::Tuple<F16, F16>;
 
 using F32_Tuple = ck::Tuple<F32>;
 
+using I32_Tuple = ck::Tuple<I32>;
+
 // GEMM layout
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -75,11 +77,23 @@ using NWGK   = ck::tensor_layout::convolution::NWGK;
 using NHWGK  = ck::tensor_layout::convolution::NHWGK;
 using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
 
+//
+using GK       = ck::tensor_layout::convolution::G_K;
+using GK_TUPLE = ck::Tuple<GK>;
+
 // pointwise functor
 using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
+using Relu           = ck::tensor_operation::element_wise::Relu;
 using Scale          = ck::tensor_operation::element_wise::Scale;
 using Bilinear       = ck::tensor_operation::element_wise::Bilinear;
 using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
+
+template <typename Activation>
+using Activation_Mul_Clamp = ck::tensor_operation::element_wise::Activation_Mul_Clamp<Activation>;
+
+template <typename Activation>
+using Add_Activation_Mul_Clamp =
+    ck::tensor_operation::element_wise::Add_Activation_Mul_Clamp<Activation>;
 
 template <typename DeviceOp>
 struct DeviceOperationInstanceFactory;
