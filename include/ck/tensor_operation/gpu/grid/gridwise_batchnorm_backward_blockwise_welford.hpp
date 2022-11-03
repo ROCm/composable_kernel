@@ -506,6 +506,9 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
         threadwise_dy_load.MoveSrcSliceWindow(dy_grid_desc_m_k, thread_copy_bwd_step_m_k);
         threadwise_dx_store.MoveDstSliceWindow(dx_grid_desc_m_k, thread_copy_tail_m_k);
 
+        AccDataType inv_reduce_size =
+            type_convert<AccDataType>(1.0) / type_convert<AccDataType>(reduce_size);
+
         for(index_t reducedTiles = 0; reducedTiles < num_k_block_tile_iteration; ++reducedTiles)
         {
             threadwise_x_load.Run(x_grid_desc_m_k,
@@ -521,9 +524,8 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                                    dy_thread_buf);
 
             static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
-                AccDataType multiplier = type_convert<AccDataType>(1.0) /
-                                         type_convert<AccDataType>(reduce_size) *
-                                         inv_var_thread_buf[iM] * scale_thread_buf[iM];
+                AccDataType multiplier =
+                    inv_reduce_size * inv_var_thread_buf[iM] * scale_thread_buf[iM];
 
                 static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
                     constexpr auto offset =
