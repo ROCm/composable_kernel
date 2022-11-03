@@ -27,7 +27,7 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
-using ActivationOp = ck::tensor_operation::element_wise::Relu;
+using ActivationOp = PassThrough;
 using CDEElementOp = ck::tensor_operation::element_wise::Activation_Mul_Clamp<ActivationOp>;
 
 using ADataType        = I8;
