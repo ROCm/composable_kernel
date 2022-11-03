@@ -20,13 +20,17 @@ __global__ void kernel_elementwise_2d(const InGrid2dDescTuple in_grid_2d_desc_tu
                                       const OutGrid2dDescTuple out_grid_2d_desc_tuple,
                                       const InDataTypePointerTuple p_in_global_tuple,
                                       const OutDataTypePointerTuple p_out_global_tuple,
-                                      const ElementwiseOperation elementwise_op)
+                                      const ElementwiseOperation elementwise_op,
+                                      const index_t num_threads_m,
+                                      const index_t num_threads_n)
 {
     GridwiseElementwise2dFunctor::Run(in_grid_2d_desc_tuple,
                                       out_grid_2d_desc_tuple,
                                       p_in_global_tuple,
                                       p_out_global_tuple,
-                                      elementwise_op);
+                                      elementwise_op,
+                                      num_threads_m,
+                                      num_threads_n);
 }
 
 template <typename InGrid2dDescTuple,
@@ -61,7 +65,9 @@ struct GridwiseElementwise_2D
                                const OutGrid2dDescTuple out_grid_2d_desc_tuple,
                                const InDataTypePointerTuple p_in_global_tuple,
                                const OutDataTypePointerTuple p_out_global_tuple,
-                               const ElementwiseOperation elementwise_op)
+                               const ElementwiseOperation elementwise_op,
+                               const index_t num_threads_m,
+                               const index_t num_threads_n)
     {
         auto in_thread_buf_tuple = generate_tuple(
             [&](auto I) {
@@ -100,14 +106,6 @@ struct GridwiseElementwise_2D
                     p_out_global_tuple[I], out_grid_2d_desc_tuple[I].GetElementSpaceSize());
             },
             Number<NumOutput>{});
-
-        const index_t blockSize      = get_block_size();
-        const index_t blockPerGrid   = get_grid_size();
-        const index_t totalNumThread = blockSize * blockPerGrid;
-	const index_t num_threads_m = 4;
-	const index_t num_threads_n = totalNumThread/4;
-	//static_assert(num_threads_m * num_threads_n == totalNumThread, "error: threads per dimension not equal to total threads");
-
 
         const auto M = in_grid_2d_desc_tuple[I0].GetLength(I0);
         const auto N = in_grid_2d_desc_tuple[I0].GetLength(I1);
@@ -200,9 +198,6 @@ struct GridwiseElementwise_2D
                         unpack2(elementwise_op, out_data_refs, in_data_refs);
                     });
                 });
-
-                // static_for<0, MPerThread * NPerThread, 1>{}(
-                //[&](auto i) { out_thread_buf_tuple(I0)(i) = 1; });
 
                 static_for<0, NumOutput, 1>{}([&](auto I) {
                     out_global_store_tuple(I).Run(thread_buffer_desc_mn,
