@@ -26,7 +26,7 @@ function(add_gtest_executable TEST_NAME)
     # suppress gtest warnings
     target_compile_options(${TEST_NAME} PRIVATE -Wno-global-constructors -Wno-undef)
     target_link_libraries(${TEST_NAME} PRIVATE gtest_main)
-    gtest_discover_tests(${TEST_NAME})
+    add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> )
     rocm_install(TARGETS ${TEST_NAME} COMPONENT tests)
 endfunction(add_gtest_executable TEST_NAME)
 
