@@ -495,6 +495,9 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
         };
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+            if constexpr(I > 0)
+                block_sync_lds();
+
             BlockwiseReduce::Reduce(reduce_work_buf, reduce_dscale_thread_buf(I));
             block_sync_lds();
             BlockwiseReduce::Reduce(reduce_work_buf, reduce_dbias_thread_buf(I));
