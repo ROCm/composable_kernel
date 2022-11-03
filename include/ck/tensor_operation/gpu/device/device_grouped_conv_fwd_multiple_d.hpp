@@ -6,7 +6,6 @@
 #include <array>
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
-#include "ck/utility/tuple.hpp"
 
 namespace ck {
 namespace tensor_operation {
