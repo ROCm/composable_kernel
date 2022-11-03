@@ -18,6 +18,7 @@ template <typename GridwiseReduceSecondHalfBatchNormBackwardFinal_,
           typename ScaleDataType,
           typename BiasDataType,
           typename MeanVarDataType,
+          typename DyElementwiseOp,
           typename XYGridDesc_M_K,
           typename DscaleDbiasGridDesc_M_K,
           typename MeanVarGridDesc_M,
@@ -41,6 +42,7 @@ __global__ void kernel_reduce_second_half_batchnorm_backward_final(
     const XDataType* const __restrict__ p_x,
     const DyDataType* const __restrict__ p_dy,
     const ScaleDataType* const __restrict__ p_scale,
+    const DyElementwiseOp dy_elementwise_op,
     DxDataType* const __restrict__ p_dx,
     ScaleDataType* const __restrict__ p_dscale,
     BiasDataType* const __restrict__ p_dbias)
@@ -63,6 +65,7 @@ __global__ void kernel_reduce_second_half_batchnorm_backward_final(
                                                          p_x,
                                                          p_dy,
                                                          p_scale,
+                                                         dy_elementwise_op,
                                                          p_dx,
                                                          p_dscale,
                                                          p_dbias);
@@ -75,6 +78,7 @@ template <typename XDataType,
           typename ScaleDataType,
           typename BiasDataType,
           typename MeanVarDataType,
+          typename DyElementwiseOp,
           typename XYGridDesc_M_K,
           typename DscaleDbiasGridDesc_M_K,
           typename MeanVarGridDesc_M,
@@ -163,6 +167,7 @@ struct GridwiseReduceSecondHalfBatchNormBackwardFinal
                                const XDataType* const __restrict__ p_x,
                                const DyDataType* const __restrict__ p_dy,
                                const ScaleDataType* const __restrict__ p_scale,
+                               const DyElementwiseOp dy_elementwise_op,
                                DxDataType* const __restrict__ p_dx,
                                ScaleDataType* const __restrict__ p_dscale,
                                BiasDataType* const __restrict__ p_dbias)
@@ -497,6 +502,9 @@ struct GridwiseReduceSecondHalfBatchNormBackwardFinal
                 static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
                     constexpr auto offset =
                         thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
+
+                    dy_elementwise_op(dy_thread_buf(Number<offset>{}),
+                                      dy_thread_buf[Number<offset>{}]);
 
                     AccDataType norm_x = (x_thread_buf[Number<offset>{}] - mean_thread_buf[iM]) *
                                          inv_var_thread_buf[iM];

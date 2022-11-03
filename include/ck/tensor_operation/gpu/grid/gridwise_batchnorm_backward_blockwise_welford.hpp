@@ -23,6 +23,7 @@ template <typename GridwiseBatchrNormBackwardWithBlockwiseWelford_,
           typename ScaleDataType,
           typename BiasDataType,
           typename MeanVarDataType,
+          typename DyElementwiseOp,
           typename XYGridDesc_M_K,
           typename ScaleBiasGridDesc_M,
           typename MeanVarGridDesc_M,
@@ -44,6 +45,7 @@ __global__ void kernel_batchnorm_backward_with_blockwise_welford(
     bool haveSavedMeanInvVar,
     const MeanVarDataType* const __restrict__ p_savedMean,
     const MeanVarDataType* const __restrict__ p_savedInvVar,
+    const DyElementwiseOp dy_elementwise_op,
     DxDataType* const __restrict__ p_dx,
     ScaleDataType* const __restrict__ p_dscale,
     BiasDataType* const __restrict__ p_dbias)
@@ -64,6 +66,7 @@ __global__ void kernel_batchnorm_backward_with_blockwise_welford(
                                                          haveSavedMeanInvVar,
                                                          p_savedMean,
                                                          p_savedInvVar,
+                                                         dy_elementwise_op,
                                                          p_dx,
                                                          p_dscale,
                                                          p_dbias);
@@ -76,6 +79,7 @@ template <typename XDataType,
           typename ScaleDataType,
           typename BiasDataType,
           typename MeanVarDataType,
+          typename DyElementwiseOp,
           typename XYGridDesc_M_K,
           typename ScaleBiasGridDesc_M,
           typename MeanVarGridDesc_M,
@@ -173,6 +177,7 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                                bool haveSavedMeanInvVar,
                                const MeanVarDataType* const __restrict__ p_savedMean,
                                const MeanVarDataType* const __restrict__ p_savedInvVar,
+                               const DyElementwiseOp dy_elementwise_op,
                                DxDataType* const __restrict__ p_dx,
                                ScaleDataType* const __restrict__ p_dscale,
                                BiasDataType* const __restrict__ p_dbias)
@@ -455,6 +460,9 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                     constexpr auto offset =
                         thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
 
+                    dy_elementwise_op(dy_thread_buf(Number<offset>{}),
+                                      dy_thread_buf[Number<offset>{}]);
+
                     AccDataType norm_x = (x_thread_buf[Number<offset>{}] - mean_thread_buf[iM]) *
                                          inv_var_thread_buf[iM];
 
@@ -530,6 +538,9 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                 static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
                     constexpr auto offset =
                         thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
+
+                    dy_elementwise_op(dy_thread_buf(Number<offset>{}),
+                                      dy_thread_buf[Number<offset>{}]);
 
                     AccDataType norm_x = (x_thread_buf[Number<offset>{}] - mean_thread_buf[iM]) *
                                          inv_var_thread_buf[iM];

@@ -13,7 +13,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <index_t Rank, index_t NumBatchNormReduceDim>
+template <index_t Rank, index_t NumBatchNormReduceDim, typename DyElementwiseOp>
 struct DeviceBatchNormBwd : public BaseOperator
 {
     static constexpr index_t NumInvariantDim = Rank - NumBatchNormReduceDim;
@@ -34,6 +34,7 @@ struct DeviceBatchNormBwd : public BaseOperator
                         const void* p_savedMean,
                         const void* p_savedInvVar,
                         double epsilon,
+                        const DyElementwiseOp dy_elementwise_op,
                         void* p_dx,
                         void* p_dscale,
                         void* p_dbias) = 0;
@@ -41,8 +42,9 @@ struct DeviceBatchNormBwd : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <index_t Rank, index_t NumBatchNormReduceDim>
-using DeviceBatchNormBwdPtr = std::unique_ptr<DeviceBatchNormBwd<Rank, NumBatchNormReduceDim>>;
+template <index_t Rank, index_t NumBatchNormReduceDim, typename DyElementwiseOp>
+using DeviceBatchNormBwdPtr =
+    std::unique_ptr<DeviceBatchNormBwd<Rank, NumBatchNormReduceDim, DyElementwiseOp>>;
 
 } // namespace device
 } // namespace tensor_operation

@@ -253,6 +253,8 @@ bool bnorm_bwd_nhwc_test(bool do_verification,
               scaleBiasMeanVarStrides.end(),
               i_scaleBiasMeanVarStrides.begin());
 
+    using PassThroughOp = ck::tensor_operation::element_wise::PassThrough;
+
     using DeviceBatchNormBwdInstance =
         ck::tensor_operation::device::DeviceBatchNormBwdImpl<InOutDataType,
                                                              InOutDataType,
@@ -261,6 +263,7 @@ bool bnorm_bwd_nhwc_test(bool do_verification,
                                                              AccDataType, // ScaleDataType
                                                              AccDataType, // BiasDataType
                                                              AccDataType, // MeanVarDataType
+                                                             PassThroughOp,
                                                              Rank,
                                                              NumReduceDim,
                                                              UseMultiblockInK,
@@ -295,6 +298,7 @@ bool bnorm_bwd_nhwc_test(bool do_verification,
         haveSavedMeanInvVar ? savedMean_dev.GetDeviceBuffer() : nullptr,
         haveSavedMeanInvVar ? savedInvVar_dev.GetDeviceBuffer() : nullptr,
         epsilon,
+        PassThroughOp{},
         dx_dev.GetDeviceBuffer(),
         bnScaleDiff_dev.GetDeviceBuffer(),
         bnBiasDiff_dev.GetDeviceBuffer());
@@ -350,7 +354,8 @@ bool bnorm_bwd_nhwc_test(bool do_verification,
                                                                                      AccDataType,
                                                                                      AccDataType,
                                                                                      AccDataType,
-                                                                                     AccDataType>;
+                                                                                     AccDataType,
+                                                                                     PassThroughOp>;
 
         auto batchNormBwd_ref = ReferenceBatchNormBwdInstance{};
 
@@ -370,6 +375,7 @@ bool bnorm_bwd_nhwc_test(bool do_verification,
             haveSavedMeanInvVar ? savedMean.mData.data() : nullptr,
             haveSavedMeanInvVar ? savedInvVar.mData.data() : nullptr,
             epsilon,
+            PassThroughOp{},
             dx_ref.mData.data(),
             bnScaleDiff_ref.mData.data(),
             bnBiasDiff_ref.mData.data());

@@ -19,8 +19,10 @@ template <typename XDataType,
           typename AccDataType,
           typename ScaleDataType,
           typename BiasDataType,
-          typename MeanVarDataType>
-struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatchNormBwd<4, 3>
+          typename MeanVarDataType,
+          typename DyElementwiseOp>
+struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C
+    : public device::DeviceBatchNormBwd<4, 3, DyElementwiseOp>
 {
     struct Argument : public device::BaseArgument
     {
@@ -39,6 +41,7 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                  const MeanVarDataType* p_savedMean,
                  const MeanVarDataType* p_savedInvVar,
                  double epsilon,
+                 const DyElementwiseOp dy_elementwise_op,
                  DxDataType* p_dx,
                  ScaleDataType* p_dscale,
                  BiasDataType* p_dbias)
@@ -48,6 +51,7 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
               p_savedMean_(p_savedMean),
               p_savedInvVar_(p_savedInvVar),
               epsilon_(epsilon),
+              dy_elementwise_op_(dy_elementwise_op),
               p_dx_(p_dx),
               p_dscale_(p_dscale),
               p_dbias_(p_dbias)
@@ -79,6 +83,7 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
         const MeanVarDataType* p_savedInvVar_;
 
         double epsilon_;
+        const DyElementwiseOp dy_elementwise_op_;
 
         DxDataType* p_dx_;
         ScaleDataType* p_dscale_;
@@ -165,6 +170,8 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                             AccDataType norm_x = (x - mean) * invVar;
                             AccDataType dy     = type_convert<AccDataType>(arg.p_dy_[offset]);
 
+                            arg.dy_elementwise_op_(dy, dy);
+
                             dbias += dy;
                             dscale += norm_x * dy;
                         };
@@ -193,6 +200,8 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                             AccDataType norm_x = (x - mean) * invVar;
                             AccDataType dy     = type_convert<AccDataType>(arg.p_dy_[offset]);
                             AccDataType scale  = type_convert<AccDataType>(arg.p_scale_[offset_C]);
+
+                            arg.dy_elementwise_op_(dy, dy);
 
                             AccDataType tmpVal = norm_x * dscale;
 
@@ -258,6 +267,7 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                         const void* p_savedMean,
                         const void* p_savedInvVar,
                         double epsilon,
+                        const DyElementwiseOp dy_elementwise_op,
                         void* p_dx,
                         void* p_dscale,
                         void* p_dbias) override
@@ -277,6 +287,7 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                                           static_cast<const MeanVarDataType*>(p_savedMean),
                                           static_cast<const MeanVarDataType*>(p_savedInvVar),
                                           epsilon,
+                                          dy_elementwise_op,
                                           static_cast<DxDataType*>(p_dx),
                                           static_cast<ScaleDataType*>(p_dscale),
                                           static_cast<BiasDataType*>(p_dbias));

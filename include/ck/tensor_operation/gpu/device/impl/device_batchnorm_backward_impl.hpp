@@ -29,6 +29,7 @@ template <typename XDataType,
           typename ScaleDataType,
           typename BiasDataType,
           typename MeanVarDataType,
+          typename DyElementwiseOp,
           index_t Rank,
           index_t NumBatchNormReduceDim,
           bool UseMultiblockInK,
@@ -44,7 +45,8 @@ template <typename XDataType,
           index_t ScaleSrcDstVectorSize,
           index_t BiasDstVectorSize,
           index_t MeanVarSrcVectorSize>
-struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormReduceDim>
+struct DeviceBatchNormBwdImpl
+    : public DeviceBatchNormBwd<Rank, NumBatchNormReduceDim, DyElementwiseOp>
 {
     static_assert(Rank <= 6, "Bigger Rank size is not supported!");
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
@@ -199,6 +201,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                  const ScaleDataType* p_scale,
                  const MeanVarDataType* p_savedMean,
                  const MeanVarDataType* p_savedInvVar,
+                 const DyElementwiseOp dy_elementwise_op,
                  double epsilon,
                  DxDataType* p_dx,
                  ScaleDataType* p_dscale,
@@ -212,6 +215,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
               p_scale_(p_scale),
               p_savedMean_(p_savedMean),
               p_savedInvVar_(p_savedInvVar),
+              dy_elementwise_op_(dy_elementwise_op),
               p_dx_(p_dx),
               p_dscale_(p_dscale),
               p_dbias_(p_dbias)
@@ -293,6 +297,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
         const ScaleDataType* p_scale_;
         const MeanVarDataType* p_savedMean_;
         const MeanVarDataType* p_savedInvVar_;
+        const DyElementwiseOp dy_elementwise_op_;
         DxDataType* p_dx_;
         ScaleDataType* p_dscale_;
         BiasDataType* p_dbias_;
@@ -451,6 +456,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                                                          ScaleDataType,
                                                          BiasDataType,
                                                          MeanVarDataType,
+                                                         DyElementwiseOp,
                                                          XYGridDesc_M_K,
                                                          MeanVarGridDesc_M,
                                                          MeanVarCountGridDesc_M_K,
@@ -473,6 +479,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                                                                ScaleDataType,
                                                                BiasDataType,
                                                                MeanVarDataType,
+                                                               DyElementwiseOp,
                                                                XYGridDesc_M_K,
                                                                DscaleDbiasGridDesc_M_K,
                                                                MeanVarGridDesc_M,
@@ -548,6 +555,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                         ScaleDataType,
                         BiasDataType,
                         MeanVarDataType,
+                        DyElementwiseOp,
                         XYGridDesc_M_K,
                         MeanVarGridDesc_M,
                         MeanVarCountGridDesc_M_K,
@@ -562,6 +570,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                         ScaleDataType,
                         BiasDataType,
                         MeanVarDataType,
+                        DyElementwiseOp,
                         XYGridDesc_M_K,
                         DscaleDbiasGridDesc_M_K,
                         MeanVarGridDesc_M,
@@ -596,6 +605,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                         : static_cast<const MeanVarDataType*>(arg.workspace_variance),
                     arg.haveSavedMeanInvVar_ ? nullptr
                                              : static_cast<const int32_t*>(arg.workspace_count),
+                    arg.dy_elementwise_op_,
                     arg.haveSavedMeanInvVar_
                         ? nullptr
                         : static_cast<MeanVarDataType*>(arg.workspace_savedMean),
@@ -635,6 +645,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                     arg.p_x_,
                     arg.p_dy_,
                     arg.p_scale_,
+                    arg.dy_elementwise_op_,
                     arg.p_dx_,
                     arg.p_dscale_,
                     arg.p_dbias_);
@@ -655,6 +666,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                                                                   ScaleDataType,
                                                                   BiasDataType,
                                                                   MeanVarDataType,
+                                                                  DyElementwiseOp,
                                                                   XYGridDesc_M_K,
                                                                   ScaleBiasGridDesc_M,
                                                                   MeanVarGridDesc_M,
@@ -681,6 +693,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                     ScaleDataType,
                     BiasDataType,
                     MeanVarDataType,
+                    DyElementwiseOp,
                     XYGridDesc_M_K,
                     ScaleBiasGridDesc_M,
                     MeanVarGridDesc_M,
@@ -707,6 +720,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                                                    arg.haveSavedMeanInvVar_,
                                                    arg.p_savedMean_,
                                                    arg.p_savedInvVar_,
+                                                   arg.dy_elementwise_op_,
                                                    arg.p_dx_,
                                                    arg.p_dscale_,
                                                    arg.p_dbias_);
@@ -800,6 +814,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                         const void* p_savedMean,
                         const void* p_savedInvVar,
                         double epsilon,
+                        const DyElementwiseOp dy_elementwise_op,
                         void* p_dx,
                         void* p_dscale,
                         void* p_dbias) override
@@ -818,6 +833,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                                           static_cast<const ScaleDataType*>(p_scale),
                                           static_cast<const MeanVarDataType*>(p_savedMean),
                                           static_cast<const MeanVarDataType*>(p_savedInvVar),
+                                          dy_elementwise_op,
                                           epsilon,
                                           static_cast<DxDataType*>(p_dx),
                                           static_cast<ScaleDataType*>(p_dscale),

@@ -19,6 +19,7 @@ template <typename GridwiseWelfordSecondHalfReduceFirstHalf_,
           typename ScaleDataType,
           typename BiasDataType,
           typename MeanVarDataType,
+          typename DyElementwiseOp,
           typename XYGridDesc_M_K,
           typename MeanVarGridDesc_M,
           typename MeanVarCountGridDesc_M_K,
@@ -39,6 +40,7 @@ __global__ void kernel_welford_second_half_reduce_first_half(
     const MeanVarDataType* const __restrict__ p_in_welford_mean,
     const MeanVarDataType* const __restrict__ p_in_welford_variance,
     const int32_t* const __restrict__ p_in_welford_count,
+    const DyElementwiseOp dy_elementwise_op,
     MeanVarDataType* const __restrict__ p_out_welford_mean,
     MeanVarDataType* const __restrict__ p_out_welford_inv_variance,
     const XDataType* const __restrict__ p_x,
@@ -61,6 +63,7 @@ __global__ void kernel_welford_second_half_reduce_first_half(
                                                    p_in_welford_mean,
                                                    p_in_welford_variance,
                                                    p_in_welford_count,
+                                                   dy_elementwise_op,
                                                    p_out_welford_mean,
                                                    p_out_welford_inv_variance,
                                                    p_x,
@@ -75,6 +78,7 @@ template <typename XDataType,
           typename ScaleDataType,
           typename BiasDataType,
           typename MeanVarDataType,
+          typename DyElementwiseOp,
           typename XYGridDesc_M_K,
           typename MeanVarGridDesc_M,
           typename MeanVarCountGridDesc_M_K,
@@ -165,6 +169,7 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
                                const MeanVarDataType* const __restrict__ p_in_welford_mean,
                                const MeanVarDataType* const __restrict__ p_in_welford_variance,
                                const int32_t* const __restrict__ p_in_welford_count,
+                               const DyElementwiseOp dy_elementwise_op,
                                MeanVarDataType* const __restrict__ p_out_welford_mean,
                                MeanVarDataType* const __restrict__ p_out_welford_inv_variance,
                                const XDataType* const __restrict__ p_x,
@@ -479,6 +484,9 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
                 static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
                     constexpr auto offset =
                         thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
+
+                    dy_elementwise_op(dy_thread_buf(Number<offset>{}),
+                                      dy_thread_buf[Number<offset>{}]);
 
                     AccDataType norm_x = (x_thread_buf[Number<offset>{}] - mean_thread_buf[iM]) *
                                          inv_var_thread_buf[iM];
