@@ -6,7 +6,6 @@
 #include <array>
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd.hpp"
 #include "ck/utility/tuple.hpp"
 
 namespace ck {
@@ -60,100 +59,6 @@ struct DeviceGroupedConvFwdMultipleD : public BaseOperator
         const CDEElementwiseOperation& cde_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
-};
-
-template <index_t NDimSpatial,
-          typename ALayout,
-          typename BLayout,
-          typename ELayout,
-          typename ADataType,
-          typename BDataType,
-          typename EDataType,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CDEElementwiseOperation>
-struct DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                     ALayout,
-                                     BLayout,
-                                     Tuple<>,
-                                     ELayout,
-                                     ADataType,
-                                     BDataType,
-                                     Tuple<>,
-                                     EDataType,
-                                     AElementwiseOperation,
-                                     BElementwiseOperation,
-                                     CDEElementwiseOperation>
-    : public DeviceGroupedConvFwd<NDimSpatial,
-                                  ALayout,
-                                  BLayout,
-                                  ELayout,
-                                  ADataType,
-                                  BDataType,
-                                  EDataType,
-                                  AElementwiseOperation,
-                                  BElementwiseOperation,
-                                  CDEElementwiseOperation>
-{
-    virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const void* p_a, // input image
-                        const void* p_b, // weight
-                        const std::array<const void*, 0>&,
-                        void* p_e, // output image
-                        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-                        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-                        const std::array<std::array<index_t, NDimSpatial + 3>, 0>&,
-                        const std::array<std::array<index_t, NDimSpatial + 3>, 0>&,
-                        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
-                        const std::array<index_t, NDimSpatial>& conv_filter_strides,
-                        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-                        const std::array<index_t, NDimSpatial>& input_left_pads,
-                        const std::array<index_t, NDimSpatial>& input_right_pads,
-                        const AElementwiseOperation& a_element_op,
-                        const BElementwiseOperation& b_element_op,
-                        const CDEElementwiseOperation& cde_element_op) = 0;
-
-    std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const void* p_in,  // input image
-                        const void* p_wei, // weight
-                        void* p_out,       // output image
-                        const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_strides,
-                        const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_strides,
-                        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_strides,
-                        const std::array<index_t, NDimSpatial>& conv_filter_strides,
-                        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-                        const std::array<index_t, NDimSpatial>& input_left_pads,
-                        const std::array<index_t, NDimSpatial>& input_right_pads,
-                        const AElementwiseOperation& a_element_op,
-                        const BElementwiseOperation& b_element_op,
-                        const CDEElementwiseOperation& cde_element_op) override final
-    {
-        return MakeArgumentPointer(p_in,
-                                   p_wei,
-                                   std::array<const void*, 0>{},
-                                   p_out,
-                                   in_g_n_c_wis_lengths,
-                                   in_g_n_c_wis_strides,
-                                   wei_g_k_c_xs_lengths,
-                                   wei_g_k_c_xs_strides,
-                                   std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{},
-                                   std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{},
-                                   out_g_n_k_wos_lengths,
-                                   out_g_n_k_wos_strides,
-                                   conv_filter_strides,
-                                   conv_filter_dilations,
-                                   input_left_pads,
-                                   input_right_pads,
-                                   a_element_op,
-                                   b_element_op,
-                                   cde_element_op);
-    }
 };
 
 } // namespace device

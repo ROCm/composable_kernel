@@ -11,7 +11,6 @@
 #include "ck/ck.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_conv_fwd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 using InDataType  = ck::half_t;
@@ -98,20 +97,22 @@ int main()
     SimpleDeviceMem wei(sizeof(WeiDataType) * G * K * Y * X * C);
     SimpleDeviceMem out(sizeof(OutDataType) * G * N * Ho * Wo * K);
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwd<NumDimSpatial,
-                                                                        InLayout,
-                                                                        WeiLayout,
-                                                                        OutLayout,
-                                                                        InDataType,
-                                                                        WeiDataType,
-                                                                        OutDataType,
-                                                                        PassThrough,
-                                                                        PassThrough,
-                                                                        PassThrough>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<NumDimSpatial,
+                                                                                 InLayout,
+                                                                                 WeiLayout,
+                                                                                 ck::Tuple<>,
+                                                                                 OutLayout,
+                                                                                 InDataType,
+                                                                                 WeiDataType,
+                                                                                 ck::Tuple<>,
+                                                                                 OutDataType,
+                                                                                 PassThrough,
+                                                                                 PassThrough,
+                                                                                 PassThrough>;
+
     // get device op instances
-    namespace instance = ck::tensor_operation::device::instance;
-    const auto op_ptrs =
-        instance::DeviceOperationInstanceFactory<DeviceOp, instance::ConvXDL>::GetInstances();
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
@@ -129,11 +130,14 @@ int main()
         auto& op_ptr        = op_ptrs[i];
         auto argument_ptr   = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
                                                         wei.GetDeviceBuffer(),
+                                                        {},
                                                         out.GetDeviceBuffer(),
                                                         in_lengths,
                                                         in_strides,
                                                         wei_lengths,
                                                         wei_strides,
+                                                        {},
+                                                        {},
                                                         out_lengths,
                                                         out_strides,
                                                         filter_strides,
@@ -192,11 +196,14 @@ int main()
                   << std::endl;
         auto argument_ptr = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
                                                         wei.GetDeviceBuffer(),
+                                                        {},
                                                         out.GetDeviceBuffer(),
                                                         in_lengths,
                                                         in_strides,
                                                         wei_lengths,
                                                         wei_strides,
+                                                        {},
+                                                        {},
                                                         out_lengths,
                                                         out_strides,
                                                         filter_strides,

@@ -8,11 +8,11 @@
 #include <typeinfo>
 
 #include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_dl.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -198,35 +198,39 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         }
     };
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwd<NDimSpatial,
-                                                                        InLayout,
-                                                                        WeiLayout,
-                                                                        OutLayout,
-                                                                        InDataType,
-                                                                        WeiDataType,
-                                                                        OutDataType,
-                                                                        InElementOp,
-                                                                        WeiElementOp,
-                                                                        OutElementOp>;
-
-    namespace instance = ck::tensor_operation::device::instance;
-
     // xdl
     {
+        using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<NDimSpatial,
+                                                                                     InLayout,
+                                                                                     WeiLayout,
+                                                                                     ck::Tuple<>,
+                                                                                     OutLayout,
+                                                                                     InDataType,
+                                                                                     WeiDataType,
+                                                                                     ck::Tuple<>,
+                                                                                     OutDataType,
+                                                                                     InElementOp,
+                                                                                     WeiElementOp,
+                                                                                     OutElementOp>;
+
         // get device op instances
-        const auto op_ptrs =
-            instance::DeviceOperationInstanceFactory<DeviceOp, instance::ConvXDL>::GetInstances();
+        const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+            DeviceOp>::GetInstances();
+
         std::cout << "xdl found " << op_ptrs.size() << " instances" << std::endl;
 
         for(auto& op_ptr : op_ptrs)
         {
             auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
                                                             wei_device_buf.GetDeviceBuffer(),
+                                                            {},
                                                             out_device_buf.GetDeviceBuffer(),
                                                             a_g_n_c_wis_lengths,
                                                             a_g_n_c_wis_strides,
                                                             b_g_k_c_xs_lengths,
                                                             b_g_k_c_xs_strides,
+                                                            {},
+                                                            {},
                                                             e_g_n_k_wos_lengths,
                                                             e_g_n_k_wos_strides,
                                                             conv_filter_strides,
@@ -243,8 +247,21 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
     // dl
     {
-        const auto op_ptrs =
-            instance::DeviceOperationInstanceFactory<DeviceOp, instance::ConvDL>::GetInstances();
+        using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwd<NDimSpatial,
+                                                                            InLayout,
+                                                                            WeiLayout,
+                                                                            OutLayout,
+                                                                            InDataType,
+                                                                            WeiDataType,
+                                                                            OutDataType,
+                                                                            InElementOp,
+                                                                            WeiElementOp,
+                                                                            OutElementOp>;
+
+        // get device op instances
+        const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+            DeviceOp>::GetInstances();
+
         std::cout << "dl found " << op_ptrs.size() << " instances" << std::endl;
 
         for(auto& op_ptr : op_ptrs)
