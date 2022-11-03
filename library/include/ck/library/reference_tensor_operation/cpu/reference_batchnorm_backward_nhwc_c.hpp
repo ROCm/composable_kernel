@@ -40,8 +40,8 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                  const MeanVarDataType* p_savedInvVar,
                  double epsilon,
                  DxDataType* p_dx,
-                 ScaleDataType* p_scaleDiff,
-                 BiasDataType* p_biasDiff)
+                 ScaleDataType* p_dscale,
+                 BiasDataType* p_dbias)
             : p_x_(p_x),
               p_dy_(p_dy),
               p_scale_(p_scale),
@@ -49,8 +49,8 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
               p_savedInvVar_(p_savedInvVar),
               epsilon_(epsilon),
               p_dx_(p_dx),
-              p_scaleDiff_(p_scaleDiff),
-              p_biasDiff_(p_biasDiff)
+              p_dscale_(p_dscale),
+              p_dbias_(p_dbias)
         {
             ignore = xStrides;
             ignore = dyStrides;
@@ -81,8 +81,8 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
         double epsilon_;
 
         DxDataType* p_dx_;
-        ScaleDataType* p_scaleDiff_;
-        BiasDataType* p_biasDiff_;
+        ScaleDataType* p_dscale_;
+        BiasDataType* p_dbias_;
 
         bool haveSavedMeanInvVar_;
 
@@ -113,7 +113,7 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                     meansquare = type_convert<AccDataType>(0.0f);
                     mean       = type_convert<AccDataType>(0.0f);
 
-                    // compute mean, meanquare, variance, invVariance
+                    // compute mean, meanquare, variance, inv-variance
                     for(index_t iN = 0; iN < arg.n_; iN++)
                     {
                         index_t offset_N = iN * arg.h_ * arg.w_ * arg.c_;
@@ -142,13 +142,12 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                              std::sqrt(type_convert<AccDataType>(arg.epsilon_) + variance);
                 };
 
-                AccDataType bnBiasDiff = type_convert<AccDataType>(0.0f); // Sum on NHW of dy
-                AccDataType bnScaleDiff =
-                    type_convert<AccDataType>(0.0f); // Sum on NHW of dy * norm_x
+                AccDataType dbias  = type_convert<AccDataType>(0.0f); // Sum on NHW of dy
+                AccDataType dscale = type_convert<AccDataType>(0.0f); // Sum on NHW of dy * norm_x
 
-                // 1) calculate dy * (x - mean) * invVariance
-                // 2) calculate Sum on NHWC of dy
-                // 3) calculate Sum on NHWC of dy * norm_x
+                // 1) calculate dy * (x - mean) * inv-variance
+                // 2) calculate sum(dy) on NHW dimensions
+                // 3) calculate sum(dy * norm_x) on NHW dimensions
                 for(index_t iN = 0; iN < arg.n_; iN++)
                 {
                     index_t offset_N = iN * arg.h_ * arg.w_ * arg.c_;
@@ -166,17 +165,17 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                             AccDataType norm_x = (x - mean) * invVar;
                             AccDataType dy     = type_convert<AccDataType>(arg.p_dy_[offset]);
 
-                            bnBiasDiff += dy;
-                            bnScaleDiff += norm_x * dy;
+                            dbias += dy;
+                            dscale += norm_x * dy;
                         };
                     }
                 };
 
-                arg.p_scaleDiff_[offset_C] = type_convert<ScaleDataType>(bnScaleDiff);
-                arg.p_biasDiff_[offset_C]  = type_convert<BiasDataType>(bnBiasDiff);
+                arg.p_dscale_[offset_C] = type_convert<ScaleDataType>(dscale);
+                arg.p_dbias_[offset_C]  = type_convert<BiasDataType>(dbias);
 
-                // 1) calculate tmp = scaleDiff * (x - mean) * invVariance
-                // 2) calculate dx = 1/nhw * invVariance * scale * (nhw * dy - biasDiff - tmp)
+                // 1) calculate tmp = dscale * (x - mean) * inv-variance
+                // 2) calculate dx = 1/nhw * inv-variance * scale * (nhw * dy - dbias - tmp)
                 for(index_t iN = 0; iN < arg.n_; iN++)
                 {
                     index_t offset_N = iN * arg.h_ * arg.w_ * arg.c_;
@@ -195,10 +194,10 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                             AccDataType dy     = type_convert<AccDataType>(arg.p_dy_[offset]);
                             AccDataType scale  = type_convert<AccDataType>(arg.p_scale_[offset_C]);
 
-                            AccDataType tmpVal = norm_x * bnScaleDiff;
+                            AccDataType tmpVal = norm_x * dscale;
 
                             AccDataType dx = type_convert<AccDataType>(1.0f) / reduceSize * invVar *
-                                             scale * (reduceSize * dy - bnBiasDiff - tmpVal);
+                                             scale * (reduceSize * dy - dbias - tmpVal);
 
                             arg.p_dx_[offset] = type_convert<XDataType>(dx);
                         };
@@ -260,8 +259,8 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                         const void* p_savedInvVar,
                         double epsilon,
                         void* p_dx,
-                        void* p_scaleDiff,
-                        void* p_biasDiff) override
+                        void* p_dscale,
+                        void* p_dbias) override
     {
         return std::make_unique<Argument>(xyLengths,
                                           xStrides,
@@ -279,8 +278,8 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                                           static_cast<const MeanVarDataType*>(p_savedInvVar),
                                           epsilon,
                                           static_cast<DxDataType*>(p_dx),
-                                          static_cast<ScaleDataType*>(p_scaleDiff),
-                                          static_cast<BiasDataType*>(p_biasDiff));
+                                          static_cast<ScaleDataType*>(p_dscale),
+                                          static_cast<BiasDataType*>(p_dbias));
     };
 
     std::unique_ptr<device::BaseInvoker> MakeInvokerPointer() override

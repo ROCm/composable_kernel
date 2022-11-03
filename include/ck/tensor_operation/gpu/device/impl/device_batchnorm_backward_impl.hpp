@@ -427,7 +427,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                 DeviceBatchNormBwdImpl::MakeMultiblockFirstReduceOutputMG2dDescriptor(
                     arg.invariant_length, arg.blkGroupSize);
 
-            const auto scale_bias_diff_grid_desc_m_g =
+            const auto dscale_dbias_grid_desc_m_g =
                 DeviceBatchNormBwdImpl::MakeMultiblockFirstReduceOutputMG2dDescriptor(
                     arg.invariant_length, arg.blkGroupSize);
 
@@ -435,14 +435,14 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                 DeviceBatchNormBwdImpl::MakeMultiblockFinalReduceInputMK2dDescriptor(
                     arg.invariant_length, arg.blkGroupSize);
 
-            const auto scale_bias_diff_grid_desc_m_k =
+            const auto dscale_dbias_grid_desc_m_k =
                 DeviceBatchNormBwdImpl::MakeMultiblockFinalReduceInputMK2dDescriptor(
                     arg.invariant_length, arg.blkGroupSize);
 
-            using MeanVarCountGridDesc_M_G  = decltype(mean_var_count_grid_desc_m_g);
-            using MeanVarCountGridDesc_M_K  = decltype(mean_var_count_grid_desc_m_k);
-            using ScaleBiasDiffGridDesc_M_G = decltype(scale_bias_diff_grid_desc_m_g);
-            using ScaleBiasDiffGridDesc_M_K = decltype(scale_bias_diff_grid_desc_m_k);
+            using MeanVarCountGridDesc_M_G = decltype(mean_var_count_grid_desc_m_g);
+            using MeanVarCountGridDesc_M_K = decltype(mean_var_count_grid_desc_m_k);
+            using DscaleDbiasGridDesc_M_G  = decltype(dscale_dbias_grid_desc_m_g);
+            using DscaleDbiasGridDesc_M_K  = decltype(dscale_dbias_grid_desc_m_k);
 
             using GridwiseWelfordSecondHalfReduceFirstHalf_ =
                 GridwiseWelfordSecondHalfReduceFirstHalf<XDataType,
@@ -454,7 +454,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                                                          XYGridDesc_M_K,
                                                          MeanVarGridDesc_M,
                                                          MeanVarCountGridDesc_M_K,
-                                                         ScaleBiasDiffGridDesc_M_G,
+                                                         DscaleDbiasGridDesc_M_G,
                                                          BlockSize,
                                                          MThreadClusterSize,
                                                          KThreadClusterSize,
@@ -474,7 +474,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                                                                BiasDataType,
                                                                MeanVarDataType,
                                                                XYGridDesc_M_K,
-                                                               ScaleBiasDiffGridDesc_M_K,
+                                                               DscaleDbiasGridDesc_M_K,
                                                                MeanVarGridDesc_M,
                                                                ScaleBiasGridDesc_M,
                                                                BlockSize,
@@ -551,7 +551,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                         XYGridDesc_M_K,
                         MeanVarGridDesc_M,
                         MeanVarCountGridDesc_M_K,
-                        ScaleBiasDiffGridDesc_M_G>;
+                        DscaleDbiasGridDesc_M_G>;
 
                 const auto kern_reduce_second_half_batchnorm_backward_final =
                     kernel_reduce_second_half_batchnorm_backward_final<
@@ -563,11 +563,11 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                         BiasDataType,
                         MeanVarDataType,
                         XYGridDesc_M_K,
-                        ScaleBiasDiffGridDesc_M_K,
+                        DscaleDbiasGridDesc_M_K,
                         MeanVarGridDesc_M,
                         ScaleBiasGridDesc_M>;
 
-                index_t numScaleBiasDiffBlockTileIteration =
+                index_t numDscaleDbiasBlockTileIteration =
                     (arg.blkGroupSize + KThreadClusterSize - 1) / KThreadClusterSize;
 
                 avg_time += launch_and_time_kernel(
@@ -580,10 +580,10 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                     arg.dy_grid_desc_m_k,
                     arg.mean_var_grid_desc_m,
                     mean_var_count_grid_desc_m_k,
-                    scale_bias_diff_grid_desc_m_g,
+                    dscale_dbias_grid_desc_m_g,
                     arg.blkGroupSize,
                     arg.numBlockTileIteration,
-                    numScaleBiasDiffBlockTileIteration,
+                    numDscaleDbiasBlockTileIteration,
                     arg.epsilon_,
                     arg.haveSavedMeanInvVar_,
                     arg.haveSavedMeanInvVar_ ? arg.p_savedMean_ : nullptr,
@@ -616,14 +616,14 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                     arg.x_grid_desc_m_k,
                     arg.dy_grid_desc_m_k,
                     arg.dx_grid_desc_m_k,
-                    scale_bias_diff_grid_desc_m_k,
+                    dscale_dbias_grid_desc_m_k,
                     arg.mean_var_grid_desc_m,
                     arg.scale_grid_desc_m,
                     arg.bias_grid_desc_m,
                     arg.blkGroupSize,
                     arg.reduce_length,
                     arg.numBlockTileIteration,
-                    numScaleBiasDiffBlockTileIteration,
+                    numDscaleDbiasBlockTileIteration,
                     static_cast<const ScaleDataType*>(arg.workspace_reduce_dscale),
                     static_cast<const BiasDataType*>(arg.workspace_reduce_dbias),
                     arg.haveSavedMeanInvVar_
