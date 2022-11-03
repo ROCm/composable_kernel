@@ -5,8 +5,9 @@ add_gtest_executable(test_layernorm2d_fp16 test_layernorm2d_fp16.cpp)
 add_gtest_executable(test_groupnorm_fp16 test_groupnorm_fp16.cpp)
 add_gtest_executable(test_groupnorm_fp32 test_groupnorm_fp32.cpp) 
 
-target_link_libraries(test_layernorm2d_fp32 PRIVATE utility) 
-target_link_libraries(test_layernorm2d_fp16 PRIVATE utility)
+
+target_link_libraries(test_layernorm2d_fp32 PRIVATE utility device_normalization_instance)
+target_link_libraries(test_layernorm2d_fp16 PRIVATE utility device_normalization_instance)
 target_link_libraries(test_groupnorm_fp16 PRIVATE utility device_normalization_instance)
 target_link_libraries(test_groupnorm_fp32 PRIVATE utility device_normalization_instance)
 
