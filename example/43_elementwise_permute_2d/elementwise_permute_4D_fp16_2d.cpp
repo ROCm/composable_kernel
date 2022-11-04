@@ -48,7 +48,7 @@ int main()
     bool do_verification = true;
     bool time_kernel     = true;
 
-    const int N = 16;
+    const int N = 120;
     const int H = 32;
     const int W = 64;
 
@@ -72,7 +72,6 @@ int main()
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
 
     std::array<ck::index_t, 4> ab_lengths{N, H, W, C};
-    // std::copy(nhwc.begin(), nhwc.end(), ab_lengths.begin());
 
     std::array<ck::index_t, 4> a_strides = {C * H * W, W, 1, H * W};
     std::array<ck::index_t, 4> b_strides = {H * W * C, W * C, C, 1};

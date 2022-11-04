@@ -69,10 +69,14 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
     using OutDataTypePointerTuple = decltype(GenerateOutDataTypePointerTuple());
 
     template <typename Desc_MN>
-    static auto PadDescriptor_MN_2d(Desc_MN desc_mn, index_t gridSize, index_t blockSize, index_t num_threads_m, index_t num_threads_n)
+    static auto PadDescriptor_MN_2d(Desc_MN desc_mn,
+                                    index_t gridSize,
+                                    index_t blockSize,
+                                    index_t num_threads_m,
+                                    index_t num_threads_n)
     {
-	    std::ignore = blockSize;
-	    std::ignore = gridSize;
+        std::ignore               = blockSize;
+        std::ignore               = gridSize;
         const auto m              = desc_mn.GetLength(I0);
         const auto n              = desc_mn.GetLength(I1);
         const index_t loop_step_m = num_threads_m * MPerThread;
@@ -95,8 +99,8 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
                                   const std::array<index_t, NumDim>& stride,
                                   index_t gridSize,
                                   index_t blockSize,
-				  index_t num_threads_m,
-				  index_t num_threads_n)
+                                  index_t num_threads_m,
+                                  index_t num_threads_n)
     {
         auto tupleOfShape  = generate_tuple([&](auto I) { return lengths[I]; }, Number<NumDim>{});
         auto tupleOfStride = generate_tuple([&](auto I) { return stride[I]; }, Number<NumDim>{});
@@ -172,8 +176,8 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
               elementwise_op_(elementwise_op),
               blockSize_(256),
               gridSize_(120), // FIXME - Calculate the grid size by number of CU in the future
-	      num_threads_m_((gridSize_*blockSize_)/8),
-	      num_threads_n_(8)
+              num_threads_m_((gridSize_ * blockSize_) / 16),
+              num_threads_n_(16)
         {
             static_assert(NumDim_m > 0, "");
             static_assert(NumDim_n > 0, "");
@@ -194,15 +198,23 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
 
             in_grid_2d_desc_tuple_ = generate_tuple(
                 [&](auto I) {
-                    return MakeDescriptor_MN(
-                        lengths, inStridesArray[I.value], gridSize_, blockSize_, num_threads_m_, num_threads_n_);
+                    return MakeDescriptor_MN(lengths,
+                                             inStridesArray[I.value],
+                                             gridSize_,
+                                             blockSize_,
+                                             num_threads_m_,
+                                             num_threads_n_);
                 },
                 Number<NumInput>{});
 
             out_grid_2d_desc_tuple_ = generate_tuple(
                 [&](auto I) {
-                    return MakeDescriptor_MN(
-                        lengths, outStridesArray[I.value], gridSize_, blockSize_, num_threads_m_, num_threads_n_);
+                    return MakeDescriptor_MN(lengths,
+                                             outStridesArray[I.value],
+                                             gridSize_,
+                                             blockSize_,
+                                             num_threads_m_,
+                                             num_threads_n_);
                 },
                 Number<NumOutput>{});
         }
@@ -219,8 +231,8 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
         ElementwiseOperation elementwise_op_;
         index_t blockSize_;
         index_t gridSize_;
-	index_t num_threads_m_;
-	index_t num_threads_n_;
+        index_t num_threads_m_;
+        index_t num_threads_n_;
     };
 
     struct Invoker : public BaseInvoker
@@ -244,8 +256,8 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
                                                         arg.in_dev_buffers_,
                                                         arg.out_dev_buffers_,
                                                         arg.elementwise_op_,
-							arg.num_threads_m_,
-							arg.num_threads_n_);
+                                                        arg.num_threads_m_,
+                                                        arg.num_threads_n_);
             return elapsed_time;
         }
 
@@ -263,7 +275,7 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
 
         if(pArg == nullptr)
             return false;
-     
+
         if(pArg->lengths_.back() % MPerThread != 0)
             return false;
 
@@ -284,10 +296,8 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
             return false;
         };
 
-
         bool valid = true;
         static_for<0, NumInput, 1>{}([&](auto I) {
-            std::cout << "running: " << I << std::endl;
             if(!IsScalarPerVectorValid(pArg->lengths_,
                                        pArg->inStridesArray_[I.value],
                                        InScalarPerVectorSeq::At(I),
@@ -296,7 +306,6 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
         });
 
         static_for<0, NumOutput, 1>{}([&](auto I) {
-            std::cout << "running 2: " << I << std::endl;
             if(!IsScalarPerVectorValid(pArg->lengths_,
                                        pArg->outStridesArray_[I.value],
                                        OutScalarPerVectorSeq::At(I),
