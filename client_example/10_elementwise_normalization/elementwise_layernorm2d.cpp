@@ -50,17 +50,17 @@ int main()
     ck::index_t N      = 1024;
     ck::index_t Stride = N;
 
-    auto xy_size = (M - 1) * Stride + N;
+    auto mn_size = (M - 1) * Stride + N;
 
-    SimpleDeviceMem a_dev_buf(sizeof(ADataType) * xy_size);
-    SimpleDeviceMem b_dev_buf(sizeof(BDataType) * xy_size);
+    SimpleDeviceMem a_dev_buf(sizeof(ADataType) * mn_size);
+    SimpleDeviceMem b_dev_buf(sizeof(BDataType) * mn_size);
     SimpleDeviceMem gamma_dev_buf(sizeof(GammaDataType) * N);
     SimpleDeviceMem beta_dev_buf(sizeof(BetaDataType) * N);
-    SimpleDeviceMem y_dev_buf(sizeof(YDataType) * xy_size);
+    SimpleDeviceMem y_dev_buf(sizeof(YDataType) * mn_size);
 
-    std::array<const void*, 2> input = {a_dev_buf.GetDeviceBuffer(), b_dev_buf.GetDeviceBuffer()};
-    std::vector<ck::index_t> inputStride                 = {Stride, 1};
-    std::array<std::vector<ck::index_t>, 2> inputStrides = {inputStride, inputStride};
+    std::array<const void*, 2> input  = {a_dev_buf.GetDeviceBuffer(), b_dev_buf.GetDeviceBuffer()};
+    std::vector<ck::index_t> abStride = {Stride, 1};
+    std::array<std::vector<ck::index_t>, 2> abStrides = {abStride, abStride};
 
     using DeviceOp = ck::tensor_operation::device::DeviceElementwiseNormalization<
         ck::Tuple<ADataType, BDataType>,
@@ -92,7 +92,7 @@ int main()
         auto& op_ptr = op_ptrs[i];
 
         auto argument_ptr = op_ptr->MakeArgumentPointer({M, N}, // lengths
-                                                        inputStrides,
+                                                        abStrides,
                                                         {0, 1},      // gammaStrides
                                                         {0, 1},      // betaStrides
                                                         {Stride, 1}, // yStrides
@@ -147,7 +147,7 @@ int main()
                   << std::endl;
 
         auto argument_ptr = op_ptr->MakeArgumentPointer({M, N}, // lengths
-                                                        inputStrides,
+                                                        abStrides,
                                                         {1},         // gammaStrides
                                                         {1},         // betaStrides
                                                         {Stride, 1}, // yStrides
