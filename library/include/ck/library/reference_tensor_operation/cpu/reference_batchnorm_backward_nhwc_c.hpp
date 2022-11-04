@@ -59,7 +59,6 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C
             ignore = xStrides;
             ignore = dyStrides;
             ignore = dxStrides;
-            ignore = reduceDims;
             ignore = bnScaleStrides;
             ignore = bnBiasStrides;
             ignore = bnMeanVarStrides;
@@ -67,6 +66,9 @@ struct ReferenceBatchNormBwd_Input_N_H_W_C_Output_C
             if(xyLengths.size() != 4 || bnScaleBiasMeanVarLengths.size() != 1 ||
                bnScaleBiasMeanVarLengths[0] != xyLengths[3])
                 throw std::runtime_error("Invalid tensor dimensions!");
+
+            if(reduceDims[0] != 0 || reduceDims[1] != 1 || reduceDims[2] != 2)
+                throw std::runtime_error("Invalid reduce dimensions!");
 
             n_ = xyLengths[0];
             h_ = xyLengths[1];
