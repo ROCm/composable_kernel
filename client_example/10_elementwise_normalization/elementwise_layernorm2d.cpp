@@ -59,8 +59,8 @@ int main()
     SimpleDeviceMem y_dev_buf(sizeof(YDataType) * xy_size);
 
     std::array<const void*, 2> input = {a_dev_buf.GetDeviceBuffer(), b_dev_buf.GetDeviceBuffer()};
-    std::vector<ck::index_t> inputStride = {Stride,1};
-    std::array<std::vector<ck::index_t>, 2> inputStrides = {inputStride,inputStride};
+    std::vector<ck::index_t> inputStride                 = {Stride, 1};
+    std::array<std::vector<ck::index_t>, 2> inputStrides = {inputStride, inputStride};
 
     using DeviceOp = ck::tensor_operation::device::DeviceElementwiseNormalization<
         ck::Tuple<ADataType, BDataType>,
@@ -86,7 +86,6 @@ int main()
 
     // profile device operation instances
     std::cout << "Run all instances and do timing" << std::endl;
-    
 
     for(int i = 0; i < op_ptrs.size(); ++i)
     {
@@ -94,10 +93,10 @@ int main()
 
         auto argument_ptr = op_ptr->MakeArgumentPointer({M, N}, // lengths
                                                         inputStrides,
-                                                        {0, 1},        // gammaStrides
-                                                        {0, 1},          // betaStrides
-                                                        {Stride, 1},     // yStrides
-                                                        {1},             // reduceDims
+                                                        {0, 1},      // gammaStrides
+                                                        {0, 1},      // betaStrides
+                                                        {Stride, 1}, // yStrides
+                                                        {1},         // reduceDims
                                                         1e-4,
                                                         input,
                                                         gamma_dev_buf.GetDeviceBuffer(),
@@ -149,10 +148,10 @@ int main()
 
         auto argument_ptr = op_ptr->MakeArgumentPointer({M, N}, // lengths
                                                         inputStrides,
-                                                        {1},                         // gammaStrides
-                                                        {1},                         // betaStrides
-                                                        {Stride, 1},                 // yStrides
-                                                        {1},                         // reduceDims
+                                                        {1},         // gammaStrides
+                                                        {1},         // betaStrides
+                                                        {Stride, 1}, // yStrides
+                                                        {1},         // reduceDims
                                                         1e-4,
                                                         input,
                                                         gamma_dev_buf.GetDeviceBuffer(),
