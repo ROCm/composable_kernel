@@ -6,9 +6,7 @@
 #include <iomanip>
 
 #include "ck/ck.hpp"
-
-#include "ck/library/tensor_operation_instance/gpu/layernorm.hpp"
-
+#include "ck/library/tensor_operation_instance/gpu/normalization.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -24,35 +22,36 @@ template <typename XDataType,
           typename AccDataType,
           typename YDataType,
           index_t Rank>
-void profile_layernorm_impl(int do_verification,
+bool profile_layernorm_impl(int do_verification,
                             int init_method,
                             bool do_log,
                             bool time_kernel,
-                            std::vector<index_t> length,
-                            std::vector<index_t> strideXY,
-                            std::vector<index_t> strideGamma,
-                            std::vector<index_t> strideBeta)
+                            std::vector<index_t> length)
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
     if(length.size() < 2)
-        return;
+        return false;
 
-    // Assume normalize dimension except for first dimension
+    // Assume normalize dimension except for batch (first) dimension
     std::vector<index_t> reduce_length{length.begin() + 1, length.end()};
     std::vector<index_t> reduce_dim;
     for(int i = 1; i < Rank; ++i)
         reduce_dim.push_back(i);
 
     Tensor<XDataType> x(length);
-    Tensor<GammaDataType> gamma(reduce_length, strideGamma);
-    Tensor<BetaDataType> beta(reduce_length, strideBeta);
-    Tensor<YDataType> y(length, strideXY);
-    Tensor<YDataType> host_y(length, strideXY);
+    Tensor<GammaDataType> gamma(reduce_length);
+    Tensor<BetaDataType> beta(reduce_length);
+    Tensor<YDataType> y(length);
+    Tensor<YDataType> host_y(length);
+
+    std::vector<index_t> strideXY =
+        std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()};
+    std::vector<index_t> strideGammaBeta = strideXY;
+    strideGammaBeta[0]                   = 0;
 
     switch(init_method)
     {
-    // case 0: break;
     case 0:
         x.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
         gamma.GenerateTensorValue(GeneratorTensor_1<GammaDataType>{});
@@ -84,14 +83,14 @@ void profile_layernorm_impl(int do_verification,
     constexpr int NumReduceDim = Rank - 1;
 
     // add device normalization instances
-    using DeviceOp = ck::tensor_operation::device::DeviceLayernorm<XDataType,
-                                                                   GammaDataType,
-                                                                   BetaDataType,
-                                                                   AccDataType,
-                                                                   YDataType,
-                                                                   PassThrough,
-                                                                   Rank,
-                                                                   NumReduceDim>;
+    using DeviceOp = ck::tensor_operation::device::DeviceNormalization<XDataType,
+                                                                       GammaDataType,
+                                                                       BetaDataType,
+                                                                       AccDataType,
+                                                                       YDataType,
+                                                                       PassThrough,
+                                                                       Rank,
+                                                                       NumReduceDim>;
 
     // get device op instances
     const auto instance_ptrs =
@@ -122,12 +121,14 @@ void profile_layernorm_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
+    int num_kernel = 0;
+
     for(auto& inst_ptr : instance_ptrs)
     {
         auto argument_ptr = inst_ptr->MakeArgumentPointer(length,
                                                           strideXY,
-                                                          strideGamma,
-                                                          strideBeta,
+                                                          strideGammaBeta,
+                                                          strideGammaBeta,
                                                           strideXY,
                                                           reduce_dim,
                                                           1e-4,
@@ -135,12 +136,21 @@ void profile_layernorm_impl(int do_verification,
                                                           gamma_dev.GetDeviceBuffer(),
                                                           beta_dev.GetDeviceBuffer(),
                                                           y_dev.GetDeviceBuffer(),
+                                                          nullptr,
+                                                          nullptr,
                                                           PassThrough{});
 
-        if(!inst_ptr->IsSupportedArgument(argument_ptr.get()))
+        if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            std::cout << inst_ptr->GetTypeString() << " skipped due to unsupported argument: ";
-            LogRange(std::cout << "input lengths = ", length, ", ") << std::endl;
+            ++num_kernel;
+        }
+        else
+        {
+            if(time_kernel)
+            {
+                std::cout << inst_ptr->GetTypeString() << " skipped due to unsupported argument: ";
+                LogRange(std::cout << "input lengths = ", length, ", ") << std::endl;
+            }
 
             continue;
         }
@@ -156,8 +166,9 @@ void profile_layernorm_impl(int do_verification,
 
         float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
-        std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << gb_per_sec << " GB/s, "
-                  << inst_ptr->GetTypeString() << std::endl;
+        if(time_kernel)
+            std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << gb_per_sec << " GB/s, "
+                      << inst_ptr->GetTypeString() << std::endl;
 
         if(avg_time < best_avg_time)
         {
@@ -184,20 +195,32 @@ void profile_layernorm_impl(int do_verification,
             {
                 std::cout << inst_ptr->GetTypeString() << " failed verification: ";
                 LogRange(std::cout << "lengths = [", length, ", ") << "]." << std::endl;
-                return;
+                return false;
             }
             else
             {
-                std::cout << "pass" << std::endl;
+                if(time_kernel)
+                    std::cout << "pass" << std::endl;
             }
         }
     }
 
-    LogRange(std::cout << "length = ", length, ",") << ", ";
-    LogRange(std::cout << "stride = ", strideXY, ",") << ", ";
-    LogRange(std::cout << "reduce dims ", reduce_dim, ",") << std::endl;
-    std::cout << "best perf = " << best_avg_time << " ms, " << best_gb_per_sec << " GB/s, "
-              << best_instance_name << std::endl;
+    if(time_kernel)
+    {
+        LogRange(std::cout << "length = ", length, ",") << ", ";
+        LogRange(std::cout << "stride = ", strideXY, ",") << ", ";
+        LogRange(std::cout << "reduce dims ", reduce_dim, ",") << std::endl;
+        std::cout << "best perf = " << best_avg_time << " ms, " << best_gb_per_sec << " GB/s, "
+                  << best_instance_name << std::endl;
+    }
+
+    if(num_kernel == 0)
+    {
+        std::cout << "Error: No kernel is applicable" << std::endl;
+        return false;
+    }
+
+    return true;
 }
 
 } // namespace profiler

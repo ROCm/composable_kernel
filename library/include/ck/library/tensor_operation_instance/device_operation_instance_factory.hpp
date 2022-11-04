@@ -3,7 +3,10 @@
 
 #pragma once
 
-#include <cstdlib>
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/tuple.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -15,6 +18,8 @@ using F64  = double;
 using F32  = float;
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
+using I8   = int8_t;
+using I32  = int32_t;
 
 using Empty_Tuple = ck::Tuple<>;
 
@@ -22,6 +27,8 @@ using F16_Tuple     = ck::Tuple<F16>;
 using F16_F16_Tuple = ck::Tuple<F16, F16>;
 
 using F32_Tuple = ck::Tuple<F32>;
+
+using I32_Tuple = ck::Tuple<I32>;
 
 // GEMM layout
 using Row = ck::tensor_layout::gemm::RowMajor;
@@ -70,11 +77,23 @@ using NWGK   = ck::tensor_layout::convolution::NWGK;
 using NHWGK  = ck::tensor_layout::convolution::NHWGK;
 using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
 
+//
+using GK       = ck::tensor_layout::convolution::G_K;
+using GK_TUPLE = ck::Tuple<GK>;
+
 // pointwise functor
 using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
+using Relu           = ck::tensor_operation::element_wise::Relu;
 using Scale          = ck::tensor_operation::element_wise::Scale;
 using Bilinear       = ck::tensor_operation::element_wise::Bilinear;
 using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
+
+template <typename Activation>
+using Activation_Mul_Clamp = ck::tensor_operation::element_wise::Activation_Mul_Clamp<Activation>;
+
+template <typename Activation>
+using Add_Activation_Mul_Clamp =
+    ck::tensor_operation::element_wise::Add_Activation_Mul_Clamp<Activation>;
 
 template <typename DeviceOp>
 struct DeviceOperationInstanceFactory;

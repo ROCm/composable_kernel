@@ -12,8 +12,7 @@ using ck::index_t;
 
 struct LayernormArgParser
 {
-    std::unordered_map<std::string, std::vector<int>> long_opts = {
-        {"length", {}}, {"strideXY", {}}, {"strideGamma", {}}, {"strideBeta", {}}};
+    std::unordered_map<std::string, std::vector<int>> long_opts = {{"length", {}}};
 
     bool parse_opt(int argc, char* argv[], const std::string& key, int i)
     {
@@ -52,9 +51,6 @@ void print_help_layernorm()
               << "arg4: print tensor value (0: no; 1: yes)\n"
               << "arg5: time kernel (0=no, 1=yes)\n"
               << "--length: tensor extents (e.g, --length 1024 1024) \n"
-              << "--strideXY: tensor strides (e.g, --strideXY 1024 1)\n"
-              << "--strideGamma: tensor strides (e.g, --strideGamma 1)\n"
-              << "--strideBeta: tensor strides (e.g, --strideBeta 1)\n"
               << std::endl;
 }
 
@@ -77,10 +73,7 @@ int profile_layernorm(int argc, char* argv[])
 
     // parse the long options
     arg_parser(argc, argv);
-    const std::vector<index_t> length      = arg_parser.long_opts["length"];
-    const std::vector<index_t> strideXY    = arg_parser.long_opts["strideXY"];
-    const std::vector<index_t> strideGamma = arg_parser.long_opts["strideGamma"];
-    const std::vector<index_t> strideBeta  = arg_parser.long_opts["strideBeta"];
+    const std::vector<index_t> length = arg_parser.long_opts["length"];
 
     using F16          = ck::half_t;
     using F32          = float;
@@ -88,25 +81,13 @@ int profile_layernorm(int argc, char* argv[])
 
     if(data_type == ck::DataTypeEnum::Half)
     {
-        ck::profiler::profile_layernorm_impl<F16, F16, F16, F32, F16, rank>(do_verification,
-                                                                            init_method,
-                                                                            do_log,
-                                                                            time_kernel,
-                                                                            length,
-                                                                            strideXY,
-                                                                            strideGamma,
-                                                                            strideBeta);
+        ck::profiler::profile_layernorm_impl<F16, F16, F16, F32, F16, rank>(
+            do_verification, init_method, do_log, time_kernel, length);
     }
     else if(data_type == ck::DataTypeEnum::Float)
     {
-        ck::profiler::profile_layernorm_impl<F32, F32, F32, F32, F32, rank>(do_verification,
-                                                                            init_method,
-                                                                            do_log,
-                                                                            time_kernel,
-                                                                            length,
-                                                                            strideXY,
-                                                                            strideGamma,
-                                                                            strideBeta);
+        ck::profiler::profile_layernorm_impl<F32, F32, F32, F32, F32, rank>(
+            do_verification, init_method, do_log, time_kernel, length);
     }
     else
     {

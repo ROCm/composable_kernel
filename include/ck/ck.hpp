@@ -126,8 +126,14 @@
 #define CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST 1
 
 // experimental feature: optimize for inter-wave scheduling policy
-#define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING 0
+#define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING 1
 #define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS 1
+// this will let make_default_loop_scheduler() return interwave scheduling flag by default
+#define CK_EXPERIMENTAL_DEFAULT_TO_INTER_WAVE_SCHEDULING 0
+// experimental feature: add instances using interwave scheduling
+#define CK_EXPERIMENTAL_INTER_WAVE_INSTANCES 1
+// experimental feature: add instances using pipeline v2
+#define CK_EXPERIMENTAL_PIPELINE_V2_INSTANCES 1
 
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug
 // hack for forcing register to keep idx_diff_low_const in SGPR. idx_diff_low_const must be
@@ -143,17 +149,6 @@
 
 // workaround: compiler gnerating inefficient ds_write instructions
 #define CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE 1
-
-// (gfx908 only) workaround: compiler crash in fused kernels on mainline #9110; #10738 seems ok
-// error message was "fatal error: error in backend: Error while trying to spill VGPR0 from class
-// VGPR_32: Cannot scavenge register without an emergency spill slot!"
-// this fall back to less ideal way of handle NPadding in fused attention kernel
-#ifdef __gfx908__
-#define CK_WORKAROUND_SWDEV_XXXXXX_ATTN_KERNEL_CLANG_CANNOT_SCAVENGE_REGISTER 1
-#else
-// for __gfx90a__, ...
-#define CK_WORKAROUND_SWDEV_XXXXXX_ATTN_KERNEL_CLANG_CANNOT_SCAVENGE_REGISTER 0
-#endif // __gfx908__
 
 // workaround: verifaction failure, due to compiler regression, for conv bwd-data fp16 using some
 // tuning parameter
