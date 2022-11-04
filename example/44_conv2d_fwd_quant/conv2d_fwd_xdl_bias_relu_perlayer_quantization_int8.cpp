@@ -162,26 +162,25 @@ bool run_grouped_conv_fwd(bool do_verification,
     // do Conv
     auto conv     = DeviceConvNDFwdInstance{};
     auto invoker  = conv.MakeInvoker();
-    auto argument = conv.MakeArgument(
-        in_device_buf.GetDeviceBuffer(),
-        wei_device_buf.GetDeviceBuffer(),
-        std::array<const void*, 1>{bias_device_buf.GetDeviceBuffer()},
-        out_device_buf.GetDeviceBuffer(),
-        a_g_n_c_wis_lengths,
-        a_g_n_c_wis_strides,
-        b_g_k_c_xs_lengths,
-        b_g_k_c_xs_strides,
-        std::array<std::array<ck::index_t, NDimSpatial + 3>, 1>{{d0_g_n_k_wos_lengths}},
-        std::array<std::array<ck::index_t, NDimSpatial + 3>, 1>{{d0_g_n_k_wos_strides}},
-        e_g_n_k_wos_lengths,
-        e_g_n_k_wos_strides,
-        conv_filter_strides,
-        conv_filter_dilations,
-        input_left_pads,
-        input_right_pads,
-        in_element_op,
-        wei_element_op,
-        out_element_op);
+    auto argument = conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
+                                      wei_device_buf.GetDeviceBuffer(),
+                                      {bias_device_buf.GetDeviceBuffer()},
+                                      out_device_buf.GetDeviceBuffer(),
+                                      a_g_n_c_wis_lengths,
+                                      a_g_n_c_wis_strides,
+                                      b_g_k_c_xs_lengths,
+                                      b_g_k_c_xs_strides,
+                                      {d0_g_n_k_wos_lengths},
+                                      {d0_g_n_k_wos_strides},
+                                      e_g_n_k_wos_lengths,
+                                      e_g_n_k_wos_strides,
+                                      conv_filter_strides,
+                                      conv_filter_dilations,
+                                      input_left_pads,
+                                      input_right_pads,
+                                      in_element_op,
+                                      wei_element_op,
+                                      out_element_op);
 
     if(!conv.IsSupportedArgument(argument))
     {
