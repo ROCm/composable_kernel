@@ -45,15 +45,34 @@ struct Add_Activation_Mul_Clamp
     }
 
     __host__ __device__ constexpr void
-    operator()(int8_t& y, const int32_t& x1, const int32_t& x2) const
+    operator()(int8_t& y, const int32_t& x, const int32_t& bias) const
     {
-        float y_fp32 = ck::type_convert<float>(x1 + x2);
+        float y_fp32 = ck::type_convert<float>(x + bias);
         activationOp_(y_fp32, y_fp32);
         y_fp32 = math::clamp(multiplier_ * y_fp32, -128.f, 127.f);
         y      = ck::type_convert<int8_t>(y_fp32);
     }
 
     float multiplier_;
+    Activation activationOp_;
+};
+
+// Conv Perchannel quantization + Activation function which is piecewise linear function, such as
+// relu, leaky relu ...etc
+template <typename Activation>
+struct Add_Activation_Mul2_Clamp
+{
+    Add_Activation_Mul2_Clamp(Activation activationOp) : activationOp_(activationOp) {}
+
+    __host__ __device__ constexpr void
+    operator()(int8_t& y, const int32_t& x, const int32_t& bias, const float& multiplier) const
+    {
+        float y_fp32 = ck::type_convert<float>(x + bias);
+        activationOp_(y_fp32, y_fp32);
+        y_fp32 = math::clamp(multiplier * y_fp32, -128.f, 127.f);
+        y      = ck::type_convert<int8_t>(y_fp32);
+    }
+
     Activation activationOp_;
 };
 
@@ -67,9 +86,9 @@ struct Add_Mul_Activation_Mul_Clamp
     }
 
     __host__ __device__ constexpr void
-    operator()(int8_t& y, const int32_t& x1, const int32_t& x2) const
+    operator()(int8_t& y, const int32_t& x, const int32_t& bias) const
     {
-        float y_fp32 = ck::type_convert<float>(x1 + x2);
+        float y_fp32 = ck::type_convert<float>(x + bias);
         y_fp32       = multiplier1_ * y_fp32;
         activationOp_(y_fp32, y_fp32);
         y_fp32 = math::clamp(multiplier2_ * y_fp32, -128.f, 127.f);
