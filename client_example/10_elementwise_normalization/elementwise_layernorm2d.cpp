@@ -58,8 +58,9 @@ int main()
     SimpleDeviceMem beta_dev_buf(sizeof(BetaDataType) * N);
     SimpleDeviceMem y_dev_buf(sizeof(YDataType) * mn_size);
 
-    std::array<const void*, 2> input  = {a_dev_buf.GetDeviceBuffer(), b_dev_buf.GetDeviceBuffer()};
-    std::vector<ck::index_t> abStride = {Stride, 1};
+    std::array<const void*, 2> ab_input               = {a_dev_buf.GetDeviceBuffer(),
+                                           b_dev_buf.GetDeviceBuffer()};
+    std::vector<ck::index_t> abStride                 = {Stride, 1};
     std::array<std::vector<ck::index_t>, 2> abStrides = {abStride, abStride};
 
     using DeviceOp = ck::tensor_operation::device::DeviceElementwiseNormalization<
@@ -98,7 +99,7 @@ int main()
                                                         {Stride, 1}, // yStrides
                                                         {1},         // reduceDims
                                                         1e-4,
-                                                        input,
+                                                        ab_input,
                                                         gamma_dev_buf.GetDeviceBuffer(),
                                                         beta_dev_buf.GetDeviceBuffer(),
                                                         y_dev_buf.GetDeviceBuffer(),
@@ -153,7 +154,7 @@ int main()
                                                         {Stride, 1}, // yStrides
                                                         {1},         // reduceDims
                                                         1e-4,
-                                                        input,
+                                                        ab_input,
                                                         gamma_dev_buf.GetDeviceBuffer(),
                                                         beta_dev_buf.GetDeviceBuffer(),
                                                         y_dev_buf.GetDeviceBuffer(),
