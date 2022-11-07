@@ -8,14 +8,10 @@
 #include "profiler/include/profile_softmax_impl.hpp"
 
 using ck::index_t;
-using ck::profiler::NormDataType;
-using ck::profiler::NormType;
+using ck::profiler::SoftmaxDataType;
 
 struct ArgParser
 {
-    std::unordered_map<std::string, NormType> norm_dict = {{"batchnorm", NormType::BATCHNORM},
-                                                           {"softmax", NormType::SOFTMAX}};
-
     std::unordered_map<std::string, std::vector<int>> long_opts = {
         {"length", {}}, {"stride", {}}, {"reduce", {}}, {"alpha", {}}, {"beta", {}}};
 
@@ -50,7 +46,7 @@ struct ArgParser
 
 void print_help()
 {
-    std::cout << "arg1: tensor operation (batchnorm/softmax)\n"
+    std::cout << "arg1: tensor operation (softmax)\n"
               << "arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8)\n"
               << "arg3: verification (0: no; 1: yes)\n"
               << "arg4: initialization (0: no init; 1: integer value; 2: decimal value)\n"
@@ -64,7 +60,7 @@ void print_help()
               << std::endl;
 }
 
-int profile_normalization(int argc, char* argv[])
+int profile_softmax(int argc, char* argv[])
 {
     if(argc <= 2)
     {
@@ -75,12 +71,11 @@ int profile_normalization(int argc, char* argv[])
     ArgParser arg_parser;
 
     // short unnamed options
-    const NormType norm_type     = arg_parser.norm_dict[argv[1]];
-    const NormDataType data_type = static_cast<NormDataType>(std::stoi(argv[2]));
-    const bool do_verification   = std::stoi(argv[3]);
-    const int init_method        = std::stoi(argv[4]);
-    const bool do_log            = std::stoi(argv[5]);
-    const bool time_kernel       = std::stoi(argv[6]);
+    const SoftmaxDataType data_type = static_cast<SoftmaxDataType>(std::stoi(argv[2]));
+    const bool do_verification      = std::stoi(argv[3]);
+    const int init_method           = std::stoi(argv[4]);
+    const bool do_log               = std::stoi(argv[5]);
+    const bool time_kernel          = std::stoi(argv[6]);
 
     // parse the long options
     arg_parser(argc, argv);
@@ -91,9 +86,10 @@ int profile_normalization(int argc, char* argv[])
         arg_parser.long_opts["alpha"].empty() ? 1 : arg_parser.long_opts["alpha"][0];
     const index_t beta = arg_parser.long_opts["beta"].empty() ? 0 : arg_parser.long_opts["beta"][0];
 
+    // Rank 3
     if(length.size() == 3)
     {
-        if(data_type == NormDataType::F16_F16)
+        if(data_type == SoftmaxDataType::F16_F16)
         {
             ck::profiler::profile_softmax_impl<ck::half_t, float, ck::half_t, 3>(do_verification,
                                                                                  init_method,
@@ -103,10 +99,9 @@ int profile_normalization(int argc, char* argv[])
                                                                                  stride,
                                                                                  reduce,
                                                                                  float(alpha),
-                                                                                 float(beta),
-                                                                                 norm_type);
+                                                                                 float(beta));
         }
-        else if(data_type == NormDataType::F32_F32)
+        else if(data_type == SoftmaxDataType::F32_F32)
         {
             ck::profiler::profile_softmax_impl<float, float, float, 3>(do_verification,
                                                                        init_method,
@@ -116,17 +111,17 @@ int profile_normalization(int argc, char* argv[])
                                                                        stride,
                                                                        reduce,
                                                                        float(alpha),
-                                                                       float(beta),
-                                                                       norm_type);
+                                                                       float(beta));
         }
         else
         {
             throw std::runtime_error("not implemented yet");
         }
     }
+    // Rank 4
     else if(length.size() == 4)
     {
-        if(data_type == NormDataType::F16_F16)
+        if(data_type == SoftmaxDataType::F16_F16)
         {
             ck::profiler::profile_softmax_impl<ck::half_t, float, ck::half_t, 4>(do_verification,
                                                                                  init_method,
@@ -136,10 +131,9 @@ int profile_normalization(int argc, char* argv[])
                                                                                  stride,
                                                                                  reduce,
                                                                                  float(alpha),
-                                                                                 float(beta),
-                                                                                 norm_type);
+                                                                                 float(beta));
         }
-        else if(data_type == NormDataType::F32_F32)
+        else if(data_type == SoftmaxDataType::F32_F32)
         {
             ck::profiler::profile_softmax_impl<float, float, float, 4>(do_verification,
                                                                        init_method,
@@ -149,8 +143,7 @@ int profile_normalization(int argc, char* argv[])
                                                                        stride,
                                                                        reduce,
                                                                        float(alpha),
-                                                                       float(beta),
-                                                                       norm_type);
+                                                                       float(beta));
         }
         else
         {

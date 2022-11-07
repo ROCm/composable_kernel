@@ -128,6 +128,8 @@ int main(int argc, char* argv[])
         gamma_dev.GetDeviceBuffer(),
         beta_dev.GetDeviceBuffer(),
         y_dev.GetDeviceBuffer(),
+        nullptr,
+        nullptr,
         y_element_op);
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))

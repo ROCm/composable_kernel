@@ -8,7 +8,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
@@ -77,7 +77,8 @@ template <typename FloatAB,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched,
           bool PadN,
-          bool MaskOutUpperTriangle>
+          bool MaskOutUpperTriangle,
+          PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 {
     static_assert(LoopSched == LoopScheduler::Default,
@@ -108,7 +109,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemmKPrefetchStage>;
+    using GridwiseGemmPipe = remove_cvref_t<decltype(
+        GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage>())>;
 
     template <typename ABlockDesc_AK0_M_AK1>
     __host__ __device__ static constexpr auto
@@ -503,8 +505,9 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
         // gridwise GEMM pipeline
         // Only supports LoopScheduler::Default
-        const auto gridwise_gemm_pipeline =
-            GridwiseGemmPipeline_v1_Selector<NumGemmKPrefetchStage, LoopScheduler::Default>();
+        const auto gridwise_gemm_pipeline = GridwiseGemmPipeline_Selector<PipelineVer,
+                                                                          NumGemmKPrefetchStage,
+                                                                          LoopScheduler::Default>();
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
@@ -691,12 +694,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                   FloatGemmAcc,
                                                   decltype(threadid_to_m_n_thread_cluster_adaptor),
                                                   decltype(thread_cluster_desc_m_n),
-                                                  decltype(thread_slice_desc_m_n)
-#if CK_WORKAROUND_SWDEV_XXXXXX_ATTN_KERNEL_CLANG_CANNOT_SCAVENGE_REGISTER
-                                                      ,
-                                                  true
-#endif
-                                                  >{};
+                                                  decltype(thread_slice_desc_m_n)>{};
 
         const index_t num_gemm1_k_block_outer_loop =
             b_grid_desc_bk0_n_bk1.GetLength(I1) / NPerBlock;
