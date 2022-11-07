@@ -80,18 +80,18 @@ bool run_convnd_fwd_example(int argc, char* argv[])
 
     namespace ctc = ck::tensor_layout::convolution;
 
-    if(conv_param.num_dim_spatial_ == 1)
+  /*  if(conv_param.num_dim_spatial_ == 1)
     {
         return run(ck::Number<1>{}, ctc::GNWC{}, ctc::GKXC{}, ctc::GNWK{});
     }
-    else if(conv_param.num_dim_spatial_ == 2)
+    else */if(conv_param.num_dim_spatial_ == 2)
     {
         return run(ck::Number<2>{}, ctc::GNHWC{}, ctc::GKYXC{}, ctc::GNHWK{});
     }
-    else if(conv_param.num_dim_spatial_ == 3)
+    /*else if(conv_param.num_dim_spatial_ == 3)
     {
         return run(ck::Number<3>{}, ctc::GNDHWC{}, ctc::GKZYXC{}, ctc::GNDHWK{});
-    }
+    }*/
 
     return true;
 }
