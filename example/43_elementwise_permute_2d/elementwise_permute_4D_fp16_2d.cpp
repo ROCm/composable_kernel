@@ -48,11 +48,16 @@ int main()
     bool do_verification = true;
     bool time_kernel     = true;
 
-    const int N = 120;
+    const int N = 128;
+    const int H = 128;
+    const int W = 128;
+    const int C = 128;
+
+    /**const int N = 120;
     const int H = 32;
     const int W = 64;
 
-    const int C = 128;
+    const int C = 128;**/
 
     std::vector<std::size_t> nchw = {N, C, H, W};
     std::vector<std::size_t> nhwc = {N, H, W, C};
