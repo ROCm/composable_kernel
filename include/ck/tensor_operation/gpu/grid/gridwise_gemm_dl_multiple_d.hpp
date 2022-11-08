@@ -22,6 +22,9 @@ template <index_t BlockSize,
           typename FloatAcc,
           typename DsDataType,
           typename FloatC,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CDEElementwiseOperation,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename AGridDesc_K0_M_K1,
           typename BGridDesc_K0_N_K1,
@@ -247,6 +250,9 @@ struct GridwiseGemmDlMultipleD_km_kn_mn
         DsGridPointer p_ds_grid,
         FloatC* __restrict__ p_c_grid,
         FloatAB* __restrict__ p_shared_block,
+        const AElementwiseOperation& a_element_op,
+        const BElementwiseOperation& b_element_op,
+        const CDEElementwiseOperation& cde_element_op,
         const AGridDesc_K0_M0_M1_K1& a_grid_desc_k0_m0_m1_k1,
         const BGridDesc_K0_N0_N1_K1& b_grid_desc_k0_n0_n1_k1,
         const DsGridDesc_M0_M10_M11_N0_N10_N11& ds_grid_desc_m0_m10_m11_n0_n10_n11,
@@ -257,6 +263,9 @@ struct GridwiseGemmDlMultipleD_km_kn_mn
     {
         ignore                  = p_ds_grid;
         ignore                  = ds_grid_desc_m0_m10_m11_n0_n10_n11;
+        ignore                  = a_element_op;
+        ignore                  = b_element_op;
+        ignore                  = cde_element_op;
         const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_k0_m0_m1_k1.GetElementSpaceSize());
         const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
