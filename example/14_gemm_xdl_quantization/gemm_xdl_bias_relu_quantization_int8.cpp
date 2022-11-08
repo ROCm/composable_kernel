@@ -116,7 +116,7 @@ int main()
     ck::index_t StrideBias = 0;
     ck::index_t StrideE    = 1024;
 
-    float quant_multiplier = 0.03;
+    float requant_scale = 0.03;
 
     auto f_host_tensor_descriptor2d =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -163,7 +163,7 @@ int main()
 
     auto a_element_op   = PassThrough{};
     auto b_element_op   = PassThrough{};
-    auto cde_element_op = CDEElementOp{quant_multiplier, ActivationOp{}};
+    auto cde_element_op = CDEElementOp{requant_scale, ActivationOp{}};
 
     // do GEMM
     auto gemm     = DeviceGemmInstance{};

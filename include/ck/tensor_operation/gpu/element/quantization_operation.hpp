@@ -10,8 +10,8 @@ namespace element_wise {
 template <typename Activation>
 struct Activation_Mul_Clamp
 {
-    Activation_Mul_Clamp(float multiplier, Activation activationOp)
-        : multiplier_(multiplier), activationOp_(activationOp)
+    Activation_Mul_Clamp(float requantScale, Activation activationOp)
+        : requantScale_(requantScale), activationOp_(activationOp)
     {
     }
 
@@ -19,7 +19,7 @@ struct Activation_Mul_Clamp
     {
         float x_fp32 = ck::type_convert<float>(x);
         activationOp_(x_fp32, x_fp32);
-        float y_fp32 = math::clamp(multiplier_ * x_fp32, -128.f, 127.f);
+        float y_fp32 = math::clamp(requantScale_ * x_fp32, -128.f, 127.f);
         y            = ck::type_convert<int8_t>(y_fp32);
     }
 
@@ -28,10 +28,10 @@ struct Activation_Mul_Clamp
         // We might type_convert to int8 after lambda in someplace
         float x_fp32 = ck::type_convert<float>(x);
         activationOp_(x_fp32, x_fp32);
-        y = math::clamp(multiplier_ * x_fp32, -128.f, 127.f);
+        y = math::clamp(requantScale_ * x_fp32, -128.f, 127.f);
     }
 
-    float multiplier_;
+    float requantScale_;
     Activation activationOp_;
 };
 
@@ -39,8 +39,8 @@ struct Activation_Mul_Clamp
 template <typename Activation>
 struct Add_Activation_Mul_Clamp
 {
-    Add_Activation_Mul_Clamp(float multiplier, Activation activationOp)
-        : multiplier_(multiplier), activationOp_(activationOp)
+    Add_Activation_Mul_Clamp(float requantScale, Activation activationOp)
+        : requantScale_(requantScale), activationOp_(activationOp)
     {
     }
 
@@ -49,11 +49,11 @@ struct Add_Activation_Mul_Clamp
     {
         float y_fp32 = ck::type_convert<float>(x + bias);
         activationOp_(y_fp32, y_fp32);
-        y_fp32 = math::clamp(multiplier_ * y_fp32, -128.f, 127.f);
+        y_fp32 = math::clamp(requantScale_ * y_fp32, -128.f, 127.f);
         y      = ck::type_convert<int8_t>(y_fp32);
     }
 
-    float multiplier_;
+    float requantScale_;
     Activation activationOp_;
 };
 
@@ -65,11 +65,11 @@ struct Add_Activation_Mul2_Clamp
     Add_Activation_Mul2_Clamp(Activation activationOp) : activationOp_(activationOp) {}
 
     __host__ __device__ constexpr void
-    operator()(int8_t& y, const int32_t& x, const int32_t& bias, const float& multiplier) const
+    operator()(int8_t& y, const int32_t& x, const int32_t& bias, const float& requantScale) const
     {
         float y_fp32 = ck::type_convert<float>(x + bias);
         activationOp_(y_fp32, y_fp32);
-        y_fp32 = math::clamp(multiplier * y_fp32, -128.f, 127.f);
+        y_fp32 = math::clamp(requantScale * y_fp32, -128.f, 127.f);
         y      = ck::type_convert<int8_t>(y_fp32);
     }
 
@@ -80,8 +80,8 @@ struct Add_Activation_Mul2_Clamp
 template <typename Activation>
 struct Add_Mul_Activation_Mul_Clamp
 {
-    Add_Mul_Activation_Mul_Clamp(float multiplier1, float multiplier2, Activation activationOp)
-        : multiplier1_(multiplier1), multiplier2_(multiplier2), activationOp_(activationOp)
+    Add_Mul_Activation_Mul_Clamp(float requantScale1, float requantScale2, Activation activationOp)
+        : requantScale1_(requantScale1), requantScale2_(requantScale2), activationOp_(activationOp)
     {
     }
 
@@ -89,14 +89,14 @@ struct Add_Mul_Activation_Mul_Clamp
     operator()(int8_t& y, const int32_t& x, const int32_t& bias) const
     {
         float y_fp32 = ck::type_convert<float>(x + bias);
-        y_fp32       = multiplier1_ * y_fp32;
+        y_fp32       = requantScale1_ * y_fp32;
         activationOp_(y_fp32, y_fp32);
-        y_fp32 = math::clamp(multiplier2_ * y_fp32, -128.f, 127.f);
+        y_fp32 = math::clamp(requantScale2_ * y_fp32, -128.f, 127.f);
         y      = ck::type_convert<int8_t>(y_fp32);
     }
 
-    float multiplier1_;
-    float multiplier2_;
+    float requantScale1_;
+    float requantScale2_;
     Activation activationOp_;
 };
 
