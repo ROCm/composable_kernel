@@ -25,7 +25,15 @@ template <typename XDataType,
           typename MeanVarDataType,
           typename YElementwiseOp>
 struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C
-    : public device::DeviceBatchNormFwd<4, 3, YElementwiseOp>
+    : public device::DeviceBatchNormFwd<XDataType,
+                                        YDataType,
+                                        AccDataType,
+                                        ScaleDataType,
+                                        BiasDataType,
+                                        MeanVarDataType,
+                                        YElementwiseOp,
+                                        4,
+                                        3>
 {
     struct Argument : public device::BaseArgument
     {
@@ -65,8 +73,7 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C
             ignore = bnMeanVarStrides;
             ignore = reduceDims;
 
-            if(xyLengths.size() != 4 || bnScaleBiasMeanVarLengths.size() != 1 ||
-               bnScaleBiasMeanVarLengths[0] != xyLengths[3])
+            if(bnScaleBiasMeanVarLengths[0] != xyLengths[3])
                 throw std::runtime_error("Invalid tensor dimensions!");
 
             n = xyLengths[0];
