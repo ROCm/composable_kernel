@@ -335,11 +335,11 @@ struct DeviceBatchNormBwdImpl
 
         if(UseMultiblockInK && pArg_->blkGroupSize > 1)
         {
-            // workspace for the partial reduced result for scale_diff
+            // workspace for the partial reduced result for dscale
             workspace_size +=
                 pArg_->invariant_length * pArg_->blkGroupSize * sizeof(ScaleDataType) + 64;
 
-            // workspace for the partial reduced result for bias_diff
+            // workspace for the partial reduced result for dbias
             workspace_size +=
                 pArg_->invariant_length * pArg_->blkGroupSize * sizeof(BiasDataType) + 64;
 
