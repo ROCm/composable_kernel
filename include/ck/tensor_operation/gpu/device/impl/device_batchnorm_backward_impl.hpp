@@ -376,13 +376,13 @@ struct DeviceBatchNormBwdImpl
 
         index_t space_sz;
 
-        // setup buffer for the partial reduced result for scale_diff
+        // setup buffer for the partial reduced result for dscale
         pArg_->workspace_reduce_dscale = pArg_->p_workspace_;
 
         space_sz = pArg_->invariant_length * pArg_->blkGroupSize * sizeof(ScaleDataType);
         space_sz = math::integer_least_multiple(space_sz, 64);
 
-        // setup buffer for the partial reduced result for bias_diff
+        // setup buffer for the partial reduced result for dbias
         pArg_->workspace_reduce_dbias =
             reinterpret_cast<char*>(pArg_->workspace_reduce_dscale) + space_sz;
 
