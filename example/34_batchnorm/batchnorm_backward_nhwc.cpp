@@ -39,23 +39,16 @@ class BatchNormBwdArg
     public:
     void show_usage(const char* cmd)
     {
+        // clang-format off
         std::cout << "Usage of " << cmd << std::endl;
-        std::cout << "--inOutLengths or -D, comma separated list of input tensor dimension "
-                     "lengths, must have 4 integers for nhwc"
-                  << std::endl;
-        std::cout << "--verify or -v, 1/0 to indicate whether to verify the batch-normalization "
-                     "result by "
-                     "comparing with the host-based batch-normalization"
-                  << std::endl;
+        std::cout << "--inOutLengths or -D, comma separated list of input tensor dimension lengths, must have 4 integers for nhwc" << std::endl;
+        std::cout << "--verify or -v, 1/0 to indicate whether to verify the result by comparing with the host-based batch-normalization" << std::endl;
         std::cout << "Arg1: data type (0: fp16, 1: fp32, 3: int8, 5: bp16, 6: fp64)" << std::endl;
-        std::cout << "Arg2 -- 1/0 to indicate whether to use saved mean and invVariance"
-                  << std::endl;
-        std::cout << "Arg3 -- init method used for dy and bnScale (0=no init, 1=single integer "
-                     "value, 2=scope integer "
-                     "value, 3=decimal value)"
-                  << std::endl;
+        std::cout << "Arg2 -- 1/0 to indicate whether to use saved mean and invVariance" << std::endl;
+        std::cout << "Arg3 -- init method used for dy and bnScale (0=no init, 1=single integer value, 2=scope integer value, 3=decimal value)" << std::endl;
         std::cout << "Arg4 -- time kernel (0=no, 1=yes)" << std::endl;
         std::cout << "Arg5: use multi-block welford (0=n0, 1=yes)" << std::endl;
+        // clang-format on
     };
 
     int processArgs(int argc, char* argv[])
@@ -329,7 +322,7 @@ bool bnorm_bwd_nhwc_test(bool do_verification,
 
         avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
-        // inputing of x, dy, scale, outputing of dx, scaleDiff, biasDiff
+        // inputing of x, dy, scale, outputing of dx, dscale, dbias
         num_bytes +=
             total_length * sizeof(InOutDataType) * 3 + invariant_length * sizeof(AccDataType) * 3;
 
@@ -395,11 +388,12 @@ bool bnorm_bwd_nhwc_test(bool do_verification,
         dx_dev.FromDevice(dx.mData.data());
         dscale_dev.FromDevice(dscale.data());
         dbias_dev.FromDevice(dbias.data());
-        pass =
-            pass && ck::utils::check_err(dbias.mData, dbias_ref.mData, "dBias result:", 1e-5, 1e-5);
-        pass = pass &&
-               ck::utils::check_err(dscale.mData, dscale_ref.mData, "dScale result:", 1e-5, 2e-4);
+
+        // clang-format off
+        pass = pass && ck::utils::check_err(dbias.mData, dbias_ref.mData, "dBias result:", 1e-5, 1e-5);
+        pass = pass && ck::utils::check_err(dscale.mData, dscale_ref.mData, "dScale result:", 1e-5, 2e-4);
         pass = pass && ck::utils::check_err(dx.mData, dx_ref.mData, "dx result:");
+        // clang-format on
     };
 
     return (pass);
