@@ -5,7 +5,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_data.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_data_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
@@ -17,46 +17,54 @@ namespace instance {
 
 // conv2d backward data
 void add_device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdData<2,
-                                                         GNHWC,
-                                                         GKYXC,
-                                                         GNHWK,
-                                                         F16,
-                                                         F16,
-                                                         F16,
-                                                         PassThrough,
-                                                         PassThrough,
-                                                         PassThrough>>>& instances);
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  GNHWK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  GNHWC,
+                                                                  F16,
+                                                                  F16,
+                                                                  Empty_Tuple,
+                                                                  F16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
 
 template <ck::index_t NumDimSpatial,
-          typename InLayout,
-          typename WeiLayout,
           typename OutLayout,
-          typename InDataType,
+          typename WeiLayout,
+          typename InLayout,
+          typename OutDataType,
           typename WeiDataType,
-          typename OutDataType>
-struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupedConvBwdData<
-    NumDimSpatial,
-    InLayout,
-    WeiLayout,
-    OutLayout,
-    InDataType,
-    WeiDataType,
-    OutDataType,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough>>
+          typename InDataType>
+struct DeviceOperationInstanceFactory<
+    ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<
+        NumDimSpatial,
+        OutLayout,
+        WeiLayout,
+        Empty_Tuple,
+        InLayout,
+        OutDataType,
+        WeiDataType,
+        Empty_Tuple,
+        InDataType,
+        ck::tensor_operation::element_wise::PassThrough,
+        ck::tensor_operation::element_wise::PassThrough,
+        ck::tensor_operation::element_wise::PassThrough>>
 {
-    using DeviceOp = DeviceGroupedConvBwdData<NumDimSpatial,
-                                              InLayout,
-                                              WeiLayout,
-                                              OutLayout,
-                                              InDataType,
-                                              WeiDataType,
-                                              OutDataType,
-                                              ck::tensor_operation::element_wise::PassThrough,
-                                              ck::tensor_operation::element_wise::PassThrough,
-                                              ck::tensor_operation::element_wise::PassThrough>;
+    using DeviceOp =
+        DeviceGroupedConvBwdDataMultipleD<NumDimSpatial,
+                                          OutLayout,
+                                          WeiLayout,
+                                          Empty_Tuple,
+                                          InLayout,
+                                          OutDataType,
+                                          WeiDataType,
+                                          Empty_Tuple,
+                                          InDataType,
+                                          ck::tensor_operation::element_wise::PassThrough,
+                                          ck::tensor_operation::element_wise::PassThrough,
+                                          ck::tensor_operation::element_wise::PassThrough>;
 
     static auto GetInstances()
     {
