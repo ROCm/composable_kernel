@@ -64,7 +64,7 @@ struct TestBatchedGemmMaskingScaleSoftmaxGemmPermute : public ::testing::Test
                                                                          ck::Tuple<>,
                                                                          ck::Tuple<>,
                                                                          MaskingType::value>(
-                verify_, 1, false, bench_, M, N, K, O, G0, G1);
+                verify_, 2, false, bench_, M, N, K, O, G0, G1);
 
         EXPECT_TRUE(pass);
     }
@@ -239,7 +239,7 @@ struct DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128
     using B0DataType       = BF16;
     using B1DataType       = BF16;
     using AccDataType      = float;
-    using CShuffleDataType = float;
+    using CShuffleDataType = BF16;
     using CDataType        = BF16;
 
     using AElementOp    = PassThrough;
