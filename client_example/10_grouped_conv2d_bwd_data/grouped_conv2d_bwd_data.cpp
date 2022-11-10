@@ -98,16 +98,18 @@ int main()
     SimpleDeviceMem wei(sizeof(WeiDataType) * G * K * Y * X * C);
     SimpleDeviceMem out(sizeof(OutDataType) * G * N * Ho * Wo * K);
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvBwdData<NumDimSpatial,
-                                                                            InLayout,
-                                                                            WeiLayout,
-                                                                            OutLayout,
-                                                                            InDataType,
-                                                                            WeiDataType,
-                                                                            OutDataType,
-                                                                            PassThrough,
-                                                                            PassThrough,
-                                                                            PassThrough>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<NumDimSpatial,
+                                                                                     OutLayout,
+                                                                                     WeiLayout,
+                                                                                     ck::Tuple<>,
+                                                                                     InLayout,
+                                                                                     OutDataType,
+                                                                                     WeiDataType,
+                                                                                     ck::Tuple<>,
+                                                                                     InDataType,
+                                                                                     PassThrough,
+                                                                                     PassThrough,
+                                                                                     PassThrough>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
@@ -126,15 +128,18 @@ int main()
     for(int i = 0; i < op_ptrs.size(); ++i)
     {
         auto& op_ptr        = op_ptrs[i];
-        auto argument_ptr   = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
+        auto argument_ptr   = op_ptr->MakeArgumentPointer(out.GetDeviceBuffer(),
                                                         wei.GetDeviceBuffer(),
-                                                        out.GetDeviceBuffer(),
-                                                        in_lengths,
-                                                        in_strides,
-                                                        wei_lengths,
-                                                        wei_strides,
+                                                        {},
+                                                        in.GetDeviceBuffer(),
                                                         out_lengths,
                                                         out_strides,
+                                                        wei_lengths,
+                                                        wei_strides,
+                                                        {},
+                                                        {},
+                                                        in_lengths,
+                                                        in_strides,
                                                         filter_strides,
                                                         filter_dilations,
                                                         input_left_pads,
@@ -189,15 +194,18 @@ int main()
         auto& op_ptr = op_ptrs[best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
                   << std::endl;
-        auto argument_ptr = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
+        auto argument_ptr = op_ptr->MakeArgumentPointer(out.GetDeviceBuffer(),
                                                         wei.GetDeviceBuffer(),
-                                                        out.GetDeviceBuffer(),
-                                                        in_lengths,
-                                                        in_strides,
-                                                        wei_lengths,
-                                                        wei_strides,
+                                                        {},
+                                                        in.GetDeviceBuffer(),
                                                         out_lengths,
                                                         out_strides,
+                                                        wei_lengths,
+                                                        wei_strides,
+                                                        {},
+                                                        {},
+                                                        in_lengths,
+                                                        in_strides,
                                                         filter_strides,
                                                         filter_dilations,
                                                         input_left_pads,
