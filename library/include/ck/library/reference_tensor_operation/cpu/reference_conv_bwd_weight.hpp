@@ -131,17 +131,22 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
             else if constexpr(NDimSpatial == 2)
             {
                 auto f_kcyx = [&](auto g, auto k, auto c, auto y, auto x) {
+                    std::size_t N = arg.output_.GetLengths()[1];
+
+                    std::size_t Ho = arg.output_.GetLengths()[3];
+                    std::size_t Wo = arg.output_.GetLengths()[4];
+
                     float v_acc = 0;
 
-                    for(std::size_t n = 0; n < arg.output_.GetLengths()[1]; ++n)
+                    for(std::size_t n = 0; n < N; ++n)
                     {
-                        for(std::size_t ho = 0; ho < arg.output_.GetLengths()[3]; ++ho)
+                        for(std::size_t ho = 0; ho < Ho; ++ho)
                         {
                             auto hi = static_cast<ck::long_index_t>(ho * arg.conv_strides_[0]) +
                                       static_cast<ck::long_index_t>(y * arg.conv_dilations_[0]) -
                                       static_cast<ck::long_index_t>(arg.in_left_pads_[0]);
 
-                            for(std::size_t wo = 0; wo < arg.output_.GetLengths()[4]; ++wo)
+                            for(std::size_t wo = 0; wo < Wo; ++wo)
                             {
                                 auto wi =
                                     static_cast<ck::long_index_t>(wo * arg.conv_strides_[1]) +
