@@ -95,7 +95,7 @@ template <typename Activation>
 using Add_Activation_Mul_Clamp =
     ck::tensor_operation::element_wise::Add_Activation_Mul_Clamp<Activation>;
 
-template <typename DeviceOp>
+template <typename DeviceOp, typename Tag = void>
 struct DeviceOperationInstanceFactory;
 
 } // namespace instance
