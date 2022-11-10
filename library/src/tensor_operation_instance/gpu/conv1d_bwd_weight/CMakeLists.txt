@@ -1,5 +1,0 @@
-add_instance_library(device_conv1d_bwd_weight_instance
-    device_conv1d_bwd_weight_xdl_nwc_kxc_nwk_f16_instance.cpp
-    device_conv1d_bwd_weight_xdl_nwc_kxc_nwk_f32_instance.cpp
-    device_conv1d_bwd_weight_xdl_nwc_kxc_nwk_bf16_instance.cpp
-)

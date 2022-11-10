@@ -1,5 +1,0 @@
-add_example_executable(example_convnd_bwd_weight_xdl_fp16 convnd_bwd_weight_xdl_fp16.cpp)
-add_example_executable(example_convnd_bwd_weight_xdl_bf16 convnd_bwd_weight_xdl_bf16.cpp)
-
-target_link_libraries(example_convnd_bwd_weight_xdl_fp16 PRIVATE utility)
-target_link_libraries(example_convnd_bwd_weight_xdl_bf16 PRIVATE utility)
