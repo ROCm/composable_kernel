@@ -57,3 +57,5 @@ target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_add_instanc
 target_link_libraries(ckProfiler PRIVATE device_normalization_instance)
 target_link_libraries(ckProfiler PRIVATE device_softmax_instance)
 target_link_libraries(ckProfiler PRIVATE device_reduce_instance)
+
+rocm_install(TARGETS ckProfiler COMPONENT profiler)
