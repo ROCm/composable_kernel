@@ -289,7 +289,7 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
                                                XDataType,
                                                decltype(thread_buffer_desc_m_k),
                                                GridDesc_M_K,
-                                               YElementwiseOperation,
+                                               PassThrough,
                                                ThreadBufferLengths_M_K,
                                                ThreadBufferDimAccessOrder,
                                                XSrcVectorDim,
