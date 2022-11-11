@@ -113,6 +113,7 @@ __global__ void
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
+    ignore = batch_count;
     ignore = block_2_ctile_map;
     ignore = compute_ptr_offset_of_batch;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
