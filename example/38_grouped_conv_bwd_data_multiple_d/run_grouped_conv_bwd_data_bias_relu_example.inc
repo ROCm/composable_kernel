@@ -61,7 +61,7 @@ bool run_conv_bwd_data_bias_relu(const ExecutionConfig& config,
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
     std::array<ck::index_t, NDimSpatial> input_right_pads{};
 
-    auto copy = [](auto& x, auto& y) { std::copy(x.begin(), x.end(), y.begin()); };
+    auto copy = [](const auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
 
     copy(out_g_n_k_wos_desc.GetLengths(), a_g_n_k_wos_lengths);
     copy(out_g_n_k_wos_desc.GetStrides(), a_g_n_k_wos_strides);
@@ -157,7 +157,7 @@ bool run_conv_bwd_data_bias_relu(const ExecutionConfig& config,
 
         in_device_buf.FromDevice(in_device.mData.data());
 
-        return ck::utils::check_err(in_device.mData, in_host.mData);
+        return ck::utils::check_err(in_device, in_host);
     }
 
     return true;

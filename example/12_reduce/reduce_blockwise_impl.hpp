@@ -324,12 +324,12 @@ int reduce_blockwise_impl(bool do_verification,
 #endif
             out_dev.FromDevice(out.mData.data());
 
-        pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
+        pass = pass && ck::utils::check_err(out, out_ref);
 
         if(OutputIndex)
         {
             out_index_dev.FromDevice(out_indices.mData.data());
-            pass = pass && ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
+            pass = pass && ck::utils::check_err(out_indices, out_indices_ref);
         };
     };
 
