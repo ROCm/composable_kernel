@@ -19,6 +19,7 @@
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 #include "ck/utility/type.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/fill.hpp"
@@ -247,19 +248,6 @@ inline auto to_array(Range& range) noexcept
     return detail::to_array_proxy<ck::remove_cvref_t<Range>>{range};
 }
 
-namespace ranges {
-template <typename InputRange, typename OutputIterator>
-inline auto copy(InputRange&& range, OutputIterator iter)
-    -> decltype(std::copy(std::begin(std::forward<InputRange>(range)),
-                          std::end(std::forward<InputRange>(range)),
-                          iter))
-{
-    return std::copy(std::begin(std::forward<InputRange>(range)),
-                     std::end(std::forward<InputRange>(range)),
-                     iter);
-}
-} // namespace ranges
-
 template <typename Axes>
 inline auto is_valid_axes(const Axes& axes)
     -> std::enable_if_t<detail::is_random_access_range_v<Axes>, bool>
@@ -350,7 +338,7 @@ auto extend_shape(const Problem::Shape& shape, std::size_t new_dim)
 
     using std::begin, std::end;
 
-    std::copy(begin(shape), end(shape), begin(extended_shape));
+    ck::ranges::copy(shape, begin(extended_shape));
     extended_shape.back() = new_dim;
 
     return extended_shape;
@@ -362,7 +350,7 @@ auto extend_axes(const Problem::Axes& axes)
 
     using std::begin, std::end;
 
-    std::copy(begin(axes), end(axes), begin(extended_axes));
+    ck::ranges::copy(axes, begin(extended_axes));
     extended_axes.back() = detail::get_array_size_v<Problem::Axes>;
 
     return extended_axes;
