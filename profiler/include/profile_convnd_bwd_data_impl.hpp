@@ -453,7 +453,7 @@ bool profile_convnd_bwd_data_impl(int do_verification,
                     std::cout << "Pass Info: " << conv_ptr->GetTypeString() << std::endl;
                 }
 
-                success = ck::utils::check_err(input_host_result.mData, input_device_result.mData);
+                success = ck::utils::check_err(input_host_result, input_device_result);
 
                 if(do_log)
                 {

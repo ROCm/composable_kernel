@@ -15,18 +15,22 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/data_type.hpp"
-#include "ck/utility/span.hpp"
 #include "ck/utility/type.hpp"
 #include "ck/host_utility/io.hpp"
+
+#include "ck/library/utility/ranges.hpp"
 
 namespace ck {
 namespace utils {
 
-template <typename T>
-typename std::enable_if<std::is_floating_point<T>::value && !std::is_same<T, half_t>::value,
-                        bool>::type
-check_err(const std::vector<T>& out,
-          const std::vector<T>& ref,
+template <typename Range, typename RefRange>
+typename std::enable_if<
+    std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
+        std::is_floating_point_v<ranges::range_value_t<Range>> &&
+        !std::is_same_v<ranges::range_value_t<Range>, half_t>,
+    bool>::type
+check_err(const Range& out,
+          const RefRange& ref,
           const std::string& msg = "Error: Incorrect results!",
           double rtol            = 1e-5,
           double atol            = 3e-6)
@@ -44,15 +48,17 @@ check_err(const std::vector<T>& out,
     double max_err = std::numeric_limits<double>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
-        err = std::abs(out[i] - ref[i]);
-        if(err > atol + rtol * std::abs(ref[i]) || !std::isfinite(out[i]) || !std::isfinite(ref[i]))
+        const double o = *std::next(std::begin(out), i);
+        const double r = *std::next(std::begin(ref), i);
+        err            = std::abs(o - r);
+        if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
             if(err_count < 5)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
-                          << "] != ref[" << i << "]: " << out[i] << " != " << ref[i] << std::endl;
+                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
             }
             res = false;
         }
@@ -64,10 +70,13 @@ check_err(const std::vector<T>& out,
     return res;
 }
 
-template <typename T>
-typename std::enable_if<std::is_same<T, bhalf_t>::value, bool>::type
-check_err(const std::vector<T>& out,
-          const std::vector<T>& ref,
+template <typename Range, typename RefRange>
+typename std::enable_if<
+    std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
+        std::is_same_v<ranges::range_value_t<Range>, bhalf_t>,
+    bool>::type
+check_err(const Range& out,
+          const RefRange& ref,
           const std::string& msg = "Error: Incorrect results!",
           double rtol            = 1e-3,
           double atol            = 1e-3)
@@ -86,9 +95,9 @@ check_err(const std::vector<T>& out,
     double max_err = std::numeric_limits<float>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
-        double o = type_convert<float>(out[i]);
-        double r = type_convert<float>(ref[i]);
-        err      = std::abs(o - r);
+        const double o = type_convert<float>(*std::next(std::begin(out), i));
+        const double r = type_convert<float>(*std::next(std::begin(ref), i));
+        err            = std::abs(o - r);
         if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {
             max_err = err > max_err ? err : max_err;
@@ -108,10 +117,13 @@ check_err(const std::vector<T>& out,
     return res;
 }
 
-template <typename T>
-typename std::enable_if<std::is_same_v<T, half_t>, bool>::type
-check_err(span<const T> out,
-          span<const T> ref,
+template <typename Range, typename RefRange>
+typename std::enable_if<
+    std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
+        std::is_same_v<ranges::range_value_t<Range>, half_t>,
+    bool>::type
+check_err(const Range& out,
+          const RefRange& ref,
           const std::string& msg = "Error: Incorrect results!",
           double rtol            = 1e-3,
           double atol            = 1e-3)
@@ -126,12 +138,12 @@ check_err(span<const T> out,
     bool res{true};
     int err_count  = 0;
     double err     = 0;
-    double max_err = std::numeric_limits<T>::min();
+    double max_err = std::numeric_limits<ranges::range_value_t<Range>>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
-        double o = type_convert<float>(out[i]);
-        double r = type_convert<float>(ref[i]);
-        err      = std::abs(o - r);
+        const double o = type_convert<float>(*std::next(std::begin(out), i));
+        const double r = type_convert<float>(*std::next(std::begin(ref), i));
+        err            = std::abs(o - r);
         if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {
             max_err = err > max_err ? err : max_err;
@@ -151,26 +163,17 @@ check_err(span<const T> out,
     return res;
 }
 
-template <typename T>
-typename std::enable_if<std::is_same<T, half_t>::value, bool>::type
-check_err(const std::vector<T>& out,
-          const std::vector<T>& ref,
-          const std::string& msg = "Error: Incorrect results!",
-          double rtol            = 1e-3,
-          double atol            = 1e-3)
-{
-    return check_err(span<const T>{out}, span<const T>{ref}, msg, rtol, atol);
-}
-
-template <typename T>
-std::enable_if_t<(std::is_integral_v<T> && !std::is_same_v<T, bhalf_t>)
+template <typename Range, typename RefRange>
+std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
+                  std::is_integral_v<ranges::range_value_t<Range>> &&
+                  !std::is_same_v<ranges::range_value_t<Range>, bhalf_t>)
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-                     || std::is_same_v<T, int4_t>
+                     || std::is_same_v<ranges::range_value_t<Range>, int4_t>
 #endif
                  ,
                  bool>
-check_err(const std::vector<T>& out,
-          const std::vector<T>& ref,
+check_err(const Range& out,
+          const RefRange& ref,
           const std::string& msg = "Error: Incorrect results!",
           double                 = 0,
           double atol            = 0)
@@ -188,9 +191,9 @@ check_err(const std::vector<T>& out,
     int64_t max_err = std::numeric_limits<int64_t>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
-        int64_t o = out[i];
-        int64_t r = ref[i];
-        err       = std::abs(o - r);
+        const int64_t o = *std::next(std::begin(out), i);
+        const int64_t r = *std::next(std::begin(ref), i);
+        err             = std::abs(o - r);
 
         if(err > atol)
         {

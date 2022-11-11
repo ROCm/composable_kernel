@@ -120,10 +120,10 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
         conv_output_g_n_k_wos_desc, conv_output_g_n_k_wos_lengths, conv_output_g_n_k_wos_strides);
     unpack_host_tensor_descriptor(r0_desc, r0_lengths, r0_strides);
 
-    copy(problem_size.conv_filter_strides_, begin(conv_filter_strides));
-    copy(problem_size.conv_filter_dilations_, begin(conv_filter_dilations));
-    copy(problem_size.input_left_pads_, begin(input_left_pads));
-    copy(problem_size.input_right_pads_, begin(input_right_pads));
+    ck::ranges::copy(problem_size.conv_filter_strides_, begin(conv_filter_strides));
+    ck::ranges::copy(problem_size.conv_filter_dilations_, begin(conv_filter_dilations));
+    ck::ranges::copy(problem_size.input_left_pads_, begin(input_left_pads));
+    ck::ranges::copy(problem_size.input_right_pads_, begin(input_right_pads));
 
     // run Conv + Reduction on device
     auto conv     = DeviceInstance<NDimSpatial>{};
@@ -273,16 +273,13 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
         conv_output_device_buf.FromDevice(conv_output_device.mData.data());
         r0_device_buf.FromDevice(r0_device.mData.data());
 
-        return ck::utils::check_err(conv_output_device.mData,
-                                    conv_output_host.mData,
+        return ck::utils::check_err(conv_output_device,
+                                    conv_output_host,
                                     "Error: incorrect results! (Matrix E)",
                                     1e-5f,
                                     1e-4f) &&
-               ck::utils::check_err(r0_device.mData,
-                                    r0_host.mData,
-                                    "Error: incorrect results! (Matrix R0)",
-                                    1e-5f,
-                                    1e-4f);
+               ck::utils::check_err(
+                   r0_device, r0_host, "Error: incorrect results! (Matrix R0)", 1e-5f, 1e-4f);
     }
 
     return true;

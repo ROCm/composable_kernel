@@ -16,6 +16,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 
@@ -113,15 +114,15 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
                                        std::size_t stride,
                                        std::size_t batch_stride,
                                        auto layout) {
+        using namespace ck::literals;
+
         if(std::is_same<decltype(layout), Row>::value)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, stride, 1}));
+            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, 1, stride}));
+            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
         }
     };
 
@@ -307,8 +308,7 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
             {
                 c_g_m_o_device_buf.FromDevice(c_g_m_o_device_result.mData.data());
 
-                pass = pass &
-                       ck::utils::check_err(c_g_m_o_device_result.mData, c_g_m_o_host_result.mData);
+                pass = pass & ck::utils::check_err(c_g_m_o_device_result, c_g_m_o_host_result);
 
                 if(do_log)
                 {
