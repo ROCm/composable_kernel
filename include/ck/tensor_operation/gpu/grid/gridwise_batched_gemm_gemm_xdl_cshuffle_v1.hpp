@@ -8,7 +8,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
@@ -74,7 +74,8 @@ template <typename FloatAB,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched>
+          LoopScheduler LoopSched,
+          PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseBatchedGemmGemm_Xdl_CShuffle
 {
     static_assert(LoopSched == LoopScheduler::Default,
@@ -101,7 +102,8 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemmKPrefetchStage>;
+    using GridwiseGemmPipe = remove_cvref_t<decltype(
+        GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage>())>;
 
     template <typename ABlockDesc_AK0_M_AK1>
     __host__ __device__ static constexpr auto
@@ -486,8 +488,9 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
 
         // gridwise GEMM pipeline
         // Only supports LoopScheduler::Default
-        const auto gridwise_gemm_pipeline =
-            GridwiseGemmPipeline_v1_Selector<NumGemmKPrefetchStage, LoopScheduler::Default>();
+        const auto gridwise_gemm_pipeline = GridwiseGemmPipeline_Selector<PipelineVer,
+                                                                          NumGemmKPrefetchStage,
+                                                                          LoopScheduler::Default>();
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
