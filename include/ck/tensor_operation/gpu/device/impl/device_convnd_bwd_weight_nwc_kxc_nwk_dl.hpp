@@ -1328,8 +1328,7 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
                                                 arg.b_grid_desc_k0_n_k1_container_[i],
                                                 arg.c_grid_desc_m_n_container_[i]))
                 {
-                    throw std::runtime_error(
-                        "wrong! GridwiseGemm has invalid setting");
+                    throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
                 }
 
                 const index_t grid_size = arg.block_2_ctile_map_container_[i].CalculateGridSize(
