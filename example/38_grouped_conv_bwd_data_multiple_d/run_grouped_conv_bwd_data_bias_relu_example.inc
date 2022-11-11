@@ -157,7 +157,7 @@ bool run_conv_bwd_data_bias_relu(const ExecutionConfig& config,
 
         in_device_buf.FromDevice(in_device.mData.data());
 
-        return ck::utils::check_err(in_device.mData, in_host.mData);
+        return ck::utils::check_err(in_device, in_host);
     }
 
     return true;

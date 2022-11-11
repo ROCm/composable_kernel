@@ -273,16 +273,13 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
         conv_output_device_buf.FromDevice(conv_output_device.mData.data());
         r0_device_buf.FromDevice(r0_device.mData.data());
 
-        return ck::utils::check_err(conv_output_device.mData,
-                                    conv_output_host.mData,
+        return ck::utils::check_err(conv_output_device,
+                                    conv_output_host,
                                     "Error: incorrect results! (Matrix E)",
                                     1e-5f,
                                     1e-4f) &&
-               ck::utils::check_err(r0_device.mData,
-                                    r0_host.mData,
-                                    "Error: incorrect results! (Matrix R0)",
-                                    1e-5f,
-                                    1e-4f);
+               ck::utils::check_err(
+                   r0_device, r0_host, "Error: incorrect results! (Matrix R0)", 1e-5f, 1e-4f);
     }
 
     return true;

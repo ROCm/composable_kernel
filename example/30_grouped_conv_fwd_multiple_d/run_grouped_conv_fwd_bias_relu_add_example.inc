@@ -257,10 +257,10 @@ bool run_grouped_conv_fwd_bias_relu_add(const ExecutionConfig& config,
         const Tensor<OutUserDataType> out_device_converted(out_device);
 
         return ck::utils::check_err(
-            out_device_converted.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+            out_device_converted, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
 #else
         return ck::utils::check_err(
-            out_device.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+            out_device, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
 #endif
     }
 

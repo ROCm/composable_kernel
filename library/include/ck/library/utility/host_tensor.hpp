@@ -15,6 +15,7 @@
 #include "ck/utility/span.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
+#include "ck/library/utility/ranges.hpp"
 
 template <typename Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
@@ -86,10 +87,10 @@ struct HostTensorDescriptor
         this->CalculateStrides();
     }
 
-    template <typename Range,
+    template <typename Lengths,
               typename = std::enable_if_t<
-                  std::is_convertible_v<decltype(*std::begin(std::declval<Range>())), std::size_t>>>
-    HostTensorDescriptor(const Range& lens) : mLens(lens.begin(), lens.end())
+                  std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t>>>
+    HostTensorDescriptor(const Lengths& lens) : mLens(lens.begin(), lens.end())
     {
         this->CalculateStrides();
     }
@@ -104,13 +105,12 @@ struct HostTensorDescriptor
     {
     }
 
-    template <
-        typename Range1,
-        typename Range2,
-        typename = std::enable_if_t<
-            std::is_convertible_v<decltype(*std::begin(std::declval<Range1>())), std::size_t> &&
-            std::is_convertible_v<decltype(*std::begin(std::declval<Range2>())), std::size_t>>>
-    HostTensorDescriptor(const Range1& lens, const Range2& strides)
+    template <typename Lengths,
+              typename Strides,
+              typename = std::enable_if_t<
+                  std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t> &&
+                  std::is_convertible_v<ck::ranges::range_value_t<Strides>, std::size_t>>>
+    HostTensorDescriptor(const Lengths& lens, const Strides& strides)
         : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
     {
     }
@@ -246,14 +246,20 @@ struct Tensor
     {
     }
 
-    template <typename X>
-    Tensor(std::vector<X> lens) : mDesc(lens), mData(mDesc.GetElementSpaceSize())
+    template <typename X, typename Y>
+    Tensor(std::initializer_list<X> lens, std::initializer_list<Y> strides)
+        : mDesc(lens, strides), mData(mDesc.GetElementSpaceSize())
     {
     }
 
-    template <typename X, typename Y>
-    Tensor(std::vector<X> lens, std::vector<Y> strides)
-        : mDesc(lens, strides), mData(mDesc.GetElementSpaceSize())
+    template <typename Lengths>
+    Tensor(const Lengths& lens) : mDesc(lens), mData(mDesc.GetElementSpaceSize())
+    {
+    }
+
+    template <typename Lengths, typename Strides>
+    Tensor(const Lengths& lens, const Strides& strides)
+        : mDesc(lens, strides), mData(GetElementSpaceSize())
     {
     }
 

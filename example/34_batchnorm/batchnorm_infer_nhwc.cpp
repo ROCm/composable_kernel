@@ -299,7 +299,7 @@ bool bnorm_infer_nhwc_test(bool do_verification,
         (void)invoker_ptr_ref->Run(argument_ptr_ref.get());
 
         y_dev.FromDevice(y.mData.data());
-        pass = pass && ck::utils::check_err(y.mData, y_ref.mData);
+        pass = pass && ck::utils::check_err(y, y_ref);
     };
 
     return (pass);
