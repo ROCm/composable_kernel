@@ -142,7 +142,7 @@ bool reduce_blockwise_test(bool do_verification,
 
         std::array<int, ShapeType::NumReduceDim_> arrReduceDims;
 
-        std::copy(reduceDims.begin(), reduceDims.end(), arrReduceDims.begin());
+        ck::ranges::copy(reduceDims, arrReduceDims.begin());
 
         result = reduce_blockwise_impl<InOutDataType,
                                        AccDataType,
