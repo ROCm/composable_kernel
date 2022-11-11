@@ -13,6 +13,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
 namespace ck {
@@ -68,8 +69,9 @@ bool profile_elementwise_layernorm_impl(int do_verification,
     std::vector<index_t> gammaBetaStride = {0, 1};
 
     auto f_host_tensor_descriptor2d = [](std::size_t row, std::size_t col, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                    std::vector<std::size_t>({stride, 1}));
+        using namespace ck::literals;
+
+        return HostTensorDescriptor({row, col}, {stride, 1_uz});
     };
 
     Tensor<ADataType> a(length);

@@ -22,7 +22,7 @@ int run(int argc, char* argv[])
 
     float alpha = 1;
 
-    bool input_permute = false;
+    bool input_permute  = false;
     bool output_permute = true;
 
     if(argc == 1)
@@ -50,7 +50,7 @@ int run(int argc, char* argv[])
 
         alpha = std::stof(argv[10]);
 
-        input_permute = std::stoi(argv[11]);
+        input_permute  = std::stoi(argv[11]);
         output_permute = std::stoi(argv[12]);
     }
     else
