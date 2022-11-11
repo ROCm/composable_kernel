@@ -262,6 +262,16 @@ rocm_package_setup_component(tests
         PACKAGE_NAME tests # Prevent -static suffix on package name
 )
 
+rocm_package_setup_component(examples
+        LIBRARY_NAME composablekernel
+        PACKAGE_NAME examples
+)
+
+rocm_package_setup_component(profiler
+        LIBRARY_NAME composablekernel
+        PACKAGE_NAME ckProfiler
+)
+
 add_subdirectory(library)
 add_subdirectory(example)
 add_subdirectory(test)

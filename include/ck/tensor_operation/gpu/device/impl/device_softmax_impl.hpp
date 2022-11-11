@@ -40,8 +40,9 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
                                                 AccElementwiseOp,
                                                 Rank>
 {
-    static constexpr index_t kRank         = Rank;
-    static constexpr index_t kNumReduceDim = NumReduceDim;
+    static constexpr index_t kRank            = Rank;
+    static constexpr index_t kNumReduceDim    = NumReduceDim;
+    static constexpr index_t kNumInvariantDim = Rank - NumReduceDim;
 
     virtual index_t GetRank() const override { return kRank; }
 
@@ -168,6 +169,30 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
               in_elementwise_op_{in_elementwise_op},
               acc_elementwise_op_{acc_elementwise_op}
         {
+            if(Rank != inLengths.size() || Rank != inStrides.size() ||
+               NumReduceDim != reduceDims.size())
+            {
+                throw std::runtime_error(
+                    "One of inLengths/inStrides/reduceDims has invalid size!"
+                    "\nExpected size inLengths: " +
+                    std::to_string(Rank) + ", inStrides: " + std::to_string(Rank) +
+                    ", reduceDims: " + std::to_string(NumReduceDim) +
+                    "\nBut have inLengths: " + std::to_string(inLengths.size()) +
+                    ", inStrides: " + std::to_string(inStrides.size()) +
+                    ", reduceDims: " + std::to_string(reduceDims.size()));
+            }
+
+            for(std::size_t i = 0; i < reduceDims.size(); ++i)
+            {
+                if(reduceDims[i] < 0 || reduceDims[i] >= Rank)
+                {
+                    throw std::runtime_error("Provided reduce dimension exceed input tensor Rank!"
+                                             "\nHave reduceDims[" +
+                                             std::to_string(i) +
+                                             "]: " + std::to_string(reduceDims[i]));
+                }
+            }
+
             inLengths_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inLengths, reduceDims);
             inStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inStrides, reduceDims);
 
@@ -257,38 +282,76 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
         };
     };
 
-    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    static bool IsSupportedArgument(const Argument& arg)
     {
-        const Argument* p_arg_ = dynamic_cast<const Argument*>(p_arg);
-
         if constexpr(InSrcVectorDim == 0)
         {
-            if constexpr(NumInvariantDim == 0)
+            if constexpr(kNumInvariantDim == 0)
             {
                 return false;
             }
             else
             {
-                if(p_arg_->inStrides_[NumInvariantDim - 1] != 1)
+                if(arg.inStrides_[kNumInvariantDim - 1] != 1 && InSrcVectorSize != 1)
+                {
                     return false;
-
-                if(p_arg_->invariant_lowest_length_ % InSrcVectorSize != 0)
+                }
+                if(arg.invariant_lowest_length_ % InSrcVectorSize != 0)
+                {
                     return false;
-            };
+                }
+            }
         }
         else
         {
-            if(p_arg_->inStrides_[Rank - 1] != 1)
+            if(arg.inStrides_[Rank - 1] != 1 && InSrcVectorSize != 1)
+            {
                 return false;
-
-            if(p_arg_->inLengths_[Rank - 1] % InSrcVectorSize != 0)
+            }
+            if(arg.inLengths_[Rank - 1] % InSrcVectorSize != 0)
+            {
                 return false;
-        };
+            }
+        }
 
-        if(p_arg_->invariant_lowest_length_ % OutDstVectorSize != 0)
+        // To improve
+        if(kNumInvariantDim > 0 && arg.invariant_lowest_length_ % OutDstVectorSize != 0)
+        {
             return false;
+        }
+
+        if(arg.inLengths_[Rank - 1] % OutDstVectorSize != 0)
+        {
+            return false;
+        }
 
         return true;
+    };
+
+    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    {
+        return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
+    }
+
+    static auto MakeArgument(const std::vector<index_t> inLengths,
+                             const std::vector<index_t> inStrides,
+                             const std::vector<int> reduceDims,
+                             const AccDataType alpha,
+                             const AccDataType beta,
+                             const InDataType* in_dev,
+                             OutDataType* out_dev,
+                             InElementwiseOp in_elementwise_op,
+                             AccElementwiseOp acc_elementwise_op)
+    {
+        return Argument{inLengths,
+                        inStrides,
+                        reduceDims,
+                        alpha,
+                        beta,
+                        in_dev,
+                        out_dev,
+                        in_elementwise_op,
+                        acc_elementwise_op};
     };
 
     //
@@ -330,6 +393,8 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
                                           acc_elementwise_op);
     };
 
+    static auto MakeInvoker() { return Invoker{}; }
+
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
         return std::make_unique<Invoker>();
@@ -340,10 +405,13 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceReduceSoftmax<" << BlockSize << ",";
-        str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
-        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
-        str << "InSrcVectorDim_" << InSrcVectorDim << "_InSrcVectorSize_" << InSrcVectorSize << "_OutDstVectorSize_" << OutDstVectorSize << ">";
+        str << "DeviceReduceSoftmax<" 
+            << Rank << "," << NumReduceDim << "," << BlockSize << ","
+            << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ","
+            << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ","
+            << "InSrcVectorDim_" << InSrcVectorDim 
+            << "_InSrcVectorSize_" << InSrcVectorSize 
+            << "_OutDstVectorSize_" << OutDstVectorSize << ">";
         // clang-format on
 
         return str.str();
