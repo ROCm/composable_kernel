@@ -9,10 +9,10 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_dl.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -136,25 +136,6 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                                                                 InLayout,
-                                                                                 WeiLayout,
-                                                                                 ck::Tuple<>,
-                                                                                 OutLayout,
-                                                                                 InDataType,
-                                                                                 WeiDataType,
-                                                                                 ck::Tuple<>,
-                                                                                 OutDataType,
-                                                                                 InElementOp,
-                                                                                 WeiElementOp,
-                                                                                 OutElementOp>;
-
-    // get device op instances
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
-
-    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
-
     std::string best_op_name;
     float best_avg_time   = 0;
     float best_tflops     = 0;
@@ -163,29 +144,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     // profile device op instances
     bool pass = true;
 
-    for(auto& op_ptr : op_ptrs)
-    {
-        auto argument_ptr =
-            op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
-                                        wei_device_buf.GetDeviceBuffer(),
-                                        std::array<const void*, 0>{},
-                                        out_device_buf.GetDeviceBuffer(),
-                                        a_g_n_c_wis_lengths,
-                                        a_g_n_c_wis_strides,
-                                        b_g_k_c_xs_lengths,
-                                        b_g_k_c_xs_strides,
-                                        std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
-                                        std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
-                                        e_g_n_k_wos_lengths,
-                                        e_g_n_k_wos_strides,
-                                        conv_filter_strides,
-                                        conv_filter_dilations,
-                                        input_left_pads,
-                                        input_right_pads,
-                                        in_element_op,
-                                        wei_element_op,
-                                        out_element_op);
-
+    auto run_impl = [&](auto& op_ptr, auto& argument_ptr) {
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             // re-init output to zero before profiling next kernel
@@ -236,6 +195,95 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         else
         {
             std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
+        }
+    };
+
+    // xdl
+    {
+        using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<NDimSpatial,
+                                                                                     InLayout,
+                                                                                     WeiLayout,
+                                                                                     ck::Tuple<>,
+                                                                                     OutLayout,
+                                                                                     InDataType,
+                                                                                     WeiDataType,
+                                                                                     ck::Tuple<>,
+                                                                                     OutDataType,
+                                                                                     InElementOp,
+                                                                                     WeiElementOp,
+                                                                                     OutElementOp>;
+
+        // get device op instances
+        const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+            DeviceOp>::GetInstances();
+
+        std::cout << "xdl found " << op_ptrs.size() << " instances" << std::endl;
+
+        for(auto& op_ptr : op_ptrs)
+        {
+            auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
+                                                            wei_device_buf.GetDeviceBuffer(),
+                                                            {},
+                                                            out_device_buf.GetDeviceBuffer(),
+                                                            a_g_n_c_wis_lengths,
+                                                            a_g_n_c_wis_strides,
+                                                            b_g_k_c_xs_lengths,
+                                                            b_g_k_c_xs_strides,
+                                                            {},
+                                                            {},
+                                                            e_g_n_k_wos_lengths,
+                                                            e_g_n_k_wos_strides,
+                                                            conv_filter_strides,
+                                                            conv_filter_dilations,
+                                                            input_left_pads,
+                                                            input_right_pads,
+                                                            in_element_op,
+                                                            wei_element_op,
+                                                            out_element_op);
+
+            run_impl(op_ptr, argument_ptr);
+        }
+    }
+
+    // dl
+    {
+        using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwd<NDimSpatial,
+                                                                            InLayout,
+                                                                            WeiLayout,
+                                                                            OutLayout,
+                                                                            InDataType,
+                                                                            WeiDataType,
+                                                                            OutDataType,
+                                                                            InElementOp,
+                                                                            WeiElementOp,
+                                                                            OutElementOp>;
+
+        // get device op instances
+        const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+            DeviceOp>::GetInstances();
+
+        std::cout << "dl found " << op_ptrs.size() << " instances" << std::endl;
+
+        for(auto& op_ptr : op_ptrs)
+        {
+            auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
+                                                            wei_device_buf.GetDeviceBuffer(),
+                                                            out_device_buf.GetDeviceBuffer(),
+                                                            a_g_n_c_wis_lengths,
+                                                            a_g_n_c_wis_strides,
+                                                            b_g_k_c_xs_lengths,
+                                                            b_g_k_c_xs_strides,
+                                                            e_g_n_k_wos_lengths,
+                                                            e_g_n_k_wos_strides,
+                                                            conv_filter_strides,
+                                                            conv_filter_dilations,
+                                                            input_left_pads,
+                                                            input_right_pads,
+                                                            in_element_op,
+                                                            wei_element_op,
+                                                            out_element_op);
+
+            run_impl(op_ptr, argument_ptr);
         }
     }
 

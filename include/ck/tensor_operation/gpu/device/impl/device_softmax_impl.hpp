@@ -8,12 +8,9 @@
 
 #include "ck/utility/reduction_operator.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
-#include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 #include "ck/tensor_operation/gpu/device/device_softmax.hpp"
-#include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
-#include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_softmax.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_set_buffer_value.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -43,36 +40,88 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
                                                 AccElementwiseOp,
                                                 Rank>
 {
-    static constexpr index_t kRank         = Rank;
-    static constexpr index_t kNumReduceDim = NumReduceDim;
+    static constexpr index_t kRank            = Rank;
+    static constexpr index_t kNumReduceDim    = NumReduceDim;
+    static constexpr index_t kNumInvariantDim = Rank - NumReduceDim;
 
     virtual index_t GetRank() const override { return kRank; }
 
     virtual index_t GetNumReduceDim() const override { return kNumReduceDim; }
 
-    // Used for freeloading of some handy functions from DeviceReduceMultiBlock
-    using Reduction = DeviceReduceMultiBlock<InDataType,
-                                             AccDataType,
-                                             OutDataType,
-                                             Rank,
-                                             NumReduceDim,
-                                             reduce::Add,
-                                             InElementwiseOp,
-                                             AccElementwiseOp,
-                                             InMemoryDataOperationEnum::Set,
-                                             false, // PropagateNan
-                                             false, // OutputIndex
-                                             false, // HaveIndexInputIfOutputIndex
-                                             BlockSize,
-                                             MThreadClusterSize,
-                                             KThreadClusterSize,
-                                             MThreadSliceSize,
-                                             KThreadSliceSize,
-                                             InSrcVectorDim,
-                                             InSrcVectorSize,
-                                             1>; // OutDstVectorSize
+    static constexpr index_t NumInvariantDim = Rank - NumReduceDim;
 
-    using GridDesc_M_K = decltype(Reduction::MakeSrc2dDescriptor({1}, {1}, 1, 1));
+    static constexpr index_t NumSrcDim = Rank;
+    static constexpr index_t NumDstDim = (NumInvariantDim == 0) ? 1 : NumInvariantDim;
+    static constexpr bool reduceAllDim = (NumInvariantDim == 0);
+
+    static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
+    static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
+
+    static auto MakeSrc2dDescriptor(const std::vector<index_t>& inLengths,
+                                    const std::vector<index_t>& inStrides,
+                                    int blkGroupSize,
+                                    int numBlockTileIteration)
+    {
+        const auto tupleSrcLengths =
+            generate_tuple([&](auto I) { return inLengths[I]; }, Number<Rank>{});
+        const auto tupleSrcStrides =
+            generate_tuple([&](auto I) { return inStrides[I]; }, Number<Rank>{});
+
+        const auto inDesc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
+
+        const auto in_grid_desc_m_k = [&]() {
+            if constexpr(reduceAllDim)
+            {
+                const auto one_dim_inDesc = transform_tensor_descriptor(
+                    inDesc,
+                    make_tuple(make_merge_transform(tupleSrcLengths)),
+                    make_tuple(typename arithmetic_sequence_gen<0, NumSrcDim, 1>::type{}),
+                    make_tuple(Sequence<0>{}));
+
+                return transform_tensor_descriptor(one_dim_inDesc,
+                                                   make_tuple(make_unmerge_transform(make_tuple(
+                                                       1, one_dim_inDesc.GetLength(Number<0>{})))),
+                                                   make_tuple(Sequence<0>{}),
+                                                   make_tuple(Sequence<0, 1>{}));
+            }
+            else
+            {
+                using InvariantDims = typename arithmetic_sequence_gen<0, NumInvariantDim, 1>::type;
+                using ReduceDims = typename arithmetic_sequence_gen<NumInvariantDim, Rank, 1>::type;
+
+                const auto reduceDimLengths = generate_tuple(
+                    [&](auto I) { return inLengths[NumInvariantDim + I]; }, Number<NumReduceDim>{});
+                const auto invariantDimLengths =
+                    generate_tuple([&](auto I) { return inLengths[I]; }, Number<NumInvariantDim>{});
+
+                return transform_tensor_descriptor(
+                    inDesc,
+                    make_tuple(make_merge_transform(invariantDimLengths),
+                               make_merge_transform(reduceDimLengths)),
+                    make_tuple(InvariantDims{}, ReduceDims{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}));
+            }
+        }();
+
+        const auto invariantLength = in_grid_desc_m_k.GetLength(Number<0>{});
+        const auto reduceLength    = in_grid_desc_m_k.GetLength(Number<1>{});
+
+        const int reduceSizePerBlock = K_BlockTileSize * numBlockTileIteration;
+        const auto inPad_M =
+            math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
+        const auto inPad_K = reduceSizePerBlock * blkGroupSize - reduceLength;
+
+        auto in_grid_desc_m_k_padded = transform_tensor_descriptor(
+            in_grid_desc_m_k,
+            make_tuple(make_right_pad_transform(invariantLength, inPad_M),
+                       make_right_pad_transform(reduceLength, inPad_K)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        return (in_grid_desc_m_k_padded);
+    };
+
+    using GridDesc_M_K = decltype(MakeSrc2dDescriptor({1}, {1}, 1, 1));
 
     using GridwiseSoftmaxGeneric = GridwiseSoftmax_mk_to_mk<InDataType,
                                                             OutDataType,
@@ -102,7 +151,7 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
                                                               OutDstVectorSize,
                                                               true>;
 
-    struct Argument : public Reduction::Argument
+    struct Argument : public BaseArgument
     {
         Argument(const std::vector<index_t> inLengths,
                  const std::vector<index_t> inStrides,
@@ -113,42 +162,84 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
                  OutDataType* out_dev,
                  InElementwiseOp in_elementwise_op,
                  AccElementwiseOp acc_elementwise_op)
-            : Reduction::Argument(inLengths,
-                                  inStrides,
-                                  {},
-                                  {},
-                                  reduceDims,
-                                  0.0f, // alpha
-                                  0.0f, // beta
-                                  in_dev,
-                                  nullptr,
-                                  out_dev,
-                                  nullptr,
-                                  in_elementwise_op,
-                                  acc_elementwise_op),
-              // FIXME: The base class DeviceReduceMultiBlock::Argument only supports alpha/beta of
-              // float32 precision. Make it support any data type so the fields can be removed.
-              alpha_(alpha),
-              beta_(beta)
+            : alpha_{alpha},
+              beta_{beta},
+              in_dev_{in_dev},
+              out_dev_{out_dev},
+              in_elementwise_op_{in_elementwise_op},
+              acc_elementwise_op_{acc_elementwise_op}
         {
-            // std::cout << "blkGroupSize= " << this->blkGroupSize
-            //           << ", numBlockTileIteration= " << this->numBlockTileIteration
-            //           << ", gridSize=" << this->gridSize
-            //           << ", invariant_total_length=" << this->invariant_total_length <<
-            //           std::endl;
+            if(Rank != inLengths.size() || Rank != inStrides.size() ||
+               NumReduceDim != reduceDims.size())
+            {
+                throw std::runtime_error(
+                    "One of inLengths/inStrides/reduceDims has invalid size!"
+                    "\nExpected size inLengths: " +
+                    std::to_string(Rank) + ", inStrides: " + std::to_string(Rank) +
+                    ", reduceDims: " + std::to_string(NumReduceDim) +
+                    "\nBut have inLengths: " + std::to_string(inLengths.size()) +
+                    ", inStrides: " + std::to_string(inStrides.size()) +
+                    ", reduceDims: " + std::to_string(reduceDims.size()));
+            }
+
+            for(std::size_t i = 0; i < reduceDims.size(); ++i)
+            {
+                if(reduceDims[i] < 0 || reduceDims[i] >= Rank)
+                {
+                    throw std::runtime_error("Provided reduce dimension exceed input tensor Rank!"
+                                             "\nHave reduceDims[" +
+                                             std::to_string(i) +
+                                             "]: " + std::to_string(reduceDims[i]));
+                }
+            }
+
+            inLengths_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inLengths, reduceDims);
+            inStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inStrides, reduceDims);
+
+            long_index_t invariant_total_length;
+            long_index_t reduce_total_length;
+
+            std::tie(invariant_total_length, reduce_total_length) =
+                get_2d_lengths<Rank, NumReduceDim>(inLengths_);
+
+            if constexpr(NumInvariantDim == 0)
+                invariant_lowest_length_ = 1;
+            else
+                invariant_lowest_length_ = inLengths_[NumInvariantDim - 1];
+
+            blkGroupSize          = 1;
+            numBlockTileIteration = (reduce_total_length + K_BlockTileSize - 1) / K_BlockTileSize;
+
+            gridSize = math::integer_least_multiple(invariant_total_length, M_BlockTileSize) /
+                       M_BlockTileSize * blkGroupSize;
         }
+
+        std::vector<index_t> inLengths_;
+        std::vector<index_t> inStrides_;
 
         AccDataType alpha_;
         AccDataType beta_;
+
+        const InDataType* in_dev_;
+        OutDataType* out_dev_;
+
+        InElementwiseOp in_elementwise_op_;
+        AccElementwiseOp acc_elementwise_op_;
+
+        index_t invariant_lowest_length_;
+
+        int blkGroupSize;
+        int numBlockTileIteration;
+        size_t gridSize;
     };
 
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const auto in_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
+            const auto in_grid_desc_m_k = DeviceSoftmaxImpl::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
-            const auto out_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
+            const auto out_grid_desc_m_k = DeviceSoftmaxImpl::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
 
             bool sweep_once =
@@ -191,21 +282,76 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
         };
     };
 
-    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    static bool IsSupportedArgument(const Argument& arg)
     {
-        const Argument* p_arg_ = dynamic_cast<const Argument*>(p_arg);
+        if constexpr(InSrcVectorDim == 0)
+        {
+            if constexpr(kNumInvariantDim == 0)
+            {
+                return false;
+            }
+            else
+            {
+                if(arg.inStrides_[kNumInvariantDim - 1] != 1 && InSrcVectorSize != 1)
+                {
+                    return false;
+                }
+                if(arg.invariant_lowest_length_ % InSrcVectorSize != 0)
+                {
+                    return false;
+                }
+            }
+        }
+        else
+        {
+            if(arg.inStrides_[Rank - 1] != 1 && InSrcVectorSize != 1)
+            {
+                return false;
+            }
+            if(arg.inLengths_[Rank - 1] % InSrcVectorSize != 0)
+            {
+                return false;
+            }
+        }
 
-        if(!Reduction::IsSupportedArgument(p_arg_))
+        // To improve
+        if(kNumInvariantDim > 0 && arg.invariant_lowest_length_ % OutDstVectorSize != 0)
         {
             return false;
         }
 
-        if(p_arg_->inLengths_[Rank - 1] % OutDstVectorSize != 0)
+        if(arg.inLengths_[Rank - 1] % OutDstVectorSize != 0)
         {
             return false;
         }
 
         return true;
+    };
+
+    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    {
+        return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
+    }
+
+    static auto MakeArgument(const std::vector<index_t> inLengths,
+                             const std::vector<index_t> inStrides,
+                             const std::vector<int> reduceDims,
+                             const AccDataType alpha,
+                             const AccDataType beta,
+                             const InDataType* in_dev,
+                             OutDataType* out_dev,
+                             InElementwiseOp in_elementwise_op,
+                             AccElementwiseOp acc_elementwise_op)
+    {
+        return Argument{inLengths,
+                        inStrides,
+                        reduceDims,
+                        alpha,
+                        beta,
+                        in_dev,
+                        out_dev,
+                        in_elementwise_op,
+                        acc_elementwise_op};
     };
 
     //
@@ -247,6 +393,8 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
                                           acc_elementwise_op);
     };
 
+    static auto MakeInvoker() { return Invoker{}; }
+
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
         return std::make_unique<Invoker>();
@@ -257,10 +405,13 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceReduceSoftmax<" << BlockSize << ",";
-        str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
-        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
-        str << "InSrcVectorDim_" << InSrcVectorDim << "_InSrcVectorSize_" << InSrcVectorSize << "_OutDstVectorSize_" << OutDstVectorSize << ">";
+        str << "DeviceReduceSoftmax<" 
+            << Rank << "," << NumReduceDim << "," << BlockSize << ","
+            << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ","
+            << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ","
+            << "InSrcVectorDim_" << InSrcVectorDim 
+            << "_InSrcVectorSize_" << InSrcVectorSize 
+            << "_OutDstVectorSize_" << OutDstVectorSize << ">";
         // clang-format on
 
         return str.str();
