@@ -9,7 +9,7 @@
 #include <ctime>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/device_sparse_embedding3_forward_layernorm.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_sparse_embedding3_forward_layernorm.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -86,12 +86,10 @@ int main()
     constexpr auto index_length   = 2048;
     constexpr AccDataType epsilon = 1e-4;
 
-    auto f_host_tensor_desc_1d = [](std::size_t len_) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len_}));
-    };
+    auto f_host_tensor_desc_1d = [](std::size_t len_) { return HostTensorDescriptor({len_}); };
 
     auto f_host_tensor_desc_2d = [](std::size_t rows_, std::size_t cols_) {
-        return HostTensorDescriptor(std::vector<std::size_t>({rows_, cols_}));
+        return HostTensorDescriptor({rows_, cols_});
     };
 
     using ReferenceInstance =
@@ -203,8 +201,7 @@ int main()
             ref_invoker.Run(ref_argument);
 
             out_dev.FromDevice(out_from_dev.mData.data());
-            pass &= ck::utils::check_err(
-                out_from_dev.mData, out.mData, "Error: Incorrect results", 1e-3, 1e-3);
+            pass &= ck::utils::check_err(out_from_dev, out, "Error: Incorrect results", 1e-3, 1e-3);
         }
 
         double total_read = current_dim * index_length * 3 * sizeof(EmbType) +

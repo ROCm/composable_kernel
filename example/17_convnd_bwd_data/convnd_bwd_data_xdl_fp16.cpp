@@ -3,7 +3,7 @@
 
 #include "convnd_bwd_data_common.hpp"
 
-#include "ck/tensor_operation/gpu/device/device_convnd_bwd_data_nwc_kxc_nwk_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_convnd_bwd_data_nwc_kxc_nwk_xdl.hpp"
 
 using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;

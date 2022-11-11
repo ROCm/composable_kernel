@@ -9,7 +9,7 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_contraction_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_contraction_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -297,18 +297,10 @@ int main(int argc, char* argv[])
         const auto e_ms_ns_lengths = contraction_descs[i].e_ms_ns_lengths;
         const auto e_ms_ns_strides = contraction_descs[i].e_ms_ns_strides;
 
-        Tensor<ADataType> a_ms_ks(
-            std::vector<std::size_t>(a_ms_ks_lengths.begin(), a_ms_ks_lengths.end()),
-            std::vector<std::size_t>(a_ms_ks_strides.begin(), a_ms_ks_strides.end()));
-        Tensor<BDataType> b_ns_ks(
-            std::vector<std::size_t>(b_ns_ks_lengths.begin(), b_ns_ks_lengths.end()),
-            std::vector<std::size_t>(b_ns_ks_strides.begin(), b_ns_ks_strides.end()));
-        Tensor<DDataType> d_ms_ns(
-            std::vector<std::size_t>(d_ms_ns_lengths.begin(), d_ms_ns_lengths.end()),
-            std::vector<std::size_t>(d_ms_ns_strides.begin(), d_ms_ns_strides.end()));
-        Tensor<EDataType> e_ms_ns_device_result(
-            std::vector<std::size_t>(e_ms_ns_lengths.begin(), e_ms_ns_lengths.end()),
-            std::vector<std::size_t>(e_ms_ns_strides.begin(), e_ms_ns_strides.end()));
+        Tensor<ADataType> a_ms_ks(a_ms_ks_lengths, a_ms_ks_strides);
+        Tensor<BDataType> b_ns_ks(b_ns_ks_lengths, b_ns_ks_strides);
+        Tensor<DDataType> d_ms_ns(d_ms_ns_lengths, d_ms_ns_strides);
+        Tensor<EDataType> e_ms_ns_device_result(e_ms_ns_lengths, e_ms_ns_strides);
 
         ck::index_t M_ = std::accumulate(e_ms_ns_lengths.begin(),
                                          e_ms_ns_lengths.begin() + NumDimM,
@@ -423,13 +415,9 @@ int main(int argc, char* argv[])
             const auto e_ms_ns_lengths = contraction_descs[i].e_ms_ns_lengths;
             const auto e_ms_ns_strides = contraction_descs[i].e_ms_ns_strides;
 
-            Tensor<EDataType> c_ms_ns_host_result(
-                std::vector<std::size_t>(e_ms_ns_lengths.begin(), e_ms_ns_lengths.end()),
-                std::vector<std::size_t>(e_ms_ns_strides.begin(), e_ms_ns_strides.end()));
+            Tensor<EDataType> c_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides);
 
-            Tensor<EDataType> e_ms_ns_host_result(
-                std::vector<std::size_t>(e_ms_ns_lengths.begin(), e_ms_ns_lengths.end()),
-                std::vector<std::size_t>(e_ms_ns_strides.begin(), e_ms_ns_strides.end()));
+            Tensor<EDataType> e_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides);
 
             e_tensors_device[i]->FromDevice(e_device_tensors[i].mData.data());
 
@@ -475,7 +463,7 @@ int main(int argc, char* argv[])
                 }
             }
 
-            pass &= ck::utils::check_err(e_device_tensors[i].mData, e_ms_ns_host_result.mData);
+            pass &= ck::utils::check_err(e_device_tensors[i], e_ms_ns_host_result);
         }
     }
 

@@ -8,7 +8,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/device_contraction_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_contraction_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -288,21 +288,11 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    Tensor<ADataType> a_ms_ks(
-        std::vector<std::size_t>(a_ms_ks_lengths.begin(), a_ms_ks_lengths.end()),
-        std::vector<std::size_t>(a_ms_ks_strides.begin(), a_ms_ks_strides.end()));
-    Tensor<BDataType> b_ns_ks(
-        std::vector<std::size_t>(b_ns_ks_lengths.begin(), b_ns_ks_lengths.end()),
-        std::vector<std::size_t>(b_ns_ks_strides.begin(), b_ns_ks_strides.end()));
-    Tensor<EDataType> d_ms_ns(
-        std::vector<std::size_t>(d_ms_ns_lengths.begin(), d_ms_ns_lengths.end()),
-        std::vector<std::size_t>(d_ms_ns_strides.begin(), d_ms_ns_strides.end()));
-    Tensor<EDataType> e_ms_ns_host_result(
-        std::vector<std::size_t>(e_ms_ns_lengths.begin(), e_ms_ns_lengths.end()),
-        std::vector<std::size_t>(e_ms_ns_strides.begin(), e_ms_ns_strides.end()));
-    Tensor<EDataType> e_ms_ns_device_result(
-        std::vector<std::size_t>(e_ms_ns_lengths.begin(), e_ms_ns_lengths.end()),
-        std::vector<std::size_t>(e_ms_ns_strides.begin(), e_ms_ns_strides.end()));
+    Tensor<ADataType> a_ms_ks(a_ms_ks_lengths, a_ms_ks_strides);
+    Tensor<BDataType> b_ns_ks(b_ns_ks_lengths, b_ns_ks_strides);
+    Tensor<EDataType> d_ms_ns(d_ms_ns_lengths, d_ms_ns_strides);
+    Tensor<EDataType> e_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides);
+    Tensor<EDataType> e_ms_ns_device_result(e_ms_ns_lengths, e_ms_ns_strides);
 
     std::cout << "a_ms_ks: " << a_ms_ks.mDesc << std::endl;
     std::cout << "b_ns_ks: " << b_ns_ks.mDesc << std::endl;
@@ -398,9 +388,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        Tensor<CShuffleDataType> c_ms_ns_host_result(
-            std::vector<std::size_t>(e_ms_ns_lengths.begin(), e_ms_ns_lengths.end()),
-            std::vector<std::size_t>(e_ms_ns_strides.begin(), e_ms_ns_strides.end()));
+        Tensor<CShuffleDataType> c_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides);
 
         using ReferenceOpInstance = ReferenceContraction_M2_N2_K2<NumDimM,
                                                                   NumDimN,
@@ -437,7 +425,7 @@ int main(int argc, char* argv[])
             }
         }
 
-        return ck::utils::check_err(e_ms_ns_device_result.mData, e_ms_ns_host_result.mData) ? 0 : 1;
+        return ck::utils::check_err(e_ms_ns_device_result, e_ms_ns_host_result) ? 0 : 1;
     }
 
     return 0;

@@ -5,7 +5,7 @@
 
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/literals.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_multiple_r_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_multiple_r_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
 // DataType
@@ -160,14 +160,12 @@ bool run_gemm_reduce_add_addsquare_xdl(ck::index_t M,
     {
     case 0: break;
     case 1:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k.begin(),
-                                                                             a_m_k.end());
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n.begin(),
-                                                                             b_k_n.end());
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k);
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n);
         break;
     default:
-        ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k.begin(), a_m_k.end());
-        ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n.begin(), b_k_n.end());
+        ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
+        ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
         break;
     }
 
@@ -264,15 +262,13 @@ bool run_gemm_reduce_add_addsquare_xdl(ck::index_t M,
         Tensor<EDataType> e_m_n_host_converted(e_m_n_host);
 
         pass = ck::utils::check_err(
-            e_m_n.mData, e_m_n_host_converted.mData, "Error: Incorrect results c", 1e-2, 1e-2);
+            e_m_n, e_m_n_host_converted, "Error: Incorrect results c", 1e-2, 1e-2);
 
         r0_device_buf.FromDevice(r0_m.mData.data());
         r1_device_buf.FromDevice(r1_m.mData.data());
 
-        pass &= ck::utils::check_err(
-            r0_m.mData, r0_m_host.mData, "Error: Incorrect results d0", 1e-2, 1e-2);
-        pass &= ck::utils::check_err(
-            r1_m.mData, r1_m_host.mData, "Error: Incorrect results d1", 1e-2, 1e-2);
+        pass &= ck::utils::check_err(r0_m, r0_m_host, "Error: Incorrect results d0", 1e-2, 1e-2);
+        pass &= ck::utils::check_err(r1_m, r1_m_host, "Error: Incorrect results d1", 1e-2, 1e-2);
 
         if(pass)
         {

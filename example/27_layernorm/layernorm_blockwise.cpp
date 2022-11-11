@@ -9,7 +9,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
-#include "ck/tensor_operation/gpu/device/device_layernorm_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_normalization_impl.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -17,6 +17,7 @@
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
 using XDataType     = ck::half_t;
@@ -30,26 +31,26 @@ constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
 
 using DeviceInstance =
-    ck::tensor_operation::device::DeviceLayernormImpl<XDataType,
-                                                      GammaDataType,
-                                                      BetaDataType,
-                                                      AccDataType,
-                                                      YDataType,
-                                                      PassThrough,
-                                                      Rank,
-                                                      NumReduceDim,
-                                                      256, // BlockSize
-                                                      8,   // ClusterM
-                                                      32,  // ClusterK
-                                                      1,   // SliceM
-                                                      8,   // SliceK
-                                                      1,   // SrcVecDim (0=M, 1=K)
-                                                      8,   // SrcScalarPerVector
-                                                      1,   // GammaVecDim (0=M, 1=K)
-                                                      8,   // GammaScalarPerVector
-                                                      1,   // BetaVecDim (0=M, 1=K)
-                                                      8,   // BetaScalarPerVector
-                                                      8>;  // OutScalarPerVector
+    ck::tensor_operation::device::DeviceNormalizationImpl<XDataType,
+                                                          GammaDataType,
+                                                          BetaDataType,
+                                                          AccDataType,
+                                                          YDataType,
+                                                          PassThrough,
+                                                          Rank,
+                                                          NumReduceDim,
+                                                          256, // BlockSize
+                                                          8,   // ClusterM
+                                                          32,  // ClusterK
+                                                          1,   // SliceM
+                                                          8,   // SliceK
+                                                          1,   // SrcVecDim (0=M, 1=K)
+                                                          8,   // SrcScalarPerVector
+                                                          1,   // GammaVecDim (0=M, 1=K)
+                                                          8,   // GammaScalarPerVector
+                                                          1,   // BetaVecDim (0=M, 1=K)
+                                                          8,   // BetaScalarPerVector
+                                                          8>;  // OutScalarPerVector
 
 int main()
 {
@@ -60,13 +61,13 @@ int main()
     ck::index_t Stride = N;
 
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                    std::vector<std::size_t>({stride}));
+        return HostTensorDescriptor({len}, {stride});
     };
 
     auto f_host_tensor_descriptor2d = [](std::size_t row, std::size_t col, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                    std::vector<std::size_t>({stride, 1}));
+        using namespace ck::literals;
+
+        return HostTensorDescriptor({row, col}, {stride, 1_uz});
     };
 
     Tensor<XDataType> x(f_host_tensor_descriptor2d(M, N, Stride));
@@ -100,6 +101,8 @@ int main()
         gamma_dev.GetDeviceBuffer(),
         beta_dev.GetDeviceBuffer(),
         y_dev.GetDeviceBuffer(),
+        nullptr,
+        nullptr,
         PassThrough{});
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
@@ -130,8 +133,7 @@ int main()
         ref_invoker.Run(ref_argument);
 
         y_dev.FromDevice(y.mData.data());
-        pass &=
-            ck::utils::check_err(y.mData, host_y.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(y, host_y, "Error: Incorrect results d1", 1e-3, 1e-3);
     }
     return (pass ? 0 : 1);
 }

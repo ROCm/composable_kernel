@@ -9,12 +9,13 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_multiple_r_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_multiple_r_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 
@@ -109,21 +110,20 @@ void DumpPerf(float ave_time, int M, int N, int K)
 }
 
 auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-    return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                std::vector<std::size_t>({stride}));
+    return HostTensorDescriptor({len}, {stride});
 };
 
 auto f_host_tensor_descriptor2d =
     [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+        using namespace ck::literals;
+
         if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                        std::vector<std::size_t>({stride, 1}));
+            return HostTensorDescriptor({row, col}, {stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                        std::vector<std::size_t>({1, stride}));
+            return HostTensorDescriptor({row, col}, {1_uz, stride});
         }
     };
 
@@ -259,12 +259,9 @@ int main()
         r0_device_buf.FromDevice(r0_m.mData.data());
         r1_device_buf.FromDevice(r1_m.mData.data());
 
-        pass = ck::utils::check_err(
-            e_m_n.mData, e_m_n_host.mData, "Error: Incorrect results c", 1e-2, 1e-2);
-        pass &= ck::utils::check_err(
-            r0_m.mData, r0_m_host.mData, "Error: Incorrect results d0", 1e-2, 1e-2);
-        pass &= ck::utils::check_err(
-            r1_m.mData, r1_m_host.mData, "Error: Incorrect results d1", 1e-2, 1e-2);
+        pass = ck::utils::check_err(e_m_n, e_m_n_host, "Error: Incorrect results c", 1e-2, 1e-2);
+        pass &= ck::utils::check_err(r0_m, r0_m_host, "Error: Incorrect results d0", 1e-2, 1e-2);
+        pass &= ck::utils::check_err(r1_m, r1_m_host, "Error: Incorrect results d1", 1e-2, 1e-2);
     }
 
     bool time_kernel = true;

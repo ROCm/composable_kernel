@@ -247,9 +247,29 @@ message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
 
+file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp")
+file(GLOB dir_list RELATIVE ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/*)
+set(CK_DEVICE_INSTANCES)
+FOREACH(subdir_path ${dir_list})
+    IF(IS_DIRECTORY "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/${subdir_path}")
+       list(APPEND CK_DEVICE_INSTANCES device_${subdir_path}_instance)
+    ENDIF()
+ENDFOREACH()
+add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
+
 rocm_package_setup_component(tests
         LIBRARY_NAME composablekernel
         PACKAGE_NAME tests # Prevent -static suffix on package name
+)
+
+rocm_package_setup_component(examples
+        LIBRARY_NAME composablekernel
+        PACKAGE_NAME examples
+)
+
+rocm_package_setup_component(profiler
+        LIBRARY_NAME composablekernel
+        PACKAGE_NAME ckProfiler
 )
 
 add_subdirectory(library)

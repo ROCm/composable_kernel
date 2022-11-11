@@ -6,8 +6,9 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -82,10 +83,10 @@ int main()
     std::array<ck::index_t, 4> b_strides;
     std::array<ck::index_t, 4> c_strides;
 
-    std::copy(nchw.begin(), nchw.end(), abc_lengths.begin());
-    std::copy(a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end(), a_strides.begin());
-    std::copy(b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end(), b_strides.begin());
-    std::copy(c.mDesc.GetStrides().begin(), c.mDesc.GetStrides().end(), c_strides.begin());
+    ck::ranges::copy(nchw, abc_lengths.begin());
+    ck::ranges::copy(a.mDesc.GetStrides(), a_strides.begin());
+    ck::ranges::copy(b.mDesc.GetStrides(), b_strides.begin());
+    ck::ranges::copy(c.mDesc.GetStrides(), c_strides.begin());
 
     auto broadcastAdd = DeviceElementwiseAddInstance{};
     auto argument     = broadcastAdd.MakeArgumentPointer(
@@ -112,8 +113,7 @@ int main()
         host_elementwise4D<Tensor<ABDataType>, Tensor<ABDataType>, Tensor<CDataType>, Add>(
             host_c, a, b, nchw, Add{});
 
-        pass &=
-            ck::utils::check_err(c.mData, host_c.mData, "Error: Incorrect results c", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(c, host_c, "Error: Incorrect results c", 1e-3, 1e-3);
     }
 
     return pass ? 0 : 1;

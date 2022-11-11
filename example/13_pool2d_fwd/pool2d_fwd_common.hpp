@@ -9,13 +9,14 @@
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/utility/reduction_functions_accumulate.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
-#include "ck/tensor_operation/gpu/device/device_pool2d_fwd_nhwc_nhwc.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_nhwc_nhwc.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 
 template <typename InDataType,
           typename OutDataType,
@@ -172,16 +173,16 @@ bool pool_test(bool do_verification,
     // tensor layout
     auto f_host_tensor_descriptor =
         [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W, auto layout) {
+            using namespace ck::literals;
+
             if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NCHW>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({N_, C_, H, W}),
-                                            std::vector<std::size_t>({C_ * H * W, H * W, W, 1}));
+                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, H * W, W, 1_uz});
             }
             else if constexpr(ck::is_same<decltype(layout),
                                           ck::tensor_layout::convolution::NHWC>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({N_, C_, H, W}),
-                                            std::vector<std::size_t>({C_ * H * W, 1, W * C_, C_}));
+                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, 1_uz, W * C_, C_});
             }
         };
 
@@ -267,14 +268,14 @@ bool pool_test(bool do_verification,
 
         out_device_buf.FromDevice(out_n_c_ho_wo_device.mData.data());
 
-        pass = pass && ck::utils::check_err(out_n_c_ho_wo_device.mData, out_n_c_ho_wo_host.mData);
+        pass = pass && ck::utils::check_err(out_n_c_ho_wo_device, out_n_c_ho_wo_host);
 
         if constexpr(OutputIndex)
         {
             out_indices_device_buf.FromDevice(out_indices_n_c_ho_wo_device.mData.data());
 
-            pass = pass && ck::utils::check_err(out_indices_n_c_ho_wo_device.mData,
-                                                out_indices_n_c_ho_wo_host.mData);
+            pass = pass &&
+                   ck::utils::check_err(out_indices_n_c_ho_wo_device, out_indices_n_c_ho_wo_host);
         };
     }
 

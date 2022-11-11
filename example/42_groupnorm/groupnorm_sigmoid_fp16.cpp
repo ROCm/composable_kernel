@@ -9,7 +9,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
-#include "ck/tensor_operation/gpu/device/device_layernorm_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_normalization_impl.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 
 #include "ck/library/utility/fill.hpp"
@@ -47,26 +47,26 @@ struct YElementOp
 };
 
 using DeviceInstance =
-    ck::tensor_operation::device::DeviceLayernormImpl<XDataType,
-                                                      GammaDataType,
-                                                      BetaDataType,
-                                                      AccDataType,
-                                                      YDataType,
-                                                      YElementOp,
-                                                      Rank,
-                                                      NumReduceDim,
-                                                      1024, // BlockSize
-                                                      1,    // ClusterM
-                                                      1024, // ClusterK
-                                                      1,    // SliceM
-                                                      32,   // SliceK
-                                                      1,    // SrcVecDim (0=M, 1=K)
-                                                      2,    // SrcScalarPerVector
-                                                      1,    // GammaVecDim (0=M, 1=K)
-                                                      2,    // GammaScalarPerVector
-                                                      1,    // BetaVecDim (0=M, 1=K)
-                                                      2,    // BetaScalarPerVector
-                                                      2>;   // OutScalarPerVector
+    ck::tensor_operation::device::DeviceNormalizationImpl<XDataType,
+                                                          GammaDataType,
+                                                          BetaDataType,
+                                                          AccDataType,
+                                                          YDataType,
+                                                          YElementOp,
+                                                          Rank,
+                                                          NumReduceDim,
+                                                          1024, // BlockSize
+                                                          1,    // ClusterM
+                                                          1024, // ClusterK
+                                                          1,    // SliceM
+                                                          32,   // SliceK
+                                                          1,    // SrcVecDim (0=M, 1=K)
+                                                          2,    // SrcScalarPerVector
+                                                          1,    // GammaVecDim (0=M, 1=K)
+                                                          2,    // GammaScalarPerVector
+                                                          1,    // BetaVecDim (0=M, 1=K)
+                                                          2,    // BetaScalarPerVector
+                                                          2>;   // OutScalarPerVector
 
 int main(int argc, char* argv[])
 {
@@ -100,9 +100,9 @@ int main(int argc, char* argv[])
     Tensor<GammaDataType> gamma({G, C});
     Tensor<BetaDataType> beta({G, C});
 
-    ck::utils::FillUniformDistribution<XDataType>{0.f, 1.f}(x.begin(), x.end());
-    ck::utils::FillUniformDistribution<GammaDataType>{0.f, 1.f}(gamma.begin(), gamma.end());
-    ck::utils::FillUniformDistribution<BetaDataType>{0.f, 1.f}(beta.begin(), beta.end());
+    ck::utils::FillUniformDistribution<XDataType>{0.f, 1.f}(x);
+    ck::utils::FillUniformDistribution<GammaDataType>{0.f, 1.f}(gamma);
+    ck::utils::FillUniformDistribution<BetaDataType>{0.f, 1.f}(beta);
 
     DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpaceSize());
     DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
@@ -128,6 +128,8 @@ int main(int argc, char* argv[])
         gamma_dev.GetDeviceBuffer(),
         beta_dev.GetDeviceBuffer(),
         y_dev.GetDeviceBuffer(),
+        nullptr,
+        nullptr,
         y_element_op);
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
@@ -165,7 +167,7 @@ int main(int argc, char* argv[])
         ref_invoker.Run(ref_argument);
 
         y_dev.FromDevice(y.mData.data());
-        pass &= ck::utils::check_err(y.mData, host_y.mData, "Error: Incorrect results", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(y, host_y, "Error: Incorrect results", 1e-3, 1e-3);
     }
 
     return (pass ? 0 : 1);

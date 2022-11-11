@@ -3,8 +3,10 @@
 
 #include "common.hpp"
 
-#include "ck/tensor_operation/gpu/device/device_gemm_xdl.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_xdl_skip_b_lds.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_skip_b_lds.hpp"
+
+#include "ck/library/utility/literals.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -135,15 +137,15 @@ int main(int argc, char* argv[])
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+            using namespace ck::literals;
+
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -240,7 +242,7 @@ int main(int argc, char* argv[])
             show_2d_matrix(std::cout << "c_host  :", c_m_n_host_result) << std::endl;
         }
 #endif
-        ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+        ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
     }
 
     return 0;

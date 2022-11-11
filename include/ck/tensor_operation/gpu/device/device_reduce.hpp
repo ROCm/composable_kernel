@@ -3,27 +3,30 @@
 
 #pragma once
 
-#include <vector>
+#include <array>
 #include <memory>
-#include <iostream>
 
-#include "ck/utility/common_header.hpp"
-#include "ck/utility/reduction_enums.hpp"
+#include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename InElementwiseOperation, typename AccElementwiseOperation>
+template <index_t Rank,
+          index_t NumReduceDim,
+          typename InElementwiseOperation,
+          typename AccElementwiseOperation>
 struct DeviceReduce : public BaseOperator
 {
+    static constexpr index_t NumOutDim = (Rank - NumReduceDim == 0) ? 1 : Rank - NumReduceDim;
+
     virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const std::vector<index_t> inLengths,
-                        const std::vector<index_t> inStrides,
-                        const std::vector<index_t> outLengths,
-                        const std::vector<index_t> outStrides,
-                        const std::vector<int> reduceDims,
+    MakeArgumentPointer(const std::array<index_t, Rank> inLengths,
+                        const std::array<index_t, Rank> inStrides,
+                        const std::array<index_t, NumOutDim> outLengths,
+                        const std::array<index_t, NumOutDim> outStrides,
+                        const std::array<int, NumReduceDim> reduceDims,
                         float alpha,
                         float beta,
                         const void* in_dev,
@@ -36,9 +39,12 @@ struct DeviceReduce : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename InElementwiseOperation, typename AccElementwiseOperation>
-using DeviceReducePtr =
-    std::unique_ptr<DeviceReduce<InElementwiseOperation, AccElementwiseOperation>>;
+template <index_t Rank,
+          index_t NumReduceDim,
+          typename InElementwiseOperation,
+          typename AccElementwiseOperation>
+using DeviceReducePtr = std::unique_ptr<
+    DeviceReduce<Rank, NumReduceDim, InElementwiseOperation, AccElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

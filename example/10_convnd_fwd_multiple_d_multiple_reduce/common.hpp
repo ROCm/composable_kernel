@@ -12,10 +12,11 @@
 #include <vector>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d_multiple_r_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_d_multiple_r_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
@@ -140,9 +141,7 @@ make_r0_host_tensor_descriptor(const ck::utils::conv::ConvParam& problem_size)
 {
     std::vector<ck::index_t> dimensions{problem_size.G_, problem_size.N_};
 
-    std::copy(begin(problem_size.output_spatial_lengths_),
-              end(problem_size.output_spatial_lengths_),
-              std::back_inserter(dimensions));
+    ck::ranges::copy(problem_size.output_spatial_lengths_, std::back_inserter(dimensions));
 
     return HostTensorDescriptor(dimensions);
 }
@@ -157,11 +156,4 @@ void unpack_host_tensor_descriptor(const HostTensorDescriptor& descriptor,
 
     assert(size(descriptor.GetStrides()) == size(strides));
     std::copy_n(begin(descriptor.GetStrides()), size(descriptor.GetStrides()), begin(strides));
-}
-
-template <typename Range, typename OutputIterator>
-auto copy(const Range& range, OutputIterator iter)
-    -> decltype(std::copy(std::begin(range), std::end(range), iter))
-{
-    return std::copy(std::begin(range), std::end(range), iter);
 }

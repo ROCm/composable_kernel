@@ -10,8 +10,9 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_xdl_layernorm_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_layernorm_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/utility/reduction_operator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm_layernorm.hpp"
@@ -132,15 +133,15 @@ int main(int argc, char* argv[])
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+            using namespace ck::literals;
+
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -149,10 +150,10 @@ int main(int argc, char* argv[])
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<AccDataType> acc_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<C0DataType> c0_n_bias(HostTensorDescriptor(std::vector<size_t>({size_t(N)})));
+    Tensor<C0DataType> c0_n_bias({N});
     Tensor<C0DataType> c0_m_n_add(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<C0DataType> c0_n_gamma(HostTensorDescriptor(std::vector<size_t>({size_t(N)})));
-    Tensor<C0DataType> c0_n_beta(HostTensorDescriptor(std::vector<size_t>({size_t(N)})));
+    Tensor<C0DataType> c0_n_gamma({N});
+    Tensor<C0DataType> c0_n_beta({N});
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -274,15 +275,12 @@ int main(int argc, char* argv[])
         if constexpr(std::is_same<CShuffleDataType, F32>::value)
         {
             pass &= ck::utils::check_err(
-                c_m_n_device_result.mData, c_m_n_host_result.mData, "Error: Incorrect results c");
+                c_m_n_device_result, c_m_n_host_result, "Error: Incorrect results c");
         }
         else if constexpr(std::is_same<CShuffleDataType, F16>::value)
         {
-            pass &= ck::utils::check_err(c_m_n_device_result.mData,
-                                         c_m_n_host_result.mData,
-                                         "Error: Incorrect results c",
-                                         1e-2,
-                                         1e-2);
+            pass &= ck::utils::check_err(
+                c_m_n_device_result, c_m_n_host_result, "Error: Incorrect results c", 1e-2, 1e-2);
         }
     }
     return pass ? 0 : 1;
