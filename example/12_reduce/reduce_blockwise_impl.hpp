@@ -8,7 +8,7 @@
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
-#include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_reduce_multiblock.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -30,13 +30,15 @@ int reduce_blockwise_impl(bool do_verification,
                           int init_method,
                           bool time_kernel,
                           const std::vector<size_t>& inLengths,
-                          const std::vector<int>& reduceDims,
+                          const std::array<int, NumReduceDim>& reduceDims,
                           float alpha,
                           float beta)
 
 {
     using namespace ck;
     using namespace ck::tensor_operation::device;
+
+    constexpr index_t NumOutDim = (Rank - NumReduceDim == 0) ? 1 : Rank - NumReduceDim;
 
     constexpr bool op_support_indices =
         (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
@@ -143,7 +145,7 @@ int reduce_blockwise_impl(bool do_verification,
 
     std::vector<size_t> outLengths;
 
-    std::vector<int> invariantDims = get_invariant_dims<Rank, NumReduceDim>(reduceDims);
+    auto invariantDims = get_invariant_dims<Rank, NumReduceDim>(reduceDims);
 
     if(invariantDims.empty())
         outLengths.push_back(1);
@@ -256,22 +258,22 @@ int reduce_blockwise_impl(bool do_verification,
                        acc_elementwise_op);
     };
 
-    std::vector<ck::index_t> i_inLengths;
-    std::vector<ck::index_t> i_inStrides;
-    std::vector<ck::index_t> i_outLengths;
-    std::vector<ck::index_t> i_outStrides;
+    std::array<index_t, Rank> arrInLengths;
+    std::array<index_t, Rank> arrInStrides;
+    std::array<index_t, NumOutDim> arrOutLengths;
+    std::array<index_t, NumOutDim> arrOutStrides;
 
-    i_inLengths.assign(inLengths.begin(), inLengths.end());
-    i_inStrides.assign(inStrides.begin(), inStrides.end());
-    i_outLengths.assign(outLengths.begin(), outLengths.end());
-    i_outStrides.assign(outStrides.begin(), outStrides.end());
+    std::copy(inLengths.begin(), inLengths.end(), arrInLengths.begin());
+    std::copy(inStrides.begin(), inStrides.end(), arrInStrides.begin());
+    std::copy(outLengths.begin(), outLengths.end(), arrOutLengths.begin());
+    std::copy(outStrides.begin(), outStrides.end(), arrOutStrides.begin());
 
     auto reduce = DeviceReduceInstance{};
 
-    auto argument_ptr = reduce.MakeArgumentPointer(i_inLengths,
-                                                   i_inStrides,
-                                                   i_outLengths,
-                                                   i_outStrides,
+    auto argument_ptr = reduce.MakeArgumentPointer(arrInLengths,
+                                                   arrInStrides,
+                                                   arrOutLengths,
+                                                   arrOutStrides,
                                                    reduceDims,
                                                    alpha,
                                                    beta,

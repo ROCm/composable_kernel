@@ -18,11 +18,11 @@ enum struct LoopScheduler
 
 constexpr LoopScheduler make_default_loop_scheduler()
 {
-#if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
+#if CK_EXPERIMENTAL_DEFAULT_TO_INTER_WAVE_SCHEDULING
     return LoopScheduler::Interwave;
 #else
     return LoopScheduler::Default;
-#endif // if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
+#endif // if CK_EXPERIMENTAL_DEFAULT_TO_INTER_WAVE_SCHEDULING
 }
 
 template <index_t MNXdlPerWave, index_t MNWaves, index_t MNPerXdl, typename TileDesc_K0_MN_K1>
@@ -149,6 +149,27 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
             make_tuple(n0, waveId_n, blk_idx[I1]))[I0];
 
         return make_tuple(c_thread_m, c_thread_n);
+    }
+
+    template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
+    __device__ static auto
+        CalculateCThreadOriginDataIndex8D(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
+    {
+        const auto wave_idx = GetWaveIdx();
+
+        const auto waveId_m = wave_idx[I0];
+        const auto waveId_n = wave_idx[I1];
+
+        const auto blk_idx = xdlops_gemm.GetBeginOfThreadBlk4D(xdlops_i, blk_i);
+
+        return make_tuple(Number<m0>{},
+                          Number<n0>{},
+                          waveId_m,
+                          waveId_n,
+                          blk_idx[I0],
+                          blk_idx[I1],
+                          blk_idx[I2],
+                          blk_idx[I3]);
     }
 
     __host__ __device__ BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1()
@@ -722,6 +743,21 @@ struct BlockwiseGemmXdlops_v2
             make_tuple(n0, waveId_n, blk_idx[I1]))[I0];
 
         return make_tuple(c_thread_m, c_thread_n);
+    }
+
+    template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
+    __device__ static auto
+        CalculateCThreadOriginDataIndex8D(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
+    {
+        const auto wave_idx = GetWaveIdx();
+
+        const auto waveId_m = wave_idx[I0];
+        const auto waveId_n = wave_idx[I1];
+
+        const auto blk_idx = xdlops_gemm.GetBeginOfThreadBlk4D(xdlops_i, blk_i);
+
+        return make_tuple(
+            m0, n0, waveId_m, waveId_n, blk_idx[I0], blk_idx[I1], blk_idx[I2], blk_idx[I3]);
     }
 
     using Tuple4 = decltype(CalculateAThreadOriginDataIndex());

@@ -30,7 +30,8 @@ template <typename ADataType,
           typename ALayout,
           typename B0Layout,
           typename B1Layout,
-          typename CLayout>
+          typename CLayout,
+          bool MaskOutUpperTriangle>
 bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
                                             int init_method,
                                             bool do_log,
@@ -47,16 +48,18 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
                                             int BatchStrideA  = -1,
                                             int BatchStrideB0 = -1,
                                             int BatchStrideB1 = -1,
-                                            int BatchStrideC  = -1)
+                                            int BatchStrideC  = -1,
+                                            float alpha       = 1.f)
 
 {
 
     using Row           = tensor_layout::gemm::RowMajor;
     using Col           = tensor_layout::gemm::ColumnMajor;
     using PassThrough   = tensor_operation::element_wise::PassThrough;
+    using Scale         = tensor_operation::element_wise::Scale;
     using AElementOp    = PassThrough;
     using B0ElementOp   = PassThrough;
-    using Acc0ElementOp = PassThrough;
+    using Acc0ElementOp = Scale;
     using B1ElementOp   = PassThrough;
     using CElementOp    = PassThrough;
     using AccDataType   = float;
@@ -68,7 +71,7 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
                                                                                 AccDataType,
                                                                                 AElementOp,
                                                                                 B0ElementOp,
-                                                                                CElementOp>;
+                                                                                Acc0ElementOp>;
 
     // Ref Softmax: fp32 in, various type out
     using ReferenceSoftmaxInstance =
@@ -186,7 +189,7 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
 
     auto a_element_op    = AElementOp{};
     auto b0_element_op   = B0ElementOp{};
-    auto acc0_element_op = Acc0ElementOp{};
+    auto acc0_element_op = Acc0ElementOp{alpha};
     auto b1_element_op   = B1ElementOp{};
     auto c_element_op    = CElementOp{};
 
@@ -202,7 +205,8 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
                                                                             B0ElementOp,
                                                                             Acc0ElementOp,
                                                                             B1ElementOp,
-                                                                            CElementOp>;
+                                                                            CElementOp,
+                                                                            MaskOutUpperTriangle>;
 
     // get device op instances
     const auto op_ptrs = tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -215,9 +219,15 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
         auto ref_gemm0          = ReferenceGemm0Instance{};
         auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();
         auto ref_gemm0_argument = ref_gemm0.MakeArgument(
-            a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, PassThrough{});
+            a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, Scale{alpha});
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
+
+        // mask out upper triangle
+        acc0_g_m_n.ForEach([&](auto& self, auto idx) {
+            if(MaskOutUpperTriangle && idx[1] < idx[2])
+                self(idx) = -ck::NumericLimits<float>::Infinity();
+        });
 
         auto ref_softmax          = ReferenceSoftmaxInstance{};
         auto ref_softmax_invoker  = ref_softmax.MakeInvoker();

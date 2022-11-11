@@ -4,8 +4,9 @@
 #pragma once
 
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
-#include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_reduce_multiblock.hpp"
 
+#include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 #include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_impl_common.hpp"
 
 namespace ck {
@@ -64,134 +65,57 @@ using reduce_configuration_2_instances_multiblock_atomic_add = std::tuple<
     >;
 #endif
 
-template <ReduceTensorOp ReduceOperation>
-using deviceReduceMultiBlockAtomicAddPtrType = DeviceReducePtr<
-    typename reduce_unary_operator<ReduceOperation, true, true>::InElementwiseOperation,
-    typename reduce_unary_operator<ReduceOperation, true, true>::AccElementwiseOperation>;
-
 template <typename InDataType,
           typename AccDataType,
           typename OutDataType,
           int Rank,
           int NumReduceDim,
-          ReduceTensorOp ReduceOpId,
+          typename ReduceOperation,
+          typename InElementwiseOp,
+          typename AccElementwiseOp,
           bool PropagateNan,
-          bool UseIndex>
+          bool OutputIndex>
 void add_device_reduce_instance_multiblock_atomic_add(
-    std::vector<deviceReduceMultiBlockAtomicAddPtrType<ReduceOpId>>& device_op_instances)
+    std::vector<DeviceReducePtr<Rank, NumReduceDim, InElementwiseOp, AccElementwiseOp>>&
+        device_op_instances)
 {
-    using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
-    using InElementwiseOperation =
-        typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
-    using AccElementwiseOperation =
-        typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
+    static_for<0,
+               std::tuple_size<reduce_configuration_1_instances_multiblock_atomic_add>::value,
+               1>{}([&](auto i) {
+        using cfg1 = remove_cvref_t<decltype(
+            std::get<i.value>(reduce_configuration_1_instances_multiblock_atomic_add{}))>;
 
-    constexpr bool Indexable =
-        (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
-         ReduceOpId == ReduceTensorOp::AMAX);
-    constexpr bool OutputIndex = Indexable && UseIndex;
-
-    static_assert(UseIndex == false,
-                  "AtomicAdd can only be used with reduction operations using no index!");
-
-    constexpr bool op_acceptable =
-        (ReduceOpId == ReduceTensorOp::ADD || ReduceOpId == ReduceTensorOp::MUL ||
-         ReduceOpId == ReduceTensorOp::AVG || ReduceOpId == ReduceTensorOp::NORM1);
-
-    constexpr bool out_type_acceptable =
-        (std::is_same<OutDataType, float>::value || std::is_same<OutDataType, double>::value);
-
-    if constexpr(!op_acceptable || !out_type_acceptable)
-        return;
-    else
-    {
         static_for<0,
-                   std::tuple_size<reduce_configuration_1_instances_multiblock_atomic_add>::value,
-                   1>{}([&](auto i) {
-            using cfg1 = remove_cvref_t<decltype(
-                std::get<i.value>(reduce_configuration_1_instances_multiblock_atomic_add{}))>;
+                   std::tuple_size<reduce_configuration_2_instances_multiblock_atomic_add>::value,
+                   1>{}([&](auto j) {
+            using cfg2 = remove_cvref_t<decltype(
+                std::get<j.value>(reduce_configuration_2_instances_multiblock_atomic_add{}))>;
 
-            static_for<
-                0,
-                std::tuple_size<reduce_configuration_2_instances_multiblock_atomic_add>::value,
-                1>{}([&](auto j) {
-                using cfg2 = remove_cvref_t<decltype(
-                    std::get<j.value>(reduce_configuration_2_instances_multiblock_atomic_add{}))>;
+            using ReduceOpInstance = DeviceReduceMultiBlock<InDataType,
+                                                            AccDataType,
+                                                            OutDataType,
+                                                            Rank,
+                                                            NumReduceDim,
+                                                            ReduceOperation,
+                                                            InElementwiseOp,
+                                                            AccElementwiseOp,
+                                                            InMemoryDataOperationEnum::AtomicAdd,
+                                                            PropagateNan,
+                                                            OutputIndex,
+                                                            false, // HaveIndexInputIfOutputIndex
+                                                            cfg1::BlockSize_,
+                                                            cfg1::MThreadClusterSize_,
+                                                            cfg1::KThreadClusterSize_,
+                                                            cfg2::MThreadSliceSize_,
+                                                            cfg2::KThreadSliceSize_,
+                                                            cfg2::InSrcVectorDim_,
+                                                            cfg2::InSrcVectorSize_,
+                                                            cfg2::OutDstVectorSize_>;
 
-                using ReduceOpInstance =
-                    DeviceReduceMultiBlock<InDataType,
-                                           AccDataType,
-                                           OutDataType,
-                                           Rank,
-                                           NumReduceDim,
-                                           ReduceOperation,
-                                           InElementwiseOperation,
-                                           AccElementwiseOperation,
-                                           InMemoryDataOperationEnum::AtomicAdd,
-                                           PropagateNan,
-                                           OutputIndex,
-                                           false, // HaveIndexInputIfOutputIndex
-                                           cfg1::BlockSize_,
-                                           cfg1::MThreadClusterSize_,
-                                           cfg1::KThreadClusterSize_,
-                                           cfg2::MThreadSliceSize_,
-                                           cfg2::KThreadSliceSize_,
-                                           cfg2::InSrcVectorDim_,
-                                           cfg2::InSrcVectorSize_,
-                                           cfg2::OutDstVectorSize_>;
-
-                device_op_instances.push_back(
-                    std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
-            });
+            device_op_instances.push_back(std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
         });
-    }
+    });
 };
-
-#define ADD_MULTIBLOCK_ATOMIC_ADD_INST_BY_TYPE(                                  \
-    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim)    \
-    template void add_device_reduce_instance_multiblock_atomic_add<inT,          \
-                                                                   compT,        \
-                                                                   outT,         \
-                                                                   Rank,         \
-                                                                   NumReduceDim, \
-                                                                   ReduceOpId,   \
-                                                                   PropagateNan, \
-                                                                   UseIndex>(    \
-        std::vector<deviceReduceMultiBlockAtomicAddPtrType<ReduceOpId>> & device_op_instances)
-
-#define ADD_MULTIBLOCK_ATOMIC_ADD_INST_BY_ID(                                       \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)           \
-    ADD_MULTIBLOCK_ATOMIC_ADD_INST_BY_TYPE(inT,                                     \
-                                           compT,                                   \
-                                           outT,                                    \
-                                           static_cast<ReduceTensorOp>(ReduceOpId), \
-                                           static_cast<bool>(NanOpt),               \
-                                           static_cast<bool>(IndicesOpt),           \
-                                           Rank,                                    \
-                                           NumReduceDim)
-
-#define ADD_MULTIBLOCK_ATOMIC_ADD_INST_REF_BY_TYPE(                                     \
-    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim)           \
-    extern template void add_device_reduce_instance_multiblock_atomic_add<inT,          \
-                                                                          compT,        \
-                                                                          outT,         \
-                                                                          Rank,         \
-                                                                          NumReduceDim, \
-                                                                          ReduceOpId,   \
-                                                                          PropagateNan, \
-                                                                          UseIndex>(    \
-        std::vector<deviceReduceMultiBlockAtomicAddPtrType<ReduceOpId>> & device_op_instances)
-
-#define ADD_MULTIBLOCK_ATOMIC_ADD_INST_REF_BY_ID(                                       \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)               \
-    ADD_MULTIBLOCK_ATOMIC_ADD_INST_REF_BY_TYPE(inT,                                     \
-                                               compT,                                   \
-                                               outT,                                    \
-                                               static_cast<ReduceTensorOp>(ReduceOpId), \
-                                               static_cast<bool>(NanOpt),               \
-                                               static_cast<bool>(IndicesOpt),           \
-                                               Rank,                                    \
-                                               NumReduceDim)
 
 } // namespace instance
 } // namespace device

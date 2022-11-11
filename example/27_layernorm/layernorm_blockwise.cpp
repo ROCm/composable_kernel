@@ -9,7 +9,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
-#include "ck/tensor_operation/gpu/device/device_layernorm_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_normalization_impl.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -31,26 +31,26 @@ constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
 
 using DeviceInstance =
-    ck::tensor_operation::device::DeviceLayernormImpl<XDataType,
-                                                      GammaDataType,
-                                                      BetaDataType,
-                                                      AccDataType,
-                                                      YDataType,
-                                                      PassThrough,
-                                                      Rank,
-                                                      NumReduceDim,
-                                                      256, // BlockSize
-                                                      8,   // ClusterM
-                                                      32,  // ClusterK
-                                                      1,   // SliceM
-                                                      8,   // SliceK
-                                                      1,   // SrcVecDim (0=M, 1=K)
-                                                      8,   // SrcScalarPerVector
-                                                      1,   // GammaVecDim (0=M, 1=K)
-                                                      8,   // GammaScalarPerVector
-                                                      1,   // BetaVecDim (0=M, 1=K)
-                                                      8,   // BetaScalarPerVector
-                                                      8>;  // OutScalarPerVector
+    ck::tensor_operation::device::DeviceNormalizationImpl<XDataType,
+                                                          GammaDataType,
+                                                          BetaDataType,
+                                                          AccDataType,
+                                                          YDataType,
+                                                          PassThrough,
+                                                          Rank,
+                                                          NumReduceDim,
+                                                          256, // BlockSize
+                                                          8,   // ClusterM
+                                                          32,  // ClusterK
+                                                          1,   // SliceM
+                                                          8,   // SliceK
+                                                          1,   // SrcVecDim (0=M, 1=K)
+                                                          8,   // SrcScalarPerVector
+                                                          1,   // GammaVecDim (0=M, 1=K)
+                                                          8,   // GammaScalarPerVector
+                                                          1,   // BetaVecDim (0=M, 1=K)
+                                                          8,   // BetaScalarPerVector
+                                                          8>;  // OutScalarPerVector
 
 int main()
 {
@@ -101,6 +101,8 @@ int main()
         gamma_dev.GetDeviceBuffer(),
         beta_dev.GetDeviceBuffer(),
         y_dev.GetDeviceBuffer(),
+        nullptr,
+        nullptr,
         PassThrough{});
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))

@@ -16,13 +16,9 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_forward_nhwc_c.hpp"
-
-#include "batchnorm_forward_impl.hpp"
-
-template <typename InOutDataType, typename AccDataType>
-using ReferenceBatchNormFwdInstance =
-    ck::tensor_operation::host::ReferenceBatchNormFwd_Input_N_H_W_C_Output_C<InOutDataType,
-                                                                             AccDataType>;
+#include "ck/tensor_operation/gpu/device/impl/device_batchnorm_forward_impl.hpp"
+#include "ck/library/utility/host_common_util.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 static struct option long_options[] = {{"inOutLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},
@@ -42,9 +38,10 @@ class BatchNormFwdArg
     bool updateMovingAverage;
     bool saveMeanAndInvVariance;
 
-    int data_type    = 0;
-    int init_method  = 2;
-    bool time_kernel = false;
+    int data_type               = 0;
+    int init_method             = 2;
+    bool time_kernel            = false;
+    bool use_multiblock_welford = false;
 
     public:
     void show_usage(const char* cmd)
@@ -69,6 +66,7 @@ class BatchNormFwdArg
                      "value, 3=decimal value)"
                   << std::endl;
         std::cout << "Arg5: time kernel (0=no, 1=yes)" << std::endl;
+        std::cout << "Arg6: use multi-block welford (0=n0, 1=yes)" << std::endl;
     };
 
     int processArgs(int argc, char* argv[])
@@ -111,14 +109,15 @@ class BatchNormFwdArg
             };
         };
 
-        if(optind + 5 > argc)
+        if(optind + 6 > argc)
             throw std::runtime_error("Invalid cmd-line arguments, more argumetns are needed!");
 
         data_type              = std::atoi(argv[optind++]);
         updateMovingAverage    = std::atoi(argv[optind++]);
         saveMeanAndInvVariance = std::atoi(argv[optind++]);
         init_method            = std::atoi(argv[optind++]);
-        time_kernel            = static_cast<bool>(std::atoi(argv[optind]));
+        time_kernel            = static_cast<bool>(std::atoi(argv[optind++]));
+        use_multiblock_welford = static_cast<bool>(std::atoi(argv[optind]));
 
         if(data_type != 0 && data_type != 1 && data_type != 3 && data_type != 5 && data_type != 6)
             return (-1);
@@ -129,7 +128,7 @@ class BatchNormFwdArg
 
 using namespace ck;
 
-template <typename InOutDataType, typename AccDataType>
+template <typename InOutDataType, typename AccDataType, bool UseMultiblockInK>
 bool bnorm_fwd_nhwc_test(bool do_verification,
                          int init_method,
                          bool time_kernel,
@@ -270,73 +269,140 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
     ck::ranges::copy(scaleBiasMeanVarLengths, i_scaleBiasMeanVarLengths.begin());
     ck::ranges::copy(scaleBiasMeanVarStrides, i_scaleBiasMeanVarStrides.begin());
 
-    int result = 0;
+    using PassThroughOp = ck::tensor_operation::element_wise::PassThrough;
 
-    // used for saving meansquare
-    DeviceMem workspace(sizeof(AccDataType) * 2 * resultSaveMean_ref.mDesc.GetElementSpaceSize() +
-                        128);
+    using DeviceBatchNormFwdInstance =
+        ck::tensor_operation::device::DeviceBatchNormFwdImpl<InOutDataType,
+                                                             InOutDataType,
+                                                             AccDataType,
+                                                             AccDataType,   // ScaleDataType
+                                                             AccDataType,   // BiasDataType
+                                                             AccDataType,   // MeanVarDataType
+                                                             PassThroughOp, // YElementwiseOp
+                                                             Rank,
+                                                             NumReduceDim,
+                                                             UseMultiblockInK,
+                                                             256,
+                                                             16,
+                                                             16,
+                                                             1,
+                                                             2,
+                                                             0,
+                                                             1,
+                                                             1,
+                                                             1,
+                                                             1,
+                                                             1>;
 
-    void* p_tmp_mean = workspace.GetDeviceBuffer();
-    void* p_tmp_meansquare =
-        static_cast<char*>(p_tmp_mean) +
-        (sizeof(AccDataType) * resultSaveMean_ref.mDesc.GetElementSpaceSize() + 63) / 64 * 64;
+    auto batchnorm_fwd = DeviceBatchNormFwdInstance{};
 
-    result = bnorm_fwd<InOutDataType, AccDataType, Rank, NumReduceDim, false>(
-        time_kernel,
-        updateMovingAverage,
-        saveMeanAndInvVariance,
-        {0, 1, 2},
+    auto argument_ptr = batchnorm_fwd.MakeArgumentPointer(
         i_inOutLengths,
         i_inOutStrides,
         i_inOutStrides,
+        {0, 1, 2},
         i_scaleBiasMeanVarLengths,
+        i_scaleBiasMeanVarStrides,
+        i_scaleBiasMeanVarStrides,
         i_scaleBiasMeanVarStrides,
         x_dev.GetDeviceBuffer(),
         bnScale_dev.GetDeviceBuffer(),
         bnBias_dev.GetDeviceBuffer(),
-        y_dev.GetDeviceBuffer(),
-        averageFactor,
-        updateMovingAverage ? resultRunningMean_dev.GetDeviceBuffer() : nullptr,
-        updateMovingAverage ? resultRunningVariance_dev.GetDeviceBuffer() : nullptr,
         epsilon,
+        PassThroughOp{},
+        y_dev.GetDeviceBuffer(),
         saveMeanAndInvVariance ? resultSaveMean_dev.GetDeviceBuffer() : nullptr,
         saveMeanAndInvVariance ? resultSaveInvVariance_dev.GetDeviceBuffer() : nullptr,
-        p_tmp_mean,
-        p_tmp_meansquare);
+        averageFactor,
+        updateMovingAverage ? resultRunningMean_dev.GetDeviceBuffer() : nullptr,
+        updateMovingAverage ? resultRunningVariance_dev.GetDeviceBuffer() : nullptr);
 
-    if(result < 0)
+    if(!batchnorm_fwd.IsSupportedArgument(argument_ptr.get()))
+    {
+        std::cout << "The runtime parameters seems not supported by the BatchNorm device instance, "
+                     "exiting!"
+                  << std::endl;
         return (false);
+    };
+
+    size_t workspace_sz = batchnorm_fwd.GetWorkSpaceSize(argument_ptr.get());
+
+    DeviceMem workspace_dev(workspace_sz);
+
+    batchnorm_fwd.SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
+
+    auto invoker_ptr = batchnorm_fwd.MakeInvokerPointer();
+
+    if(time_kernel)
+    {
+        float avg_time   = 0.0f;
+        size_t num_bytes = 0;
+
+        size_t total_length = inOutLengths[0] * inOutLengths[1] * inOutLengths[2] * inOutLengths[3];
+        size_t invariant_length = inOutLengths[3];
+
+        avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+
+        // inputing of x, scale, bias, outputing of y
+        num_bytes +=
+            total_length * sizeof(InOutDataType) * 2 + invariant_length * sizeof(AccDataType) * 2;
+
+        // outputing of mean, inv-variance
+        num_bytes += saveMeanAndInvVariance ? invariant_length * sizeof(AccDataType) * 2 : 0;
+
+        // updating of moving mean, variance
+        num_bytes += updateMovingAverage ? invariant_length * sizeof(AccDataType) * 4 : 0;
+
+        float gb_per_sec = num_bytes / 1.E6 / avg_time;
+
+        std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
+    }
+    else
+        (void)invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
     bool pass = true;
 
     if(do_verification)
     {
-        auto batchNormFwd_ref = ReferenceBatchNormFwdInstance<InOutDataType, AccDataType>{};
+
+        using ReferenceBatchNormFwdInstance =
+            ck::tensor_operation::host::ReferenceBatchNormFwd_Input_N_H_W_C_Output_C<InOutDataType,
+                                                                                     InOutDataType,
+                                                                                     AccDataType,
+                                                                                     AccDataType,
+                                                                                     AccDataType,
+                                                                                     AccDataType,
+                                                                                     PassThroughOp>;
+
+        auto batchNormFwd_ref = ReferenceBatchNormFwdInstance{};
 
         auto argument_ptr_ref = batchNormFwd_ref.MakeArgumentPointer(
             i_inOutLengths,
             i_inOutStrides,
             i_inOutStrides,
+            {0, 1, 2},
             i_scaleBiasMeanVarLengths,
+            i_scaleBiasMeanVarStrides,
+            i_scaleBiasMeanVarStrides,
             i_scaleBiasMeanVarStrides,
             x.mData.data(),
             bnScale.mData.data(),
             bnBias.mData.data(),
-            y_ref.mData.data(),
-            0.1, // exponentialAverageFactor
-            updateMovingAverage ? resultRunningMean_ref.mData.data() : nullptr, // resultRunningMean
-            updateMovingAverage ? resultRunningVariance_ref.mData.data()
-                                : nullptr, // resultRunningVariance
             epsilon,
+            PassThroughOp{},
+            y_ref.mData.data(),
             saveMeanAndInvVariance ? resultSaveMean_ref.mData.data() : nullptr,
-            saveMeanAndInvVariance ? resultSaveInvVariance_ref.mData.data() : nullptr);
+            saveMeanAndInvVariance ? resultSaveInvVariance_ref.mData.data() : nullptr,
+            averageFactor,
+            updateMovingAverage ? resultRunningMean_ref.mData.data() : nullptr,
+            updateMovingAverage ? resultRunningVariance_ref.mData.data() : nullptr);
 
         if(!batchNormFwd_ref.IsSupportedArgument(argument_ptr_ref.get()))
         {
-            std::cout
-                << "The runtime parameters seems not supported by the BatchNorm instance, exiting!"
-                << std::endl;
-            return (-2);
+            std::cout << "The runtime parameters seems not supported by the BatchNorm reference "
+                         "instance, exiting!"
+                      << std::endl;
+            return (false);
         };
 
         auto invoker_ptr_ref = batchNormFwd_ref.MakeInvokerPointer();
@@ -360,6 +426,8 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
 
         if(saveMeanAndInvVariance)
         {
+            using ck::host_common::dumpBufferToFile;
+
             Tensor<AccDataType> resultSaveMean(scaleBiasMeanVarLengths);
             Tensor<AccDataType> resultSaveInvVariance(scaleBiasMeanVarLengths);
 
@@ -390,70 +458,129 @@ int main(int argc, char* argv[])
 
         if(arg.data_type == 0)
         {
-            pass = bnorm_fwd_nhwc_test<ck::half_t, float>(arg.do_verification,
-                                                          arg.init_method,
-                                                          arg.time_kernel,
-                                                          arg.inOutLengths,
-                                                          arg.updateMovingAverage,
-                                                          arg.saveMeanAndInvVariance,
-                                                          averageFactor,
-                                                          epsilon);
+            if(arg.use_multiblock_welford)
+                pass = bnorm_fwd_nhwc_test<ck::half_t, float, true>(arg.do_verification,
+                                                                    arg.init_method,
+                                                                    arg.time_kernel,
+                                                                    arg.inOutLengths,
+                                                                    arg.updateMovingAverage,
+                                                                    arg.saveMeanAndInvVariance,
+                                                                    averageFactor,
+                                                                    epsilon);
+            else
+                pass = bnorm_fwd_nhwc_test<ck::half_t, float, false>(arg.do_verification,
+                                                                     arg.init_method,
+                                                                     arg.time_kernel,
+                                                                     arg.inOutLengths,
+                                                                     arg.updateMovingAverage,
+                                                                     arg.saveMeanAndInvVariance,
+                                                                     averageFactor,
+                                                                     epsilon);
         }
         else if(arg.data_type == 1)
         {
-            pass = bnorm_fwd_nhwc_test<float, float>(arg.do_verification,
-                                                     arg.init_method,
-                                                     arg.time_kernel,
-                                                     arg.inOutLengths,
-                                                     arg.updateMovingAverage,
-                                                     arg.saveMeanAndInvVariance,
-                                                     averageFactor,
-                                                     epsilon);
+            if(arg.use_multiblock_welford)
+                pass = bnorm_fwd_nhwc_test<float, float, true>(arg.do_verification,
+                                                               arg.init_method,
+                                                               arg.time_kernel,
+                                                               arg.inOutLengths,
+                                                               arg.updateMovingAverage,
+                                                               arg.saveMeanAndInvVariance,
+                                                               averageFactor,
+                                                               epsilon);
+            else
+                pass = bnorm_fwd_nhwc_test<float, float, false>(arg.do_verification,
+                                                                arg.init_method,
+                                                                arg.time_kernel,
+                                                                arg.inOutLengths,
+                                                                arg.updateMovingAverage,
+                                                                arg.saveMeanAndInvVariance,
+                                                                averageFactor,
+                                                                epsilon);
         }
         else if(arg.data_type == 3)
         {
-            pass = bnorm_fwd_nhwc_test<int8_t, float>(arg.do_verification,
-                                                      arg.init_method,
-                                                      arg.time_kernel,
-                                                      arg.inOutLengths,
-                                                      arg.updateMovingAverage,
-                                                      arg.saveMeanAndInvVariance,
-                                                      averageFactor,
-                                                      epsilon);
+            if(arg.use_multiblock_welford)
+                pass = bnorm_fwd_nhwc_test<int8_t, float, true>(arg.do_verification,
+                                                                arg.init_method,
+                                                                arg.time_kernel,
+                                                                arg.inOutLengths,
+                                                                arg.updateMovingAverage,
+                                                                arg.saveMeanAndInvVariance,
+                                                                averageFactor,
+                                                                epsilon);
+            else
+                pass = bnorm_fwd_nhwc_test<int8_t, float, false>(arg.do_verification,
+                                                                 arg.init_method,
+                                                                 arg.time_kernel,
+                                                                 arg.inOutLengths,
+                                                                 arg.updateMovingAverage,
+                                                                 arg.saveMeanAndInvVariance,
+                                                                 averageFactor,
+                                                                 epsilon);
         }
         else if(arg.data_type == 5)
         {
-            pass = bnorm_fwd_nhwc_test<ck::bhalf_t, float>(arg.do_verification,
-                                                           arg.init_method,
-                                                           arg.time_kernel,
-                                                           arg.inOutLengths,
-                                                           arg.updateMovingAverage,
-                                                           arg.saveMeanAndInvVariance,
-                                                           averageFactor,
-                                                           epsilon);
+            if(arg.use_multiblock_welford)
+                pass = bnorm_fwd_nhwc_test<ck::bhalf_t, float, true>(arg.do_verification,
+                                                                     arg.init_method,
+                                                                     arg.time_kernel,
+                                                                     arg.inOutLengths,
+                                                                     arg.updateMovingAverage,
+                                                                     arg.saveMeanAndInvVariance,
+                                                                     averageFactor,
+                                                                     epsilon);
+            else
+                pass = bnorm_fwd_nhwc_test<ck::bhalf_t, float, false>(arg.do_verification,
+                                                                      arg.init_method,
+                                                                      arg.time_kernel,
+                                                                      arg.inOutLengths,
+                                                                      arg.updateMovingAverage,
+                                                                      arg.saveMeanAndInvVariance,
+                                                                      averageFactor,
+                                                                      epsilon);
         }
         else if(arg.data_type == 6)
         {
-            pass = bnorm_fwd_nhwc_test<double, double>(arg.do_verification,
-                                                       arg.init_method,
-                                                       arg.time_kernel,
-                                                       arg.inOutLengths,
-                                                       arg.updateMovingAverage,
-                                                       arg.saveMeanAndInvVariance,
-                                                       averageFactor,
-                                                       epsilon);
+            if(arg.use_multiblock_welford)
+                pass = bnorm_fwd_nhwc_test<double, double, true>(arg.do_verification,
+                                                                 arg.init_method,
+                                                                 arg.time_kernel,
+                                                                 arg.inOutLengths,
+                                                                 arg.updateMovingAverage,
+                                                                 arg.saveMeanAndInvVariance,
+                                                                 averageFactor,
+                                                                 epsilon);
+            else
+                pass = bnorm_fwd_nhwc_test<double, double, false>(arg.do_verification,
+                                                                  arg.init_method,
+                                                                  arg.time_kernel,
+                                                                  arg.inOutLengths,
+                                                                  arg.updateMovingAverage,
+                                                                  arg.saveMeanAndInvVariance,
+                                                                  averageFactor,
+                                                                  epsilon);
         }
     }
     else
     {
-        pass = bnorm_fwd_nhwc_test<ck::half_t, float>(true,
-                                                      2,
-                                                      false, // don't time kernel
-                                                      {128, 16, 16, 1024},
-                                                      true,
-                                                      false,
-                                                      averageFactor,
-                                                      epsilon);
+        pass = bnorm_fwd_nhwc_test<ck::half_t, float, true>(true,
+                                                            2,
+                                                            false, // don't time kernel
+                                                            {128, 16, 6, 512},
+                                                            true,
+                                                            true,
+                                                            averageFactor,
+                                                            epsilon);
+
+        pass = pass && bnorm_fwd_nhwc_test<ck::half_t, float, false>(true,
+                                                                     2,
+                                                                     false, // don't time kernel
+                                                                     {128, 16, 3, 1024},
+                                                                     true,
+                                                                     true,
+                                                                     averageFactor,
+                                                                     epsilon);
     };
 
     return (pass ? 0 : 1);
