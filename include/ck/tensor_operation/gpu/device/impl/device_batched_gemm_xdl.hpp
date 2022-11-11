@@ -150,7 +150,10 @@ template <typename ADataType,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector>
+          ck::index_t CThreadTransferDstScalarPerVector,
+          ck::index_t NumGemmKPrefetchStage = 1,
+          ck::LoopScheduler LoopSched       = make_default_loop_scheduler(),
+          ck::PipelineVersion PipelineVer   = ck::PipelineVersion::v1>
 struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                                                        BLayout,
                                                        CLayout,
@@ -323,7 +326,10 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                                                 BBlockLdsAddExtraN,
                                                 Sequence<2, 3, 0, 1, 7, 5, 4, 6>,
                                                 CThreadTransferSrcDstVectorDim,
-                                                CThreadTransferDstScalarPerVector>;
+                                                CThreadTransferDstScalarPerVector,
+                                                NumGemmKPrefetchStage,
+                                                LoopSched,
+                                                PipelineVer>;
 
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
@@ -622,6 +628,12 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
     {
         auto str = std::stringstream();
 
+        std::map<LoopScheduler, std::string> LoopSchedToString{
+            {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
+
+        std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
+                                                                       {PipelineVersion::v2, "v2"}};
+
         // clang-format off
         str << "DeviceBatchedGemmXdl"
             << "<"
@@ -629,7 +641,13 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
             << MPerBlock << ", "
             << NPerBlock << ", "
             << K0PerBlock
-            << ">";
+            << ">"
+            << " NumGemmKPrefetchStage: "
+            << NumGemmKPrefetchStage << ", "
+            << "LoopScheduler: "
+            << LoopSchedToString[LoopSched] << ", "
+            << "PipelineVersion: "
+            << PipelineVersionToString[PipelineVer];
         // clang-format on
 
         return str.str();

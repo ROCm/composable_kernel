@@ -20,7 +20,7 @@ class TestGroupnorm : public ::testing::Test
 
     void Run()
     {
-        // N, H, W, G, C
+        // [N, H, W, G, C], reduce H, W, C
         std::vector<std::vector<ck::index_t>> lengths = {{1, 1, 1, 1, 1},
                                                          {1, 2, 3, 4, 5},
                                                          {256, 9, 9, 9, 9},
@@ -45,13 +45,6 @@ class TestGroupnorm : public ::testing::Test
 
 using KernelTypes = ::testing::Types<
     // XDataType, GammaDataType, BetaDataType, AccDataType, YDataType>
-    std::tuple<F16, F16, F16, F32, F16>,
-    std::tuple<F16, F16, F16, F32, F16>,
-    std::tuple<F16, F16, F16, F32, F16>,
-    std::tuple<F16, F16, F16, F32, F16>,
-    std::tuple<F16, F16, F16, F32, F16>,
-    std::tuple<F16, F16, F16, F32, F16>,
-    std::tuple<F16, F16, F16, F32, F16>,
     std::tuple<F16, F16, F16, F32, F16>>;
 
 TYPED_TEST_SUITE(TestGroupnorm, KernelTypes);

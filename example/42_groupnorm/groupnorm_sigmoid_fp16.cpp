@@ -100,9 +100,9 @@ int main(int argc, char* argv[])
     Tensor<GammaDataType> gamma({G, C});
     Tensor<BetaDataType> beta({G, C});
 
-    ck::utils::FillUniformDistribution<XDataType>{0.f, 1.f}(x.begin(), x.end());
-    ck::utils::FillUniformDistribution<GammaDataType>{0.f, 1.f}(gamma.begin(), gamma.end());
-    ck::utils::FillUniformDistribution<BetaDataType>{0.f, 1.f}(beta.begin(), beta.end());
+    ck::utils::FillUniformDistribution<XDataType>{0.f, 1.f}(x);
+    ck::utils::FillUniformDistribution<GammaDataType>{0.f, 1.f}(gamma);
+    ck::utils::FillUniformDistribution<BetaDataType>{0.f, 1.f}(beta);
 
     DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpaceSize());
     DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
@@ -128,6 +128,8 @@ int main(int argc, char* argv[])
         gamma_dev.GetDeviceBuffer(),
         beta_dev.GetDeviceBuffer(),
         y_dev.GetDeviceBuffer(),
+        nullptr,
+        nullptr,
         y_element_op);
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
