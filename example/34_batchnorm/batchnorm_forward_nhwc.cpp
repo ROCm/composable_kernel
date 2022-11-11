@@ -141,6 +141,8 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
     constexpr int Rank         = 4;
     constexpr int NumReduceDim = 3;
 
+    // when using lengths[] to create a tensor, lengths[0] is the length of highest dimension
+    // eg. N of NHWC, so lengths[3] is the dimension C length of NHWC
     const std::vector<size_t> scaleBiasMeanVarLengths = {inOutLengths[3]};
 
     // input data of the batchnorm forward algorithm
@@ -303,7 +305,7 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
         i_inOutLengths,
         i_inOutStrides,
         i_inOutStrides,
-        {0, 1, 2},
+        {0, 1, 2}, // indicates physical indices of reduce dimensions in lengths[] and strides[]
         i_scaleBiasMeanVarLengths,
         i_scaleBiasMeanVarStrides,
         i_scaleBiasMeanVarStrides,
@@ -383,7 +385,7 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
             i_inOutLengths,
             i_inOutStrides,
             i_inOutStrides,
-            {0, 1, 2},
+            {0, 1, 2}, // indicates physical indices of reduce dimensions in lengths[] and strides[]
             i_scaleBiasMeanVarLengths,
             i_scaleBiasMeanVarStrides,
             i_scaleBiasMeanVarStrides,
