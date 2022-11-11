@@ -13,7 +13,7 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/tensor_operation_instance/gpu/batchnorm_forward.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_forward_nhwc_c.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_forward.hpp"
 
 namespace ck {
 namespace profiler {
@@ -230,14 +230,16 @@ bool profile_batchnorm_forward_impl(int do_verification,
     if(do_verification)
     {
         using ReferenceBatchNormFwdInstance =
-            ck::tensor_operation::host::ReferenceBatchNormFwd_Input_N_H_W_C_Output_C<
+            ck::tensor_operation::host::ReferenceBatchNormFwd<
                 XDataType,
                 YDataType,
                 AccDataType,
                 ScaleDataType,
                 BiasDataType,
                 MeanVarDataType,
-                PassThroughOp>;
+                PassThroughOp,
+		Rank,
+		NumBatchNormReduceDim>;
 
         auto batchNormFwd_ref = ReferenceBatchNormFwdInstance{};
 
