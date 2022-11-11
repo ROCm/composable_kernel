@@ -14,7 +14,8 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/host_common_util.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_infer_nhwc_c.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_infer.hpp"
 
 #include "batchnorm_infer_impl.hpp"
 
@@ -123,6 +124,8 @@ bool bnorm_infer_nhwc_test(bool do_verification,
     constexpr int Rank         = 4;
     constexpr int NumReduceDim = 3;
 
+    // when using lengths[] to create a tensor, lengths[0] is the length of highest dimension
+    // eg. N of NHWC, so lengths[3] is the dimension C length of NHWC
     const std::vector<size_t> scaleBiasMeanVarLengths = {inOutLengths[3]};
 
     // input data of the batchnorm forward algorithm
@@ -263,20 +266,25 @@ bool bnorm_infer_nhwc_test(bool do_verification,
 
     if(do_verification)
     {
+        using PassThroughOp = ck::tensor_operation::element_wise::PassThrough;
+
         using ReferenceBatchNormInferInstance =
-            ck::tensor_operation::host::ReferenceBatchNormInfer_Input_N_H_W_C_Output_C<
-                InOutDataType,
-                InOutDataType,
-                AccDataType,
-                AccDataType,
-                AccDataType,
-                AccDataType>;
+            ck::tensor_operation::host::ReferenceBatchNormInfer<InOutDataType,
+                                                                InOutDataType,
+                                                                AccDataType,
+                                                                AccDataType,
+                                                                AccDataType,
+                                                                AccDataType,
+                                                                PassThroughOp,
+                                                                Rank,
+                                                                NumReduceDim>;
         auto batchNormInfer_ref = ReferenceBatchNormInferInstance{};
 
         auto argument_ptr_ref =
             batchNormInfer_ref.MakeArgumentPointer(i_inOutLengths,
                                                    i_inOutStrides,
                                                    i_inOutStrides,
+                                                   {0, 1, 2},
                                                    i_scaleBiasMeanVarLengths,
                                                    i_scaleBiasMeanVarStrides,
                                                    i_scaleBiasMeanVarStrides,
@@ -285,6 +293,7 @@ bool bnorm_infer_nhwc_test(bool do_verification,
                                                    bnScale.mData.data(),
                                                    bnBias.mData.data(),
                                                    epsilon,
+                                                   PassThroughOp{},
                                                    estimatedMean.mData.data(),
                                                    estimatedVariance.mData.data(),
                                                    y_ref.mData.data());
