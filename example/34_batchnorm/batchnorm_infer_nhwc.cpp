@@ -9,6 +9,7 @@
 #include <getopt.h>
 
 #include "ck/ck.hpp"
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -220,14 +221,10 @@ bool bnorm_infer_nhwc_test(bool do_verification,
     std::array<index_t, Rank - NumReduceDim> i_scaleBiasMeanVarLengths;
     std::array<index_t, Rank - NumReduceDim> i_scaleBiasMeanVarStrides;
 
-    std::copy(inOutLengths.begin(), inOutLengths.end(), i_inOutLengths.begin());
-    std::copy(inOutStrides.begin(), inOutStrides.end(), i_inOutStrides.begin());
-    std::copy(scaleBiasMeanVarLengths.begin(),
-              scaleBiasMeanVarLengths.end(),
-              i_scaleBiasMeanVarLengths.begin());
-    std::copy(scaleBiasMeanVarStrides.begin(),
-              scaleBiasMeanVarStrides.end(),
-              i_scaleBiasMeanVarStrides.begin());
+    ck::ranges::copy(inOutLengths, i_inOutLengths.begin());
+    ck::ranges::copy(inOutStrides, i_inOutStrides.begin());
+    ck::ranges::copy(scaleBiasMeanVarLengths, i_scaleBiasMeanVarLengths.begin());
+    ck::ranges::copy(scaleBiasMeanVarStrides, i_scaleBiasMeanVarStrides.begin());
 
     int result = 0;
 
@@ -302,7 +299,7 @@ bool bnorm_infer_nhwc_test(bool do_verification,
         (void)invoker_ptr_ref->Run(argument_ptr_ref.get());
 
         y_dev.FromDevice(y.mData.data());
-        pass = pass && ck::utils::check_err(y.mData, y_ref.mData);
+        pass = pass && ck::utils::check_err(y, y_ref);
     };
 
     return (pass);

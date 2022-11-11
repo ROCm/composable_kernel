@@ -106,15 +106,15 @@ bool run_batched_gemm_gemm_example(int argc, char* argv[])
                                        std::size_t stride,
                                        std::size_t batch_stride,
                                        auto layout) {
+        using namespace ck::literals;
+
         if(std::is_same<decltype(layout), Row>::value)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, stride, 1}));
+            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, 1, stride}));
+            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
         }
     };
 
@@ -270,7 +270,7 @@ bool run_batched_gemm_gemm_example(int argc, char* argv[])
         c_g_m_o_device_buf.FromDevice(c_g_m_o_device_result.mData.data());
 #endif
 
-        return ck::utils::check_err(c_g_m_o_device_result.mData, c_g_m_o_host_result.mData);
+        return ck::utils::check_err(c_g_m_o_device_result, c_g_m_o_host_result);
     }
 
     return true;

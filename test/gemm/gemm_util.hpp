@@ -9,6 +9,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
@@ -128,15 +129,15 @@ struct TestGemm
     {
         auto f_host_tensor_descriptor =
             [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+                using namespace ck::literals;
+
                 if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
                 {
-                    return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                                std::vector<std::size_t>({stride, 1}));
+                    return HostTensorDescriptor({row, col}, {stride, 1_uz});
                 }
                 else
                 {
-                    return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                                std::vector<std::size_t>({1, stride}));
+                    return HostTensorDescriptor({row, col}, {1_uz, stride});
                 }
             };
 
@@ -229,27 +230,27 @@ struct TestGemm
             bool res = false;
             if(std::is_same<CDataType, float>::value)
             {
-                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                res = ck::utils::check_err(c_device, c_host);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
             else if(std::is_same<CDataType, ck::half_t>::value)
             {
-                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                res = ck::utils::check_err(c_device, c_host);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
             else if(std::is_same<CDataType, ck::bhalf_t>::value)
             {
-                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                res = ck::utils::check_err(c_device, c_host);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
             else if(std::is_same<CDataType, int8_t>::value)
             {
-                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                res = ck::utils::check_err(c_device, c_host);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
             else if(std::is_same<CDataType, double>::value)
             {
-                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                res = ck::utils::check_err(c_device, c_host);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
 

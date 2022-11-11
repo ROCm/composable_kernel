@@ -124,7 +124,7 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
 
     if(config.do_verification)
     {
-        Tensor<AccDataType> c_m_n(HostTensorDescriptor{M, N});
+        Tensor<AccDataType> c_m_n({M, N});
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -147,9 +147,9 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
 #ifdef BUILD_INT4_EXAMPLE
         const Tensor<EDataType> e_m_n_device_result_converted(e_m_n_device_result);
 
-        return ck::utils::check_err(e_m_n_device_result_converted.mData, e_m_n_host_result.mData);
+        return ck::utils::check_err(e_m_n_device_result_converted, e_m_n_host_result);
 #else
-        return ck::utils::check_err(e_m_n_device_result.mData, e_m_n_host_result.mData);
+        return ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
 #endif
     }
 

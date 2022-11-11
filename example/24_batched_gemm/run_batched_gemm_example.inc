@@ -55,15 +55,15 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                                        std::size_t stride,
                                        std::size_t batch_stride,
                                        auto layout) {
+        using namespace ck::literals;
+
         if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count_, row, col}),
-                                        std::vector<std::size_t>({batch_stride, stride, 1}));
+            return HostTensorDescriptor({batch_count_, row, col}, {batch_stride, stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count_, row, col}),
-                                        std::vector<std::size_t>({batch_stride, 1, stride}));
+            return HostTensorDescriptor({batch_count_, row, col}, {batch_stride, 1_uz, stride});
         }
     };
 
@@ -174,11 +174,11 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
 #ifdef BUILD_INT4_EXAMPLE
         const Tensor<EDataType> e_device_result_converted(e_g_m_n_device_result);
-        pass &= ck::utils::check_err(e_device_result_converted.mData, e_g_m_n_host_result.mData);
+        pass &= ck::utils::check_err(e_device_result_converted, e_g_m_n_host_result);
 
 #else
         pass = ck::utils::check_err(
-            e_g_m_n_device_result.mData, e_g_m_n_host_result.mData, "Error: Incorrect results c");
+            e_g_m_n_device_result, e_g_m_n_host_result, "Error: Incorrect results c");
 #endif
     }
 

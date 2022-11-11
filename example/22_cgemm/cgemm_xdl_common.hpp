@@ -11,6 +11,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
 template <ck::index_t... Is>
@@ -62,15 +63,15 @@ bool run_cgemm_xdl(ck::index_t M,
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+            using namespace ck::literals;
+
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -219,14 +220,14 @@ bool run_cgemm_xdl(ck::index_t M,
             const Tensor<CDataType> c_m_n_real_device_result_converted(c_m_n_real_device_result);
             const Tensor<CDataType> c_m_n_imag_device_result_converted(c_m_n_imag_device_result);
 
-            result = ck::utils::check_err(c_m_n_real_device_result_converted.mData,
-                                          c_m_n_real_host_result.mData,
+            result = ck::utils::check_err(c_m_n_real_device_result_converted,
+                                          c_m_n_real_host_result,
                                           "Verification error: incorrect results in real part!",
                                           1e-2f,
                                           1e-1f);
             result = result && ck::utils::check_err(
-                                   c_m_n_imag_device_result_converted.mData,
-                                   c_m_n_imag_host_result.mData,
+                                   c_m_n_imag_device_result_converted,
+                                   c_m_n_imag_host_result,
                                    "Verification error: incorrect results in imaginary part!",
                                    1e-2f,
                                    1e-1f);
@@ -234,14 +235,14 @@ bool run_cgemm_xdl(ck::index_t M,
         else
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         {
-            result = ck::utils::check_err(c_m_n_real_device_result.mData,
-                                          c_m_n_real_host_result.mData,
+            result = ck::utils::check_err(c_m_n_real_device_result,
+                                          c_m_n_real_host_result,
                                           "Verification error: incorrect results in real part!",
                                           1e-2f,
                                           1e-1f);
             result = result && ck::utils::check_err(
-                                   c_m_n_imag_device_result.mData,
-                                   c_m_n_imag_host_result.mData,
+                                   c_m_n_imag_device_result,
+                                   c_m_n_imag_host_result,
                                    "Verification error: incorrect results in imaginary part!",
                                    1e-2f,
                                    1e-1f);

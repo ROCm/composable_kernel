@@ -262,15 +262,13 @@ bool run_gemm_reduce_add_addsquare_xdl(ck::index_t M,
         Tensor<EDataType> e_m_n_host_converted(e_m_n_host);
 
         pass = ck::utils::check_err(
-            e_m_n.mData, e_m_n_host_converted.mData, "Error: Incorrect results c", 1e-2, 1e-2);
+            e_m_n, e_m_n_host_converted, "Error: Incorrect results c", 1e-2, 1e-2);
 
         r0_device_buf.FromDevice(r0_m.mData.data());
         r1_device_buf.FromDevice(r1_m.mData.data());
 
-        pass &= ck::utils::check_err(
-            r0_m.mData, r0_m_host.mData, "Error: Incorrect results d0", 1e-2, 1e-2);
-        pass &= ck::utils::check_err(
-            r1_m.mData, r1_m_host.mData, "Error: Incorrect results d1", 1e-2, 1e-2);
+        pass &= ck::utils::check_err(r0_m, r0_m_host, "Error: Incorrect results d0", 1e-2, 1e-2);
+        pass &= ck::utils::check_err(r1_m, r1_m_host, "Error: Incorrect results d1", 1e-2, 1e-2);
 
         if(pass)
         {
