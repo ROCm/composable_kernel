@@ -7,7 +7,7 @@ int run(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = false;
 
-    bool input_permute = false;
+    bool input_permute  = false;
     bool output_permute = true;
 
     if(argc == 1)
@@ -26,7 +26,7 @@ int run(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
 
-        input_permute = std::stoi(argv[4]);
+        input_permute  = std::stoi(argv[4]);
         output_permute = std::stoi(argv[5]);
     }
     else
@@ -66,10 +66,10 @@ int run(int argc, char* argv[])
     std::cout << "group count " << group_count << ". printing first 4 groups\n";
     for(std::size_t i = 0; i < group_count; i++)
     {
-        int M     = 128 * (rand() % 8 + 1);
-        int N     = 128 * (rand() % 8 + 1);
-        int K     = 40;
-        int O     = 40 * (rand() % 2 + 1);
+        int M  = 128 * (rand() % 8 + 1);
+        int N  = 128 * (rand() % 8 + 1);
+        int K  = 40;
+        int O  = 40 * (rand() % 2 + 1);
         int G0 = rand() % 3 + 1;
         int G1 = rand() % 5 + 1;
 
@@ -228,12 +228,12 @@ int run(int argc, char* argv[])
     {
         for(std::size_t i = 0; i < group_count; i++)
         {
-            const int& G0                  = g0_g1_m_n_k_o[i][0];
-            const int& G1                  = g0_g1_m_n_k_o[i][1];
-            const int& M                   = g0_g1_m_n_k_o[i][2];
-            const int& N                   = g0_g1_m_n_k_o[i][3];
-            const int& K                   = g0_g1_m_n_k_o[i][4];
-            const int& O                   = g0_g1_m_n_k_o[i][5];
+            const int& G0 = g0_g1_m_n_k_o[i][0];
+            const int& G1 = g0_g1_m_n_k_o[i][1];
+            const int& M  = g0_g1_m_n_k_o[i][2];
+            const int& N  = g0_g1_m_n_k_o[i][3];
+            const int& K  = g0_g1_m_n_k_o[i][4];
+            const int& O  = g0_g1_m_n_k_o[i][5];
 
             const auto& c_gs_ms_os_lengths = problem_descs[i].c_gs_ms_os_lengths;
             const auto& c_gs_ms_os_strides = problem_descs[i].c_gs_ms_os_strides;
