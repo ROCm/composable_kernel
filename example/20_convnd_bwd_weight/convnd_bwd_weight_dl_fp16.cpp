@@ -23,7 +23,43 @@ static constexpr auto ConvBwdWeightDefault =
 template <ck::index_t NDimSpatial>
 using DeviceConvndBwdWeightInstance =
     ck::tensor_operation::device::DeviceConvNdBwdWeightNwcKxcNwk_Dl<
-        NDimSpatial, InDataType, WeiDataType, OutDataType, AccDataType, InElementOp, WeiElementOp, OutElementOp, ConvBwdWeightDefault, 256, 128, 128, 16, 2, 4, 4, 1, S<8, 2>, S<8, 2>, S<8, 1, 1, 2>, S<2, 1, 128, 1>, S<1, 2, 0, 3>, S<1, 2, 0, 3>, S<4, 1, 1, 2>, S<1, 2, 0, 3>, S<1, 1, 1, 2>, S<1, 1, 8, 2>, S<16, 1, 16, 1>, S<0, 3, 1, 2>, S<0, 3, 1, 2>, S<1, 1, 8, 1>, S<0, 3, 1, 2>, S<1, 1, 1, 2>, S<0, 1, 2, 3, 4, 5>, 5, 4>;
+        NDimSpatial,    // NDimSpatial
+        InDataType,     // InDataType
+        WeiDataType,    // WeiDataType
+        OutDataType,    // OutDataType
+        AccDataType,    // AccDataType
+        InElementOp,    // InElementwiseOperation
+        WeiElementOp,   // WeiElementwiseOperation
+        OutElementOp,   // OutElementwiseOperation
+        ConvBwdWeightDefault,   // ConvBackwardWeightSpecialization
+        256,    // BlockSize
+        128,    // MPerBlock
+        128,    // NPerBlock
+        16,     // K0PerBlock
+        2,      // K1
+        4,      // M1PerThread
+        4,      // N1PerThread
+        1,      // KPerThread
+        S<8, 2>,    // M1N1ThreadClusterM1Xs
+        S<8, 2>,    // M1N1ThreadClusterN1Xs
+        S<8, 1, 1, 2>,      // ABlockTransferThreadSliceLengths_K0_M0_M1_K1
+        S<2, 1, 128, 1>,    // ABlockTransferThreadClusterLengths_K0_M0_M1_K1
+        S<1, 2, 0, 3>,      // ABlockTransferThreadClusterArrangeOrder
+        S<1, 2, 0, 3>,      // ABlockTransferSrcAccessOrder
+        S<4, 1, 1, 2>,      // ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1
+        S<1, 2, 0, 3>,      // ABlockTransferSrcVectorTensorContiguousDimOrder
+        S<1, 1, 1, 2>,      // ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1
+        S<1, 1, 8, 2>,      // BBlockTransferThreadSliceLengths_K0_N0_N1_K1
+        S<16, 1, 16, 1>,    // BBlockTransferThreadClusterLengths_K0_N0_N1_K1
+        S<0, 3, 1, 2>,      // BBlockTransferThreadClusterArrangeOrder
+        S<0, 3, 1, 2>,      // BBlockTransferSrcAccessOrder
+        S<1, 1, 8, 1>,      // BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1
+        S<0, 3, 1, 2>,      // BBlockTransferSrcVectorTensorContiguousDimOrder
+        S<1, 1, 1, 2>,      // BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1
+        S<0, 1, 2, 3, 4, 5>,    // CThreadTransferSrcDstAccessOrder
+        5,      // CThreadTransferSrcDstVectorDim
+        4>;     // CThreadTransferDstScalarPerVector
+
 int main(int argc, char* argv[])
 {
     namespace ctc = ck::tensor_layout::convolution;
