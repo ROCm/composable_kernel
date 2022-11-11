@@ -53,8 +53,7 @@ int main()
     ck::index_t M = 1024;
 
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                    std::vector<std::size_t>({stride}));
+        return HostTensorDescriptor({len}, {stride});
     };
 
     Tensor<ABDataType> a_m(f_host_tensor_descriptor1d(M, 1));
@@ -105,8 +104,7 @@ int main()
         host_elementwise1D<Tensor<ABDataType>, Tensor<ABDataType>, Tensor<CDataType>, Add>(
             host_c_m, a_m, b_m, M, Add{});
 
-        pass &= ck::utils::check_err(
-            c_m.mData, host_c_m.mData, "Error: Incorrect results c", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(c_m, host_c_m, "Error: Incorrect results c", 1e-3, 1e-3);
     }
 
     return pass ? 0 : 1;

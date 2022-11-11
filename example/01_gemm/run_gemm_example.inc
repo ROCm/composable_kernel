@@ -131,11 +131,11 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 
         c_m_n_device_result = c_m_n_device_result_converted.CopyAsType<CDataType>();
 
-        return ck::utils::check_err(c_m_n_device_result_converted.mData, c_m_n_host_result.mData);
+        return ck::utils::check_err(c_m_n_device_result_converted, c_m_n_host_result);
 #else
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+        return ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
 #endif
     }
 

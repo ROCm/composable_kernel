@@ -209,8 +209,7 @@ bool profile_conv_bwd_data_impl(int do_verification,
             {
                 in_device_buf.FromDevice(input_device_result.mData.data());
 
-                pass =
-                    pass & ck::utils::check_err(input_device_result.mData, input_host_result.mData);
+                pass = pass & ck::utils::check_err(input_device_result, input_host_result);
 
                 if(do_log)
                 {
