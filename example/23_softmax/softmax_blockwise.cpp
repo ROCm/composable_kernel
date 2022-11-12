@@ -246,7 +246,7 @@ int main(int argc, char* argv[])
         invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
         out_dev.FromDevice(out.mData.data());
         // LogRangeAsType<float>(std::cout << "tensor out: " , out.mData, ",") << std::endl;
-        pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
+        pass = pass && ck::utils::check_err(out, out_ref);
     };
 
     float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, args.time_kernel});

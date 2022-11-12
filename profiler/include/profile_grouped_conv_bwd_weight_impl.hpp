@@ -209,8 +209,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
             {
                 wei_device_buf.FromDevice(weight_device_result.mData.data());
 
-                bool pass =
-                    ck::utils::check_err(weight_device_result.mData, weight_host_result.mData);
+                bool pass = ck::utils::check_err(weight_device_result, weight_host_result);
 
                 if(!pass)
                 {

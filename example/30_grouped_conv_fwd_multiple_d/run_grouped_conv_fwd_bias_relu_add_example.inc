@@ -166,7 +166,7 @@ bool run_grouped_conv_fwd_bias_relu_add(const ExecutionConfig& config,
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
     std::array<ck::index_t, NDimSpatial> input_right_pads{};
 
-    auto copy = [](auto& x, auto& y) { std::copy(x.begin(), x.end(), y.begin()); };
+    auto copy = [](const auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
 
     copy(in_g_n_c_wis_desc.GetLengths(), a_g_n_c_wis_lengths);
     copy(in_g_n_c_wis_desc.GetStrides(), a_g_n_c_wis_strides);
@@ -257,10 +257,10 @@ bool run_grouped_conv_fwd_bias_relu_add(const ExecutionConfig& config,
         const Tensor<OutUserDataType> out_device_converted(out_device);
 
         return ck::utils::check_err(
-            out_device_converted.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+            out_device_converted, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
 #else
         return ck::utils::check_err(
-            out_device.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+            out_device, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
 #endif
     }
 
