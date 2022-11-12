@@ -243,7 +243,7 @@ int reduce_multiblock_atomic_add_impl(bool do_verification,
     if(do_verification)
     {
         out_dev.FromDevice(out.mData.data());
-        pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
+        pass = pass && ck::utils::check_err(out, out_ref);
     };
 
     return (pass ? 0 : 1);

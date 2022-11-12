@@ -14,6 +14,7 @@
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_dl.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -66,7 +67,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
     std::array<ck::index_t, NDimSpatial> input_right_pads{};
 
-    auto copy = [](auto& x, auto& y) { std::copy(x.begin(), x.end(), y.begin()); };
+    auto copy = [](const auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
 
     copy(in_g_n_c_wis_desc.GetLengths(), a_g_n_c_wis_lengths);
     copy(in_g_n_c_wis_desc.GetStrides(), a_g_n_c_wis_strides);
@@ -179,7 +180,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
             {
                 out_device_buf.FromDevice(device_output.mData.data());
 
-                pass = pass & ck::utils::check_err(device_output.mData, host_output.mData);
+                pass = pass & ck::utils::check_err(device_output, host_output);
 
                 if(do_log)
                 {

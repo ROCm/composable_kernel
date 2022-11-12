@@ -439,13 +439,12 @@ bool profile_reduce_impl_impl(bool do_verification,
                 bool single_pass;
 
                 out_dev.FromDevice(out.mData.data());
-                single_pass = ck::utils::check_err(out.mData, out_ref.mData);
+                single_pass = ck::utils::check_err(out, out_ref);
 
                 if(OutputIndex)
                 {
                     out_indices_dev.FromDevice(out_indices.mData.data());
-                    single_pass = single_pass &&
-                                  ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
+                    single_pass = single_pass && ck::utils::check_err(out_indices, out_indices_ref);
                 };
 
                 if(!single_pass)
