@@ -7,7 +7,7 @@
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/reduce/reduce.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_reduce.hpp"
 #include "ck/library/utility/host_common_util.hpp"
@@ -157,11 +157,6 @@ bool profile_reduce_impl_impl(bool do_verification,
 
     constexpr bool OutputIndex = (op_support_indices && UseIndex);
 
-    constexpr bool out_support_atomic_add = std::is_same<OutDataType, float>::value;
-    constexpr bool op_support_atomic_add =
-        !op_support_indices && ReduceOpId != ReduceTensorOp::NORM2;
-    constexpr bool use_atomic_add = (out_support_atomic_add && op_support_atomic_add);
-
     // 1) If InDataType is half_t, must use half_t as AccDataType for indexable reduction operations
     // 2) If InDataType is half_t, must use float as AccDataType for non-indexable reduction
     // operations
@@ -285,54 +280,19 @@ bool profile_reduce_impl_impl(bool do_verification,
             reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(
                 static_cast<int32_t>(reduce_total_length));
 
-        using DeviceReduceInstPtr = DeviceReducePtr<InDataType,
-                                                    AccDataType,
-                                                    OutDataType,
-                                                    Rank,
-                                                    NumReduceDim,
-                                                    ReduceOperation,
-                                                    InElementwiseOperation,
-                                                    AccElementwiseOperation,
-                                                    PropagateNan,
-                                                    OutputIndex>;
-
-        std::vector<DeviceReduceInstPtr> reduce_ptrs;
-
-        add_device_reduce_instance_threadwise<InDataType,
-                                              AccDataType,
-                                              OutDataType,
-                                              Rank,
-                                              NumReduceDim,
-                                              ReduceOperation,
-                                              InElementwiseOperation,
-                                              AccElementwiseOperation,
-                                              PropagateNan,
-                                              OutputIndex>(reduce_ptrs);
-
-        add_device_reduce_instance_blockwise<InDataType,
-                                             AccDataType,
-                                             OutDataType,
-                                             Rank,
-                                             NumReduceDim,
-                                             ReduceOperation,
-                                             InElementwiseOperation,
-                                             AccElementwiseOperation,
-                                             PropagateNan,
-                                             OutputIndex>(reduce_ptrs);
-
-        if constexpr(use_atomic_add)
-        {
-            add_device_reduce_instance_multiblock_atomic_add<InDataType,
-                                                             AccDataType,
-                                                             OutDataType,
-                                                             Rank,
-                                                             NumReduceDim,
-                                                             ReduceOperation,
-                                                             InElementwiseOperation,
-                                                             AccElementwiseOperation,
-                                                             PropagateNan,
-                                                             OutputIndex>(reduce_ptrs);
-        }
+        using ReduceOp = ck::tensor_operation::device::DeviceReduce<InDataType,
+                                                                    AccDataType,
+                                                                    OutDataType,
+                                                                    Rank,
+                                                                    NumReduceDim,
+                                                                    ReduceOperation,
+                                                                    InElementwiseOperation,
+                                                                    AccElementwiseOperation,
+                                                                    PropagateNan,
+                                                                    OutputIndex>;
+        const auto reduce_ptrs =
+            ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+                ReduceOp>::GetInstances();
 
         if(reduce_ptrs.empty())
         {
