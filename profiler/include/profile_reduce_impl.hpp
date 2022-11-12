@@ -9,7 +9,7 @@
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance.hpp"
 #include "ck/library/utility/device_memory.hpp"
-#include "ck/library/utility/host_reduction.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_reduce.hpp"
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 
@@ -339,29 +339,6 @@ bool profile_reduce_impl_impl(bool do_verification,
             throw std::runtime_error("Wrong! No device REDUCE instance found");
         };
 
-        if(do_verification)
-        {
-            ReductionHost<InDataType,
-                          AccDataType,
-                          OutDataType,
-                          ReduceOperation,
-                          InElementwiseOperation,
-                          AccElementwiseOperation,
-                          Rank,
-                          NumReduceDim,
-                          PropagateNan,
-                          OutputIndex>
-                hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
-
-            hostReduce.Run(alpha,
-                           in.mData.data(),
-                           beta,
-                           out_ref.mData.data(),
-                           out_indices_ref.mData.data(),
-                           in_elementwise_op,
-                           acc_elementwise_op);
-        };
-
         std::array<index_t, Rank> arrInLengths;
         std::array<index_t, Rank> arrInStrides;
         std::array<index_t, NumOutDim> arrOutLengths;
@@ -371,6 +348,49 @@ bool profile_reduce_impl_impl(bool do_verification,
         std::copy(inStrides.begin(), inStrides.end(), arrInStrides.begin());
         std::copy(outLengths.begin(), outLengths.end(), arrOutLengths.begin());
         std::copy(outStrides.begin(), outStrides.end(), arrOutStrides.begin());
+
+        if(do_verification)
+        {
+            using ReferenceReduceInstance =
+                ck::tensor_operation::host::ReferenceReduce<InDataType,
+                                                            AccDataType,
+                                                            OutDataType,
+                                                            Rank,
+                                                            NumReduceDim,
+                                                            ReduceOperation,
+                                                            InElementwiseOperation,
+                                                            AccElementwiseOperation,
+                                                            PropagateNan,
+                                                            OutputIndex>;
+
+            auto reduce_ref = ReferenceReduceInstance{};
+
+            auto argument_ptr_ref = reduce_ref.MakeArgumentPointer(arrInLengths,
+                                                                   arrInStrides,
+                                                                   arrOutLengths,
+                                                                   arrOutStrides,
+                                                                   reduceDims,
+                                                                   alpha,
+                                                                   beta,
+                                                                   in.mData.data(),
+                                                                   nullptr,
+                                                                   out_ref.mData.data(),
+                                                                   out_indices_ref.mData.data(),
+                                                                   in_elementwise_op,
+                                                                   acc_elementwise_op);
+
+            if(!reduce_ref.IsSupportedArgument(argument_ptr_ref.get()))
+            {
+                std::cout
+                    << "The runtime parameters not supported by the reduce reference, exiting!"
+                    << std::endl;
+                return (false);
+            };
+
+            auto invoker_ptr_ref = reduce_ref.MakeInvokerPointer();
+
+            (void)invoker_ptr_ref->Run(argument_ptr_ref.get());
+        };
 
         for(auto& reduce_ptr : reduce_ptrs)
         {
