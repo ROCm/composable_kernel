@@ -7,7 +7,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-void add_device_conv2d_bias_perlayer_quantization_int8_instances(
+void add_device_conv2d_perchannel_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<NDimSpatial,
                                                               GNHWC,
                                                               GKYXC,
@@ -15,24 +15,24 @@ void add_device_conv2d_bias_perlayer_quantization_int8_instances(
                                                               GNHWK,
                                                               int8_t,
                                                               int8_t,
-                                                              I32_Tuple,
+                                                              F32_Tuple,
                                                               int8_t,
                                                               PassThrough,
                                                               PassThrough,
-                                                              Add_Mul_Clamp>>>& instances)
+                                                              Mul2_Clamp>>>& instances)
 {
     add_device_operation_instances(
         instances,
-        device_conv2d_int8_32Ds_instances<GK_Tuple, I32_Tuple, Add_Mul_Clamp, ConvFwdDefault>{});
+        device_conv2d_int8_32Ds_instances<GK_Tuple, F32_Tuple, Mul2_Clamp, ConvFwdDefault>{});
     add_device_operation_instances(
         instances,
-        device_conv2d_int8_32Ds_instances<GK_Tuple, I32_Tuple, Add_Mul_Clamp, ConvFwd1x1P0>{});
+        device_conv2d_int8_32Ds_instances<GK_Tuple, F32_Tuple, Mul2_Clamp, ConvFwd1x1P0>{});
     add_device_operation_instances(
         instances,
-        device_conv2d_int8_32Ds_instances<GK_Tuple, I32_Tuple, Add_Mul_Clamp, ConvFwd1x1S1P0>{});
+        device_conv2d_int8_32Ds_instances<GK_Tuple, F32_Tuple, Mul2_Clamp, ConvFwd1x1S1P0>{});
 }
 
-void add_device_conv2d_bias_relu_perlayer_quantization_int8_instances(
+void add_device_conv2d_relu_perchannel_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<NDimSpatial,
                                                               GNHWC,
                                                               GKYXC,
@@ -40,27 +40,21 @@ void add_device_conv2d_bias_relu_perlayer_quantization_int8_instances(
                                                               GNHWK,
                                                               int8_t,
                                                               int8_t,
-                                                              I32_Tuple,
+                                                              F32_Tuple,
                                                               int8_t,
                                                               PassThrough,
                                                               PassThrough,
-                                                              Add_Relu_Mul_Clamp>>>& instances)
+                                                              Relu_Mul2_Clamp>>>& instances)
 {
-    add_device_operation_instances(instances,
-                                   device_conv2d_int8_32Ds_instances<GK_Tuple,
-                                                                     I32_Tuple,
-                                                                     Add_Relu_Mul_Clamp,
-                                                                     ConvFwdDefault>{});
-
     add_device_operation_instances(
         instances,
-        device_conv2d_int8_32Ds_instances<GK_Tuple, I32_Tuple, Add_Relu_Mul_Clamp, ConvFwd1x1P0>{});
-
-    add_device_operation_instances(instances,
-                                   device_conv2d_int8_32Ds_instances<GK_Tuple,
-                                                                     I32_Tuple,
-                                                                     Add_Relu_Mul_Clamp,
-                                                                     ConvFwd1x1S1P0>{});
+        device_conv2d_int8_32Ds_instances<GK_Tuple, F32_Tuple, Relu_Mul2_Clamp, ConvFwdDefault>{});
+    add_device_operation_instances(
+        instances,
+        device_conv2d_int8_32Ds_instances<GK_Tuple, F32_Tuple, Relu_Mul2_Clamp, ConvFwd1x1P0>{});
+    add_device_operation_instances(
+        instances,
+        device_conv2d_int8_32Ds_instances<GK_Tuple, F32_Tuple, Relu_Mul2_Clamp, ConvFwd1x1S1P0>{});
 }
 } // namespace instance
 } // namespace device

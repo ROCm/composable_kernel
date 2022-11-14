@@ -35,6 +35,25 @@ struct Activation_Mul_Clamp
     Activation activationOp_;
 };
 
+// Conv Perchannel quantization + Activation function which is piecewise linear function, such as
+// relu, leaky relu ...etc
+template <typename Activation>
+struct Activation_Mul2_Clamp
+{
+    Activation_Mul2_Clamp(Activation activationOp) : activationOp_(activationOp) {}
+
+    __host__ __device__ constexpr void
+    operator()(int8_t& y, const int32_t& x, const float& requantScale) const
+    {
+        float y_fp32 = ck::type_convert<float>(x);
+        activationOp_(y_fp32, y_fp32);
+        y_fp32 = math::clamp(requantScale * y_fp32, -128.f, 127.f);
+        y      = ck::type_convert<int8_t>(y_fp32);
+    }
+
+    Activation activationOp_;
+};
+
 // For Activation function which is piecewise linear function, such as relu, leaky relu ...etc
 template <typename Activation>
 struct Add_Activation_Mul_Clamp
