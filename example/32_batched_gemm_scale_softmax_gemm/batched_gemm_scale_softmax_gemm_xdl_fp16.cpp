@@ -142,4 +142,3 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
 #include "run_batched_gemm_scale_softmax_gemm.inc"
 
 int main(int argc, char* argv[]) { return run(argc, argv); }
-
