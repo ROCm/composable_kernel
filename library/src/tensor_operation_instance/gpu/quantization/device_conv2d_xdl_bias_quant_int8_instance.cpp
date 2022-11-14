@@ -37,7 +37,6 @@ static constexpr auto ConvFwd1x1P0 =
 static constexpr auto ConvFwd1x1S1P0 =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0;
 
-// TODO - Add more instances
 template <typename OutElementOp, ConvolutionForwardSpecialization ConvSpec>
 // clang-format off
 using device_conv2d_int8_instances =
