@@ -5,6 +5,7 @@
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_elementwise.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -69,7 +70,7 @@ int main()
                                             static_cast<int>(nhwc[2] * nhwc[3]),
                                             static_cast<int>(nhwc[3])};
 
-    std::copy(nchw.begin(), nchw.end(), ab_lengths.begin());
+    ck::ranges::copy(nchw, ab_lengths.begin());
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
     auto argument         = broadcastPermute.MakeArgumentPointer(
