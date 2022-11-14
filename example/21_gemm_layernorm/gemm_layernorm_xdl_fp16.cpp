@@ -16,6 +16,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 
@@ -107,21 +108,20 @@ using DeviceNormalizeInstance = ck::tensor_operation::device::DeviceElementwise<
     ck::Sequence<8>>;            // scalarPerVector: y(layerNorm_out)
 
 auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-    return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                std::vector<std::size_t>({stride}));
+    return HostTensorDescriptor({len}, {stride});
 };
 
 auto f_host_tensor_descriptor2d =
     [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+        using namespace ck::literals;
+
         if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                        std::vector<std::size_t>({stride, 1}));
+            return HostTensorDescriptor({row, col}, {stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                        std::vector<std::size_t>({1, stride}));
+            return HostTensorDescriptor({row, col}, {1_uz, stride});
         }
     };
 
@@ -346,11 +346,8 @@ int main()
                             N);
 
         layerNorm_device_buf.FromDevice(layerNorm_m_n.mData.data());
-        pass &= ck::utils::check_err(layerNorm_m_n.mData,
-                                     host_layerNorm_m_n.mData,
-                                     "Error: Incorrect results d1",
-                                     1e-3,
-                                     1e-3);
+        pass &= ck::utils::check_err(
+            layerNorm_m_n, host_layerNorm_m_n, "Error: Incorrect results d1", 1e-3, 1e-3);
     }
 
     {

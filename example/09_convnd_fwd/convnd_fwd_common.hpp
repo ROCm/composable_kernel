@@ -10,6 +10,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -84,7 +85,7 @@ bool run_grouped_conv_fwd(bool do_verification,
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
     std::array<ck::index_t, NDimSpatial> input_right_pads{};
 
-    auto copy = [](auto& x, auto& y) { std::copy(x.begin(), x.end(), y.begin()); };
+    auto copy = [](const auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
 
     copy(in_g_n_c_wis_desc.GetLengths(), a_g_n_c_wis_lengths);
     copy(in_g_n_c_wis_desc.GetStrides(), a_g_n_c_wis_strides);
@@ -164,7 +165,7 @@ bool run_grouped_conv_fwd(bool do_verification,
         out_device_buf.FromDevice(out_device.mData.data());
 
         return ck::utils::check_err(
-            out_device.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+            out_device, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
     }
 
     return true;
