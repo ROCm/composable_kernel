@@ -9,6 +9,7 @@
 #include <getopt.h>
 
 #include "ck/ck.hpp"
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -265,14 +266,10 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
     std::array<index_t, Rank - NumReduceDim> i_scaleBiasMeanVarLengths;
     std::array<index_t, Rank - NumReduceDim> i_scaleBiasMeanVarStrides;
 
-    std::copy(inOutLengths.begin(), inOutLengths.end(), i_inOutLengths.begin());
-    std::copy(inOutStrides.begin(), inOutStrides.end(), i_inOutStrides.begin());
-    std::copy(scaleBiasMeanVarLengths.begin(),
-              scaleBiasMeanVarLengths.end(),
-              i_scaleBiasMeanVarLengths.begin());
-    std::copy(scaleBiasMeanVarStrides.begin(),
-              scaleBiasMeanVarStrides.end(),
-              i_scaleBiasMeanVarStrides.begin());
+    ck::ranges::copy(inOutLengths, i_inOutLengths.begin());
+    ck::ranges::copy(inOutStrides, i_inOutStrides.begin());
+    ck::ranges::copy(scaleBiasMeanVarLengths, i_scaleBiasMeanVarLengths.begin());
+    ck::ranges::copy(scaleBiasMeanVarStrides, i_scaleBiasMeanVarStrides.begin());
 
     using PassThroughOp = ck::tensor_operation::element_wise::PassThrough;
 
@@ -417,7 +414,7 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
         (void)invoker_ptr_ref->Run(argument_ptr_ref.get());
 
         y_dev.FromDevice(y.mData.data());
-        pass = pass && ck::utils::check_err(y.mData, y_ref.mData);
+        pass = pass && ck::utils::check_err(y, y_ref);
 
         if(updateMovingAverage)
         {
@@ -427,10 +424,8 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
             resultRunningMean_dev.FromDevice(resultRunningMean.mData.data());
             resultRunningVariance_dev.FromDevice(resultRunningVariance.mData.data());
 
-            pass =
-                pass && ck::utils::check_err(resultRunningMean.mData, resultRunningMean_ref.mData);
-            pass = pass && ck::utils::check_err(resultRunningVariance.mData,
-                                                resultRunningVariance_ref.mData);
+            pass = pass && ck::utils::check_err(resultRunningMean, resultRunningMean_ref);
+            pass = pass && ck::utils::check_err(resultRunningVariance, resultRunningVariance_ref);
         };
 
         if(saveMeanAndInvVariance)
@@ -443,9 +438,8 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
             resultSaveMean_dev.FromDevice(resultSaveMean.mData.data());
             resultSaveInvVariance_dev.FromDevice(resultSaveInvVariance.mData.data());
 
-            pass = pass && ck::utils::check_err(resultSaveMean.mData, resultSaveMean_ref.mData);
-            pass = pass && ck::utils::check_err(resultSaveInvVariance.mData,
-                                                resultSaveInvVariance_ref.mData);
+            pass = pass && ck::utils::check_err(resultSaveMean, resultSaveMean_ref);
+            pass = pass && ck::utils::check_err(resultSaveInvVariance, resultSaveInvVariance_ref);
         };
     };
 
