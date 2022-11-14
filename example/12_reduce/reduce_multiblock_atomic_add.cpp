@@ -140,7 +140,7 @@ bool reduce_multiblock_atomic_add_test(bool do_verification,
 
         std::array<int, ShapeType::NumReduceDim_> a_reduceDims;
 
-        std::copy(reduceDims.begin(), reduceDims.end(), a_reduceDims.begin());
+        ck::ranges::copy(reduceDims, a_reduceDims.begin());
 
         result = reduce_multiblock_atomic_add_impl<InOutDataType,
                                                    AccDataType,
