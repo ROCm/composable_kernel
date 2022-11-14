@@ -18,23 +18,7 @@ namespace device {
 namespace instance {
 
 // grouped conv2d forward, GNHWC/GKYXC/GNHWK
-void add_device_conv2d_bias_perlayer_quantization_int8_instances(
-    std::vector<
-        std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
-                                                      GNHWC,
-                                                      GKYXC,
-                                                      GK_Tuple,
-                                                      GNHWK,
-                                                      int8_t,
-                                                      int8_t,
-                                                      I32_Tuple,
-                                                      int8_t,
-                                                      PassThrough,
-                                                      PassThrough,
-                                                      Add_Activation_Mul_Clamp<PassThrough>>>>&
-        instances);
-
-void add_device_conv2d_bias_relu_perlayer_quantization_int8_instances(
+void add_device_conv2d_perchannel_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
                                                               GNHWC,
                                                               GKYXC,
@@ -42,11 +26,26 @@ void add_device_conv2d_bias_relu_perlayer_quantization_int8_instances(
                                                               GNHWK,
                                                               int8_t,
                                                               int8_t,
-                                                              I32_Tuple,
+                                                              F32_Tuple,
                                                               int8_t,
                                                               PassThrough,
                                                               PassThrough,
-                                                              Add_Activation_Mul_Clamp<Relu>>>>&
+                                                              Activation_Mul2_Clamp<PassThrough>>>>&
+        instances);
+
+void add_device_conv2d_relu_perchannel_quantization_int8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              GNHWC,
+                                                              GKYXC,
+                                                              GK_Tuple,
+                                                              GNHWK,
+                                                              int8_t,
+                                                              int8_t,
+                                                              F32_Tuple,
+                                                              int8_t,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              Activation_Mul2_Clamp<Relu>>>>&
         instances);
 
 template <ck::index_t NumDimSpatial,
@@ -71,20 +70,20 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
     OutDataType,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
-    Add_Activation_Mul_Clamp<Activation>>>
+    Activation_Mul2_Clamp<Activation>>>
 {
     using DeviceOp = DeviceGroupedConvFwdMultipleD<NumDimSpatial,
                                                    InLayout,
                                                    WeiLayout,
-                                                   DsLayout,
+                                                   GK_Tuple,
                                                    OutLayout,
                                                    InDataType,
                                                    WeiDataType,
-                                                   DsDataType,
+                                                   F32_Tuple,
                                                    OutDataType,
                                                    ck::tensor_operation::element_wise::PassThrough,
                                                    ck::tensor_operation::element_wise::PassThrough,
-                                                   Add_Activation_Mul_Clamp<Activation>>;
+                                                   Activation_Mul2_Clamp<Activation>>;
 
     static auto GetInstances()
     {
@@ -95,12 +94,12 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                      is_same_v<OutLayout, GNHWK>)
         {
             if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                         is_same_v<DsDataType, I32_Tuple> && is_same_v<OutDataType, int8_t>)
+                         is_same_v<OutDataType, int8_t>)
             {
                 if constexpr(is_same_v<Activation, PassThrough>)
-                    add_device_conv2d_bias_perlayer_quantization_int8_instances(op_ptrs);
+                    add_device_conv2d_perchannel_quantization_int8_instances(op_ptrs);
                 else if constexpr(is_same_v<Activation, Relu>)
-                    add_device_conv2d_bias_relu_perlayer_quantization_int8_instances(op_ptrs);
+                    add_device_conv2d_relu_perchannel_quantization_int8_instances(op_ptrs);
             }
         }
 
