@@ -154,9 +154,6 @@
 // tuning parameter
 #define CK_WORKAROUND_SWDEV_325164 0
 
-// workaround: some instances cannot support bf16 for batched_gemm_scale_softmax_gemm_permute
-#define CK_WORKAROUND_SWDEV_XXXXXX_BF16_BATCHED_GEMM_SOFTMAX_GEMM_PERMUTE_INSTANCES_ISSUE 1
-
 namespace ck {
 
 enum struct InMemoryDataOperationEnum
