@@ -140,6 +140,10 @@ bool reduce_blockwise_test(bool do_verification,
         if(ShapeType::Rank_ != inLengths.size() || ShapeType::NumReduceDim_ != reduceDims.size())
             return;
 
+        std::array<int, ShapeType::NumReduceDim_> arrReduceDims;
+
+        ck::ranges::copy(reduceDims, arrReduceDims.begin());
+
         result = reduce_blockwise_impl<InOutDataType,
                                        AccDataType,
                                        ReduceOpId,
@@ -147,7 +151,7 @@ bool reduce_blockwise_test(bool do_verification,
                                        ShapeType::NumReduceDim_,
                                        PropagateNan,
                                        OutputIndex>(
-            do_verification, init_method, time_kernel, inLengths, reduceDims, alpha, beta);
+            do_verification, init_method, time_kernel, inLengths, arrReduceDims, alpha, beta);
 
         matched = true;
     });

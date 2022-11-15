@@ -138,13 +138,17 @@ bool reduce_multiblock_atomic_add_test(bool do_verification,
         if(ShapeType::Rank_ != inLengths.size() || ShapeType::NumReduceDim_ != reduceDims.size())
             return;
 
+        std::array<int, ShapeType::NumReduceDim_> a_reduceDims;
+
+        ck::ranges::copy(reduceDims, a_reduceDims.begin());
+
         result = reduce_multiblock_atomic_add_impl<InOutDataType,
                                                    AccDataType,
                                                    ReduceOpId,
                                                    ShapeType::Rank_,
                                                    ShapeType::NumReduceDim_,
                                                    PropagateNan>(
-            do_verification, init_method, time_kernel, inLengths, reduceDims, alpha, beta);
+            do_verification, init_method, time_kernel, inLengths, a_reduceDims, alpha, beta);
 
         matched = true;
     });
