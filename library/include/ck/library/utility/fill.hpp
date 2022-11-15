@@ -5,7 +5,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <random>
+#include <type_traits>
+#include <utility>
 
 #include "ck/utility/data_type.hpp"
 
@@ -24,6 +27,16 @@ struct FillUniformDistribution
         std::mt19937 gen(11939);
         std::uniform_real_distribution<float> dis(a_, b_);
         std::generate(first, last, [&dis, &gen]() { return ck::type_convert<T>(dis(gen)); });
+    }
+
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range) const
+        -> std::void_t<decltype(std::declval<const FillUniformDistribution&>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
     }
 };
 
@@ -59,6 +72,16 @@ struct FillUniformDistributionIntegerValue
         std::uniform_real_distribution<float> dis(a_, b_);
         std::generate(
             first, last, [&dis, &gen]() { return ck::type_convert<T>(std::round(dis(gen))); });
+    }
+
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range) const
+        -> std::void_t<decltype(std::declval<const FillUniformDistributionIntegerValue&>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
     }
 };
 

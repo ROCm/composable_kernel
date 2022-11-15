@@ -3,7 +3,7 @@
 
 #include <getopt.h>
 
-#include "ck/library/host_tensor/host_common_util.hpp"
+#include "ck/library/utility/host_common_util.hpp"
 #include "profiler/include/profile_reduce_impl.hpp"
 
 using namespace ck;

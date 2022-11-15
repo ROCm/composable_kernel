@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifndef CK_SEQUENCE_HELPER_HPP
-#define CK_SEQUENCE_HELPER_HPP
+#pragma once
 
-#include "tuple.hpp"
+#include "ck/utility/tuple.hpp"
 
 namespace ck {
 
@@ -36,4 +35,3 @@ __host__ __device__ constexpr auto to_sequence(Tuple<Number<Is>...>)
 }
 
 } // namespace ck
-#endif

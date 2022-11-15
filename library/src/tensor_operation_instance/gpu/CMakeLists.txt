@@ -3,50 +3,22 @@ function(add_instance_library INSTANCE_NAME)
     add_library(${INSTANCE_NAME} OBJECT ${ARGN})
     target_compile_features(${INSTANCE_NAME} PUBLIC)
     set_target_properties(${INSTANCE_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    clang_tidy_check(${INSTANCE_NAME})
 endfunction(add_instance_library INSTANCE_NAME)
 
-add_subdirectory(gemm)
-add_subdirectory(gemm_splitk)
-add_subdirectory(gemm_bilinear)
-add_subdirectory(gemm_add_add_fastgelu)
-add_subdirectory(gemm_reduce)
-add_subdirectory(gemm_bias_add_reduce)
-add_subdirectory(batched_gemm)
-add_subdirectory(batched_gemm_reduce)
-add_subdirectory(grouped_gemm)
-add_subdirectory(conv1d_fwd)
-add_subdirectory(conv2d_fwd)
-add_subdirectory(conv3d_fwd)
-add_subdirectory(conv2d_fwd_bias_relu)
-add_subdirectory(conv2d_fwd_bias_relu_add)
-add_subdirectory(conv2d_bwd_data)
-add_subdirectory(convnd_bwd_data)
-add_subdirectory(conv2d_bwd_weight)
-add_subdirectory(reduce)
-add_subdirectory(normalization)
-add_subdirectory(elementwise)
 
-add_library(device_operations STATIC
-    $<TARGET_OBJECTS:device_gemm_instance>
-    $<TARGET_OBJECTS:device_gemm_splitk_instance>
-    $<TARGET_OBJECTS:device_gemm_bilinear_instance>
-    $<TARGET_OBJECTS:device_gemm_add_add_fastgelu_instance>
-    $<TARGET_OBJECTS:device_gemm_bias_add_reduce_instance>
-    $<TARGET_OBJECTS:device_batched_gemm_instance>
-    $<TARGET_OBJECTS:device_batched_gemm_reduce_instance>
-    $<TARGET_OBJECTS:device_grouped_gemm_instance>
-    $<TARGET_OBJECTS:device_conv1d_fwd_instance>
-    $<TARGET_OBJECTS:device_conv2d_fwd_instance>
-    $<TARGET_OBJECTS:device_conv3d_fwd_instance>
-    $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_instance>
-    $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_add_instance>
-    $<TARGET_OBJECTS:device_conv2d_bwd_data_instance>
-    $<TARGET_OBJECTS:device_convnd_bwd_data_instance>
-    $<TARGET_OBJECTS:device_conv2d_bwd_weight_instance>
-    $<TARGET_OBJECTS:device_reduce_instance>
-    $<TARGET_OBJECTS:device_normalization_instance>
-    $<TARGET_OBJECTS:device_elementwise_instance>
-)
+file(GLOB dir_list LIST_DIRECTORIES true *)
+set(CK_DEVICE_INSTANCES)
+FOREACH(subdir_path ${dir_list})
+set(target_dir)
+IF(IS_DIRECTORY "${subdir_path}")
+    get_filename_component(target_dir ${subdir_path} NAME)
+    add_subdirectory(${target_dir})
+    list(APPEND CK_DEVICE_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+ENDIF()
+ENDFOREACH()
+
+add_library(device_operations STATIC ${CK_DEVICE_INSTANCES})
 add_library(composablekernels::device_operations ALIAS device_operations)
 
 
@@ -64,12 +36,13 @@ target_include_directories(device_operations PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/problem_transform>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/device>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/device/impl>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/grid>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/block>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/warp>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/thread>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/element>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/host_tensor>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/utility>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/reduce>

@@ -9,6 +9,9 @@ namespace ck {
 
 using bhalf_t = ushort;
 using half_t  = _Float16;
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+using int4_t = _BitInt(4);
+#endif
 
 // vector_type
 template <typename T, index_t N>
@@ -129,6 +132,15 @@ struct scalar_type<int8_t>
     using type                           = int8_t;
     static constexpr index_t vector_size = 1;
 };
+
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+template <>
+struct scalar_type<int4_t>
+{
+    using type                           = int4_t;
+    static constexpr index_t vector_size = 1;
+};
+#endif
 
 //
 template <typename T>
@@ -934,6 +946,8 @@ using int8x64_t = typename vector_type<int8_t, 64>::type;
 template <typename Y, typename X>
 __host__ __device__ constexpr Y type_convert(X x)
 {
+    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
+
     return static_cast<Y>(x);
 }
 
@@ -1009,6 +1023,8 @@ struct NumericLimits
     {
         return std::numeric_limits<T>::quiet_NaN();
     }
+
+    __host__ __device__ static constexpr T Infinity() { return std::numeric_limits<T>::infinity(); }
 };
 
 template <>
@@ -1027,5 +1043,17 @@ struct NumericLimits<half_t>
 
     __host__ __device__ static constexpr half_t QuietNaN() { return bit_cast<half_t>(binary_qnan); }
 };
+
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+template <>
+struct NumericLimits<int4_t>
+{
+    __host__ __device__ static constexpr int4_t Min() { return int4_t(-8); }
+
+    __host__ __device__ static constexpr int4_t Max() { return int4_t(7); }
+
+    __host__ __device__ static constexpr int4_t Lowest() { return int4_t(-8); }
+};
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
 } // namespace ck

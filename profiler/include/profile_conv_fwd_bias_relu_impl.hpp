@@ -9,9 +9,10 @@
 #include "ck/tensor_operation/gpu/device/device_conv_fwd_bias_activation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd_bias_activation.hpp"
 
 namespace ck {
@@ -68,19 +69,19 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
 
     auto f_host_tensor_descriptor =
         [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W, auto layout) {
+            using namespace ck::literals;
+
             if constexpr(is_same<decltype(layout), ck::tensor_layout::convolution::NCHW>::value ||
                          is_same<decltype(layout), ck::tensor_layout::convolution::KCYX>::value ||
                          is_same<decltype(layout), ck::tensor_layout::convolution::NKHW>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({N_, C_, H, W}),
-                                            std::vector<std::size_t>({C_ * H * W, H * W, W, 1}));
+                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, H * W, W, 1_uz});
             }
             else if constexpr(is_same<decltype(layout), tensor_layout::convolution::NHWC>::value ||
                               is_same<decltype(layout), tensor_layout::convolution::KYXC>::value ||
                               is_same<decltype(layout), tensor_layout::convolution::NHWK>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({N_, C_, H, W}),
-                                            std::vector<std::size_t>({C_ * H * W, 1, W * C_, C_}));
+                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, 1_uz, W * C_, C_});
             }
         };
 
@@ -92,8 +93,7 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
         f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
 
     // bias: assume contiguous 1d vector
-    Tensor<OutDataType> bias_k(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(K)})));
+    Tensor<OutDataType> bias_k({K});
 
     std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi.mDesc << std::endl;
     std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
@@ -149,11 +149,11 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpace());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_k_c_y_x.mDesc.GetElementSpace());
+    DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpaceSize());
+    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_k_c_y_x.mDesc.GetElementSpaceSize());
     DeviceMem out_device_buf(sizeof(OutDataType) *
-                             out_n_k_ho_wo_device_result.mDesc.GetElementSpace());
-    DeviceMem bias_device_buf(sizeof(OutDataType) * bias_k.mDesc.GetElementSpace());
+                             out_n_k_ho_wo_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem bias_device_buf(sizeof(OutDataType) * bias_k.mDesc.GetElementSpaceSize());
 
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
     wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
@@ -239,8 +239,7 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
             {
                 out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
 
-                ck::utils::check_err(out_n_k_ho_wo_device_result.mData,
-                                     out_n_k_ho_wo_host_result.mData);
+                ck::utils::check_err(out_n_k_ho_wo_device_result, out_n_k_ho_wo_host_result);
 
                 if(do_log)
                 {

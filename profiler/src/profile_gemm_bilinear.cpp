@@ -77,21 +77,23 @@ int profile_gemm_bilinear(int argc, char* argv[])
                        auto e_type,
                        auto a_layout,
                        auto b_layout,
-                       auto de_layout) {
+                       auto d_layout,
+                       auto e_layout) {
         using ADataType   = decltype(a_type);
         using BDataType   = decltype(b_type);
         using AccDataType = decltype(acc_type);
         using DDataType   = decltype(d_type);
         using EDataType   = decltype(e_type);
 
-        using ALayout  = decltype(a_layout);
-        using BLayout  = decltype(b_layout);
-        using DELayout = decltype(de_layout);
+        using ALayout = decltype(a_layout);
+        using BLayout = decltype(b_layout);
+        using DLayout = decltype(d_layout);
+        using ELayout = decltype(e_layout);
 
         const int DefaultStrideA = ck::is_same_v<ALayout, Row> ? K : M;
         const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
-        const int DefaultStrideD = ck::is_same_v<DELayout, Row> ? N : M;
-        const int DefaultStrideE = ck::is_same_v<DELayout, Row> ? N : M;
+        const int DefaultStrideD = ck::is_same_v<DLayout, Row> ? N : M;
+        const int DefaultStrideE = ck::is_same_v<ELayout, Row> ? N : M;
 
         bool pass = ck::profiler::profile_gemm_bilinear_impl<ADataType,
                                                              BDataType,
@@ -100,7 +102,8 @@ int profile_gemm_bilinear(int argc, char* argv[])
                                                              EDataType,
                                                              ALayout,
                                                              BLayout,
-                                                             DELayout>(
+                                                             DLayout,
+                                                             ELayout>(
             do_verification,
             init_method,
             do_log,
@@ -120,19 +123,19 @@ int profile_gemm_bilinear(int argc, char* argv[])
 
     if(data_type == MatrixDataType::F16_F16_F16_F16 && layout == MatrixLayout::MK_KN_MN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, Row{}, Row{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, Row{}, Row{}, Row{}, Row{});
     }
     else if(data_type == MatrixDataType::F16_F16_F16_F16 && layout == MatrixLayout::MK_NK_MN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, Row{}, Col{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, Row{}, Col{}, Row{}, Row{});
     }
     else if(data_type == MatrixDataType::F16_F16_F16_F16 && layout == MatrixLayout::KM_KN_MN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, Col{}, Row{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, Col{}, Row{}, Row{}, Row{});
     }
     else if(data_type == MatrixDataType::F16_F16_F16_F16 && layout == MatrixLayout::KM_NK_MN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, Col{}, Col{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, Col{}, Col{}, Row{}, Row{});
     }
     else
     {

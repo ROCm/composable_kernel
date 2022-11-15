@@ -8,7 +8,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 enable_testing()
 
 set(ROCM_SYMLINK_LIBS OFF)
-find_package(ROCM 0.8 REQUIRED PATHS /opt/rocm)
+find_package(ROCM REQUIRED PATHS /opt/rocm)
 
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
@@ -20,6 +20,19 @@ include(CheckCXXCompilerFlag)
 rocm_setup_version(VERSION 0.2.0)
 include(TargetFlags)
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip)
+
+option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
+
+if(USE_BITINT_EXTENSION_INT4)
+    add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
+    add_compile_options(-Wno-bit-int-extension)
+    message("CK compiled with USE_BITINT_EXTENSION_INT4 set to ${USE_BITINT_EXTENSION_INT4}")
+endif()
+
+## Threads
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+link_libraries(Threads::Threads)
 
 ## C++
 enable_language(CXX)
@@ -70,6 +83,8 @@ if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
     message(STATUS "CK_HIP_VERSION_PATCH overriden with ${CK_OVERRIDE_HIP_VERSION_PATCH}")
 endif()
 message(STATUS "Build with HIP ${HIP_VERSION}")
+link_libraries(hip::device)
+add_compile_definitions(__HIP_PLATFORM_HCC__=1)
 
 ## tidy
 include(EnableCompilerWarnings)
@@ -219,6 +234,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/library/include
+    ${HIP_INCLUDE_DIRS}
 )
 
 
@@ -231,9 +247,29 @@ message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
 
+file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp")
+file(GLOB dir_list RELATIVE ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/*)
+set(CK_DEVICE_INSTANCES)
+FOREACH(subdir_path ${dir_list})
+    IF(IS_DIRECTORY "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/${subdir_path}")
+       list(APPEND CK_DEVICE_INSTANCES device_${subdir_path}_instance)
+    ENDIF()
+ENDFOREACH()
+add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
+
 rocm_package_setup_component(tests
         LIBRARY_NAME composablekernel
         PACKAGE_NAME tests # Prevent -static suffix on package name
+)
+
+rocm_package_setup_component(examples
+        LIBRARY_NAME composablekernel
+        PACKAGE_NAME examples
+)
+
+rocm_package_setup_component(profiler
+        LIBRARY_NAME composablekernel
+        PACKAGE_NAME ckProfiler
 )
 
 add_subdirectory(library)

@@ -9,13 +9,14 @@
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_operator.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_reduce_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_reduce_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 
 template <ck::index_t... Is>
@@ -66,8 +67,14 @@ using DeviceBatchedGemmReduceInstance = ck::tensor_operation::device::DeviceBatc
         <     Row,     Col,     Row,  F16,   F16,   F16,      F32,      F32,       F32,   ReducePtrsGlobal,  AElementOp,  BElementOp,  CElementOp, ReduceOps, ReduceInElementOps, ReduceOutElementOps, ReduceGlobalMemOps, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
 // clang-format on
 
-using ReferenceBatchedGemmInstance = ck::tensor_operation::host::
-    ReferenceBatchedGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
+using ReferenceBatchedGemmInstance =
+    ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+                                                     BDataType,
+                                                     CDataType,
+                                                     ReduceAccDataType,
+                                                     AElementOp,
+                                                     BElementOp,
+                                                     CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -126,15 +133,15 @@ int main(int argc, char* argv[])
                                        std::size_t col,
                                        std::size_t stride,
                                        auto layout) {
+        using namespace ck::literals;
+
         if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({row * stride, stride, 1}));
+            return HostTensorDescriptor({batch_count, row, col}, {row * stride, stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({col * stride, 1, stride}));
+            return HostTensorDescriptor({batch_count, row, col}, {col * stride, 1_uz, stride});
         }
     };
 
@@ -143,17 +150,13 @@ int main(int argc, char* argv[])
 
     Tensor<CDataType> c_g_m_n_host_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> d0_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> d1_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
+    Tensor<ReduceDataType> d0_g_m_host_result({BatchCount, M});
+    Tensor<ReduceDataType> d1_g_m_host_result({BatchCount, M});
 
     Tensor<CDataType> c_g_m_n_device_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> d0_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> d1_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
+    Tensor<ReduceDataType> d0_g_m_device_result({BatchCount, M});
+    Tensor<ReduceDataType> d1_g_m_device_result({BatchCount, M});
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
@@ -174,13 +177,13 @@ int main(int argc, char* argv[])
         break;
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpace());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpace());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_n_device_result.mDesc.GetElementSpaceSize());
     DeviceMem reduce0_device_buf(sizeof(ReduceDataType) *
-                                 d0_g_m_device_result.mDesc.GetElementSpace());
+                                 d0_g_m_device_result.mDesc.GetElementSpaceSize());
     DeviceMem reduce1_device_buf(sizeof(ReduceDataType) *
-                                 d1_g_m_device_result.mDesc.GetElementSpace());
+                                 d1_g_m_device_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_g_m_k.mData.data());
     b_device_buf.ToDevice(b_g_k_n.mData.data());
@@ -290,16 +293,15 @@ int main(int argc, char* argv[])
             }
         }
 
-        pass = ck::utils::check_err(c_g_m_n_host_result.mData,
-                                    c_g_m_n_device_result.mData,
-                                    "Error: Incorrect results c") &&
-               ck::utils::check_err(d0_g_m_device_result.mData,
-                                    d0_g_m_host_result.mData,
+        pass = ck::utils::check_err(
+                   c_g_m_n_host_result, c_g_m_n_device_result, "Error: Incorrect results c") &&
+               ck::utils::check_err(d0_g_m_device_result,
+                                    d0_g_m_host_result,
                                     "Error: Incorrect results! D0",
                                     1e-4,
                                     1e-5) &&
-               ck::utils::check_err(d1_g_m_device_result.mData,
-                                    d1_g_m_host_result.mData,
+               ck::utils::check_err(d1_g_m_device_result,
+                                    d1_g_m_host_result,
                                     "Error: Incorrect results! D1",
                                     1e-3,
                                     1e-5);

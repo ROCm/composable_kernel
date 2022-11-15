@@ -13,9 +13,10 @@
 #include "ck/library/tensor_operation_instance/gpu/batched_gemm.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 
 namespace ck {
@@ -50,15 +51,15 @@ bool profile_batched_gemm_impl(int do_verification,
                                        std::size_t stride,
                                        std::size_t batch_stride,
                                        auto layout) {
+        using namespace ck::literals;
+
         if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, stride, 1}));
+            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, 1, stride}));
+            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
         }
     };
 
@@ -101,6 +102,7 @@ bool profile_batched_gemm_impl(int do_verification,
             ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                              BDataType,
                                                              CDataType,
+                                                             float,
                                                              AElementOp,
                                                              BElementOp,
                                                              CElementOp>;
@@ -114,9 +116,9 @@ bool profile_batched_gemm_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpace());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpace());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_n_device_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_g_m_k.mData.data());
     b_device_buf.ToDevice(b_g_k_n.mData.data());
@@ -201,8 +203,7 @@ bool profile_batched_gemm_impl(int do_verification,
             {
                 c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
 
-                pass = pass &
-                       ck::utils::check_err(c_g_m_n_device_result.mData, c_g_m_n_host_result.mData);
+                pass = pass & ck::utils::check_err(c_g_m_n_device_result, c_g_m_n_host_result);
 
                 if(do_log)
                 {

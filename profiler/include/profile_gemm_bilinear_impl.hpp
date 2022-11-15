@@ -13,9 +13,10 @@
 #include "ck/library/tensor_operation_instance/gpu/gemm_bilinear.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
@@ -28,7 +29,8 @@ template <typename ADataType,
           typename EDataType,
           typename ALayout,
           typename BLayout,
-          typename DELayout> // assume Ds and E have same layout
+          typename DLayout,
+          typename ELayout>
 bool profile_gemm_bilinear_impl(int do_verification,
                                 int init_method,
                                 bool /*do_log*/,
@@ -45,23 +47,23 @@ bool profile_gemm_bilinear_impl(int do_verification,
 {
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+            using namespace ck::literals;
+
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<DDataType> d_m_n(f_host_tensor_descriptor(M, N, StrideD, DELayout{}));
-    Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, DELayout{}));
-    Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, DELayout{}));
+    Tensor<DDataType> d_m_n(f_host_tensor_descriptor(M, N, StrideD, DLayout{}));
+    Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+    Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -96,7 +98,8 @@ bool profile_gemm_bilinear_impl(int do_verification,
     using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleD<
         ALayout,
         BLayout,
-        DELayout,
+        ck::Tuple<DLayout>,
+        ELayout,
         ADataType,
         BDataType,
         ck::Tuple<DDataType>,
@@ -114,8 +117,7 @@ bool profile_gemm_bilinear_impl(int do_verification,
     // run reference
     if(do_verification)
     {
-        Tensor<AccDataType> c_m_n(HostTensorDescriptor(
-            std::vector<std::size_t>{static_cast<std::size_t>(M), static_cast<std::size_t>(N)}));
+        Tensor<AccDataType> c_m_n({M, N});
 
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                                 BDataType,
@@ -142,10 +144,10 @@ bool profile_gemm_bilinear_impl(int do_verification,
         }
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
-    DeviceMem d_m_n_device_buf(sizeof(DDataType) * d_m_n.mDesc.GetElementSpace());
-    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem d_m_n_device_buf(sizeof(DDataType) * d_m_n.mDesc.GetElementSpaceSize());
+    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
@@ -213,8 +215,7 @@ bool profile_gemm_bilinear_impl(int do_verification,
             {
                 e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-                pass = pass &&
-                       ck::utils::check_err(e_m_n_device_result.mData, e_m_n_host_result.mData);
+                pass = pass && ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
             }
         }
         else

@@ -42,6 +42,14 @@ static inline __host__ half_t abs(half_t x)
     return abs_x;
 };
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+static inline __host__ int4_t abs(int4_t x)
+{
+    int4_t sgn = x >> (4 - 1);
+    return (x ^ sgn) - sgn;
+}
+#endif
+
 static inline __host__ bool isnan(float x) { return std::isnan(x); };
 
 static inline __host__ bool isnan(double x) { return std::isnan(x); };
@@ -64,6 +72,14 @@ static inline __host__ bool isnan(half_t x)
 
     return (xx & 0x7FFF) > 0x7C00;
 };
+
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+static inline __host__ bool isnan(int4_t x)
+{
+    (void)x;
+    return false;
+};
+#endif
 
 static inline __host__ float sqrt(float x) { return std::sqrt(x); };
 
@@ -89,6 +105,15 @@ static inline __device__ int32_t abs(int32_t x)
     return (x ^ sgn) - sgn;
 };
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+static inline __device__ int4_t abs(int4_t x)
+{
+    int4_t sgn = x >> (4 - 1);
+
+    return (x ^ sgn) - sgn;
+};
+#endif
+
 static inline __device__ half_t abs(half_t x) { return ::__habs(x); };
 
 static inline __device__ bool isnan(float x) { return ::isnan(x); };
@@ -106,6 +131,14 @@ static inline __device__ bool isnan(int32_t x)
     (void)x;
     return false;
 };
+
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+static inline __device__ bool isnan(int4_t x)
+{
+    (void)x;
+    return false;
+};
+#endif
 
 static inline __device__ bool isnan(half_t x) { return ::__hisnan(x); };
 

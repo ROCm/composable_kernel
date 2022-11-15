@@ -5,7 +5,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
@@ -18,6 +18,10 @@ using F32 = float;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
+
+using NHWC = ck::tensor_layout::convolution::NHWC;
+using KYXC = ck::tensor_layout::convolution::KYXC;
+using NHWK = ck::tensor_layout::convolution::NHWK;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -98,7 +102,9 @@ using device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_f32_instances = std::tuple<
     >;
 
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(
-    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances)
+    std::vector<std::unique_ptr<
+        DeviceConvFwd<2, NHWC, KYXC, NHWK, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
+        instances)
 {
     add_device_operation_instances(instances, device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances{});
     add_device_operation_instances(instances,

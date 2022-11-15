@@ -30,6 +30,13 @@ struct Add
 
     template <>
     __host__ __device__ constexpr void
+    operator()<float>(float& y, const float& x0, const half_t& x1) const
+    {
+        y = x0 + type_convert<half_t>(x1);
+    };
+
+    template <>
+    __host__ __device__ constexpr void
     operator()<half_t>(half_t& y, const float& x0, const half_t& x1) const
     {
         y = type_convert<half_t>(x0) + x1;
@@ -51,6 +58,13 @@ struct Add
         const float y_tmp  = x1_tmp + x2_tmp;
         y                  = ck::type_convert<bhalf_t>(y_tmp);
     }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<int8_t>(int8_t& y, const int8_t& x0, const int8_t& x1) const
+    {
+        y = x0 + x1;
+    };
 };
 
 struct Subtract
@@ -88,6 +102,13 @@ struct Subtract
         const float y_tmp  = x1_tmp - x2_tmp;
         y                  = ck::type_convert<bhalf_t>(y_tmp);
     }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<int8_t>(int8_t& y, const int8_t& x0, const int8_t& x1) const
+    {
+        y = x0 - x1;
+    };
 };
 
 struct Bilinear
@@ -106,6 +127,13 @@ struct Bilinear
 
     template <>
     __host__ __device__ constexpr void
+    operator()<half_t, half_t, half_t>(half_t& y, const half_t& x0, const half_t& x1) const
+    {
+        y = type_convert<half_t>(alpha_) * x0 + type_convert<half_t>(beta_) * x1;
+    };
+
+    template <>
+    __host__ __device__ constexpr void
     operator()<half_t, float, half_t>(half_t& y, const float& x0, const half_t& x1) const
     {
         y = type_convert<half_t>(alpha_ * x0 + beta_ * ck::type_convert<float>(x1));
@@ -117,12 +145,12 @@ struct Bilinear
 
 struct AddRelu
 {
-    template <typename T>
-    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const;
+    template <typename Y, typename X0, typename X1>
+    __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
 
     template <>
     __host__ __device__ constexpr void
-    operator()<float>(float& y, const float& x0, const float& x1) const
+    operator()<float, float, float>(float& y, const float& x0, const float& x1) const
     {
         const float a = x0 + x1;
         y             = a > 0.0f ? a : 0.0f;
@@ -130,7 +158,7 @@ struct AddRelu
 
     template <>
     __host__ __device__ constexpr void
-    operator()<double>(double& y, const double& x0, const double& x1) const
+    operator()<double, double, double>(double& y, const double& x0, const double& x1) const
     {
         const double a = x0 + x1;
         y              = a > 0.0 ? a : 0.0;
@@ -138,10 +166,26 @@ struct AddRelu
 
     template <>
     __host__ __device__ constexpr void
-    operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
+    operator()<half_t, half_t, half_t>(half_t& y, const half_t& x0, const half_t& x1) const
     {
         const half_t a = x0 + x1;
         y              = a > type_convert<half_t>(0.0f) ? a : type_convert<half_t>(0.0f);
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t, float, half_t>(half_t& y, const float& x0, const half_t& x1) const
+    {
+        const float a = x0 + x1;
+        y             = a > type_convert<half_t>(0.0f) ? a : type_convert<half_t>(0.0f);
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<float, float, half_t>(float& y, const float& x0, const half_t& x1) const
+    {
+        const float a = x0 + type_convert<float>(x1);
+        y             = a > 0.0f ? a : 0.0f;
     };
 };
 
@@ -179,6 +223,46 @@ struct AddHardswish
         float c = (b > 0) * (b > 6.0f ? 6.0f : b) * a * 0.166667f;
         y       = c;
     };
+};
+
+// C = A * B
+// E = FastGelu(C + D)
+struct AddFastGelu
+{
+    // Fast GeLU
+    // https://paperswithcode.com/method/gelu
+    // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
+    __host__ __device__ static constexpr float GetFastGeLU(float x)
+    {
+        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
+        const float emu = exp(-u);
+        const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
+        return x * cdf;
+    }
+
+    template <typename T>
+    static inline constexpr bool is_valid_param_type_v =
+        std::is_same_v<T, float> || std::is_same_v<T, half_t> || std::is_same_v<T, bhalf_t> ||
+        std::is_same_v<T, int32_t> || std::is_same_v<T, int8_t>;
+
+    template <typename E, typename C, typename D>
+    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const
+    {
+        static_assert(is_valid_param_type_v<E> && is_valid_param_type_v<C> &&
+                      is_valid_param_type_v<D>);
+
+        const float y = GetFastGeLU(type_convert<float>(c) + type_convert<float>(d));
+
+        e = type_convert<E>(y);
+    }
+
+    template <typename D>
+    __host__ __device__ constexpr void operator()(float& e, const float& c, const D& d) const
+    {
+        static_assert(is_valid_param_type_v<D>);
+
+        e = GetFastGeLU(c + type_convert<float>(d));
+    }
 };
 
 } // namespace element_wise

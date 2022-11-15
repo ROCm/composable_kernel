@@ -6,39 +6,32 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/device_binary_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
 
-using ABDataType             = F16;
-using CDataType              = F16;
-using EltwiseComputeDataType = F32;
+using ABDataType = F16;
+using CDataType  = F16;
 
 using Add = ck::tensor_operation::element_wise::Add;
 
 using DeviceElementwiseAddInstance =
-    ck::tensor_operation::device::DeviceBinaryElementwise<ABDataType,
-                                                          ABDataType,
-                                                          CDataType,
-                                                          EltwiseComputeDataType,
-                                                          Add,
-                                                          3,
-                                                          8,
-                                                          1,
-                                                          8,
-                                                          8>;
+    ck::tensor_operation::device::DeviceElementwise<ck::Tuple<ABDataType, ABDataType>,
+                                                    ck::Tuple<CDataType>,
+                                                    Add,
+                                                    3,
+                                                    8,
+                                                    ck::Sequence<1, 8>,
+                                                    ck::Sequence<8>>;
 
-template <typename HostTensorA,
-          typename HostTensorB,
-          typename HostTensorC,
-          typename ComputeDataType,
-          typename Functor>
+template <typename HostTensorA, typename HostTensorB, typename HostTensorC, typename Functor>
 void host_broadcast3D_am_bmnk(HostTensorC& C,
                               const HostTensorA& A,
                               const HostTensorB& B,
@@ -51,11 +44,11 @@ void host_broadcast3D_am_bmnk(HostTensorC& C,
         for(std::size_t n = 0; n < shape[1]; ++n)
             for(std::size_t k = 0; k < shape[2]; ++k)
             {
-                ComputeDataType a_val = ck::type_convert<ComputeDataType>(A(m));
-                ComputeDataType b_val = ck::type_convert<ComputeDataType>(B(m, n, k));
-                ComputeDataType c_val = 0;
+                auto a_val  = A(m);
+                auto b_val  = B(m, n, k);
+                ctype c_val = 0;
                 functor(c_val, a_val, b_val);
-                C(m, n, k) = ck::type_convert<ctype>(c_val);
+                C(m, n, k) = c_val;
             }
 }
 
@@ -74,9 +67,9 @@ int main()
     a_m.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
     b_m_n_k.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
 
-    DeviceMem a_m_device_buf(sizeof(ABDataType) * a_m.mDesc.GetElementSpace());
-    DeviceMem b_m_n_k_device_buf(sizeof(ABDataType) * b_m_n_k.mDesc.GetElementSpace());
-    DeviceMem c_m_n_k_device_buf(sizeof(CDataType) * c_m_n_k.mDesc.GetElementSpace());
+    DeviceMem a_m_device_buf(sizeof(ABDataType) * a_m.mDesc.GetElementSpaceSize());
+    DeviceMem b_m_n_k_device_buf(sizeof(ABDataType) * b_m_n_k.mDesc.GetElementSpaceSize());
+    DeviceMem c_m_n_k_device_buf(sizeof(CDataType) * c_m_n_k.mDesc.GetElementSpaceSize());
 
     a_m_device_buf.ToDevice(a_m.mData.data());
     b_m_n_k_device_buf.ToDevice(b_m_n_k.mData.data());
@@ -85,25 +78,23 @@ int main()
                                         b_m_n_k_device_buf.GetDeviceBuffer()};
     std::array<void*, 1> output      = {c_m_n_k_device_buf.GetDeviceBuffer()};
 
-    std::vector<ck::index_t> a_strides = {1, 0, 0};
-    std::vector<ck::index_t> b_strides{b_m_n_k.mDesc.GetStrides().begin(),
-                                       b_m_n_k.mDesc.GetStrides().end()};
-    std::vector<ck::index_t> c_strides{c_m_n_k.mDesc.GetStrides().begin(),
-                                       c_m_n_k.mDesc.GetStrides().end()};
+    std::array<ck::index_t, 3> abc_lengths;
+    std::array<ck::index_t, 3> a_strides = {1, 0, 0};
+    std::array<ck::index_t, 3> b_strides;
+    std::array<ck::index_t, 3> c_strides;
+
+    ck::ranges::copy(mnk, abc_lengths.begin());
+    ck::ranges::copy(b_m_n_k.mDesc.GetStrides(), b_strides.begin());
+    ck::ranges::copy(c_m_n_k.mDesc.GetStrides(), c_strides.begin());
 
     auto broadcastAdd = DeviceElementwiseAddInstance{};
-    auto argument =
-        broadcastAdd.MakeArgumentPointer(input,
-                                         output,
-                                         std::vector<ck::index_t>{mnk.begin(), mnk.end()},
-                                         {a_strides, b_strides},
-                                         {c_strides},
-                                         Add{});
+    auto argument     = broadcastAdd.MakeArgumentPointer(
+        abc_lengths, {a_strides, b_strides}, {c_strides}, input, output, Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {
-        throw std::runtime_error("The runtime parameters seems not supported by the "
-                                 "DeviceBinaryElementwise instance, exiting!");
+        throw std::runtime_error(
+            "The runtime parameters seems not supported by the device instance, exiting!");
     };
 
     auto broadcastAdd_invoker_ptr = broadcastAdd.MakeInvokerPointer();
@@ -118,14 +109,11 @@ int main()
         c_m_n_k_device_buf.FromDevice(c_m_n_k.mData.data());
         Tensor<CDataType> host_c_m_n_k(mnk);
 
-        host_broadcast3D_am_bmnk<Tensor<ABDataType>,
-                                 Tensor<ABDataType>,
-                                 Tensor<CDataType>,
-                                 EltwiseComputeDataType,
-                                 Add>(host_c_m_n_k, a_m, b_m_n_k, mnk, Add{});
+        host_broadcast3D_am_bmnk<Tensor<ABDataType>, Tensor<ABDataType>, Tensor<CDataType>, Add>(
+            host_c_m_n_k, a_m, b_m_n_k, mnk, Add{});
 
-        pass &= ck::utils::check_err(
-            c_m_n_k.mData, host_c_m_n_k.mData, "Error: Incorrect results c", 1e-3, 1e-3);
+        pass &=
+            ck::utils::check_err(c_m_n_k, host_c_m_n_k, "Error: Incorrect results c", 1e-3, 1e-3);
     }
 
     return pass ? 0 : 1;

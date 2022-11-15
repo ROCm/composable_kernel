@@ -21,9 +21,9 @@ namespace reduce {
 //                    vector space
 //                    (http://pages.cs.wisc.edu/~matthewb/pages/notes/pdf/linearalgebra/VectorSpaces.pdf).
 // 2) IsCompatibleInMemoryDataOperation() -- return true if the reduction task corresponding to this
-// operator can use the InMemoryDataOperation to finalize, or else it return false 3) operator() --
-// the first argument of the operator must be both an input & output, and the corresponding variable
-// usually stores
+// operator can use the InMemoryDataOperation to finalize, or else it return false
+// 3) operator() -- the first argument of the operator must be both an input & output, and the
+//                  corresponding variable usually stores
 //                  the accumulated result of many operator() calls; the second argument is only an
 //                  input. For indexable binary
 //                  operator, the second version of operator() has third argument (which is an
@@ -79,7 +79,7 @@ struct SquaredAdd
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
                           is_same<T, half_t>::value || is_same<T, int32_t>::value ||
                           is_same<T, int8_t>::value,
-                      "The data type is not supported by the Max accumulator!");
+                      "The data type is not supported by the SquaredAdd accumulator!");
 
         a = a + b * b;
     }

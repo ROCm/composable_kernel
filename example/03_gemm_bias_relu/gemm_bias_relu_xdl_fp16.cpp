@@ -9,12 +9,13 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 
@@ -47,33 +48,34 @@ using BDataType        = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F16;
 using DDataType        = F16;
-using DsDataType       = ck::Tuple<DDataType>;
 using EDataType        = F16;
 
 using ALayout = Row;
 using BLayout = Col;
+using DLayout = Row;
 using ELayout = Row;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = AddRelu;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 using DeviceOpInstance =
     ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle<ALayout,
                                                                    BLayout,
+                                                                   ck::Tuple<DLayout>,
                                                                    ELayout,
                                                                    ADataType,
                                                                    BDataType,
                                                                    AccDataType,
                                                                    CShuffleDataType,
-                                                                   DsDataType,
+                                                                   ck::Tuple<DDataType>,
                                                                    EDataType,
                                                                    AElementOp,
                                                                    BElementOp,
                                                                    CDEElementOp,
-                                                                   GemmDefault,
+                                                                   GemmSpec,
                                                                    1,
                                                                    256,
                                                                    256,
@@ -154,15 +156,15 @@ int main(int argc, char* argv[])
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+            using namespace ck::literals;
+
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -191,14 +193,14 @@ int main(int argc, char* argv[])
         d_m_n.GenerateTensorValue(GeneratorTensor_3<DDataType>{0.0, 1.0});
     }
 
-    DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
-    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
-    DeviceMem d_m_n_device_buf(sizeof(DDataType) * d_m_n.mDesc.GetElementSpace());
-    DeviceMem e_m_n_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem d_device_buf(sizeof(DDataType) * d_m_n.mDesc.GetElementSpaceSize());
+    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
 
-    a_m_k_device_buf.ToDevice(a_m_k.mData.data());
-    b_k_n_device_buf.ToDevice(b_k_n.mData.data());
-    d_m_n_device_buf.ToDevice(d_m_n.mData.data());
+    a_device_buf.ToDevice(a_m_k.mData.data());
+    b_device_buf.ToDevice(b_k_n.mData.data());
+    d_device_buf.ToDevice(d_m_n.mData.data());
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
@@ -210,10 +212,10 @@ int main(int argc, char* argv[])
     auto invoker = device_op.MakeInvoker();
 
     auto argument =
-        device_op.MakeArgument(a_m_k_device_buf.GetDeviceBuffer(),
-                               b_k_n_device_buf.GetDeviceBuffer(),
-                               std::array<const void*, 1>{d_m_n_device_buf.GetDeviceBuffer()},
-                               e_m_n_device_buf.GetDeviceBuffer(),
+        device_op.MakeArgument(a_device_buf.GetDeviceBuffer(),
+                               b_device_buf.GetDeviceBuffer(),
+                               std::array<const void*, 1>{d_device_buf.GetDeviceBuffer()},
+                               e_device_buf.GetDeviceBuffer(),
                                M,
                                N,
                                K,
@@ -246,7 +248,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        e_m_n_device_buf.FromDevice(e_m_n_device_result.mData.data());
+        e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
         Tensor<AccDataType> c_m_n(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
@@ -274,7 +276,7 @@ int main(int argc, char* argv[])
             }
         }
 
-        return ck::utils::check_err(e_m_n_device_result.mData, e_m_n_host_result.mData) ? 0 : 1;
+        return ck::utils::check_err(e_m_n_device_result, e_m_n_host_result) ? 0 : 1;
     }
 
     return 0;

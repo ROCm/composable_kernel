@@ -34,7 +34,10 @@ __host__ __device__ constexpr auto to_multi_index(const T& x)
 // is the alias of the latter. This is because compiler cannot infer the NSize if
 // using MultiIndex<NSize>
 // TODO: how to fix this?
-template <typename... Ys, typename X>
+template <
+    typename... Ys,
+    typename X,
+    enable_if_t<!std::is_integral<X>::value && !std::is_floating_point<X>::value, bool> = false>
 __host__ __device__ constexpr auto operator+=(Tuple<Ys...>& y, const X& x)
 {
     static_assert(X::Size() == sizeof...(Ys), "wrong! size not the same");
@@ -43,7 +46,10 @@ __host__ __device__ constexpr auto operator+=(Tuple<Ys...>& y, const X& x)
     return y;
 }
 
-template <typename... Ys, typename X>
+template <
+    typename... Ys,
+    typename X,
+    enable_if_t<!std::is_integral<X>::value && !std::is_floating_point<X>::value, bool> = false>
 __host__ __device__ constexpr auto operator-=(Tuple<Ys...>& y, const X& x)
 {
     static_assert(X::Size() == sizeof...(Ys), "wrong! size not the same");
@@ -52,7 +58,10 @@ __host__ __device__ constexpr auto operator-=(Tuple<Ys...>& y, const X& x)
     return y;
 }
 
-template <typename... Xs, typename Y>
+template <
+    typename... Xs,
+    typename Y,
+    enable_if_t<!std::is_integral<Y>::value && !std::is_floating_point<Y>::value, bool> = false>
 __host__ __device__ constexpr auto operator+(const Tuple<Xs...>& x, const Y& y)
 {
     static_assert(Y::Size() == sizeof...(Xs), "wrong! size not the same");
@@ -63,7 +72,10 @@ __host__ __device__ constexpr auto operator+(const Tuple<Xs...>& x, const Y& y)
     return r;
 }
 
-template <typename... Xs, typename Y>
+template <
+    typename... Xs,
+    typename Y,
+    enable_if_t<!std::is_integral<Y>::value && !std::is_floating_point<Y>::value, bool> = false>
 __host__ __device__ constexpr auto operator-(const Tuple<Xs...>& x, const Y& y)
 {
     static_assert(Y::Size() == sizeof...(Xs), "wrong! size not the same");
@@ -74,7 +86,10 @@ __host__ __device__ constexpr auto operator-(const Tuple<Xs...>& x, const Y& y)
     return r;
 }
 
-template <typename... Xs, typename Y>
+template <
+    typename... Xs,
+    typename Y,
+    enable_if_t<!std::is_integral<Y>::value && !std::is_floating_point<Y>::value, bool> = false>
 __host__ __device__ constexpr auto operator*(const Tuple<Xs...>& x, const Y& y)
 {
     static_assert(Y::Size() == sizeof...(Xs), "wrong! size not the same");
@@ -85,9 +100,11 @@ __host__ __device__ constexpr auto operator*(const Tuple<Xs...>& x, const Y& y)
     return r;
 }
 
-// MultiIndex = index_t * MultiIndex
-template <typename... Xs>
-__host__ __device__ constexpr auto operator*(index_t a, const Tuple<Xs...>& x)
+// MultiIndex = scalar * MultiIndex
+template <typename... Xs,
+          typename Y,
+          enable_if_t<std::is_integral<Y>::value || std::is_floating_point<Y>::value, bool> = false>
+__host__ __device__ constexpr auto operator*(Y a, const Tuple<Xs...>& x)
 {
     constexpr index_t NSize = sizeof...(Xs);
 
@@ -96,12 +113,39 @@ __host__ __device__ constexpr auto operator*(index_t a, const Tuple<Xs...>& x)
     return r;
 }
 
-// MultiIndex = MultiIndex * index_t
-template <typename... Xs>
-__host__ __device__ constexpr auto operator*(const Tuple<Xs...>& x, index_t a)
+// MultiIndex = MultiIndex * scalar
+template <typename... Xs,
+          typename Y,
+          enable_if_t<std::is_integral<Y>::value || std::is_floating_point<Y>::value, bool> = false>
+__host__ __device__ constexpr auto operator*(const Tuple<Xs...>& x, Y a)
 {
     return a * x;
 }
+
+namespace mathext {
+
+template <typename... Xs>
+__host__ __device__ constexpr auto exp(const Tuple<Xs...>& x)
+{
+    constexpr index_t NSize = sizeof...(Xs);
+
+    Tuple<Xs...> r;
+    static_for<0, NSize, 1>{}([&](auto i) { r(i) = math::exp(x[i]); });
+    return r;
+}
+
+template <typename... Xs, typename Y>
+__host__ __device__ constexpr auto max(const Tuple<Xs...>& x, const Y& y)
+{
+    static_assert(Y::Size() == sizeof...(Xs), "wrong! size not the same");
+    constexpr index_t NSize = sizeof...(Xs);
+
+    Tuple<Xs...> r;
+    static_for<0, NSize, 1>{}([&](auto i) { r(i) = math::max(x[i], y[i]); });
+    return r;
+}
+
+} // namespace mathext
 
 template <typename... Xs>
 __host__ __device__ void print_multi_index(const Tuple<Xs...>& x)

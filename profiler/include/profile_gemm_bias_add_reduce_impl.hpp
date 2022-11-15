@@ -10,10 +10,11 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/conv_util.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
@@ -75,21 +76,20 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
                                        int StrideD0)
 {
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                    std::vector<std::size_t>({stride}));
+        return HostTensorDescriptor({len}, {stride});
     };
 
     auto f_host_tensor_descriptor2d =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+            using namespace ck::literals;
+
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -99,16 +99,12 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
     Tensor<BiasDataType> bias_n(f_host_tensor_descriptor1d(N, 1));
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> reduce0_m_host_result(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> reduce1_m_host_result(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
+    Tensor<ReduceDataType> reduce0_m_host_result({M});
+    Tensor<ReduceDataType> reduce1_m_host_result({M});
 
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> reduce0_m_device_result(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> reduce1_m_device_result(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
+    Tensor<ReduceDataType> reduce0_m_device_result({M});
+    Tensor<ReduceDataType> reduce1_m_device_result({M});
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -217,15 +213,15 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
         }
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpace());
-    DeviceMem bias_device_buf(sizeof(BiasDataType) * bias_n.mDesc.GetElementSpace());
-    DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem bias_device_buf(sizeof(BiasDataType) * bias_n.mDesc.GetElementSpaceSize());
+    DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
     DeviceMem reduce0_device_buf(sizeof(ReduceDataType) *
-                                 reduce0_m_device_result.mDesc.GetElementSpace());
+                                 reduce0_m_device_result.mDesc.GetElementSpaceSize());
     DeviceMem reduce1_device_buf(sizeof(ReduceDataType) *
-                                 reduce1_m_device_result.mDesc.GetElementSpace());
+                                 reduce1_m_device_result.mDesc.GetElementSpaceSize());
 
     std::array<void*, 2> p_reduces = {reduce0_device_buf.GetDeviceBuffer(),
                                       reduce1_device_buf.GetDeviceBuffer()};
@@ -347,9 +343,9 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
                 reduce0_device_buf.FromDevice(reduce0_m_device_result.mData.data());
                 reduce1_device_buf.FromDevice(reduce1_m_device_result.mData.data());
 
-                ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
-                ck::utils::check_err(reduce0_m_device_result.mData, reduce0_m_host_result.mData);
-                ck::utils::check_err(reduce1_m_device_result.mData, reduce1_m_host_result.mData);
+                ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+                ck::utils::check_err(reduce0_m_device_result, reduce0_m_host_result);
+                ck::utils::check_err(reduce1_m_device_result, reduce1_m_host_result);
 
                 if(do_log)
                 {

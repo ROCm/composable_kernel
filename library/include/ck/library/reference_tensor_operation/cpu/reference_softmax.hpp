@@ -9,8 +9,8 @@
 #include <algorithm>
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -60,6 +60,12 @@ struct ReferenceSoftmax : public device::BaseOperator
             {
                 scalar_lengths.push_back(arg.in_.mDesc.GetLengths()[dim]);
             }
+            // max and sum reduction with final reduced values of dim=0 is a scalar so give it
+            // appropriate lengths of {1}
+            if(arg.sm_scalar_dims_.size() == 0)
+            {
+                scalar_lengths.push_back(1);
+            }
 
             Tensor<AccDataType> reduce_max(scalar_lengths);
             reduce_max.GenerateTensorValue(
@@ -67,6 +73,9 @@ struct ReferenceSoftmax : public device::BaseOperator
             Tensor<AccDataType> reduce_sum(scalar_lengths);
             reduce_sum.GenerateTensorValue(GeneratorTensor_1<AccDataType>{0});
 
+            // when final reduced values is of dim=0, the index will be transformed into empty
+            // std::vector which is actually a valid input for Tensor::operator(std::vector) and
+            // internally accesses 0'th element
             auto to_sm_scalar_idx = [&](auto idx) {
                 std::vector<size_t> sm_scalar_idx;
                 for(index_t dim : arg.sm_scalar_dims_)

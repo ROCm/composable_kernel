@@ -102,7 +102,12 @@
 #define CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR 0
 
 // experimental feature: buffer load/store/atomic-add/ OOB trick
+// This (ifndef) is a hack to use customized behavior for buffer load rather than using default
+// setting. Don't use this hack unless absolutely necessary!
+// FIXME: make the behavior of buffer load a configurable (template) parameter for each usage
+#ifndef CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK
 #define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 0
+#endif
 #define CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK 1
 #define CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK 1
 #define CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_MAX_OOB_CHECK_OFFSET_TRICK 1
@@ -121,8 +126,14 @@
 #define CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST 1
 
 // experimental feature: optimize for inter-wave scheduling policy
-#define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING 0
+#define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING 1
 #define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS 1
+// this will let make_default_loop_scheduler() return interwave scheduling flag by default
+#define CK_EXPERIMENTAL_DEFAULT_TO_INTER_WAVE_SCHEDULING 0
+// experimental feature: add instances using interwave scheduling
+#define CK_EXPERIMENTAL_INTER_WAVE_INSTANCES 1
+// experimental feature: add instances using pipeline v2
+#define CK_EXPERIMENTAL_PIPELINE_V2_INSTANCES 1
 
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug
 // hack for forcing register to keep idx_diff_low_const in SGPR. idx_diff_low_const must be
@@ -141,7 +152,7 @@
 
 // workaround: verifaction failure, due to compiler regression, for conv bwd-data fp16 using some
 // tuning parameter
-#define CK_WORKAROUND_SWDEV_325164 1
+#define CK_WORKAROUND_SWDEV_325164 0
 
 namespace ck {
 
@@ -166,16 +177,6 @@ struct InMemoryDataOperationEnumSequence
         return mData[I];
     }
 };
-
-#if 0
-// TODO: no longer needed, remove this
-enum struct ActivTypeEnum
-{
-    None,
-    LeakyRelu,
-    Sigmoid
-};
-#endif
 
 // index type
 using index_t      = int32_t;

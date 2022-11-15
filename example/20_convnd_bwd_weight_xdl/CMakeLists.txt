@@ -1,4 +1,0 @@
-add_example_executable(example_convnd_bwd_weight_xdl convnd_bwd_weight_xdl.cpp)
-add_example_executable(example_convnd_bwd_weight_xdl_bf16_splitk convnd_bwd_weight_xdl_bf16_splitk.cpp)
-target_link_libraries(example_convnd_bwd_weight_xdl PRIVATE conv_util)
-target_link_libraries(example_convnd_bwd_weight_xdl_bf16_splitk PRIVATE conv_util)

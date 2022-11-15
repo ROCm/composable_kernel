@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifndef CK_STATIC_BUFFER_HPP
-#define CK_STATIC_BUFFER_HPP
+#pragma once
 
 #include "statically_indexed_array.hpp"
 
@@ -19,6 +18,22 @@ struct StaticBuffer : public StaticallyIndexedArray<T, N>
     using base = StaticallyIndexedArray<T, N>;
 
     __host__ __device__ constexpr StaticBuffer() : base{} {}
+
+    template <typename... Ys>
+    __host__ __device__ constexpr StaticBuffer& operator=(const Tuple<Ys...>& y)
+    {
+        static_assert(base::Size() == sizeof...(Ys), "wrong! size not the same");
+        StaticBuffer& x = *this;
+        static_for<0, base::Size(), 1>{}([&](auto i) { x(i) = y[i]; });
+        return x;
+    }
+
+    __host__ __device__ constexpr StaticBuffer& operator=(const T& y)
+    {
+        StaticBuffer& x = *this;
+        static_for<0, base::Size(), 1>{}([&](auto i) { x(i) = y; });
+        return x;
+    }
 
     __host__ __device__ static constexpr AddressSpaceEnum GetAddressSpace() { return AddressSpace; }
 
@@ -40,10 +55,12 @@ struct StaticBuffer : public StaticallyIndexedArray<T, N>
         return base::operator()(i);
     }
 
-    __host__ __device__ void Clear()
+    __host__ __device__ void Set(T x)
     {
-        static_for<0, N, 1>{}([&](auto i) { operator()(i) = T{0}; });
+        static_for<0, N, 1>{}([&](auto i) { operator()(i) = T{x}; });
     }
+
+    __host__ __device__ void Clear() { Set(T{0}); }
 };
 
 // static buffer for vector
@@ -61,6 +78,7 @@ struct StaticBufferTupleOfVector
 
     static constexpr auto s_per_v   = Number<ScalarPerVector>{};
     static constexpr auto num_of_v_ = Number<NumOfVector>{};
+    static constexpr auto s_per_buf = s_per_v * num_of_v_;
 
     __host__ __device__ constexpr StaticBufferTupleOfVector() : base{} {}
 
@@ -69,6 +87,8 @@ struct StaticBufferTupleOfVector
     __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }
 
     __host__ __device__ static constexpr bool IsDynamicBuffer() { return false; }
+
+    __host__ __device__ static constexpr index_t Size() { return s_per_buf; };
 
     // Get S
     // i is offset of S
@@ -173,4 +193,3 @@ __host__ __device__ constexpr auto make_static_buffer(LongNumber<N>)
 }
 
 } // namespace ck
-#endif

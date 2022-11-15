@@ -209,6 +209,8 @@ struct BlockToCTileMap_KSplit_M00_N0_M01Adapt
         const auto M0 = math::integer_divide_ceil(c_grid_desc_m_n_.GetLength(I0), MPerBlock);
         const auto N0 = math::integer_divide_ceil(c_grid_desc_m_n_.GetLength(I1), NPerBlock);
 
+        block_1d_id = block_1d_id % (M0 * N0 * KSplit_); // hide groups
+
         const index_t idx_ksplit = block_1d_id / (M0 * N0);
         block_1d_id              = block_1d_id % (M0 * N0);
 
@@ -362,14 +364,16 @@ struct BlockToCTileMap_KSplit_M00_N00_M01_N01
                                                     index_t M01    = 1,
                                                     index_t N01    = 1,
                                                     index_t KSplit = 1)
-        : M01_(M01),
+        : c_grid_desc_m_n_(c_grid_desc_m_n),
+          M01_(M01),
           N01_(N01),
           KSplit_(KSplit),
           underlying_map_(GetBlockToCTileMap(c_grid_desc_m_n, M01, N01, KSplit))
     {
     }
 
-    __host__ constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
+    __host__ __device__ constexpr index_t
+    CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
     {
         const auto M0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I0), MPerBlock);
         const auto N0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I1), NPerBlock);
@@ -385,7 +389,10 @@ struct BlockToCTileMap_KSplit_M00_N00_M01_N01
     template <typename TopIdx>
     __host__ __device__ constexpr auto CalculateBottomIndex(const TopIdx& idx_top) const
     {
-        return underlying_map_.CalculateBottomIndex(idx_top);
+        static_assert(TopIdx::Size() == 1);
+
+        return underlying_map_.CalculateBottomIndex(
+            make_multi_index(idx_top[I0] % CalculateGridSize()));
     }
 
     template <typename CTileIdx, typename CTileDim>
@@ -416,6 +423,11 @@ struct BlockToCTileMap_KSplit_M00_N00_M01_N01
     }
 
     private:
+    __device__ constexpr index_t CalculateGridSize() const
+    {
+        return CalculateGridSize(c_grid_desc_m_n_);
+    }
+
     __host__ static constexpr auto GetBlockToCTileMap(const CGridDesc_M_N& c_grid_desc_m_n,
                                                       index_t M01,
                                                       index_t N01,
@@ -448,6 +460,7 @@ struct BlockToCTileMap_KSplit_M00_N00_M01_N01
         return c_blockid_to_ksplit_m0_n0_block_cluster_adaptor;
     }
 
+    CGridDesc_M_N c_grid_desc_m_n_;
     index_t M01_, N01_, KSplit_;
     using UnderlyingMap = decltype(GetBlockToCTileMap(CGridDesc_M_N{}, 1, 1, 1));
     UnderlyingMap underlying_map_;
@@ -485,5 +498,49 @@ __host__ __device__ bool DefaultValidCTileIndex(const CTileIdx& c_tile_idx,
 
     return is_valid;
 }
+
+// This wrapper class is for grouped gemm where it subtracts blockIdx by a value so that the
+// workgroups assigned to a given gemm problem have top index offsetted to range [0,
+// grid_size_per_gemm]
+template <typename UnderlyingBlockToCTileMap>
+struct OffsettedBlockToCTileMap
+{
+    using underlying_type = UnderlyingBlockToCTileMap;
+
+    OffsettedBlockToCTileMap(UnderlyingBlockToCTileMap block_to_ctile_map, index_t block_start)
+    {
+        block_to_ctile_map_ = block_to_ctile_map;
+        block_start_        = block_start;
+    }
+
+    template <typename TopIdx>
+    __host__ __device__ constexpr auto CalculateBottomIndex(const TopIdx& idx_top) const
+    {
+        return block_to_ctile_map_.CalculateBottomIndex(
+            make_multi_index(idx_top[Number<0>{}] - block_start_));
+    }
+
+    template <typename CTileIdx, typename CTileDim>
+    __host__ __device__ bool ValidCTileIndex(const CTileIdx& c_tile_idx,
+                                             const CTileDim& c_tile_dim) const
+    {
+        return block_to_ctile_map_.ValidCTileIndex(c_tile_idx, c_tile_dim);
+    }
+
+    template <typename CGridDesc_M_N>
+    __host__ bool CheckValidity(const CGridDesc_M_N& c_grid_desc_m_n) const
+    {
+        return block_to_ctile_map_.CheckValidity(c_grid_desc_m_n);
+    }
+
+    template <typename CGridDesc_M_N>
+    __host__ constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
+    {
+        return block_to_ctile_map_.CalculateGridSize(c_grid_desc_m_n);
+    }
+
+    UnderlyingBlockToCTileMap block_to_ctile_map_;
+    index_t block_start_;
+};
 
 } // namespace ck
