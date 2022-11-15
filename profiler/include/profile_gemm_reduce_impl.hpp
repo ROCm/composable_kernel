@@ -14,6 +14,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
@@ -75,15 +76,15 @@ bool profile_gemm_reduce_impl(int do_verification,
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+            using namespace ck::literals;
+
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -91,16 +92,12 @@ bool profile_gemm_reduce_impl(int do_verification,
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> reduce0_m_host_result(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> reduce1_m_host_result(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
+    Tensor<ReduceDataType> reduce0_m_host_result({M});
+    Tensor<ReduceDataType> reduce1_m_host_result({M});
 
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> reduce0_m_device_result(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> reduce1_m_device_result(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
+    Tensor<ReduceDataType> reduce0_m_device_result({M});
+    Tensor<ReduceDataType> reduce1_m_device_result({M});
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -313,9 +310,9 @@ bool profile_gemm_reduce_impl(int do_verification,
                 reduce0_device_buf.FromDevice(reduce0_m_device_result.mData.data());
                 reduce1_device_buf.FromDevice(reduce1_m_device_result.mData.data());
 
-                ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
-                ck::utils::check_err(reduce0_m_device_result.mData, reduce0_m_host_result.mData);
-                ck::utils::check_err(reduce1_m_device_result.mData, reduce1_m_host_result.mData);
+                ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+                ck::utils::check_err(reduce0_m_device_result, reduce0_m_host_result);
+                ck::utils::check_err(reduce1_m_device_result, reduce1_m_host_result);
 
                 if(do_log)
                 {
