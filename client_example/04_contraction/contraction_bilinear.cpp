@@ -12,6 +12,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/contraction_bilinear.hpp"
+#include "ck/library/utility/numeric.hpp"
 
 using F32 = float;
 
@@ -192,20 +193,14 @@ int main(int argc, char* argv[])
         {
             float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
-            ck::index_t M = std::accumulate(e_ms_ns_lengths.begin(),
-                                            e_ms_ns_lengths.begin() + NumDimM,
-                                            ck::index_t{1},
-                                            std::multiplies<ck::index_t>{});
+            ck::index_t M = ck::accumulate_n<ck::index_t>(
+                e_ms_ns_lengths.begin(), NumDimM, 1, std::multiplies<>{});
 
-            ck::index_t N = std::accumulate(e_ms_ns_lengths.begin() + NumDimM,
-                                            e_ms_ns_lengths.begin() + NumDimM + NumDimN,
-                                            ck::index_t{1},
-                                            std::multiplies<ck::index_t>{});
+            ck::index_t N = ck::accumulate_n<ck::index_t>(
+                e_ms_ns_lengths.begin() + NumDimM, NumDimN, 1, std::multiplies<>{});
 
-            ck::index_t K = std::accumulate(a_ms_ks_lengths.begin() + NumDimM,
-                                            a_ms_ks_lengths.begin() + NumDimM + NumDimK,
-                                            ck::index_t{1},
-                                            std::multiplies<ck::index_t>{});
+            ck::index_t K = ck::accumulate_n<ck::index_t>(
+                a_ms_ks_lengths.begin() + NumDimM, NumDimK, 1, std::multiplies<>{});
 
             std::size_t flop      = std::size_t(2) * M * N * K;
             std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +

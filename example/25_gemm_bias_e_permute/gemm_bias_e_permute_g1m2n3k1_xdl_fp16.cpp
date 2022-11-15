@@ -15,6 +15,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/numeric.hpp"
 
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
@@ -317,20 +318,14 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    std::size_t M = std::accumulate(e_gs_ms_ns_lengths.begin() + NumDimG,
-                                    e_gs_ms_ns_lengths.begin() + NumDimG + NumDimM,
-                                    ck::index_t{1},
-                                    std::multiplies<ck::index_t>{});
+    std::size_t M = ck::accumulate_n<ck::index_t>(
+        e_gs_ms_ns_lengths.begin() + NumDimG, NumDimM, 1, std::multiplies<>{});
 
-    std::size_t N = std::accumulate(e_gs_ms_ns_lengths.begin() + NumDimG + NumDimM,
-                                    e_gs_ms_ns_lengths.begin() + NumDimG + NumDimM + NumDimN,
-                                    ck::index_t{1},
-                                    std::multiplies<ck::index_t>{});
+    std::size_t N = ck::accumulate_n<ck::index_t>(
+        e_gs_ms_ns_lengths.begin() + NumDimG + NumDimM, NumDimN, 1, std::multiplies<>{});
 
-    std::size_t K = std::accumulate(a_gs_ms_ks_lengths.begin() + NumDimG + NumDimM,
-                                    a_gs_ms_ks_lengths.begin() + NumDimG + NumDimM + NumDimK,
-                                    ck::index_t{1},
-                                    std::multiplies<ck::index_t>{});
+    std::size_t K = ck::accumulate_n<ck::index_t>(
+        a_gs_ms_ks_lengths.begin() + NumDimG + NumDimM, NumDimK, 1, std::multiplies<>{});
 
     std::size_t flop      = std::size_t(2) * M * N * K;
     std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +

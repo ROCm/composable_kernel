@@ -15,6 +15,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/numeric.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -317,25 +318,17 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    ck::index_t G = std::accumulate(e_gs_ms_ns_lengths.begin(),
-                                    e_gs_ms_ns_lengths.begin() + NumDimG,
-                                    ck::index_t{1},
-                                    std::multiplies<ck::index_t>{});
+    ck::index_t G =
+        ck::accumulate_n<ck::index_t>(e_gs_ms_ns_lengths.begin(), NumDimG, 1, std::multiplies<>{});
 
-    ck::index_t M = std::accumulate(e_gs_ms_ns_lengths.begin() + NumDimG,
-                                    e_gs_ms_ns_lengths.begin() + NumDimG + NumDimM,
-                                    ck::index_t{1},
-                                    std::multiplies<ck::index_t>{});
+    ck::index_t M = ck::accumulate_n<ck::index_t>(
+        e_gs_ms_ns_lengths.begin() + NumDimG, NumDimM, 1, std::multiplies<>{});
 
-    ck::index_t N = std::accumulate(e_gs_ms_ns_lengths.begin() + NumDimG + NumDimM,
-                                    e_gs_ms_ns_lengths.begin() + NumDimG + NumDimM + NumDimN,
-                                    ck::index_t{1},
-                                    std::multiplies<ck::index_t>{});
+    ck::index_t N = ck::accumulate_n<ck::index_t>(
+        e_gs_ms_ns_lengths.begin() + NumDimG + NumDimM, NumDimN, 1, std::multiplies<>{});
 
-    ck::index_t K = std::accumulate(a_gs_ms_ks_lengths.begin() + NumDimG + NumDimM,
-                                    a_gs_ms_ks_lengths.begin() + NumDimG + NumDimM + NumDimK,
-                                    ck::index_t{1},
-                                    std::multiplies<ck::index_t>{});
+    ck::index_t K = ck::accumulate_n<ck::index_t>(
+        a_gs_ms_ks_lengths.begin() + NumDimG + NumDimM, NumDimK, 1, std::multiplies<>{});
 
     std::size_t flop      = std::size_t(2) * G * M * N * K;
     std::size_t num_btype = sizeof(ADataType) * G * M * K + sizeof(BDataType) * G * K * N +
