@@ -309,8 +309,25 @@ bool profile_batched_gemm_softmax_gemm_permute_impl(bool do_verification,
             {
                 c_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
 
-                pass =
-                    pass & ck::utils::check_err(c_gs_ms_os_device_result, c_gs_ms_os_host_result);
+                // default absolute error and relative error is 0.001
+                double rtol = 1e-3;
+                double atol = 1e-3;
+
+                // when BF16 is taken, set absolute error and relative error to 0.01
+                if(std::is_same_v<ADataType, ck::bhalf_t> &&
+                   std::is_same_v<B0DataType, ck::bhalf_t> &&
+                   std::is_same_v<B1DataType, ck::bhalf_t> &&
+                   std::is_same_v<CDataType, ck::bhalf_t>)
+                {
+                    rtol = 1e-2;
+                    atol = 1e-2;
+                }
+
+                pass = pass & ck::utils::check_err(c_gs_ms_os_device_result,
+                                                   c_gs_ms_os_host_result,
+                                                   "Error: Incorrect results!",
+                                                   rtol,
+                                                   atol);
 
                 if(do_log)
                 {
