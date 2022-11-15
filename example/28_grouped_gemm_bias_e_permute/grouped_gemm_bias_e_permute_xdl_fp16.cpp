@@ -16,6 +16,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/numeric.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -302,20 +303,14 @@ int main(int argc, char* argv[])
         Tensor<DDataType> d_ms_ns(d_ms_ns_lengths, d_ms_ns_strides);
         Tensor<EDataType> e_ms_ns_device_result(e_ms_ns_lengths, e_ms_ns_strides);
 
-        ck::index_t M_ = std::accumulate(e_ms_ns_lengths.begin(),
-                                         e_ms_ns_lengths.begin() + NumDimM,
-                                         ck::index_t{1},
-                                         std::multiplies<ck::index_t>{});
+        ck::index_t M_ =
+            ck::accumulate_n<ck::index_t>(e_ms_ns_lengths.begin(), NumDimM, 1, std::multiplies<>{});
 
-        ck::index_t N_ = std::accumulate(e_ms_ns_lengths.begin() + NumDimM,
-                                         e_ms_ns_lengths.begin() + NumDimM + NumDimN,
-                                         ck::index_t{1},
-                                         std::multiplies<ck::index_t>{});
+        ck::index_t N_ = ck::accumulate_n<ck::index_t>(
+            e_ms_ns_lengths.begin() + NumDimM, NumDimN, 1, std::multiplies<>{});
 
-        ck::index_t K_ = std::accumulate(a_ms_ks_lengths.begin() + NumDimM,
-                                         a_ms_ks_lengths.begin() + NumDimM + NumDimK,
-                                         ck::index_t{1},
-                                         std::multiplies<ck::index_t>{});
+        ck::index_t K_ = ck::accumulate_n<ck::index_t>(
+            a_ms_ks_lengths.begin() + NumDimM, NumDimK, 1, std::multiplies<>{});
 
         a_tensors.push_back(a_ms_ks);
         b_tensors.push_back(b_ns_ks);

@@ -120,18 +120,14 @@ bool run_grouped_conv_conv_fwd(bool do_verification,
     const ck::index_t gemm_batch = a0_g_n_c_wis_lengths[0];
 
     const ck::index_t gemm0_m_length =
-        e1_g_n_k_wos_lengths[1] * std::accumulate(e1_g_n_k_wos_lengths.begin() + 3,
-                                                  e1_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                                  ck::index_t{1},
-                                                  std::multiplies<ck::index_t>{});
+        e1_g_n_k_wos_lengths[1] *
+        ck::accumulate_n<ck::index_t>(
+            e1_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>{});
 
     const ck::index_t gemm0_n_length = b0_g_k_c_xs_lengths[1];
 
-    const ck::index_t gemm0_k_length =
-        std::accumulate(b0_g_k_c_xs_lengths.begin() + 2,
-                        b0_g_k_c_xs_lengths.begin() + 2 + NDimSpatial + 1,
-                        ck::index_t{1},
-                        std::multiplies<ck::index_t>{});
+    const ck::index_t gemm0_k_length = ck::accumulate_n<ck::index_t>(
+        b0_g_k_c_xs_lengths.begin() + 2, NDimSpatial + 1, 1, std::multiplies<>{});
 
     const ck::index_t gemm1_n_length = b1_g_k_c_xs_lengths[1];
 
