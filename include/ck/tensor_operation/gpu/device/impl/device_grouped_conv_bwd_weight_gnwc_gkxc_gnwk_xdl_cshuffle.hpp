@@ -116,6 +116,10 @@ __global__ void
     ignore = batch_count;
     ignore = block_2_ctile_map;
     ignore = compute_ptr_offset_of_batch;
+
+    compute_ptr_offset_of_batch.GetAPtrOffset(0);
+    compute_ptr_offset_of_batch.GetBPtrOffset(0);
+    compute_ptr_offset_of_batch.GetCPtrOffset(0);
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
