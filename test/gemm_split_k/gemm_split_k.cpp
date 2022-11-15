@@ -226,8 +226,8 @@ int main(int argc, char* argv[])
     std::vector<gemmArgs> test_cases;
     if(argc == 1)
     {
-        test_cases = {{GemmMatrixLayout::MK_KN_MN, 3, 3, 3, 3, 3, 3, 1},
-                      {GemmMatrixLayout::MK_KN_MN, 1024, 1024, 1024, 1024, 1024, 1024, 2}};
+        test_cases = {{GemmMatrixLayout::MK_KN_MN, 1024, 1024, 1024, 1024, 1024, 1024, 2},
+                      {GemmMatrixLayout::MK_KN_MN, 1024, 1024, 1024, 1024, 1024, 1024, 8}};
     }
     else if(argc == 9)
     {
