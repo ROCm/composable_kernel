@@ -433,7 +433,7 @@ struct Tensor
         return mData[mDesc.GetOffsetFromMultiIndex(idx)];
     }
 
-    Tensor<T> Transpose(std::vector<size_t> axes = {})
+    Tensor<T> Transpose(std::vector<size_t> axes = {}) const
     {
         if(axes.empty())
         {
@@ -454,6 +454,11 @@ struct Tensor
         Tensor<T> ret(*this);
         ret.mDesc = HostTensorDescriptor(tlengths, tstrides);
         return ret;
+    }
+
+    Tensor<T> Transpose(std::vector<size_t> axes = {})
+    {
+        return const_cast<Tensor<T> const*>(this)->Transpose(axes);
     }
 
     typename Data::iterator begin() { return mData.begin(); }
