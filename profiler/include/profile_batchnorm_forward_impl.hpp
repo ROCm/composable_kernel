@@ -144,8 +144,8 @@ bool profile_batchnorm_forward_impl(int do_verification,
             bnBias.GenerateTensorValue(GeneratorTensor_2<BiasDataType>{-5, 5}, num_thread);
             break;
         default:
-            bnScale.GenerateTensorValue(GeneratorTensor_3<ScaleDataType>{-5.0f, 5.0f}, num_thread);
-            bnBias.GenerateTensorValue(GeneratorTensor_3<BiasDataType>{-5.0f, 5.0f}, num_thread);
+            bnScale.GenerateTensorValue(GeneratorTensor_3<ScaleDataType>{-1.0f, 1.0f}, num_thread);
+            bnBias.GenerateTensorValue(GeneratorTensor_3<BiasDataType>{-1.0f, 1.0f}, num_thread);
         }
     };
 
@@ -230,16 +230,15 @@ bool profile_batchnorm_forward_impl(int do_verification,
     if(do_verification)
     {
         using ReferenceBatchNormFwdInstance =
-            ck::tensor_operation::host::ReferenceBatchNormFwd<
-                XDataType,
-                YDataType,
-                AccDataType,
-                ScaleDataType,
-                BiasDataType,
-                MeanVarDataType,
-                PassThroughOp,
-		Rank,
-		NumBatchNormReduceDim>;
+            ck::tensor_operation::host::ReferenceBatchNormFwd<XDataType,
+                                                              YDataType,
+                                                              AccDataType,
+                                                              ScaleDataType,
+                                                              BiasDataType,
+                                                              MeanVarDataType,
+                                                              PassThroughOp,
+                                                              Rank,
+                                                              NumBatchNormReduceDim>;
 
         auto batchNormFwd_ref = ReferenceBatchNormFwdInstance{};
 
@@ -358,7 +357,7 @@ bool profile_batchnorm_forward_impl(int do_verification,
             bool single_pass;
 
             y_dev.FromDevice(y.mData.data());
-            single_pass = check_err(y.mData, y_ref.mData, "y results", 1e-5, 1e-5);
+            single_pass = check_err(y.mData, y_ref.mData, "y results", 4e-3, 4e-3);
 
             if(updateMovingAverage)
             {
@@ -378,7 +377,7 @@ bool profile_batchnorm_forward_impl(int do_verification,
 
                 // clang-format off
                 single_pass = single_pass && check_err(resultSaveMean.mData, resultSaveMean_ref.mData, "mean results", 1e-5, 1e-5);
-                single_pass = single_pass && check_err(resultSaveInvVariance.mData, resultSaveInvVariance_ref.mData, "inv-variance results", 1e-5, 1e-5);
+                single_pass = single_pass && check_err(resultSaveInvVariance.mData, resultSaveInvVariance_ref.mData, "inv-variance results", 7e-5, 7e-5);
                 // clang-format on
             };
 
