@@ -72,14 +72,10 @@ std::size_t ConvParam::GetFlops() const
 {
     // 2 * G * N * K * C * <output spatial lengths product> * <filter spatial lengths product>
     return static_cast<std::size_t>(2) * G_ * N_ * K_ * C_ *
-           std::accumulate(std::begin(output_spatial_lengths_),
-                           std::begin(output_spatial_lengths_) + num_dim_spatial_,
-                           static_cast<std::size_t>(1),
-                           std::multiplies<std::size_t>()) *
-           std::accumulate(std::begin(filter_spatial_lengths_),
-                           std::begin(filter_spatial_lengths_) + num_dim_spatial_,
-                           static_cast<std::size_t>(1),
-                           std::multiplies<std::size_t>());
+           ck::accumulate_n<std::size_t>(
+               std::begin(output_spatial_lengths_), num_dim_spatial_, 1, std::multiplies<>()) *
+           ck::accumulate_n<std::size_t>(
+               std::begin(filter_spatial_lengths_), num_dim_spatial_, 1, std::multiplies<>());
 }
 
 std::string get_conv_param_parser_helper_msg()
