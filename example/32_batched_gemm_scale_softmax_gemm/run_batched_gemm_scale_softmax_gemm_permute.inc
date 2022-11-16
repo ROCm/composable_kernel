@@ -22,7 +22,7 @@ int run(int argc, char* argv[])
 
     float alpha = 1;
 
-    bool input_permute = false;
+    bool input_permute  = false;
     bool output_permute = true;
 
     if(argc == 1)
@@ -50,7 +50,7 @@ int run(int argc, char* argv[])
 
         alpha = std::stof(argv[10]);
 
-        input_permute = std::stoi(argv[11]);
+        input_permute  = std::stoi(argv[11]);
         output_permute = std::stoi(argv[12]);
     }
     else
@@ -253,7 +253,23 @@ int run(int argc, char* argv[])
             self(idx) = c_g_m_o_host_result(g, idx[2], idx[3]);
         });
 
-        return ck::utils::check_err(c_gs_ms_os_device_result.mData, c_gs_ms_os_host_result.mData)
+        // default absolute error and relative error is 0.001
+        double rtol = 1e-3;
+        double atol = 1e-3;
+
+        // when BF16 is taken, set absolute error and relative error to 0.01
+        if(std::is_same_v<ADataType, ck::bhalf_t> && std::is_same_v<B0DataType, ck::bhalf_t> &&
+           std::is_same_v<B1DataType, ck::bhalf_t> && std::is_same_v<CDataType, ck::bhalf_t>)
+        {
+            rtol = 1e-2;
+            atol = 1e-2;
+        }
+
+        return ck::utils::check_err(c_gs_ms_os_device_result.mData,
+                                    c_gs_ms_os_host_result.mData,
+                                    "Error: Incorrect results!",
+                                    rtol,
+                                    atol)
                    ? 0
                    : 1;
     }

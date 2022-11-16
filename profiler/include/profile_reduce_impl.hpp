@@ -6,8 +6,9 @@
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 
-#include "ck/library/utility/check_err.hpp"
 #include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance.hpp"
+#include "ck/library/utility/algorithm.hpp"
+#include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_reduction.hpp"
 #include "ck/library/utility/host_common_util.hpp"
@@ -359,10 +360,10 @@ bool profile_reduce_impl_impl(bool do_verification,
         std::array<index_t, NumOutDim> arrOutLengths;
         std::array<index_t, NumOutDim> arrOutStrides;
 
-        std::copy(inLengths.begin(), inLengths.end(), arrInLengths.begin());
-        std::copy(inStrides.begin(), inStrides.end(), arrInStrides.begin());
-        std::copy(outLengths.begin(), outLengths.end(), arrOutLengths.begin());
-        std::copy(outStrides.begin(), outStrides.end(), arrOutStrides.begin());
+        ck::ranges::copy(inLengths, arrInLengths.begin());
+        ck::ranges::copy(inStrides, arrInStrides.begin());
+        ck::ranges::copy(outLengths, arrOutLengths.begin());
+        ck::ranges::copy(outStrides, arrOutStrides.begin());
 
         for(auto& reduce_ptr : reduce_ptrs)
         {
@@ -411,13 +412,12 @@ bool profile_reduce_impl_impl(bool do_verification,
                 bool single_pass;
 
                 out_dev.FromDevice(out.mData.data());
-                single_pass = ck::utils::check_err(out.mData, out_ref.mData);
+                single_pass = ck::utils::check_err(out, out_ref);
 
                 if(OutputIndex)
                 {
                     out_indices_dev.FromDevice(out_indices.mData.data());
-                    single_pass = single_pass &&
-                                  ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
+                    single_pass = single_pass && ck::utils::check_err(out_indices, out_indices_ref);
                 };
 
                 if(!single_pass)
@@ -492,7 +492,7 @@ bool profile_reduce_impl(bool do_verification,
 
         std::array<ck::index_t, descType::NumReduceDim_> arrReduceDims;
 
-        std::copy(reduceDims.begin(), reduceDims.end(), arrReduceDims.begin());
+        ck::ranges::copy(reduceDims, arrReduceDims.begin());
 
         pass = pass && profile_reduce_impl_impl<InDataType,
                                                 AccDataType,

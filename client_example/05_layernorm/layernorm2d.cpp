@@ -90,6 +90,8 @@ int main(int argc, char* argv[])
                                                         gamma_device_buf.GetDeviceBuffer(),
                                                         beta_device_buf.GetDeviceBuffer(),
                                                         y_device_buf.GetDeviceBuffer(),
+                                                        nullptr,
+                                                        nullptr,
                                                         PassThrough{});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
@@ -143,6 +145,8 @@ int main(int argc, char* argv[])
                                                         gamma_device_buf.GetDeviceBuffer(),
                                                         beta_device_buf.GetDeviceBuffer(),
                                                         y_device_buf.GetDeviceBuffer(),
+                                                        nullptr,
+                                                        nullptr,
                                                         PassThrough{});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();

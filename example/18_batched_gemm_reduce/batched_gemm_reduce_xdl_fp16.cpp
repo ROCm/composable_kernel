@@ -16,6 +16,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 
 template <ck::index_t... Is>
@@ -132,15 +133,15 @@ int main(int argc, char* argv[])
                                        std::size_t col,
                                        std::size_t stride,
                                        auto layout) {
+        using namespace ck::literals;
+
         if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({row * stride, stride, 1}));
+            return HostTensorDescriptor({batch_count, row, col}, {row * stride, stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({col * stride, 1, stride}));
+            return HostTensorDescriptor({batch_count, row, col}, {col * stride, 1_uz, stride});
         }
     };
 
@@ -149,17 +150,13 @@ int main(int argc, char* argv[])
 
     Tensor<CDataType> c_g_m_n_host_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> d0_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> d1_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
+    Tensor<ReduceDataType> d0_g_m_host_result({BatchCount, M});
+    Tensor<ReduceDataType> d1_g_m_host_result({BatchCount, M});
 
     Tensor<CDataType> c_g_m_n_device_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> d0_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> d1_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
+    Tensor<ReduceDataType> d0_g_m_device_result({BatchCount, M});
+    Tensor<ReduceDataType> d1_g_m_device_result({BatchCount, M});
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
@@ -296,16 +293,15 @@ int main(int argc, char* argv[])
             }
         }
 
-        pass = ck::utils::check_err(c_g_m_n_host_result.mData,
-                                    c_g_m_n_device_result.mData,
-                                    "Error: Incorrect results c") &&
-               ck::utils::check_err(d0_g_m_device_result.mData,
-                                    d0_g_m_host_result.mData,
+        pass = ck::utils::check_err(
+                   c_g_m_n_host_result, c_g_m_n_device_result, "Error: Incorrect results c") &&
+               ck::utils::check_err(d0_g_m_device_result,
+                                    d0_g_m_host_result,
                                     "Error: Incorrect results! D0",
                                     1e-4,
                                     1e-5) &&
-               ck::utils::check_err(d1_g_m_device_result.mData,
-                                    d1_g_m_host_result.mData,
+               ck::utils::check_err(d1_g_m_device_result,
+                                    d1_g_m_host_result,
                                     "Error: Incorrect results! D1",
                                     1e-3,
                                     1e-5);

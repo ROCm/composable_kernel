@@ -56,7 +56,9 @@ template <typename ADataType,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector,
-          ck::index_t NumPrefetch = 1>
+          ck::index_t NumPrefetch         = 1,
+          ck::LoopScheduler LoopSched     = make_default_loop_scheduler(),
+          ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
 struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                          BLayout,
                                          CLayout,
@@ -230,7 +232,9 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         Sequence<0, 2, 4, 5, 6, 1, 3, 7>, // CThreadTransferSrcDstAccessOrder,
         CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector,
-        NumPrefetch>;
+        NumPrefetch,
+        LoopSched,
+        PipelineVer>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -523,6 +527,12 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
     {
         auto str = std::stringstream();
 
+        std::map<LoopScheduler, std::string> LoopSchedToString{
+            {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
+
+        std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
+                                                                       {PipelineVersion::v2, "v2"}};
+
         // clang-format off
         str << "DeviceGemmXdl"
             << "<"
@@ -535,7 +545,13 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             << NPerXDL << ", "
             << MXdlPerWave << ", "
             << NXdlPerWave
-            << ">";
+            << ">"
+            << " NumPrefetch: "
+            << NumPrefetch << ", "
+            << "LoopScheduler: "
+            << LoopSchedToString[LoopSched] << ", "
+            << "PipelineVersion: "
+            << PipelineVersionToString[PipelineVer];
         // clang-format on
 
         return str.str();
