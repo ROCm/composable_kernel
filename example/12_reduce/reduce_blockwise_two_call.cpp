@@ -198,12 +198,12 @@ int main(int argc, char* argv[])
     std::array<index_t, 3> arrOutLengths;
     std::array<index_t, 3> arrOutStrides;
 
-    std::copy(inLengths_1.begin(), inLengths_1.end(), arrInLengths_1.begin());
-    std::copy(inStrides_1.begin(), inStrides_1.end(), arrInStrides_1.begin());
-    std::copy(inLengths_2.begin(), inLengths_2.end(), arrInLengths_2.begin());
-    std::copy(inStrides_2.begin(), inStrides_2.end(), arrInStrides_2.begin());
-    std::copy(outLengths.begin(), outLengths.end(), arrOutLengths.begin());
-    std::copy(outStrides.begin(), outStrides.end(), arrOutStrides.begin());
+    ck::ranges::copy(inLengths_1, arrInLengths_1.begin());
+    ck::ranges::copy(inStrides_1, arrInStrides_1.begin());
+    ck::ranges::copy(inLengths_2, arrInLengths_2.begin());
+    ck::ranges::copy(inStrides_2, arrInStrides_2.begin());
+    ck::ranges::copy(outLengths, arrOutLengths.begin());
+    ck::ranges::copy(outStrides, arrOutStrides.begin());
 
     if(do_verify)
     {

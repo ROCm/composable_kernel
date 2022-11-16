@@ -11,6 +11,7 @@
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_multiblock.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_reduce.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -240,10 +241,10 @@ int reduce_blockwise_impl(bool do_verification,
     std::array<index_t, NumOutDim> arrOutLengths;
     std::array<index_t, NumOutDim> arrOutStrides;
 
-    std::copy(inLengths.begin(), inLengths.end(), arrInLengths.begin());
-    std::copy(inStrides.begin(), inStrides.end(), arrInStrides.begin());
-    std::copy(outLengths.begin(), outLengths.end(), arrOutLengths.begin());
-    std::copy(outStrides.begin(), outStrides.end(), arrOutStrides.begin());
+    ck::ranges::copy(inLengths, arrInLengths.begin());
+    ck::ranges::copy(inStrides, arrInStrides.begin());
+    ck::ranges::copy(outLengths, arrOutLengths.begin());
+    ck::ranges::copy(outStrides, arrOutStrides.begin());
 
     if(do_verification)
     {
