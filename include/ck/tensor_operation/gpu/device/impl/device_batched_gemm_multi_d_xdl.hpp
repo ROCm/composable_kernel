@@ -700,7 +700,7 @@ struct DeviceBatchedGemmMultiD_Xdl : public DeviceBatchedGemmMultiD<ALayout,
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << KPerBlock
+            << KPerBlock << ", "
             << AK1 << ", "
             << BK1 << ", "
             << getGemmSpecializationString(GemmSpec)
