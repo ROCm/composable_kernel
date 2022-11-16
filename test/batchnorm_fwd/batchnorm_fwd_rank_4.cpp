@@ -10,8 +10,9 @@
 
 #include "profiler/include/profile_batchnorm_forward_impl.hpp"
 
-using F16 = ck::half_t;
-using F32 = float;
+using F16  = ck::half_t;
+using F32  = float;
+using BF16 = ck::bhalf_t;
 
 template <typename Tuple>
 class TestBatchNormFwdRank4 : public ::testing::Test
@@ -84,7 +85,8 @@ class TestBatchNormFwdRank4 : public ::testing::Test
 };
 
 using KernelTypes = ::testing::Types<std::tuple<F16, F16, F32, F32, F32, F32>,
-                                     std::tuple<F32, F32, F32, F32, F32, F32>>;
+                                     std::tuple<F32, F32, F32, F32, F32, F32>,
+                                     std::tuple<BF16, BF16, F32, F32, F32, F32>>;
 
 TYPED_TEST_SUITE(TestBatchNormFwdRank4, KernelTypes);
 

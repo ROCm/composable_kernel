@@ -26,6 +26,11 @@ void add_device_batchnorm_forward_rank_4_3_f32_instances(
     std::vector<
         std::unique_ptr<DeviceBatchNormFwd<F32, F32, F32, F32, F32, F32, PassThrough, 4, 3>>>&);
 
+// BF16
+void add_device_batchnorm_forward_rank_4_3_bf16_instances(
+    std::vector<
+        std::unique_ptr<DeviceBatchNormFwd<BF16, BF16, F32, F32, F32, F32, PassThrough, 4, 3>>>&);
+
 template <typename XDataType,
           typename YDataType,
           typename AccDataType,
@@ -77,7 +82,16 @@ struct DeviceOperationInstanceFactory<
             {
                 add_device_batchnorm_forward_rank_4_3_f32_instances(op_ptrs);
             }
-        };
+        }
+        else if constexpr(is_same_v<XDataType, BF16> && is_same_v<YDataType, BF16> &&
+                          is_same_v<AccDataType, F32> && is_same_v<ScaleDataType, F32> &&
+                          is_same_v<BiasDataType, F32> && is_same_v<MeanVarDataType, F32>)
+        {
+            if constexpr(Rank == 4 && NumReduceDim == 3)
+            {
+                add_device_batchnorm_forward_rank_4_3_bf16_instances(op_ptrs);
+            }
+        }
 
         return op_ptrs;
     }

@@ -85,7 +85,7 @@ bool profile_batchnorm_forward_impl(int do_verification,
 
     if(updateMovingAverage)
     {
-        if constexpr(std::is_same<XDataType, int8_t>::value)
+        if constexpr(ck::is_same_v<XDataType, int8_t>)
         {
             x.GenerateTensorValue(GeneratorTensor_2<XDataType>{-5, 5}, num_thread);
 
@@ -124,7 +124,7 @@ bool profile_batchnorm_forward_impl(int do_verification,
         if constexpr(std::is_same<XDataType, int8_t>::value)
             x.GenerateTensorValue(GeneratorTensor_2<XDataType>{-5, 5}, num_thread);
         else
-            x.GenerateTensorValue(GeneratorTensor_3<XDataType>{-5.0f, 5.0f}, num_thread);
+            x.GenerateTensorValue(GeneratorTensor_3<XDataType>{-1.0f, 1.0f}, num_thread);
     };
 
     if(do_verification)
@@ -357,7 +357,11 @@ bool profile_batchnorm_forward_impl(int do_verification,
             bool single_pass;
 
             y_dev.FromDevice(y.mData.data());
-            single_pass = check_err(y.mData, y_ref.mData, "y results", 4e-3, 4e-3);
+
+            if constexpr(ck::is_same_v<YDataType, ck::bhalf_t>)
+                single_pass = check_err(y.mData, y_ref.mData, "y results", 1e-2, 1e-2);
+            else
+                single_pass = check_err(y.mData, y_ref.mData, "y results", 4e-3, 4e-3);
 
             if(updateMovingAverage)
             {
