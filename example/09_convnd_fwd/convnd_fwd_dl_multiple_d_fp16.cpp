@@ -18,7 +18,6 @@ using S = ck::Sequence<Is...>;
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::Relu;
-;
 
 static constexpr auto ConvSpec =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
