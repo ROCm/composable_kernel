@@ -121,7 +121,7 @@ bool profile_batchnorm_forward_impl(int do_verification,
     }
     else
     {
-        if constexpr(std::is_same<XDataType, int8_t>::value)
+        if constexpr(ck::is_same_v<XDataType, int8_t>)
             x.GenerateTensorValue(GeneratorTensor_2<XDataType>{-5, 5}, num_thread);
         else
             x.GenerateTensorValue(GeneratorTensor_3<XDataType>{-1.0f, 1.0f}, num_thread);
@@ -129,24 +129,35 @@ bool profile_batchnorm_forward_impl(int do_verification,
 
     if(do_verification)
     {
-        switch(init_method)
+        if constexpr(ck::is_same_v<ScaleDataType, int8_t> && ck::is_same_v<BiasDataType, int8_t>)
         {
-        case 0:
-            bnScale.GenerateTensorValue(GeneratorTensor_0<ScaleDataType>{}, num_thread);
-            bnBias.GenerateTensorValue(GeneratorTensor_0<BiasDataType>{}, num_thread);
-            break;
-        case 1:
-            bnScale.GenerateTensorValue(GeneratorTensor_1<ScaleDataType>{1}, num_thread);
-            bnBias.GenerateTensorValue(GeneratorTensor_1<BiasDataType>{0}, num_thread);
-            break;
-        case 2:
             bnScale.GenerateTensorValue(GeneratorTensor_2<ScaleDataType>{-5, 5}, num_thread);
             bnBias.GenerateTensorValue(GeneratorTensor_2<BiasDataType>{-5, 5}, num_thread);
-            break;
-        default:
-            bnScale.GenerateTensorValue(GeneratorTensor_3<ScaleDataType>{-1.0f, 1.0f}, num_thread);
-            bnBias.GenerateTensorValue(GeneratorTensor_3<BiasDataType>{-1.0f, 1.0f}, num_thread);
         }
+        else
+        {
+
+            switch(init_method)
+            {
+            case 0:
+                bnScale.GenerateTensorValue(GeneratorTensor_0<ScaleDataType>{}, num_thread);
+                bnBias.GenerateTensorValue(GeneratorTensor_0<BiasDataType>{}, num_thread);
+                break;
+            case 1:
+                bnScale.GenerateTensorValue(GeneratorTensor_1<ScaleDataType>{1}, num_thread);
+                bnBias.GenerateTensorValue(GeneratorTensor_1<BiasDataType>{0}, num_thread);
+                break;
+            case 2:
+                bnScale.GenerateTensorValue(GeneratorTensor_2<ScaleDataType>{-5, 5}, num_thread);
+                bnBias.GenerateTensorValue(GeneratorTensor_2<BiasDataType>{-5, 5}, num_thread);
+                break;
+            default:
+                bnScale.GenerateTensorValue(GeneratorTensor_3<ScaleDataType>{-1.0f, 1.0f},
+                                            num_thread);
+                bnBias.GenerateTensorValue(GeneratorTensor_3<BiasDataType>{-1.0f, 1.0f},
+                                           num_thread);
+            }
+        };
     };
 
     // these buffers are usually provided by the user application
@@ -380,7 +391,7 @@ bool profile_batchnorm_forward_impl(int do_verification,
                 resultSaveInvVariance_dev.FromDevice(resultSaveInvVariance.mData.data());
 
                 // clang-format off
-                single_pass = single_pass && check_err(resultSaveMean.mData, resultSaveMean_ref.mData, "mean results", 1e-5, 1e-5);
+                single_pass = single_pass && check_err(resultSaveMean.mData, resultSaveMean_ref.mData, "mean results", 3e-5, 3e-5);
                 single_pass = single_pass && check_err(resultSaveInvVariance.mData, resultSaveInvVariance_ref.mData, "inv-variance results", 7e-5, 7e-5);
                 // clang-format on
             };
