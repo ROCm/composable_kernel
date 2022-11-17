@@ -1,6 +1,6 @@
 # ck_profiler
 set(PROFILER_SOURCE
-    profiler.cpp
+    main.cpp
     profile_gemm.cpp
     profile_gemm_splitk.cpp
     profile_gemm_bilinear.cpp
