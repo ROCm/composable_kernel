@@ -154,6 +154,13 @@
 // tuning parameter
 #define CK_WORKAROUND_SWDEV_325164 0
 
+// workaround: a BF16 attention kernel for gfx908 is likely affected by a compiler issue
+#ifdef __gfx908__
+#define CK_WORKAROUND_SWDEV_XXXXXX_BF16_ATTEN_FWD_GFX908_ISSUE 1
+#else // __gfx90a__, ...
+#define CK_WORKAROUND_SWDEV_XXXXXX_BF16_ATTEN_FWD_GFX908_ISSUE 0
+#endif // __gfx908__
+
 namespace ck {
 
 enum struct InMemoryDataOperationEnum
