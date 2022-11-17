@@ -7,6 +7,7 @@
 #include <numeric>
 
 #include "profiler/profile_grouped_conv_bwd_weight_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 namespace {
 
@@ -174,3 +175,5 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
 
     return 1;
 }
+
+REGISTER_PROFILER_OPERATION("grouped_conv_bwd_weight", profile_grouped_conv_bwd_weight)

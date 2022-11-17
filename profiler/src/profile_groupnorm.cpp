@@ -7,6 +7,7 @@
 
 #include "profiler/data_type_enum.hpp"
 #include "profiler/profile_groupnorm_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 using ck::index_t;
 
@@ -104,3 +105,5 @@ int profile_groupnorm(int argc, char* argv[])
 
     return 0;
 }
+
+REGISTER_PROFILER_OPERATION("groupnorm", profile_groupnorm)

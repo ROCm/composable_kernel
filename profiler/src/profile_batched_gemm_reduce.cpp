@@ -7,6 +7,7 @@
 #include <cstdlib>
 
 #include "profiler/profile_batched_gemm_reduce_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 int profile_batched_gemm_reduce(int argc, char* argv[])
 {
@@ -151,3 +152,5 @@ int profile_batched_gemm_reduce(int argc, char* argv[])
 
     return 0;
 }
+
+REGISTER_PROFILER_OPERATION("batched_gemm_reduce", profile_batched_gemm_reduce)

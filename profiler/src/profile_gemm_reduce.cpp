@@ -7,6 +7,7 @@
 #include <cstdlib>
 
 #include "profiler/profile_gemm_reduce_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 int profile_gemm_reduce(int argc, char* argv[])
 {
@@ -146,3 +147,5 @@ int profile_gemm_reduce(int argc, char* argv[])
 
     return 0;
 }
+
+REGISTER_PROFILER_OPERATION("gemm_reduce", profile_gemm_reduce)

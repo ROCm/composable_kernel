@@ -7,6 +7,7 @@
 #include <cstdlib>
 
 #include "profiler/profile_batched_gemm_gemm_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -179,3 +180,5 @@ int profile_batched_gemm_gemm(int argc, char* argv[])
 
     return 0;
 }
+
+REGISTER_PROFILER_OPERATION("batched_gemm_gemm", profile_batched_gemm_gemm)

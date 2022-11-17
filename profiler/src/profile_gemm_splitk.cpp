@@ -7,6 +7,7 @@
 #include <cstdlib>
 
 #include "profiler/profile_gemm_splitk_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 enum struct GemmMatrixLayout
 {
@@ -146,3 +147,5 @@ int profile_gemm_splitk(int argc, char* argv[])
         return 1;
     }
 }
+
+REGISTER_PROFILER_OPERATION("gemm_splitk", profile_gemm_splitk)

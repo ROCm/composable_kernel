@@ -7,6 +7,7 @@
 #include <cstdlib>
 
 #include "profiler/profile_grouped_conv_fwd_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 namespace {
 
@@ -252,3 +253,5 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
 
     return 1;
 }
+
+REGISTER_PROFILER_OPERATION("grouped_conv_fwd", profile_grouped_conv_fwd)

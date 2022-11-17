@@ -8,6 +8,7 @@
 #include <cstdlib>
 
 #include "profiler/profile_batched_gemm_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 enum struct GemmMatrixLayout
 {
@@ -195,3 +196,5 @@ int profile_batched_gemm(int argc, char* argv[])
         return 1;
     }
 }
+
+REGISTER_PROFILER_OPERATION("batched_gemm", profile_batched_gemm)

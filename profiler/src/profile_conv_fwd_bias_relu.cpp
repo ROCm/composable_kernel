@@ -7,6 +7,7 @@
 #include <cstdlib>
 
 #include "profiler/profile_conv_fwd_bias_relu_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 enum struct ConvDataType
 {
@@ -114,3 +115,5 @@ int profile_conv_fwd_bias_relu(int argc, char* argv[])
 
     return 0;
 }
+
+REGISTER_PROFILER_OPERATION("conv_fwd_bias_relu", profile_conv_fwd_bias_relu)

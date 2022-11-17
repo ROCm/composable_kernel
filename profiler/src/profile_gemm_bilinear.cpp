@@ -7,6 +7,7 @@
 #include <cstdlib>
 
 #include "profiler/profile_gemm_bilinear_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 int profile_gemm_bilinear(int argc, char* argv[])
 {
@@ -144,3 +145,5 @@ int profile_gemm_bilinear(int argc, char* argv[])
         return 1;
     }
 }
+
+REGISTER_PROFILER_OPERATION("gemm_bilinear", profile_gemm_bilinear)

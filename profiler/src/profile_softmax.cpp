@@ -6,6 +6,7 @@
 #include <unordered_map>
 
 #include "profiler/profile_softmax_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 using ck::index_t;
 using ck::profiler::SoftmaxDataType;
@@ -164,3 +165,5 @@ int profile_softmax(int argc, char* argv[])
 //     profile_normalization(argc, argv);
 //     return 0;
 // }
+
+REGISTER_PROFILER_OPERATION("softmax", profile_softmax)

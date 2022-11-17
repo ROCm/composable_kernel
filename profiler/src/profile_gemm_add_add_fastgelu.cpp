@@ -7,6 +7,7 @@
 #include <cstdlib>
 
 #include "profiler/profile_gemm_add_add_fastgelu_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 int profile_gemm_add_add_fastgelu(int argc, char* argv[])
 {
@@ -150,3 +151,5 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
         return 1;
     }
 }
+
+REGISTER_PROFILER_OPERATION("gemm_add_add_fastgelu", profile_gemm_add_add_fastgelu)

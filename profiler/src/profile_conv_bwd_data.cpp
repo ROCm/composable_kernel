@@ -7,6 +7,7 @@
 #include <cstdlib>
 
 #include "profiler/profile_conv_bwd_data_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 namespace {
 
@@ -182,3 +183,5 @@ int profile_conv_bwd_data(int argc, char* argv[])
 
     return 1;
 }
+
+REGISTER_PROFILER_OPERATION("conv_bwd_data", profile_conv_bwd_data)
