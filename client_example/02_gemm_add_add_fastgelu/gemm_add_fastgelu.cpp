@@ -61,7 +61,6 @@ int main(int argc, char* argv[])
     ck::index_t StrideA  = 4096;
     ck::index_t StrideB  = 4096;
     ck::index_t StrideD0 = 0;
-    ck::index_t StrideD1 = 4096;
     ck::index_t StrideE  = 4096;
 
     if(argc == 1)
