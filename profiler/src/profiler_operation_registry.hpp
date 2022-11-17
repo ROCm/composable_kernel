@@ -2,6 +2,7 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <functional>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <string_view>
@@ -14,7 +15,18 @@ class ProfilerOperationRegistry final
     using Operation = std::function<int(int, char*[])>;
 
     private:
-    std::unordered_map<std::string_view, Operation> operations_;
+    struct Entry final
+    {
+        explicit Entry(std::string_view description, Operation operation) noexcept
+            : description_(description), operation_(operation)
+        {
+        }
+
+        std::string_view description_;
+        Operation operation_;
+    };
+
+    std::map<std::string_view, Entry> entries_;
 
     public:
     static ProfilerOperationRegistry& GetInstance()
@@ -25,22 +37,37 @@ class ProfilerOperationRegistry final
 
     std::optional<Operation> Get(std::string_view name) const
     {
-        const auto found = operations_.find(name);
-        if(found == end(operations_))
+        const auto found = entries_.find(name);
+        if(found == end(entries_))
         {
             return std::nullopt;
         }
 
-        return found->second;
+        return (found->second).operation_;
     }
 
-    bool Add(std::string_view name, Operation operation)
+    bool Add(std::string_view name, std::string_view description, Operation operation)
     {
-        return operations_.try_emplace(name, std::move(operation)).second;
+        return entries_
+            .emplace(std::piecewise_construct,
+                     std::forward_as_tuple(name),
+                     std::forward_as_tuple(description, std::move(operation)))
+            .second;
+    }
+
+    friend std::ostream& operator<<(std::ostream& stream, const ProfilerOperationRegistry& registry)
+    {
+        stream << "{\n";
+        for(auto& [name, entry] : registry.entries_)
+        {
+            stream << "\t" << name << ": " << entry.description_ << "\n";
+        }
+        stream << "}";
+
+        return stream;
     }
 };
 
-#define REGISTER_PROFILER_OPERATION(name, operation)                                     \
-    namespace {                                                                          \
-    const bool result = ::ProfilerOperationRegistry::GetInstance().Add(name, operation); \
-    }
+#define REGISTER_PROFILER_OPERATION(name, description, operation) \
+    static const bool result =                                    \
+        ::ProfilerOperationRegistry::GetInstance().Add(name, description, operation)

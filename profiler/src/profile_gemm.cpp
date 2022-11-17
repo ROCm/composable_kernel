@@ -186,4 +186,4 @@ int profile_gemm(int argc, char* argv[])
     }
 }
 
-REGISTER_PROFILER_OPERATION("gemm", profile_gemm)
+REGISTER_PROFILER_OPERATION("gemm", "GEMM", profile_gemm);

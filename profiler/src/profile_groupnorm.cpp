@@ -46,7 +46,7 @@ struct GroupnormArgParser
 
 void print_help_groupnorm()
 {
-    std::cout << "arg1: tensor operation (groupnorm: Group normalization)\n"
+    std::cout << "arg1: tensor operation (groupnorm: Group Normalization)\n"
               << "arg2: data type (0: fp16; 1: fp32)\n"
               << "arg3: verification (0: no; 1: yes)\n"
               << "arg4: initialization (0: no init; 1: integer value; 2: decimal value)\n"
@@ -106,4 +106,4 @@ int profile_groupnorm(int argc, char* argv[])
     return 0;
 }
 
-REGISTER_PROFILER_OPERATION("groupnorm", profile_groupnorm)
+REGISTER_PROFILER_OPERATION("groupnorm", "Group Normalization", profile_groupnorm);

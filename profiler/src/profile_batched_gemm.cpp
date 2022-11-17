@@ -197,4 +197,4 @@ int profile_batched_gemm(int argc, char* argv[])
     }
 }
 
-REGISTER_PROFILER_OPERATION("batched_gemm", profile_batched_gemm)
+REGISTER_PROFILER_OPERATION("batched_gemm", "Batched GEMM", profile_batched_gemm);

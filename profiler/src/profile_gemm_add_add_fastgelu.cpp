@@ -152,4 +152,6 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
     }
 }
 
-REGISTER_PROFILER_OPERATION("gemm_add_add_fastgelu", profile_gemm_add_add_fastgelu)
+REGISTER_PROFILER_OPERATION("gemm_add_add_fastgelu",
+                            "GEMM+Add+Add+FastGeLU",
+                            profile_gemm_add_add_fastgelu);

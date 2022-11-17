@@ -98,4 +98,4 @@ int profile_layernorm(int argc, char* argv[])
     return 0;
 }
 
-REGISTER_PROFILER_OPERATION("layernorm", profile_layernorm)
+REGISTER_PROFILER_OPERATION("layernorm", "Layer Normalization", profile_layernorm);

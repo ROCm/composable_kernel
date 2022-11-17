@@ -102,7 +102,7 @@ int profile_batched_gemm_gemm(int argc, char* argv[])
     }
     else
     {
-        printf("arg1: tensor operation (batched_gemm_gemm: Batched_GEMM+Gemm)\n");
+        printf("arg1: tensor operation (batched_gemm_gemm: Batched GEMM+GEMM)\n");
         printf("arg2: data type (1: fp16)\n");
         printf("arg3: matrix layout (0: Relu(A0[m, k] * B0[n, k] + D0[m, n]) * B1[n, o] + D1[m, o] "
                "= E1[m, o];  1: Relu(A0[m, k] * B0[n, k] + D0[m, n]) * B1[o, n] + D1[m, o] = E1[m, "
@@ -181,4 +181,4 @@ int profile_batched_gemm_gemm(int argc, char* argv[])
     return 0;
 }
 
-REGISTER_PROFILER_OPERATION("batched_gemm_gemm", profile_batched_gemm_gemm)
+REGISTER_PROFILER_OPERATION("batched_gemm_gemm", "Batched GEMM+GEMM", profile_batched_gemm_gemm);

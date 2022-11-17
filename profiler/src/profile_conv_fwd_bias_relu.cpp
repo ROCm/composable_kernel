@@ -37,7 +37,7 @@ int profile_conv_fwd_bias_relu(int argc, char* argv[])
 {
     if(argc != 25)
     {
-        printf("arg1: tensor operation (conv_fwd_bias_relu: ForwardConvolution+Bias+ReLu)\n");
+        printf("arg1: tensor operation (conv_fwd_bias_relu: Convolution Forward+Bias+ReLU)\n");
         printf("arg2: data type (0: fp32; 1: fp16)\n");
         printf("arg3: input tensor layout (0: NCHW; 1: NHWC)\n");
         printf("arg4: weight tensor layout (0: KCYX; 1: KYXC)\n");
@@ -116,4 +116,6 @@ int profile_conv_fwd_bias_relu(int argc, char* argv[])
     return 0;
 }
 
-REGISTER_PROFILER_OPERATION("conv_fwd_bias_relu", profile_conv_fwd_bias_relu)
+REGISTER_PROFILER_OPERATION("conv_fwd_bias_relu",
+                            "Convolution Forward+Bias+ReLU",
+                            profile_conv_fwd_bias_relu);

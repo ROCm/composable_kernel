@@ -148,4 +148,4 @@ int profile_gemm_splitk(int argc, char* argv[])
     }
 }
 
-REGISTER_PROFILER_OPERATION("gemm_splitk", profile_gemm_splitk)
+REGISTER_PROFILER_OPERATION("gemm_splitk", "Split-K GEMM", profile_gemm_splitk);

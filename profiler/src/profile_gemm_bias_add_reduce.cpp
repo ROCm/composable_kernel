@@ -27,7 +27,7 @@ int profile_gemm_bias_add_reduce(int argc, char* argv[])
 
     if(!(argc == 14 || argc == 15))
     {
-        printf("arg1: tensor operation (gemm: GEMM+bias+add+Reduce)\n");
+        printf("arg1: tensor operation (gemm_bias_add_reduce: GEMM+Bias+Add+Reduce)\n");
         printf("arg2: data type (0: fp32; 1: fp16)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
@@ -161,4 +161,6 @@ int profile_gemm_bias_add_reduce(int argc, char* argv[])
     return 0;
 }
 
-REGISTER_PROFILER_OPERATION("gemm_bias_add_reduce", profile_gemm_bias_add_reduce)
+REGISTER_PROFILER_OPERATION("gemm_bias_add_reduce",
+                            "GEMM+Bias+Add+Reduce",
+                            profile_gemm_bias_add_reduce);

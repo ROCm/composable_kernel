@@ -431,4 +431,4 @@ int profile_reduce(int argc, char* argv[])
     return (0);
 };
 
-REGISTER_PROFILER_OPERATION("reduce", profile_reduce)
+REGISTER_PROFILER_OPERATION("reduce", "Reduce", profile_reduce);

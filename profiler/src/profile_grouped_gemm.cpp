@@ -163,4 +163,4 @@ int profile_grouped_gemm(int argc, char* argv[])
     return 0;
 }
 
-REGISTER_PROFILER_OPERATION("grouped_gemm", profile_grouped_gemm)
+REGISTER_PROFILER_OPERATION("grouped_gemm", "Grouped GEMM", profile_grouped_gemm);

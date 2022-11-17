@@ -146,4 +146,4 @@ int profile_gemm_bilinear(int argc, char* argv[])
     }
 }
 
-REGISTER_PROFILER_OPERATION("gemm_bilinear", profile_gemm_bilinear)
+REGISTER_PROFILER_OPERATION("gemm_bilinear", "GEMM+Bilinear", profile_gemm_bilinear);

@@ -184,4 +184,4 @@ int profile_conv_bwd_data(int argc, char* argv[])
     return 1;
 }
 
-REGISTER_PROFILER_OPERATION("conv_bwd_data", profile_conv_bwd_data)
+REGISTER_PROFILER_OPERATION("conv_bwd_data", "Convolution Backward Data", profile_conv_bwd_data);

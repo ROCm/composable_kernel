@@ -26,20 +26,21 @@ enum struct ConvDataType
 
 static void print_helper_msg()
 {
-    std::cout << "arg1: tensor operation (conv_bwd_weight: Convolution Backward Weight\n"
-              << "arg2: data type (0: Input fp32, Weight fp32, Output fp32\n"
-              << "                 1: Input fp16, Weight fp16, Output fp16\n"
-              << "                 2: Input bf16, Weight fp32, Output bf16)\n"
-              << "arg3: tensor layout (0: Input[G, N, C, Hi, Wi], Weight[G, K, C, Y, X], Output[G, "
-                 "N, K, Ho, Wo]\n"
-              << "                     1: Input[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Output[G, "
-                 "N, Ho, Wo, K]\n"
-              << "arg4: verification (0: no, 1: yes)\n"
-              << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
-              << "arg6: print tensor value (0: no; 1: yes)\n"
-              << "arg7: time kernel (0: no, 1: yes)\n"
-              << ck::utils::conv::get_conv_param_parser_helper_msg() << " SplitK\n"
-              << std::endl;
+    std::cout
+        << "arg1: tensor operation (grouped_conv_bwd_weight: Grouped Convolution Backward Weight\n"
+        << "arg2: data type (0: Input fp32, Weight fp32, Output fp32\n"
+        << "                 1: Input fp16, Weight fp16, Output fp16\n"
+        << "                 2: Input bf16, Weight fp32, Output bf16)\n"
+        << "arg3: tensor layout (0: Input[G, N, C, Hi, Wi], Weight[G, K, C, Y, X], Output[G, "
+           "N, K, Ho, Wo]\n"
+        << "                     1: Input[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Output[G, "
+           "N, Ho, Wo, K]\n"
+        << "arg4: verification (0: no, 1: yes)\n"
+        << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
+        << "arg6: print tensor value (0: no; 1: yes)\n"
+        << "arg7: time kernel (0: no, 1: yes)\n"
+        << ck::utils::conv::get_conv_param_parser_helper_msg() << " SplitK\n"
+        << std::endl;
 }
 
 } // namespace
@@ -176,4 +177,6 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
     return 1;
 }
 
-REGISTER_PROFILER_OPERATION("grouped_conv_bwd_weight", profile_grouped_conv_bwd_weight)
+REGISTER_PROFILER_OPERATION("grouped_conv_bwd_weight",
+                            "Grouped Convolution Backward Weight",
+                            profile_grouped_conv_bwd_weight);

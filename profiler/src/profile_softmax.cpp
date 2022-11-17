@@ -166,4 +166,4 @@ int profile_softmax(int argc, char* argv[])
 //     return 0;
 // }
 
-REGISTER_PROFILER_OPERATION("softmax", profile_softmax)
+REGISTER_PROFILER_OPERATION("softmax", "Softmax", profile_softmax);

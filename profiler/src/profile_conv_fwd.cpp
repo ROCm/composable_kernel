@@ -186,4 +186,4 @@ int profile_conv_fwd(int argc, char* argv[])
     return 1;
 }
 
-REGISTER_PROFILER_OPERATION("conv_fwd", profile_conv_fwd)
+REGISTER_PROFILER_OPERATION("conv_fwd", "Convolution Forward", profile_conv_fwd);

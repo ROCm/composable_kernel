@@ -27,7 +27,7 @@ int profile_batched_gemm_reduce(int argc, char* argv[])
 
     if(argc != 15)
     {
-        printf("arg1: tensor operation (batched_gemm_reduce: BatchedGEMM+Reduce)\n");
+        printf("arg1: tensor operation (batched_gemm_reduce: Batched GEMM+Reduce)\n");
         printf("arg2: data type (0: fp32; 1: fp16)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
@@ -153,4 +153,6 @@ int profile_batched_gemm_reduce(int argc, char* argv[])
     return 0;
 }
 
-REGISTER_PROFILER_OPERATION("batched_gemm_reduce", profile_batched_gemm_reduce)
+REGISTER_PROFILER_OPERATION("batched_gemm_reduce",
+                            "Batched GEMM+Reduce",
+                            profile_batched_gemm_reduce);
