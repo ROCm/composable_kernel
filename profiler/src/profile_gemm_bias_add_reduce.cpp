@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_gemm_bias_add_reduce_impl.hpp"
+#include "profiler/profile_gemm_bias_add_reduce_impl.hpp"
 
 int profile_gemm_bias_add_reduce(int argc, char* argv[])
 {

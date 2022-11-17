@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_batched_gemm_gemm_impl.hpp"
+#include "profiler/profile_batched_gemm_gemm_impl.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;

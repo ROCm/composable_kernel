@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_batched_gemm_reduce_impl.hpp"
+#include "profiler/profile_batched_gemm_reduce_impl.hpp"
 
 int profile_batched_gemm_reduce(int argc, char* argv[])
 {

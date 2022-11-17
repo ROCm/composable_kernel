@@ -6,7 +6,7 @@
 #include <iostream>
 #include <numeric>
 
-#include "profiler/include/profile_grouped_conv_bwd_weight_impl.hpp"
+#include "profiler/profile_grouped_conv_bwd_weight_impl.hpp"
 
 namespace {
 

@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_conv_fwd_bias_relu_add_impl.hpp"
+#include "profiler/profile_conv_fwd_bias_relu_add_impl.hpp"
 
 enum struct ConvDataType
 {

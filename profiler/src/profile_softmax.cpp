@@ -5,7 +5,7 @@
 #include <vector>
 #include <unordered_map>
 
-#include "profiler/include/profile_softmax_impl.hpp"
+#include "profiler/profile_softmax_impl.hpp"
 
 using ck::index_t;
 using ck::profiler::SoftmaxDataType;

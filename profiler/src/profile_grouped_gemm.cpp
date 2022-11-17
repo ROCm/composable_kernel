@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_grouped_gemm_impl.hpp"
+#include "profiler/profile_grouped_gemm_impl.hpp"
 
 enum struct GemmMatrixLayout
 {

@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_gemm_bilinear_impl.hpp"
+#include "profiler/profile_gemm_bilinear_impl.hpp"
 
 int profile_gemm_bilinear(int argc, char* argv[])
 {

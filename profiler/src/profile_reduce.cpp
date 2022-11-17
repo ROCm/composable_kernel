@@ -13,8 +13,8 @@
 
 #include "ck/library/utility/host_common_util.hpp"
 
-#include "profiler/include/profile_reduce_impl.hpp"
-#include "profiler/include/data_type_enum.hpp"
+#include "profiler/profile_reduce_impl.hpp"
+#include "profiler/data_type_enum.hpp"
 
 using namespace std;
 
