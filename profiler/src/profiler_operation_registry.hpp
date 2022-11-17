@@ -68,6 +68,6 @@ class ProfilerOperationRegistry final
     }
 };
 
-#define REGISTER_PROFILER_OPERATION(name, description, operation) \
-    static const bool result =                                    \
+#define REGISTER_PROFILER_OPERATION(name, description, operation)   \
+    static const bool operation_registration_result_##__COUNTER__ = \
         ::ProfilerOperationRegistry::GetInstance().Add(name, description, operation)
