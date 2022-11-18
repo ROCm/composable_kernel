@@ -10,6 +10,7 @@
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_multiblock.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -30,13 +31,15 @@ int reduce_blockwise_impl(bool do_verification,
                           int init_method,
                           bool time_kernel,
                           const std::vector<size_t>& inLengths,
-                          const std::vector<int>& reduceDims,
+                          const std::array<int, NumReduceDim>& reduceDims,
                           float alpha,
                           float beta)
 
 {
     using namespace ck;
     using namespace ck::tensor_operation::device;
+
+    constexpr index_t NumOutDim = (Rank - NumReduceDim == 0) ? 1 : Rank - NumReduceDim;
 
     constexpr bool op_support_indices =
         (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
@@ -143,7 +146,7 @@ int reduce_blockwise_impl(bool do_verification,
 
     std::vector<size_t> outLengths;
 
-    std::vector<int> invariantDims = get_invariant_dims<Rank, NumReduceDim>(reduceDims);
+    auto invariantDims = get_invariant_dims<Rank, NumReduceDim>(reduceDims);
 
     if(invariantDims.empty())
         outLengths.push_back(1);
@@ -256,22 +259,22 @@ int reduce_blockwise_impl(bool do_verification,
                        acc_elementwise_op);
     };
 
-    std::vector<ck::index_t> i_inLengths;
-    std::vector<ck::index_t> i_inStrides;
-    std::vector<ck::index_t> i_outLengths;
-    std::vector<ck::index_t> i_outStrides;
+    std::array<index_t, Rank> arrInLengths;
+    std::array<index_t, Rank> arrInStrides;
+    std::array<index_t, NumOutDim> arrOutLengths;
+    std::array<index_t, NumOutDim> arrOutStrides;
 
-    i_inLengths.assign(inLengths.begin(), inLengths.end());
-    i_inStrides.assign(inStrides.begin(), inStrides.end());
-    i_outLengths.assign(outLengths.begin(), outLengths.end());
-    i_outStrides.assign(outStrides.begin(), outStrides.end());
+    ck::ranges::copy(inLengths, arrInLengths.begin());
+    ck::ranges::copy(inStrides, arrInStrides.begin());
+    ck::ranges::copy(outLengths, arrOutLengths.begin());
+    ck::ranges::copy(outStrides, arrOutStrides.begin());
 
     auto reduce = DeviceReduceInstance{};
 
-    auto argument_ptr = reduce.MakeArgumentPointer(i_inLengths,
-                                                   i_inStrides,
-                                                   i_outLengths,
-                                                   i_outStrides,
+    auto argument_ptr = reduce.MakeArgumentPointer(arrInLengths,
+                                                   arrInStrides,
+                                                   arrOutLengths,
+                                                   arrOutStrides,
                                                    reduceDims,
                                                    alpha,
                                                    beta,
@@ -322,12 +325,12 @@ int reduce_blockwise_impl(bool do_verification,
 #endif
             out_dev.FromDevice(out.mData.data());
 
-        pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
+        pass = pass && ck::utils::check_err(out, out_ref);
 
         if(OutputIndex)
         {
             out_index_dev.FromDevice(out_indices.mData.data());
-            pass = pass && ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
+            pass = pass && ck::utils::check_err(out_indices, out_indices_ref);
         };
     };
 

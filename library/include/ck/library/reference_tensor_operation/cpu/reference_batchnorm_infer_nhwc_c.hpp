@@ -14,7 +14,12 @@ namespace ck {
 namespace tensor_operation {
 namespace host {
 
-template <typename InOutDataType, typename AccDataType>
+template <typename XDataType,
+          typename YDataType,
+          typename AccDataType,
+          typename ScaleDataType,
+          typename BiasDataType,
+          typename MeanVarDataType>
 struct ReferenceBatchNormInfer_Input_N_H_W_C_Output_C : public device::DeviceBatchNormInfer<4, 3>
 {
     struct Argument : public device::BaseArgument
@@ -23,14 +28,16 @@ struct ReferenceBatchNormInfer_Input_N_H_W_C_Output_C : public device::DeviceBat
                  const std::array<index_t, 4> xStrides,
                  const std::array<index_t, 4> yStrides,
                  const std::array<index_t, 1> bnScaleBiasMeanVarLengths,
-                 const std::array<index_t, 1> bnScaleBiasMeanVarStrides,
-                 const InOutDataType* p_x,
-                 const AccDataType* bnScale,
-                 const AccDataType* bnBias,
+                 const std::array<index_t, 1> bnScaleStrides,
+                 const std::array<index_t, 1> bnBiasStrides,
+                 const std::array<index_t, 1> bnMeanVarStrides,
+                 const XDataType* p_x,
+                 const ScaleDataType* bnScale,
+                 const BiasDataType* bnBias,
                  double epsilon,
-                 const AccDataType* estimatedMean,
-                 const AccDataType* estimatedVariance,
-                 InOutDataType* p_y)
+                 const MeanVarDataType* estimatedMean,
+                 const MeanVarDataType* estimatedVariance,
+                 YDataType* p_y)
             : p_x_(p_x),
               bnScale_(bnScale),
               bnBias_(bnBias),
@@ -39,32 +46,34 @@ struct ReferenceBatchNormInfer_Input_N_H_W_C_Output_C : public device::DeviceBat
               estimatedVariance_(estimatedVariance),
               p_y_(p_y)
         {
-            (void)xStrides;
-            (void)yStrides;
-            (void)bnScaleBiasMeanVarStrides;
+            ignore = xStrides;
+            ignore = yStrides;
+            ignore = bnScaleStrides;
+            ignore = bnBiasStrides;
+            ignore = bnMeanVarStrides;
 
             if(xyLengths.size() != 4 || bnScaleBiasMeanVarLengths.size() != 1 ||
                bnScaleBiasMeanVarLengths[0] != xyLengths[3])
                 throw std::runtime_error("Invalid tensor dimensions!");
 
-            n = xyLengths[0];
-            h = xyLengths[1];
-            w = xyLengths[2];
-            c = xyLengths[3];
+            n_ = xyLengths[0];
+            h_ = xyLengths[1];
+            w_ = xyLengths[2];
+            c_ = xyLengths[3];
         }
 
-        const InOutDataType* p_x_;
-        const AccDataType* bnScale_;
-        const AccDataType* bnBias_;
+        const XDataType* p_x_;
+        const ScaleDataType* bnScale_;
+        const BiasDataType* bnBias_;
 
         double epsilon_;
 
-        const AccDataType* estimatedMean_;
-        const AccDataType* estimatedVariance_;
+        const MeanVarDataType* estimatedMean_;
+        const MeanVarDataType* estimatedVariance_;
 
-        InOutDataType* p_y_;
+        YDataType* p_y_;
 
-        index_t n, h, w, c;
+        index_t n_, h_, w_, c_;
     };
 
     struct Invoker : public device::BaseInvoker
@@ -81,15 +90,15 @@ struct ReferenceBatchNormInfer_Input_N_H_W_C_Output_C : public device::DeviceBat
                     std::sqrt(type_convert<AccDataType>(arg.epsilon_) + variance);
 
                 // Normalization
-                for(index_t iN = 0; iN < arg.n; iN++)
+                for(index_t iN = 0; iN < arg.n_; iN++)
                 {
-                    index_t offset_N = iN * arg.h * arg.w * arg.c;
-                    for(index_t iH = 0; iH < arg.h; iH++)
+                    index_t offset_N = iN * arg.h_ * arg.w_ * arg.c_;
+                    for(index_t iH = 0; iH < arg.h_; iH++)
                     {
-                        index_t offset_H = iH * arg.w * arg.c;
-                        for(index_t iW = 0; iW < arg.w; iW++)
+                        index_t offset_H = iH * arg.w_ * arg.c_;
+                        for(index_t iW = 0; iW < arg.w_; iW++)
                         {
-                            index_t offset_W = iW * arg.c;
+                            index_t offset_W = iW * arg.c_;
 
                             auto offset = offset_N + offset_H + offset_W + offset_C;
 
@@ -98,21 +107,21 @@ struct ReferenceBatchNormInfer_Input_N_H_W_C_Output_C : public device::DeviceBat
                             AccDataType norm_x =
                                 arg.bnScale_[iC] * (x - mean) * invVariance + arg.bnBias_[iC];
 
-                            arg.p_y_[offset] = type_convert<InOutDataType>(norm_x);
+                            arg.p_y_[offset] = type_convert<YDataType>(norm_x);
                         };
                     }
                 };
             };
 
             std::size_t num_thread      = std::thread::hardware_concurrency();
-            std::size_t work_per_thread = (arg.c + num_thread - 1) / num_thread;
+            std::size_t work_per_thread = (arg.c_ + num_thread - 1) / num_thread;
 
             std::vector<joinable_thread> threads(num_thread);
 
             for(std::size_t it = 0; it < num_thread; ++it)
             {
                 std::size_t ic_begin = it * work_per_thread;
-                std::size_t ic_end = std::min(static_cast<int>((it + 1) * work_per_thread), arg.c);
+                std::size_t ic_end = std::min(static_cast<int>((it + 1) * work_per_thread), arg.c_);
 
                 auto f = [=] {
                     for(std::size_t ic = ic_begin; ic < ic_end; ++ic)
@@ -146,7 +155,9 @@ struct ReferenceBatchNormInfer_Input_N_H_W_C_Output_C : public device::DeviceBat
                         const std::array<index_t, 4> xStrides,
                         const std::array<index_t, 4> yStrides,
                         const std::array<index_t, 1> bnScaleBiasMeanVarLengths,
-                        const std::array<index_t, 1> bnScaleBiasMeanVarStrides,
+                        const std::array<index_t, 1> bnScaleStrides,
+                        const std::array<index_t, 1> bnBiasStrides,
+                        const std::array<index_t, 1> bnMeanVarStrides,
                         const void* p_x,
                         const void* bnScale,
                         const void* bnBias,
@@ -159,14 +170,16 @@ struct ReferenceBatchNormInfer_Input_N_H_W_C_Output_C : public device::DeviceBat
                                           xStrides,
                                           yStrides,
                                           bnScaleBiasMeanVarLengths,
-                                          bnScaleBiasMeanVarStrides,
-                                          static_cast<const InOutDataType*>(p_x),
-                                          static_cast<const AccDataType*>(bnScale),
-                                          static_cast<const AccDataType*>(bnBias),
+                                          bnScaleStrides,
+                                          bnBiasStrides,
+                                          bnMeanVarStrides,
+                                          static_cast<const XDataType*>(p_x),
+                                          static_cast<const ScaleDataType*>(bnScale),
+                                          static_cast<const BiasDataType*>(bnBias),
                                           epsilon,
-                                          static_cast<const AccDataType*>(estimatedMean),
-                                          static_cast<const AccDataType*>(estimatedVariance),
-                                          static_cast<InOutDataType*>(p_y));
+                                          static_cast<const MeanVarDataType*>(estimatedMean),
+                                          static_cast<const MeanVarDataType*>(estimatedVariance),
+                                          static_cast<YDataType*>(p_y));
     };
 
     std::unique_ptr<device::BaseInvoker> MakeInvokerPointer() override

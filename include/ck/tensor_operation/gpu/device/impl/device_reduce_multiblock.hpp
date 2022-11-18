@@ -5,9 +5,8 @@
 
 #include <iostream>
 #include <sstream>
+#include <array>
 
-#include "ck/utility/common_header.hpp"
-#include "ck/utility/reduction_operator.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
@@ -41,7 +40,8 @@ template <typename InDataType,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
           index_t OutDstVectorSize>
-struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccElementwiseOperation>
+struct DeviceReduceMultiBlock
+    : public DeviceReduce<Rank, NumReduceDim, InElementwiseOperation, AccElementwiseOperation>
 {
     static_assert(Rank <= 6, "Bigger Rank size is not supported!");
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
@@ -58,8 +58,8 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
 
     static constexpr index_t NumInvariantDim = Rank - NumReduceDim;
 
-    static constexpr index_t numSrcDim = Rank;
-    static constexpr index_t numDstDim = (NumInvariantDim == 0) ? 1 : NumInvariantDim;
+    static constexpr index_t NumSrcDim = Rank;
+    static constexpr index_t NumDstDim = (NumInvariantDim == 0) ? 1 : NumInvariantDim;
     static constexpr bool reduceAllDim = (NumInvariantDim == 0);
 
     // So far, only AtomicAdd is considered, other Atomic Operation like AtomicMax can be added
@@ -81,13 +81,15 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
-    static auto MakeSrc2dDescriptor(const std::vector<index_t>& inLengths,
-                                    const std::vector<index_t>& inStrides,
+    static auto MakeSrc2dDescriptor(const std::array<index_t, Rank>& inLengths,
+                                    const std::array<index_t, Rank>& inStrides,
                                     int blkGroupSize,
                                     int numBlockTileIteration)
     {
-        const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<numSrcDim>{});
-        const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<numSrcDim>{});
+        const auto tupleSrcLengths =
+            generate_tuple([&](auto I) { return inLengths[I]; }, Number<Rank>{});
+        const auto tupleSrcStrides =
+            generate_tuple([&](auto I) { return inStrides[I]; }, Number<Rank>{});
 
         const auto inDesc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
 
@@ -97,7 +99,7 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
                 const auto one_dim_inDesc = transform_tensor_descriptor(
                     inDesc,
                     make_tuple(make_merge_transform(tupleSrcLengths)),
-                    make_tuple(typename arithmetic_sequence_gen<0, numSrcDim, 1>::type{}),
+                    make_tuple(typename arithmetic_sequence_gen<0, NumSrcDim, 1>::type{}),
                     make_tuple(Sequence<0>{}));
 
                 return transform_tensor_descriptor(one_dim_inDesc,
@@ -111,10 +113,10 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
                 using InvariantDims = typename arithmetic_sequence_gen<0, NumInvariantDim, 1>::type;
                 using ReduceDims = typename arithmetic_sequence_gen<NumInvariantDim, Rank, 1>::type;
 
-                const auto reduceDimLengths =
-                    make_tuple_from_array_and_index_seq(inLengths, ReduceDims{});
+                const auto reduceDimLengths = generate_tuple(
+                    [&](auto I) { return inLengths[NumInvariantDim + I]; }, Number<NumReduceDim>{});
                 const auto invariantDimLengths =
-                    make_tuple_from_array_and_index_seq(inLengths, InvariantDims{});
+                    generate_tuple([&](auto I) { return inLengths[I]; }, Number<NumInvariantDim>{});
 
                 return transform_tensor_descriptor(
                     inDesc,
@@ -143,18 +145,20 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
         return (in_grid_desc_m_k_padded);
     };
 
-    static auto MakeDst1dDescriptor(const std::vector<index_t>& outLengths,
-                                    const std::vector<index_t>& outStrides)
+    static auto MakeDst1dDescriptor(const std::array<index_t, NumDstDim>& outLengths,
+                                    const std::array<index_t, NumDstDim>& outStrides)
     {
-        const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<numDstDim>{});
-        const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<numDstDim>{});
+        const auto tupleDstLengths =
+            generate_tuple([&](auto I) { return outLengths[I]; }, Number<NumDstDim>{});
+        const auto tupleDstStrides =
+            generate_tuple([&](auto I) { return outStrides[I]; }, Number<NumDstDim>{});
 
         auto outDesc = make_naive_tensor_descriptor(tupleDstLengths, tupleDstStrides);
 
         auto out_grid_desc_m = transform_tensor_descriptor(
             outDesc,
             make_tuple(make_merge_transform(tupleDstLengths)),
-            make_tuple(typename arithmetic_sequence_gen<0, numDstDim, 1>::type{}),
+            make_tuple(typename arithmetic_sequence_gen<0, NumDstDim, 1>::type{}),
             make_tuple(Sequence<0>{}));
 
         const auto invariantLength = out_grid_desc_m.GetLength(Number<0>{});
@@ -170,18 +174,20 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
         return (out_grid_desc_m_padded);
     };
 
-    static auto MakeDst1dDescriptorForBufferSet(const std::vector<index_t>& outLengths,
-                                                const std::vector<index_t>& outStrides)
+    static auto MakeDst1dDescriptorForBufferSet(const std::array<index_t, NumDstDim>& outLengths,
+                                                const std::array<index_t, NumDstDim>& outStrides)
     {
-        const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<numDstDim>{});
-        const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<numDstDim>{});
+        const auto tupleDstLengths =
+            generate_tuple([&](auto I) { return outLengths[I]; }, Number<NumDstDim>{});
+        const auto tupleDstStrides =
+            generate_tuple([&](auto I) { return outStrides[I]; }, Number<NumDstDim>{});
 
         auto outDesc = make_naive_tensor_descriptor(tupleDstLengths, tupleDstStrides);
 
         auto out_grid_desc_m = transform_tensor_descriptor(
             outDesc,
             make_tuple(make_merge_transform(tupleDstLengths)),
-            make_tuple(typename arithmetic_sequence_gen<0, numDstDim, 1>::type{}),
+            make_tuple(typename arithmetic_sequence_gen<0, NumDstDim, 1>::type{}),
             make_tuple(Sequence<0>{}));
 
         const auto length = out_grid_desc_m.GetLength(Number<0>{});
@@ -198,11 +204,11 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
 
     struct Argument : public BaseArgument
     {
-        Argument(const std::vector<index_t> inLengths,
-                 const std::vector<index_t> inStrides,
-                 const std::vector<index_t> outLengths,
-                 const std::vector<index_t> outStrides,
-                 const std::vector<int> reduceDims,
+        Argument(const std::array<index_t, Rank> inLengths,
+                 const std::array<index_t, Rank> inStrides,
+                 const std::array<index_t, NumDstDim> outLengths,
+                 const std::array<index_t, NumDstDim> outStrides,
+                 const std::array<int, NumReduceDim> reduceDims,
                  float alpha,
                  float beta,
                  const InDataType* in_dev,
@@ -220,6 +226,30 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
               in_elementwise_op_{in_elementwise_op},
               acc_elementwise_op_{acc_elementwise_op}
         {
+            if(Rank != inLengths.size() || Rank != inStrides.size() ||
+               NumReduceDim != reduceDims.size())
+            {
+                throw std::runtime_error(
+                    "One of inLengths/inStrides/reduceDims has invalid size!"
+                    "\nExpected size inLengths: " +
+                    std::to_string(Rank) + ", inStrides: " + std::to_string(Rank) +
+                    ", reduceDims: " + std::to_string(NumReduceDim) +
+                    "\nBut have inLengths: " + std::to_string(inLengths.size()) +
+                    ", inStrides: " + std::to_string(inStrides.size()) +
+                    ", reduceDims: " + std::to_string(reduceDims.size()));
+            }
+
+            for(std::size_t i = 0; i < reduceDims.size(); ++i)
+            {
+                if(reduceDims[i] < 0 || reduceDims[i] >= Rank)
+                {
+                    throw std::runtime_error("Provided reduce dimension exceed input tensor Rank!"
+                                             "\nHave reduceDims[" +
+                                             std::to_string(i) +
+                                             "]: " + std::to_string(reduceDims[i]));
+                }
+            }
+
             inLengths_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inLengths, reduceDims);
             inStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inStrides, reduceDims);
 
@@ -272,10 +302,10 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
                 math::integer_least_multiple(invariant_total_length, BlockSize) / BlockSize;
         }
 
-        std::vector<index_t> inLengths_;
-        std::vector<index_t> inStrides_;
-        std::vector<index_t> outLengths_;
-        std::vector<index_t> outStrides_;
+        std::array<index_t, Rank> inLengths_;
+        std::array<index_t, Rank> inStrides_;
+        std::array<index_t, NumDstDim> outLengths_;
+        std::array<index_t, NumDstDim> outStrides_;
 
         AccDataType alpha_;
         AccDataType beta_;
@@ -459,11 +489,11 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
     };
 
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const std::vector<index_t> inLengths,
-                        const std::vector<index_t> inStrides,
-                        const std::vector<index_t> outLengths,
-                        const std::vector<index_t> outStrides,
-                        const std::vector<int> reduceDims,
+    MakeArgumentPointer(const std::array<index_t, Rank> inLengths,
+                        const std::array<index_t, Rank> inStrides,
+                        const std::array<index_t, NumDstDim> outLengths,
+                        const std::array<index_t, NumDstDim> outStrides,
+                        const std::array<int, NumReduceDim> reduceDims,
                         float alpha,
                         float beta,
                         const void* in_dev,
