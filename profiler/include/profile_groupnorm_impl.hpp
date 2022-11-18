@@ -165,8 +165,7 @@ bool profile_groupnorm_impl(int do_verification,
         {
             y_dev.FromDevice(y.mData.data());
 
-            bool pass =
-                ck::utils::check_err(y.mData, host_y.mData, "Error: Incorrect results", 1e-3, 1e-3);
+            bool pass = ck::utils::check_err(y, host_y, "Error: Incorrect results", 1e-3, 1e-3);
 
             if(do_log)
             {
