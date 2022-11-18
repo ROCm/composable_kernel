@@ -359,14 +359,8 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle : public DeviceGemm<ALayout,
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
 
-#if 0
-            const index_t grid_size =
-                arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_);
-#else
             const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.e_grid_desc_m_n_);
-#endif
-
-            const auto K = arg.a_grid_desc_m_k_.GetLength(I1);
+            const auto K            = arg.a_grid_desc_m_k_.GetLength(I1);
 
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;

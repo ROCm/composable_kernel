@@ -208,14 +208,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
             return false;
         }
 
-#if 0 // debug
-      // check block-to-E-tile
-        if(!block_2_etile_map.CheckValidity(e_grid_desc_m_n))
-        {
-            return false;
-        }
-#endif
-
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
 
         // check tensor size: cannot be larger than 2GB each
@@ -238,15 +230,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
         return GridwiseGemmMath::CalculateHasMainLoop(num_loop);
     }
 
-#if 0 // debug
-    // return block_id to E matrix tile idx (m0, n0) mapping
-    __host__ __device__ static constexpr auto
-    MakeDefaultBlock2ETileMap(const EGridDesc_M_N& e_grid_desc_m_n)
-    {
-        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, EGridDesc_M_N>(
-            e_grid_desc_m_n);
-    }
-#else
     // return block_id to E matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
     MakeDefaultBlock2ETileMap(const EGridDesc_M_N& e_grid_desc_m_n)
