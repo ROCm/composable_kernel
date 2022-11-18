@@ -30,6 +30,18 @@ class ProfilerOperationRegistry final
 
     std::map<std::string_view, Entry> entries_;
 
+    friend std::ostream& operator<<(std::ostream& stream, const ProfilerOperationRegistry& registry)
+    {
+        stream << "{\n";
+        for(auto& [name, entry] : registry.entries_)
+        {
+            stream << "\t" << name << ": " << entry.description_ << "\n";
+        }
+        stream << "}";
+
+        return stream;
+    }
+
     public:
     static ProfilerOperationRegistry& GetInstance()
     {
@@ -55,18 +67,6 @@ class ProfilerOperationRegistry final
                      std::forward_as_tuple(name),
                      std::forward_as_tuple(description, std::move(operation)))
             .second;
-    }
-
-    friend std::ostream& operator<<(std::ostream& stream, const ProfilerOperationRegistry& registry)
-    {
-        stream << "{\n";
-        for(auto& [name, entry] : registry.entries_)
-        {
-            stream << "\t" << name << ": " << entry.description_ << "\n";
-        }
-        stream << "}";
-
-        return stream;
     }
 };
 
