@@ -25,9 +25,12 @@ enum struct GemmDataType
     INT8_INT8_INT8, // 3
 };
 
+#define OP_NAME "gemm"
+#define OP_DESC "GEMM"
+
 static void print_helper_msg()
 {
-    std::cout << "arg1: tensor operation (gemm: GEMM)\n"
+    std::cout << "arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n"
               << "arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8)\n"
               << "arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n"
               << "                     1: A[m, k] * B[n, k] = C[m, n];\n"
@@ -186,4 +189,4 @@ int profile_gemm(int argc, char* argv[])
     }
 }
 
-REGISTER_PROFILER_OPERATION("gemm", "GEMM", profile_gemm);
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_gemm);

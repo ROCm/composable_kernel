@@ -25,10 +25,13 @@ enum struct ConvDataType
     INT8_INT8_INT8, // 3
 };
 
+#define OP_NAME "conv_bwd_data"
+#define OP_DESC "Convolution Backward Data"
+
 static void print_helper_msg()
 {
     std::cout
-        << "arg1: tensor operation (conv_bwd_data: Convolution Backward Data)\n"
+        << "arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n"
         << "arg2: data type (0: Input fp32, Weight fp32, Output fp32\n"
         << "                 1: Input fp16, Weight fp16, Output fp16\n"
         << "                 2: Input bf16, Weight bf16, Output bf16\n"
@@ -184,4 +187,4 @@ int profile_conv_bwd_data(int argc, char* argv[])
     return 1;
 }
 
-REGISTER_PROFILER_OPERATION("conv_bwd_data", "Convolution Backward Data", profile_conv_bwd_data);
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_conv_bwd_data);

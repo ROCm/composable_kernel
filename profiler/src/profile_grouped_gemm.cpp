@@ -45,11 +45,14 @@ std::vector<int> argToIntArray(char* input)
     return out;
 }
 
+#define OP_NAME "grouped_gemm"
+#define OP_DESC "Grouped GEMM"
+
 int profile_grouped_gemm(int argc, char* argv[])
 {
     if(!(argc == 14))
     {
-        printf("arg1: tensor operation (grouped_gemm: Grouped GEMM)\n");
+        printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
@@ -163,4 +166,4 @@ int profile_grouped_gemm(int argc, char* argv[])
     return 0;
 }
 
-REGISTER_PROFILER_OPERATION("grouped_gemm", "Grouped GEMM", profile_grouped_gemm);
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_grouped_gemm);
