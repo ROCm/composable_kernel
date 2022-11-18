@@ -10,7 +10,8 @@
 
 class ProfilerOperationRegistry final
 {
-    ProfilerOperationRegistry() = default;
+    ProfilerOperationRegistry()  = default;
+    ~ProfilerOperationRegistry() = default;
 
     public:
     using Operation = std::function<int(int, char*[])>;
