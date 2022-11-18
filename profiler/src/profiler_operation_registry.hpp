@@ -6,6 +6,7 @@
 #include <map>
 #include <optional>
 #include <string_view>
+#include <utility>
 
 class ProfilerOperationRegistry final
 {
@@ -18,7 +19,7 @@ class ProfilerOperationRegistry final
     struct Entry final
     {
         explicit Entry(std::string_view description, Operation operation) noexcept
-            : description_(description), operation_(operation)
+            : description_(description), operation_(std::move(operation))
         {
         }
 
