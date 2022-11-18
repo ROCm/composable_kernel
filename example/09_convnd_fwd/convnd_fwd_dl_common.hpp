@@ -62,7 +62,7 @@ bool run_grouped_conv_fwd_dl(bool do_verification,
     case 1:
         in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-2, 3});
         wei.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-2, 3});
-        bias.GenerateTensorValue(GeneratorTensor_2<DDataType>{-1, 1});
+        bias.GenerateTensorValue(GeneratorTensor_2<DDataType>{-2, 3});
         break;
     case 2:
         in.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
