@@ -228,10 +228,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             return false;
         }
 
+#if 1
         if(!block_2_ctile_map.CheckValidity(c_grid_desc_m_n))
         {
             return false;
         }
+#endif
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
@@ -263,6 +265,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         return c_grid_desc_mblock_mperblock_nblock_nperblock;
     }
 
+#if 1
     // return block_id to C matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
     MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n)
@@ -270,6 +273,64 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>(
             c_grid_desc_m_n);
     }
+#else
+    // return block_id to E matrix tile idx (m0, n0) mapping
+    __host__ __device__ static constexpr auto
+    MakeDefaultBlock2CTileMap(const CGridDesc_M_N& e_grid_desc_m_n)
+    {
+        const auto M = e_grid_desc_m_n.GetLength(I0);
+        const auto N = e_grid_desc_m_n.GetLength(I1);
+
+        constexpr auto M1 = Number<MPerBlock>{};
+        constexpr auto N1 = Number<NPerBlock>{};
+
+        const auto M0 = M / M1;
+        const auto N0 = N / N1;
+
+        // FIXME: remove
+        // WHY?  since this equals to 1.
+        constexpr auto M01 = I1;
+        constexpr auto N01 = I1;
+
+        const auto M00 = M0 / M01;
+        const auto N00 = N0 / N01;
+        // const auto M00 = M0;
+        // const auto N00 = N0;
+
+        const auto m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
+            make_single_stage_tensor_adaptor(
+                //                                          ( M0,   1)
+                make_tuple(make_unmerge_transform(make_tuple(M00, M01)),
+                           //                                          ( N0,   1)
+                           make_unmerge_transform(make_tuple(N00, N01))),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1, 3>{}));
+
+        const auto cblockid_to_m00_m01_n00_n01_block_cluster_adaptor =
+            make_single_stage_tensor_adaptor(
+                //                                        ( M0,  N0,   1,   1)
+                make_tuple(make_merge_transform(make_tuple(M00, N00, M01, N01))),
+                make_tuple(Sequence<0, 1, 2, 3>{}),
+                make_tuple(Sequence<0>{}));
+
+        const auto cblockid_to_m0_n0_block_cluster_adaptor =
+            chain_tensor_adaptors(m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
+                                  cblockid_to_m00_m01_n00_n01_block_cluster_adaptor);
+
+        return cblockid_to_m0_n0_block_cluster_adaptor;
+    }
+
+    __host__ __device__ static constexpr index_t
+    CalculateGridSize(const CGridDesc_M_N& e_grid_desc_m_n)
+    {
+        const auto M = e_grid_desc_m_n.GetLength(I0);
+        const auto N = e_grid_desc_m_n.GetLength(I1);
+
+        const index_t grid_size = (M / MPerBlock) * (N / NPerBlock);
+
+        return grid_size;
+    }
+#endif
 
     using CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
         MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}))>;
@@ -302,6 +363,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         const auto block_work_idx =
             block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
+#if 1
         if(!block_2_ctile_map.ValidCTileIndex(
                block_work_idx,
                make_tuple(c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
@@ -309,7 +371,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         {
             return;
         }
-
+#endif
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
