@@ -334,6 +334,23 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle : public DeviceGemm<ALayout,
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+#if 0
+            {
+                std::cout << "arg.a_grid_desc_ak0_m_ak1_{"
+                          << arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) << ", "
+                          << arg.a_grid_desc_ak0_m_ak1_.GetLength(I1) << ", "
+                          << arg.a_grid_desc_ak0_m_ak1_.GetLength(I2) << "}" << std::endl;
+
+                std::cout << "arg.b_grid_desc_bk0_n_bk1_{"
+                          << arg.b_grid_desc_bk0_n_bk1_.GetLength(I0) << ", "
+                          << arg.b_grid_desc_bk0_n_bk1_.GetLength(I1) << ", "
+                          << arg.b_grid_desc_bk0_n_bk1_.GetLength(I2) << "}" << std::endl;
+
+                std::cout << "arg.e_grid_desc_m_n_{ " << arg.e_grid_desc_m_n_.GetLength(I0) << ", "
+                          << arg.e_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+            }
+#endif
+
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                             arg.b_grid_desc_n_k_,
                                             arg.e_grid_desc_m_n_,

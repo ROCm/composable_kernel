@@ -80,7 +80,6 @@ struct GridwiseGemmLoadWave<TileLoadThreadGroup, 1>
                 a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
-                //?? what is this for
                 // sync with math threads()
                 block_sync_lds();
 
@@ -95,8 +94,7 @@ struct GridwiseGemmLoadWave<TileLoadThreadGroup, 1>
         // tail
         {
             block_sync_lds();
-
-            // GEMM num_loop
+            // GEMM num_loop - 1
         }
     }
 };
