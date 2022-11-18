@@ -83,10 +83,7 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
         const index_t loop_step_n = num_threads_n * NPerThread;
         const auto pad_m          = math::integer_least_multiple(m, loop_step_m) - m;
         const auto pad_n          = math::integer_least_multiple(n, loop_step_n) - n;
-        std::cout << NumDim_m << " m: " << m << " loop_step_m: " << loop_step_m
-                  << " pad_m: " << pad_m << std::endl;
-        std::cout << NumDim_n << " n: " << n << " loop_step_n: " << loop_step_n
-                  << " pad_n: " << pad_n << std::endl;
+       
         const auto desc_mn_pad = transform_tensor_descriptor(
             desc_mn,
             make_tuple(make_right_pad_transform(m, pad_m), make_right_pad_transform(n, pad_n)),

@@ -48,10 +48,10 @@ int main()
     bool do_verification = true;
     bool time_kernel     = true;
 
-    const int N = 128;
-    const int H = 128;
-    const int W = 128;
+    const int N = 120;
     const int C = 128;
+    const int H = 32;
+    const int W = 1024;
 
     /**const int N = 120;
     const int H = 32;
