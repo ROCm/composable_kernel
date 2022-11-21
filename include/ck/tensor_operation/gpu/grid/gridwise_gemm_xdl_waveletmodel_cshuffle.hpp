@@ -276,7 +276,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
 
         return grid_size;
     }
-#endif
 
     // A desc for source in blockwise copy
     __host__ __device__ static constexpr auto
