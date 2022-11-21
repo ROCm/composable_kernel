@@ -1,1 +1,2 @@
 add_test_executable(test_space_filling_curve space_filling_curve.cpp)
+add_test_executable(test_threadwise_copy test_threadwise_copy.cpp)

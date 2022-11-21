@@ -54,7 +54,8 @@ template <typename SrcData,
           typename SrcDesc,
           typename DstDesc,
           typename ElementwiseOperation,
-          typename SliceLengths,
+          typename SliceLengths, // TODO ANT: can we generalize to allow sub-wg slice transfer? need
+                                 // to distinguish what dimensions are spread across waves
           typename DimAccessOrder,
           index_t DstVectorDim,
           index_t DstScalarPerVector,

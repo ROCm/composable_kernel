@@ -44,9 +44,14 @@ using F32 = float;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Scale       = ck::tensor_operation::element_wise::Scale;
 
-using DataType        = F16;
-using AccDataType     = F32;
-using ShuffleDataType = F32;
+using QKVElementOp = PassThrough;
+using YElementOp   = PassThrough;
+
+using DataType         = F16;
+using AccDataType      = F32;
+using ShuffleDataType  = F32;
+using Acc0BiasDataType = ck::Tuple<>;
+using Acc1BiasDataType = ck::Tuple<>;
 
 static constexpr ck::index_t NumDimG = 2;
 static constexpr ck::index_t NumDimM = 1;
@@ -54,7 +59,6 @@ static constexpr ck::index_t NumDimN = 1;
 static constexpr ck::index_t NumDimK = 1;
 static constexpr ck::index_t NumDimO = 1;
 
-#if 0
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 static constexpr auto MaskingSpec =
     ck::tensor_operation::device::MaskingSpecialization::MaskDisabled;
@@ -63,7 +67,70 @@ static constexpr auto TensorSpecQ = ck::tensor_operation::device::TensorSpeciali
 static constexpr auto TensorSpecK = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecV = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecY = ck::tensor_operation::device::TensorSpecialization::Default;
-#endif
+
+using DeviceGemmInstance =
+    ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<
+        NumDimG,
+        NumDimM,
+        NumDimN,
+        NumDimK,
+        NumDimO,
+        DataType,
+        Acc0BiasDataType,
+        Acc1BiasDataType,
+        AccDataType,
+        ShuffleDataType,
+        QKVElementOp,
+        QKVElementOp,
+        Scale,
+        QKVElementOp,
+        YElementOp,
+        GemmSpec,
+        TensorSpecQ,
+        TensorSpecK,
+        TensorSpecV,
+        TensorSpecY,
+        1,
+        256,
+        128,         // MPerBlock
+        128,         // NPerBlock
+        32,          // KPerBlock
+        64,          // Gemm1NPerBlock
+        32,          // Gemm1KPerBlock
+        8,           // AK1
+        8,           // BK1
+        2,           // B1K1
+        32,          // MPerXDL
+        32,          // NPerXDL
+        1,           // MXdlPerWave
+        4,           // NXdlPerWave
+        2,           // Gemm1NXdlPerWave
+        S<4, 64, 1>, // ABlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<4, 64, 1>, // BBlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<16, 16, 1>, // B1BlockTransfer
+        S<0, 2, 1>,
+        S<0, 2, 1>,
+        1,
+        4,
+        2,
+        false,
+        1,              // CShuffleMXdlPerWavePerShuffle
+        2,              // CShuffleNXdlPerWavePerShuffle
+        S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        MaskingSpec>;   // MaskingSpecialization
 
 // Ref Gemm0: S = alpha * Q * K^T
 // fp16 in, fp32 out
@@ -306,6 +373,7 @@ int run(int argc, char* argv[])
     DeviceMem vgrad_device_buf(sizeof(DataType) * v_gs_os_ns.mDesc.GetElementSpaceSize());
     DeviceMem ygrad_device_buf(sizeof(DataType) * y_gs_ms_os.mDesc.GetElementSpaceSize());
 
+    // TODO ANT: make sure K/V gradients are zeroed
     q_device_buf.ToDevice(q_gs_ms_ks.mData.data());
     k_device_buf.ToDevice(k_gs_ns_ks.mData.data());
     v_device_buf.ToDevice(v_gs_os_ns.mData.data());
@@ -313,14 +381,17 @@ int run(int argc, char* argv[])
     ygrad_device_buf.ToDevice(y_gs_ms_os.mData.data());
 
     // TODO ANT: attention backward kernel
-#if 0
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
     auto argument = gemm.MakeArgument(
         static_cast<DataType*>(q_device_buf.GetDeviceBuffer()),
         static_cast<DataType*>(k_device_buf.GetDeviceBuffer()),
         static_cast<DataType*>(v_device_buf.GetDeviceBuffer()),
+        static_cast<DataType*>(y_device_buf.GetDeviceBuffer()),
         static_cast<DataType*>(ygrad_device_buf.GetDeviceBuffer()),
+        static_cast<DataType*>(qgrad_device_buf.GetDeviceBuffer()),
+        static_cast<DataType*>(kgrad_device_buf.GetDeviceBuffer()),
+        static_cast<DataType*>(vgrad_device_buf.GetDeviceBuffer()),
         {}, // std::array<void*, 1> p_acc0_biases;
         {}, // std::array<void*, 1> p_acc1_biases;
         q_gs_ms_ks_lengths,
@@ -335,11 +406,11 @@ int run(int argc, char* argv[])
         {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
         {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
         {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
-        q_element_op,
-        k_element_op,
-        s_element_op,
-        v_element_op,
-        y_element_op);
+        QKVElementOp{},
+        QKVElementOp{},
+        Scale{alpha},
+        QKVElementOp{},
+        YElementOp{});
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -361,7 +432,6 @@ int run(int argc, char* argv[])
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
-#endif
 
     bool pass = true;
     if(do_verification)
