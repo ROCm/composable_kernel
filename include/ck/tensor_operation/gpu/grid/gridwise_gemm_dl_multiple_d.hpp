@@ -544,115 +544,116 @@ struct GridwiseGemmDlMultipleD_km_kn_mn
                 blockwise_gemm.CalculateCThreadOriginOnBlock_BM0_BM1_BN0_BN1(
                     get_thread_local_1d_id());
 
-            const auto ds_grid_buf = generate_tuple(
-                [&](auto i) {
-                    return make_dynamic_buffer<AddressSpaceEnum::Global>(
-                        p_ds_grid[i], ds_grid_desc_m0_m10_m11_n0_n10_n11[i].GetElementSpaceSize());
-                },
-                Number<NumDTensor>{});
+            if constexpr(!is_same_v<CDEElementwiseOperation,
+                                    ck::tensor_operation::element_wise::PassThrough>)
+            {
+                const auto ds_grid_buf = generate_tuple(
+                    [&](auto i) {
+                        return make_dynamic_buffer<AddressSpaceEnum::Global>(
+                            p_ds_grid[i],
+                            ds_grid_desc_m0_m10_m11_n0_n10_n11[i].GetElementSpaceSize());
+                    },
+                    Number<NumDTensor>{});
 
-            auto ds_thread_buf = generate_tuple(
-                [&](auto i) {
-                    using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                auto ds_thread_buf = generate_tuple(
+                    [&](auto i) {
+                        using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
 
-                    return StaticBuffer<AddressSpaceEnum::Vgpr,
-                                        DDataType,
-                                        c_m10_m11_n10_n11_thread_tensor_lengths[I3],
-                                        true>{};
-                },
-                Number<NumDTensor>{});
+                        return StaticBuffer<AddressSpaceEnum::Vgpr,
+                                            DDataType,
+                                            c_m10_m11_n10_n11_thread_tensor_lengths[I3],
+                                            true>{};
+                    },
+                    Number<NumDTensor>{});
 
-            auto ds_threadwise_copy = generate_tuple(
-                [&](auto i) {
-                    using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                auto ds_threadwise_copy = generate_tuple(
+                    [&](auto i) {
+                        using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
 
-                    return ThreadwiseTensorSliceTransfer_v2<
-                        DDataType,
-                        DDataType,
-                        decltype(ds_grid_desc_m0_m10_m11_n0_n10_n11[i]),
-                        decltype(c_thread_desc_m0_m10_m11_n0_n10_n11),
-                        Sequence<I1,
-                                 I1,
-                                 I1,
-                                 I1,
-                                 I1,
-                                 Number<c_m10_m11_n10_n11_thread_tensor_lengths[I3]>{}>,
-                        CThreadTransferSrcDstAccessOrder,
-                        CThreadTransferSrcDstVectorDim,
-                        CThreadTransferDstScalarPerVector,
-                        1,
-                        false>(
-                        ds_grid_desc_m0_m10_m11_n0_n10_n11[i],
-                        make_multi_index(
-                            im0,
-                            c_m10_m11_n10_n11_thread_origin_idx_on_block[I0],
-                            c_m10_m11_n10_n11_thread_origin_idx_on_block[I1],
-                            in0,
-                            c_m10_m11_n10_n11_thread_origin_idx_on_block[I2],
-                            c_m10_m11_n10_n11_thread_origin_idx_on_block[I3])); // register number
-                },
-                Number<NumDTensor>{});
+                        return ThreadwiseTensorSliceTransfer_v2<
+                            DDataType,
+                            DDataType,
+                            decltype(ds_grid_desc_m0_m10_m11_n0_n10_n11[i]),
+                            decltype(c_thread_desc_m0_m10_m11_n0_n10_n11),
+                            Sequence<I1,
+                                     I1,
+                                     I1,
+                                     I1,
+                                     I1,
+                                     Number<c_m10_m11_n10_n11_thread_tensor_lengths[I3]>{}>,
+                            CThreadTransferSrcDstAccessOrder,
+                            CThreadTransferSrcDstVectorDim,
+                            CThreadTransferDstScalarPerVector,
+                            1,
+                            false>(
+                            ds_grid_desc_m0_m10_m11_n0_n10_n11[i],
+                            make_multi_index(im0,
+                                             c_m10_m11_n10_n11_thread_origin_idx_on_block[I0],
+                                             c_m10_m11_n10_n11_thread_origin_idx_on_block[I1],
+                                             in0,
+                                             c_m10_m11_n10_n11_thread_origin_idx_on_block[I2],
+                                             c_m10_m11_n10_n11_thread_origin_idx_on_block[I3]));
+                    },
+                    Number<NumDTensor>{});
 
-            static_for<0, c_m10_m11_n10_n11_thread_tensor_lengths[I0], 1>{}([&](auto m10) {
-                static_for<0, c_m10_m11_n10_n11_thread_tensor_lengths[I1], 1>{}([&](auto m11) {
-                    static_for<0, c_m10_m11_n10_n11_thread_tensor_lengths[I2], 1>{}([&](auto n10) {
-                        ignore = m10;
-                        ignore = m11;
-                        ignore = n10;
-                        ignore = ds_thread_buf;
-                        ignore = ds_threadwise_copy;
-                        ignore = ds_grid_buf;
+                static_for<0, c_m10_m11_n10_n11_thread_tensor_lengths[I0], 1>{}([&](auto m10) {
+                    static_for<0, c_m10_m11_n10_n11_thread_tensor_lengths[I1], 1>{}([&](auto m11) {
+                        static_for<0, c_m10_m11_n10_n11_thread_tensor_lengths[I2], 1>{}(
+                            [&](auto n10) {
+                                // load d matrix data
+                                static_for<0, NumDTensor, 1>{}([&](auto i) {
+                                    ds_threadwise_copy(i).Run(ds_grid_desc_m0_m10_m11_n0_n10_n11[i],
+                                                              ds_grid_buf[i],
+                                                              c_thread_desc_m0_m10_m11_n0_n10_n11,
+                                                              make_tuple(I0, I0, I0, I0, I0, I0),
+                                                              ds_thread_buf(i));
+                                });
+                                // cal element op
+                                static_for<0, c_m10_m11_n10_n11_thread_tensor_lengths[I3], 1>{}(
+                                    [&](auto i) {
+                                        // get reference to src data
+                                        const auto src_data_refs = generate_tie(
+                                            // return type should be lvalue
+                                            [&](auto iSrc) -> const auto& {
+                                                return ds_thread_buf[iSrc][i];
+                                            },
+                                            Number<NumDTensor>{});
 
-                        static_for<0, NumDTensor, 1>{}([&](auto i) {
-                            ds_threadwise_copy(i).Run(ds_grid_desc_m0_m10_m11_n0_n10_n11[i],
-                                                      ds_grid_buf[i],
-                                                      c_thread_desc_m0_m10_m11_n0_n10_n11,
-                                                      make_tuple(I0, I0, I0, I0, I0, I0),
-                                                      ds_thread_buf(i));
-                        });
+                                        // get reference to dst data
+                                        constexpr index_t c_offset =
+                                            c_thread_desc_m0_m10_m11_n0_n10_n11.CalculateOffset(
+                                                make_tuple(0, m10, m11, 0, n10, i));
+                                        auto dst_data_refs = generate_tie(
+                                            // return type should be lvalue
+                                            [&](auto) -> auto& {
+                                                return c_thread_buf(Number<c_offset>{});
+                                            },
+                                            Number<2>{});
 
-                        static_for<0, c_m10_m11_n10_n11_thread_tensor_lengths[I3], 1>{}(
-                            [&](auto i) {
-                                // get reference to src data
-                                const auto src_data_refs = generate_tie(
-                                    // return type should be lvalue
-                                    [&](auto iSrc) -> const auto& {
-                                        return ds_thread_buf[iSrc][i];
-                                    },
-                                    Number<NumDTensor>{});
+                                        unpack2(cde_element_op, dst_data_refs, src_data_refs);
+                                    });
 
-                                // get reference to dst data
-                                constexpr index_t c_offset =
-                                    c_thread_desc_m0_m10_m11_n0_n10_n11.CalculateOffset(
-                                        make_tuple(0, m10, m11, 0, n10, i));
-                                auto dst_data_refs = generate_tie(
-                                    // return type should be lvalue
-                                    [&](auto) -> auto& { return c_thread_buf(Number<c_offset>{}); },
-                                    Number<2>{});
-
-                                unpack2(cde_element_op, dst_data_refs, src_data_refs);
+                                static_for<0, NumDTensor, 1>{}([&](auto i) {
+                                    ds_threadwise_copy(i).MoveSrcSliceWindow(
+                                        ds_grid_desc_m0_m10_m11_n0_n10_n11[i],
+                                        make_multi_index(0, 0, 0, 0, 1, 0));
+                                });
                             });
-
                         static_for<0, NumDTensor, 1>{}([&](auto i) {
                             ds_threadwise_copy(i).MoveSrcSliceWindow(
                                 ds_grid_desc_m0_m10_m11_n0_n10_n11[i],
-                                make_multi_index(0, 0, 0, 0, 1, 0));
+                                make_multi_index(
+                                    0, 0, 1, 0, -c_m10_m11_n10_n11_thread_tensor_lengths[I2], 0));
                         });
                     });
                     static_for<0, NumDTensor, 1>{}([&](auto i) {
                         ds_threadwise_copy(i).MoveSrcSliceWindow(
                             ds_grid_desc_m0_m10_m11_n0_n10_n11[i],
                             make_multi_index(
-                                0, 0, 1, 0, -c_m10_m11_n10_n11_thread_tensor_lengths[I2], 0));
+                                0, 1, -c_m10_m11_n10_n11_thread_tensor_lengths[I1], 0, 0, 0));
                     });
                 });
-                static_for<0, NumDTensor, 1>{}([&](auto i) {
-                    ds_threadwise_copy(i).MoveSrcSliceWindow(
-                        ds_grid_desc_m0_m10_m11_n0_n10_n11[i],
-                        make_multi_index(
-                            0, 1, -c_m10_m11_n10_n11_thread_tensor_lengths[I1], 0, 0, 0));
-                });
-            });
+            }
 
             ThreadwiseTensorSliceTransfer_v1r3<
                 FloatAcc,
