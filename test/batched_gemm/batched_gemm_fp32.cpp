@@ -3,7 +3,7 @@
 
 #include <iostream>
 
-#include "profiler/include/profile_batched_gemm_impl.hpp"
+#include "profiler/profile_batched_gemm_impl.hpp"
 
 namespace {
 using ADataType = float;
