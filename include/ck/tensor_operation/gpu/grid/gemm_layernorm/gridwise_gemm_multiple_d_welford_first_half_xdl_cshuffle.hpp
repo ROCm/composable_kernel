@@ -37,8 +37,8 @@ template <typename ABDataType,
           typename CShuffleDataType,
           typename DsDataType,
           typename EDataType,
-          typename FDataType,
-          typename GDataType,
+          typename MeanDataType,
+          typename VarDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
@@ -47,8 +47,8 @@ template <typename ABDataType,
           typename BGridDesc_N_K,
           typename DsGridDesc_M_N,
           typename EGridDesc_M_N,
-          typename FGridDesc_M_N,
-          typename GGridDesc_M_N,
+          typename MeanGridDesc_M_N,
+          typename VarGridDesc_M_N,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
           index_t MPerBlock,
@@ -242,10 +242,10 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
             Number<NumDTensor>{});
     }
 
-    // TODO - MakeFGGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+    // TODO - MakeMeanVarGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
     template <typename GridDescriptor_M_N>
     __host__ __device__ static constexpr auto
-    MakeFGGridDescriptor_MBlock_MPerBlock_NBlock(const GridDescriptor_M_N& grid_desc_m_n)
+    MakeMeanVarGridDescriptor_MBlock_MPerBlock_NBlock(const GridDescriptor_M_N& grid_desc_m_n)
     {
         const auto M      = grid_desc_m_n.GetLength(I0);
         const auto NBlock = grid_desc_m_n.GetLength(I1);
@@ -271,13 +271,14 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2ETileMap>
-    __host__ __device__ static constexpr bool CheckValidity(const AGridDesc_M_K& a_grid_desc_m_k,
-                                                            const BGridDesc_N_K& b_grid_desc_n_k,
-                                                            const DsGridDesc_M_N& ds_grid_desc_m_n,
-                                                            const EGridDesc_M_N& e_grid_desc_m_n,
-                                                            const FGridDesc_M_N& f_grid_desc_m_n,
-                                                            const GGridDesc_M_N& g_grid_desc_m_n,
-                                                            const Block2ETileMap& block_2_etile_map)
+    __host__ __device__ static constexpr bool
+    CheckValidity(const AGridDesc_M_K& a_grid_desc_m_k,
+                  const BGridDesc_N_K& b_grid_desc_n_k,
+                  const DsGridDesc_M_N& ds_grid_desc_m_n,
+                  const EGridDesc_M_N& e_grid_desc_m_n,
+                  const MeanGridDesc_M_N& mean_grid_desc_m_n,
+                  const VarGridDesc_M_N& var_grid_desc_m_n,
+                  const Block2ETileMap& block_2_etile_map)
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
@@ -289,9 +290,9 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
 
         // check consistency of desc
         if(!(M == e_grid_desc_m_n.GetLength(I0) && N == e_grid_desc_m_n.GetLength(I1) &&
-             M == f_grid_desc_m_n.GetLength(I0) && M == g_grid_desc_m_n.GetLength(I0) &&
-             N / NPerBlock == f_grid_desc_m_n.GetLength(I1) &&
-             N / NPerBlock == g_grid_desc_m_n.GetLength(I1)))
+             M == mean_grid_desc_m_n.GetLength(I0) && M == var_grid_desc_m_n.GetLength(I0) &&
+             N / NPerBlock == mean_grid_desc_m_n.GetLength(I1) &&
+             N / NPerBlock == var_grid_desc_m_n.GetLength(I1)))
         {
             return false;
         }
@@ -353,12 +354,12 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
         remove_cvref_t<decltype(MakeDefaultAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}))>;
     using DefaultBGridDesc_BK0_N_BK1 =
         remove_cvref_t<decltype(MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
-    using EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
+    using EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock  = remove_cvref_t<decltype(
         MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}))>;
-    using FGridDescriptor_MBlock_MPerBlock_NBlock =
-        remove_cvref_t<decltype(MakeFGGridDescriptor_MBlock_MPerBlock_NBlock(FGridDesc_M_N{}))>;
-    using GGridDescriptor_MBlock_MPerBlock_NBlock =
-        remove_cvref_t<decltype(MakeFGGridDescriptor_MBlock_MPerBlock_NBlock(GGridDesc_M_N{}))>;
+    using MeanGridDescriptor_MBlock_MPerBlock_NBlock         = remove_cvref_t<decltype(
+        MakeMeanVarGridDescriptor_MBlock_MPerBlock_NBlock(MeanGridDesc_M_N{}))>;
+    using VarGridDescriptor_MBlock_MPerBlock_NBlock          = remove_cvref_t<decltype(
+        MakeMeanVarGridDescriptor_MBlock_MPerBlock_NBlock(VarGridDesc_M_N{}))>;
     using DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
         MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}))>;
 
@@ -376,8 +377,8 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
         const ABDataType* __restrict__ p_b_grid,
         DsGridPointer p_ds_grid,
         EDataType* __restrict__ p_e_grid,
-        FDataType* __restrict__ p_f_grid,
-        GDataType* __restrict__ p_g_grid,
+        MeanDataType* __restrict__ p_mean_grid,
+        VarDataType* __restrict__ p_var_grid,
         void* __restrict__ p_shared,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
@@ -388,8 +389,8 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
             ds_grid_desc_mblock_mperblock_nblock_nperblock,
         const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
             e_grid_desc_mblock_mperblock_nblock_nperblock,
-        const FGridDescriptor_MBlock_MPerBlock_NBlock& f_grid_desc_mblock_mperblock_nblock,
-        const GGridDescriptor_MBlock_MPerBlock_NBlock& g_grid_desc_mblock_mperblock_nblock,
+        const MeanGridDescriptor_MBlock_MPerBlock_NBlock& mean_grid_desc_mblock_mperblock_nblock,
+        const VarGridDescriptor_MBlock_MPerBlock_NBlock& var_grid_desc_mblock_mperblock_nblock,
         const Block2ETileMap& block_2_etile_map)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -409,11 +410,11 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
         auto e_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_e_grid, e_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
-        auto f_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_f_grid, f_grid_desc_mblock_mperblock_nblock.GetElementSpaceSize());
+        auto mean_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_mean_grid, mean_grid_desc_mblock_mperblock_nblock.GetElementSpaceSize());
 
-        auto g_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_g_grid, g_grid_desc_mblock_mperblock_nblock.GetElementSpaceSize());
+        auto var_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_var_grid, var_grid_desc_mblock_mperblock_nblock.GetElementSpaceSize());
 
         // divide block work by [M, N]
         const auto block_work_idx =
@@ -989,11 +990,11 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
                     c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetLength(I1);
 
                 static_assert(mreduce_per_thread % FGTransferScalarPerVector == 0);
-                auto f_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
+                auto mean_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
                     AccDataType,
-                    FDataType,
+                    MeanDataType,
                     decltype(thread_welford_desc_I_m_I),
-                    decltype(f_grid_desc_mblock_mperblock_nblock),
+                    decltype(mean_grid_desc_mblock_mperblock_nblock),
                     tensor_operation::element_wise::PassThrough,
                     Sequence<1, mreduce_per_thread, 1>,
                     Sequence<0, 1, 2>,
@@ -1001,18 +1002,18 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
                     FGTransferScalarPerVector,
                     InMemoryDataOperationEnum::Set,
                     1,
-                    false>{f_grid_desc_mblock_mperblock_nblock,
+                    false>{mean_grid_desc_mblock_mperblock_nblock,
                            make_multi_index(block_work_idx[I0], // mblock
                                             shuffleMPerBlock * i +
                                                 c_reduce_thread_data_idx_begin[I0], // mperblock
                                             block_work_idx[I1]),                    // nblock
                            tensor_operation::element_wise::PassThrough{}};
 
-                auto g_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
+                auto var_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
                     AccDataType,
-                    GDataType,
+                    VarDataType,
                     decltype(thread_welford_desc_I_m_I),
-                    decltype(g_grid_desc_mblock_mperblock_nblock),
+                    decltype(var_grid_desc_mblock_mperblock_nblock),
                     tensor_operation::element_wise::PassThrough,
                     Sequence<1, mreduce_per_thread, 1>,
                     Sequence<0, 1, 2>,
@@ -1020,24 +1021,24 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
                     FGTransferScalarPerVector,
                     InMemoryDataOperationEnum::Set,
                     1,
-                    false>{g_grid_desc_mblock_mperblock_nblock,
+                    false>{var_grid_desc_mblock_mperblock_nblock,
                            make_multi_index(block_work_idx[I0], // mblock
                                             shuffleMPerBlock * i +
                                                 c_reduce_thread_data_idx_begin[I0], // mperblock
                                             block_work_idx[I1]),                    // nblock
                            tensor_operation::element_wise::PassThrough{}};
 
-                f_thread_copy_vgpr_to_global.Run(thread_welford_desc_I_m_I,
-                                                 make_tuple(I0, I0, I0),
-                                                 mean_thread_buf,
-                                                 f_grid_desc_mblock_mperblock_nblock,
-                                                 f_grid_buf);
+                mean_thread_copy_vgpr_to_global.Run(thread_welford_desc_I_m_I,
+                                                    make_tuple(I0, I0, I0),
+                                                    mean_thread_buf,
+                                                    mean_grid_desc_mblock_mperblock_nblock,
+                                                    mean_grid_buf);
 
-                g_thread_copy_vgpr_to_global.Run(thread_welford_desc_I_m_I,
-                                                 make_tuple(I0, I0, I0),
-                                                 var_thread_buf,
-                                                 g_grid_desc_mblock_mperblock_nblock,
-                                                 g_grid_buf);
+                var_thread_copy_vgpr_to_global.Run(thread_welford_desc_I_m_I,
+                                                   make_tuple(I0, I0, I0),
+                                                   var_thread_buf,
+                                                   var_grid_desc_mblock_mperblock_nblock,
+                                                   var_grid_buf);
             });
 
         } // shuffle C + Ds + welford + write out
