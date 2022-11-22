@@ -154,11 +154,11 @@ int main(int argc, char* argv[])
     }
 
     if(found)
+    {
         std::cout << "Best Perf: " << best_ave_time << " ms, " << best_gb_per_sec << " GB/s, "
                   << best_op_name << std::endl;
 
-    // run the best intance
-    {
+        // run the best intance
         auto& op_ptr = op_ptrs[best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
                   << std::endl;
