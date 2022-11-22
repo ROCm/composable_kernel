@@ -92,6 +92,29 @@ struct GridwiseGemmPipeline_v1<1>
                 a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
                 b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
 
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+
                 ++i;
             } while(i < (num_loop - 1));
         }
