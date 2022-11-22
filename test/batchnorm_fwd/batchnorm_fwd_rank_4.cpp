@@ -86,9 +86,9 @@ class TestBatchNormFwdRank4 : public ::testing::Test
     }
 };
 
-using KernelTypes = ::testing::Types<std::tuple<F16, F16, F32, F32, F32, F32>,
+using KernelTypes = ::testing::Types<std::tuple<F16, F16, F32, F16, F16, F32>,
                                      std::tuple<F32, F32, F32, F32, F32, F32>,
-                                     std::tuple<BF16, BF16, F32, F32, F32, F32>,
+                                     std::tuple<BF16, BF16, F32, BF16, BF16, F32>,
                                      std::tuple<I8, I8, F32, I8, I8, F32>,
                                      std::tuple<F64, F64, F64, F64, F64, F64>>;
 

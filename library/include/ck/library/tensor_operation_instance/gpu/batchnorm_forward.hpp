@@ -19,7 +19,7 @@ namespace instance {
 // FP16
 void add_device_batchnorm_forward_rank_4_3_f16_instances(
     std::vector<
-        std::unique_ptr<DeviceBatchNormFwd<F16, F16, F32, F32, F32, F32, PassThrough, 4, 3>>>&);
+        std::unique_ptr<DeviceBatchNormFwd<F16, F16, F32, F16, F16, F32, PassThrough, 4, 3>>>&);
 
 // FP32
 void add_device_batchnorm_forward_rank_4_3_f32_instances(
@@ -29,7 +29,7 @@ void add_device_batchnorm_forward_rank_4_3_f32_instances(
 // BF16
 void add_device_batchnorm_forward_rank_4_3_bf16_instances(
     std::vector<
-        std::unique_ptr<DeviceBatchNormFwd<BF16, BF16, F32, F32, F32, F32, PassThrough, 4, 3>>>&);
+        std::unique_ptr<DeviceBatchNormFwd<BF16, BF16, F32, BF16, BF16, F32, PassThrough, 4, 3>>>&);
 
 // Int8
 void add_device_batchnorm_forward_rank_4_3_i8_instances(
@@ -75,8 +75,8 @@ struct DeviceOperationInstanceFactory<
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
         if constexpr(is_same_v<XDataType, F16> && is_same_v<YDataType, F16> &&
-                     is_same_v<AccDataType, F32> && is_same_v<ScaleDataType, F32> &&
-                     is_same_v<BiasDataType, F32> && is_same_v<MeanVarDataType, F32>)
+                     is_same_v<AccDataType, F32> && is_same_v<ScaleDataType, F16> &&
+                     is_same_v<BiasDataType, F16> && is_same_v<MeanVarDataType, F32>)
         {
             if constexpr(Rank == 4 && NumReduceDim == 3)
             {
@@ -93,8 +93,8 @@ struct DeviceOperationInstanceFactory<
             }
         }
         else if constexpr(is_same_v<XDataType, BF16> && is_same_v<YDataType, BF16> &&
-                          is_same_v<AccDataType, F32> && is_same_v<ScaleDataType, F32> &&
-                          is_same_v<BiasDataType, F32> && is_same_v<MeanVarDataType, F32>)
+                          is_same_v<AccDataType, F32> && is_same_v<ScaleDataType, BF16> &&
+                          is_same_v<BiasDataType, BF16> && is_same_v<MeanVarDataType, F32>)
         {
             if constexpr(Rank == 4 && NumReduceDim == 3)
             {
