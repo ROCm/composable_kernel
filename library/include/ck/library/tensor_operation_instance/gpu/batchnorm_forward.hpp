@@ -78,7 +78,7 @@ struct DeviceOperationInstanceFactory<
                      is_same_v<AccDataType, F32> && is_same_v<ScaleDataType, F16> &&
                      is_same_v<BiasDataType, F16> && is_same_v<MeanVarDataType, F32>)
         {
-            if constexpr(Rank == 4 && NumReduceDim == 3)
+            if constexpr(Rank == 4 && NumReduceDim == 3 && is_same_v<YElementwiseOp, PassThrough>)
             {
                 add_device_batchnorm_forward_rank_4_3_f16_instances(op_ptrs);
             }
@@ -87,7 +87,7 @@ struct DeviceOperationInstanceFactory<
                           is_same_v<AccDataType, F32> && is_same_v<ScaleDataType, F32> &&
                           is_same_v<BiasDataType, F32> && is_same_v<MeanVarDataType, F32>)
         {
-            if constexpr(Rank == 4 && NumReduceDim == 3)
+            if constexpr(Rank == 4 && NumReduceDim == 3 && is_same_v<YElementwiseOp, PassThrough>)
             {
                 add_device_batchnorm_forward_rank_4_3_f32_instances(op_ptrs);
             }
@@ -96,7 +96,7 @@ struct DeviceOperationInstanceFactory<
                           is_same_v<AccDataType, F32> && is_same_v<ScaleDataType, BF16> &&
                           is_same_v<BiasDataType, BF16> && is_same_v<MeanVarDataType, F32>)
         {
-            if constexpr(Rank == 4 && NumReduceDim == 3)
+            if constexpr(Rank == 4 && NumReduceDim == 3 && is_same_v<YElementwiseOp, PassThrough>)
             {
                 add_device_batchnorm_forward_rank_4_3_bf16_instances(op_ptrs);
             }
@@ -105,7 +105,7 @@ struct DeviceOperationInstanceFactory<
                           is_same_v<AccDataType, F32> && is_same_v<ScaleDataType, I8> &&
                           is_same_v<BiasDataType, I8> && is_same_v<MeanVarDataType, F32>)
         {
-            if constexpr(Rank == 4 && NumReduceDim == 3)
+            if constexpr(Rank == 4 && NumReduceDim == 3 && is_same_v<YElementwiseOp, PassThrough>)
             {
                 add_device_batchnorm_forward_rank_4_3_i8_instances(op_ptrs);
             }
@@ -114,7 +114,7 @@ struct DeviceOperationInstanceFactory<
                           is_same_v<AccDataType, F64> && is_same_v<ScaleDataType, F64> &&
                           is_same_v<BiasDataType, F64> && is_same_v<MeanVarDataType, F64>)
         {
-            if constexpr(Rank == 4 && NumReduceDim == 3)
+            if constexpr(Rank == 4 && NumReduceDim == 3 && is_same_v<YElementwiseOp, PassThrough>)
             {
                 add_device_batchnorm_forward_rank_4_3_f64_instances(op_ptrs);
             }
