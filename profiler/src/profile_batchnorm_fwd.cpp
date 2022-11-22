@@ -138,14 +138,17 @@ int profile_batchnorm_forward(int argc, char* argv[])
     if(arg_parser(argc, argv) != 0)
         return -1;
 
-    using F16 = ck::half_t;
-    using F32 = float;
+    using F16  = ck::half_t;
+    using F32  = float;
+    using BF16 = ck::bhalf_t;
+    using I8   = int8_t;
+    using F64  = double;
 
     if(arg_parser.data_type == 0)
     {
         if(arg_parser.inLengths.size() == 4 && arg_parser.reduceDims.size() == 3)
         {
-            profile_batchnorm_forward_impl<F16, F16, F32, F32, F32, F32, 4, 3>(
+            profile_batchnorm_forward_impl<F16, F16, F32, F16, F16, F16, 4, 3>(
                 arg_parser.do_verification,
                 arg_parser.init_method,
                 arg_parser.do_dumpout,
@@ -163,6 +166,57 @@ int profile_batchnorm_forward(int argc, char* argv[])
         if(arg_parser.inLengths.size() == 4 && arg_parser.reduceDims.size() == 3)
         {
             profile_batchnorm_forward_impl<F32, F32, F32, F32, F32, F32, 4, 3>(
+                arg_parser.do_verification,
+                arg_parser.init_method,
+                arg_parser.do_dumpout,
+                arg_parser.time_kernel,
+                arg_parser.inLengths,
+                arg_parser.reduceDims,
+                arg_parser.updateMovingAverage,
+                arg_parser.saveMeanAndInvVariance,
+                epsilon,
+                averageFactor);
+        };
+    }
+    else if(arg_parser.data_type == 3)
+    {
+        if(arg_parser.inLengths.size() == 4 && arg_parser.reduceDims.size() == 3)
+        {
+            profile_batchnorm_forward_impl<I8, I8, F32, I8, I8, F32, 4, 3>(
+                arg_parser.do_verification,
+                arg_parser.init_method,
+                arg_parser.do_dumpout,
+                arg_parser.time_kernel,
+                arg_parser.inLengths,
+                arg_parser.reduceDims,
+                arg_parser.updateMovingAverage,
+                arg_parser.saveMeanAndInvVariance,
+                epsilon,
+                averageFactor);
+        };
+    }
+    else if(arg_parser.data_type == 5)
+    {
+        if(arg_parser.inLengths.size() == 4 && arg_parser.reduceDims.size() == 3)
+        {
+            profile_batchnorm_forward_impl<BF16, BF16, F32, BF16, BF16, F32, 4, 3>(
+                arg_parser.do_verification,
+                arg_parser.init_method,
+                arg_parser.do_dumpout,
+                arg_parser.time_kernel,
+                arg_parser.inLengths,
+                arg_parser.reduceDims,
+                arg_parser.updateMovingAverage,
+                arg_parser.saveMeanAndInvVariance,
+                epsilon,
+                averageFactor);
+        };
+    }
+    else if(arg_parser.data_type == 6)
+    {
+        if(arg_parser.inLengths.size() == 4 && arg_parser.reduceDims.size() == 3)
+        {
+            profile_batchnorm_forward_impl<F64, F64, F64, F64, F64, F64, 4, 3>(
                 arg_parser.do_verification,
                 arg_parser.init_method,
                 arg_parser.do_dumpout,

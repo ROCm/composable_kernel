@@ -190,12 +190,12 @@ bool profile_batchnorm_forward_impl(int do_verification,
     };
 
     // used for storing the device result for verification when updateMovingAverage is enabled
-    Tensor<AccDataType> resultRunningMean(scaleBiasMeanVarLengths);
-    Tensor<AccDataType> resultRunningVariance(scaleBiasMeanVarLengths);
+    Tensor<MeanVarDataType> resultRunningMean(scaleBiasMeanVarLengths);
+    Tensor<MeanVarDataType> resultRunningVariance(scaleBiasMeanVarLengths);
 
     // used for storing the device result for verification when saveMeanAndInvVariance is enabled
-    Tensor<AccDataType> resultSaveMean(scaleBiasMeanVarLengths);
-    Tensor<AccDataType> resultSaveInvVariance(scaleBiasMeanVarLengths);
+    Tensor<MeanVarDataType> resultSaveMean(scaleBiasMeanVarLengths);
+    Tensor<MeanVarDataType> resultSaveInvVariance(scaleBiasMeanVarLengths);
 
     std::array<index_t, Rank> arrInOutLengths;
     std::array<index_t, Rank> arrInOutStrides;
