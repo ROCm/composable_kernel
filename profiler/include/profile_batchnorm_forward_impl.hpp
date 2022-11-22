@@ -380,7 +380,7 @@ bool profile_batchnorm_forward_impl(int do_verification,
                 resultRunningVariance_dev.FromDevice(resultRunningVariance.mData.data());
 
                 // clang-format off
-                single_pass = single_pass && check_err(resultRunningMean.mData, resultRunningMean_ref.mData, "average mean results", 1e-5, 1e-5);
+                single_pass = single_pass && check_err(resultRunningMean.mData, resultRunningMean_ref.mData, "average mean results", 1.5e-5, 1.5e-5);
                 single_pass = single_pass && check_err(resultRunningVariance.mData, resultRunningVariance_ref.mData, "average variance results", 1e-5, 1e-5);
                 // clang-format on
             };

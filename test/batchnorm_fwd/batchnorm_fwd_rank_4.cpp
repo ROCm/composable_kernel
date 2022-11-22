@@ -31,7 +31,8 @@ class TestBatchNormFwdRank4 : public ::testing::Test
     using BiasDataType    = std::tuple_element_t<4, Tuple>;
     using MeanVarDataType = std::tuple_element_t<5, Tuple>;
 
-    std::vector<std::vector<size_t>> list_of_lengths = {{128, 16, 3, 1024}, {128, 16, 6, 512}};
+    std::vector<std::vector<size_t>> list_of_lengths = {
+        {128, 16, 3, 1024}, {128, 16, 6, 512}, {1, 1, 1, 1}, {4, 4, 4, 4}, {32, 32, 32, 32}};
     std::vector<int> reduceDims;
 
     template <int NumReduceDim>
