@@ -36,10 +36,10 @@ template <typename ADataType,
           ck::index_t NPerBlock,
           ck::index_t K0PerBlock,
           ck::index_t K1,
-          ck::index_t MPerXDL,
-          ck::index_t NPerXDL,
-          ck::index_t MXdlPerWave,
-          ck::index_t NXdlPerWave,
+          ck::index_t MPerWMMA,
+          ck::index_t NPerWMMA,
+          ck::index_t MWmmaPerWave,
+          ck::index_t NWmmaPerWave,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -217,11 +217,11 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
         MPerBlock,
         NPerBlock,
         K0PerBlock,
-        MPerXDL,
-        NPerXDL,
+        MPerWMMA,
+        NPerWMMA,
         K1,
-        MXdlPerWave,
-        NXdlPerWave,
+        MWmmaPerWave,
+        NWmmaPerWave,
         ABlockTransferThreadClusterLengths_K0_M_K1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -543,10 +543,10 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
             << NPerBlock << ", "
             << K0PerBlock << ", "
             << K1 << ", "
-            << MPerXDL << ", "
-            << NPerXDL << ", "
-            << MXdlPerWave << ", "
-            << NXdlPerWave
+            << MPerWMMA << ", "
+            << NPerWMMA << ", "
+            << MWmmaPerWave << ", "
+            << NWmmaPerWave
             << ">"
             << " NumPrefetch: "
             << NumPrefetch << ", "

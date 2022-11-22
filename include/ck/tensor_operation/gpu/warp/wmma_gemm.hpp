@@ -25,15 +25,15 @@ struct wmma_type;
 template <>
 struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f16_w32>
 {
-    static constexpr index_t m_per_wave            = 16;
-    static constexpr index_t n_per_wave            = 16;
-    static constexpr index_t k_per_wave            = 16;
+    static constexpr index_t m_per_wmma            = 16;
+    static constexpr index_t n_per_wmma            = 16;
+    static constexpr index_t k_per_wmma            = 16;
     static constexpr index_t wave_size             = 32;
     static constexpr index_t lane_size             = 16;
     static constexpr index_t src_data_size         = 2;
     static constexpr index_t acc_data_size         = 4;
-    static constexpr index_t num_srcregs_per_wave  = 8;
-    static constexpr index_t num_accregs_per_wave  = 8;
+    static constexpr index_t num_srcregs_per_wmma  = 8;
+    static constexpr index_t num_accregs_per_wmma  = 8;
 
     template <index_t MPerWmma, index_t NPerWmma, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
@@ -45,7 +45,7 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f16_w32>
 template <typename src_type, typename dst_type, index_t MPerWmma, index_t NPerWmma>
 struct WmmaSelector
 {
-    template <typename src_type, typename dst_type, index_t MPerWmma_, index_t NPerWmma_>
+    template <typename src_type_, typename dst_type_, index_t MPerWmma_, index_t NPerWmma_>
     static constexpr auto GetWmma();
 
     template <>
@@ -89,21 +89,21 @@ struct WmmaSelector
 
     __host__ __device__ constexpr WmmaSelector()
     {
-        static_assert(selected_wmma.m_per_wave == selected_wmma.n_per_wave,
+        static_assert(selected_wmma.m_per_wmma == selected_wmma.n_per_wmma,
                       "WRONG! WMMA_M must equal to WMMA_N");
         
-        static_assert(selected_wmma.m_per_wave == selected_wmma.k_per_wave,
+        static_assert(selected_wmma.m_per_wmma == selected_wmma.k_per_wmma,
                       "WRONG! WMMA_M must equal to WMMA_K");
         
-        static_assert(selected_wmma.k_per_wave == 16,
+        static_assert(selected_wmma.k_per_wmma == 16,
                       "WRONG! WMMA_M must equal to WMMA_N");
 
-        static_assert(selected_wmma.wave_size * selected_wmma.num_accregs_per_wave * selected_wmma.acc_data_size==
-                      selected_wmma.m_per_wave * selected_wmma.n_per_wave * 4,
+        static_assert(selected_wmma.wave_size * selected_wmma.num_accregs_per_wmma * selected_wmma.acc_data_size==
+                      selected_wmma.m_per_wmma * selected_wmma.n_per_wmma * 4,
                       "WRONG! Number of Accumulator Register");
 
-        static_assert(selected_wmma.lane_size * selected_wmma.num_srcregs_per_wave * selected_wmma.src_data_size==
-                      selected_wmma.m_per_wave * selected_wmma.k_per_wave * 4,
+        static_assert(selected_wmma.lane_size * selected_wmma.num_srcregs_per_wmma * selected_wmma.src_data_size==
+                      selected_wmma.m_per_wmma * selected_wmma.k_per_wmma * 4,
                       "WRONG! Number of Source Register");
     }
 };
@@ -126,20 +126,12 @@ struct WmmaGemm
     using CIndex   = MultiIndex<2>;
     using CIndex4D = MultiIndex<4>;
 
-    __device__ static constexpr index_t GetNumBlks() { return wmma_instr.num_output_blks; }
-
-    __device__ static constexpr index_t GetNumXdlops()
-    {
-        return MPerWmma * NPerWmma /
-               (wmma_instr.m_per_blk * wmma_instr.n_per_blk * wmma_instr.num_output_blks);
-    }
-
     __host__ __device__ constexpr WmmaGemm()
     {
         static_assert(NPerWmma == 16 && MPerWmma == 16 ,
                       "Only support GemmNPerWmma == 16 and GemmMPerWmma == 16 for wmma");
 
-        static_assert(KPack % wmma_instr.k_per_wave == 0, "KPack cannot be divided by k_per_wave");
+        static_assert(KPack == wmma_instr.k_per_wmma, "KPack should be k_per_wmma");
     }
 
     // XDL output supporting C = A * B
@@ -267,79 +259,43 @@ struct WmmaGemm
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
                       || (is_same<src_type, int4_t>::value && is_same<dst_type, int32_t>::value) 
 #endif
-                      ,
-                      "base type couple must be (half, float), (bhalf, float), (half, half), 
-                                                (bhalf, bhalf), (int8, int32) or (int4, int32)!");
-
-        static_for<0, KPack / wmma_instr.k_per_wave, 1>{}([&](auto k) {
-            if constexpr(!TransposeC)
-            {
-                wmma_instr.template run<MPerWmma, NPerWmma>(
-                    p_a_wave[k], p_b_wave[k], p_c_thread);
-            }
-            else
-            {
-                wmma_instr.template run<MPerWmma, NPerWmma>(
-                    p_b_wave[k], p_a_wave[k], p_c_thread);
-            }
-        });
+                      ,"base type couple must be (half, float), (bhalf, float), (half, half), (bhalf, bhalf), (int8, int32) or (int4, int32)!");
+        if constexpr(!TransposeC)
+        {
+            wmma_instr.template run<MPerWmma, NPerWmma>(
+                p_a_wave[0], p_b_wave[0], p_c_thread);
+        }
+        else
+        {
+            wmma_instr.template run<MPerWmma, NPerWmma>(
+                p_b_wave[0], p_a_wave[0], p_c_thread);
+        }
     }
 
     __device__ static auto GetLaneId() { return get_thread_local_1d_id() % wmma_instr.wave_size; }
 
-    __device__ static auto GetBlkIdx()
+    __device__ static auto GetLaneIdHigh()
     {
-        const auto laneId = GetLaneId();
+        return GetLaneId() / 16;
+    }
 
-        constexpr auto threadidx_to_blk_idx_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_merge_transform(
-                make_tuple(1, wmma_instr.num_input_blks, wmma_instr.num_threads_per_blk))),
-            make_tuple(Sequence<0, 1, 2>{}),
-            make_tuple(Sequence<0>{}));
-
-        const auto blk_idx =
-            threadidx_to_blk_idx_adaptor.CalculateBottomIndex(make_multi_index(laneId));
-
-        const auto blk_id = blk_idx[I1];
-        const auto blk_td = blk_idx[I2];
-
-        return make_tuple(blk_id, blk_td);
+    __device__ static auto GetLaneIdLow()
+    {
+        return GetLaneId() % 16;
+    }
+    __device__ static auto GetSwizzledLaneIdLow() 
+    {   
+        return ((GetLaneIdLow() & 1) << 3 ) | (GetLaneIdLow() >> 1);
     }
 
     __host__ __device__ static auto CalculateAThreadOriginDataIndex()
     {
-        const auto laneId  = GetLaneId();
-        const auto blk_idx = GetBlkIdx();
-
-        const auto blk_id = blk_idx[I0];
-        const auto blk_td = blk_idx[I1];
-
-        if constexpr(wmma_instr.is_k_reduction)
-        {
-            return make_tuple(blk_id, blk_td);
-        }
-        else
-        {
-            return make_tuple(0, laneId);
-        }
+        return make_tuple(0, GetSwizzledLaneIdLow());
     }
 
     __host__ __device__ static auto CalculateBThreadOriginDataIndex()
     {
-        const auto laneId  = GetLaneId();
-        const auto blk_idx = GetBlkIdx();
-
-        const auto blk_id = blk_idx[I0];
-        const auto blk_td = blk_idx[I1];
-
-        if constexpr(wmma_instr.is_k_reduction)
-        {
-            return make_tuple(blk_id, blk_td);
-        }
-        else
-        {
-            return make_tuple(0, laneId);
-        }
+        return make_tuple(0, GetLaneIdLow());
     }
 
     __device__ static CIndex GetBeginOfThreadBlk(index_t xdlops_i, index_t blk_i)
@@ -365,12 +321,12 @@ struct WmmaGemm
         return TransposeC ? CIndex4D{blk_td, I0, blk_id, I0} : CIndex4D{I0, blk_id, I0, blk_td};
     }
 
-    static constexpr auto mfma = MfmaSelector<base_type, MPerWmma, NPerWmma>{};
+    static constexpr auto wmma = WmmaSelector<src_type, dst_type, MPerWmma, NPerWmma>{};
 
-    static constexpr auto wmma_instr = mfma.selected_mfma;
+    static constexpr auto wmma_instr = wmma.selected_wmma;
 
-    static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
-    static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();
+    static constexpr auto KPerXdlops  = wmma.GetKPerXdlops();
+    static constexpr auto K1PerXdlops = wmma.GetK1PerXdlops();
     static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops;
 
     __host__ __device__ static constexpr auto GetCM0M1M2NThreadBlkLengths()
