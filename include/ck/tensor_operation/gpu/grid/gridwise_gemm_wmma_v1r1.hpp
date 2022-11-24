@@ -15,7 +15,6 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#define DISABLE_C_SHUFFLE
 namespace ck {
 
 template <typename GridwiseGemm,
@@ -23,11 +22,7 @@ template <typename GridwiseGemm,
           typename FloatC,
           typename AGridDesc_K0_M_K1,
           typename BGridDesc_K0_N_K1,
-          typename CGridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma,
-#ifndef DISABLE_C_SHUFFLE
-          typename C0GridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma,
-          typename C1GridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma,
-#endif
+          typename CGridDescriptor_MBlock_MRepeat_Mwave_MSubGroup_NBlock_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -41,18 +36,10 @@ __global__ void
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
-            const FloatC* __restrict__ p_c0_grid,
-            const FloatC* __restrict__ p_c1_grid,
             const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
             const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
-            const CGridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma
-                c_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-#ifndef DISABLE_C_SHUFFLE
-            const C0GridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma
-                c0_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-            const C1GridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma
-                c1_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-#endif
+            const CGridDescriptor_MBlock_MRepeat_Mwave_MSubGroup_NBlock_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs
+                c_grid_desc_mblock_mrepeat_mwave_msubgroup_n_block_nrepeat_nwave_nthreadpersubgroup_maccvgprs,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
@@ -65,16 +52,10 @@ __global__ void
         p_a_grid,
         p_b_grid,
         p_c_grid,
-        p_c0_grid,
-        p_c1_grid,
         p_shared,
         a_grid_desc_k0_m_k1,
         b_grid_desc_k0_n_k1,
-        c_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-#ifndef DISABLE_C_SHUFFLE
-        c0_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-        c1_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-#endif
+        c_grid_desc_mblock_mrepeat_mwave_msubgroup_n_block_nrepeat_nwave_nthreadpersubgroup_maccvgprs,
         a_element_op,
         b_element_op,
         c_element_op,
@@ -83,13 +64,9 @@ __global__ void
     ignore = p_a_grid;
     ignore = p_b_grid;
     ignore = p_c_grid;
-    ignore = p_c0_grid;
-    ignore = p_c1_grid;
     ignore = a_grid_desc_k0_m_k1;
     ignore = b_grid_desc_k0_n_k1;
-    ignore = c_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma;
-    ignore = c0_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma;
-    ignore = c1_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma;
+    ignore = c_grid_desc_mblock_mrepeat_mwave_msubgroup_n_block_nrepeat_nwave_nthreadpersubgroup_maccvgprs;
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
@@ -106,8 +83,6 @@ template <
     typename AGridDesc_K0_M_K1,
     typename BGridDesc_K0_N_K1,
     typename CGridDesc_M_N,
-    typename C0GridDesc_M_N,
-    typename C1GridDesc_M_N,
     typename AElementwiseOperation,
     typename BElementwiseOperation,
     typename CElementwiseOperation,
@@ -135,10 +110,9 @@ template <
     index_t BBlockTransferDstScalarPerVector_K1,
     bool BThreadTransferSrcResetCoordinateAfterRun,
     bool BBlockLdsExtraN,
-    index_t CShuffleMWmmaPerWavePerShuffle,
-    index_t CShuffleNWmmaPerWavePerShuffle,
-    typename CBlockTransferClusterLengths_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma,
-    index_t CBlockTransferScalarPerVector_NWaveNPerWmma,
+    typename CThreadTransferSrcDstAccessOrder,
+    index_t CThreadTransferSrcDstVectorDim,
+    index_t CThreadTransferDstScalarPerVector,
     index_t NumGemmKPrefetchStage = 1,
     PipelineVersion PipelineVer   = PipelineVersion::v1>
 struct GridwiseGemm_k0mk1_k0nk1_mn_wmma_v1
@@ -160,84 +134,66 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma_v1
     using GridwiseGemmPipe = remove_cvref_t<decltype(
         GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage>())>;
 
-    __host__ __device__ static constexpr auto GetABlockDescriptor_K0PerBlock_K10_MPerBlock_K1PerInst()
+    __host__ __device__ static constexpr auto GetABlockDescriptor_K0PerBlock_MPerBlock_K1()
     {
-        constexpr auto inst_max_size = 16 / sizeof(FloatAB);
-        constexpr auto k1perinst = (K1 <inst_max_size) ? K1 : inst_max_size;
-        constexpr auto K10 = K1 / k1perinst;
+        constexpr auto max_lds_align = K1;
 
         // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_k0_k10_m_k1perinst = [&]() {
-            // May have static err
-            return make_naive_tensor_descriptor_aligned(
-                make_tuple(Number<K0PerBlock>{}, K10, Number<MPerBlock>{}, k1perinst), k1perinst);
+        constexpr auto a_block_desc_k0perblock_mperblock_k1 = [&]() {
+            if constexpr(ABlockLdsExtraM)
+            {
+                return make_naive_tensor_descriptor(
+                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
+                    make_tuple(Number<MPerBlock + 1>{} * K1, K1, I1));
+            }
+            else
+            {
+                return make_naive_tensor_descriptor_aligned(
+                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
+            }
         }();
 
-        return a_block_desc_k0_k10_m_k1perinst;
+        return a_block_desc_k0perblock_mperblock_k1;
     }
 
-    __host__ __device__ static constexpr auto GetBBlockDescriptor_K0PerBlock_K10_NPerBlock_K1PerInst()
+    __host__ __device__ static constexpr auto GetBBlockDescriptor_K0PerBlock_NPerBlock_K1()
     {
-        constexpr auto inst_max_size = 16 / sizeof(FloatAB);
-        constexpr auto k1perinst = (K1 <inst_max_size) ? K1 : inst_max_size;
-        constexpr auto K10 = K1 / k1perinst;
+        constexpr auto max_lds_align = K1;
 
         // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_k0_k10_n_k1perinst = [&]() {
-            return make_naive_tensor_descriptor_aligned(
-                 make_tuple(Number<K0PerBlock>{}, K10, Number<NPerBlock>{}, k1perinst), k1perinst);
+        constexpr auto b_block_desc_k0perblock_nperblock_k1 = [&]() {
+            if constexpr(BBlockLdsExtraN)
+            {
+                return make_naive_tensor_descriptor(
+                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
+                    make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
+            }
+            else
+            {
+                return make_naive_tensor_descriptor_aligned(
+                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
+            }
         }();
 
-        return b_block_desc_k0_k10_n_k1perinst;
-    }
-
-    __host__ __device__ static constexpr auto
-    GetCBlockDescriptor_MBlock_NWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma()
-    {
-        constexpr index_t MWave = MPerBlock / (MWmmaPerWave * MPerWmma);
-        constexpr index_t NWave = NPerBlock / (NWmmaPerWave * NPerWmma);
-
-        constexpr auto
-            c_block_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma =
-                make_naive_tensor_descriptor_packed(
-                    make_tuple(I1,
-                               Number<CShuffleMWmmaPerWavePerShuffle>{},
-                               Number<MWave * MPerWmma>{},
-                               I1,
-                               Number<CShuffleNWmmaPerWavePerShuffle>{},
-                               Number<NWave * NPerWmma>{}));
-
-        return c_block_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma;
+        return b_block_desc_k0perblock_nperblock_k1;
     }
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
         // LDS allocation for A and B: be careful of alignment
-        constexpr auto a_block_desc_k0_k10_m_k1perinst = GetABlockDescriptor_K0PerBlock_K10_MPerBlock_K1PerInst();
+        constexpr auto a_block_desc_k0perblock_mperblock_k1 = GetABlockDescriptor_K0PerBlock_MPerBlock_K1();
 
-        constexpr auto b_block_desc_k0_k10_n_k1perinst = GetBBlockDescriptor_K0PerBlock_K10_NPerBlock_K1PerInst();
+        constexpr auto b_block_desc_k0perblock_nperblock_k1 = GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
 
-        constexpr auto max_lds_align = a_block_desc_k0_k10_m_k1perinst.GetLength(I3);
+        constexpr auto max_lds_align = K1;
 
         constexpr auto a_block_space_size_aligned =
-            math::integer_least_multiple(a_block_desc_k0_k10_m_k1perinst.GetElementSpaceSize(), max_lds_align);
+            math::integer_least_multiple(a_block_desc_k0perblock_mperblock_k1.GetElementSpaceSize(), max_lds_align);
 
         constexpr auto b_block_space_size_aligned =
-            math::integer_least_multiple(b_block_desc_k0_k10_n_k1perinst.GetElementSpaceSize(), max_lds_align);
-        
-        constexpr auto c_block_size = 0;
-#ifndef DISABLE_C_SHUFFLE
-        // LDS allocation for C shuffle in LDS
-        constexpr auto c_block_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma =
-            GetCBlockDescriptor_MBlock_NWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma();
+            math::integer_least_multiple(b_block_desc_k0perblock_nperblock_k1.GetElementSpaceSize(), max_lds_align);
 
-        constexpr auto c_block_size =
-            c_block_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma
-                .GetElementSpaceSize();
-#endif
-        return math::max((a_block_space_size_aligned + b_block_space_size_aligned) *
-                             sizeof(FloatAB),
-                         c_block_size * sizeof(FloatC));
+        return (a_block_space_size_aligned + b_block_space_size_aligned) * sizeof(FloatAB);
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -293,7 +249,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma_v1
 
     template <typename CGridDesc_M_N_>
     __host__ __device__ static constexpr auto
-    MakeCGridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma(
+    MakeCGridDescriptor_MBlock_MRepeat_Mwave_MSubGroup_NBlock_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs(
         const CGridDesc_M_N_& c_grid_desc_m_n)
     {
         const auto M = c_grid_desc_m_n.GetLength(I0);
@@ -305,17 +261,21 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma_v1
         constexpr index_t MWave = MPerBlock / (MWmmaPerWave * MPerWmma);
         constexpr index_t NWave = NPerBlock / (NWmmaPerWave * NPerWmma);
 
-        const auto c_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma =
+        constexpr index_t MLaneHigh = 2;
+        constexpr index_t MLaneLow = NWmmaPerWave / MLaneHigh;
+        constexpr index_t NLane = NWmmaPerWave;
+
+        const auto c_grid_desc_mblock_mrepeat_mwave_msubgroup_n_block_nrepeat_nwave_nthreadpersubgroup_maccvgprs =
             transform_tensor_descriptor(
                 c_grid_desc_m_n,
                 make_tuple(make_unmerge_transform(make_tuple(
-                               MBlock, Number<MWmmaPerWave>{}, Number<MWave * MPerWmma>{})),
+                               MBlock, Number<MWmmaPerWave>{}, Number<MWave>{}, Number<MLaneHigh>{}, Number<MLaneLow>{})),
                            make_unmerge_transform(make_tuple(
-                               NBlock, Number<NWmmaPerWave>{}, Number<NWave * NPerWmma>{}))),
+                               NBlock, Number<NWmmaPerWave>{}, Number<NWave>{}, Number<NLane>{}))),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 1, 2>{}, Sequence<3, 4, 5>{}));
+                make_tuple(Sequence<0, 1, 2, 3, 8>{}, Sequence<4, 5, 6, 7>{}));
 
-        return c_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma;
+        return c_grid_desc_mblock_mrepeat_mwave_msubgroup_n_block_nrepeat_nwave_nthreadpersubgroup_maccvgprs;
     }
 
     // return block_id to C matrix tile idx (m0, n0) mapping
@@ -325,21 +285,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma_v1
         return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>(
             c_grid_desc_m_n);
     }
-    using CGridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma =
+    using CGridDescriptor_MBlock_MRepeat_Mwave_MSubGroup_NBlock_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs =
         remove_cvref_t<decltype(
-            MakeCGridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma(
+            MakeCGridDescriptor_MBlock_MRepeat_Mwave_MSubGroup_NBlock_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs(
                 CGridDesc_M_N{}))>;
-#ifndef DISABLE_C_SHUFFLE 
-    using C0GridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma =
-        remove_cvref_t<decltype(
-            MakeCGridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma(
-                C0GridDesc_M_N{}))>;
-
-    using C1GridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma =
-        remove_cvref_t<decltype(
-            MakeCGridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma(
-                C1GridDesc_M_N{}))>;
-#endif
     using DefaultBlock2CTileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1))>;
 
@@ -348,74 +297,45 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma_v1
     Run(const FloatAB* __restrict__ p_a_grid,
         const FloatAB* __restrict__ p_b_grid,
         FloatC* __restrict__ p_c_grid,
-        const FloatC* __restrict__ p_c0_grid,
-        const FloatC* __restrict__ p_c1_grid,
         void* __restrict__ p_shared,
         const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
         const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
-        const CGridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma&
-            c_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-#ifndef DISABLE_C_SHUFFLE 
-        const C0GridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma&
-            c0_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-        const C1GridDescriptor_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma&
-            c1_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-#endif
+        const CGridDescriptor_MBlock_MRepeat_Mwave_MSubGroup_NBlock_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs&
+            c_grid_desc_mblock_mrepeat_mwave_msubgroup_n_block_nrepeat_nwave_nthreadpersubgroup_maccvgprs,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
         const CElementwiseOperation& c_element_op,
         const Block2CTileMap& block_2_ctile_map)
     {
+// clang-format off
+/*******************************************************************************/
+// Memory buffer zone.
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_k0_m_k1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid, b_grid_desc_k0_n_k1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_c_grid,
-            c_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma
-                .GetElementSpaceSize());
-#ifndef DISABLE_C_SHUFFLE     
-        auto c0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_c0_grid,
-            c0_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma
-                .GetElementSpaceSize());
-        auto c1_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_c1_grid,
-            c1_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma
-                .GetElementSpaceSize());
-#endif
-        const auto K0 = a_grid_desc_k0_m_k1.GetLength(I0);
+            p_c_grid, c_grid_desc_mblock_mrepeat_mwave_msubgroup_n_block_nrepeat_nwave_nthreadpersubgroup_maccvgprs.GetElementSpaceSize());
 
-        // divide block work by [M, N]
-        const auto block_work_idx =
-            block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
-
+/*******************************************************************************/
+// BlockIdx.x -> [BlockId.m, BlockId.n]
+        const auto block_work_idx = block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
         if(!block_2_ctile_map.ValidCTileIndex(
                block_work_idx,
-               make_tuple(
-                   c_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma
-                       .GetLength(I0),
-                   c_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma
-                       .GetLength(I3))))
-        {
-            return;
-        }
+               make_tuple(c_grid_desc_mblock_mrepeat_mwave_msubgroup_n_block_nrepeat_nwave_nthreadpersubgroup_maccvgprs.GetLength(I0),
+                          c_grid_desc_mblock_mrepeat_mwave_msubgroup_n_block_nrepeat_nwave_nthreadpersubgroup_maccvgprs.GetLength(I4))))
+        { return; }
 
-        // HACK: this force m/n_block_data_idx_on_grid into SGPR
-        const index_t m_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
+        // Store BlockId into SGPR
+        const index_t m_block_data_idx_on_grid = __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
+        const index_t n_block_data_idx_on_grid = __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
 
-        const index_t n_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
-
-        // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_k0_k10_m_k1perinst = GetABlockDescriptor_K0PerBlock_MPerBlock_K10_K1PerInst();
-
-        // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_k0_k10_n_k1perinst = GetBBlockDescriptor_K0PerBlock_NPerBlock_K10_K1PerInst();
-
-        // lds max alignment
-        constexpr auto max_lds_align = a_block_desc_k0_m_k10_k11.GetLength(I3);
+/*******************************************************************************/
+// BlockLevel, A/B Matrix ThreadMapping in LDS, As Destinaion of BlockWise_Copy
+        const auto K0 = a_grid_desc_k0_m_k1.GetLength(I0);
+        constexpr auto max_lds_align = K1;
+        constexpr auto a_block_desc_k0perblock_mperblock_k1 = GetABlockDescriptor_K0PerBlock_MPerBlock_K1();
+        constexpr auto b_block_desc_k0perblock_nperblock_k1 = GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
 
         // A matrix blockwise copy
         auto a_blockwise_copy =
@@ -429,7 +349,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma_v1
 /* typename SrcData,                              */    FloatAB,
 /* typename DstData,                              */    FloatAB,
 /* typename SrcDesc,                              */    decltype(a_grid_desc_k0_m_k1),
-/* typename DstDesc,                              */    decltype(a_block_desc_k0_k10_m_k1perinst),
+/* typename DstDesc,                              */    decltype(a_block_desc_k0perblock_mperblock_k1),
 /* typename SrcDimAccessOrder,                    */    ABlockTransferSrcAccessOrder,
 /* typename DstDimAccessOrder,                    */    Sequence<1, 0, 2>,
 /* index_t SrcVectorDim,                          */    ABlockTransferSrcVectorDim,
@@ -443,7 +363,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma_v1
                 a_grid_desc_k0_m_k1,
                 make_multi_index(0, m_block_data_idx_on_grid, 0),
                 a_element_op,
-                a_block_desc_k0_k10_m_k1perinst,
+                a_block_desc_k0perblock_mperblock_k1,
                 make_multi_index(0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{});
 
@@ -459,7 +379,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma_v1
                                                 FloatAB,
                                                 FloatAB,
                                                 decltype(b_grid_desc_k0_n_k1),
-                                                decltype(b_block_desc_k0_k10_n_k1perinst),
+                                                decltype(b_block_desc_k0perblock_nperblock_k1),
                                                 BBlockTransferSrcAccessOrder,
                                                 Sequence<1, 0, 2>,
                                                 BBlockTransferSrcVectorDim,
@@ -473,43 +393,42 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma_v1
                 b_grid_desc_k0_n_k1,
                 make_multi_index(0, n_block_data_idx_on_grid, 0),
                 b_element_op,
-                b_block_desc_k0_k10_n_k1perinst,
+                b_block_desc_k0perblock_nperblock_k1,
                 make_multi_index(0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{});
 
+/*******************************************************************************/
         // GEMM definition
-        //   c_mtx += transpose(a_mtx) * b_mtx
-        //     a_mtx[K0PerBlock, MPerBlock] is in LDS
-        //     b_mtx[K0PerBlock, NPerBlock] is in LDS
-        //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
-        //       register
-        // sanity check
+        // c_mtx += a_mtx * b_mtx
+        // a_mtx[K0PerBlock, MPerBlock] is in LDS
+        // b_mtx[K0PerBlock, NPerBlock] is in LDS
+        // c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in register
+
+        constexpr auto WmmaK = 16;
+        constexpr auto KPack = math::integer_least_multiple(K1, WmmaK);
 
         auto blockwise_gemm =
-            BlockwiseGemmWmmaops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                FloatAB,
-                                                                FloatAcc,
-                                                                decltype(a_block_desc_k0_k10_m_k1perinst),
-                                                                decltype(b_block_desc_k0_k10_n_k1perinst),
-                                                                MPerWmma,
-                                                                NPerWmma,
-                                                                MWmmaPerWave,
-                                                                NWmmaPerWave,
-                                                                K1>{};
+            BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3<BlockSize,
+                                                         FloatAB,
+                                                         FloatAcc,
+                                                         decltype(a_block_desc_k0perblock_mperblock_k1),
+                                                         decltype(b_block_desc_k0perblock_nperblock_k1),
+                                                         MPerWmma,
+                                                         NPerWmma,
+                                                         MWmmaPerWave,
+                                                         NWmmaPerWave,
+                                                         KPack>{};
 
+        // Prepare Register for C matrix
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
+/*******************************************************************************/
+        constexpr auto a_block_space_size_aligned = math::integer_least_multiple(a_block_desc_k0perblock_mperblock_k1.GetElementSpaceSize(), max_lds_align);
         // LDS allocation for A and B: be careful of alignment
-        constexpr auto a_block_space_size_aligned =
-            math::integer_least_multiple(a_block_desc_k0_k10_m_k1perinst.GetElementSpaceSize(), max_lds_align);
-
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatAB*>(p_shared), a_block_desc_k0_k10_m_k1perinst.GetElementSpaceSize());
-
-        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatAB*>(p_shared) + a_block_space_size_aligned,
-            b_block_desc_k0_k10_n_k1perinst.GetElementSpaceSize());
-
+        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(static_cast<FloatAB*>(p_shared), a_block_desc_k0perblock_mperblock_k1.GetElementSpaceSize());
+        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(static_cast<FloatAB*>(p_shared) + a_block_space_size_aligned, b_block_desc_k0perblock_nperblock_k1.GetElementSpaceSize());
+        
+        // Shift Per SUB_K
         constexpr auto a_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
 
@@ -517,13 +436,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma_v1
         const index_t K0BlockMainLoop = __builtin_amdgcn_readfirstlane(K0 / K0PerBlock);
 
         GridwiseGemmPipe::template Run<HasMainKBlockLoop>(a_grid_desc_k0_m_k1,
-                                                          a_block_desc_k0_k10_m_k1perinst,
+                                                          a_block_desc_k0perblock_mperblock_k1,
                                                           a_blockwise_copy,
                                                           a_grid_buf,
                                                           a_block_buf,
                                                           a_block_slice_copy_step,
                                                           b_grid_desc_k0_n_k1,
-                                                          b_block_desc_k0_k10_n_k1perinst,
+                                                          b_block_desc_k0perblock_nperblock_k1,
                                                           b_blockwise_copy,
                                                           b_grid_buf,
                                                           b_block_buf,
@@ -531,270 +450,79 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma_v1
                                                           blockwise_gemm,
                                                           c_thread_buf,
                                                           K0BlockMainLoop);
-#ifndef DISABLE_C_SHUFFLE  
-        // shuffle C and write out
+        // NO C-shuffle, direct write
         {
-            static_assert(MWmmaPerWave % CShuffleMWmmaPerWavePerShuffle == 0 &&
-                              NWmmaPerWave % CShuffleNWmmaPerWavePerShuffle == 0,
-                          "wrong!");
+            constexpr c_thread_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs =  
+            blockwise_gemm.GetCThreadDescriptor_MRepeat_MWave_MLaneHigh_NRepeat_NWave_NLane_MLaneLow();
+            constexpr c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs =
+            blockwise_gemm.MakeCDesc_MRepeat_Mwave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs();
 
-            constexpr index_t MWave = MPerBlock / (MWmmaPerWave * MPerWmma);
-            constexpr index_t NWave = NPerBlock / (NWmmaPerWave * NPerWmma);
+            constexpr auto MRepeat            = c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs.GetLength(I0);
+            constexpr auto MWave              = c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs.GetLength(I1);
+            constexpr auto MSubGroup          = c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs.GetLength(I2);
+            constexpr auto NRepeat            = c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs.GetLength(I3);
+            constexpr auto Nwave              = c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs.GetLength(I4);
+            constexpr auto NThreadPerSubGroup = c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs.GetLength(I5);
+            constexpr auto MAccVgprs          = c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs.GetLength(I6);
+            
+            // Mapping 
+            const auto c_thread_mtx_on_block = blockwise_gemm.CalculateCThreadOriginDataIndex(I0, I0);
+            const index_t m_thread_data_on_grid = m_block_data_idx_on_grid + c_thread_mtx_on_block[I0];
+            const index_t n_thread_data_on_grid = n_block_data_idx_on_grid + c_thread_mtx_on_block[I1];
 
-            // TODO: hacky, fix it!
-            constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
-                blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+            const auto m_thread_data_on_grid_to_mrepeat_mwave_msubgroup_maccvgprs_adaptor =
+            make_single_stage_tensor_adaptor(
+                make_tuple(make_merge_transform(make_tuple(MRepeat, MWave, MSubGroup, MAccVgprs))),
+                make_tuple(Sequence<0, 1, 2, 3>{}),
+                make_tuple(Sequence<0>{}));
 
-            // TODO: hacky, fix it!
-            // c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp is only used to get lengths
-            constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp =
-                blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+            const auto n_thread_data_on_grid_to_nrepeat_nwave_nthreadpersubgroup =
+            make_single_stage_tensor_adaptor(
+                make_tuple(make_merge_transform(make_tuple(NRepeat, Nwave, NThreadPerSubGroup))),
+                make_tuple(Sequence<0, 1, 2>{}),
+                make_tuple(Sequence<0>{}));
+            
+            const auto m_thread_data_on_grid_idx = m_thread_data_on_grid_to_mrepeat_mwave_msubgroup_maccvgprs_adaptor(
+                make_multi_index(m_thread_data_on_grid));
+            
+            const auto n_thread_data_on_grid_idx = n_thread_data_on_grid_to_nrepeat_nwave_nthreadpersubgroup(
+                make_multi_index(n_thread_data_on_grid));
 
-            constexpr auto M0 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I0);
-            constexpr auto N0 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I1);
-            constexpr auto M1 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I2);
-            constexpr auto N1 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I3);
-            constexpr auto M2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I4);
-            constexpr auto M3 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I5);
-            constexpr auto M4 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I6);
-            constexpr auto N2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I7);
 
-            constexpr auto c_block_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma =
-                GetCBlockDescriptor_MBlock_NWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma();
+            auto c_thread_copy = 
+            ThreadwiseTensorSliceTransfer_v1r3<
+    /* typename SrcData                     */ FloatAcc,
+    /* typename DstData                     */ FloatC,
+    /* typename SrcDesc                     */ decltype(c_thread_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs),
+    /* typename DstDesc                     */ decltype(c_grid_desc_mblock_mrepeat_mwave_msubgroup_n_block_nrepeat_nwave_nthreadpersubgroup_maccvgprs),
+    /* typename ElementwiseOperation        */ CElementwiseOperation,
+    /* typename SliceLengths                */ Sequence<MRepeat, I1, I1, NRepeat, I1, I1, MAccVgprs>,
+    /* typename DimAccessOrder              */ CThreadTransferSrcDstAccessOrder,
+    /* index_t DstVectorDim                 */ CThreadTransferSrcDstVectorDim,
+    /* index_t DstScalarPerVector           */ CThreadTransferDstScalarPerVector,
+    /* InMemoryDataOperationEnum DstInMemOp */ CGlobalMemoryDataOperation,
+    /* index_t DstScalarStrideInVector      */ 1,
+    /* bool DstResetCoordinateAfterRun      */ true>
+            {
+                /* dst_desc                 */ c_grid_desc_mblock_mrepeat_mwave_msubgroup_n_block_nrepeat_nwave_nthreadpersubgroup_maccvgprs,
+                /* dst_slice_origin_idx     */ make_multi_index(m_thread_data_on_grid_idx[I0],
+                                                                m_thread_data_on_grid_idx[I1],
+                                                                m_thread_data_on_grid_idx[I2],
+                                                                n_thread_data_on_grid_idx[I0],
+                                                                n_thread_data_on_grid_idx[I1],
+                                                                n_thread_data_on_grid_idx[I2],
+                                                                m_thread_data_on_grid_idx[I3]),
+                /* element_op               */ c_element_op
+            };
 
-            auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                static_cast<FloatC*>(p_shared),
-                c_block_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma
-                    .GetElementSpaceSize());
-
-            constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 = transform_tensor_descriptor(
-                c_block_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                make_tuple(make_freeze_transform(I0), // freeze mblock
-                           make_pass_through_transform(
-                               Number<CShuffleMWmmaPerWavePerShuffle>{}), // M0 (MWmmaPerWave) per
-                                                                         // shuffle
-                           make_unmerge_transform(
-                               make_tuple(M1, M2, M3, M4)), // M1 = MWave, M2 * M3 * M4 = MPerWmma
-                           make_freeze_transform(I0),       // freeze nblock
-                           make_pass_through_transform(
-                               Number<CShuffleNWmmaPerWavePerShuffle>{}), // N0 (NWmmaPerWave) per
-                                                                         // shuffle
-                           make_unmerge_transform(
-                               make_tuple(N1, N2))), // M1 = MWave, M2 * M3 * M4 = MPerWmma
-                make_tuple(Sequence<0>{},
-                           Sequence<1>{},
-                           Sequence<2>{},
-                           Sequence<3>{},
-                           Sequence<4>{},
-                           Sequence<5>{}),
-                make_tuple(Sequence<>{},
-                           Sequence<0>{},
-                           Sequence<2, 4, 5, 6>{},
-                           Sequence<>{},
-                           Sequence<1>{},
-                           Sequence<3, 7>{})
-
-            );
-
-            // calculate origin of thread output tensor on global memory
-            //     blockwise GEMM c matrix starting index
-            const auto c_thread_mtx_on_block =
-                blockwise_gemm.CalculateCThreadOriginDataIndex(I0, I0, I0, I0);
-
-            const index_t m_thread_data_on_block = c_thread_mtx_on_block[I0];
-            const index_t n_thread_data_on_block = c_thread_mtx_on_block[I1];
-
-            const auto m_thread_data_on_block_to_m0_m1_m2_m3_m4_adaptor =
-                make_single_stage_tensor_adaptor(
-                    make_tuple(make_merge_transform(make_tuple(M0, M1, M2, M3, M4))),
-                    make_tuple(Sequence<0, 1, 2, 3, 4>{}),
-                    make_tuple(Sequence<0>{}));
-
-            const auto m_thread_data_on_block_idx =
-                m_thread_data_on_block_to_m0_m1_m2_m3_m4_adaptor.CalculateBottomIndex(
-                    make_multi_index(m_thread_data_on_block));
-
-            const auto n_thread_data_on_block_to_n0_n1_n2_adaptor =
-                make_single_stage_tensor_adaptor(
-                    make_tuple(make_merge_transform(make_tuple(N0, N1, N2))),
-                    make_tuple(Sequence<0, 1, 2>{}),
-                    make_tuple(Sequence<0>{}));
-
-            const auto n_thread_data_on_block_idx =
-                n_thread_data_on_block_to_n0_n1_n2_adaptor.CalculateBottomIndex(
-                    make_multi_index(n_thread_data_on_block));
-
-            // VGPR to LDS
-            auto c_thread_copy_vgpr_to_lds =
-                ThreadwiseTensorSliceTransfer_v1r3<FloatAcc,
-                                                   FloatC,
-                                                   decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   ck::tensor_operation::element_wise::PassThrough,
-                                                   Sequence<CShuffleMWmmaPerWavePerShuffle,
-                                                            CShuffleNWmmaPerWavePerShuffle,
-                                                            I1,
-                                                            I1,
-                                                            M2,
-                                                            I1,
-                                                            M4,
-                                                            I1>,
-                                                   Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                                   7,
-                                                   1,
-                                                   InMemoryDataOperationEnum::Set,
-                                                   1,
-                                                   true>{
-                    c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                    make_multi_index(0,
-                                     0,
-                                     m_thread_data_on_block_idx[I1],
-                                     n_thread_data_on_block_idx[I1],
-                                     m_thread_data_on_block_idx[I2],
-                                     m_thread_data_on_block_idx[I3],
-                                     m_thread_data_on_block_idx[I4],
-                                     n_thread_data_on_block_idx[I2]),
-                    ck::tensor_operation::element_wise::PassThrough{}};
-
-            auto c_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r3<
-                ThisThreadBlock,            // ThreadGroup
-                CElementwiseOperation,      // ElementwiseOperation,
-                CGlobalMemoryDataOperation, // DstInMemOp,
-                Sequence<1,
-                         CShuffleMWmmaPerWavePerShuffle,
-                         MWave * MPerWmma,
-                         1,
-                         CShuffleNWmmaPerWavePerShuffle,
-                         NWave * NPerWmma>, // BlockSliceLengths,
-                CBlockTransferClusterLengths_MBlock_MWmmaPerWave_MWaveMPerWmma_NBlock_NWmmaPerWave_NWaveNPerWmma,
-                Sequence<0, 1, 2, 3, 4, 5>, // typename ThreadClusterArrangeOrder,
-                FloatC,                     // typename Src0Data,
-                FloatC,                     // typename Src1Data,
-                FloatC,                     // typename Src2Data,
-                FloatC,                     // typename DstData,
-                decltype(
-                    c_block_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma),
-                decltype(
-                    c0_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma),
-                decltype(
-                    c1_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma),
-                decltype(
-                    c_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma),
-                Sequence<0, 1, 2, 3, 4, 5>,                 // typename DimAccessOrder,
-                5,                                          // index_t VectorDim,
-                CBlockTransferScalarPerVector_NWaveNPerWmma, // index_t ScalarPerVector,
-                true,  // bool ThreadTransferSrc0ResetCoordinateAfterRun,
-                false, // bool ThreadTransferSrc1ResetCoordinateAfterRun,
-                false, // bool ThreadTransferSrc2ResetCoordinateAfterRun,
-                false> // bool ThreadTransferDstResetCoordinateAfterRun>
-                {c_block_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                 make_multi_index(0, 0, 0, 0, 0, 0),
-                 c0_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                 make_multi_index(block_work_idx[I0], 0, 0, block_work_idx[I1], 0, 0),
-                 c1_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                 make_multi_index(block_work_idx[I0], 0, 0, block_work_idx[I1], 0, 0),
-                 c_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                 make_multi_index(block_work_idx[I0], 0, 0, block_work_idx[I1], 0, 0),
-                 c_element_op};
-
-            constexpr auto mwmmaperwave_forward_step =
-                make_multi_index(0, CShuffleMWmmaPerWavePerShuffle, 0, 0, 0, 0);
-            constexpr auto nwmmaperwave_forward_step =
-                make_multi_index(0, 0, 0, 0, CShuffleNWmmaPerWavePerShuffle, 0);
-            constexpr auto nwmmaperwave_backward_step =
-                make_multi_index(0, 0, 0, 0, -CShuffleNWmmaPerWavePerShuffle, 0);
-
-            static_for<0, MWmmaPerWave, CShuffleMWmmaPerWavePerShuffle>{}([&](auto mwmmaperwave_iter) {
-                constexpr auto mwmmaperwave = mwmmaperwave_iter;
-
-                static_for<0,
-                           NWmmaPerWave,
-                           CShuffleNWmmaPerWavePerShuffle>{}([&](auto nwmmaperwave_iter) {
-                    constexpr bool nwmmaperwave_forward_sweep =
-                        (mwmmaperwave % (2 * CShuffleMWmmaPerWavePerShuffle) == 0);
-
-                    constexpr index_t nwmmaperwave_value =
-                        nwmmaperwave_forward_sweep
-                            ? nwmmaperwave_iter
-                            : (NWmmaPerWave - nwmmaperwave_iter - CShuffleNWmmaPerWavePerShuffle);
-
-                    constexpr auto nwmmaperwave = Number<nwmmaperwave_value>{};
-
-                    // make sure it's safe to do ds_write
-                    block_sync_lds();
-
-                    // VGPR to LDS
-                    c_thread_copy_vgpr_to_lds.Run(
-                        c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                        make_tuple(mwmmaperwave, nwmmaperwave, I0, I0, I0, I0, I0, I0),
-                        c_thread_buf,
-                        c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                        c_block_buf);
-
-                    // make sure it's safe to do ds_read
-                    block_sync_lds();
-
-                    // LDS to global
-                    c_block_copy_lds_to_global.Run(
-                        c_block_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                        c_block_buf,
-                        c0_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                        c0_grid_buf,
-                        c1_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                        c1_grid_buf,
-                        c_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                        c_grid_buf);
-
-                    // move on nwmmaperwave dimension
-                    if constexpr(nwmmaperwave_forward_sweep &&
-                                 (nwmmaperwave < NWmmaPerWave - CShuffleNWmmaPerWavePerShuffle))
-                    {
-                        c_block_copy_lds_to_global.MoveSrc1SliceWindow(
-                            c0_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                            nwmmaperwave_forward_step);
-
-                        c_block_copy_lds_to_global.MoveSrc2SliceWindow(
-                            c1_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                            nwmmaperwave_forward_step);
-
-                        c_block_copy_lds_to_global.MoveDstSliceWindow(
-                            c_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                            nwmmaperwave_forward_step);
-                    }
-                    else if constexpr((!nwmmaperwave_forward_sweep) && (nwmmaperwave > 0))
-                    {
-                        c_block_copy_lds_to_global.MoveSrc1SliceWindow(
-                            c0_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                            nwmmaperwave_backward_step);
-
-                        c_block_copy_lds_to_global.MoveSrc2SliceWindow(
-                            c1_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                            nwmmaperwave_backward_step);
-
-                        c_block_copy_lds_to_global.MoveDstSliceWindow(
-                            c_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                            nwmmaperwave_backward_step);
-                    }
-                });
-
-                // move on mwmmaperwave dimension
-                if constexpr(mwmmaperwave < MWmmaPerWave - CShuffleMWmmaPerWavePerShuffle)
-                {
-                    c_block_copy_lds_to_global.MoveSrc1SliceWindow(
-                        c0_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                        mwmmaperwave_forward_step);
-
-                    c_block_copy_lds_to_global.MoveSrc2SliceWindow(
-                        c1_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                        mwmmaperwave_forward_step);
-
-                    c_block_copy_lds_to_global.MoveDstSliceWindow(
-                        c_grid_desc_mblock_mwmmaperwave_mwavemperwmma_nblock_nwmmaperwave_nwavenperwmma,
-                        mwmmaperwave_forward_step);
-                }
-            });
+            c_thread_copy.Run(  
+    /* c_thread_desc       */ c_thread_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs,
+    /* c_start point       */ make_tuple(I0, I0, I0, I0, I0, I0, I0),
+    /* c_buffer            */ c_thread_buf,
+    /* c_grid_desc         */ c_grid_desc_mblock_mrepeat_mwave_msubgroup_n_block_nrepeat_nwave_nthreadpersubgroup_maccvgprs,
+    /* c_grid_buf          */ c_grid_buf);
         }
-#endif
+    // clang-format on
     }
 };
 

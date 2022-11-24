@@ -11,34 +11,106 @@ namespace ck {
 
 enum struct WmmaInstr
 {
-    wmma_f32_16x16x16_f16_w32 = 0,
-    wmma_f32_16x16x16_bf16_w32 = 0,
-    wmma_f16_16x16x16_f16_w32 = 0,
-    wmma_bf16_16x16x16_bf16_w32 = 0,
-    wmma_i32_16x16x16_iu8_w32 = 0,
-    wmma_i32_16x16x16_iu4_w32 = 0
+    wmma_f32_16x16x16_f16 = 0,
+    wmma_f32_16x16x16_bf16 = 0,
+    wmma_f16_16x16x16_f16 = 0,
+    wmma_bf16_16x16x16_bf16 = 0,
+    wmma_i32_16x16x16_iu8 = 0,
+    wmma_i32_16x16x16_iu4 = 0
 };
 
-template <WmmaInstr instr>
+/*
+ *  WMMA Wave Tile Always MxNxK = 16x16x16
+ *  WAVE32
+	-----------------------------------
+	|RC0| | | | | | | | | | | | | | | |	   SubGroup 0 
+	|RC1| | | | | | | | | | | | | | | |
+	|RC2| | | | | | | | | | | | | | | |
+	|RC3|T|T|T|T|T|T|T|T|T|T|T|T|T|T|T|
+	|RC4|0|0|0|0|0|0|0|0|0|1|1|1|1|1|1|
+	|RC5|1|2|3|4|5|6|7|8|9|0|1|2|3|4|5|
+	|RC6| | | | | | | | | | | | | | | |
+	|RC7| | | | | | | | | | | | | | | |
+	-----------------------------------
+	|   | | | | | | | | | | | | | | | |	   SubGroup 1
+	|   | | | | | | | | | | | | | | | |
+	| T |T|T|T|T|T|T|T|T|T|T|T|T|T|T|T|
+	| 1 |1|1|1|2|2|2|2|2|2|2|2|2|2|3|3|
+	| 6 |7|8|9|0|1|2|3|4|5|6|7|8|9|0|1|
+	|   | | | | | | | | | | | | | | | |
+	|   | | | | | | | | | | | | | | | |
+	|   | | | | | | | | | | | | | | | |
+	-----------------------------------
+
+
+ *  WAVE64
+	-----------------------------------
+	|RC0|T|T|T|T|T|T|T|T|T|T|T|T|T|T|T|	   SubGroup 0 
+	|RC1|0|0|0|0|0|0|0|0|0|1|1|1|1|1|1|
+	|RC2|1|2|3|4|5|6|7|8|9|0|1|2|3|4|5|
+	|RC3|T|T|T|T|T|T|T|T|T|T|T|T|T|T|T|
+	-----------------------------------
+	| T |T|T|T|T|T|T|T|T|T|T|T|T|T|T|T|    SubGroup 1
+	| 1 |1|1|1|2|2|2|2|2|2|2|2|2|2|3|3|
+	| 6 |7|8|9|0|1|2|3|4|5|6|7|8|9|0|1|
+	|   | | | | | | | | | | | | | | | |
+	-----------------------------------
+	| T |T|T|T|T|T|T|T|T|T|T|T|T|T|T|T|	   SubGroup 2
+	| 3 |3|3|3|3|3|3|3|4|4|4|4|4|4|4|4|
+	| 2 |3|4|5|6|7|8|9|0|1|2|3|4|5|6|7|
+	|   | | | | | | | | | | | | | | | |
+	-----------------------------------
+	| T |T|T|T|T|T|T|T|T|T|T|T|T|T|T|T|    SubGroup 3
+	| 4 |4|5|5|5|5|5|5|5|5|5|5|6|6|6|6|
+	| 8 |9|0|1|2|3|4|5|6|7|8|9|0|1|2|3|
+	|   | | | | | | | | | | | | | | | |
+	-----------------------------------
+
+*   RC = Register for storing accumalted result
+*	T  = Thread ID
+*/
+
+template <WmmaInstr Instr, 
+          index_t WaveSize,
+          typename enable_if<WaveSize == 32 || WaveSize == 64, bool>:: = false>
 struct wmma_type;
 
-template <>
-struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f16_w32>
+// A-swizzled
+template <index_t WaveSize>
+struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f16, WaveSize>
 {
-    static constexpr index_t m_per_wmma            = 16;
-    static constexpr index_t n_per_wmma            = 16;
-    static constexpr index_t k_per_wmma            = 16;
-    static constexpr index_t wave_size             = 32;
-    static constexpr index_t lane_size             = 16;
-    static constexpr index_t src_data_size         = 2;
-    static constexpr index_t acc_data_size         = 4;
-    static constexpr index_t num_srcregs_per_wmma  = 8;
-    static constexpr index_t num_accregs_per_wmma  = 8;
+// Absolute fixing property
+    // * Data Pixel 
+    static constexpr index_t m_per_wmma               = 16;
+    static constexpr index_t n_per_wmma               = 16;
+    static constexpr index_t k_per_wmma               = 16;
+    static constexpr index_t src_a_data_size          = 2;
+    static constexpr index_t src_b_data_size          = 2;
+    static constexpr index_t acc_data_size            = 4;
+    // * Thread mapping inside wave, num_thread_per_subgroups always alone N direction
+    static constexpr index_t num_thread_per_subgroups = n_per_wmma;
+    
+// Wave mode dependent propety
+    static constexpr index_t wave_size                = Number<WaveSize>{};
+    // * Fixed in Navi3x, Will be wave mode dependent on Navi4x
+    static constexpr index_t num_src_a_vgprs_per_wave = m_per_wmma * src_a_data_size / 4;
+    static constexpr index_t num_src_b_vgprs_per_wave = n_per_wmma * src_b_data_size / 4;
+    // * num_acc_vgprs_per_wave alone M direction
+    // * num_subgroups alone M direction
+    static constexpr index_t num_acc_vgprs_per_wave   = m_per_wmma * n_per_wmma * acc_data_size / wave_size / 4;
+    static constexpr index_t num_subgroups            = wave_size / num_thread_per_subgroups;
 
     template <index_t MPerWmma, index_t NPerWmma, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_wmma_f32_16x16x16_f16_w32<MPerWmma, NPerWmma>::Run(a, b, reg_c);
+        if constexpr(wave_size == 32)
+        {
+            intrin_wmma_f32_16x16x16_f16_w32<MPerWmma, NPerWmma>::Run(a, b, reg_c);
+        }
+        else if constexpr(wave_size == 64)
+        {
+            intrin_wmma_f32_16x16x16_f16_w64<MPerWmma, NPerWmma>::Run(a, b, reg_c);
+        }
     }
 };
 
@@ -51,54 +123,54 @@ struct WmmaSelector
     template <>
     static constexpr auto GetWmma<half_t, float, 16, 16>()
     {
-        return WmmaInstr::wmma_f32_16x16x16_f16_w32;
+        return WmmaInstr::wmma_f32_16x16x16_f16;
     }
 
     template <>
     static constexpr auto GetWmma<bhalf_t, float, 16, 16>()
     {
-        return WmmaInstr::wmma_f32_16x16x16_bf16_w32;
+        return WmmaInstr::wmma_f32_16x16x16_bf16;
     }
 
     template <>
     static constexpr auto GetWmma<half_t, half_t, 16, 16>()
     {
-        return WmmaInstr::wmma_f16_16x16x16_f16_w32;
+        return WmmaInstr::wmma_f16_16x16x16_f16;
     }
 
     template <>
     static constexpr auto GetWmma<bhalf_t, bhalf_t, 16, 16>()
     {
-        return WmmaInstr::wmma_bf16_16x16x16_bf16_w32;
+        return WmmaInstr::wmma_bf16_16x16x16_bf16;
     }
 
     template <>
     static constexpr auto GetWmma<int8_t, float, 16, 16>()
     {
-        return WmmaInstr::wmma_i32_16x16x16_iu8_w32;
+        return WmmaInstr::wmma_i32_16x16x16_iu8;
     }
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     template <>
     static constexpr auto GetWmma<int4_t, float, 16, 16>()
     {
-        return WmmaInstr::wmma_i32_16x16x16_iu4_w32;
+        return WmmaInstr::wmma_i32_16x16x16_iu4;
     }
 #endif
 
-    static constexpr auto selected_wmma = wmma_type<GetWmma<src_type, dst_type, MPerWmma, NPerWmma>()>{};
+    static constexpr auto selected_wmma = wmma_type<GetWmma<src_type, dst_type, MPerWmma, NPerWmma>(), get_warp_size()>{};
 
     __host__ __device__ constexpr WmmaSelector()
     {
-        static_assert(selected_wmma.m_per_wmma == selected_wmma.n_per_wmma,
-                      "WRONG! WMMA_M must equal to WMMA_N");
+        static_assert(selected_wmma.m_per_wmma == 16,
+                      "WRONG! WMMA_M must equal to 16");
         
-        static_assert(selected_wmma.m_per_wmma == selected_wmma.k_per_wmma,
-                      "WRONG! WMMA_M must equal to WMMA_K");
+        static_assert(selected_wmma.m_per_wmma == 16,
+                      "WRONG! WMMA_M must equal to 16");
         
         static_assert(selected_wmma.k_per_wmma == 16,
-                      "WRONG! WMMA_M must equal to WMMA_N");
+                      "WRONG! WMMA_M must equal to 16");
 
-        static_assert(selected_wmma.wave_size * selected_wmma.num_accregs_per_wmma * selected_wmma.acc_data_size==
+        static_assert(selected_wmma.wave_size * selected_wmma.num_acc_vgprs_per_wave * selected_wmma.acc_data_size==
                       selected_wmma.m_per_wmma * selected_wmma.n_per_wmma * 4,
                       "WRONG! Number of Accumulator Register");
 
@@ -135,26 +207,26 @@ struct WmmaGemm
     }
 
     // XDL output supporting C = A * B
-    // M2_N2 -> M2_M3_M4_N2
-    template <typename CDesc_M0_N0_M1_N1_M2_N2>
+    // MPerWMMA_NPerWMMA -> MSubGroup_..._NPerWMMA_MAccVgprPerWave
+    template <typename CDesc_MRepeat_Mwave_MPerWMMA_NRepeat_NWave_NPerWMMA>
     __host__ __device__ static constexpr auto
-    MakeCDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(const CDesc_M0_N0_M1_N1_M2_N2& c_desc_m0_n0_m1_n1_m2_n2)
+    MakeCDesc_MRepeat_Mwave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs
+    (const CDesc_MRepeat_Mwave_MPerWMMA_NRepeat_NWave_NPerWMMA& c_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma)
     {
-        const auto M0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I0);
-        const auto N0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I1);
-        const auto M1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I2);
-        const auto N1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I3);
+        const auto MRepeat = c_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma.GetLength(I0);
+        const auto NRepeat = c_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma.GetLength(I3);
+        const auto MWave   = c_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma.GetLength(I1);
+        const auto NWave   = c_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma.GetLength(I4);
 
         return transform_tensor_descriptor(
-            c_desc_m0_n0_m1_n1_m2_n2,
-            make_tuple(make_pass_through_transform(M0),
-                       make_pass_through_transform(N0),
-                       make_pass_through_transform(M1),
-                       make_pass_through_transform(N1),
-                       make_unmerge_transform(make_tuple(Number<wmma_instr.num_groups_per_blk>{},
-                                                         Number<wmma_instr.num_input_blks>{},
-                                                         Number<wmma_instr.group_size>{})),
-                       make_pass_through_transform(Number<wmma_instr.num_threads_per_blk>{})),
+            c_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma,
+            make_tuple(make_pass_through_transform(MRepeat),
+                       make_pass_through_transform(Mwave),
+                       make_unmerge_transform(make_tuple(Number<wmma_instr.num_subgroups>{},
+                                                         Number<wmma_instr.num_acc_vgprs_per_wave>{})),
+                       make_pass_through_transform(NRepeat),
+                       make_pass_through_transform(NWave),
+                       make_pass_through_transform(Number<wmma_instr.num_thread_per_subgroups>{})),
             make_tuple(Sequence<0>{},
                        Sequence<1>{},
                        Sequence<2>{},
@@ -163,90 +235,21 @@ struct WmmaGemm
                        Sequence<5>{}),
             make_tuple(Sequence<0>{},
                        Sequence<1>{},
-                       Sequence<2>{},
+                       Sequence<2, 6>{},
                        Sequence<3>{},
-                       Sequence<4, 5, 6>{},
-                       Sequence<7>{}));
+                       Sequence<4>{},
+                       Sequence<5>{}));
     }
 
-    // transposed XDL output supporting C' = B' * A'
-    // M2_N2 -> M2_N2_N3_N4
-    template <typename CDesc_M0_N0_M1_N1_M2_N2>
-    __host__ __device__ static constexpr auto
-    MakeCDescriptor_M0_N0_M1_N1_M2_N2_N3_N4(const CDesc_M0_N0_M1_N1_M2_N2& c_desc_m0_n0_m1_n1_m2_n2)
+    __device__ static constexpr index_t GetRegSizePerWmma()
     {
-        const auto M0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I0);
-        const auto N0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I1);
-        const auto M1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I2);
-        const auto N1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I3);
-
-        return transform_tensor_descriptor(
-            c_desc_m0_n0_m1_n1_m2_n2,
-            make_tuple(make_pass_through_transform(M0),
-                       make_pass_through_transform(N0),
-                       make_pass_through_transform(M1),
-                       make_pass_through_transform(N1),
-                       make_pass_through_transform(Number<wmma_instr.num_threads_per_blk>{}),
-                       make_unmerge_transform(make_tuple(Number<wmma_instr.num_groups_per_blk>{},
-                                                         Number<wmma_instr.num_input_blks>{},
-                                                         Number<wmma_instr.group_size>{}))),
-            make_tuple(Sequence<0>{},
-                       Sequence<1>{},
-                       Sequence<2>{},
-                       Sequence<3>{},
-                       Sequence<4>{},
-                       Sequence<5>{}),
-            make_tuple(Sequence<0>{},
-                       Sequence<1>{},
-                       Sequence<2>{},
-                       Sequence<3>{},
-                       Sequence<4>{},
-                       Sequence<5, 6, 7>{}));
+        return wmma_instr.num_acc_vgprs_per_wave;
     }
 
-    template <typename CDesc_G_M0_N0_M1_N1_M2_N2>
-    __host__ __device__ static constexpr auto MakeCDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2(
-        const CDesc_G_M0_N0_M1_N1_M2_N2& c_desc_g_m0_n0_m1_n1_m2_n2)
-    {
-        const auto G  = c_desc_g_m0_n0_m1_n1_m2_n2.GetLength(I0);
-        const auto M0 = c_desc_g_m0_n0_m1_n1_m2_n2.GetLength(I1);
-        const auto N0 = c_desc_g_m0_n0_m1_n1_m2_n2.GetLength(I2);
-        const auto M1 = c_desc_g_m0_n0_m1_n1_m2_n2.GetLength(I3);
-        const auto N1 = c_desc_g_m0_n0_m1_n1_m2_n2.GetLength(I4);
-
-        return transform_tensor_descriptor(
-            c_desc_g_m0_n0_m1_n1_m2_n2,
-            make_tuple(make_pass_through_transform(G),
-                       make_pass_through_transform(M0),
-                       make_pass_through_transform(N0),
-                       make_pass_through_transform(M1),
-                       make_pass_through_transform(N1),
-                       make_unmerge_transform(make_tuple(wmma_instr.num_groups_per_blk,
-                                                         wmma_instr.num_input_blks,
-                                                         wmma_instr.group_size)),
-                       make_pass_through_transform(wmma_instr.num_threads_per_blk)),
-            make_tuple(Sequence<0>{},
-                       Sequence<1>{},
-                       Sequence<2>{},
-                       Sequence<3>{},
-                       Sequence<4>{},
-                       Sequence<5>{},
-                       Sequence<6>{}),
-            make_tuple(Sequence<0>{},
-                       Sequence<1>{},
-                       Sequence<2>{},
-                       Sequence<3>{},
-                       Sequence<4>{},
-                       Sequence<5, 6, 7>{},
-                       Sequence<8>{}));
+    __device__ static constexpr index_t GetWaveSize() 
+    { 
+        return wmma_instr.wave_size; 
     }
-
-    __device__ static constexpr index_t GetRegSizePerXdlops()
-    {
-        return MPerWmma * NPerWmma / wmma_instr.wave_size;
-    }
-
-    __device__ static constexpr index_t GetWaveSize() { return wmma_instr.wave_size; }
 
     template <class FloatA, class FloatB, class FloatC>
     __device__ void Run(const FloatA& p_a_wave, const FloatB& p_b_wave, FloatC& p_c_thread) const
@@ -272,67 +275,50 @@ struct WmmaGemm
         }
     }
 
-    __device__ static auto GetLaneId() { return get_thread_local_1d_id() % wmma_instr.wave_size; }
-
-    __device__ static auto GetLaneIdHigh()
-    {
-        return GetLaneId() / 16;
+    __device__ static auto GetLaneId() 
+    { 
+        return get_thread_local_1d_id() % wmma_instr.wave_size; 
     }
 
-    __device__ static auto GetLaneIdLow()
+    __device__ static auto GetSubGroupId()
     {
-        return GetLaneId() % 16;
+        return (GetLaneId() / wmma_instr.num_thread_per_subgroups) % wmma_instr.num_subgroups;
+    }
+
+    __device__ static auto GetLaneIdUnderSubGroup()
+    {
+        return GetLaneId() % wmma_instr.num_thread_per_subgroups;
     }
     __device__ static auto GetSwizzledLaneIdLow() 
     {   
-        return ((GetLaneIdLow() & 1) << 3 ) | (GetLaneIdLow() >> 1);
+        return ((GetLaneIdUnderSubGroup() & 1) << 3 ) | (GetLaneIdUnderSubGroup() >> 1);
     }
 
     __host__ __device__ static auto CalculateAThreadOriginDataIndex()
     {
-        return make_tuple(0, GetSwizzledLaneIdLow());
+        return GetSwizzledLaneIdLow();
     }
 
     __host__ __device__ static auto CalculateBThreadOriginDataIndex()
     {
-        return make_tuple(0, GetLaneIdLow());
+        return GetLaneIdUnderSubGroup();
     }
 
-    __device__ static CIndex GetBeginOfThreadBlk(index_t xdlops_i, index_t blk_i)
+    __device__ static CIndex GetBeginOfThreadBlk()
     {
-        const auto blk_idx = GetBlkIdx();
-
-        const auto blk_id = blk_idx[I0];
-        const auto blk_td = blk_idx[I1];
-
-        index_t n_offset = blk_i * wmma_instr.n_per_blk + blk_td;
-        index_t m_offset = xdlops_i * wmma_instr.m_per_blk + blk_id * wmma_instr.group_size;
+        index_t n_offset = GetLaneIdUnderSubGroup();
+        index_t m_offset = GetSubGroupId() * wmma_instr.num_acc_vgprs_per_wave;
 
         return TransposeC ? CIndex{n_offset, m_offset} : CIndex{m_offset, n_offset};
     }
 
-    __device__ static CIndex4D GetBeginOfThreadBlk4D(index_t /* xdlops_i */, index_t /* blk_i */)
-    {
-        const auto blk_idx = GetBlkIdx();
-
-        const auto blk_id = blk_idx[I0];
-        const auto blk_td = blk_idx[I1];
-
-        return TransposeC ? CIndex4D{blk_td, I0, blk_id, I0} : CIndex4D{I0, blk_id, I0, blk_td};
-    }
-
     static constexpr auto wmma = WmmaSelector<src_type, dst_type, MPerWmma, NPerWmma>{};
-
     static constexpr auto wmma_instr = wmma.selected_wmma;
 
-    static constexpr auto KPerXdlops  = wmma.GetKPerXdlops();
-    static constexpr auto K1PerXdlops = wmma.GetK1PerXdlops();
-    static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops;
-
-    __host__ __device__ static constexpr auto GetCM0M1M2NThreadBlkLengths()
+    __host__ __device__ static constexpr auto GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths()
     {
         return make_tuple(
-            Number<wmma_instr.num_groups_per_blk>{}, I1, Number<wmma_instr.group_size>{}, I1);
+            Number<I1, I1, Number<wmma_instr.num_acc_vgprs_per_wave>{});
     }
 };
 

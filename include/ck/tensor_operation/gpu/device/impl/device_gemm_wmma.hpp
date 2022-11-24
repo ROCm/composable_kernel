@@ -72,9 +72,8 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
-
+    // K1 = Max Vector Access Pixels
     static constexpr auto K1Number = Number<K1>{};
-    static constexpr auto M1Number = Number<M1>{};
 
     static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
     {
@@ -87,10 +86,12 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
             {
                 return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(StrideA, I1));
             }
+#ifdef ENABLE_COLMAJOR
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(I1, StrideA));
             }
+#endif
         }();
 
         if constexpr(GemmSpec == GemmSpecialization::MNPadding)
@@ -154,12 +155,8 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
         }
     }
 
-    static auto MakeCGridDescriptor_M0_N_M1(index_t M, index_t N, index_t StrideC)
+    static auto MakeCGridDescriptor_M_N(index_t M, index_t N, index_t StrideC)
     {
-        assert(M % M1 == 0);
-
-        const index_t M0 = M / M1;
-
         const auto c_grid_desc_m_n = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
             {
@@ -173,8 +170,6 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
 
         if constexpr(GemmSpec == GemmSpecialization::MNPadding)
         {
-            static_assert(false, "Padding Gemm Not implemented");
-            /* Not implemented yet.
             const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
             const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
 
@@ -183,26 +178,25 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                 make_tuple(make_right_pad_transform(M, PadM), make_right_pad_transform(N, PadN)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
-            */
         }
         else
         {
 
             return transform_tensor_descriptor(
                 c_grid_desc_m_n,
-                make_tuple(make_unmerge_transform(make_tuple(M0, M1Number)), 
-                           make_pass_through_transform(N)),
+                make_tuple(make_pass_through_transform(M), make_pass_through_transform(N)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
     }
 
+    // Gridwise descriptor, mapping to whole given provblem.
     using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
     using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
-    using CGridDesc_M0_N_M1 = decltype(MakeCGridDescriptor_M0_N_M1(1, 1, 1));
+    using CGridDesc_M_N = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_m0nm1_wmma_v1r1<
+    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_wmma_v1<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -210,7 +204,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
         InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
-        CGridDesc_M0_N_M1,
+        CGridDesc_M_N,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
@@ -238,15 +232,16 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
+#if 0
         Sequence<0, 2, 4, 5, 6, 1, 3, 7>, // CThreadTransferSrcDstAccessOrder,
         CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector,
+#endif
         NumPrefetch,
-        LoopSched,
         PipelineVer>;
 
     // Argument
-    struct Argument : public BaseArgument
+    struct Argument : public BaseArgumentW
     {
         Argument(const ADataType* p_a_grid,
                  const BDataType* p_b_grid,
@@ -267,8 +262,8 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
               p_c_grid_{p_c_grid},
               a_grid_desc_k0_m_k1_{},
               b_grid_desc_k0_n_k1_{},
-              c_grid_desc_m0_n_m1_{},
-              c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
+              c_grid_desc_m_n_{},
+              c_grid_desc_mblock_mwmmaperwave_mwave_mlanehigh_nblock_nwmmaperwave_nwave_nlane_mlanelow_{},
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
@@ -278,18 +273,18 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
         {
             a_grid_desc_k0_m_k1_ = DeviceGemmWmma::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
             b_grid_desc_k0_n_k1_ = DeviceGemmWmma::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
-            c_grid_desc_m0_n_m1_ = DeviceGemmWmma::MakeCGridDescriptor_M0_N_M1(M, N, StrideC);
+            c_grid_desc_m_n_ = DeviceGemmWmma::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             block_2_ctile_map_ =
-                GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m0_n_m1_, M01, N01);
+                GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
 
             if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
                                            b_grid_desc_k0_n_k1_,
-                                           c_grid_desc_m0_n_m1_,
+                                           c_grid_desc_m_n_,
                                            block_2_ctile_map_))
             {
-                c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
-                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m0_n_m1_);
+                c_grid_desc_mblock_mwmmaperwave_mwave_mlanehigh_nblock_nwmmaperwave_nwave_nlane_mlanelow_ =
+                    GridwiseGemm::MakeCGridDescriptor_MBlock_MWmmaPerWave_Mwave_MLaneHigh_NBlock_NWmmaPerWave_Nwave_NLane_MLaneLow(c_grid_desc_m_n_);
             }
         }
 
@@ -299,9 +294,9 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
         CDataType* p_c_grid_;
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
-        CGridDesc_M0_N_M1 c_grid_desc_m0_n_m1_;
-        typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2
-            c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
+        CGridDesc_M_N c_grid_desc_m_n_;
+        typename GridwiseGemm::CGridDescriptor_MBlock_MWmmaPerWave_Mwave_MLaneHigh_NBlock_NWmmaPerWave_Nwave_NLane_MLaneLow
+            c_grid_desc_mblock_mwmmaperwave_mwave_mlanehigh_nblock_nwmmaperwave_nwave_nlane_mlanelow_;
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
@@ -327,15 +322,15 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                           << ", " << arg.b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
                           << arg.b_grid_desc_k0_n_k1_.GetLength(I2) << "}" << std::endl;
 
-                std::cout << "arg.c_grid_desc_m0_n_m1_{ " << arg.c_grid_desc_m0_n_m1_.GetLength(I0) 
-                          << ", " << arg.c_grid_desc_m0_n_m1_.GetLength(I1) << ", "
-                          << arg.c_grid_desc_m0_n_m1_.GetLength(I2) << "}" << std::endl;
+                std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) 
+                          << ", " << arg.c_grid_desc_m_n_.GetLength(I1) << ", "
+                          << arg.c_grid_desc_m_n_.GetLength(I2) << "}" << std::endl;
             }
 #endif
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                             arg.b_grid_desc_k0_n_k1_,
-                                            arg.c_grid_desc_m0_n_m1_,
+                                            arg.c_grid_desc_m_n_,
                                             arg.block_2_ctile_map_))
             {
                 throw std::runtime_error(
@@ -343,7 +338,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
             }
 
             const index_t grid_size =
-                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m0_n_m1_);
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
 
             const auto K =
                 arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
@@ -358,7 +353,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                     CDataType,
                     remove_reference_t<DeviceGemmWmma::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmWmma::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<typename GridwiseGemm::CGridDescriptor_MBlock_MWmmaPerWave_Mwave_MLaneHigh_NBlock_NWmmaPerWave_Nwave_NLane_MLaneLow>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -375,7 +370,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.c_grid_desc_mblock_mwmmaperwave_mwave_mlanehigh_nblock_nwmmaperwave_nwave_nlane_mlanelow_,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
@@ -389,7 +384,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                     CDataType,
                     remove_reference_t<DeviceGemmWmma::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmWmma::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<typename GridwiseGemm::CGridDescriptor_MBlock_MWmmaPerWave_Mwave_MLaneHigh_NBlock_NWmmaPerWave_Nwave_NLane_MLaneLow>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -406,7 +401,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.c_grid_desc_mblock_mwmmaperwave_mwave_mlanehigh_nblock_nwmmaperwave_nwave_nlane_mlanelow_,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
@@ -447,7 +442,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
 
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
-                                           arg.c_grid_desc_m0_n_m1_,
+                                           arg.c_grid_desc_m_n_,
                                            arg.block_2_ctile_map_);
     }
 

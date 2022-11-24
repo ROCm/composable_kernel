@@ -30,12 +30,14 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack>
-struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1n0n1n2m2
+// MRepeat_MWave_MLaneHigh_NRepeat_NWave_NLane_MLanelow
+struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
+    static constexpr auto I3 = Number<4>{};
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -85,8 +87,8 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1n0n1n2m2
         const auto waveId_m = wave_idx[I0];
 
         const auto WMMA_a_idx = wmma_gemm.CalculateAThreadOriginDataIndex();
-
-        return make_tuple(0, waveId_m, WMMA_a_idx[I1], KPerThread * WMMA_a_idx[I0]);
+                    //  |KRepeat   |MRepeat|Mwave      |MLane       |KPack
+        return make_tuple(0,        0,      waveId_m,   WMMA_a_idx,  0);
     }
 
     __device__ static auto CalculateBThreadOriginDataIndex()
@@ -96,20 +98,20 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1n0n1n2m2
         const auto waveId_n = wave_idx[I1];
 
         const auto WMMA_b_idx = wmma_gemm.CalculateBThreadOriginDataIndex();
-
-        return make_tuple(0, waveId_n, WMMA_b_idx[I1], KPerThread * WMMA_b_idx[I0]);
+                    //  |KRepeat   |NRepeat|Nwave      |NLane       |KPack
+        return make_tuple(0,        0,      waveId_n,   WMMA_b_idx,  0);
     }
 
-    template <index_t m0, index_t n0, index_t WMMA_i, index_t blk_i>
+    template <index_t m0, index_t n0>
     __device__ static auto
-        CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<WMMA_i>, Number<blk_i>)
+        CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>)
     {
         const auto wave_idx = GetWaveIdx();
 
         const auto waveId_m = wave_idx[I0];
         const auto waveId_n = wave_idx[I1];
 
-        const auto blk_idx = wmma_gemm.GetBeginOfThreadBlk(WMMA_i, blk_i);
+        const auto blk_idx = wmma_gemm.GetBeginOfThreadBlk();
 
         constexpr auto mrepeat_mwave_mperWMMA_to_m_adaptor = make_single_stage_tensor_adaptor(
             make_tuple(make_unmerge_transform(make_tuple(MRepeat, MWaves, MPerWMMA))),
@@ -129,27 +131,6 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1n0n1n2m2
         return make_tuple(c_thread_m, c_thread_n);
     }
 
-    template <index_t m0, index_t n0, index_t WMMA_i, index_t blk_i>
-    __device__ static auto
-        CalculateCThreadOriginDataIndex8D(Number<m0>, Number<n0>, Number<WMMA_i>, Number<blk_i>)
-    {
-        const auto wave_idx = GetWaveIdx();
-
-        const auto waveId_m = wave_idx[I0];
-        const auto waveId_n = wave_idx[I1];
-
-        const auto blk_idx = wmma_gemm.GetBeginOfThreadBlk4D(WMMA_i, blk_i);
-
-        return make_tuple(Number<m0>{},
-                          Number<n0>{},
-                          waveId_m,
-                          waveId_n,
-                          blk_idx[I0],
-                          blk_idx[I1],
-                          blk_idx[I2],
-                          blk_idx[I3]);
-    }
-
     __host__ __device__ BlockwiseGemmWMMA_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1()
     {
         static_assert(AK0MK1BlockDesc::IsKnownAtCompileTime() &&
@@ -162,59 +143,31 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1n0n1n2m2
         static_assert(MPerBlock % (MPerWMMA * MRepeat) == 0 && NPerBlock % (NPerWMMA * NRepeat) == 0,
                       "wrong!");
     }
-
-    __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2()
+    // Thread level, register decriptor.
+    __host__ __device__ static constexpr auto GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs()
     {
-        constexpr auto c_m0_m1_m2_n_tblk_lens = wmma_gemm.GetCM0M1M2NThreadBlkLengths();
+        constexpr auto c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens = wmma_gemm.GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths();
 
-        constexpr auto M0 = c_m0_m1_m2_n_tblk_lens[I0];
-        constexpr auto M1 = c_m0_m1_m2_n_tblk_lens[I1];
-        constexpr auto M2 = c_m0_m1_m2_n_tblk_lens[I2];
-        constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I3];
+        constexpr auto MSubGroup              = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I0];
+        constexpr auto NThreadPerSubGroup     = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I1];
+        constexpr auto MAccVgprs              = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
 
         return make_naive_tensor_descriptor_packed(
-            make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, M1, M2, N));
+            //        |MRepeat           |MWave |MSubGroup |NRepeat           |NWave  |NThreadPerSubGroup |MAccVgprs
+            make_tuple(Number<MRepeat>{}, I1,    MSubGroup, Number<NRepeat>{}, I1,     NThreadPerSubGroup, MAccVgprs));
     }
 
-    __host__ __device__ static constexpr auto GetCThreadDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2()
+    __host__ __device__ static constexpr auto GetCBlockDescriptor_MRepeat_Mwave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs()
     {
-        constexpr auto c_m0_m1_m2_n_tblk_lens = wmma_gemm.GetCM0M1M2NThreadBlkLengths();
-
-        constexpr auto M0 = c_m0_m1_m2_n_tblk_lens[I0];
-        constexpr auto M1 = c_m0_m1_m2_n_tblk_lens[I1];
-        constexpr auto M2 = c_m0_m1_m2_n_tblk_lens[I2];
-        constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I3];
-
-        return make_naive_tensor_descriptor_packed(
-            make_tuple(I1, Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, M1, M2, N));
-    }
-
-    __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2()
-    {
-        constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =
+        constexpr auto c_block_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma =
             make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{},
-                                                           Number<NRepeat>{},
                                                            Number<MWaves>{},
-                                                           Number<NWaves>{},
                                                            Number<MPerWMMA>{},
+                                                           Number<NRepeat>{},
+                                                           Number<NWaves>{},
                                                            Number<NPerWMMA>{}));
 
-        return wmma_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_block_desc_m0_n0_m1_n1_m2_n2);
-    }
-
-    __host__ __device__ static constexpr auto GetCBlockDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2()
-    {
-        constexpr auto c_block_desc_g_m0_n0_m1_n1_m2_n2 =
-            make_naive_tensor_descriptor_packed(make_tuple(I1,
-                                                           Number<MRepeat>{},
-                                                           Number<NRepeat>{},
-                                                           Number<MWaves>{},
-                                                           Number<NWaves>{},
-                                                           Number<MPerWMMA>{},
-                                                           Number<NPerWMMA>{}));
-
-        return wmma_gemm.MakeCDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2(
-            c_block_desc_g_m0_n0_m1_n1_m2_n2);
+        return wmma_gemm.MakeCDesc_MRepeat_Mwave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs(c_block_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma);
     }
 
     template <typename CGridDesc_M_N>
@@ -234,32 +187,46 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1n0n1n2m2
         return wmma_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m0_n0_m1_n1_m2_n2);
     }
 
-    __host__ __device__ static constexpr auto MakeABlockDescriptor_K0_M0_M1_M2_K1()
+    __host__ __device__ static constexpr auto MakeABlockDescriptor_KRepeat_M0_M1_M2_KPack()
     {
-        return transform_tensor_descriptor(
+        static constexpr auto a_block_desc_temp_km0m1m2 = transform_tensor_descriptor(
             AK0MK1BlockDesc{},
             make_tuple(
-                make_pass_through_transform(make_tuple(Number<A_K0>{}, Number<A_K1>{})),
-                make_unmerge_transform(
-                    make_tuple(Number<MRepeat>{}, Number<MWaves>{}, Number<MPerWMMA>{}))),
+                make_merge_transform(make_tuple(Number<A_K0>{}, Number<A_K1>{})),
+                make_unmerge_transform(make_tuple(Number<MRepeat>{}, Number<MWaves>{}, Number<MPerWMMA>{}))),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1, 2, 3>{}));
+        
+        return transform_tensor_descriptor(
+            a_block_desc_temp_km0m1m2,
+            make_tuple(
+                make_unmerge_transform(make_tuple(Number<A_K0*A_K1/KPack>{}, Number<KPack>{})),
+                make_pass_through_transform(make_tuple(Number<MRepeat>{}, Number<MWaves>{}, Number<MPerWMMA>{}))),
+            make_tuple(Sequence<0>{}, Sequence<1, 2, 3>{}),
             make_tuple(Sequence<0, 4>{}, Sequence<1, 2, 3>{}));
     }
 
-    __host__ __device__ static constexpr auto MakeBBlockDescriptor_K0_N0_N1_N2_K1()
+    __host__ __device__ static constexpr auto MakeBBlockDescriptor_KRepeat_N0_N1_N2_KPack()
     {
-        return transform_tensor_descriptor(
+        static constexpr auto b_block_desc_temp_kn0n1n2 = transform_tensor_descriptor(
             BK0NK1BlockDesc{},
             make_tuple(
-                make_pass_through_transform(make_tuple(Number<B_K0>{}, Number<B_K1>{})),
-                make_unmerge_transform(
-                    make_tuple(Number<NRepeat>{}, Number<NWaves>{}, Number<NPerWMMA>{}))),
+                make_merge_transform(make_tuple(Number<B_K0>{}, Number<B_K1>{})),
+                make_unmerge_transform(make_tuple(Number<NRepeat>{}, Number<NWaves>{}, Number<NPerWMMA>{}))),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1, 2, 3>{}));
+
+        return transform_tensor_descriptor(
+            b_block_desc_temp_kn0n1n2,
+            make_tuple(
+                make_unmerge_transform(make_tuple(Number<B_K0*B_K1/KPack>{}, Number<KPack>{})),
+                make_pass_through_transform(make_tuple(Number<NRepeat>{}, Number<NWaves>{}, Number<NPerWMMA>{}))),
+            make_tuple(Sequence<0>{}, Sequence<1, 2, 3>{}),
             make_tuple(Sequence<0, 4>{}, Sequence<1, 2, 3>{}));
     }
 
-    static constexpr auto a_block_desc_k0_m0_m1_m2_k1 = MakeABlockDescriptor_K0_M0_M1_M2_K1();
-    static constexpr auto b_block_desc_k0_n0_n1_n2_k1 = MakeBBlockDescriptor_K0_N0_N1_N2_K1();
+    static constexpr auto a_block_desc_krepeat_m0_m1_m2_kpack = MakeABlockDescriptor_KRepeat_M0_M1_M2_KPack();
+    static constexpr auto b_block_desc_krepeat_n0_n1_n2_kpack = MakeBBlockDescriptor_KRepeat_N0_N1_N2_KPack();
 
     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
     __device__ void Run(const ABlockBuffer& a_block_buf,
@@ -298,7 +265,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1n0n1n2m2
                             b_thread_vec.template AsType<wmma_input_type>(),
                             c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                 });
-                a_thread_copy_.Run(a_block_desc_k0_m0_m1_m2_k1,
+                a_thread_copy_.Run(a_block_desc_krepeat_m0_m1_m2_kpack,
                                    make_tuple(Number<iWmmaK>{}, iCut, I0, I0, I0),
                                    a_block_buf,
                                    a_thread_desc_,
@@ -328,7 +295,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1n0n1n2m2
                             b_thread_vec.template AsType<wmma_input_type>(),
                             c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                 });
-                a_thread_copy_.Run(a_block_desc_k0_m0_m1_m2_k1,
+                a_thread_copy_.Run(a_block_desc_krepeat_m0_m1_m2_kpack,
                                    make_tuple(Number<iWmmaK>{}, WmmaInnerloop+RepeatDiff, I0, I0, I0),
                                    a_block_buf,
                                    a_thread_desc_,
@@ -355,7 +322,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1n0n1n2m2
                             b_thread_vec.template AsType<wmma_input_type>(),
                             c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                 });
-                b_thread_copy_.Run(b_block_desc_k0_n0_n1_n2_k1,
+                b_thread_copy_.Run(b_block_desc_krepeat_n0_n1_n2_kpack,
                                    make_tuple(Number<iWmmaK>{}, WmmaInnerloop, I0, I0, I0),
                                    b_block_buf,
                                    b_thread_desc_,
@@ -380,7 +347,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1n0n1n2m2
 
     using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatAB,
                                                          FloatAB,
-                                                         decltype(a_block_desc_k0_m0_m1_m2_k1),
+                                                         decltype(a_block_desc_krepeat_m0_m1_m2_kpack),
                                                          decltype(a_thread_desc_),
                                                          Sequence<1, 1, 1, WmmaK>,
                                                          Sequence<0, 1, 2, 3>,
@@ -390,7 +357,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1n0n1n2m2
 
     using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatAB,
                                                          FloatAB,
-                                                         decltype(b_block_desc_k0_n0_n1_n2_k1),
+                                                         decltype(b_block_desc_krepeat_n0_n1_n2_kpack),
                                                          decltype(b_thread_desc_),
                                                          Sequence<1, 1, 1, WmmaK>,
                                                          Sequence<0, 1, 2, 3>,
@@ -413,11 +380,11 @@ template <index_t BlockSize,
           index_t NRepeat,
           index_t KPack,
           LoopScheduler LoopSched>
-constexpr auto BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1n0n1n2m2_Selector()
+constexpr auto BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_Selector()
 {
     if constexpr(LoopSched == LoopScheduler::Default)
     {
-        return BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1n0n1n2m2<BlockSize,
+        return BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3<BlockSize,
                                                              FloatAB,
                                                              FloatAcc,
                                                              AK0MK1BlockDesc,
