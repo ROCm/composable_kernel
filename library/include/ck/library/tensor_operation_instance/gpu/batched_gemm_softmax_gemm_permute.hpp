@@ -59,6 +59,48 @@ void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_g
                                                             MaskingSpecialization::MaskDisabled>>>&
         instances);
 
+void add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_bf16_bf16_bf16_bf16_gmk_gnk_gno_gmo_instances(
+    std::vector<std::unique_ptr<
+        DeviceBatchedGemmSoftmaxGemmPermute<2,
+                                            1,
+                                            1,
+                                            1,
+                                            1,
+                                            BF16,
+                                            BF16,
+                                            BF16,
+                                            BF16,
+                                            ck::Tuple<>,
+                                            ck::Tuple<>,
+                                            PassThrough,
+                                            PassThrough,
+                                            Scale,
+                                            PassThrough,
+                                            PassThrough,
+                                            MaskingSpecialization::MaskOutUpperTriangle>>>&
+        instances);
+
+void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_bf16_bf16_bf16_bf16_gmk_gnk_gno_gmo_instances(
+    std::vector<
+        std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
+                                                            1,
+                                                            1,
+                                                            1,
+                                                            1,
+                                                            BF16,
+                                                            BF16,
+                                                            BF16,
+                                                            BF16,
+                                                            ck::Tuple<>,
+                                                            ck::Tuple<>,
+                                                            PassThrough,
+                                                            PassThrough,
+                                                            Scale,
+                                                            PassThrough,
+                                                            PassThrough,
+                                                            MaskingSpecialization::MaskDisabled>>>&
+        instances);
+
 template <typename ADataType,
           typename B0DataType,
           typename B1DataType,
@@ -116,6 +158,20 @@ struct DeviceOperationInstanceFactory<
             else if(MaskingSpec == MaskingSpecialization::MaskDisabled)
             {
                 add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
+                    op_ptrs);
+            }
+        }
+        else if constexpr(is_same_v<ADataType, BF16> && is_same_v<B0DataType, BF16> &&
+                          is_same_v<B1DataType, BF16> && is_same_v<CDataType, BF16>)
+        {
+            if constexpr(MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle)
+            {
+                add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_bf16_bf16_bf16_bf16_gmk_gnk_gno_gmo_instances(
+                    op_ptrs);
+            }
+            else if(MaskingSpec == MaskingSpecialization::MaskDisabled)
+            {
+                add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_bf16_bf16_bf16_bf16_gmk_gnk_gno_gmo_instances(
                     op_ptrs);
             }
         }
