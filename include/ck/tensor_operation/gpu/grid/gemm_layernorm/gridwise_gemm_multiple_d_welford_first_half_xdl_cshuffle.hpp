@@ -698,7 +698,8 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
                                            M2,
                                            1,
                                            M4,
-                                           1>>{};
+                                           1>,
+                                  false>{};
 
             // space filling curve for shuffled blockwise C in global mem
             constexpr auto sfc_der_global =
@@ -707,7 +708,8 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
                                   Sequence<1,
                                            CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
                                            1,
-                                           CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
+                                           CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>,
+                                  false>{};
 
             // LDS c_reduce_block_desc_mperblock_nperblock
             constexpr auto c_reduce_block_desc_mperblock_nperblock = transform_tensor_descriptor(
