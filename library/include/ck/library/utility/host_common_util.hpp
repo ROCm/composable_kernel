@@ -4,9 +4,11 @@
 #pragma once
 
 #include <vector>
+#include <array>
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <algorithm>
 
 #include "ck/ck.hpp"
 
@@ -71,6 +73,64 @@ static inline std::vector<T> getTypeValuesFromString(const char* cstr_values)
 
     return (values);
 }
+
+template <int NDim>
+static inline std::vector<std::array<index_t, NDim>>
+get_index_set(const std::array<index_t, NDim>& dim_lengths)
+{
+    static_assert(NDim >= 1, "NDim >= 1 is required to use this function!");
+
+    if constexpr(NDim == 1)
+    {
+        std::vector<std::array<index_t, NDim>> index_set;
+
+        for(int i = 0; i < dim_lengths[0]; i++)
+        {
+            std::array<index_t, 1> index{i};
+
+            index_set.push_back(index);
+        };
+
+        return index_set;
+    }
+    else
+    {
+        std::vector<std::array<index_t, NDim>> index_set;
+        std::array<index_t, NDim - 1> partial_dim_lengths;
+
+        std::copy(dim_lengths.begin() + 1, dim_lengths.end(), partial_dim_lengths.begin());
+
+        std::vector<std::array<index_t, NDim - 1>> partial_index_set;
+
+        partial_index_set = get_index_set<NDim - 1>(partial_dim_lengths);
+
+        for(index_t i = 0; i < dim_lengths[0]; i++)
+            for(const auto& partial_index : partial_index_set)
+            {
+                std::array<index_t, NDim> index;
+
+                index[0] = i;
+
+                std::copy(partial_index.begin(), partial_index.end(), index.begin() + 1);
+
+                index_set.push_back(index);
+            };
+
+        return index_set;
+    };
+};
+
+template <int NDim>
+static inline size_t get_offset_from_index(const std::array<index_t, NDim>& strides,
+                                           const std::array<index_t, NDim>& index)
+{
+    size_t offset = 0;
+
+    for(int i = 0; i < NDim; i++)
+        offset += index[i] * strides[i];
+
+    return (offset);
+};
 
 } // namespace host_common
 } // namespace ck
