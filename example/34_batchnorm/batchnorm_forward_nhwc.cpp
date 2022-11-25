@@ -15,7 +15,7 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/host_common_util.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_forward_nhwc_c.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_forward.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batchnorm_forward_impl.hpp"
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
@@ -142,6 +142,8 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
     constexpr int Rank         = 4;
     constexpr int NumReduceDim = 3;
 
+    // when using lengths[] to create a tensor, lengths[0] is the length of highest dimension
+    // eg. N of NHWC, so lengths[3] is the dimension C length of NHWC
     const std::vector<size_t> scaleBiasMeanVarLengths = {inOutLengths[3]};
 
     // input data of the batchnorm forward algorithm
@@ -300,7 +302,7 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
         i_inOutLengths,
         i_inOutStrides,
         i_inOutStrides,
-        {0, 1, 2},
+        {0, 1, 2}, // indicates physical indices of reduce dimensions in lengths[] and strides[]
         i_scaleBiasMeanVarLengths,
         i_scaleBiasMeanVarStrides,
         i_scaleBiasMeanVarStrides,
@@ -366,13 +368,15 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
     {
 
         using ReferenceBatchNormFwdInstance =
-            ck::tensor_operation::host::ReferenceBatchNormFwd_Input_N_H_W_C_Output_C<InOutDataType,
-                                                                                     InOutDataType,
-                                                                                     AccDataType,
-                                                                                     AccDataType,
-                                                                                     AccDataType,
-                                                                                     AccDataType,
-                                                                                     PassThroughOp>;
+            ck::tensor_operation::host::ReferenceBatchNormFwd<InOutDataType,
+                                                              InOutDataType,
+                                                              AccDataType,
+                                                              AccDataType,
+                                                              AccDataType,
+                                                              AccDataType,
+                                                              PassThroughOp,
+                                                              Rank,
+                                                              NumReduceDim>;
 
         auto batchNormFwd_ref = ReferenceBatchNormFwdInstance{};
 
@@ -380,7 +384,7 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
             i_inOutLengths,
             i_inOutStrides,
             i_inOutStrides,
-            {0, 1, 2},
+            {0, 1, 2}, // indicates physical indices of reduce dimensions in lengths[] and strides[]
             i_scaleBiasMeanVarLengths,
             i_scaleBiasMeanVarStrides,
             i_scaleBiasMeanVarStrides,

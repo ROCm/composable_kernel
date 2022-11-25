@@ -22,6 +22,7 @@ set(PROFILER_SOURCES
     profile_groupnorm.cpp
     profile_layernorm.cpp
     profile_softmax.cpp
+    profile_batchnorm_fwd.cpp
 )
 
 set(PROFILER_EXECUTABLE ckProfiler)
@@ -56,5 +57,6 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_conv2d_fwd_bias_relu
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_normalization_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_softmax_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_reduce_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batchnorm_instance)
 
 rocm_install(TARGETS ${PROFILER_EXECUTABLE} COMPONENT profiler)
