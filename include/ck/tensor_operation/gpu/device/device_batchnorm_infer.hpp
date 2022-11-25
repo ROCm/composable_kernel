@@ -13,13 +13,22 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <index_t Rank, index_t NumBatchNormReduceDim>
+template <typename XDataType,
+          typename YDataType,
+          typename AccDataType,
+          typename ScaleDataType,
+          typename BiasDataType,
+          typename MeanVarDataType,
+          typename YElementwiseOp,
+          index_t Rank,
+          index_t NumBatchNormReduceDim>
 struct DeviceBatchNormInfer : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(
         const std::array<index_t, Rank> xyLengths,
         const std::array<index_t, Rank> xStrides,
         const std::array<index_t, Rank> yStrides,
+        const std::array<int, NumBatchNormReduceDim> reduceDims,
         const std::array<index_t, Rank - NumBatchNormReduceDim> bnScaleBiasMeanVarLengths,
         const std::array<index_t, Rank - NumBatchNormReduceDim> bnScaleStrides,
         const std::array<index_t, Rank - NumBatchNormReduceDim> bnBiasStrides,
@@ -28,6 +37,7 @@ struct DeviceBatchNormInfer : public BaseOperator
         const void* bnScale,
         const void* bnBias,
         double epsilon,
+        const YElementwiseOp y_elementwise_op,
         const void* estimatedMean,
         const void* estimatedInvVariance,
         void* p_y) = 0;
@@ -35,8 +45,24 @@ struct DeviceBatchNormInfer : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <index_t Rank, index_t NumBatchNormReduceDim>
-using DeviceBatchNormInferPtr = std::unique_ptr<DeviceBatchNormInfer<Rank, NumBatchNormReduceDim>>;
+template <typename XDataType,
+          typename YDataType,
+          typename AccDataType,
+          typename ScaleDataType,
+          typename BiasDataType,
+          typename MeanVarDataType,
+          typename YElementwiseOp,
+          index_t Rank,
+          index_t NumBatchNormReduceDim>
+using DeviceBatchNormInferPtr = std::unique_ptr<DeviceBatchNormInfer<XDataType,
+                                                                     YDataType,
+                                                                     AccDataType,
+                                                                     ScaleDataType,
+                                                                     BiasDataType,
+                                                                     MeanVarDataType,
+                                                                     YElementwiseOp,
+                                                                     Rank,
+                                                                     NumBatchNormReduceDim>>;
 
 } // namespace device
 } // namespace tensor_operation
