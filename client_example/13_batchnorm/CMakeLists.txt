@@ -1,0 +1,2 @@
+add_executable(client_batchnorm_fwd_nhwc batchnorm_fwd_nhwc.cpp)
+target_link_libraries(client_batchnorm_fwd_nhwc PRIVATE composable_kernel::device_operations)
