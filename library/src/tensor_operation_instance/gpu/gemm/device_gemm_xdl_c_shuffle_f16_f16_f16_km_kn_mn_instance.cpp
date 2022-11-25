@@ -11,6 +11,25 @@
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
+/*
+For fp16 M-contigous matrix of size M_K, each thread reads 4x2 tile (2 * 64bits) from the global
+memory, transposes the 4x2 tile inside register, and writes into LDS in K0_M_K1 layout. This allows
+us to use 128-bit LDS write instruction. This also avoids write bank conflicts because two
+vertically connected 4x2 tiles is a contiguous chunk of memory if modeled as K0_M_K1 layout where
+K1=2.
+
+        <- K1 ->              <- K1 ->             <- K1 ->
+       _________             _________            _________
+    |  | 0 | 4 |  transpose  | 0 - 1 |   to LDS   | 0 - 1 |
+    |  | 1 | 5 |    --->     | 2 - 3 |   ---->    | 2 - 3 |
+    |  | 2 | 6 |             | 4 - 5 |            | 4 - 5 |
+  M |  | 3 | 7 |             | 6 - 7 |            | 6 - 7 |
+    |  ---------             ---------            ---------
+    |  |  ...  |             |  ...  |            |  ...  |
+    v  ---------             ---------            ---------
+        VMEM                  VGPR                  LDS
+*/
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
