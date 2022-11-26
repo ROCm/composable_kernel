@@ -13,7 +13,8 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gemm_layernorm/gridwise_gemm_multiple_d_welford_first_half_xdl_cshuffle.hpp"
-#include "ck/tensor_operation/gpu/grid/gemm_layernorm/gridwise_welford_second_half_layernorm2d.hpp"
+// #include
+// "ck/tensor_operation/gpu/grid/gemm_layernorm/gridwise_welford_second_half_layernorm2d.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "device_base.hpp"
@@ -101,22 +102,23 @@ __global__ void
 #endif
 }
 
-template <typename GridwiseWelfordLayernorm,
-          typename XDataType,
-          typename YDataType,
-          typename MeanDataType,
-          typename VarDataType>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
-#endif
-        kernel_welford_layernorm2d_second_half(const XDataType* __restrict__ p_x_grid,
-                                               const MeanDataType* __restrict__ p_mean_grid,
-                                               const VarDataType* __restrict__ p_var_grid,
-                                               YDataType* __restrict__ p_y_grid)
-{
-    GridwiseWelfordLayernorm::Run(p_x_grid, p_mean_grid, p_var_grid, p_y_grid);
-}
+// template <typename GridwiseWelfordLayernorm,
+//           typename EDataType,
+//           typename HDataType,
+//           typename MeanDataType,
+//           typename VarDataType>
+// __global__ void
+// #if CK_USE_LAUNCH_BOUNDS
+//     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+// #endif
+//         kernel_welford_layernorm2d_second_half(const EDataType* __restrict__ p_x_grid,
+//                                                const MeanDataType* __restrict__ p_mean_grid,
+//                                                const VarDataType* __restrict__ p_var_grid,
+//                                                HDataType* __restrict__ p_y_grid,
+//                                                index_t blkgroup_size)
+// {
+//     GridwiseWelfordLayernorm::Run(p_x_grid, p_mean_grid, p_var_grid, p_y_grid, blkgroup_size);
+// }
 
 } // namespace ck
 
@@ -139,14 +141,14 @@ namespace device {
 template <typename ALayout,
           typename BLayout,
           typename DsLayout,
-          typename ELayout,
           typename HLayout,
           typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CShuffleDataType,
           typename DsDataType,
-          typename EDataType,
+          typename GammaDataType,
+          typename BetaDataType,
           typename HDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
@@ -180,12 +182,22 @@ template <typename ALayout,
           bool BBlockLdsExtraN,
           index_t CShuffleMXdlPerWavePerShuffle,
           index_t CShuffleNXdlPerWavePerShuffle,
-          typename ReduceThreadTransferClusterLengths_MPerBlock_NPerBlock,
-          index_t ReduceThreadTransferScalarPerVector_NPerBlock,
+          typename PostShuffleThreadClusterSize_M_N,
+          index_t PostShuffleScalarPerVector,
+          typename LayernormThreadClusterSize_M_N,
+          typename LayernormThreadSliceSize_M_N,
+          index_t LayernormESrcHDstVectorDim,
+          index_t LayernormESrcVectorSize,
+          index_t LayernormHDstVectorSize,
+          index_t LayernormGammaSrcVectorSize,
+          index_t LayernormBetaSrcVectorSize,
+          index_t LayernormMeanVarSrcDstVectorSize,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
 {
     using DeviceOp     = DeviceGemmMultipleDLayernorm_Xdl_CShuffle;
+    using ELayout      = HLayout;
+    using EDataType    = HDataType;
     using MeanDataType = CShuffleDataType;
     using VarDataType  = CShuffleDataType;
 
@@ -264,13 +276,64 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
             Number<NumDTensor>{});
     }
 
-    using AGridDesc_M_K    = decltype(MakeAGridDescriptor_M_K(1, 1, 1));
-    using BGridDesc_N_K    = decltype(MakeBGridDescriptor_N_K(1, 1, 1));
-    using DsGridDesc_M_N   = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}, {}))>;
-    using EGridDesc_M_N    = decltype(MakeGridDescriptor_M_N<ELayout>(1, 1, 1));
-    using MeanGridDesc_M_N = decltype(MakeGridDescriptor_M_N<ELayout>(1, 1, 1));
-    using VarGridDesc_M_N  = decltype(MakeGridDescriptor_M_N<ELayout>(1, 1, 1));
-    using HGridDesc_M_N    = decltype(MakeGridDescriptor_M_N<HLayout>(1, 1, 1));
+    static auto MakeDescriptor_M(index_t MRaw)
+    {
+        const auto grid_desc_mraw = make_naive_tensor_descriptor_packed(make_tuple(MRaw));
+
+        const auto M    = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
+        const auto MPad = M - MRaw;
+
+        if constexpr(GemmSpec == GemmSpecialization::MPadding ||
+                     GemmSpec == GemmSpecialization::MNPadding ||
+                     GemmSpec == GemmSpecialization::MKPadding ||
+                     GemmSpec == GemmSpecialization::MNKPadding)
+        {
+            // pad M
+            return transform_tensor_descriptor(grid_desc_mraw,
+                                               make_tuple(make_right_pad_transform(MRaw, MPad)),
+                                               make_tuple(Sequence<0>{}),
+                                               make_tuple(Sequence<0>{}));
+        }
+        else
+        {
+            // not pad N
+            return grid_desc_mraw;
+        }
+    };
+
+    static auto MakeDescriptor_N(index_t NRaw)
+    {
+        const auto grid_desc_nraw = make_naive_tensor_descriptor_packed(make_tuple(NRaw));
+
+        const auto N    = math::integer_divide_ceil(NRaw, NPerBlock) * NPerBlock;
+        const auto NPad = N - NRaw;
+
+        if constexpr(GemmSpec == GemmSpecialization::NPadding ||
+                     GemmSpec == GemmSpecialization::MNPadding ||
+                     GemmSpec == GemmSpecialization::NKPadding ||
+                     GemmSpec == GemmSpecialization::MNKPadding)
+        {
+            // pad N
+            return transform_tensor_descriptor(grid_desc_nraw,
+                                               make_tuple(make_right_pad_transform(NRaw, NPad)),
+                                               make_tuple(Sequence<0>{}),
+                                               make_tuple(Sequence<0>{}));
+        }
+        else
+        {
+            // not pad N
+            return grid_desc_nraw;
+        }
+    };
+
+    using AGridDesc_M_K       = decltype(MakeAGridDescriptor_M_K(1, 1, 1));
+    using BGridDesc_N_K       = decltype(MakeBGridDescriptor_N_K(1, 1, 1));
+    using DsGridDesc_M_N      = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}, {}))>;
+    using EGridDesc_M_N       = decltype(MakeGridDescriptor_M_N<ELayout>(1, 1, 1));
+    using MeanVarGridDesc_M_N = decltype(MakeGridDescriptor_M_N<ELayout>(1, 1, 1));
+    using GammaBetaGridDesc_N = decltype(MakeDescriptor_N(1));
+    using MeanVarGridDesc_M   = decltype(MakeDescriptor_M(1));
+    using HGridDesc_M_N       = decltype(MakeGridDescriptor_M_N<HLayout>(1, 1, 1));
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle<
@@ -289,8 +352,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         BGridDesc_N_K,
         DsGridDesc_M_N,
         EGridDesc_M_N,
-        MeanGridDesc_M_N,
-        VarGridDesc_M_N,
+        MeanVarGridDesc_M_N,
+        MeanVarGridDesc_M_N,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,
@@ -320,15 +383,34 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         BBlockLdsExtraN,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
-        ReduceThreadTransferClusterLengths_MPerBlock_NPerBlock,
-        ReduceThreadTransferScalarPerVector_NPerBlock,
+        PostShuffleThreadClusterSize_M_N,
+        PostShuffleScalarPerVector,
         1,
         LoopSched>;
 
     using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
 
-    using GridwiseWelfordLayernorm =
-        GridwiseWelfordSecondHalfLayernorm2d<EDataType, HDataType, MeanDataType, VarDataType>;
+    // using GridwiseWelfordLayernorm =
+    //     GridwiseWelfordSecondHalfLayernorm2d<EDataType,
+    //                                          HDataType,
+    //                                          MeanDataType,
+    //                                          VarDataType,
+    //                                          AccDataType,
+    //                                          HGridDesc_M_N,
+    //                                          MeanGridDesc_M_N,
+    //                                          GammaBetaGridDesc_N,
+    //                                          MeanVarGridDesc_M,
+    //                                          BlockSize,
+    //                                          LayernormMThreadClusterSize,
+    //                                          LayernormNThreadClusterSize,
+    //                                          LayernormMThreadSliceSize,
+    //                                          LayernormNThreadSliceSize,
+    //                                          LayernormESrcHDstVectorDim,
+    //                                          LayernormESrcVectorSize,
+    //                                          LayernormHDstVectorSize,
+    //                                          LayernormGammaSrcVectorSize,
+    //                                          LayernormBetaSrcVectorSize,
+    //                                          LayernormMeanVarSrcDstVectorSize>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -336,7 +418,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         Argument(const void* p_a_grid,
                  const void* p_b_grid,
                  std::array<const void*, NumDTensor> p_ds_grid,
-                 void* p_e_grid,
+                 const void* p_gamma_grid,
+                 const void* p_beta_grid,
                  void* p_h_grid,
                  index_t MRaw,
                  index_t NRaw,
@@ -344,41 +427,48 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                  index_t StrideA,
                  index_t StrideB,
                  std::array<index_t, NumDTensor> StrideDs,
-                 index_t StrideE,
                  index_t StrideH,
+                 AccDataType epsilon,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CDEElementwiseOperation cde_element_op,
-                 BElementwiseOperation h_element_op)
+                 HElementwiseOperation h_element_op)
             : p_a_grid_{static_cast<const ADataType*>(p_a_grid)},
               p_b_grid_{static_cast<const BDataType*>(p_b_grid)},
               p_ds_grid_{},
-              p_e_grid_{static_cast<EDataType*>(p_e_grid)},
+              p_e_grid_{nullptr},
               p_mean_grid_{nullptr},
               p_var_grid_{nullptr},
+              p_gamma_grid_{static_cast<const GammaDataType*>(p_gamma_grid)},
+              p_beta_grid_{static_cast<const BetaDataType*>(p_beta_grid)},
               p_h_grid_{static_cast<HDataType*>(p_h_grid)},
               a_grid_desc_m_k_{DeviceOp::MakeAGridDescriptor_M_K(MRaw, KRaw, StrideA)},
               b_grid_desc_n_k_{DeviceOp::MakeBGridDescriptor_N_K(KRaw, NRaw, StrideB)},
               ds_grid_desc_m_n_{},
-              e_grid_desc_m_n_{DeviceOp::MakeGridDescriptor_M_N<ELayout>(MRaw, NRaw, StrideE)},
+              e_grid_desc_m_n_{DeviceOp::MakeGridDescriptor_M_N<ELayout>(MRaw, NRaw, StrideH)},
               mean_grid_desc_m_n_{},
               var_grid_desc_m_n_{},
+              gamma_grid_desc_n_{DeviceOp::MakeDescriptor_N(NRaw)},
+              beta_grid_desc_n_{DeviceOp::MakeDescriptor_N(NRaw)},
               h_grid_desc_m_n_{DeviceOp::MakeGridDescriptor_M_N<HLayout>(MRaw, NRaw, StrideH)},
               block_2_etile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op},
               h_element_op_{h_element_op},
-              blkGroupSize_{math::integer_divide_ceil(NRaw, NPerBlock)}
+              blkGroupSize_{math::integer_divide_ceil(NRaw, NPerBlock)},
+              epsilon_{epsilon}
         {
             mean_grid_desc_m_n_ =
                 DeviceOp::MakeGridDescriptor_M_N<ELayout>(MRaw, blkGroupSize_, blkGroupSize_);
             var_grid_desc_m_n_ =
                 DeviceOp::MakeGridDescriptor_M_N<ELayout>(MRaw, blkGroupSize_, blkGroupSize_);
 
-            int welford_size = MRaw * blkGroupSize_;
-            hip_check_error(hipMalloc(&p_mean_grid_, sizeof(MeanDataType) * welford_size));
-            hip_check_error(hipMalloc(&p_var_grid_, sizeof(VarDataType) * welford_size));
+            hip_check_error(hipMalloc(&p_e_grid_, sizeof(EDataType) * MRaw * NRaw));
+
+            int gemm_welford_size = MRaw * blkGroupSize_;
+            hip_check_error(hipMalloc(&p_mean_grid_, sizeof(MeanDataType) * gemm_welford_size));
+            hip_check_error(hipMalloc(&p_var_grid_, sizeof(VarDataType) * gemm_welford_size));
 
             // populate pointer, desc for Ds
             static_for<0, NumDTensor, 1>{}([&](auto i) {
@@ -440,6 +530,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         EDataType* p_e_grid_;
         MeanDataType* p_mean_grid_; // mean
         VarDataType* p_var_grid_;   // variance * count
+        const GammaDataType* p_gamma_grid_;
+        const BetaDataType* p_beta_grid_;
         HDataType* p_h_grid_;
 
         // tensor descriptors for problem definiton
@@ -447,8 +539,10 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         BGridDesc_N_K b_grid_desc_n_k_;
         DsGridDesc_M_N ds_grid_desc_m_n_;
         EGridDesc_M_N e_grid_desc_m_n_;
-        MeanGridDesc_M_N mean_grid_desc_m_n_;
-        VarGridDesc_M_N var_grid_desc_m_n_;
+        MeanVarGridDesc_M_N mean_grid_desc_m_n_;
+        MeanVarGridDesc_M_N var_grid_desc_m_n_;
+        GammaBetaGridDesc_N gamma_grid_desc_n_;
+        GammaBetaGridDesc_N beta_grid_desc_n_;
         HGridDesc_M_N h_grid_desc_m_n_;
 
         // tensor descriptors for block/thread-wise copy
@@ -473,6 +567,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         HElementwiseOperation h_element_op_;
 
         int blkGroupSize_;
+        AccDataType epsilon_;
     };
 
     // Invoker
@@ -524,12 +619,12 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                         typename GridwiseGemm::DefaultBlock2ETileMap,
                         has_main_loop>;
 
-                const auto kernel_welford_layernorm =
-                    kernel_welford_layernorm2d_second_half<GridwiseWelfordLayernorm,
-                                                           EDataType,
-                                                           HDataType,
-                                                           MeanDataType,
-                                                           VarDataType>;
+                // const auto kernel_welford_layernorm =
+                //     kernel_welford_layernorm2d_second_half<GridwiseWelfordLayernorm,
+                //                                            EDataType,
+                //                                            HDataType,
+                //                                            MeanDataType,
+                //                                            VarDataType>;
 
                 avg_time +=
                     launch_and_time_kernel(stream_config,
@@ -554,15 +649,16 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                            arg.var_grid_desc_mblock_mperblock_nblock_,
                                            arg.block_2_etile_map_);
 
-                avg_time += launch_and_time_kernel(stream_config,
-                                                   kernel_welford_layernorm,
-                                                   dim3(grid_size),
-                                                   dim3(BlockSize),
-                                                   0,
-                                                   arg.p_e_grid_,
-                                                   arg.p_mean_grid_,
-                                                   arg.p_var_grid_,
-                                                   arg.p_h_grid_);
+                // avg_time += launch_and_time_kernel(stream_config,
+                //                                    kernel_welford_layernorm,
+                //                                    dim3(grid_size),
+                //                                    dim3(BlockSize),
+                //                                    0,
+                //                                    arg.p_e_grid_,
+                //                                    arg.p_mean_grid_,
+                //                                    arg.p_var_grid_,
+                //                                    arg.p_h_grid_,
+                //                                    arg.blkGroupSize_);
 
                 return avg_time;
             };
@@ -604,7 +700,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
     static auto MakeArgument(const void* p_a,
                              const void* p_b,
                              std::array<const void*, NumDTensor> p_ds,
-                             void* p_e,
+                             const void* p_gamma,
+                             const void* p_beta,
                              void* p_h,
                              index_t MRaw,
                              index_t NRaw,
@@ -612,8 +709,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                              index_t StrideA,
                              index_t StrideB,
                              std::array<index_t, NumDTensor> StrideDs,
-                             index_t StrideE,
                              index_t StrideH,
+                             AccDataType epsilon,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CDEElementwiseOperation cde_element_op,
@@ -622,7 +719,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         return Argument{p_a,
                         p_b,
                         p_ds,
-                        p_e,
+                        p_gamma,
+                        p_beta,
                         p_h,
                         MRaw,
                         NRaw,
@@ -630,8 +728,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                         StrideA,
                         StrideB,
                         StrideDs,
-                        StrideE,
                         StrideH,
+                        epsilon,
                         a_element_op,
                         b_element_op,
                         cde_element_op,
@@ -644,7 +742,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                       const void* p_b,
                                                       std::array<const void*, NumDTensor> p_ds,
-                                                      void* p_e,
+                                                      const void* p_gamma,
+                                                      const void* p_beta,
                                                       void* p_h,
                                                       index_t MRaw,
                                                       index_t NRaw,
@@ -652,8 +751,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                                       index_t StrideA,
                                                       index_t StrideB,
                                                       std::array<index_t, NumDTensor> StrideDs,
-                                                      index_t StrideE,
                                                       index_t StrideH,
+                                                      AccDataType epsilon,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CDEElementwiseOperation cde_element_op,
@@ -662,7 +761,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         return std::make_unique<Argument>(p_a,
                                           p_b,
                                           p_ds,
-                                          p_e,
+                                          p_gamma,
+                                          p_beta,
                                           p_h,
                                           MRaw,
                                           NRaw,
@@ -670,8 +770,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                           StrideA,
                                           StrideB,
                                           StrideDs,
-                                          StrideE,
                                           StrideH,
+                                          epsilon,
                                           a_element_op,
                                           b_element_op,
                                           cde_element_op,
