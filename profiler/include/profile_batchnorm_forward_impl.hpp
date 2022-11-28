@@ -85,39 +85,22 @@ bool profile_batchnorm_forward_impl(int do_verification,
 
     if(updateMovingAverage)
     {
-        if constexpr(ck::is_same_v<XDataType, int8_t>)
-        {
-            x.GenerateTensorValue(GeneratorTensor_2<XDataType>{-5, 5}, num_thread);
+        const float x_mean       = 0.0f;
+        const float x_stddev     = 1.0f;
+        const float noise_stddev = 0.04f;
 
-            const float x_mean       = 0.0f;
-            const float x_stddev     = 2.5f;
-            const float noise_stddev = 0.04f;
+        // input data in normal distribution
+        x.GenerateTensorValue(GeneratorTensor_4<XDataType>{x_mean, x_stddev}, num_thread);
 
-            resultRunningMean_ref.GenerateTensorValue(
-                GeneratorTensor_4<MeanVarDataType>{x_mean, noise_stddev}, num_thread);
+        // initialize the runningMean to be values with tiny variation to the mean of the x
+        // values
+        resultRunningMean_ref.GenerateTensorValue(
+            GeneratorTensor_4<MeanVarDataType>{x_mean, noise_stddev}, num_thread);
 
-            resultRunningVariance_ref.GenerateTensorValue(
-                GeneratorTensor_4<MeanVarDataType>{x_stddev * x_stddev, noise_stddev}, num_thread);
-        }
-        else
-        {
-            const float x_mean       = 0.0f;
-            const float x_stddev     = 1.0f;
-            const float noise_stddev = 0.04f;
-
-            // input data in normal distribution
-            x.GenerateTensorValue(GeneratorTensor_4<XDataType>{x_mean, x_stddev}, num_thread);
-
-            // initialize the runningMean to be values with tiny variation to the mean of the x
-            // values
-            resultRunningMean_ref.GenerateTensorValue(
-                GeneratorTensor_4<MeanVarDataType>{x_mean, noise_stddev}, num_thread);
-
-            // initialize the runningVariance to be values with tiny variation to the variance of
-            // the x values
-            resultRunningVariance_ref.GenerateTensorValue(
-                GeneratorTensor_4<MeanVarDataType>{x_stddev * x_stddev, noise_stddev}, num_thread);
-        };
+        // initialize the runningVariance to be values with tiny variation to the variance of
+        // the x values
+        resultRunningVariance_ref.GenerateTensorValue(
+            GeneratorTensor_4<MeanVarDataType>{x_stddev * x_stddev, noise_stddev}, num_thread);
     }
     else
     {
@@ -129,35 +112,24 @@ bool profile_batchnorm_forward_impl(int do_verification,
 
     if(do_verification)
     {
-        if constexpr(ck::is_same_v<ScaleDataType, int8_t> && ck::is_same_v<BiasDataType, int8_t>)
+        switch(init_method)
         {
+        case 0:
+            bnScale.GenerateTensorValue(GeneratorTensor_0<ScaleDataType>{}, num_thread);
+            bnBias.GenerateTensorValue(GeneratorTensor_0<BiasDataType>{}, num_thread);
+            break;
+        case 1:
+            bnScale.GenerateTensorValue(GeneratorTensor_1<ScaleDataType>{1}, num_thread);
+            bnBias.GenerateTensorValue(GeneratorTensor_1<BiasDataType>{0}, num_thread);
+            break;
+        case 2:
             bnScale.GenerateTensorValue(GeneratorTensor_2<ScaleDataType>{-5, 5}, num_thread);
             bnBias.GenerateTensorValue(GeneratorTensor_2<BiasDataType>{-5, 5}, num_thread);
+            break;
+        default:
+            bnScale.GenerateTensorValue(GeneratorTensor_3<ScaleDataType>{-1.0f, 1.0f}, num_thread);
+            bnBias.GenerateTensorValue(GeneratorTensor_3<BiasDataType>{-1.0f, 1.0f}, num_thread);
         }
-        else
-        {
-
-            switch(init_method)
-            {
-            case 0:
-                bnScale.GenerateTensorValue(GeneratorTensor_0<ScaleDataType>{}, num_thread);
-                bnBias.GenerateTensorValue(GeneratorTensor_0<BiasDataType>{}, num_thread);
-                break;
-            case 1:
-                bnScale.GenerateTensorValue(GeneratorTensor_1<ScaleDataType>{1}, num_thread);
-                bnBias.GenerateTensorValue(GeneratorTensor_1<BiasDataType>{0}, num_thread);
-                break;
-            case 2:
-                bnScale.GenerateTensorValue(GeneratorTensor_2<ScaleDataType>{-5, 5}, num_thread);
-                bnBias.GenerateTensorValue(GeneratorTensor_2<BiasDataType>{-5, 5}, num_thread);
-                break;
-            default:
-                bnScale.GenerateTensorValue(GeneratorTensor_3<ScaleDataType>{-1.0f, 1.0f},
-                                            num_thread);
-                bnBias.GenerateTensorValue(GeneratorTensor_3<BiasDataType>{-1.0f, 1.0f},
-                                           num_thread);
-            }
-        };
     };
 
     // these buffers are usually provided by the user application
