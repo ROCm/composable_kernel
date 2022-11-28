@@ -192,8 +192,8 @@ struct AddRelu
     __host__ __device__ constexpr void
     operator()<int, int, int8_t>(int& y, const int& x0, const int8_t& x1) const
     {
-        const int a = x0 + x1;
-        y           = a > 0 ? a : 0;
+        const int8_t a = x0 + x1;
+        y              = a > 0 ? a : 0;
     };
 
     template <>
