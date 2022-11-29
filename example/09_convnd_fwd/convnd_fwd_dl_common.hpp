@@ -29,6 +29,7 @@ void print_helper_msg()
 template <ck::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,
+          typename DsDataType,
           typename OutDataType,
           typename InElementOp,
           typename WeiElementOp,
@@ -45,7 +46,7 @@ bool run_grouped_conv_fwd_dl(bool do_verification,
                              const WeiElementOp& wei_element_op,
                              const OutElementOp& out_element_op)
 {
-    using DDataType = OutDataType;
+    using DDataType = ck::remove_cvref_t<ck::tuple_element_t<0, DsDataType>>;
     Tensor<InDataType> in(in_g_n_c_wis_desc);
     Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
     Tensor<DDataType> bias(out_g_n_k_wos_desc);
