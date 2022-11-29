@@ -620,7 +620,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
                 throw std::runtime_error(
                     "wrong! DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK has invalid setting");
             }
-            std::cout << stream_config.log_level_ << std::endl;
+
             const index_t grid_size =
                 GridwiseGemm::CalculateGridSize(arg.e_grid_desc_m_n_.GetLength(I0),
                                                 arg.e_grid_desc_m_n_.GetLength(I1)) *
@@ -728,7 +728,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
 
                 if(!(X == 1 && ConvStride == 1 && LeftPad == 0 && RightPad == 0))
                 {
-                    std::cout << "Filter1x1Stride1Pad0 check: i = " << i << " X = " << X
+                    std::cout << "Filter1x1Stride1Pad0 check: XY_index = " << i << " X = " << X
                               << " ConvStride = " << ConvStride << " LeftPad = " << LeftPad
                               << " RightPad = " << RightPad << std::endl;
                     return false;
@@ -747,7 +747,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
 
                 if(!(X == 1 && LeftPad == 0 && RightPad == 0))
                 {
-                    std::cout << "Filter1x1Stride1Pad0 check: i = " << i << " X = " << X
+                    std::cout << "Filter1x1Stride1Pad0 check: XY_index = " << i << " X = " << X
                               << " LeftPad = " << LeftPad << " RightPad = " << RightPad
                               << std::endl;
                     return false;
