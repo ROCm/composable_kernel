@@ -529,6 +529,7 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
             auto result_inv_var_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 resultSaveInvVariance, mean_var_grid_desc_m.GetElementSpaceSize());
 
+            // calculate inv-variance as 1/sqrt(epsilon+variance)
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
                 welford_var_thread_buf(I) =
                     type_convert<AccDataType>(1.0f) / sqrt(epsilon + welford_var_thread_buf[I]);
