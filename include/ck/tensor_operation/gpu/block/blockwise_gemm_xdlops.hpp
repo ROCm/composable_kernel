@@ -50,7 +50,8 @@ template <index_t BlockSize,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack>
+          index_t KPack,
+          bool TransposeC = false>
 struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 {
     static constexpr auto I0 = Number<0>{};
@@ -72,7 +73,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr index_t A_K1 = AK0MK1BlockDesc{}.GetLength(I2);
     static constexpr index_t B_K1 = BK0NK1BlockDesc{}.GetLength(I2);
 
-    static constexpr auto xdlops_gemm = XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack>{};
+    static constexpr auto xdlops_gemm = XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack, TransposeC>{};
 
     static constexpr index_t KPerThread = KPerBlock / xdlops_gemm.K0PerXdlops;
 
@@ -226,6 +227,21 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
             make_tuple(I1, Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, M1, M2, N));
     }
 
+    // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'
+    __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4()
+    {
+        constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =
+            make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{},
+                                                           Number<NRepeat>{},
+                                                           Number<MWaves>{},
+                                                           Number<NWaves>{},
+                                                           Number<MPerXDL>{},
+                                                           Number<NPerXDL>{}));
+
+        return xdlops_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_N2_N3_N4(c_block_desc_m0_n0_m1_n1_m2_n2);
+    }
+
+    // XDL output supporting C_xdl = A_xdl * B_xdl
     __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2()
     {
         constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =

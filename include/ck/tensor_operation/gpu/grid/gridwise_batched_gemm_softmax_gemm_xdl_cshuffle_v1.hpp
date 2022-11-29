@@ -21,6 +21,7 @@ namespace ck {
 template <typename DataType,
           typename FloatGemmAcc,
           typename FloatCShuffle,
+          typename FloatLSE,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename AccElementwiseOperation,
@@ -31,6 +32,7 @@ template <typename DataType,
           typename BGridDesc_BK0_N_BK1,
           typename B1GridDesc_BK0_N_BK1,
           typename CGridDesc_M_N,
+          typename LSEGridDesc_M,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
           index_t MPerBlock,
@@ -170,12 +172,19 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             constexpr index_t n  = Free0_N - 1;
             constexpr index_t n2 = n % NPerXdl;
             constexpr index_t n1 = n / NPerXdl % Gemm0NWaves;
-            constexpr index_t n0 = n / NPerXdl / Gemm0NWaves % MXdlPerWave;
+            constexpr index_t n0 = n / NPerXdl / Gemm0NWaves % NXdlPerWave;
 
             // assume 256 decomposed into 2 x 4 x 32
             // 1d idx ( 32 - 1) -> 3d idx 0, 0, 31 -> 3d dim 1 x 1 x 32
             // 1d idx (256 - 1) -> 3d idx 1, 3, 31 -> 3d dim 2 x 4 x 32
             return Sequence<m0, n0, m1, n1, m2, n2>{} + Sequence<1, 1, 1, 1, 1, 1>{};
+        }
+
+        __host__ __device__ static constexpr auto GetPBlockSliceLengths_M0_N0_M1_N1()
+        {
+            return generate_sequence_v2(
+                [](auto I) { return GetPBlockSliceLengths_M0_N0_M1_N1_M2_N2().At(I); },
+                Number<4>{});
         }
 
         // template <typename PBlockDesc_M0_N_M1>
@@ -303,13 +312,21 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         const index_t gemm1_bytes_end =
             (SharedMemTrait::b1_block_space_offset + SharedMemTrait::b1_block_space_size_aligned) *
             sizeof(DataType);
+        const index_t vgrad_gemm_bytes_end = (SharedMemTrait::p_block_space_size_aligned +
+                                              SharedMemTrait::ygrad_block_space_size_aligned) *
+                                             sizeof(DataType);
+
         const index_t softmax_bytes_end = (SharedMemTrait::reduction_space_offset +
                                            SharedMemTrait::reduction_space_size_aligned) *
                                           sizeof(FloatGemmAcc);
         const index_t c_block_bytes_end =
             SharedMemTrait::c_block_space_size * sizeof(FloatCShuffle);
 
-        return math::max(gemm0_bytes_end, gemm1_bytes_end, softmax_bytes_end, c_block_bytes_end);
+        return math::max(gemm0_bytes_end,
+                         gemm1_bytes_end,
+                         vgrad_gemm_bytes_end,
+                         softmax_bytes_end,
+                         c_block_bytes_end);
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -395,6 +412,22 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         return c_grid_desc_mblock_mperblock_nblock_nperblock;
     }
 
+    __host__ __device__ static constexpr auto
+    MakeLSEGridDescriptor_MBlock_MRepeat_NWave_MPerXdl(const LSEGridDesc_M& lse_grid_desc_m)
+    {
+        const index_t M      = lse_grid_desc_m.GetLength(I0);
+        const index_t MBlock = M / MPerBlock;
+        constexpr index_t MWave  = MPerBlock / (MXdlPerWave * MPerXdl);
+
+        const auto lse_grid_desc_mblock_mrepeat_mwave_mperxdl = transform_tensor_descriptor(
+            lse_grid_desc_m,
+            make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MXdlPerWave>{}, MWave, Number<MPerXdl>{}))),
+            make_tuple(Sequence<0>{}),
+            make_tuple(Sequence<0, 1, 2, 3>{}));
+
+        return lse_grid_desc_mblock_mrepeat_mwave_mperxdl;
+    }
+
     // return block_id to C matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
     MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n)
@@ -418,8 +451,12 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
         static constexpr auto b1_block_desc_bk0_n_bk1 =
             GetB1BlockDescriptor_BK0PerBlock_NPerBlock_BK1();
+        static constexpr auto p_block_desc_m0_n_m1 =
+            VGradGemmTile_N_O_M::GetPBlockDescriptor_M0_N_M1();
+        static constexpr auto ygrad_block_desc_m0_o_m1 =
+            VGradGemmTile_N_O_M::GetYGradBlockDescriptor_M0_O_M1();
 
-        static constexpr auto max_lds_align = math::lcm(math::lcm(AK1, BK1), B1K1);
+        static constexpr auto max_lds_align = Number<16 / sizeof(DataType)>{};
 
         static constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
@@ -427,10 +464,16 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
         static constexpr auto b1_block_space_size_aligned = math::integer_least_multiple(
             b1_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
+        static constexpr auto p_block_space_size_aligned =
+            math::integer_least_multiple(p_block_desc_m0_n_m1.GetElementSpaceSize(), max_lds_align);
+        static constexpr auto ygrad_block_space_size_aligned = math::integer_least_multiple(
+            ygrad_block_desc_m0_o_m1.GetElementSpaceSize(), max_lds_align);
 
         static constexpr auto a_block_space_offset  = 0;
         static constexpr auto b_block_space_offset  = a_block_space_size_aligned.value;
         static constexpr auto b1_block_space_offset = 0;
+        static constexpr auto p_block_space_offset  = 0;
+        static constexpr auto ygrad_block_space_offset = p_block_space_size_aligned.value;
 
         // LDS allocation for reduction
         static constexpr index_t reduction_space_size_aligned =
@@ -454,6 +497,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                const DataType* __restrict__ p_b_grid,
                                const DataType* __restrict__ p_b1_grid,
                                const DataType* __restrict__ p_c_grid,
+                               const FloatLSE* __restrict__ p_lse_grid,
                                const DataType* __restrict__ p_ygrad_grid,
                                DataType* __restrict__ p_qgrad_grid,
                                DataType* __restrict__ p_kgrad_grid,
@@ -469,6 +513,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
                                const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const LSEGridDesc_M& lse_grid_desc_m,
                                const VGradGridDescriptor_N_O& vgrad_grid_desc_n_o,
                                const YGradGridDesc_M0_O_M1& ygrad_grid_desc_m0_o_m1,
                                const Block2CTileMap& block_2_ctile_map,
@@ -482,6 +527,12 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             p_b1_grid, b1_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         const auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+        auto lse_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_lse_grid, lse_grid_desc_m.GetElementSpaceSize());
+        const auto ygrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_ygrad_grid, ygrad_grid_desc_m0_o_m1.GetElementSpaceSize());
+        auto vgrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_vgrad_grid, vgrad_grid_desc_n_o.GetElementSpaceSize());
 
         // divide block work by [M, N]
         const auto block_work_idx =
@@ -830,6 +881,35 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         running_max     = NumericLimits<FloatGemmAcc>::Lowest();
         running_max_new = NumericLimits<FloatGemmAcc>::Lowest();
 
+        auto lse_grid_desc_mblock_mrepeat_mwave_mperxdl =
+            MakeLSEGridDescriptor_MBlock_MRepeat_NWave_MPerXdl(lse_grid_desc_m);
+
+        constexpr auto lse_thread_desc_mblock_mrepeat_mwave_mperxdl =
+            make_naive_tensor_descriptor_packed(make_tuple(I1, m0, m1, m2));
+
+        auto lse_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatLSE>(
+            lse_thread_desc_mblock_mrepeat_mwave_mperxdl.GetElementSpaceSize());
+
+        auto acc0_thread_origin = blockwise_gemm.CalculateCThreadOriginDataIndex8D(
+            Number<0>{}, Number<0>{}, Number<0>{}, Number<0>{});
+
+        auto lse_thread_copy_global_to_vgpr =
+            ThreadwiseTensorSliceTransfer_v2<FloatLSE,
+                                             FloatLSE,
+                                             decltype(lse_grid_desc_mblock_mrepeat_mwave_mperxdl),
+                                             decltype(lse_thread_desc_mblock_mrepeat_mwave_mperxdl),
+                                             Sequence<1, m0, m1, m2>,
+                                             Sequence<0, 1, 2, 3>,
+                                             3,
+                                             m2,
+                                             1,
+                                             false>{
+                lse_grid_desc_mblock_mrepeat_mwave_mperxdl,
+                make_multi_index(block_work_idx[I0],       // mblock
+                                 acc0_thread_origin[I0],   // mrepeat
+                                 acc0_thread_origin[I2],   // mwave
+                                 acc0_thread_origin[I4])}; // mperxdl
+
         //
         // dV
         //
@@ -837,11 +917,10 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         // P vgpr to lds: writes vgprs of a subgroup to LDS and transform into m0_n_m1
         // m0, n0 are m/n repeat per wave
         // m1, n1 are number of waves
-        constexpr auto p_src_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 =
+        constexpr auto p_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 =
             blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
 
-        constexpr auto p_dst_block_desc_m0_n_m1 =
-            VGradGemmTile_N_O_M::GetPBlockDescriptor_M0_N_M1();
+        constexpr auto p_block_desc_m0_n_m1 = VGradGemmTile_N_O_M::GetPBlockDescriptor_M0_N_M1();
 
         constexpr auto p_block_lengths =
             blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
@@ -854,30 +933,28 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         constexpr auto P_N3 = p_block_lengths[I6];
         constexpr auto P_N4 = p_block_lengths[I7];
 
-        constexpr auto p_dst_block_desc_m0_n0_m1_n1_m2_n2_n3_n4 = [&]() constexpr
+        constexpr auto p_block_desc_m0_n0_m1_n1_m2_n2_n3_n4 = [&]() constexpr
         {
-            constexpr auto p_dst_block_desc_m_n = transform_tensor_descriptor(
-                p_dst_block_desc_m0_n_m1,
+            constexpr auto p_block_desc_m_n = transform_tensor_descriptor(
+                p_block_desc_m0_n_m1,
                 make_tuple(make_merge_transform_v3_division_mod(
                                make_tuple(VGradGemmTile_N_O_M::P_M0, VGradGemmTile_N_O_M::P_M1)),
                            make_pass_through_transform(VGradGemmTile_N_O_M::Free0_N)),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
+            // HACK: for unmerge transform, the length of highest dim is irrelevant so we put dummy
+            // variable I1 there
             return transform_tensor_descriptor(
-                p_dst_block_desc_m_n,
-                make_tuple(make_unmerge_transform(make_tuple(P_M0, P_M1, P_M2)),
-                           make_unmerge_transform(make_tuple(P_N0, P_N1, P_N2, P_N3, P_N4))),
+                p_block_desc_m_n,
+                make_tuple(make_unmerge_transform(make_tuple(I1, P_M1, P_M2)),
+                           make_unmerge_transform(make_tuple(I1, P_N1, P_N2, P_N3, P_N4))),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5, 6, 7>{}));
         }
         ();
 
-        // TODO ANT: check lds offset
-        auto p_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<DataType*>(p_shared), p_dst_block_desc_m0_n_m1.GetElementSpaceSize());
-
-        const auto p_dst_thread_origin = [&]() {
+        const auto p_thread_origin_nd_idx_on_block = [&]() {
             const auto c_thread_mtx_on_block =
                 blockwise_gemm.CalculateCThreadOriginDataIndex(I0, I0, I0, I0);
 
@@ -904,8 +981,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                 n_thread_data_on_block_to_n0_n1_n2_n3_n4_adaptor.CalculateBottomIndex(
                     make_multi_index(n_thread_data_on_block));
 
-            return make_tuple(0,                              // mrepeat
-                              0,                              // nrepeat
+            return make_tuple(m_thread_data_on_block_idx[I0], // mrepeat
+                              n_thread_data_on_block_idx[I0], // nrepeat
                               m_thread_data_on_block_idx[I1], // mwave
                               n_thread_data_on_block_idx[I1], // nwave
                               m_thread_data_on_block_idx[I2], // xdlops
@@ -914,19 +991,19 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                               n_thread_data_on_block_idx[I4]);
         }();
 
-        constexpr auto p_block_slice_lengths_m0_n0_m1_n1_m2_n2 = // mrepeat, nrepeat, mwaves,
-                                                                 // nwaves, mperxdl, nperxdl
-            VGradGemmTile_N_O_M::GetPBlockSliceLengths_M0_N0_M1_N1_M2_N2();
+        constexpr auto p_block_slice_lengths_m0_n0_m1_n1 =
+            VGradGemmTile_N_O_M::GetPBlockSliceLengths_M0_N0_M1_N1(); // mrepeat, nrepeat,
+                                                                      // mwaves, nwaves,
 
         // how to properly perform copy for a sub-workgroup?
         auto p_thread_copy_vgpr_to_lds = ThreadwiseTensorSliceTransfer_v1r3<
             FloatGemmAcc,
             DataType,
-            decltype(p_src_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4),
-            decltype(p_dst_block_desc_m0_n0_m1_n1_m2_n2_n3_n4),
+            decltype(p_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4),
+            decltype(p_block_desc_m0_n0_m1_n1_m2_n2_n3_n4),
             tensor_operation::element_wise::PassThrough,
-            Sequence<p_block_slice_lengths_m0_n0_m1_n1_m2_n2[I0], // ThreadSliceLengths
-                     p_block_slice_lengths_m0_n0_m1_n1_m2_n2[I1],
+            Sequence<p_block_slice_lengths_m0_n0_m1_n1[I0], // ThreadSliceLengths
+                     p_block_slice_lengths_m0_n0_m1_n1[I1],
                      I1,
                      I1,
                      I1,
@@ -939,21 +1016,35 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             InMemoryDataOperationEnum::Set,
             1, // DstScalarStrideInVector
             true>{
-            p_dst_block_desc_m0_n0_m1_n1_m2_n2_n3_n4,
-            make_multi_index(p_dst_thread_origin[I0],
-                             p_dst_thread_origin[I1],
-                             p_dst_thread_origin[I2] % p_block_slice_lengths_m0_n0_m1_n1_m2_n2[I2],
-                             p_dst_thread_origin[I3] % p_block_slice_lengths_m0_n0_m1_n1_m2_n2[I3],
-                             p_dst_thread_origin[I4],
-                             p_dst_thread_origin[I5],
-                             p_dst_thread_origin[I6],
-                             p_dst_thread_origin[I7]),
+            p_block_desc_m0_n0_m1_n1_m2_n2_n3_n4,
+            make_multi_index(
+                p_thread_origin_nd_idx_on_block[I0],
+                p_thread_origin_nd_idx_on_block[I1],
+                p_thread_origin_nd_idx_on_block[I2] % p_block_slice_lengths_m0_n0_m1_n1[I2],
+                p_thread_origin_nd_idx_on_block[I3] % p_block_slice_lengths_m0_n0_m1_n1[I3],
+                p_thread_origin_nd_idx_on_block[I4],
+                p_thread_origin_nd_idx_on_block[I5],
+                p_thread_origin_nd_idx_on_block[I6],
+                p_thread_origin_nd_idx_on_block[I7]),
             tensor_operation::element_wise::PassThrough{}};
 
-        // construct space filling curve
-        // p_thread_copy_vgpr_to_lds.Run();
+        // Sequence<p_block_slice_lengths_m0_n0_m1_n1[I0],
+        //          p_block_slice_lengths_m0_n0_m1_n1[I1],
+        //          I1,
+        //          I1,
+        //          I1,
+        //          P_N2,
+        //          I1,
+        //          P_N4>{}
+        //     .foo();
+        // 1, 4, 1, 1, 1, 4, 1, 4
 
-        constexpr auto ygrad_dst_block_desc_m0_o_m1 =
+        constexpr auto sfc_p_m0_n0_m1_n1_m2_n2 =
+            SpaceFillingCurve<Sequence<P_M0, P_N0, P_M1, P_N1>,
+                              Sequence<0, 1, 2, 3>,
+                              decltype(p_block_slice_lengths_m0_n0_m1_n1)>{};
+
+        constexpr auto ygrad_block_desc_m0_o_m1 =
             VGradGemmTile_N_O_M::GetYGradBlockDescriptor_M0_O_M1();
 
         auto ygrad_blockwise_copy = ThreadGroupTensorSliceTransfer_v4r1<
@@ -967,7 +1058,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             DataType,
             DataType,
             decltype(ygrad_grid_desc_m0_o_m1),
-            decltype(ygrad_dst_block_desc_m0_o_m1),
+            decltype(ygrad_block_desc_m0_o_m1),
             typename VGradGemmTile_N_O_M::YGrad_ThreadClusterArrangeOrder, // access order == thread
                                                                            // order
             Sequence<1, 0, 2>,
@@ -980,113 +1071,165 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             true,
             true,
             1>(ygrad_grid_desc_m0_o_m1,
-               make_multi_index(0, gemm1_n_block_data_idx_on_grid, 0),
+               make_multi_index(m_block_data_idx_on_grid / VGradGemmTile_N_O_M::YGrad_M1,
+                                gemm1_n_block_data_idx_on_grid,
+                                0),
                tensor_operation::element_wise::PassThrough{},
-               ygrad_dst_block_desc_m0_o_m1,
+               ygrad_block_desc_m0_o_m1,
                make_multi_index(0, 0, 0),
                tensor_operation::element_wise::PassThrough{});
+
+        auto p_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<DataType*>(p_shared) + SharedMemTrait::p_block_space_offset,
+            p_block_desc_m0_n_m1.GetElementSpaceSize());
+        auto ygrad_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<DataType*>(p_shared) + SharedMemTrait::ygrad_block_space_offset,
+            ygrad_block_desc_m0_o_m1.GetElementSpaceSize());
 
         auto vgrad_blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<
             BlockSize,
             DataType,
             FloatGemmAcc,
-            decltype(p_dst_block_desc_m0_n_m1),
-            decltype(ygrad_dst_block_desc_m0_o_m1),
+            decltype(p_block_desc_m0_n_m1),
+            decltype(ygrad_block_desc_m0_o_m1),
             MPerXdl,
             NPerXdl,
-            VGradGemmTile_N_O_M::GemmNRepeat, // NRepeat
-            VGradGemmTile_N_O_M::GemmORepeat, // ORepeat
-            VGradGemmTile_N_O_M::GemmMPack>{};
+            VGradGemmTile_N_O_M::GemmNRepeat,
+            VGradGemmTile_N_O_M::GemmORepeat,
+            VGradGemmTile_N_O_M::GemmMPack,
+            true>{}; // TranspossC
 
-        constexpr auto vgrad_block_lengths =
-            vgrad_blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2().GetLengths();
+        auto vgrad_acc_thread_buf = vgrad_blockwise_gemm.GetCThreadBuffer();
 
+        // HACK: for unmerge transform, the length of highest dim is irrelevant so we put dummy
+        // variable I1 there
         const auto vgrad_grid_desc_n0_o0_n1_o1_n2_o2 = transform_tensor_descriptor(
             vgrad_grid_desc_n_o,
             make_tuple(
-                make_unmerge_transform(make_tuple(I1, // may place a dummy variable
-                                                  p_block_slice_lengths_m0_n0_m1_n1_m2_n2[I2],
-                                                  p_block_slice_lengths_m0_n0_m1_n1_m2_n2[I4])),
                 make_unmerge_transform(make_tuple(I1,
-                                                  p_block_slice_lengths_m0_n0_m1_n1_m2_n2[I3],
-                                                  p_block_slice_lengths_m0_n0_m1_n1_m2_n2[I5]))),
+                                                  VGradGemmTile_N_O_M::GemmNWave,
+                                                  MPerXdl)),
+                make_unmerge_transform(make_tuple(I1,
+                                                  VGradGemmTile_N_O_M::GemmOWave,
+                                                  NPerXdl))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}));
 
-        constexpr auto vgrad_thread_desc_n0_o0_n1_o1_n2_n3_n4_o2 =
-            vgrad_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+        constexpr auto vgrad_thread_desc_n0_o0_n1_o1_n2_o2_o3_o4 =
+            vgrad_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
 
-        const auto vgrad_grid_desc_n0_o0_n1_o1_n2_n3_n4_o2 =
-            vgrad_blockwise_gemm.xdlops_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(
+        const auto vgrad_grid_desc_n0_o0_n1_o1_n2_o2_o3_o4 =
+            vgrad_blockwise_gemm.xdlops_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_N2_N3_N4(
                 vgrad_grid_desc_n0_o0_n1_o1_n2_o2);
 
         const auto vgrad_thread_mtx_on_block_n_o =
             vgrad_blockwise_gemm.CalculateCThreadOriginDataIndex(I0, I0, I0, I0);
 
-        constexpr auto vgrad_block_desc_n0_o0_n1_o1_n2_n3_n4_o2 =
-            decltype(vgrad_blockwise_gemm)::GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
-        constexpr auto VGrad_N0 = vgrad_block_desc_n0_o0_n1_o1_n2_n3_n4_o2.GetLength(I0);
-        constexpr auto VGrad_O0 = vgrad_block_desc_n0_o0_n1_o1_n2_n3_n4_o2.GetLength(I1);
-        constexpr auto VGrad_N1 = vgrad_block_desc_n0_o0_n1_o1_n2_n3_n4_o2.GetLength(I2);
-        constexpr auto VGrad_O1 = vgrad_block_desc_n0_o0_n1_o1_n2_n3_n4_o2.GetLength(I3);
-        constexpr auto VGrad_N2 = vgrad_block_desc_n0_o0_n1_o1_n2_n3_n4_o2.GetLength(I4);
-        constexpr auto VGrad_N3 = vgrad_block_desc_n0_o0_n1_o1_n2_n3_n4_o2.GetLength(I5);
-        constexpr auto VGrad_N4 = vgrad_block_desc_n0_o0_n1_o1_n2_n3_n4_o2.GetLength(I6);
-        constexpr auto VGrad_O2 = vgrad_block_desc_n0_o0_n1_o1_n2_n3_n4_o2.GetLength(I7);
+        constexpr auto vgrad_block_desc_n0_o0_n1_o1_n2_o2_o3_o4 =
+            decltype(vgrad_blockwise_gemm)::GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
+        constexpr auto VGrad_N0 = vgrad_block_desc_n0_o0_n1_o1_n2_o2_o3_o4.GetLength(I0);
+        constexpr auto VGrad_O0 = vgrad_block_desc_n0_o0_n1_o1_n2_o2_o3_o4.GetLength(I1);
+        constexpr auto VGrad_N1 = vgrad_block_desc_n0_o0_n1_o1_n2_o2_o3_o4.GetLength(I2);
+        constexpr auto VGrad_O1 = vgrad_block_desc_n0_o0_n1_o1_n2_o2_o3_o4.GetLength(I3);
+        constexpr auto VGrad_N2 = vgrad_block_desc_n0_o0_n1_o1_n2_o2_o3_o4.GetLength(I4);
+        constexpr auto VGrad_O2 = vgrad_block_desc_n0_o0_n1_o1_n2_o2_o3_o4.GetLength(I5);
+        constexpr auto VGrad_O3 = vgrad_block_desc_n0_o0_n1_o1_n2_o2_o3_o4.GetLength(I6);
+        constexpr auto VGrad_O4 = vgrad_block_desc_n0_o0_n1_o1_n2_o2_o3_o4.GetLength(I7);
 
-        const index_t n_thread_data_idx_on_grid =
-            vgrad_thread_mtx_on_block_n_o[I0]; // TODO ANT: step n after each Gemm1 outer loop
+        const index_t n_thread_data_idx_on_grid = vgrad_thread_mtx_on_block_n_o[I0];
 
         const index_t o_thread_data_idx_on_grid =
             vgrad_thread_mtx_on_block_n_o[I1] + gemm1_n_block_data_idx_on_grid;
 
-        const auto n_thread_data_on_grid_to_n0_n1_n2_n3_n4_adaptor =
+        const auto n_thread_data_on_grid_to_n0_n1_n2_adaptor =
             make_single_stage_tensor_adaptor(
                 make_tuple(make_merge_transform(
-                    make_tuple(VGrad_N0, VGrad_N1, VGrad_N2, VGrad_N3, VGrad_N4))),
-                make_tuple(Sequence<0, 1, 2, 3, 4>{}),
+                    make_tuple(VGrad_N0, VGrad_N1, VGrad_N2))),
+                make_tuple(Sequence<0, 1, 2>{}),
                 make_tuple(Sequence<0>{}));
 
         const auto n_thread_data_nd_idx_on_grid =
-            n_thread_data_on_grid_to_n0_n1_n2_n3_n4_adaptor.CalculateBottomIndex(
+            n_thread_data_on_grid_to_n0_n1_n2_adaptor.CalculateBottomIndex(
                 make_multi_index(n_thread_data_idx_on_grid));
 
-        const auto o_thread_data_on_grid_to_o0_o1_o2_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_merge_transform(make_tuple(VGrad_O0, VGrad_O1, VGrad_O2))),
-            make_tuple(Sequence<0, 1, 2>{}),
-            make_tuple(Sequence<0>{}));
+        const auto o_thread_data_on_grid_to_o0_o1_o2_o3_o4_adaptor =
+            make_single_stage_tensor_adaptor(
+                make_tuple(make_merge_transform(
+                    make_tuple(VGrad_O0, VGrad_O1, VGrad_O2, VGrad_O3, VGrad_O4))),
+                make_tuple(Sequence<0, 1, 2, 3, 4>{}),
+                make_tuple(Sequence<0>{}));
 
         const auto o_thread_data_nd_idx_on_grid =
-            o_thread_data_on_grid_to_o0_o1_o2_adaptor.CalculateBottomIndex(
+            o_thread_data_on_grid_to_o0_o1_o2_o3_o4_adaptor.CalculateBottomIndex(
                 make_multi_index(o_thread_data_idx_on_grid));
 
         auto vgrad_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
             FloatGemmAcc,
             DataType,
-            decltype(vgrad_thread_desc_n0_o0_n1_o1_n2_n3_n4_o2),
-            decltype(vgrad_grid_desc_n0_o0_n1_o1_n2_n3_n4_o2),
+            decltype(vgrad_thread_desc_n0_o0_n1_o1_n2_o2_o3_o4),
+            decltype(vgrad_grid_desc_n0_o0_n1_o1_n2_o2_o3_o4),
             tensor_operation::element_wise::PassThrough, // CElementwiseOperation
-            decltype(vgrad_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2()
-                         .GetLengths()),          // SliceLengths
+            decltype(vgrad_thread_desc_n0_o0_n1_o1_n2_o2_o3_o4.GetLengths()), // SliceLengths
             Sequence<0, 1, 2, 3, 4, 5, 6, 7>,     // AccessOrder
             7,                                    // VectorDim
-            1,                                    // ScalarPerVector
+            2,                                    // ScalarPerVector
             InMemoryDataOperationEnum::AtomicAdd, // GlobalMemoryDataOperation
-            1,
-            true>(vgrad_grid_desc_n0_o0_n1_o1_n2_n3_n4_o2,
+            1,                                    // DstScalarStrideInVector
+            true>(vgrad_grid_desc_n0_o0_n1_o1_n2_o2_o3_o4,
                   make_multi_index(n_thread_data_nd_idx_on_grid[I0],
                                    o_thread_data_nd_idx_on_grid[I0],
                                    n_thread_data_nd_idx_on_grid[I1],
                                    o_thread_data_nd_idx_on_grid[I1],
                                    n_thread_data_nd_idx_on_grid[I2],
-                                   n_thread_data_nd_idx_on_grid[I3],
-                                   n_thread_data_nd_idx_on_grid[I4],
-                                   o_thread_data_nd_idx_on_grid[I2]),
+                                   o_thread_data_nd_idx_on_grid[I2],
+                                   o_thread_data_nd_idx_on_grid[I3],
+                                   o_thread_data_nd_idx_on_grid[I4]),
                   tensor_operation::element_wise::PassThrough{});
 
-        // TODO ANT: ygrad slice window step size
-
 #if 0
+        if(hipThreadIdx_x % 32 < 4)
+        {
+            printf("wid %zd tid %zd _n0_o0_n1_o1_n2_o2_o3_o4 %d %d %d %d %d %d %d %d\n",
+                   hipBlockIdx_x,
+                   hipThreadIdx_x,
+                   n_thread_data_nd_idx_on_grid[I0],
+                   o_thread_data_nd_idx_on_grid[I0],
+                   n_thread_data_nd_idx_on_grid[I1],
+                   o_thread_data_nd_idx_on_grid[I1],
+                   n_thread_data_nd_idx_on_grid[I2],
+                   o_thread_data_nd_idx_on_grid[I2],
+                   o_thread_data_nd_idx_on_grid[I3],
+                   o_thread_data_nd_idx_on_grid[I4]);
+        }
+#endif
+        // p_thread_slice_copy_step will be in for loop
+        constexpr auto ygrad_block_slice_copy_step =
+            make_multi_index(VGradGemmTile_N_O_M::YGrad_M0, 0, 0);
+        constexpr auto ygrad_block_reset_copy_step =
+            make_multi_index(-MPerBlock / VGradGemmTile_N_O_M::YGrad_M1, 0, 0);
+
+        // vgrad gemm output tile
+        const auto vgrad_block_slice_copy_step =
+            make_multi_index(VGradGemmTile_N_O_M::GemmNRepeat, 0, 0, 0, 0, 0, 0, 0);
+#if 0
+        if(hipThreadIdx_x == 0)
+        {
+            printf("bid %zd, n_grid = %d, o_grid = %d, step N0 = %d\n",
+                   hipBlockIdx_x,
+                   n_thread_data_idx_on_grid,
+                   o_thread_data_idx_on_grid,
+                   n_thread_data_on_grid_to_n0_n1_n2_adaptor.CalculateBottomIndex(
+                       make_multi_index(NPerBlock))[I0]);
+        }
+#endif
+        constexpr index_t num_vgrad_gemm_loop = MPerBlock / VGradGemmTile_N_O_M::Sum_M;
+
+        lse_thread_copy_global_to_vgpr.Run(lse_grid_desc_mblock_mrepeat_mwave_mperxdl,
+                                            lse_grid_buf,
+                                            lse_thread_desc_mblock_mrepeat_mwave_mperxdl,
+                                            make_tuple(I0, I0, I0, I0),
+                                            lse_thread_buf);
+
         // gemm1 K loop
         index_t gemm1_k_block_outer_index = 0;
         do
@@ -1178,131 +1321,123 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
 
-            // softmax
-            SoftmaxBuf& max = blockwise_softmax.max_value_buf;
-            SoftmaxBuf& sum = blockwise_softmax.sum_value_buf;
-
-            blockwise_softmax.Run(acc_thread_buf, workspace_buf);
-
-            // TODO: may convert to log domain
-            running_max_new = mathext::max(max, running_max);
-            running_sum_new = mathext::exp(running_max - running_max_new) * running_sum +
-                              mathext::exp(max - running_max_new) * sum;
-
-            // gemm1
+#if 0
+            if (hipBlockIdx_x == 0 && hipThreadIdx_x % 32 < 4)
             {
-                // TODO: explore using dynamic buffer for a1 thread buffer
-                // For a1_blockwise_copy, the goal is to satisfy pipeline requirements RunRead(),
-                // RunWrite(), and MoveSliceWindow(). But it is impossible to implement given that
-                // the A1 source buffer is static buffer holding the output of first GEMM and
-                // requires constexpr offset by design. Therefore, we pass tensor coordinate offset
-                // explicitly in Run() below.
-
-                // Initialize acc1
-                acc1_thread_buf.Clear();
-
-                // preload data into LDS
-                b1_blockwise_copy.RunRead(b1_grid_desc_bk0_n_bk1, b1_grid_buf);
-
-                b1_blockwise_copy.MoveSrcSliceWindow(b1_grid_desc_bk0_n_bk1,
-                                                     b1_block_slice_copy_step);
-
-                block_sync_lds(); // wait for reduction LDS read
-
-                b1_blockwise_copy.RunWrite(b1_block_desc_bk0_n_bk1, b1_block_buf);
-
-                // main body
-                if constexpr(num_gemm1_k_block_inner_loop > 1)
-                {
-                    static_for<0, num_gemm1_k_block_inner_loop - 1, 1>{}([&](auto i) {
-                        a1_blockwise_copy.Run(acc_thread_desc_k0_m_k1,
-                                              make_tuple(Number<i * A1ThreadSliceK0>{}, I0, I0),
-                                              acc_thread_buf,
-                                              a1_thread_desc_k0_m_k1,
-                                              make_tuple(I0, I0, I0),
-                                              a1_thread_buf);
-
-                        b1_blockwise_copy.RunRead(b1_grid_desc_bk0_n_bk1, b1_grid_buf);
-
-                        block_sync_lds();
-
-                        gemm1_blockwise_gemm.Run(a1_thread_buf, b1_block_buf, acc1_thread_buf);
-
-                        block_sync_lds();
-
-                        b1_blockwise_copy.MoveSrcSliceWindow(b1_grid_desc_bk0_n_bk1,
-                                                             b1_block_slice_copy_step);
-
-                        b1_blockwise_copy.RunWrite(b1_block_desc_bk0_n_bk1, b1_block_buf);
-                    });
-                }
-                // tail
-                {
-                    a1_blockwise_copy.Run(
-                        acc_thread_desc_k0_m_k1,
-                        make_tuple(
-                            Number<(num_gemm1_k_block_inner_loop - 1) * A1ThreadSliceK0>{}, I0, I0),
-                        acc_thread_buf,
-                        a1_thread_desc_k0_m_k1,
-                        make_tuple(I0, I0, I0),
-                        a1_thread_buf);
-
-                    block_sync_lds();
-
-                    gemm1_blockwise_gemm.Run(a1_thread_buf, b1_block_buf, acc1_thread_buf);
-                }
-            } // end gemm1
-
-            // workaround compiler issue; see ck/ck.hpp
-            if constexpr(CK_WORKAROUND_SWDEV_XXXXXX_BF16_ATTEN_FWD_GFX908_ISSUE == 1 &&
-                         is_same_v<FloatAB, bhalf_t> && MPerBlock == 256 && NPerBlock == 128 &&
-                         Gemm1NPerBlock == 128)
-            {
-                __builtin_amdgcn_sched_barrier(0);
+                printf("tid %zd, S[0:3] = %f, %f, %f, %f\n",
+                       hipThreadIdx_x,
+                       acc_thread_buf[I0],
+                       acc_thread_buf[I1],
+                       acc_thread_buf[I2],
+                       acc_thread_buf[I3]);
             }
+#endif
 
-            constexpr auto c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 =
-                gemm1_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
-            constexpr auto cm0 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I0);
-            constexpr auto cn0 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I1);
-            constexpr auto cm1 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I2);
-            constexpr auto cn1 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I3);
-            constexpr auto cm2 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I4);
-            constexpr auto cn2 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I5);
-            constexpr auto cn3 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I6);
-            constexpr auto cn4 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I7);
-            constexpr auto c_thread_slice_desc_m_n = make_naive_tensor_descriptor_packed(
-                make_tuple(cm0 * cm1 * cm2, cn0 * cn1 * cn2 * cn3 * cn4));
-            constexpr auto c_thread_buf_slice_m = c_thread_slice_desc_m_n.GetLength(I0);
-            constexpr auto c_thread_buf_slice_n = c_thread_slice_desc_m_n.GetLength(I1);
+            // softmax
+            blockwise_softmax.RunWithPreCalcStats(acc_thread_buf, lse_thread_buf);
 
-            static_for<0, c_thread_buf_slice_m, 1>{}([&](auto iM) {
-                static_for<0, c_thread_buf_slice_n, 1>{}([&](auto iN) {
-                    auto I = Number<c_thread_slice_desc_m_n.CalculateOffset(make_tuple(iM, iN))>{};
-                    FloatGemmAcc acc1 = acc1_thread_buf[I]; // P*V
-                    FloatGemmAcc c    = c_thread_buf[I];    // O
-                    FloatGemmAcc c_new =
-                        (running_sum[iM] * math::exp(running_max[iM] - running_max_new[iM]) * c +
-                         math::exp(max[iM] - running_max_new[iM]) * acc1) /
-                        running_sum_new[iM]; // Formula by Dao et al.,
-                                             // https://arxiv.org/pdf/2205.14135v2.pdf section 3.1
+#if 0
+            if (hipBlockIdx_x == 0 && hipThreadIdx_x % 32 < 4)
+            {
+                printf("tid %zd, P[0:3] = %f, %f, %f, %f\n",
+                       hipThreadIdx_x,
+                       acc_thread_buf[I0],
+                       acc_thread_buf[I1],
+                       acc_thread_buf[I2],
+                       acc_thread_buf[I3]);
+            }
+#endif
 
-                    c_thread_buf(I) = c_new; // O_new
-                });
-            });
+            block_sync_lds(); // wait for gemm1 LDS read
+
+            SubThreadBlock<BlockSize> p_thread_copy_subgroup(blockwise_gemm.GetWaveIdx()[I0],
+                                                             blockwise_gemm.GetWaveIdx()[I1]);
+
+            static_assert(sfc_p_m0_n0_m1_n1_m2_n2.GetNumOfAccess() == num_vgrad_gemm_loop, "");
+
+            vgrad_acc_thread_buf.Clear();
+
+            // TODO ANT: single buffer prefetch pipeline
+            static_for<0, num_vgrad_gemm_loop, 1>{}([&](auto vgrad_gemm_loop_idx) { // gemm dV
+                // load VGrad Gemm B
+                ygrad_blockwise_copy.RunRead(ygrad_grid_desc_m0_o_m1, ygrad_grid_buf);
+
+                // load VGrad Gemm A
+                const auto p_nd_idx =
+                    sfc_p_m0_n0_m1_n1_m2_n2.GetIndexTupleOfNumber(vgrad_gemm_loop_idx);
+                constexpr auto mwave_range = make_tuple(
+                    p_nd_idx[I2], p_nd_idx[I2] + p_block_slice_lengths_m0_n0_m1_n1[I2]);
+                constexpr auto nwave_range = make_tuple(
+                    p_nd_idx[I3], p_nd_idx[I3] + p_block_slice_lengths_m0_n0_m1_n1[I3]);
+                if (p_thread_copy_subgroup.IsBelong(mwave_range, nwave_range))
+                {
+                    p_thread_copy_vgpr_to_lds.Run(
+                        p_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4,
+                        make_tuple(
+                            p_nd_idx[I0], p_nd_idx[I1], I0, I0, I0, I0, I0, I0),
+                        acc_thread_buf,
+                        p_block_desc_m0_n0_m1_n1_m2_n2_n3_n4,
+                        p_block_buf);
+                }
+
+                // ygrad slice window is moved with MoveSrcSliceWindow() since it is dynamic buffer
+                // p slice window is moved by loop index
+                ygrad_blockwise_copy.MoveSrcSliceWindow(ygrad_grid_desc_m0_o_m1,
+                                                        ygrad_block_slice_copy_step);
+
+                block_sync_lds(); // sync before write
+                ygrad_blockwise_copy.RunWrite(ygrad_block_desc_m0_o_m1, ygrad_block_buf);
+#if 0
+                if (hipBlockIdx_x == 0)
+                {
+                    debug::print_shared(
+                        p_block_buf.p_data_,
+                        index_t(p_block_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetElementSpaceSize()));
+                }
+#endif
+#if 0
+                if (hipBlockIdx_x == 0)
+                {
+                    debug::print_shared(ygrad_block_buf.p_data_,
+                                        index_t(ygrad_block_desc_m0_o_m1.GetElementSpaceSize()));
+                }
+#endif
+
+                block_sync_lds(); // sync before read
+                vgrad_blockwise_gemm.Run(p_block_buf, ygrad_block_buf, vgrad_acc_thread_buf);
+
+#if 1
+                if(hipBlockIdx_x == 0 && hipThreadIdx_x % 32 < 4)
+                {
+                    printf("outer %d inner %d tid %zd, dV[0:3] = %f, %f, %f, %f\n",
+                           gemm1_k_block_outer_index,
+                           vgrad_gemm_loop_idx.value,
+                           hipThreadIdx_x,
+                           vgrad_acc_thread_buf[I0],
+                           vgrad_acc_thread_buf[I1],
+                           vgrad_acc_thread_buf[I2],
+                           vgrad_acc_thread_buf[I3]);
+                }
+#endif
+            }); // end gemm dV
+
+            // atomic_add vgrad
+            vgrad_thread_copy_vgpr_to_global.Run(vgrad_thread_desc_n0_o0_n1_o1_n2_o2_o3_o4,
+                                                 make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
+                                                 vgrad_acc_thread_buf,
+                                                 vgrad_grid_desc_n0_o0_n1_o1_n2_o2_o3_o4,
+                                                 vgrad_grid_buf);
 
             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_ak0_m_ak1,
                                                 a_block_reset_copy_step); // rewind K
             b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_bk0_n_bk1,
                                                 b_block_reset_copy_step); // rewind K and step N
+            ygrad_blockwise_copy.MoveSrcSliceWindow(ygrad_grid_desc_m0_o_m1,
+                                                    ygrad_block_reset_copy_step); // rewind M
+            vgrad_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+                vgrad_grid_desc_n0_o0_n1_o1_n2_o2_o3_o4, vgrad_block_slice_copy_step); // step N
 
-            // update before next j iteration
-            running_max = running_max_new;
-            running_sum = running_sum_new;
-
-            block_sync_lds(); // wait for gemm1 LDS read
         } while(++gemm1_k_block_outer_index < num_gemm1_k_block_outer_loop); // end j loop
-#endif
 
         // TODO ANT:
         // shuffle dQ and write

@@ -28,8 +28,8 @@ struct SubThreadBlock
 
     __device__ static constexpr index_t GetNumOfThread() { return kNumThread_; }
 
-    template <typename Tuple2>
-    __device__ constexpr bool IsBelong(const Tuple2& mwave_range, const Tuple2& nwave_range)
+    template <typename TupleArg1, typename TupleArg2>
+    __device__ constexpr bool IsBelong(const TupleArg1& mwave_range, const TupleArg2& nwave_range)
     {
         // wave_range[I0] inclusive, wave_range[I1] exclusive
         if(mwave_ < mwave_range[I0])

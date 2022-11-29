@@ -137,6 +137,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
             static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
                 constexpr index_t src_offset = src_desc.CalculateOffset(
                     src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
+                // Sequence<num_access, idx_1d.value, i.value, src_offset>{}.foo();
 
                 SrcData v;
 
