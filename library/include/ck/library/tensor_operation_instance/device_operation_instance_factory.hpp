@@ -87,6 +87,8 @@ using Relu           = ck::tensor_operation::element_wise::Relu;
 using Scale          = ck::tensor_operation::element_wise::Scale;
 using Bilinear       = ck::tensor_operation::element_wise::Bilinear;
 using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
+using AddFastGelu    = ck::tensor_operation::element_wise::AddFastGelu;
+using FastGelu       = ck::tensor_operation::element_wise::FastGelu;
 
 template <typename Activation>
 using Activation_Mul_Clamp = ck::tensor_operation::element_wise::Activation_Mul_Clamp<Activation>;
@@ -95,7 +97,7 @@ template <typename Activation>
 using Add_Activation_Mul_Clamp =
     ck::tensor_operation::element_wise::Add_Activation_Mul_Clamp<Activation>;
 
-template <typename DeviceOp>
+template <typename DeviceOp, typename Tag = void>
 struct DeviceOperationInstanceFactory;
 
 } // namespace instance

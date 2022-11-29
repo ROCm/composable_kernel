@@ -10,6 +10,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -98,7 +99,7 @@ bool run_grouped_conv_fwd_dl(bool do_verification,
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
     std::array<ck::index_t, NDimSpatial> input_right_pads{};
 
-    auto copy = [](auto& x, auto& y) { std::copy(x.begin(), x.end(), y.begin()); };
+    auto copy = [](auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
 
     copy(in_g_n_c_wis_desc.GetLengths(), a_g_n_c_wis_lengths);
     copy(in_g_n_c_wis_desc.GetStrides(), a_g_n_c_wis_strides);

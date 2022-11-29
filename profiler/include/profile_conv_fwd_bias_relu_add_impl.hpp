@@ -12,6 +12,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd_bias_activation_add.hpp"
 
 namespace ck {
@@ -68,19 +69,19 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
 
     auto f_host_tensor_descriptor =
         [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W, auto layout) {
+            using namespace ck::literals;
+
             if constexpr(is_same<decltype(layout), ck::tensor_layout::convolution::NCHW>::value ||
                          is_same<decltype(layout), ck::tensor_layout::convolution::KCYX>::value ||
                          is_same<decltype(layout), ck::tensor_layout::convolution::NKHW>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({N_, C_, H, W}),
-                                            std::vector<std::size_t>({C_ * H * W, H * W, W, 1}));
+                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, H * W, W, 1_uz});
             }
             else if constexpr(is_same<decltype(layout), tensor_layout::convolution::NHWC>::value ||
                               is_same<decltype(layout), tensor_layout::convolution::KYXC>::value ||
                               is_same<decltype(layout), tensor_layout::convolution::NHWK>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({N_, C_, H, W}),
-                                            std::vector<std::size_t>({C_ * H * W, 1, W * C_, C_}));
+                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, 1_uz, W * C_, C_});
             }
         };
 
@@ -92,8 +93,7 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
         f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
 
     // bias: assume contiguous 1d vector
-    Tensor<OutDataType> bias_k(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(K)})));
+    Tensor<OutDataType> bias_k({K});
 
     // residual: assume same layout as output tensor
     Tensor<OutDataType> resi_n_k_ho_wo(f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
@@ -251,8 +251,7 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
             {
                 out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
 
-                ck::utils::check_err(out_n_k_ho_wo_device_result.mData,
-                                     out_n_k_ho_wo_host_result.mData);
+                ck::utils::check_err(out_n_k_ho_wo_device_result, out_n_k_ho_wo_host_result);
 
                 if(do_log)
                 {

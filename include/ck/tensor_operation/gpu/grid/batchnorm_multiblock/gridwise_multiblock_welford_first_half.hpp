@@ -93,6 +93,9 @@ struct GridwiseMultiblockWelfordFirstHalf
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
+    // clang-format off
+    // First half of the Multiblock Welford method to calculate mean and variance, used by both batchnorm-forward and batchnorm-backward.
+    // clang-format on
     __device__ static void Run(const XGridDesc_M_K& x_grid_desc_m_k,
                                const MeanVarCountGridDesc_M_G& mean_var_count_grid_desc_m_g,
                                const GetReduceCountPerThreadFunctor& get_reduce_count_per_thread,
