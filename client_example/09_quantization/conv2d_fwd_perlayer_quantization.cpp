@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "ck/ck.hpp"
-#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_perlayer_quantization.hpp"
+#include "ck/library/tensor_operation_instance/gpu/quantization/grouped_convolution_forward_perlayer_quantization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_conv_fwd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
