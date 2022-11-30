@@ -27,6 +27,7 @@ set(PROFILER_SOURCE
     src/profile_layernorm.cpp
     src/profile_softmax.cpp
     src/profile_batchnorm_fwd.cpp
+    src/profile_batchnorm_bwd.cpp
 )
 
 add_executable(ckProfiler ${PROFILER_SOURCE})
