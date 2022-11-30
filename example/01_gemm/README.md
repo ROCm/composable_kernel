@@ -21,3 +21,9 @@ Warm up
 Start running 5 times...
 Perf: 1.19685 ms, 107.657 TFlops, 78.8501 GB/s
 ```
+
+# Instruction for static shape split-k gemm
+
+## Switch branch
+```bash
+git checkout -b 
