@@ -72,12 +72,14 @@ enum struct WmmaInstr
 
 template <WmmaInstr Instr, 
           index_t WaveSize,
-          typename enable_if<WaveSize == 32 || WaveSize == 64, bool>:: = false>
-struct wmma_type;
+          typename = void>
+struct wmma_type{};
 
 // A-swizzled
 template <index_t WaveSize>
-struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f16, WaveSize>
+struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f16, 
+                 WaveSize, 
+                 typename std::enable_if_t<WaveSize == 32 ||WaveSize == 64>>
 {
 // Absolute fixing property
     // * Data Pixel 
@@ -172,11 +174,7 @@ struct WmmaSelector
 
         static_assert(selected_wmma.wave_size * selected_wmma.num_acc_vgprs_per_wave * selected_wmma.acc_data_size==
                       selected_wmma.m_per_wmma * selected_wmma.n_per_wmma * 4,
-                      "WRONG! Number of Accumulator Register");
-
-        static_assert(selected_wmma.lane_size * selected_wmma.num_srcregs_per_wmma * selected_wmma.src_data_size==
-                      selected_wmma.m_per_wmma * selected_wmma.k_per_wmma * 4,
-                      "WRONG! Number of Source Register");
+                      "WRONG! Invalid Number of Accumulator Register");
     }
 };
 
@@ -206,25 +204,25 @@ struct WmmaGemm
         static_assert(KPack == wmma_instr.k_per_wmma, "KPack should be k_per_wmma");
     }
 
-    // XDL output supporting C = A * B
+    // WMMA output supporting C = A * B
     // MPerWMMA_NPerWMMA -> MSubGroup_..._NPerWMMA_MAccVgprPerWave
-    template <typename CDesc_MRepeat_Mwave_MPerWMMA_NRepeat_NWave_NPerWMMA>
+    template <typename CDesc_MBlockxRepeat_MWave_MPerWMMA_NBlockxRepeat_NWave_NPerWMMA>
     __host__ __device__ static constexpr auto
-    MakeCDesc_MRepeat_Mwave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs
-    (const CDesc_MRepeat_Mwave_MPerWMMA_NRepeat_NWave_NPerWMMA& c_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma)
+    MakeCDesc_MBlockxRepeat_MWave_MSubGroup_NBlockxRepeat_NWave_NThreadPerSubGroup_MAccVgprs
+    (const CDesc_MBlockxRepeat_MWave_MPerWMMA_NBlockxRepeat_NWave_NPerWMMA& c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma)
     {
-        const auto MRepeat = c_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma.GetLength(I0);
-        const auto NRepeat = c_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma.GetLength(I3);
-        const auto MWave   = c_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma.GetLength(I1);
-        const auto NWave   = c_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma.GetLength(I4);
+        const auto MBlockxRepeat = c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I0);
+        const auto NBlockxRepeat = c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I3);
+        const auto MWave   = c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I1);
+        const auto NWave   = c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I4);
 
         return transform_tensor_descriptor(
-            c_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma,
-            make_tuple(make_pass_through_transform(MRepeat),
-                       make_pass_through_transform(Mwave),
+            c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma,
+            make_tuple(make_pass_through_transform(MBlockxRepeat),
+                       make_pass_through_transform(MWave),
                        make_unmerge_transform(make_tuple(Number<wmma_instr.num_subgroups>{},
                                                          Number<wmma_instr.num_acc_vgprs_per_wave>{})),
-                       make_pass_through_transform(NRepeat),
+                       make_pass_through_transform(NBlockxRepeat),
                        make_pass_through_transform(NWave),
                        make_pass_through_transform(Number<wmma_instr.num_thread_per_subgroups>{})),
             make_tuple(Sequence<0>{},
@@ -266,12 +264,12 @@ struct WmmaGemm
         if constexpr(!TransposeC)
         {
             wmma_instr.template run<MPerWmma, NPerWmma>(
-                p_a_wave[0], p_b_wave[0], p_c_thread);
+                p_a_wave, p_b_wave, p_c_thread);
         }
         else
         {
             wmma_instr.template run<MPerWmma, NPerWmma>(
-                p_b_wave[0], p_a_wave[0], p_c_thread);
+                p_b_wave, p_a_wave, p_c_thread);
         }
     }
 
@@ -318,7 +316,7 @@ struct WmmaGemm
     __host__ __device__ static constexpr auto GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths()
     {
         return make_tuple(
-            Number<I1, I1, Number<wmma_instr.num_acc_vgprs_per_wave>{});
+            I1, I1, Number<wmma_instr.num_acc_vgprs_per_wave>{});
     }
 };
 

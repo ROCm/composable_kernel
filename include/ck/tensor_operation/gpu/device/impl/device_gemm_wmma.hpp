@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_v1r1.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -38,8 +38,8 @@ template <typename ADataType,
           ck::index_t K1,
           ck::index_t MPerWMMA,
           ck::index_t NPerWMMA,
-          ck::index_t MWmmaPerWave,
-          ck::index_t NWmmaPerWave,
+          ck::index_t MRepeat,
+          ck::index_t NRepeat,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -196,7 +196,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
     using CGridDesc_M_N = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_wmma_v1<
+    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_wmma<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -214,8 +214,8 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
         MPerWMMA,
         NPerWMMA,
         K1,
-        MWmmaPerWave,
-        NWmmaPerWave,
+        MRepeat,
+        NRepeat,
         ABlockTransferThreadClusterLengths_K0_M_K1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -232,16 +232,15 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
-#if 0
-        Sequence<0, 2, 4, 5, 6, 1, 3, 7>, // CThreadTransferSrcDstAccessOrder,
+        Sequence<0, 1, 2, 3, 4, 5, 6>, // CThreadTransferSrcDstAccessOrder,
         CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector,
-#endif
         NumPrefetch,
+        LoopSched,
         PipelineVer>;
 
     // Argument
-    struct Argument : public BaseArgumentW
+    struct Argument : public BaseArgument
     {
         Argument(const ADataType* p_a_grid,
                  const BDataType* p_b_grid,
@@ -263,7 +262,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
               a_grid_desc_k0_m_k1_{},
               b_grid_desc_k0_n_k1_{},
               c_grid_desc_m_n_{},
-              c_grid_desc_mblock_mwmmaperwave_mwave_mlanehigh_nblock_nwmmaperwave_nwave_nlane_mlanelow_{},
+              c_grid_desc_mblockxrepeat_mwave_msubgroup_nblockxrepeat_nwave_nthreadpersubgroup_maccvgprs_{},
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
@@ -283,8 +282,8 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                                            c_grid_desc_m_n_,
                                            block_2_ctile_map_))
             {
-                c_grid_desc_mblock_mwmmaperwave_mwave_mlanehigh_nblock_nwmmaperwave_nwave_nlane_mlanelow_ =
-                    GridwiseGemm::MakeCGridDescriptor_MBlock_MWmmaPerWave_Mwave_MLaneHigh_NBlock_NWmmaPerWave_Nwave_NLane_MLaneLow(c_grid_desc_m_n_);
+                c_grid_desc_mblockxrepeat_mwave_msubgroup_nblockxrepeat_nwave_nthreadpersubgroup_maccvgprs_ =
+                    GridwiseGemm::MakeCGridDescriptor_MBlockxRepeat_MWave_MSubGroup_NBlockxRepeat_NWave_NThreadPerSubGroup_MAccVgprs(c_grid_desc_m_n_);
             }
         }
 
@@ -295,8 +294,8 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        typename GridwiseGemm::CGridDescriptor_MBlock_MWmmaPerWave_Mwave_MLaneHigh_NBlock_NWmmaPerWave_Nwave_NLane_MLaneLow
-            c_grid_desc_mblock_mwmmaperwave_mwave_mlanehigh_nblock_nwmmaperwave_nwave_nlane_mlanelow_;
+        typename GridwiseGemm::CGridDescriptor_MBlockxRepeat_MWave_MSubGroup_NBlockxRepeat_NWave_NThreadPerSubGroup_MAccVgprs
+            c_grid_desc_mblockxrepeat_mwave_msubgroup_nblockxrepeat_nwave_nthreadpersubgroup_maccvgprs_;
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
@@ -347,19 +346,21 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                const auto kernel = kernel_gemm_wmma_v1r1<
+                const auto kernel = kernel_gemm_wmma<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
                     remove_reference_t<DeviceGemmWmma::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmWmma::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::CGridDescriptor_MBlock_MWmmaPerWave_Mwave_MLaneHigh_NBlock_NWmmaPerWave_Nwave_NLane_MLaneLow>,
+                    remove_reference_t<typename GridwiseGemm::CGridDescriptor_MBlockxRepeat_MWave_MSubGroup_NBlockxRepeat_NWave_NThreadPerSubGroup_MAccVgprs>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     true>; // Last Option is W/O 
-
+                    
+                std::cout<<"Host kernel type is "<< type_name<decltype(kernel)>()<<std::endl;
+                printf("---------------------Crush before kernel launch-------------------\n");
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,
                                                   dim3(grid_size),
@@ -370,7 +371,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_mblock_mwmmaperwave_mwave_mlanehigh_nblock_nwmmaperwave_nwave_nlane_mlanelow_,
+                                                  arg.c_grid_desc_mblockxrepeat_mwave_msubgroup_nblockxrepeat_nwave_nthreadpersubgroup_maccvgprs_,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
@@ -378,13 +379,13 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
             }
             else
             {
-                const auto kernel = kernel_gemm_wmma_v1r1<
+                const auto kernel = kernel_gemm_wmma<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
                     remove_reference_t<DeviceGemmWmma::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmWmma::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::CGridDescriptor_MBlock_MWmmaPerWave_Mwave_MLaneHigh_NBlock_NWmmaPerWave_Nwave_NLane_MLaneLow>,
+                    remove_reference_t<typename GridwiseGemm::CGridDescriptor_MBlockxRepeat_MWave_MSubGroup_NBlockxRepeat_NWave_NThreadPerSubGroup_MAccVgprs>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -401,7 +402,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_mblock_mwmmaperwave_mwave_mlanehigh_nblock_nwmmaperwave_nwave_nlane_mlanelow_,
+                                                  arg.c_grid_desc_mblockxrepeat_mwave_msubgroup_nblockxrepeat_nwave_nthreadpersubgroup_maccvgprs_,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
@@ -540,8 +541,8 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
             << K1 << ", "
             << MPerWMMA << ", "
             << NPerWMMA << ", "
-            << MWmmaPerWave << ", "
-            << NWmmaPerWave
+            << MRepeat << ", "
+            << NRepeat
             << ">"
             << " NumPrefetch: "
             << NumPrefetch << ", "
