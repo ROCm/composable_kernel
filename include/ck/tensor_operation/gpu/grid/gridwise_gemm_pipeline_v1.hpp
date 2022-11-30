@@ -352,6 +352,7 @@ struct GridwiseGemmPipelineInterwave_v1<2> : public GridwiseGemmPipeline_v1<2>
 {
 };
 
+// TODO: deprecate as GridwiseGemmPipeline_Selector covers the functionality
 template <index_t NumPrefetch, LoopScheduler LoopSched>
 constexpr auto GridwiseGemmPipeline_v1_Selector()
 {

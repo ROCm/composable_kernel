@@ -126,6 +126,8 @@ bool profile_groupnorm_impl(int do_verification,
             gamma_dev.GetDeviceBuffer(),
             beta_dev.GetDeviceBuffer(),
             y_dev.GetDeviceBuffer(),
+            nullptr,
+            nullptr,
             PassThrough{});
 
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
@@ -163,8 +165,7 @@ bool profile_groupnorm_impl(int do_verification,
         {
             y_dev.FromDevice(y.mData.data());
 
-            bool pass =
-                ck::utils::check_err(y.mData, host_y.mData, "Error: Incorrect results", 1e-3, 1e-3);
+            bool pass = ck::utils::check_err(y, host_y, "Error: Incorrect results", 1e-3, 1e-3);
 
             if(do_log)
             {
@@ -196,7 +197,7 @@ bool profile_groupnorm_impl(int do_verification,
 
     if(num_kernel == 0)
     {
-        std::cout << "Error: No kernel is tested" << std::endl;
+        std::cout << "Error: No kernel is applicable" << std::endl;
         return false;
     }
 

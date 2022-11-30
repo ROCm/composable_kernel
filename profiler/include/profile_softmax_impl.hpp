@@ -3,55 +3,27 @@
 
 #pragma once
 
+#include <algorithm>
 #include <iomanip>
+#include <iostream>
+#include <string>
+#include <vector>
 
 #include "ck/ck.hpp"
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/fill.hpp"
 #include "ck/library/utility/host_tensor.hpp"
-#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+#include "ck/library/tensor_operation_instance/gpu/softmax.hpp"
 #include "ck/tensor_operation/gpu/device/device_softmax.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/utility/data_type.hpp"
 
 namespace ck {
-namespace tensor_operation {
-namespace device {
-namespace instance {
-
-namespace {
-using F16         = ck::half_t;
-using F32         = float;
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-} // namespace
-
-void add_device_softmax_f16_f16_rank3_instances(
-    std::vector<DeviceSoftmaxPtr<F16, F32, F16, PassThrough, PassThrough, 3>>&);
-void add_device_softmax_f16_f16_rank4_instances(
-    std::vector<DeviceSoftmaxPtr<F16, F32, F16, PassThrough, PassThrough, 4>>&);
-
-void add_device_softmax_f32_f32_rank3_instances(
-    std::vector<DeviceSoftmaxPtr<F32, F32, F32, PassThrough, PassThrough, 3>>&);
-void add_device_softmax_f32_f32_rank4_instances(
-    std::vector<DeviceSoftmaxPtr<F32, F32, F32, PassThrough, PassThrough, 4>>&);
-
-} // namespace instance
-} // namespace device
-} // namespace tensor_operation
-} // namespace ck
-
-namespace ck {
 namespace profiler {
 
-enum struct NormType
-{
-    BATCHNORM,
-    SOFTMAX,
-};
-
-enum struct NormDataType
+enum struct SoftmaxDataType
 {
     F32_F32, // in, out
     F16_F16,
@@ -60,7 +32,7 @@ enum struct NormDataType
 };
 
 // clang-format off
-template <typename NormDataType> std::string type_to_string();
+template <typename SoftmaxDataType> std::string type_to_string();
 template <> std::string type_to_string<float>()   { return "f32"; }
 template <> std::string type_to_string<half_t>()  { return "f16"; }
 template <> std::string type_to_string<bhalf_t>() { return "bf16"; }
@@ -69,7 +41,7 @@ template <> std::string type_to_string<int32_t>() { return "int32"; }
 // clang-format on
 
 template <typename InDataType, typename AccDataType, typename OutDataType, index_t Rank>
-void profile_softmax_impl(int do_verification,
+bool profile_softmax_impl(int do_verification,
                           int init_method,
                           bool do_log,
                           bool time_kernel,
@@ -77,8 +49,7 @@ void profile_softmax_impl(int do_verification,
                           std::vector<index_t> in_strides,
                           std::vector<index_t> reduce_dims,
                           AccDataType alpha,
-                          AccDataType beta,
-                          NormType norm_type)
+                          AccDataType beta)
 {
     if(Rank != in_length.size())
     {
@@ -88,62 +59,46 @@ void profile_softmax_impl(int do_verification,
     Tensor<InDataType> in = in_strides.empty() ? Tensor<InDataType>(in_length)
                                                : Tensor<InDataType>(in_length, in_strides);
     Tensor<OutDataType> out(in.mDesc);
+    Tensor<OutDataType> prior_out(in.mDesc);
 
     switch(init_method)
     {
-    // case 0: break;
-    case 0:
-        in.GenerateTensorValue(GeneratorTensor_1<InDataType>{});
-        out.GenerateTensorValue(GeneratorTensor_1<OutDataType>{});
-        break;
+    case 0: break;
     case 1:
-        in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
-        out.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
+        ck::utils::FillUniformDistributionIntegerValue<InDataType>{-5.f, 5.f}(in.begin(), in.end());
+        ck::utils::FillUniformDistributionIntegerValue<OutDataType>{-5.f, 5.f}(prior_out.begin(),
+                                                                               prior_out.end());
         break;
     default:
-        in.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
-        out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.5, 0.5});
+        ck::utils::FillUniformDistribution<InDataType>{0.0f, 1.0f}(in);
+        ck::utils::FillUniformDistribution<OutDataType>{-0.5f, 0.5f}(prior_out);
     }
 
-    Tensor<OutDataType> out_ref(out);
+    Tensor<OutDataType> out_ref(prior_out);
 
-    DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
-    in_dev.ToDevice(in.mData.data());
-    out_dev.ToDevice(out.mData.data());
+    if(do_verification)
+    {
+        using ReferenceSoftmax =
+            tensor_operation::host::ReferenceSoftmax<InDataType, OutDataType, AccDataType>;
+        ReferenceSoftmax{}.MakeInvoker().Run({in, out_ref, alpha, beta, reduce_dims});
+    }
 
-    std::vector<index_t> i_in_lengths(in.mDesc.GetLengths().begin(), in.mDesc.GetLengths().end());
-    std::vector<index_t> i_in_strides(in.mDesc.GetStrides().begin(), in.mDesc.GetStrides().end());
+    DeviceMem in_dev(in.GetElementSpaceSizeInBytes());
+    DeviceMem out_dev(out.GetElementSpaceSizeInBytes());
+    in_dev.ToDevice(in.data());
+
+    std::vector<index_t> in_tensor_lengths(in.GetLengths().begin(), in.GetLengths().end());
+    std::vector<index_t> in_tensor_strides(in.GetStrides().begin(), in.GetStrides().end());
 
     // add device softmax instances
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-    using DeviceOpPtr = tensor_operation::device::
-        DeviceSoftmaxPtr<InDataType, AccDataType, OutDataType, PassThrough, PassThrough, Rank>;
-    std::vector<DeviceOpPtr> instances;
+    using DeviceOp    = tensor_operation::device::
+        DeviceSoftmax<InDataType, AccDataType, OutDataType, PassThrough, PassThrough, Rank>;
 
-    if(norm_type == NormType::SOFTMAX)
-    {
-        if constexpr(is_same<InDataType, half_t>::value && is_same<OutDataType, half_t>::value &&
-                     is_same<AccDataType, float>::value)
-        {
-            if constexpr(Rank == 3)
-                tensor_operation::device::instance::add_device_softmax_f16_f16_rank3_instances(
-                    instances);
-            else if constexpr(Rank == 4)
-                tensor_operation::device::instance::add_device_softmax_f16_f16_rank4_instances(
-                    instances);
-        }
-        else if constexpr(is_same<InDataType, float>::value && is_same<OutDataType, float>::value &&
-                          is_same<AccDataType, float>::value)
-        {
-            if constexpr(Rank == 3)
-                tensor_operation::device::instance::add_device_softmax_f32_f32_rank3_instances(
-                    instances);
-            else if constexpr(Rank == 4)
-                tensor_operation::device::instance::add_device_softmax_f32_f32_rank4_instances(
-                    instances);
-        }
-    }
+    // get device op instances
+    const auto instances = tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+    std::cout << "found " << instances.size() << " instances" << std::endl;
 
     if(instances.size() <= 0)
     {
@@ -153,21 +108,19 @@ void profile_softmax_impl(int do_verification,
     std::string best_instance_name;
     float best_avg_time   = std::numeric_limits<float>::max();
     float best_gb_per_sec = 0;
-
-    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+    std::vector<bool> instance_pass;
 
     for(auto& inst_ptr : instances)
     {
         // Is this user's responsibility to check if problem mismatches kernel instance (ie. rank 3
         // problem to rank 4 kernel) other than invoking IsSupportedArgument()?
-        if(!(inst_ptr->GetRank() == static_cast<index_t>(i_in_lengths.size()) &&
-             inst_ptr->GetNumReduceDim() == static_cast<index_t>(reduce_dims.size())))
+        if(!(inst_ptr->GetNumReduceDim() == static_cast<index_t>(reduce_dims.size())))
         {
             continue;
         }
 
-        auto argument_ptr = inst_ptr->MakeArgumentPointer(i_in_lengths,
-                                                          i_in_strides,
+        auto argument_ptr = inst_ptr->MakeArgumentPointer(in_tensor_lengths,
+                                                          in_tensor_strides,
                                                           reduce_dims,
                                                           &alpha,
                                                           &beta,
@@ -181,45 +134,42 @@ void profile_softmax_impl(int do_verification,
             std::cout << inst_ptr->GetTypeString() << " skipped due to unsupported argument: ";
             LogRange(std::cout << "input lengths = [", in_length, ", ")
                 << "], "
-                << "scaler = [" << alpha << ", " << beta << "]." << std::endl;
-            return;
+                << "scaler = [" << alpha << ", " << beta << "]";
+            LogRange(std::cout << ", reduce dims = [", reduce_dims, ", ") << "]." << std::endl;
+            instance_pass.push_back(true);
+            continue;
         }
 
+        out_dev.ToDevice(prior_out.data());
         auto invoker_ptr = inst_ptr->MakeInvokerPointer();
+        float avg_time   = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
-        float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
-
-        std::size_t num_bytes =
-            in.mDesc.GetElementSize() * sizeof(InDataType) +
-            (beta == 0.0f ? 1 : 2) * out.mDesc.GetElementSize() * sizeof(OutDataType);
-
-        float gb_per_sec = num_bytes / 1.E6 / avg_time;
-
-        std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << gb_per_sec << " GB/s, "
-                  << inst_ptr->GetTypeString() << std::endl;
-
-        if(avg_time < best_avg_time)
+        if(time_kernel)
         {
-            best_instance_name = inst_ptr->GetTypeString();
-            best_avg_time      = avg_time;
-            best_gb_per_sec    = gb_per_sec;
+            std::size_t num_bytes =
+                in.GetElementSize() * sizeof(InDataType) +
+                (beta == 0.0f ? 1 : 2) * out.GetElementSize() * sizeof(OutDataType);
+            float gb_per_sec = num_bytes / 1.E6 / avg_time;
+
+            std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << gb_per_sec << " GB/s, "
+                      << inst_ptr->GetTypeString() << std::endl;
+
+            if(avg_time < best_avg_time)
+            {
+                best_instance_name = inst_ptr->GetTypeString();
+                best_avg_time      = avg_time;
+                best_gb_per_sec    = gb_per_sec;
+            }
         }
 
         if(do_verification)
         {
-            // TODO: factory method to dynamically switch between different reference normalizations
-            using ReferenceFactory =
-                tensor_operation::host::ReferenceSoftmax<InDataType, OutDataType, AccDataType>;
-
-            ReferenceFactory{}.MakeInvoker().Run({in, out_ref, alpha, beta, reduce_dims});
-
-            out_dev.FromDevice(out.mData.data());
-
-            bool pass;
+            out_dev.FromDevice(out.data());
+            bool pass = true;
             if(std::is_same<InDataType, int8_t>::value)
             {
-                pass = ck::utils::check_err(
-                    out.mData, out_ref.mData, "Error: Incorrect results!", 0, 1);
+                pass = pass && ck::utils::check_err(
+                                   out.mData, out_ref.mData, "Error: Incorrect results!", 0, 1);
                 if(do_log)
                 {
                     LogRangeAsType<int>(std::cout << "in  : ", in.mData, ",") << std::endl;
@@ -230,7 +180,7 @@ void profile_softmax_impl(int do_verification,
             }
             else
             {
-                pass = ck::utils::check_err(out.mData, out_ref.mData);
+                pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
                 if(do_log)
                 {
                     LogRangeAsType<float>(std::cout << "in  : ", in.mData, ",") << std::endl;
@@ -247,16 +197,22 @@ void profile_softmax_impl(int do_verification,
                     << "], "
                     << "scaler = [" << alpha << ", " << beta << "]." << std::endl;
             }
+            instance_pass.push_back(pass);
         }
     }
-    std::cout << "Best Perf for datatype = " << type_to_string<InDataType>() << "_"
-              << type_to_string<OutDataType>() << ", ";
-    LogRange(std::cout << "length = ", i_in_lengths, ",") << ", ";
-    LogRange(std::cout << "stride = ", i_in_strides, ",") << ", ";
-    LogRange(std::cout << "reduce dims ", reduce_dims, ",") << ", ";
-    std::cout << "alpha = " << alpha << ", "
-              << "beta = " << beta << ", " << best_avg_time << " ms, " << best_gb_per_sec
-              << " GB/s, " << best_instance_name << std::endl;
+    if(time_kernel)
+    {
+        std::cout << "Best Perf for datatype = " << type_to_string<InDataType>() << "_"
+                  << type_to_string<OutDataType>() << ", ";
+        LogRange(std::cout << "length = ", in_tensor_lengths, ",") << ", ";
+        LogRange(std::cout << "stride = ", in_tensor_strides, ",") << ", ";
+        LogRange(std::cout << "reduce dims ", reduce_dims, ",") << ", ";
+        std::cout << "alpha = " << alpha << ", "
+                  << "beta = " << beta << ", " << best_avg_time << " ms, " << best_gb_per_sec
+                  << " GB/s, " << best_instance_name << std::endl;
+    }
+    return std::all_of(
+        std::begin(instance_pass), std::end(instance_pass), [](bool p) { return p; });
 }
 
 } // namespace profiler
