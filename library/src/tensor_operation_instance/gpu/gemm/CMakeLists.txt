@@ -41,3 +41,13 @@ add_instance_library(device_gemm_instance
    device_gemm_dl_i8_i8_i8_km_kn_mn_instance.cpp
    device_gemm_dl_i8_i8_i8_km_nk_mn_instance.cpp
 )
+
+if(USE_MAX_ILP_SCHED_STRATEGY)
+    set_source_files_properties(
+        device_gemm_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instance.cpp
+        device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instance.cpp
+        device_gemm_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instance.cpp
+        device_gemm_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instance.cpp
+
+        PROPERTIES COMPILE_FLAGS "-mllvm -amdgpu-enable-max-ilp-scheduling-strategy")
+endif(USE_MAX_ILP_SCHED_STRATEGY)
