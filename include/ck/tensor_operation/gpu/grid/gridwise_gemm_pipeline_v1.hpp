@@ -8,12 +8,12 @@
 
 namespace ck {
 
-template <index_t NumPrefetch>
+template <index_t NumPrefetch, index_t IGLPOptStrategy = -1>
 struct GridwiseGemmPipeline_v1;
 
 // 1-stage prefetch
-template <>
-struct GridwiseGemmPipeline_v1<1>
+template <index_t IGLPOptStrategy>
+struct GridwiseGemmPipeline_v1<1, IGLPOptStrategy>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -76,6 +76,14 @@ struct GridwiseGemmPipeline_v1<1>
 
             do
             {
+                if constexpr(0 <= IGLPOptStrategy)
+                {
+                    __builtin_amdgcn_iglp_opt(IGLPOptStrategy);
+#if CK_WORKAROUND_SWDEV_XXXXXX_SCHED_GROUP_DATA_HAZARD_ISSUE
+                    __builtin_amdgcn_sched_barrier(0);
+#endif
+                }
+
                 a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
 
                 block_sync_lds();
@@ -91,6 +99,13 @@ struct GridwiseGemmPipeline_v1<1>
 
                 a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
                 b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
+
+                if constexpr(0 <= IGLPOptStrategy)
+                {
+#if CK_WORKAROUND_SWDEV_XXXXXX_SCHED_GROUP_DATA_HAZARD_ISSUE
+                    __builtin_amdgcn_sched_barrier(0);
+#endif
+                }
 
                 ++i;
             } while(i < (num_loop - 1));
