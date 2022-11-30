@@ -21,7 +21,7 @@ template <typename GridwiseBatchrNormBackwardWithBlockwiseWelford_,
           typename DxDataType,
           typename AccDataType,
           typename ScaleDataType,
-          typename BiasDataType,
+          typename DscaleDbiasDataType,
           typename MeanVarDataType,
           typename DyElementwiseOp,
           typename XYGridDesc_M_K,
@@ -33,7 +33,7 @@ __global__ void kernel_batchnorm_backward_with_blockwise_welford(
     const XYGridDesc_M_K dy_grid_desc_m_k,
     const XYGridDesc_M_K dx_grid_desc_m_k,
     const ScaleBiasGridDesc_M scale_grid_desc_m,
-    const ScaleBiasGridDesc_M bias_grid_desc_m,
+    const ScaleBiasGridDesc_M dscale_dbias_grid_desc_m,
     const MeanVarGridDesc_M mean_var_grid_desc_m,
     const GetReduceCountPerThreadFunctor get_reduce_count_per_thread,
     long_index_t reduce_size,
@@ -47,14 +47,14 @@ __global__ void kernel_batchnorm_backward_with_blockwise_welford(
     const MeanVarDataType* const __restrict__ p_savedInvVar,
     const DyElementwiseOp dy_elementwise_op,
     DxDataType* const __restrict__ p_dx,
-    ScaleDataType* const __restrict__ p_dscale,
-    BiasDataType* const __restrict__ p_dbias)
+    DscaleDbiasDataType* const __restrict__ p_dscale,
+    DscaleDbiasDataType* const __restrict__ p_dbias)
 {
     GridwiseBatchrNormBackwardWithBlockwiseWelford_::Run(x_grid_desc_m_k,
                                                          dy_grid_desc_m_k,
                                                          dx_grid_desc_m_k,
                                                          scale_grid_desc_m,
-                                                         bias_grid_desc_m,
+                                                         dscale_dbias_grid_desc_m,
                                                          mean_var_grid_desc_m,
                                                          get_reduce_count_per_thread,
                                                          reduce_size,
@@ -77,7 +77,7 @@ template <typename XDataType,
           typename DxDataType,
           typename AccDataType,
           typename ScaleDataType,
-          typename BiasDataType,
+          typename DscaleDbiasDataType,
           typename MeanVarDataType,
           typename DyElementwiseOp,
           typename XYGridDesc_M_K,
@@ -93,8 +93,8 @@ template <typename XDataType,
           index_t XSrcVectorSize,
           index_t DySrcVectorSize,
           index_t DxDstVectorSize,
-          index_t ScaleSrcDstVectorSize,
-          index_t BiasDstVectorSize,
+          index_t ScaleSrcVectorSize,
+          index_t DscaleDbiasDstVectorSize,
           index_t MeanVarSrcVectorSize>
 struct GridwiseBatchNormBackwardWithBlockwiseWelford
 {
@@ -165,7 +165,7 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                                const XYGridDesc_M_K dy_grid_desc_m_k,
                                const XYGridDesc_M_K dx_grid_desc_m_k,
                                const ScaleBiasGridDesc_M scale_grid_desc_m,
-                               const ScaleBiasGridDesc_M bias_grid_desc_m,
+                               const ScaleBiasGridDesc_M dscale_dbias_grid_desc_m,
                                const MeanVarGridDesc_M mean_var_grid_desc_m,
                                const GetReduceCountPerThreadFunctor get_reduce_count_per_thread,
                                long_index_t reduce_size,
@@ -179,8 +179,8 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                                const MeanVarDataType* const __restrict__ p_savedInvVar,
                                const DyElementwiseOp dy_elementwise_op,
                                DxDataType* const __restrict__ p_dx,
-                               ScaleDataType* const __restrict__ p_dscale,
-                               BiasDataType* const __restrict__ p_dbias)
+                               DscaleDbiasDataType* const __restrict__ p_dscale,
+                               DscaleDbiasDataType* const __restrict__ p_dbias)
     {
         using ck::math::sqrt;
 
@@ -253,7 +253,7 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                                                                    XSrcVectorSize,
                                                                    1,
                                                                    true>(
-            x_grid_desc_m_k,
+            dy_grid_desc_m_k,
             make_multi_index(block_global_id * M_BlockTileSize +
                                  thread_m_cluster_id * MThreadSliceSize,
                              thread_k_cluster_id * KThreadSliceSize));
@@ -271,7 +271,7 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                                                InMemoryDataOperationEnum::Set,
                                                1,
                                                true>(
-                dy_grid_desc_m_k,
+                dx_grid_desc_m_k,
                 make_multi_index(block_global_id * M_BlockTileSize +
                                      thread_m_cluster_id * MThreadSliceSize,
                                  thread_k_cluster_id * KThreadSliceSize),
@@ -285,45 +285,27 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                                              ThreadBufferLengths_M,
                                              Sequence<0>,
                                              0,
-                                             ScaleSrcDstVectorSize,
+                                             ScaleSrcVectorSize,
                                              1,
                                              true>(
                 scale_grid_desc_m,
                 make_multi_index(block_global_id * M_BlockTileSize +
                                  thread_m_cluster_id * MThreadSliceSize));
 
-        auto threadwise_dscale_store =
+        auto threadwise_dscale_dbias_store =
             ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
-                                               ScaleDataType,
+                                               DscaleDbiasDataType,
                                                decltype(thread_buffer_desc_m),
                                                ScaleBiasGridDesc_M,
                                                PassThroughOp,
                                                ThreadBufferLengths_M,
                                                Sequence<0>,
                                                0,
-                                               ScaleSrcDstVectorSize,
+                                               DscaleDbiasDstVectorSize,
                                                InMemoryDataOperationEnum::Set,
                                                1,
                                                true>(
-                scale_grid_desc_m,
-                make_multi_index(block_global_id * M_BlockTileSize +
-                                 thread_m_cluster_id * MThreadSliceSize),
-                PassThroughOp{});
-
-        auto threadwise_dbias_store =
-            ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
-                                               BiasDataType,
-                                               decltype(thread_buffer_desc_m),
-                                               ScaleBiasGridDesc_M,
-                                               PassThroughOp,
-                                               ThreadBufferLengths_M,
-                                               Sequence<0>,
-                                               0,
-                                               BiasDstVectorSize,
-                                               InMemoryDataOperationEnum::Set,
-                                               1,
-                                               true>(
-                bias_grid_desc_m,
+                dscale_dbias_grid_desc_m,
                 make_multi_index(block_global_id * M_BlockTileSize +
                                  thread_m_cluster_id * MThreadSliceSize),
                 PassThroughOp{});
@@ -344,10 +326,10 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
             p_scale, scale_grid_desc_m.GetElementSpaceSize());
 
         auto dscale_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_dscale, scale_grid_desc_m.GetElementSpaceSize());
+            p_dscale, dscale_dbias_grid_desc_m.GetElementSpaceSize());
 
         auto dbias_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_dbias, bias_grid_desc_m.GetElementSpaceSize());
+            p_dbias, dscale_dbias_grid_desc_m.GetElementSpaceSize());
 
         // clang-format off
         // Step 1: calculating mean and inv-variance using welford method (if savedMean/savedInvVar not available), where inv-variance = 1/sqrt(epsilon+variance)
@@ -487,17 +469,17 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
 
         if(thread_k_cluster_id == 0)
         {
-            threadwise_dscale_store.Run(thread_buffer_desc_m,
-                                        make_tuple(I0),
-                                        dscale_thread_buf,
-                                        scale_grid_desc_m,
-                                        dscale_global_buf);
+            threadwise_dscale_dbias_store.Run(thread_buffer_desc_m,
+                                              make_tuple(I0),
+                                              dscale_thread_buf,
+                                              dscale_dbias_grid_desc_m,
+                                              dscale_global_buf);
 
-            threadwise_dbias_store.Run(thread_buffer_desc_m,
-                                       make_tuple(I0),
-                                       dbias_thread_buf,
-                                       bias_grid_desc_m,
-                                       dbias_global_buf);
+            threadwise_dscale_dbias_store.Run(thread_buffer_desc_m,
+                                              make_tuple(I0),
+                                              dbias_thread_buf,
+                                              dscale_dbias_grid_desc_m,
+                                              dbias_global_buf);
         };
 
         // clang-format off

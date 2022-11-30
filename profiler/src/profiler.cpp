@@ -25,6 +25,7 @@ int profile_layernorm(int, char*[]);
 int profile_groupnorm(int, char*[]);
 int profile_reduce(int, char*[]);
 int profile_batchnorm_forward(int, char*[]);
+int profile_batchnorm_backward(int, char*[]);
 
 static void print_helper_message()
 {
@@ -147,6 +148,10 @@ int main(int argc, char* argv[])
     else if(strcmp(argv[1], "bnorm_fwd") == 0)
     {
         return profile_batchnorm_forward(argc, argv);
+    }
+    else if(strcmp(argv[1], "bnorm_bwd") == 0)
+    {
+        return profile_batchnorm_backward(argc, argv);
     }
     else
     {

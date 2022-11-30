@@ -16,7 +16,7 @@ template <typename GridwiseReduceSecondHalfBatchNormBackwardFinal_,
           typename DyDataType,
           typename DxDataType,
           typename ScaleDataType,
-          typename BiasDataType,
+          typename DscaleDbiasDataType,
           typename MeanVarDataType,
           typename DyElementwiseOp,
           typename XYGridDesc_M_K,
@@ -35,8 +35,8 @@ __global__ void kernel_reduce_second_half_batchnorm_backward_final(
     long_index_t reduce_size,
     index_t num_xy_k_block_tile_iteration,
     index_t num_dscale_dbias_k_block_tile_iteration,
-    const ScaleDataType* const __restrict__ p_reduce_dscale,
-    const BiasDataType* const __restrict__ p_reduce_dbias,
+    const DscaleDbiasDataType* const __restrict__ p_reduce_dscale,
+    const DscaleDbiasDataType* const __restrict__ p_reduce_dbias,
     const MeanVarDataType* const __restrict__ p_mean,
     const MeanVarDataType* const __restrict__ p_inv_var,
     const XDataType* const __restrict__ p_x,
@@ -44,8 +44,8 @@ __global__ void kernel_reduce_second_half_batchnorm_backward_final(
     const ScaleDataType* const __restrict__ p_scale,
     const DyElementwiseOp dy_elementwise_op,
     DxDataType* const __restrict__ p_dx,
-    ScaleDataType* const __restrict__ p_dscale,
-    BiasDataType* const __restrict__ p_dbias)
+    DscaleDbiasDataType* const __restrict__ p_dscale,
+    DscaleDbiasDataType* const __restrict__ p_dbias)
 {
     GridwiseReduceSecondHalfBatchNormBackwardFinal_::Run(x_grid_desc_m_k,
                                                          dy_grid_desc_m_k,
@@ -76,7 +76,7 @@ template <typename XDataType,
           typename DxDataType,
           typename AccDataType,
           typename ScaleDataType,
-          typename BiasDataType,
+          typename DscaleDbiasDataType,
           typename MeanVarDataType,
           typename DyElementwiseOp,
           typename XYGridDesc_M_K,
@@ -92,8 +92,8 @@ template <typename XDataType,
           index_t XSrcVectorSize,
           index_t DySrcVectorSize,
           index_t DxDstVectorSize,
-          index_t ScaleSrcDstVectorSize,
-          index_t BiasDstVectorSize,
+          index_t ScaleSrcVectorSize,
+          index_t DscaleDbiasDstVectorSize,
           index_t MeanVarSrcVectorSize>
 struct GridwiseReduceSecondHalfBatchNormBackwardFinal
 {
@@ -155,13 +155,13 @@ struct GridwiseReduceSecondHalfBatchNormBackwardFinal
                                const DscaleDbiasGridDesc_M_K& dscale_dbias_grid_desc_m_k,
                                const MeanVarGridDesc_M& mean_var_grid_desc_m,
                                const ScaleBiasGridDesc_M& scale_grid_desc_m,
-                               const ScaleBiasGridDesc_M& bias_grid_desc_m,
+                               const ScaleBiasGridDesc_M& dscale_dbias_grid_desc_m,
                                index_t blkgroup_size,
                                long_index_t reduce_size,
                                index_t num_xy_k_block_tile_iteration,
                                index_t num_dscale_dbias_k_block_tile_iteration,
-                               const ScaleDataType* const __restrict__ p_reduce_dscale,
-                               const BiasDataType* const __restrict__ p_reduce_dbias,
+                               const DscaleDbiasDataType* const __restrict__ p_reduce_dscale,
+                               const DscaleDbiasDataType* const __restrict__ p_reduce_dbias,
                                const MeanVarDataType* const __restrict__ p_mean,
                                const MeanVarDataType* const __restrict__ p_inv_var,
                                const XDataType* const __restrict__ p_x,
@@ -169,8 +169,8 @@ struct GridwiseReduceSecondHalfBatchNormBackwardFinal
                                const ScaleDataType* const __restrict__ p_scale,
                                const DyElementwiseOp dy_elementwise_op,
                                DxDataType* const __restrict__ p_dx,
-                               ScaleDataType* const __restrict__ p_dscale,
-                               BiasDataType* const __restrict__ p_dbias)
+                               DscaleDbiasDataType* const __restrict__ p_dscale,
+                               DscaleDbiasDataType* const __restrict__ p_dbias)
     {
         __shared__ AccDataType p_reduce_work_buffer[BlockSize];
 
@@ -222,8 +222,8 @@ struct GridwiseReduceSecondHalfBatchNormBackwardFinal
         // Step 1: do final reduction of dbias = sum(dy), dscale = sum(dy * (x-mean) * inv-variance)
         // clang-format on
 
-        auto threadwise_dscale_load_m_k =
-            ThreadwiseTensorSliceTransfer_v2<ScaleDataType,
+        auto threadwise_dscale_dbias_load_m_k =
+            ThreadwiseTensorSliceTransfer_v2<DscaleDbiasDataType,
                                              AccDataType,
                                              DscaleDbiasGridDesc_M_K,
                                              decltype(thread_buffer_desc_m_1),
@@ -238,54 +238,20 @@ struct GridwiseReduceSecondHalfBatchNormBackwardFinal
                                      thread_m_cluster_id * MThreadSliceSize,
                                  thread_k_cluster_id * 1));
 
-        auto threadwise_dbias_load_m_k =
-            ThreadwiseTensorSliceTransfer_v2<BiasDataType,
-                                             AccDataType,
-                                             DscaleDbiasGridDesc_M_K,
-                                             decltype(thread_buffer_desc_m_1),
-                                             ThreadBufferLengths_M_1,
-                                             Sequence<0, 1>,
-                                             1,
-                                             1,
-                                             1,
-                                             true>(
-                dscale_dbias_grid_desc_m_k,
-                make_multi_index(blkgroup_id * M_BlockTileSize +
-                                     thread_m_cluster_id * MThreadSliceSize,
-                                 thread_k_cluster_id * 1));
-
-        auto threadwise_dscale_store_m =
+        auto threadwise_dscale_dbias_store_m =
             ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
-                                               ScaleDataType,
+                                               DscaleDbiasDataType,
                                                decltype(thread_buffer_desc_m),
                                                ScaleBiasGridDesc_M,
                                                PassThroughOp,
                                                ThreadBufferLengths_M,
                                                Sequence<0>,
                                                0,
-                                               ScaleSrcDstVectorSize,
+                                               DscaleDbiasDstVectorSize,
                                                InMemoryDataOperationEnum::Set,
                                                1,
                                                true>(
-                scale_grid_desc_m,
-                make_multi_index(blkgroup_id * M_BlockTileSize +
-                                 thread_m_cluster_id * MThreadSliceSize),
-                PassThroughOp{});
-
-        auto threadwise_dbias_store_m =
-            ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
-                                               BiasDataType,
-                                               decltype(thread_buffer_desc_m),
-                                               ScaleBiasGridDesc_M,
-                                               PassThroughOp,
-                                               ThreadBufferLengths_M,
-                                               Sequence<0>,
-                                               0,
-                                               BiasDstVectorSize,
-                                               InMemoryDataOperationEnum::Set,
-                                               1,
-                                               true>(
-                bias_grid_desc_m,
+                dscale_dbias_grid_desc_m,
                 make_multi_index(blkgroup_id * M_BlockTileSize +
                                  thread_m_cluster_id * MThreadSliceSize),
                 PassThroughOp{});
@@ -297,10 +263,10 @@ struct GridwiseReduceSecondHalfBatchNormBackwardFinal
             p_reduce_dbias, dscale_dbias_grid_desc_m_k.GetElementSpaceSize());
 
         auto dscale_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_dscale, scale_grid_desc_m.GetElementSpaceSize());
+            p_dscale, dscale_dbias_grid_desc_m.GetElementSpaceSize());
 
         auto dbias_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_dbias, bias_grid_desc_m.GetElementSpaceSize());
+            p_dbias, dscale_dbias_grid_desc_m.GetElementSpaceSize());
 
         constexpr auto dscale_dbias_thread_copy_step_m_k =
             make_multi_index(0, KThreadClusterSize * 1);
@@ -313,25 +279,23 @@ struct GridwiseReduceSecondHalfBatchNormBackwardFinal
         for(index_t reducedTiles = 0; reducedTiles < num_dscale_dbias_k_block_tile_iteration;
             ++reducedTiles)
         {
-            threadwise_dscale_load_m_k.Run(dscale_dbias_grid_desc_m_k,
-                                           reduce_dscale_global_buf,
-                                           thread_buffer_desc_m_1,
-                                           make_tuple(I0, I0),
-                                           reduce_dscale_thread_buf);
+            threadwise_dscale_dbias_load_m_k.Run(dscale_dbias_grid_desc_m_k,
+                                                 reduce_dscale_global_buf,
+                                                 thread_buffer_desc_m_1,
+                                                 make_tuple(I0, I0),
+                                                 reduce_dscale_thread_buf);
 
-            threadwise_dbias_load_m_k.Run(dscale_dbias_grid_desc_m_k,
-                                          reduce_dbias_global_buf,
-                                          thread_buffer_desc_m_1,
-                                          make_tuple(I0, I0),
-                                          reduce_dbias_thread_buf);
+            threadwise_dscale_dbias_load_m_k.Run(dscale_dbias_grid_desc_m_k,
+                                                 reduce_dbias_global_buf,
+                                                 thread_buffer_desc_m_1,
+                                                 make_tuple(I0, I0),
+                                                 reduce_dbias_thread_buf);
 
             ThreadwiseReduce::Reduce(reduce_dscale_thread_buf, dscale_thread_buf);
             ThreadwiseReduce::Reduce(reduce_dbias_thread_buf, dbias_thread_buf);
 
-            threadwise_dscale_load_m_k.MoveSrcSliceWindow(dscale_dbias_grid_desc_m_k,
-                                                          dscale_dbias_thread_copy_step_m_k);
-            threadwise_dbias_load_m_k.MoveSrcSliceWindow(dscale_dbias_grid_desc_m_k,
-                                                         dscale_dbias_thread_copy_step_m_k);
+            threadwise_dscale_dbias_load_m_k.MoveSrcSliceWindow(dscale_dbias_grid_desc_m_k,
+                                                                dscale_dbias_thread_copy_step_m_k);
         }
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
@@ -343,17 +307,17 @@ struct GridwiseReduceSecondHalfBatchNormBackwardFinal
             BlockwiseReduce::Reduce(reduce_work_buf, dbias_thread_buf(I));
         });
 
-        threadwise_dscale_store_m.Run(thread_buffer_desc_m,
-                                      make_tuple(I0),
-                                      dscale_thread_buf,
-                                      scale_grid_desc_m,
-                                      dscale_global_buf);
+        threadwise_dscale_dbias_store_m.Run(thread_buffer_desc_m,
+                                            make_tuple(I0),
+                                            dscale_thread_buf,
+                                            dscale_dbias_grid_desc_m,
+                                            dscale_global_buf);
 
-        threadwise_dbias_store_m.Run(thread_buffer_desc_m,
-                                     make_tuple(I0),
-                                     dbias_thread_buf,
-                                     bias_grid_desc_m,
-                                     dbias_global_buf);
+        threadwise_dscale_dbias_store_m.Run(thread_buffer_desc_m,
+                                            make_tuple(I0),
+                                            dbias_thread_buf,
+                                            dscale_dbias_grid_desc_m,
+                                            dbias_global_buf);
 
         // clang-format off
         // Step 2: calculate dx = 1/N * inv-variance * scale * (N * dy - dbias - dscale * (x - mean) * inv-variance)
@@ -418,7 +382,7 @@ struct GridwiseReduceSecondHalfBatchNormBackwardFinal
                                              ThreadBufferLengths_M,
                                              Sequence<0>,
                                              0,
-                                             ScaleSrcDstVectorSize,
+                                             ScaleSrcVectorSize,
                                              1,
                                              true>(
                 scale_grid_desc_m,
