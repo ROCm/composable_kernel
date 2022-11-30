@@ -140,9 +140,8 @@ bool run_grouped_conv_fwd_dl(bool do_verification,
 
     if(!conv.IsSupportedArgument(argument))
     {
-        throw std::runtime_error(
-            "wrong! device_conv with the specified compilation parameters does "
-            "not support this Conv problem");
+        std::cout <<  "wrong! device_conv with the specified compilation parameters does not support this Conv problem" << std::endl;
+        return true;
     }
 
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
