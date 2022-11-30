@@ -269,13 +269,11 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2ETileMap>
-    __host__ __device__ static constexpr bool
-    CheckValidity(const AGridDesc_M_K& a_grid_desc_m_k,
-                  const BGridDesc_N_K& b_grid_desc_n_k,
-                  const DsGridDesc_M_N& ds_grid_desc_m_n,
-                  const EGridDesc_M_N& e_grid_desc_m_n,
-                  const MeanVarCountGridDesc_M_N& mean_var_count_grid_desc_m_n,
-                  const Block2ETileMap& block_2_etile_map)
+    __host__ __device__ static constexpr bool CheckValidity(const AGridDesc_M_K& a_grid_desc_m_k,
+                                                            const BGridDesc_N_K& b_grid_desc_n_k,
+                                                            const DsGridDesc_M_N& ds_grid_desc_m_n,
+                                                            const EGridDesc_M_N& e_grid_desc_m_n,
+                                                            const Block2ETileMap& block_2_etile_map)
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
@@ -286,9 +284,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
         const auto K = a_grid_desc_m_k.GetLength(I1);
 
         // check consistency of desc
-        if(!(M == e_grid_desc_m_n.GetLength(I0) && N == e_grid_desc_m_n.GetLength(I1) &&
-             M == mean_var_count_grid_desc_m_n.GetLength(I0) &&
-             N / NPerBlock == mean_var_count_grid_desc_m_n.GetLength(I1)))
+        if(!(M == e_grid_desc_m_n.GetLength(I0) && N == e_grid_desc_m_n.GetLength(I1)))
         {
             return false;
         }
@@ -997,6 +993,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
 
                 static_for<0, PostShuffleThreadSliceSize_M, 1>{}([&](auto j) {
                     block_sync_lds();
+                    count_thread_buf = threadwise_welfords(i).cur_count_;
                     BlockwiseWelford::Run(
                         mean_thread_buf(j), var_thread_buf(j), count_thread_buf(j));
                 });
@@ -1083,6 +1080,12 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
                     count_thread_buf,
                     mean_var_count_grid_desc_mblock_mperblock_nblock,
                     welford_count_grid_buf);
+
+                float mean = static_cast<float>(mean_thread_buf(I0));
+                float var  = static_cast<float>(var_thread_buf(I0));
+                int count  = count_thread_buf(I0);
+                if(i == 0 && get_thread_global_1d_id() == 0)
+                    printf("1st kernel mean = %f, var = %f, count = %d\n", mean, var, count);
             });
 
         } // shuffle C + Ds + welford + write out

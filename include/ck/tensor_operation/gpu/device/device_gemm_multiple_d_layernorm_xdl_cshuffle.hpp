@@ -284,7 +284,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
     }
 
     template <typename LayOut>
-    static auto MakeGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t Stride)
+    static auto MakeEGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t Stride)
     {
         const auto grid_desc_mraw_nraw = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, LayOut>::value)
@@ -308,9 +308,17 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
             [&](auto i) {
                 using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
 
-                return DeviceOp::MakeGridDescriptor_M_N<DLayout>(MRaws[i], NRaws[i], DsStride[i]);
+                return DeviceOp::MakeEGridDescriptor_M_N<DLayout>(MRaws[i], NRaws[i], DsStride[i]);
             },
             Number<NumDTensor>{});
+    }
+
+    static auto MakeMeanVarCountGridDescriptor_M_NBlock(index_t M, index_t NBlock)
+    {
+        const auto grid_desc_m_n = make_naive_tensor_descriptor_packed(make_tuple(M, NBlock));
+
+        // TODO - padding according to MNperBlock of Gemm and Layernorm
+        return grid_desc_m_n;
     }
 
     static auto MakeDescriptor_M(index_t MRaw)
@@ -366,9 +374,9 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
     using AGridDesc_M_K            = decltype(MakeAGridDescriptor_M_K(1, 1, 1));
     using BGridDesc_N_K            = decltype(MakeBGridDescriptor_N_K(1, 1, 1));
     using DsGridDesc_M_N           = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}, {}))>;
-    using MeanVarCountGridDesc_M_N = decltype(MakeGridDescriptor_M_N<ELayout>(1, 1, 1));
+    using MeanVarCountGridDesc_M_N = decltype(MakeMeanVarCountGridDescriptor_M_NBlock(1, 1));
     using GammaBetaGridDesc_N      = decltype(MakeDescriptor_N(1));
-    using EHGridDesc_M_N           = decltype(MakeGridDescriptor_M_N<HLayout>(1, 1, 1));
+    using EHGridDesc_M_N           = decltype(MakeEGridDescriptor_M_N<HLayout>(1, 1, 1));
 
     using GridwiseGemmWelford = GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
@@ -479,11 +487,11 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
               a_grid_desc_m_k_{DeviceOp::MakeAGridDescriptor_M_K(MRaw, KRaw, StrideA)},
               b_grid_desc_n_k_{DeviceOp::MakeBGridDescriptor_N_K(KRaw, NRaw, StrideB)},
               ds_grid_desc_m_n_{},
-              e_grid_desc_m_n_{DeviceOp::MakeGridDescriptor_M_N<ELayout>(MRaw, NRaw, StrideH)},
+              e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N<ELayout>(MRaw, NRaw, StrideH)},
               mean_var_count_grid_desc_m_n_{},
               gamma_grid_desc_n_{DeviceOp::MakeDescriptor_N(NRaw)},
               beta_grid_desc_n_{DeviceOp::MakeDescriptor_N(NRaw)},
-              h_grid_desc_m_n_{DeviceOp::MakeGridDescriptor_M_N<HLayout>(MRaw, NRaw, StrideH)},
+              h_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N<HLayout>(MRaw, NRaw, StrideH)},
               a_grid_desc_ak0_m_ak1_{
                   GridwiseGemmWelford::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
               b_grid_desc_bk0_n_bk1_{
@@ -497,7 +505,10 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
               epsilon_{epsilon}
         {
             mean_var_count_grid_desc_m_n_ =
-                DeviceOp::MakeGridDescriptor_M_N<ELayout>(MRaw, gemm_nblock_, gemm_nblock_);
+                DeviceOp::MakeMeanVarCountGridDescriptor_M_NBlock(MRaw, gemm_nblock_);
+
+            int s = mean_var_count_grid_desc_m_n_.GetElementSpaceSize();
+            printf("mean_var_count_grid_desc_m_n.GetElementSpaceSize() = %d\n", s);
 
             hip_check_error(hipMalloc(&p_e_grid_, sizeof(EDataType) * MRaw * NRaw));
 
@@ -518,7 +529,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
 
                 // D desc
                 ds_grid_desc_m_n_(i) =
-                    DeviceOp::MakeGridDescriptor_M_N<DLayout>(MRaw, NRaw, StrideDs[i]);
+                    DeviceOp::MakeEGridDescriptor_M_N<DLayout>(MRaw, NRaw, StrideDs[i]);
             });
 
             // populate desc for Ds/E/F/G
@@ -526,7 +537,6 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                                   b_grid_desc_n_k_,
                                                   ds_grid_desc_m_n_,
                                                   e_grid_desc_m_n_,
-                                                  mean_var_count_grid_desc_m_n_,
                                                   block_2_etile_map_))
             {
                 ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
@@ -612,7 +622,6 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                                    arg.b_grid_desc_n_k_,
                                                    arg.ds_grid_desc_m_n_,
                                                    arg.e_grid_desc_m_n_,
-                                                   arg.mean_var_count_grid_desc_m_n_,
                                                    arg.block_2_etile_map_))
             {
                 throw std::runtime_error("wrong! GridwiseGemmWelford has invalid setting");
@@ -694,7 +703,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                                  LayernormThreadClusterSize_M_N::At(I1)) /
                     LayernormThreadClusterSize_M_N::At(I1);
 
-                index_t numXBlockTileIteration_N =
+                index_t numEBlockTileIteration_N =
                     math::integer_least_multiple(N, LayernormBlockTileSize_M_N::At(I1)) /
                     LayernormBlockTileSize_M_N::At(I1);
 
@@ -717,7 +726,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                                    arg.beta_grid_desc_n_,
                                                    arg.gemm_nblock_,
                                                    numMeanVarCountBlockTileIteration_N,
-                                                   numXBlockTileIteration_N,
+                                                   numEBlockTileIteration_N,
                                                    arg.epsilon_);
 
                 return avg_time;
