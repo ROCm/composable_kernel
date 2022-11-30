@@ -134,6 +134,8 @@
 #define CK_EXPERIMENTAL_INTER_WAVE_INSTANCES 1
 // experimental feature: add instances using pipeline v2
 #define CK_EXPERIMENTAL_PIPELINE_V2_INSTANCES 1
+// experimental feature: add __builtin_amdgcn_iglp_opt() optimized (pipeline) instances
+#define CK_EXPERIMENTAL_IGLP_OPT_INSTANCES 0
 
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug
 // hack for forcing register to keep idx_diff_low_const in SGPR. idx_diff_low_const must be
@@ -160,6 +162,10 @@
 #else // __gfx90a__, ...
 #define CK_WORKAROUND_SWDEV_XXXXXX_BF16_ATTEN_FWD_GFX908_ISSUE 0
 #endif // __gfx908__
+
+// workaround: using __builtin_amdgcn_sched_barrier() or __builtin_amdgcn_sched_group_barrier() or
+// __builtin_amdgcn_iglp_opt() may cause data hazard issues
+#define CK_WORKAROUND_SWDEV_XXXXXX_SCHED_GROUP_DATA_HAZARD_ISSUE 1
 
 namespace ck {
 
