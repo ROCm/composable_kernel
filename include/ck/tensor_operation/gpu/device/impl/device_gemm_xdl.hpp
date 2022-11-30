@@ -530,9 +530,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         std::map<LoopScheduler, std::string> LoopSchedToString{
             {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
 
-        std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
-                                                                       {PipelineVersion::v2, "v2"}};
-
         // clang-format off
         str << "DeviceGemmXdl"
             << "<"
@@ -551,7 +548,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             << "LoopScheduler: "
             << LoopSchedToString[LoopSched] << ", "
             << "PipelineVersion: "
-            << PipelineVersionToString[PipelineVer];
+            << PipelineVer;
         // clang-format on
 
         return str.str();

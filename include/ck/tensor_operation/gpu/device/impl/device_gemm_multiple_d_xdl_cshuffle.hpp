@@ -669,9 +669,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         std::map<LoopScheduler, std::string> LoopSchedToString{
             {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
 
-        std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
-                                                                       {PipelineVersion::v2, "v2"}};
-
         // clang-format off
         str << "DeviceGemmMultipleD_Xdl_CShuffle"
             << "<"
@@ -686,7 +683,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
             << " LoopScheduler: "
             << LoopSchedToString[LoopSched] << ", "
             << "PipelineVersion: "
-            << PipelineVersionToString[PipelineVer];
+            << PipelineVer;
         // clang-format on
 
         return str.str();
