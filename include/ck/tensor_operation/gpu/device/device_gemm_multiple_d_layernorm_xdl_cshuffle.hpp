@@ -125,11 +125,11 @@ __global__ void
             const GammaDataType* __restrict__ p_gamma_grid,
             const BetaDataType* __restrict__ p_beta_grid,
             HDataType* __restrict__ p_h_grid,
-            const EHGridDesc_M_N& e_grid_desc_m_n,
-            const EHGridDesc_M_N& h_grid_desc_m_n,
-            const MeanVarCountGridDesc_M_N& mean_var_count_grid_desc_m_n,
-            const GammaBetaGridDesc_N& gamma_grid_desc_n,
-            const GammaBetaGridDesc_N& beta_grid_desc_n,
+            const EHGridDesc_M_N e_grid_desc_m_n,
+            const EHGridDesc_M_N h_grid_desc_m_n,
+            const MeanVarCountGridDesc_M_N mean_var_count_grid_desc_m_n,
+            const GammaBetaGridDesc_N gamma_grid_desc_n,
+            const GammaBetaGridDesc_N beta_grid_desc_n,
             index_t blkgroup_size,
             index_t num_mean_var_count_k_block_tile_iteration,
             index_t num_xy_k_block_tile_iteration,
@@ -506,9 +506,6 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         {
             mean_var_count_grid_desc_m_n_ =
                 DeviceOp::MakeMeanVarCountGridDescriptor_M_NBlock(MRaw, gemm_nblock_);
-
-            int s = mean_var_count_grid_desc_m_n_.GetElementSpaceSize();
-            printf("mean_var_count_grid_desc_m_n.GetElementSpaceSize() = %d\n", s);
 
             hip_check_error(hipMalloc(&p_e_grid_, sizeof(EDataType) * MRaw * NRaw));
 

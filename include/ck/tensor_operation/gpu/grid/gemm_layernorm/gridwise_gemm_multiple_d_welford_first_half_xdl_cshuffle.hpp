@@ -1080,12 +1080,6 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
                     count_thread_buf,
                     mean_var_count_grid_desc_mblock_mperblock_nblock,
                     welford_count_grid_buf);
-
-                float mean = static_cast<float>(mean_thread_buf(I0));
-                float var  = static_cast<float>(var_thread_buf(I0));
-                int count  = count_thread_buf(I0);
-                if(i == 0 && get_thread_global_1d_id() == 0)
-                    printf("1st kernel mean = %f, var = %f, count = %d\n", mean, var, count);
             });
 
         } // shuffle C + Ds + welford + write out
