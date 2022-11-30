@@ -349,8 +349,8 @@ bool profile_batchnorm_backward_impl(bool do_verification,
 
             // clang-format off
             single_pass = single_pass && ck::utils::check_err(dx.mData, dx_ref.mData, "dx result:", 5e-4, 5e-4);
-            single_pass = single_pass && ck::utils::check_err(dscale.mData, dscale_ref.mData, "dScale result:", 1.3e-3, 1.3e-3);
-            single_pass = single_pass && ck::utils::check_err(dbias.mData, dbias_ref.mData, "dBias result:", 1.8e-3, 1.8e-3);
+            single_pass = single_pass && ck::utils::check_err(dscale.mData, dscale_ref.mData, "dScale result:", 3e-3, 3e-3);
+            single_pass = single_pass && ck::utils::check_err(dbias.mData, dbias_ref.mData, "dBias result:", 3e-3, 3e-3);
             // clang-format on
 
             pass = pass && single_pass;
