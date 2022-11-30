@@ -29,6 +29,8 @@ if(USE_BITINT_EXTENSION_INT4)
     message("CK compiled with USE_BITINT_EXTENSION_INT4 set to ${USE_BITINT_EXTENSION_INT4}")
 endif()
 
+option(USE_MAX_ILP_SCHED_STRATEGY, "Whether to enable scheduling strategy to maximize ILP for a single wave." OFF)
+
 ## Threads
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
