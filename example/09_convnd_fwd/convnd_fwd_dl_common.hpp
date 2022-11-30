@@ -140,7 +140,9 @@ bool run_grouped_conv_fwd_dl(bool do_verification,
 
     if(!conv.IsSupportedArgument(argument))
     {
-        std::cout <<  "wrong! device_conv with the specified compilation parameters does not support this Conv problem" << std::endl;
+        std::cout << "wrong! device_conv with the specified compilation parameters does not "
+                     "support this Conv problem"
+                  << std::endl;
         return true;
     }
 
