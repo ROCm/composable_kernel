@@ -54,3 +54,81 @@ sleep 5
 sleep 5
 ./bin/${DRIVER} 1 1 1 16 5120 1280 1280 5120 5120 5
 ```
+
+Result @MI200 unlock freq
+```
+root@dc-gbm-01:/dockerx/ck/composable_kernel/build# ./bin/${DRIVER} 1 1 1 16 1152 5120 5120 1152 1152 8
+a_m_k: dim 2, lengths {16, 5120}, strides {5120, 1}
+b_k_n: dim 2, lengths {5120, 1152}, strides {1152, 1}
+c_m_n: dim 2, lengths {16, 1152}, strides {1152, 1}
+a device buf: 0x7f7b74800000
+b device buf: 0x7f736e200000
+c device buf: 0x7f7b74828000
+c_grid_desc_m_n yes
+arg.a_grid_desc_kbatch_k0_m_k1_{8, 80, 16, 8}
+arg.b_grid_desc_kbatch_k0_n_k1_{8, 320, 1152, 2}
+arg.c_grid_desc_m_n_{ 16, 1152}
+a_grid_desc_kbatch_k0_m_k1_ known at compile time
+b_grid_desc_kbatch_k0_n_k1_ known at compile time
+c_grid_desc_mblock_mperblock_nblock_nperblock_ known at compile time
+launch_and_time_kernel: grid_dim {72, 1, 1}, block_dim {256, 1, 1}
+Warm up 1 time
+Start running 10 times...
+Perf: 0.012768 ms, 14.7826 TFlops, 939.629 GB/s, DeviceGemmXdlSplitKCShuffleStatic<256, 16, 128, 32>
+root@dc-gbm-01:/dockerx/ck/composable_kernel/build# ./bin/${DRIVER} 1 1 1 16 5120 384 384 5120 5120 4
+a_m_k: dim 2, lengths {16, 384}, strides {384, 1}
+b_k_n: dim 2, lengths {384, 5120}, strides {5120, 1}
+c_m_n: dim 2, lengths {16, 5120}, strides {5120, 1}
+a device buf: 0x7fe16ea00000
+b device buf: 0x7fe16e400000
+c device buf: 0x7fe16ea03000
+c_grid_desc_m_n yes
+arg.a_grid_desc_kbatch_k0_m_k1_{4, 12, 16, 8}
+arg.b_grid_desc_kbatch_k0_n_k1_{4, 48, 5120, 2}
+arg.c_grid_desc_m_n_{ 16, 5120}
+a_grid_desc_kbatch_k0_m_k1_ known at compile time
+b_grid_desc_kbatch_k0_n_k1_ known at compile time
+c_grid_desc_mblock_mperblock_nblock_nperblock_ known at compile time
+launch_and_time_kernel: grid_dim {160, 1, 1}, block_dim {256, 1, 1}
+Warm up 1 time
+Start running 10 times...
+Perf: 0.005808 ms, 10.8324 TFlops, 707.35 GB/s, DeviceGemmXdlSplitKCShuffleStatic<256, 16, 128, 32>
+root@dc-gbm-01:/dockerx/ck/composable_kernel/build#
+root@dc-gbm-01:/dockerx/ck/composable_kernel/build# ./bin/${DRIVER} 1 1 1 16 1280 5120 5120 1280 1280 8
+a_m_k: dim 2, lengths {16, 5120}, strides {5120, 1}
+b_k_n: dim 2, lengths {5120, 1280}, strides {1280, 1}
+c_m_n: dim 2, lengths {16, 1280}, strides {1280, 1}
+a device buf: 0x7fe888e00000
+b device buf: 0x7fe082000000
+c device buf: 0x7fe888e28000
+c_grid_desc_m_n yes
+arg.a_grid_desc_kbatch_k0_m_k1_{8, 80, 16, 8}
+arg.b_grid_desc_kbatch_k0_n_k1_{8, 320, 1280, 2}
+arg.c_grid_desc_m_n_{ 16, 1280}
+a_grid_desc_kbatch_k0_m_k1_ known at compile time
+b_grid_desc_kbatch_k0_n_k1_ known at compile time
+c_grid_desc_mblock_mperblock_nblock_nperblock_ known at compile time
+launch_and_time_kernel: grid_dim {80, 1, 1}, block_dim {256, 1, 1}
+Warm up 1 time
+Start running 10 times...
+Perf: 0.014048 ms, 14.9285 TFlops, 947.608 GB/s, DeviceGemmXdlSplitKCShuffleStatic<256, 16, 128, 32>
+root@dc-gbm-01:/dockerx/ck/composable_kernel/build#
+root@dc-gbm-01:/dockerx/ck/composable_kernel/build# ./bin/${DRIVER} 1 1 1 16 5120 1280 1280 5120 5120 5
+a_m_k: dim 2, lengths {16, 1280}, strides {1280, 1}
+b_k_n: dim 2, lengths {1280, 5120}, strides {5120, 1}
+c_m_n: dim 2, lengths {16, 5120}, strides {5120, 1}
+a device buf: 0x7f5afa400000
+b device buf: 0x7f5af9400000
+c device buf: 0x7f5afa40a000
+c_grid_desc_m_n yes
+arg.a_grid_desc_kbatch_k0_m_k1_{5, 32, 16, 8}
+arg.b_grid_desc_kbatch_k0_n_k1_{5, 128, 5120, 2}
+arg.c_grid_desc_m_n_{ 16, 5120}
+a_grid_desc_kbatch_k0_m_k1_ known at compile time
+b_grid_desc_kbatch_k0_n_k1_ known at compile time
+c_grid_desc_mblock_mperblock_nblock_nperblock_ known at compile time
+launch_and_time_kernel: grid_dim {200, 1, 1}, block_dim {256, 1, 1}
+Warm up 1 time
+Start running 10 times...
+Perf: 0.013968 ms, 15.014 TFlops, 953.036 GB/s, DeviceGemmXdlSplitKCShuffleStatic<256, 16, 128, 32>
+```
