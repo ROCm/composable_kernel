@@ -22,8 +22,35 @@ Start running 5 times...
 Perf: 1.19685 ms, 107.657 TFlops, 78.8501 GB/s
 ```
 
-# Instruction for static shape split-k gemm
+# Instruction for static shape split-k tiny gemm
 
 ## Switch branch
 ```bash
-git checkout -b 
+git checkout -b static_ck_small_gemm
+```
+
+## Run and test static shape kernel for tiny gemm
+``` bash
+cmake \
+-D CMAKE_BUILD_TYPE=Release \
+-D BUILD_DEV=OFF \
+-D CMAKE_CXX_FLAGS=" -O3 " \
+-D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc \
+-D CMAKE_PREFIX_PATH=/opt/rocm \
+-D CMAKE_VERBOSE_MAKEFILE:BOOL=ON \
+-D CMAKE_EXPORT_COMPILE_COMMANDS=ON \
+-D AMDGPU_TARGETS=gfx90a \
+..
+DRIVER=example_gemm_xdl_fp16_splitk
+export HIP_VISIBLE_DEVICES=1
+export ROC_USE_FGS_KERNARG=0
+
+make -j ${DRIVER}
+./bin/${DRIVER} 1 1 1 16 1152 5120 5120 1152 1152 8
+sleep 5
+./bin/${DRIVER} 1 1 1 16 5120 384 384 5120 5120 4
+sleep 5
+./bin/${DRIVER} 1 1 1 16 1280 5120 5120 1280 1280 8
+sleep 5
+./bin/${DRIVER} 1 1 1 16 5120 1280 1280 5120 5120 5
+```
