@@ -6,7 +6,7 @@
 #include <getopt.h>
 
 #include "ck/library/utility/host_common_util.hpp"
-#include "profiler/include/profile_batchnorm_forward_impl.hpp"
+#include "profiler/include/profile_batchnorm_backward_impl.hpp"
 
 using ck::index_t;
 
@@ -19,7 +19,7 @@ static const struct option long_options[] = {{"inOutLengths", required_argument,
                                              {"help", no_argument, nullptr, '?'},
                                              {nullptr, 0, nullptr, 0}};
 
-class BatchnormFwdArgParser
+class BatchnormBwdArgParser
 {
     private:
     int option_index = 0;
@@ -31,15 +31,14 @@ class BatchnormFwdArgParser
     bool do_verification = false;
     bool do_dumpout      = false;
 
-    bool updateMovingAverage;
-    bool saveMeanAndInvVariance;
+    bool haveSavedMeanInvVar;
 
     int data_type    = 0;
     int init_method  = 2;
     bool time_kernel = false;
 
-    BatchnormFwdArgParser()  = default;
-    ~BatchnormFwdArgParser() = default;
+    BatchnormBwdArgParser()  = default;
+    ~BatchnormBwdArgParser() = default;
 
     void show_usage(const char* cmd)
     {
@@ -49,10 +48,9 @@ class BatchnormFwdArgParser
         std::cout << "--reduceDims or -R, comma separated list of dimensions to reduce on" << std::endl;  
         std::cout << "--verify or -v, 1/0 to indicate whether to verify the result by comparing with the host-based batch-normalization" << std::endl;
         std::cout << "Arg1: data type (0: fp16, 1: fp32, 5: bp16, 6: fp64)" << std::endl;
-        std::cout << "Arg2: 1/0 to indicate whether to update the moving average and variance (0=no, 1=yes)" << std::endl;
-        std::cout << "Arg3: 1/0 to indicate whether to save the calculated mean and invVariance (0=no, 1=yes)" << std::endl;
-        std::cout << "Arg4: init method used for bnScale and bnBias (0=no init, 1=single integer value, 2=scope integer value, 3=decimal value)" << std::endl;
-        std::cout << "Arg5: time kernel (0=no, 1=yes)" << std::endl;
+        std::cout << "Arg2 -- 1/0 to indicate whether to use saved mean and invVariance" << std::endl;
+        std::cout << "Arg3 -- init method used for dy and bnScale (0=no init, 1=single integer value, 2=scope integer value, 3=decimal value)" << std::endl;
+        std::cout << "Arg4 -- time kernel (0=no, 1=yes)" << std::endl;
         // clang-format on
     };
 
@@ -110,14 +108,13 @@ class BatchnormFwdArgParser
             };
         };
 
-        if(optind + 5 > argc)
+        if(optind + 4 > argc)
             throw std::runtime_error("Invalid cmd-line arguments, more argumetns are needed!");
 
-        data_type              = std::atoi(argv[optind++]);
-        updateMovingAverage    = std::atoi(argv[optind++]);
-        saveMeanAndInvVariance = std::atoi(argv[optind++]);
-        init_method            = std::atoi(argv[optind++]);
-        time_kernel            = static_cast<bool>(std::atoi(argv[optind++]));
+        data_type           = std::atoi(argv[optind++]);
+        haveSavedMeanInvVar = std::atoi(argv[optind++]);
+        init_method         = std::atoi(argv[optind++]);
+        time_kernel         = static_cast<bool>(std::atoi(argv[optind++]));
 
         if(data_type != 0 && data_type != 1 && data_type != 3 && data_type != 5 && data_type != 6)
             return -1;
@@ -126,14 +123,13 @@ class BatchnormFwdArgParser
     };
 }; // end of class AppArgs
 
-static const double epsilon       = std::numeric_limits<float>::epsilon();
-static const double averageFactor = 0.1;
+static const double epsilon = std::numeric_limits<float>::epsilon();
 
-int profile_batchnorm_forward(int argc, char* argv[])
+int profile_batchnorm_backward(int argc, char* argv[])
 {
-    using ck::profiler::profile_batchnorm_forward_impl;
+    using ck::profiler::profile_batchnorm_backward_impl;
 
-    BatchnormFwdArgParser arg_parser;
+    BatchnormBwdArgParser arg_parser;
 
     if(arg_parser(argc, argv) != 0)
         return -1;
@@ -147,68 +143,60 @@ int profile_batchnorm_forward(int argc, char* argv[])
     {
         if(arg_parser.inLengths.size() == 4 && arg_parser.reduceDims.size() == 3)
         {
-            profile_batchnorm_forward_impl<F16, F16, F32, F16, F16, F16, 4, 3>(
+            profile_batchnorm_backward_impl<F16, F32, F32, F32, F16, F32, F32, 4, 3>(
                 arg_parser.do_verification,
                 arg_parser.init_method,
                 arg_parser.do_dumpout,
                 arg_parser.time_kernel,
                 arg_parser.inLengths,
                 arg_parser.reduceDims,
-                arg_parser.updateMovingAverage,
-                arg_parser.saveMeanAndInvVariance,
-                epsilon,
-                averageFactor);
+                arg_parser.haveSavedMeanInvVar,
+                epsilon);
         };
     }
     else if(arg_parser.data_type == 1)
     {
         if(arg_parser.inLengths.size() == 4 && arg_parser.reduceDims.size() == 3)
         {
-            profile_batchnorm_forward_impl<F32, F32, F32, F32, F32, F32, 4, 3>(
+            profile_batchnorm_backward_impl<F32, F32, F32, F32, F32, F32, F32, 4, 3>(
                 arg_parser.do_verification,
                 arg_parser.init_method,
                 arg_parser.do_dumpout,
                 arg_parser.time_kernel,
                 arg_parser.inLengths,
                 arg_parser.reduceDims,
-                arg_parser.updateMovingAverage,
-                arg_parser.saveMeanAndInvVariance,
-                epsilon,
-                averageFactor);
+                arg_parser.haveSavedMeanInvVar,
+                epsilon);
         };
     }
     else if(arg_parser.data_type == 5)
     {
         if(arg_parser.inLengths.size() == 4 && arg_parser.reduceDims.size() == 3)
         {
-            profile_batchnorm_forward_impl<BF16, BF16, F32, BF16, BF16, F32, 4, 3>(
+            profile_batchnorm_backward_impl<BF16, F32, F32, F32, BF16, F32, F32, 4, 3>(
                 arg_parser.do_verification,
                 arg_parser.init_method,
                 arg_parser.do_dumpout,
                 arg_parser.time_kernel,
                 arg_parser.inLengths,
                 arg_parser.reduceDims,
-                arg_parser.updateMovingAverage,
-                arg_parser.saveMeanAndInvVariance,
-                epsilon,
-                averageFactor);
+                arg_parser.haveSavedMeanInvVar,
+                epsilon);
         };
     }
     else if(arg_parser.data_type == 6)
     {
         if(arg_parser.inLengths.size() == 4 && arg_parser.reduceDims.size() == 3)
         {
-            profile_batchnorm_forward_impl<F64, F64, F64, F64, F64, F64, 4, 3>(
+            profile_batchnorm_backward_impl<F64, F64, F64, F64, F64, F64, F64, 4, 3>(
                 arg_parser.do_verification,
                 arg_parser.init_method,
                 arg_parser.do_dumpout,
                 arg_parser.time_kernel,
                 arg_parser.inLengths,
                 arg_parser.reduceDims,
-                arg_parser.updateMovingAverage,
-                arg_parser.saveMeanAndInvVariance,
-                epsilon,
-                averageFactor);
+                arg_parser.haveSavedMeanInvVar,
+                epsilon);
         };
     }
 

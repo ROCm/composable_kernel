@@ -6,23 +6,25 @@
 #include <vector>
 
 #include "ck/ck.hpp"
-#include "ck/library/tensor_operation_instance/gpu/quantization/grouped_convolution_bias_forward_perlayer_quantization.hpp"
+#include "ck/library/tensor_operation_instance/gpu/quantization/grouped_convolution_bias_forward_perchannel_quantization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_conv_fwd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-using InDataType   = int8_t;
-using WeiDataType  = int8_t;
-using BiasDataType = int32_t;
-using OutDataType  = int8_t;
+using InDataType           = int8_t;
+using WeiDataType          = int8_t;
+using BiasDataType         = int32_t;
+using RequantScaleDataType = float;
+using OutDataType          = int8_t;
 
-using InLayout     = ck::tensor_layout::convolution::GNHWC;
-using WeiLayout    = ck::tensor_layout::convolution::GKYXC;
-using BiasLayout   = ck::tensor_layout::convolution::G_K;
-using OutLayout    = ck::tensor_layout::convolution::GNHWK;
-using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
-using ActivationOp = ck::tensor_operation::element_wise::Relu;
-using OutElementOp = ck::tensor_operation::element_wise::Add_Activation_Mul_Clamp<ActivationOp>;
+using InLayout           = ck::tensor_layout::convolution::GNHWC;
+using WeiLayout          = ck::tensor_layout::convolution::GKYXC;
+using BiasLayout         = ck::tensor_layout::convolution::G_K;
+using RequantScaleLayout = ck::tensor_layout::convolution::G_K;
+using OutLayout          = ck::tensor_layout::convolution::GNHWK;
+using PassThrough        = ck::tensor_operation::element_wise::PassThrough;
+using ActivationOp       = ck::tensor_operation::element_wise::Relu;
+using OutElementOp = ck::tensor_operation::element_wise::Add_Activation_Mul2_Clamp<ActivationOp>;
 
 static constexpr ck::index_t NumDimSpatial = 2;
 static constexpr ck::index_t G             = 1;
@@ -60,6 +62,8 @@ int main(int argc, char* argv[])
     std::array<ck::index_t, 5> weight_strides{K * Y * X * C, Y * X * C, 1, X * C, C};
     std::array<ck::index_t, 5> bias_lengths{G, N, K, Ho, Wo};
     std::array<ck::index_t, 5> bias_strides{K, 0, 1, 0, 0};
+    std::array<ck::index_t, 5> requant_scale_lengths{G, N, K, Ho, Wo};
+    std::array<ck::index_t, 5> requant_scale_strides{K, 0, 1, 0, 0};
     std::array<ck::index_t, 5> out_lengths{G, N, C, Ho, Wo};
     std::array<ck::index_t, 5> out_strides{N * Ho * Wo * C, Ho * Wo * C, 1, Wo * C, C};
     std::array<ck::index_t, 2> in_left_pad{1, 1};
@@ -70,21 +74,22 @@ int main(int argc, char* argv[])
     SimpleDeviceMem in(sizeof(InDataType) * N * Hi * Wi * C);
     SimpleDeviceMem wei(sizeof(WeiDataType) * K * Y * X * C);
     SimpleDeviceMem bias(sizeof(BiasDataType) * K * Y * X * C);
+    SimpleDeviceMem requant_scale(sizeof(RequantScaleDataType) * K * Y * X * C);
     SimpleDeviceMem out(sizeof(OutDataType) * N * Ho * Wo * K);
 
-    using DeviceOp =
-        ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<NumDimSpatial,
-                                                                    InLayout,
-                                                                    WeiLayout,
-                                                                    ck::Tuple<BiasLayout>,
-                                                                    OutLayout,
-                                                                    InDataType,
-                                                                    WeiDataType,
-                                                                    ck::Tuple<BiasDataType>,
-                                                                    OutDataType,
-                                                                    PassThrough,
-                                                                    PassThrough,
-                                                                    OutElementOp>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<
+        NumDimSpatial,
+        InLayout,
+        WeiLayout,
+        ck::Tuple<BiasLayout, RequantScaleLayout>,
+        OutLayout,
+        InDataType,
+        WeiDataType,
+        ck::Tuple<BiasDataType, RequantScaleDataType>,
+        OutDataType,
+        PassThrough,
+        PassThrough,
+        OutElementOp>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
@@ -102,26 +107,27 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < op_ptrs.size(); ++i)
     {
-        auto& op_ptr      = op_ptrs[i];
-        auto argument_ptr = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
-                                                        wei.GetDeviceBuffer(),
-                                                        {bias.GetDeviceBuffer()},
-                                                        out.GetDeviceBuffer(),
-                                                        in_lengths,
-                                                        in_strides,
-                                                        weight_lengths,
-                                                        weight_strides,
-                                                        {bias_lengths},
-                                                        {bias_strides},
-                                                        out_lengths,
-                                                        out_strides,
-                                                        conv_strides,
-                                                        conv_dilations,
-                                                        in_left_pad,
-                                                        in_right_pad,
-                                                        PassThrough{},
-                                                        PassThrough{},
-                                                        OutElementOp{0.5f, ActivationOp{}});
+        auto& op_ptr = op_ptrs[i];
+        auto argument_ptr =
+            op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
+                                        wei.GetDeviceBuffer(),
+                                        {bias.GetDeviceBuffer(), requant_scale.GetDeviceBuffer()},
+                                        out.GetDeviceBuffer(),
+                                        in_lengths,
+                                        in_strides,
+                                        weight_lengths,
+                                        weight_strides,
+                                        {bias_lengths, requant_scale_lengths},
+                                        {bias_strides, requant_scale_strides},
+                                        out_lengths,
+                                        out_strides,
+                                        conv_strides,
+                                        conv_dilations,
+                                        in_left_pad,
+                                        in_right_pad,
+                                        PassThrough{},
+                                        PassThrough{},
+                                        OutElementOp{ActivationOp{}});
 
         auto invoker_ptr    = op_ptr->MakeInvokerPointer();
         std::string op_name = op_ptr->GetTypeString();
@@ -164,25 +170,26 @@ int main(int argc, char* argv[])
         auto& op_ptr = op_ptrs[best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
                   << std::endl;
-        auto argument_ptr = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
-                                                        wei.GetDeviceBuffer(),
-                                                        {bias.GetDeviceBuffer()},
-                                                        out.GetDeviceBuffer(),
-                                                        in_lengths,
-                                                        in_strides,
-                                                        weight_lengths,
-                                                        weight_strides,
-                                                        {bias_lengths},
-                                                        {bias_strides},
-                                                        out_lengths,
-                                                        out_strides,
-                                                        conv_strides,
-                                                        conv_dilations,
-                                                        in_left_pad,
-                                                        in_right_pad,
-                                                        PassThrough{},
-                                                        PassThrough{},
-                                                        OutElementOp{0.5f, ActivationOp{}});
+        auto argument_ptr =
+            op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
+                                        wei.GetDeviceBuffer(),
+                                        {bias.GetDeviceBuffer(), requant_scale.GetDeviceBuffer()},
+                                        out.GetDeviceBuffer(),
+                                        in_lengths,
+                                        in_strides,
+                                        weight_lengths,
+                                        weight_strides,
+                                        {bias_lengths, requant_scale_lengths},
+                                        {bias_strides, requant_scale_strides},
+                                        out_lengths,
+                                        out_strides,
+                                        conv_strides,
+                                        conv_dilations,
+                                        in_left_pad,
+                                        in_right_pad,
+                                        PassThrough{},
+                                        PassThrough{},
+                                        OutElementOp{ActivationOp{}});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
