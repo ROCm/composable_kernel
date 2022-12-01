@@ -158,8 +158,8 @@ struct WmmaSelector
         return WmmaInstr::wmma_i32_16x16x16_iu4;
     }
 #endif
-
-    static constexpr auto selected_wmma = wmma_type<GetWmma<src_type, dst_type, MPerWmma, NPerWmma>(), get_warp_size()>{};
+    // get_warp_size do not return the correct wavesize, hardcode to 32 as workaround
+    static constexpr auto selected_wmma = wmma_type<GetWmma<src_type, dst_type, MPerWmma, NPerWmma>(), Number<32>{}>{};
 
     __host__ __device__ constexpr WmmaSelector()
     {

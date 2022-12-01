@@ -315,7 +315,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
     using DefaultBlock2CTileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1))>;
 
-    template <bool HasMainKBlockLoop, typename Block2CTileMap>
+    template <bool HasMainKBlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
     __device__ static void
     Run(const FloatAB* __restrict__ p_a_grid,
         const FloatAB* __restrict__ p_b_grid,
