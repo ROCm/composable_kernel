@@ -9,7 +9,7 @@
 
 #include <gtest/gtest.h>
 
-#include "profiler/include/profile_grouped_conv_bwd_weight_impl.hpp"
+#include "profiler/profile_grouped_conv_bwd_weight_impl.hpp"
 
 template <typename Tuple>
 class TestGroupedConvndBwdWeight : public ::testing::Test

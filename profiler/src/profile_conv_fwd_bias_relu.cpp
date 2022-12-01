@@ -6,7 +6,8 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_conv_fwd_bias_relu_impl.hpp"
+#include "profiler/profile_conv_fwd_bias_relu_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 enum struct ConvDataType
 {
@@ -32,11 +33,14 @@ enum struct ConvOutputLayout
     NHWK, // 1
 };
 
+#define OP_NAME "conv_fwd_bias_relu"
+#define OP_DESC "Convolution Forward+Bias+ReLU"
+
 int profile_conv_fwd_bias_relu(int argc, char* argv[])
 {
     if(argc != 25)
     {
-        printf("arg1: tensor operation (conv_fwd_bias_relu: ForwardConvolution+Bias+ReLu)\n");
+        printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (0: fp32; 1: fp16)\n");
         printf("arg3: input tensor layout (0: NCHW; 1: NHWC)\n");
         printf("arg4: weight tensor layout (0: KCYX; 1: KYXC)\n");
@@ -114,3 +118,5 @@ int profile_conv_fwd_bias_relu(int argc, char* argv[])
 
     return 0;
 }
+
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_conv_fwd_bias_relu);

@@ -5,8 +5,9 @@
 #include <vector>
 #include <unordered_map>
 
-#include "profiler/include/data_type_enum.hpp"
-#include "profiler/include/profile_groupnorm_impl.hpp"
+#include "profiler/data_type_enum.hpp"
+#include "profiler/profile_groupnorm_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 using ck::index_t;
 
@@ -43,9 +44,12 @@ struct GroupnormArgParser
     }
 };
 
+#define OP_NAME "groupnorm"
+#define OP_DESC "Group Normalization"
+
 void print_help_groupnorm()
 {
-    std::cout << "arg1: tensor operation (groupnorm: Group normalization)\n"
+    std::cout << "arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n"
               << "arg2: data type (0: fp16; 1: fp32)\n"
               << "arg3: verification (0: no; 1: yes)\n"
               << "arg4: initialization (0: no init; 1: integer value; 2: decimal value)\n"
@@ -104,3 +108,5 @@ int profile_groupnorm(int argc, char* argv[])
 
     return 0;
 }
+
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_groupnorm);
