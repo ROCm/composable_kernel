@@ -8,7 +8,7 @@
 #include <tuple>
 #include <gtest/gtest.h>
 
-#include "profiler/include/profile_batchnorm_backward_impl.hpp"
+#include "profiler/profile_batchnorm_backward_impl.hpp"
 
 using F16  = ck::half_t;
 using F32  = float;
