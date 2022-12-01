@@ -23,6 +23,7 @@ set(PROFILER_SOURCES
     profile_layernorm.cpp
     profile_softmax.cpp
     profile_batchnorm_fwd.cpp
+    profile_batchnorm_bwd.cpp
 )
 
 set(PROFILER_EXECUTABLE ckProfiler)

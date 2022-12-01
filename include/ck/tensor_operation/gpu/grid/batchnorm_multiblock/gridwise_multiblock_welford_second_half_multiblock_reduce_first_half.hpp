@@ -17,7 +17,7 @@ template <typename GridwiseWelfordSecondHalfReduceFirstHalf_,
           typename DyDataType,
           typename AccDataType,
           typename ScaleDataType,
-          typename BiasDataType,
+          typename DscaleDbiasDataType,
           typename MeanVarDataType,
           typename DyElementwiseOp,
           typename XYGridDesc_M_K,
@@ -45,8 +45,8 @@ __global__ void kernel_welford_second_half_reduce_first_half(
     MeanVarDataType* const __restrict__ p_out_welford_inv_variance,
     const XDataType* const __restrict__ p_x,
     const DyDataType* const __restrict__ p_dy,
-    ScaleDataType* const __restrict__ p_reduce_dscale,
-    BiasDataType* const __restrict__ p_reduce_dbias)
+    DscaleDbiasDataType* const __restrict__ p_reduce_dscale,
+    DscaleDbiasDataType* const __restrict__ p_reduce_dbias)
 {
     GridwiseWelfordSecondHalfReduceFirstHalf_::Run(x_grid_desc_m_k,
                                                    dy_grid_desc_m_k,
@@ -76,7 +76,7 @@ template <typename XDataType,
           typename DyDataType,
           typename AccDataType,
           typename ScaleDataType,
-          typename BiasDataType,
+          typename DscaleDbiasDataType,
           typename MeanVarDataType,
           typename DyElementwiseOp,
           typename XYGridDesc_M_K,
@@ -174,8 +174,8 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
                                MeanVarDataType* const __restrict__ p_out_welford_inv_variance,
                                const XDataType* const __restrict__ p_x,
                                const DyDataType* const __restrict__ p_dy,
-                               ScaleDataType* const __restrict__ p_reduce_dscale,
-                               BiasDataType* const __restrict__ p_reduce_dbias)
+                               DscaleDbiasDataType* const __restrict__ p_reduce_dscale,
+                               DscaleDbiasDataType* const __restrict__ p_reduce_dbias)
     {
         __shared__ AccDataType p_reduce_work_buffer[BlockSize];
 
@@ -511,28 +511,9 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
             BlockwiseReduce::Reduce(reduce_work_buf, reduce_dbias_thread_buf(I));
         });
 
-        auto threadwise_dscale_store =
+        auto threadwise_dscale_dbias_store =
             ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
-                                               ScaleDataType,
-                                               decltype(thread_buffer_desc_m_1),
-                                               DscaleDbiasGridDesc_M_G,
-                                               PassThroughOp,
-                                               ThreadBufferLengths_M_1,
-                                               Sequence<0, 1>,
-                                               1,
-                                               1,
-                                               InMemoryDataOperationEnum::Set,
-                                               1,
-                                               true>(
-                dscale_dbias_grid_desc_m_g,
-                make_multi_index(blkgroup_id * M_BlockTileSize +
-                                     thread_m_cluster_id * MThreadSliceSize,
-                                 block_local_id),
-                PassThroughOp{});
-
-        auto threadwise_dbias_store =
-            ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
-                                               BiasDataType,
+                                               DscaleDbiasDataType,
                                                decltype(thread_buffer_desc_m_1),
                                                DscaleDbiasGridDesc_M_G,
                                                PassThroughOp,
@@ -557,17 +538,17 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
 
         if(thread_k_cluster_id == 0)
         {
-            threadwise_dscale_store.Run(thread_buffer_desc_m_1,
-                                        make_tuple(I0, I0),
-                                        reduce_dscale_thread_buf,
-                                        dscale_dbias_grid_desc_m_g,
-                                        reduce_dscale_global_buf);
+            threadwise_dscale_dbias_store.Run(thread_buffer_desc_m_1,
+                                              make_tuple(I0, I0),
+                                              reduce_dscale_thread_buf,
+                                              dscale_dbias_grid_desc_m_g,
+                                              reduce_dscale_global_buf);
 
-            threadwise_dbias_store.Run(thread_buffer_desc_m_1,
-                                       make_tuple(I0, I0),
-                                       reduce_dbias_thread_buf,
-                                       dscale_dbias_grid_desc_m_g,
-                                       reduce_dbias_global_buf);
+            threadwise_dscale_dbias_store.Run(thread_buffer_desc_m_1,
+                                              make_tuple(I0, I0),
+                                              reduce_dbias_thread_buf,
+                                              dscale_dbias_grid_desc_m_g,
+                                              reduce_dbias_global_buf);
         };
     };
 };
