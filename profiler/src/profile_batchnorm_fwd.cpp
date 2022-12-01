@@ -6,7 +6,8 @@
 #include <getopt.h>
 
 #include "ck/library/utility/host_common_util.hpp"
-#include "profiler/include/profile_batchnorm_forward_impl.hpp"
+#include "profiler/profile_batchnorm_forward_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 using ck::index_t;
 
@@ -214,3 +215,5 @@ int profile_batchnorm_forward(int argc, char* argv[])
 
     return 0;
 }
+
+REGISTER_PROFILER_OPERATION("bnorm_fwd", "Batchnorm forward", profile_batchnorm_forward);
