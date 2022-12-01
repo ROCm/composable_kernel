@@ -13,8 +13,9 @@
 
 #include "ck/library/utility/host_common_util.hpp"
 
-#include "profiler/include/profile_reduce_impl.hpp"
-#include "profiler/include/data_type_enum.hpp"
+#include "profiler/profile_reduce_impl.hpp"
+#include "profiler/data_type_enum.hpp"
+#include "profiler_operation_registry.hpp"
 
 using namespace std;
 
@@ -429,3 +430,5 @@ int profile_reduce(int argc, char* argv[])
 
     return (0);
 };
+
+REGISTER_PROFILER_OPERATION("reduce", "Reduce", profile_reduce);

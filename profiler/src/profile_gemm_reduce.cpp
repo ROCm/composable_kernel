@@ -6,7 +6,11 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_gemm_reduce_impl.hpp"
+#include "profiler/profile_gemm_reduce_impl.hpp"
+#include "profiler_operation_registry.hpp"
+
+#define OP_NAME "gemm_reduce"
+#define OP_DESC "GEMM+Reduce"
 
 int profile_gemm_reduce(int argc, char* argv[])
 {
@@ -26,7 +30,7 @@ int profile_gemm_reduce(int argc, char* argv[])
 
     if(!(argc == 14 || argc == 15))
     {
-        printf("arg1: tensor operation (gemm: GEMM+Reduce)\n");
+        printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (0: fp32; 1: fp16)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
@@ -146,3 +150,5 @@ int profile_gemm_reduce(int argc, char* argv[])
 
     return 0;
 }
+
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_gemm_reduce);

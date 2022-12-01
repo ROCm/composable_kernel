@@ -6,7 +6,8 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_conv_fwd_impl.hpp"
+#include "profiler/profile_conv_fwd_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 namespace {
 
@@ -24,11 +25,14 @@ enum struct ConvDataType
     INT8_INT8_INT8, // 3
 };
 
+#define OP_NAME "conv_fwd"
+#define OP_DESC "Convolution Forward"
+
 static void print_helper_msg()
 {
     std::cout
         // clang-format-off
-        << "arg1: tensor operation (conv_fwd: Convolution Forward)\n"
+        << "arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n"
         << "arg2: data type (0: Input fp32, Weight fp32, Output fp32\n"
         << "                 1: Input fp16, Weight fp16, Output fp16\n"
         << "                 2: Input bf16, Weight bf16, Output bf16\n"
@@ -184,3 +188,5 @@ int profile_conv_fwd(int argc, char* argv[])
 
     return 1;
 }
+
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_conv_fwd);

@@ -8,7 +8,7 @@
 #include <tuple>
 #include <gtest/gtest.h>
 
-#include "profiler/include/profile_conv_bwd_data_impl.hpp"
+#include "profiler/profile_conv_bwd_data_impl.hpp"
 
 template <typename Tuple>
 class TestConvndBwdData : public ::testing::Test

@@ -6,7 +6,8 @@
 #include <iostream>
 #include <numeric>
 
-#include "profiler/include/profile_grouped_conv_bwd_weight_impl.hpp"
+#include "profiler/profile_grouped_conv_bwd_weight_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 namespace {
 
@@ -23,9 +24,12 @@ enum struct ConvDataType
     BF16_F32_BF16, // 2
 };
 
+#define OP_NAME "grouped_conv_bwd_weight"
+#define OP_DESC "Grouped Convolution Backward Weight"
+
 static void print_helper_msg()
 {
-    std::cout << "arg1: tensor operation (conv_bwd_weight: Convolution Backward Weight\n"
+    std::cout << "arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n"
               << "arg2: data type (0: Input fp32, Weight fp32, Output fp32\n"
               << "                 1: Input fp16, Weight fp16, Output fp16\n"
               << "                 2: Input bf16, Weight fp32, Output bf16)\n"
@@ -174,3 +178,5 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
 
     return 1;
 }
+
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_grouped_conv_bwd_weight);

@@ -7,7 +7,8 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_batched_gemm_impl.hpp"
+#include "profiler/profile_batched_gemm_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 enum struct GemmMatrixLayout
 {
@@ -25,12 +26,15 @@ enum struct GemmDataType
     INT8_INT8_INT8, // 3
 };
 
+#define OP_NAME "batched_gemm"
+#define OP_DESC "Batched GEMM"
+
 int profile_batched_gemm(int argc, char* argv[])
 {
     if(argc != 18)
     {
         // clang-format off
-        printf("arg1: tensor operation (batched_gemm: Batched GEMM)\n");
+        printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (0: fp32; 1: fp16, 2: bf16, 3: int8)\n");
         printf("arg3: matrix layout (0: A[g, m, k] * B[g, k, n] = C[g, m, n];\n");
         printf("                     1: A[g, m, k] * B[g, n, k] = C[g, m, n];\n");
@@ -195,3 +199,5 @@ int profile_batched_gemm(int argc, char* argv[])
         return 1;
     }
 }
+
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_batched_gemm);
