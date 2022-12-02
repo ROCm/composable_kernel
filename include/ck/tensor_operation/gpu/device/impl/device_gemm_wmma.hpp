@@ -359,8 +359,6 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     true>; // Last Option is W/O 
                     
-                std::cout<<"Host kernel type is "<< type_name<decltype(kernel)>()<<std::endl;
-                printf("---------------------Crush before kernel launch-------------------\n");
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,
                                                   dim3(grid_size),

@@ -356,6 +356,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
 /*******************************************************************************/
 // BlockLevel, A/B Matrix ThreadMapping in LDS, As Destinaion of BlockWise_Copy
         const auto K0 = a_grid_desc_k0_m_k1.GetLength(I0);
+        printf("A_GRID_DESC: %s \n", std::string(type_name<decltype(a_grid_desc_k0_m_k1)>()).c_str());
         constexpr auto max_lds_align = K1;
         constexpr auto a_block_desc_k0perblock_mperblock_k1 = GetABlockDescriptor_K0PerBlock_MPerBlock_K1();
         constexpr auto b_block_desc_k0perblock_nperblock_k1 = GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
@@ -457,7 +458,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
 
         // gridwise GEMM pipeline
         const index_t K0BlockMainLoop = __builtin_amdgcn_readfirstlane(K0 / K0PerBlock);
-
         GridwiseGemmPipe::template Run<HasMainKBlockLoop>(a_grid_desc_k0_m_k1,
                                                           a_block_desc_k0perblock_mperblock_k1,
                                                           a_blockwise_copy,

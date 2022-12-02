@@ -72,3 +72,11 @@ constexpr auto type_name() {
   name.remove_suffix(suffix.size());
   return name;
 }
+
+template <typename T>
+__device__
+void debug_hexprinter(const uint32_t v_target, T v_val){
+    const uint32_t v_dbg = *(reinterpret_cast<uint32_t*>(&v_val));
+    if(v_dbg != v_target)
+        printf("@Thread: %d, Val: %08x != Target: %08x\n", ck::get_thread_local_1d_id(), v_dbg, v_target);
+}

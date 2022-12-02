@@ -208,6 +208,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid)};
 
             // apply SrcElementwiseOperation on src_vector_container
+            debug_hexprinter(0xffffffff, src_coord_.GetOffset());
             static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
                 SrcData src_v;
 

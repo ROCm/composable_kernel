@@ -226,6 +226,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3
 
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(iCut, iN, 0));
+                    // debug_hexprinter(0x3c003c00, a_thread_vec.template AsType<FloatAB>()(Number<0>{}));
                     wmma_gemm.template Run(
                             a_thread_vec.template AsType<wmma_input_type>()(Number<0>{}),
                             b_thread_vec.template AsType<wmma_input_type>()(Number<0>{}),
