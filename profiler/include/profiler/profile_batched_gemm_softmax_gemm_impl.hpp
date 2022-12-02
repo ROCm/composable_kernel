@@ -49,7 +49,7 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
                                             int BatchStrideB0 = -1,
                                             int BatchStrideB1 = -1,
                                             int BatchStrideC  = -1,
-                                            float alpha       = 1.f)
+                                            float alpha       = -1.f)
 
 {
 
@@ -187,6 +187,10 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());
     b1_g_n_o_device_buf.ToDevice(b1_g_n_o.mData.data());
 
+    if(alpha < 0)
+    {
+        alpha = 1.f / std::sqrt(K); // usually 1 / sqrt(head_dim)
+    }
     auto a_element_op    = AElementOp{};
     auto b0_element_op   = B0ElementOp{};
     auto acc0_element_op = Acc0ElementOp{alpha};
