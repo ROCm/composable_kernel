@@ -187,6 +187,22 @@ struct AddRelu
         const float a = x0 + type_convert<float>(x1);
         y             = a > 0.0f ? a : 0.0f;
     };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<int, int, int8_t>(int& y, const int& x0, const int8_t& x1) const
+    {
+        const int8_t a = x0 + x1;
+        y              = a > 0 ? a : 0;
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<int8_t, int8_t, int8_t>(int8_t& y, const int8_t& x0, const int8_t& x1) const
+    {
+        const int8_t a = x0 + x1;
+        y              = a > 0 ? a : 0;
+    };
 };
 
 struct AddHardswish

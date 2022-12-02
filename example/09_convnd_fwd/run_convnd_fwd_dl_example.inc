@@ -61,6 +61,7 @@ bool run_convnd_fwd_dl_example(int argc, char* argv[])
             ndim_spatial_value,
             InDataType,
             WeiDataType,
+            DsDataType,
             OutDataType,
             InElementOp,
             WeiElementOp,
