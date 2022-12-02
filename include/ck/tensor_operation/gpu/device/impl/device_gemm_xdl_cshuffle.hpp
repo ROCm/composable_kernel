@@ -580,10 +580,11 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
             return false;
         }
 
-        if((arg.kraw_ % AK1 != 0 || arg.kraw_ % BK1 != 0) && 
+        if((arg.kraw_ % AK1 != 0 || arg.kraw_ % BK1 != 0) &&
            !(GemmSpec == GemmSpecialization::MKPadding ||
-             GemmSpec == GemmSpecialization::NKPadding || 
-             GemmSpec == GemmSpecialization::MNKPadding || GemmSpec == GemmSpecialization::KPadding))
+             GemmSpec == GemmSpecialization::NKPadding ||
+             GemmSpec == GemmSpecialization::MNKPadding ||
+             GemmSpec == GemmSpecialization::KPadding))
         {
             return false;
         }
