@@ -25,7 +25,7 @@
 // check GPU target
 #ifdef __HIP_DEVICE_COMPILE__
 #if !(defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx908__) || \
-      defined(__gfx90a__) || defined(__gfx1030__))
+      defined(__gfx90a__) || defined(__gfx1030__) || defined(__gfx1100__))
 #error Not supported target
 #endif
 #endif
@@ -38,6 +38,8 @@
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
 #elif defined(__gfx1030__) // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
+#elif defined(__gfx1100__) // for GPU code
+#define CK_BUFFER_RESOURCE_3RD_DWORD 0x10020000
 #endif
 
 // FMA instruction
@@ -60,6 +62,13 @@
 
 #if defined(__gfx90a__)
 #define CK_USE_AMD_MFMA_BF16_1K_OP
+#endif
+
+// WMMA instruction
+#ifndef __HIP_DEVICE_COMPILE__ // for host code
+#define CK_USE_AMD_WMMA
+#elif defined(__gfx1100__) // for GPU code
+#define CK_USE_AMD_WMMA
 #endif
 
 // buffer load
