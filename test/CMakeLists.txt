@@ -1,5 +1,6 @@
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/
+    ${PROJECT_SOURCE_DIR}/profiler/include
 )
 
 include(googletest)
@@ -53,3 +54,4 @@ add_subdirectory(softmax)
 add_subdirectory(normalization)
 add_subdirectory(data_type)
 add_subdirectory(elementwise_normalization)
+add_subdirectory(batchnorm)
