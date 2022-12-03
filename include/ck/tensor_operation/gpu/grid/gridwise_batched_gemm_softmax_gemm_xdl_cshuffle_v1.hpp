@@ -796,6 +796,11 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                     }
                 });
             }
+            else
+            {
+                static_for<0, acc_thread_buf.Size(), 1>{}(
+                    [&](auto i) { acc_element_op(acc_thread_buf(i), acc_thread_buf[i]); });
+            }
 
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
 

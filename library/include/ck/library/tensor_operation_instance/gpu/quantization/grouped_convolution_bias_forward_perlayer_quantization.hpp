@@ -23,7 +23,7 @@ void add_device_conv2d_bias_perlayer_quantization_int8_instances(
         std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
                                                       GNHWC,
                                                       GKYXC,
-                                                      GK_TUPLE,
+                                                      GK_Tuple,
                                                       GNHWK,
                                                       int8_t,
                                                       int8_t,
@@ -38,7 +38,7 @@ void add_device_conv2d_bias_relu_perlayer_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
                                                               GNHWC,
                                                               GKYXC,
-                                                              GK_TUPLE,
+                                                              GK_Tuple,
                                                               GNHWK,
                                                               int8_t,
                                                               int8_t,
@@ -91,7 +91,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
         if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, GNHWC> &&
-                     is_same_v<WeiLayout, GKYXC> && is_same_v<DsLayout, GK_TUPLE> &&
+                     is_same_v<WeiLayout, GKYXC> && is_same_v<DsLayout, GK_Tuple> &&
                      is_same_v<OutLayout, GNHWK>)
         {
             if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
