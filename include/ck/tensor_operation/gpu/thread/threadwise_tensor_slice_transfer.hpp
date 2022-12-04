@@ -149,12 +149,6 @@ struct ThreadwiseTensorSliceTransfer_v1r3
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
 
-            // if(get_thread_global_1d_id() == 0)
-            //{
-            // const index_t dst_off = dst_coord_.GetOffset();
-            // printf("dst_off: %d\n", dst_off);
-            //}
-
             // copy data from dst_vector into dst_buf
             dst_buf.template Update<DstInMemOp, dst_vector_t>(
                 dst_coord_.GetOffset(),
