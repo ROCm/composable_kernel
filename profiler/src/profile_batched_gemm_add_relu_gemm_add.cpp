@@ -6,13 +6,17 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_batched_gemm_add_relu_gemm_add_impl.hpp"
+#include "profiler/profile_batched_gemm_add_relu_gemm_add_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
+
+#define OP_NAME "batched_gemm_add_relu_gemm_add"
+#define OP_DESC "Batched GEMM+Add+Relu+GEMM+Add"
 
 int profile_batched_gemm_add_relu_gemm_add(int argc, char* argv[])
 {
@@ -109,8 +113,7 @@ int profile_batched_gemm_add_relu_gemm_add(int argc, char* argv[])
     }
     else
     {
-        printf("arg1: tensor operation (batched_gemm_add_relu_gemm_add: "
-               "Batched_GEMM+Add+Relu+Gemm+Add)\n");
+        printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (1: fp16)\n");
         printf("arg3: matrix layout (0: Relu(A0[m, k] * B0[n, k] + D0[m, n]) * B1[n, o] + D1[m, o] "
                "= E1[m, o]; 1: Relu(A0[m, k] * B0[n, k] + D0[m, n]) * B1[o, n] + D1[m, o] = "
@@ -207,3 +210,5 @@ int profile_batched_gemm_add_relu_gemm_add(int argc, char* argv[])
 
     return 0;
 }
+
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_batched_gemm_add_relu_gemm_add);

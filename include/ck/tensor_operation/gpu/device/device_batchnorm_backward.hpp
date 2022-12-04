@@ -13,7 +13,16 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <index_t Rank, index_t NumBatchNormReduceDim, typename DyElementwiseOp>
+template <typename XDataType,
+          typename DxDataType,
+          typename DyDataType,
+          typename AccDataType,
+          typename ScaleDataType,
+          typename DscaleDbiasDataType,
+          typename MeanVarDataType,
+          typename DyElementwiseOp,
+          index_t Rank,
+          index_t NumBatchNormReduceDim>
 struct DeviceBatchNormBwd : public BaseOperator
 {
     static constexpr index_t NumInvariantDim = Rank - NumBatchNormReduceDim;
@@ -26,7 +35,7 @@ struct DeviceBatchNormBwd : public BaseOperator
                         const std::array<int, NumBatchNormReduceDim> reduceDims,
                         const std::array<ck::index_t, NumInvariantDim> bnScaleBiasMeanVarLengths,
                         const std::array<ck::index_t, NumInvariantDim> bnScaleStrides,
-                        const std::array<ck::index_t, NumInvariantDim> bnBiasStrides,
+                        const std::array<ck::index_t, NumInvariantDim> bnDscaleDbiasStrides,
                         const std::array<ck::index_t, NumInvariantDim> bnMeanVarStrides,
                         const void* p_x,
                         const void* p_dy,
@@ -42,9 +51,26 @@ struct DeviceBatchNormBwd : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <index_t Rank, index_t NumBatchNormReduceDim, typename DyElementwiseOp>
-using DeviceBatchNormBwdPtr =
-    std::unique_ptr<DeviceBatchNormBwd<Rank, NumBatchNormReduceDim, DyElementwiseOp>>;
+template <typename XDataType,
+          typename DxDataType,
+          typename DyDataType,
+          typename AccDataType,
+          typename ScaleDataType,
+          typename DscaleDbiasDataType,
+          typename MeanVarDataType,
+          typename DyElementwiseOp,
+          index_t Rank,
+          index_t NumBatchNormReduceDim>
+using DeviceBatchNormBwdPtr = std::unique_ptr<DeviceBatchNormBwd<XDataType,
+                                                                 DxDataType,
+                                                                 DyDataType,
+                                                                 AccDataType,
+                                                                 ScaleDataType,
+                                                                 DscaleDbiasDataType,
+                                                                 MeanVarDataType,
+                                                                 DyElementwiseOp,
+                                                                 Rank,
+                                                                 NumBatchNormReduceDim>>;
 
 } // namespace device
 } // namespace tensor_operation

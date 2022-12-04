@@ -5,8 +5,9 @@
 #include <vector>
 #include <unordered_map>
 
-#include "profiler/include/data_type_enum.hpp"
-#include "profiler/include/profile_layernorm_impl.hpp"
+#include "profiler/data_type_enum.hpp"
+#include "profiler/profile_layernorm_impl.hpp"
+#include "profiler_operation_registry.hpp"
 
 using ck::index_t;
 
@@ -96,3 +97,5 @@ int profile_layernorm(int argc, char* argv[])
 
     return 0;
 }
+
+REGISTER_PROFILER_OPERATION("layernorm", "Layer Normalization", profile_layernorm);
