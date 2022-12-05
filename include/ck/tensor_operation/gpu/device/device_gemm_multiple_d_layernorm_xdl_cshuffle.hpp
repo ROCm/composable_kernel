@@ -509,6 +509,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
             mean_var_count_grid_desc_m_nblock_ =
                 DeviceOp::MakeMeanVarCountGridDescriptor_M_NBlock(MRaw, gemm_nblock_);
 
+            // TODO - hipFree
             hip_check_error(hipMalloc(&p_e_grid_, sizeof(EDataType) * MRaw * NRaw));
 
             int gemm_welford_size = MRaw * gemm_nblock_;
