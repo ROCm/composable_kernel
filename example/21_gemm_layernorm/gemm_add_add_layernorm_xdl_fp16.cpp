@@ -175,6 +175,10 @@ int main()
         throw std::runtime_error("wrong! this device_op instance does not support this problem");
     }
 
+    size_t workspace_sz = device_op.GetWorkSpaceSize(&argument);
+    DeviceMem workspace_dev(workspace_sz);
+    device_op.SetWorkSpacePointer(&argument, workspace_dev.GetDeviceBuffer());
+
     invoker.Run(argument, StreamConfig{nullptr, false});
 
     if(do_verification)
