@@ -4,7 +4,7 @@
 #pragma
 
 #include "ck/utility/data_type.hpp"
-#include "profiler/include/data_type_enum.hpp"
+#include "profiler/data_type_enum.hpp"
 
 namespace ck {
 
