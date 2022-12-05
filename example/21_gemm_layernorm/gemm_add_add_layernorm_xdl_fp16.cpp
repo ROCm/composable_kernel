@@ -48,7 +48,6 @@ using BLayout  = Col;
 using D0Layout = Row;
 using D1Layout = Row;
 using DsLayout = ck::Tuple<D0Layout, D1Layout>;
-using ELayout  = Row;
 using HLayout  = Row;
 
 using AElementOp   = PassThrough;
@@ -66,6 +65,14 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDLayern
 //######|        |        |         |        |          |          |            |                 |           |              |             |          |            |            |             |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                      |                | LayernormThreadClusterSize_M_N, LayernormThreadSliceSize_M_N
         < ALayout, BLayout, DsLayout, HLayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, GammaDataType, BetaDataType, HDataType,  AElementOp,  BElementOp, CDEElementOp,   HElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,              S<64, 4>,               4, S<8, 32>, S<1, 8>, 1, 8, 8, 8, 8, 1>;
 // clang-format on
+
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                        BDataType,
+                                                                        AccDataType,
+                                                                        AccDataType,
+                                                                        AElementOp,
+                                                                        BElementOp,
+                                                                        PassThrough>;
 
 auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
     return HostTensorDescriptor(std::vector<std::size_t>({len}),
@@ -88,6 +95,8 @@ auto f_host_tensor_descriptor2d =
 
 int main()
 {
+    bool do_verification = true;
+
     // GEMM shape
     ck::index_t M = 1024;
     ck::index_t N = 1024;
@@ -107,6 +116,7 @@ int main()
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor2d(M, N, StrideD1, D1Layout{}));
     Tensor<GammaDataType> gamma_n(f_host_tensor_descriptor1d(N, 1));
     Tensor<BetaDataType> beta_n(f_host_tensor_descriptor1d(N, 1));
+    Tensor<HDataType> e_m_n(f_host_tensor_descriptor2d(M, N, StrideH, HLayout{}));
     Tensor<HDataType> h_m_n(f_host_tensor_descriptor2d(M, N, StrideH, HLayout{}));
 
     a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-1, 1});
@@ -122,6 +132,7 @@ int main()
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
     DeviceMem gamma_device_buf(sizeof(GammaDataType) * gamma_n.mDesc.GetElementSpaceSize());
     DeviceMem beta_device_buf(sizeof(BetaDataType) * beta_n.mDesc.GetElementSpaceSize());
+    DeviceMem e_device_buf(sizeof(HDataType) * e_m_n.mDesc.GetElementSpaceSize());
     DeviceMem h_device_buf(sizeof(HDataType) * h_m_n.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
@@ -144,6 +155,7 @@ int main()
                                {d0_device_buf.GetDeviceBuffer(), d1_device_buf.GetDeviceBuffer()},
                                gamma_device_buf.GetDeviceBuffer(),
                                beta_device_buf.GetDeviceBuffer(),
+                               e_device_buf.GetDeviceBuffer(),
                                h_device_buf.GetDeviceBuffer(),
                                M,
                                N,
@@ -164,4 +176,29 @@ int main()
     }
 
     invoker.Run(argument, StreamConfig{nullptr, false});
+
+    if(do_verification)
+    {
+        Tensor<AccDataType> c_m_n_host(HostTensorDescriptor{M, N});
+        Tensor<HDataType> e_m_n_host(HostTensorDescriptor{M, N});
+
+        auto ref_gemm    = ReferenceGemmInstance{};
+        auto ref_invoker = ref_gemm.MakeInvoker();
+
+        auto ref_argument = ref_gemm.MakeArgument(
+            a_m_k, b_k_n, c_m_n_host, a_element_op, b_element_op, PassThrough{});
+
+        ref_invoker.Run(ref_argument);
+
+        for(int m = 0; m < M; ++m)
+        {
+            for(int n = 0; n < N; ++n)
+            {
+                cde_element_op(e_m_n_host(m, n), c_m_n_host(m, n), d0_n(n), d1_m_n(m, n));
+            }
+        }
+
+        e_device_buf.FromDevice(e_m_n.mData.data());
+        return ck::utils::check_err(e_m_n, e_m_n_host) ? 0 : 1;
+    }
 }

@@ -463,6 +463,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                  std::array<const void*, NumDTensor> p_ds_grid,
                  const void* p_gamma_grid,
                  const void* p_beta_grid,
+                 void* p_e_grid,
                  void* p_h_grid,
                  index_t MRaw,
                  index_t NRaw,
@@ -479,7 +480,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
             : p_a_grid_{static_cast<const ADataType*>(p_a_grid)},
               p_b_grid_{static_cast<const BDataType*>(p_b_grid)},
               p_ds_grid_{},
-              p_e_grid_{nullptr},
+              p_e_grid_{static_cast<EDataType*>(p_e_grid)},
               p_welford_mean_grid_{nullptr},
               p_welford_var_grid_{nullptr},
               p_welford_count_grid_{nullptr},
@@ -509,9 +510,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
             mean_var_count_grid_desc_m_nblock_ =
                 DeviceOp::MakeMeanVarCountGridDescriptor_M_NBlock(MRaw, gemm_nblock_);
 
-            // TODO - hipFree
-            hip_check_error(hipMalloc(&p_e_grid_, sizeof(EDataType) * MRaw * NRaw));
-
+            // TODO - GetWorkSpaceSize(), let user hipMalloc the memory
             int gemm_welford_size = MRaw * gemm_nblock_;
             hip_check_error(
                 hipMalloc(&p_welford_mean_grid_, sizeof(MeanDataType) * gemm_welford_size));
@@ -770,6 +769,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                              std::array<const void*, NumDTensor> p_ds,
                              const void* p_gamma,
                              const void* p_beta,
+                             void* p_e,
                              void* p_h,
                              index_t MRaw,
                              index_t NRaw,
@@ -789,6 +789,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                         p_ds,
                         p_gamma,
                         p_beta,
+                        p_e,
                         p_h,
                         MRaw,
                         NRaw,
@@ -812,6 +813,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                                       std::array<const void*, NumDTensor> p_ds,
                                                       const void* p_gamma,
                                                       const void* p_beta,
+                                                      void* p_e,
                                                       void* p_h,
                                                       index_t MRaw,
                                                       index_t NRaw,
@@ -831,6 +833,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                           p_ds,
                                           p_gamma,
                                           p_beta,
+                                          p_e,
                                           p_h,
                                           MRaw,
                                           NRaw,
