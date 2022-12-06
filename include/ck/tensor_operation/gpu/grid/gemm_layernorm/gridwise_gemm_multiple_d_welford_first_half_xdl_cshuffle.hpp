@@ -857,11 +857,14 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
             using BlockwiseWelford = BlockwiseWelford<AccDataType,
                                                       BlockSize,
                                                       PostShuffleThreadClusterSize_M_N,
-                                                      Sequence<0, 1>,
+                                                      Sequence<1, 0>,
                                                       false>;
 
             constexpr int num_shuffleM =
                 MPerBlock / (CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl);
+
+            constexpr int num_shuffleN =
+                NPerBlock / (CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl);
 
             using mean_var_vgpr_type =
                 decltype(make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
@@ -878,7 +881,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
 
             static_for<0, num_shuffleM, 1>{}([&](auto i) {
                 // TODO - padding
-                threadwise_welfords(i).max_count_ = PostShuffleThreadSliceSize_N;
+                threadwise_welfords(i).max_count_ = PostShuffleThreadSliceSize_N * num_shuffleN;
                 mean_thread_bufs(i) = make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
                     thread_welford_dst_desc_m.GetElementSpaceSize());
 
