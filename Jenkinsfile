@@ -618,7 +618,7 @@ pipeline {
                 stage('Clang Format') {
                     agent{ label rocmnode("nogpu") }
                     environment{
-                        execute_cmd = "find .. -iname \'*.h\' \
+                        execute_cmd = "find .. -not -path '.git/' -iname \'*.h\' \
                                 -o -iname \'*.hpp\' \
                                 -o -iname \'*.cpp\' \
                                 -o -iname \'*.h.in\' \
