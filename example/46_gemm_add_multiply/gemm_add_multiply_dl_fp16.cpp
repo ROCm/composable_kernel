@@ -22,7 +22,7 @@ using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = AddMultiply;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
 // clang-format off
 using DeviceOpInstance = ck::tensor_operation::device::
