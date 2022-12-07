@@ -361,10 +361,12 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                 v_gs_ns_os_lengths_vec, v_gs_ns_os_strides_vec)
                 .second;
 
-        // LogRangeAsType<float>(std::cout << "v_gs_os_ns_lengths_vec: ", v_gs_os_ns_lengths_vec, ",") << std::endl;
-        // LogRangeAsType<float>(std::cout << "v_gs_os_ns_strides_vec: ", v_gs_os_ns_strides_vec, ",") << std::endl;
-        // LogRangeAsType<float>(std::cout << "v_gs_ns_os_lengths_vec: ", v_gs_ns_os_lengths_vec, ",") << std::endl;
-        // LogRangeAsType<float>(std::cout << "v_gs_ns_os_strides_vec: ", v_gs_ns_os_strides_vec, ",") << std::endl;
+        // LogRangeAsType<float>(std::cout << "v_gs_os_ns_lengths_vec: ", v_gs_os_ns_lengths_vec,
+        // ",") << std::endl; LogRangeAsType<float>(std::cout << "v_gs_os_ns_strides_vec: ",
+        // v_gs_os_ns_strides_vec, ",") << std::endl; LogRangeAsType<float>(std::cout <<
+        // "v_gs_ns_os_lengths_vec: ", v_gs_ns_os_lengths_vec, ",") << std::endl;
+        // LogRangeAsType<float>(std::cout << "v_gs_ns_os_strides_vec: ", v_gs_ns_os_strides_vec,
+        // ",") << std::endl;
         return PadTensorDescriptor(vgrad_desc_nraw_oraw,
                                    make_tuple(NPerBlock, Gemm1NPerBlock),
                                    Sequence<padder.PadN, padder.PadO>{});
@@ -685,7 +687,11 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                     c_gs_ms_gemm1ns_strides[NumDimG + NumDimM + NumDimO - 1]},
               batch_count_{c_grid_desc_g_m_n_.GetLength(I0)},
               compute_base_ptr_of_batch_{
-                  a_grid_desc_g_m_k_, b_grid_desc_g_n_k_, b1_grid_desc_g_n_k_, c_grid_desc_g_m_n_, type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize())}
+                  a_grid_desc_g_m_k_,
+                  b_grid_desc_g_n_k_,
+                  b1_grid_desc_g_n_k_,
+                  c_grid_desc_g_m_n_,
+                  type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize())}
         {
             // TODO ANT: implement bias addition
             ignore = p_acc0_biases;
@@ -726,9 +732,10 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                       << c_grid_desc_g_m_n_.GetLength(I1) << ", "
                       << c_grid_desc_g_m_n_.GetLength(I2) << '\n';
             // c_grid_desc_g_m_n_.Print();
-            std::cout << "vgrad_grid_desc_n_o_: " << vgrad_grid_desc_n_o_.GetLength(I0) << ", " << vgrad_grid_desc_n_o_.GetLength(I1) << '\n';
-            std::cout << "ygrad_grid_desc_m0_o_m1_: " << ygrad_grid_desc_m0_o_m1_.GetLength(I0) << ", "
-                      << ygrad_grid_desc_m0_o_m1_.GetLength(I1) << ", "
+            std::cout << "vgrad_grid_desc_n_o_: " << vgrad_grid_desc_n_o_.GetLength(I0) << ", "
+                      << vgrad_grid_desc_n_o_.GetLength(I1) << '\n';
+            std::cout << "ygrad_grid_desc_m0_o_m1_: " << ygrad_grid_desc_m0_o_m1_.GetLength(I0)
+                      << ", " << ygrad_grid_desc_m0_o_m1_.GetLength(I1) << ", "
                       << ygrad_grid_desc_m0_o_m1_.GetLength(I2) << '\n';
         }
 
