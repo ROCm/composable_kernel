@@ -152,21 +152,18 @@ __host__ __device__ constexpr T clamp(const T& x, const T& lowerbound, const T& 
 
 // disallow implicit type casting
 template <typename T>
-__device__ T exp(T x);
+__host__ T exp(T x){
+    return std::exp(x);
+};
 
-// TODO: add f16 support using v_exp_f16
-
-template <>
-__device__ float exp<float>(float x)
-{
-    return __expf(x);
-}
-
-template <>
-__device__ double exp<double>(double x)
-{
-    return exp(x);
-}
+template <typename T>
+__device__ T exp(T x){
+    if(is_same<T, double>{}){
+        return exp(x);
+    }else{
+        return __expf(x);
+    }
+};
 
 // greatest common divisor, aka highest common factor
 __host__ __device__ constexpr index_t gcd(index_t x, index_t y)
