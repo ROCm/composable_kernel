@@ -902,9 +902,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
 
             static_assert(num_access == sfc_der_global.GetNumOfAccess(), "wrong!");
 
-            // TODO - SGPR
-            int shuffleM_index = 0;
-
+            int shuffleM_index = __builtin_amdgcn_readfirstlane(0);
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to read from LDS
                 block_sync_lds();
@@ -984,7 +982,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
                     constexpr int shuffleMInc =
                         de_global_step[I1] /
                         c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetLength(I1);
-                    shuffleM_index += shuffleMInc;
+                    shuffleM_index = __builtin_amdgcn_readfirstlane(shuffleM_index + shuffleMInc);
                 }
             }); // copy c, d, e + welford
 
