@@ -462,13 +462,11 @@ struct DeviceGemmMultipleD_Dl : public DeviceGemmMultipleD<ALayout,
                    arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.e_grid_desc_m_n_))
             {
                 throw std::runtime_error(
-                    "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdl_v2r3 has invalid setting");
+                    "wrong! GridwiseGemmDlMultipleD_km_kn_mn has invalid setting");
             }
 
             const index_t grid_size = GridwiseGemm::CalculateGridSize(
                 arg.e_grid_desc_m_n_.GetLength(I0), arg.e_grid_desc_m_n_.GetLength(I1));
-
-            float ave_time = 0;
 
             auto launch_kernel = [&](auto has_main_k_block_loop,
                                      auto has_double_tail_k_block_loop) {
@@ -517,26 +515,24 @@ struct DeviceGemmMultipleD_Dl : public DeviceGemmMultipleD<ALayout,
 
             if(has_main_k_block_loop && has_double_tail_k_block_loop)
             {
-                ave_time =
-                    launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, true>{});
+                return launch_kernel(integral_constant<bool, true>{},
+                                     integral_constant<bool, true>{});
             }
             else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
             {
-                ave_time = launch_kernel(integral_constant<bool, true>{},
-                                         integral_constant<bool, false>{});
+                return launch_kernel(integral_constant<bool, true>{},
+                                     integral_constant<bool, false>{});
             }
             else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
             {
-                ave_time = launch_kernel(integral_constant<bool, false>{},
-                                         integral_constant<bool, true>{});
+                return launch_kernel(integral_constant<bool, false>{},
+                                     integral_constant<bool, true>{});
             }
             else
             {
-                ave_time = launch_kernel(integral_constant<bool, false>{},
-                                         integral_constant<bool, false>{});
+                return launch_kernel(integral_constant<bool, false>{},
+                                     integral_constant<bool, false>{});
             }
-
-            return ave_time;
         }
 
         // polymorphic
@@ -555,7 +551,8 @@ struct DeviceGemmMultipleD_Dl : public DeviceGemmMultipleD<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030")
+        if(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx908" ||
+           ck::get_device_name() == "gfx1030")
         {
             return GridwiseGemm::CheckValidity(
                 arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.e_grid_desc_m_n_);
