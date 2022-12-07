@@ -29,8 +29,28 @@ using S = ck::Sequence<Is...>;
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
-using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
+// C = A * B
+// E = (C + D0) x D1;
+struct AddMultiply
+{
+    __host__ __device__ void
+    operator()(float& e, const float& c, const ck::half_t& d0, const ck::half_t& d1) const
+    {
+        const ck::half_t x = (ck::type_convert<ck::half_t>(c) + d0) * d1;
+
+        e = x;
+    }
+
+    __host__ __device__ void
+    operator()(ck::half_t& e, const ck::half_t& c, const ck::half_t& d0, const ck::half_t& d1) const
+    {
+        const ck::half_t x = (c + d0) * d1;
+
+        e = x;
+    }
+};
 
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;

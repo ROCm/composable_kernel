@@ -20,7 +20,7 @@ using ELayout  = Row;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
-using CDEElementOp = AddAddFastGelu;
+using CDEElementOp = AddMultiply;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
