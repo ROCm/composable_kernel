@@ -35,8 +35,8 @@ using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
-using I8  = int8_t;
-using I32 = int32_t;
+using I8   = int8_t;
+using I32  = int32_t;
 
 struct ProblemSize final
 {
