@@ -1042,7 +1042,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         constexpr auto sfc_p_m0_n0_m1_n1_m2_n2 =
             SpaceFillingCurve<Sequence<P_M0, P_N0, P_M1, P_N1>,
                               Sequence<0, 1, 2, 3>,
-                              decltype(p_block_slice_lengths_m0_n0_m1_n1)>{};
+                              decltype(p_block_slice_lengths_m0_n0_m1_n1),
+                              false>{};
 
         constexpr auto ygrad_block_desc_m0_o_m1 =
             VGradGemmTile_N_O_M::GetYGradBlockDescriptor_M0_O_M1();
@@ -1369,6 +1370,21 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                     p_nd_idx[I2], p_nd_idx[I2] + p_block_slice_lengths_m0_n0_m1_n1[I2]);
                 constexpr auto nwave_range = make_tuple(
                     p_nd_idx[I3], p_nd_idx[I3] + p_block_slice_lengths_m0_n0_m1_n1[I3]);
+#if 0
+                if(hipThreadIdx_x % 64 == 0)
+                {
+                    printf(
+                        "VGrad P vgrad_gemm_loop_idx %d, wave_id = %d, mrepeat, nrepeat, mwave, "
+                        "nwave = %d, %d, %d, %d, active %d\n",
+                        vgrad_gemm_loop_idx.value,
+                        (int)hipThreadIdx_x / 64,
+                        p_nd_idx[I0].value,
+                        p_nd_idx[I1].value,
+                        p_nd_idx[I2].value,
+                        p_nd_idx[I3].value,
+                        p_thread_copy_subgroup.IsBelong(mwave_range, nwave_range));
+                }
+#endif
                 if (p_thread_copy_subgroup.IsBelong(mwave_range, nwave_range))
                 {
                     p_thread_copy_vgpr_to_lds.Run(
@@ -1406,7 +1422,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                 block_sync_lds(); // sync before read
                 vgrad_blockwise_gemm.Run(p_block_buf, ygrad_block_buf, vgrad_acc_thread_buf);
 
-#if 1
+#if 0
                 if(hipBlockIdx_x == 0 && hipThreadIdx_x % 32 < 4)
                 {
                     printf("outer %d inner %d tid %zd, dV[0:3] = %f, %f, %f, %f\n",
