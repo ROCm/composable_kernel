@@ -240,7 +240,6 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
             Number<NumDTensor>{});
     }
 
-    // TODO - MakeMeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
     template <typename GridDescriptor_M_N>
     __host__ __device__ static constexpr auto
     MakeMeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock(const GridDescriptor_M_N& grid_desc_m_n)
@@ -381,7 +380,8 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
                                    e_grid_desc_mblock_mperblock_nblock_nperblock,
                                const MeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock&
                                    mean_var_count_grid_desc_mblock_mperblock_nblock,
-                               const Block2ETileMap& block_2_etile_map)
+                               const Block2ETileMap& block_2_etile_map,
+                               index_t NRaw)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -879,9 +879,38 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
             Array<mean_var_vgpr_type, num_shuffleM> var_thread_bufs;
             Array<welford_count_vgpr_type, num_shuffleM> welford_count_thread_bufs;
 
+            int max_count = PostShuffleThreadSliceSize_N * num_shuffleN;
+            const auto nblock = mean_var_count_grid_desc_mblock_mperblock_nblock.GetLength(I2);
+
+            // tail block
+            if(block_work_idx[I1] % nblock == nblock - 1)
+            {
+                constexpr index_t NPerShuffleBlock =
+                    CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl;
+
+                int NPerBlockTail = NRaw - NPerBlock * (nblock - 1);
+                int thread_max_len =
+                    PostShuffleThreadSliceSize_N * (post_shuffle_thread_cluster_idx[I1] + 1);
+                int shuffle_step = 0;
+                while(thread_max_len <= NPerBlockTail && shuffle_step < num_shuffleN)
+                {
+                    ++shuffle_step;
+                    thread_max_len += NPerShuffleBlock;
+                }
+
+                int delta = 0;
+                if(thread_max_len - NPerBlockTail > PostShuffleThreadSliceSize_N)
+                    delta = 0;
+                else if(NPerBlockTail > thread_max_len)
+                    delta = PostShuffleThreadSliceSize_N;
+                else
+                    delta = PostShuffleThreadSliceSize_N - thread_max_len + NPerBlockTail;
+
+                max_count = shuffle_step * PostShuffleThreadSliceSize_N + delta;
+            }
+
             static_for<0, num_shuffleM, 1>{}([&](auto i) {
-                // TODO - padding
-                threadwise_welfords(i).max_count_ = PostShuffleThreadSliceSize_N * num_shuffleN;
+                threadwise_welfords(i).max_count_ = max_count;
                 mean_thread_bufs(i) = make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
                     thread_welford_dst_desc_m.GetElementSpaceSize());
 

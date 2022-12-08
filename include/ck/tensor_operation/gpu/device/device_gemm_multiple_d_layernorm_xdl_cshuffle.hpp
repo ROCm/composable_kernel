@@ -59,7 +59,8 @@ __global__ void
                 e_grid_desc_mblock_mperblock_nblock_nperblock,
             const MeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock
                 mean_var_count_grid_desc_mblock_mperblock_nblock,
-            const Block2ETileMap block_2_etile_map)
+            const Block2ETileMap block_2_etile_map,
+            index_t NRaw)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemmWelford::GetSharedMemoryNumberOfByte()];
@@ -81,7 +82,8 @@ __global__ void
         ds_grid_desc_mblock_mperblock_nblock_nperblock,
         e_grid_desc_mblock_mperblock_nblock_nperblock,
         mean_var_count_grid_desc_mblock_mperblock_nblock,
-        block_2_etile_map);
+        block_2_etile_map,
+        NRaw);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -99,6 +101,7 @@ __global__ void
     ignore = e_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = mean_var_count_grid_desc_mblock_mperblock_nblock;
     ignore = block_2_etile_map;
+    ignore = NRaw;
 #endif
 }
 
@@ -225,7 +228,6 @@ template <typename ALayout,
           index_t LayernormHDstVectorSize,
           index_t LayernormGammaSrcVectorSize,
           index_t LayernormBetaSrcVectorSize,
-          index_t LayernormMeanVarSrcDstVectorSize,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
 {
@@ -329,7 +331,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         }();
 
         return PadTensorDescriptor(
-            grid_desc_m_n, make_tuple(MPerBlock, NPerBlock), Sequence<true, true>{});
+            grid_desc_m_n, make_tuple(MPerBlock, NBlock), Sequence<true, false>{});
     }
 
     template <typename LayOut>
@@ -487,8 +489,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                              LayernormESrcVectorSize,
                                              LayernormHDstVectorSize,
                                              LayernormGammaSrcVectorSize,
-                                             LayernormBetaSrcVectorSize,
-                                             LayernormMeanVarSrcDstVectorSize>;
+                                             LayernormBetaSrcVectorSize>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -732,7 +733,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
                                            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
                                            arg.mean_var_count_grid_desc_mblock_mperblock_nblock_,
-                                           arg.block_2_etile_map_);
+                                           arg.block_2_etile_map_,
+                                           arg.NRaw_);
 
                 grid_size = math::integer_divide_ceil(M, LayernormBlockTileSize_M_N::At(0));
 

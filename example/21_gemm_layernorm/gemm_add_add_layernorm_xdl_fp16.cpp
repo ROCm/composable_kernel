@@ -56,15 +56,15 @@ using BElementOp   = PassThrough;
 using CDEElementOp = AddReluAdd;
 using HElementOp   = PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 // clang-format off
 using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDLayernorm_Xdl_CShuffle
-//######| ALayout| BLayout| DsLayout| HLayout|     AData|     BData|     AccData|         CShuffle|     DsData|     GammaData|     BetaData|     HData|           A|           B|          CDE|            H|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|           PostShuffle|     PostShuffle|
-//######|        |        |         |        |      Type|      Type|        Type|         DataType|       Type|          Type|         Type|      Type| Elementwise| Elementwise|  Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|        ClusterLengths| ScalarPerVector|
-//######|        |        |         |        |          |          |            |                 |           |              |             |          |   Operation|   Operation|    Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                  _M_N|            _M_N|
-//######|        |        |         |        |          |          |            |                 |           |              |             |          |            |            |             |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                      |                | LayernormThreadClusterSize_M_N, LayernormThreadSliceSize_M_N
-        < ALayout, BLayout, DsLayout, HLayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, GammaDataType, BetaDataType, HDataType,  AElementOp,  BElementOp, CDEElementOp,   HElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,              S<64, 4>,               4, S<8, 32>, S<1, 8>, 1, 8, 8, 8, 8, 1>;
+//######| ALayout| BLayout| DsLayout| HLayout|     AData|     BData|     AccData|         CShuffle|     DsData|     GammaData|     BetaData|     HData|           A|           B|          CDE|            H|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|           PostShuffle|     PostShuffle|         Layernorm|       Layernorm| Layernorm|  Layernorm|  Layernorm|  Layernorm|  Layernorm|
+//######|        |        |         |        |      Type|      Type|        Type|         DataType|       Type|          Type|         Type|      Type| Elementwise| Elementwise|  Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|        ClusterLengths| ScalarPerVector| ThreadClusterSize| ThreadSliceSize|  ESrcHDst|       ESrc|       HDst|   GammaSrc|    BetaSrc|
+//######|        |        |         |        |          |          |            |                 |           |              |             |          |   Operation|   Operation|    Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                  _M_N|            _M_N|              _M_N|            _M_N| VectorDim| VectorSize| VectorSize| VectorSize| VectorSize|
+//######|        |        |         |        |          |          |            |                 |           |              |             |          |            |            |             |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                      |                |                  |                |          |           |           |           |           |
+        < ALayout, BLayout, DsLayout, HLayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, GammaDataType, BetaDataType, HDataType,  AElementOp,  BElementOp, CDEElementOp,   HElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,              S<64, 4>,               4,          S<8, 32>,         S<1, 8>,         1,          8,          8,          8,          8>;
 // clang-format on
 
 auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
@@ -149,11 +149,11 @@ int main()
     ck::index_t N = 1024;
     ck::index_t K = 1024;
 
-    ck::index_t StrideA  = 1024;
-    ck::index_t StrideB  = 1024;
+    ck::index_t StrideA  = K;
+    ck::index_t StrideB  = K;
     ck::index_t StrideD0 = 0;
-    ck::index_t StrideD1 = 1024;
-    ck::index_t StrideH  = 1024;
+    ck::index_t StrideD1 = N;
+    ck::index_t StrideH  = N;
 
     float epsilon = 1e-5;
 
@@ -253,7 +253,7 @@ int main()
         e_device_buf.FromDevice(e_m_n.mData.data());
         h_device_buf.FromDevice(h_m_n.mData.data());
 
-        pass &= ck::utils::check_err(e_m_n, e_m_n_host);
+        pass &= ck::utils::check_err(e_m_n, e_m_n_host, "Error: Incorrect results e_m_n");
         pass &=
             ck::utils::check_err(h_m_n, h_m_n_host, "Error: Incorrect results h_m_n", 1e-2, 1e-2);
     }

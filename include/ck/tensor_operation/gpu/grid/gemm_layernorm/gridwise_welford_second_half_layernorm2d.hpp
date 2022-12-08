@@ -39,8 +39,7 @@ template <typename EDataType,
           index_t ESrcVectorSize,
           index_t HDstVectorSize,
           index_t GammaSrcVectorSize,
-          index_t BetaSrcVectorSize,
-          index_t MeanVarSrcDstVectorSize>
+          index_t BetaSrcVectorSize>
 struct GridwiseWelfordSecondHalfLayernorm2d
 {
     // TODO - Support ESrcHDstVectorDim == 0
