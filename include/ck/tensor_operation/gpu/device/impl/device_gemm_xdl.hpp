@@ -265,7 +265,8 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
               N01_{N01},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              c_element_op_{c_element_op}
+              c_element_op_{c_element_op},
+              kraw_{K}
         {
             a_grid_desc_k0_m_k1_ = DeviceGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
             b_grid_desc_k0_n_k1_ = DeviceGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
@@ -299,6 +300,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
+        index_t kraw_;
     };
 
     // Invoker
@@ -439,6 +441,11 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             }
         }
         else
+        {
+            return false;
+        }
+
+        if(arg.kraw_ % K1 != 0)
         {
             return false;
         }
