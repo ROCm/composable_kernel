@@ -879,7 +879,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
             Array<mean_var_vgpr_type, num_shuffleM> var_thread_bufs;
             Array<welford_count_vgpr_type, num_shuffleM> welford_count_thread_bufs;
 
-            int max_count = PostShuffleThreadSliceSize_N * num_shuffleN;
+            int max_count     = PostShuffleThreadSliceSize_N * num_shuffleN;
             const auto nblock = mean_var_count_grid_desc_mblock_mperblock_nblock.GetLength(I2);
 
             // tail block
