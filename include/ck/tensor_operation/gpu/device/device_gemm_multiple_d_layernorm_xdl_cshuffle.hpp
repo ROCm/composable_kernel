@@ -540,7 +540,9 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op},
               h_element_op_{h_element_op},
-              MRaw_(MRaw),
+              MRaw_{MRaw},
+              NRaw_{NRaw},
+              KRaw_{KRaw},
               gemm_nblock_{math::integer_divide_ceil(NRaw, NPerBlock)},
               epsilon_{epsilon}
         {
@@ -638,8 +640,10 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         CDEElementwiseOperation cde_element_op_;
         HElementwiseOperation h_element_op_;
 
-        int MRaw_;
-        int gemm_nblock_;
+        index_t MRaw_;
+        index_t NRaw_;
+        index_t KRaw_;
+        index_t gemm_nblock_;
         AccDataType epsilon_;
     };
 
@@ -829,14 +833,94 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
             reinterpret_cast<char*>(pArg_->p_workspace_var_) + variance_space_sz;
     };
 
-    static bool IsSupportedArgument(const Argument&)
+    static bool IsSupportedArgument(const Argument& arg)
     {
         if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
         {
             return false;
         }
 
-        // TODO
+        // check vector load/store
+        {
+            using Row = ck::tensor_layout::gemm::RowMajor;
+            using Col = ck::tensor_layout::gemm::ColumnMajor;
+
+            // check vector load of A
+            if constexpr(is_same_v<ALayout, Row> && ABlockTransferSrcVectorDim == 2)
+            {
+                if(arg.KRaw_ % ABlockTransferSrcScalarPerVector != 0)
+                {
+                    return false;
+                }
+            }
+            else if constexpr(is_same_v<ALayout, Col> && ABlockTransferSrcVectorDim == 1)
+            {
+                // FIXME: not rigorous
+                if(arg.MRaw_ % ABlockTransferSrcScalarPerVector != 0)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+
+            // check vector laod of B
+            if constexpr(is_same_v<BLayout, Col> && BBlockTransferSrcVectorDim == 2)
+            {
+                if(arg.KRaw_ % BBlockTransferSrcScalarPerVector != 0)
+                {
+                    return false;
+                }
+            }
+            else if constexpr(is_same_v<BLayout, Row> && BBlockTransferSrcVectorDim == 1)
+            {
+                // FIXME: not rigorous
+                if(arg.NRaw_ % BBlockTransferSrcScalarPerVector != 0)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+
+            // check vector load of Ds
+            // only support RowMajor for now
+            bool all_valid = true;
+
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+
+                if constexpr(!is_same_v<DLayout, Row>)
+                {
+                    all_valid = false;
+                }
+            });
+
+            if(!all_valid)
+            {
+                return false;
+            }
+
+            // check vector store of E
+            // only support RowMajor for now
+            if constexpr(is_same_v<ELayout, Row>)
+            {
+                if(arg.NRaw_ % PostShuffleScalarPerVector != 0)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        // TODO - layernorm
 
         return true;
     }
