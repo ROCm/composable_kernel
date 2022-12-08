@@ -2,6 +2,7 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_dl.hpp"
 
 using ADataType   = F16;
 using BDataType   = F16;

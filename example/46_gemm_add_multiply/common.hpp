@@ -12,7 +12,6 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_dl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/utility/data_type.hpp"
 
@@ -30,27 +29,7 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
-// C = A * B
-// E = (C + D0) x D1;
-struct AddMultiply
-{
-    __host__ __device__ void
-    operator()(float& e, const float& c, const ck::half_t& d0, const ck::half_t& d1) const
-    {
-        const ck::half_t x = (ck::type_convert<ck::half_t>(c) + d0) * d1;
-
-        e = x;
-    }
-
-    __host__ __device__ void
-    operator()(ck::half_t& e, const ck::half_t& c, const ck::half_t& d0, const ck::half_t& d1) const
-    {
-        const ck::half_t x = (c + d0) * d1;
-
-        e = x;
-    }
-};
+using AddMultiply = ck::tensor_operation::element_wise::AddMultiply;
 
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;

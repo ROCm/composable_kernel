@@ -38,7 +38,7 @@ bool run_gemm_add_multiply(const ProblemSize& problem_size, const ExecutionConfi
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-5, 5});
-        d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-5, 5});
+        d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-1, 1});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
