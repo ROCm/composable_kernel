@@ -84,7 +84,8 @@ bool run_gemm_add_multiply(const ProblemSize& problem_size, const ExecutionConfi
 
     if(!device_op.IsSupportedArgument(argument))
     {
-        throw std::runtime_error("wrong! this device_op instance does not support this problem");
+	    std::cout << "wrong! this device_op instance does not support this problem" << std::endl;
+	    return true;
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
