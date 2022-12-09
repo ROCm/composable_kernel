@@ -1,5 +1,6 @@
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/
+    ${PROJECT_SOURCE_DIR}/profiler/include
 )
 
 include(googletest)
@@ -45,14 +46,15 @@ add_subdirectory(batched_gemm_softmax_gemm_permute)
 add_subdirectory(grouped_gemm)
 add_subdirectory(reduce)
 add_subdirectory(convnd_fwd)
-add_subdirectory(convnd_bwd_weight)
 add_subdirectory(convnd_bwd_data)
 add_subdirectory(grouped_convnd_fwd)
+add_subdirectory(grouped_convnd_bwd_weight)
 add_subdirectory(block_to_ctile_map)
 add_subdirectory(softmax)
 add_subdirectory(normalization)
 add_subdirectory(data_type)
 add_subdirectory(elementwise_normalization)
+add_subdirectory(batchnorm)
 if(GPU_TARGETS MATCHES "gfx1100")
     add_subdirectory(wmma_op)
 endif()

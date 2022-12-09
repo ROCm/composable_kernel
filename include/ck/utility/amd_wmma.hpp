@@ -111,27 +111,5 @@ struct intrin_wmma_i32_16x16x16_iu8_w32<16, 16, neg_a, neg_b, clamp>
     }
 };
 
-#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-// src: iu4, dst: i32
-template <index_t MPerWave, index_t NPerWave, bool neg_a, bool neg_b, bool clamp>
-struct intrin_wmma_i32_16x16x16_iu4_w32;
-
-template <bool neg_a, bool neg_b, bool clamp>
-struct intrin_wmma_i32_16x16x16_iu4_w32<16, 16, neg_a, neg_b, clamp>
-{
-    template <class FloatC>
-    __device__ static void Run(const int4x16_t& reg_a, const int4x16_t& reg_b, FloatC& reg_c)
-    {
-        reg_c.template AsType<int32x8_t>()(Number<0>{}) =
-            __builtin_amdgcn_wmma_i32_16x16x16_iu4_w32(
-                neg_a,
-                bit_cast<int32x4_t>(reg_a),
-                neg_b,
-                bit_cast<int32x4_t>(reg_b),
-                reg_c.template AsType<int32x8_t>()[Number<0>{}],
-                clamp);
-    }
-};
-#endif
 } // namespace ck
 #endif

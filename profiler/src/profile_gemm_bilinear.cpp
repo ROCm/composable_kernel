@@ -6,7 +6,11 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_gemm_bilinear_impl.hpp"
+#include "profiler/profile_gemm_bilinear_impl.hpp"
+#include "profiler_operation_registry.hpp"
+
+#define OP_NAME "gemm_bilinear"
+#define OP_DESC "GEMM+Bilinear"
 
 int profile_gemm_bilinear(int argc, char* argv[])
 {
@@ -29,7 +33,7 @@ int profile_gemm_bilinear(int argc, char* argv[])
     if(argc != 17)
     {
         // clang-format off
-        printf("arg1: tensor operation (gemm_bilinear: GEMM+Bilinear)\n");
+        printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8)\n");
         printf("arg3: matrix layout (0: E[m, n] = alpha * A[m, k] * B[k, n] + beta * D[m, n];\n");
         printf("                     1: E[m, n] = alpha * A[m, k] * B[n, k] + beta * D[m, n];\n");
@@ -144,3 +148,5 @@ int profile_gemm_bilinear(int argc, char* argv[])
         return 1;
     }
 }
+
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_gemm_bilinear);

@@ -796,6 +796,11 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                     }
                 });
             }
+            else
+            {
+                static_for<0, acc_thread_buf.Size(), 1>{}(
+                    [&](auto i) { acc_element_op(acc_thread_buf(i), acc_thread_buf[i]); });
+            }
 
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
 
@@ -873,6 +878,14 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                     gemm1_blockwise_gemm.Run(a1_thread_buf, b1_block_buf, acc1_thread_buf);
                 }
             } // end gemm1
+
+            // workaround compiler issue; see ck/ck.hpp
+            if constexpr(CK_WORKAROUND_SWDEV_XXXXXX_BF16_ATTEN_FWD_GFX908_ISSUE == 1 &&
+                         is_same_v<FloatAB, bhalf_t> && MPerBlock == 256 && NPerBlock == 128 &&
+                         Gemm1NPerBlock == 128)
+            {
+                __builtin_amdgcn_sched_barrier(0);
+            }
 
             constexpr auto c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 =
                 gemm1_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();

@@ -60,9 +60,6 @@ int main(int, char*[])
     pass &= run_test<ck::half_t,  ck::half_t,  ck::half_t,  ck::half_t, 16    >();
     pass &= run_test<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, float,      16    >();
     pass &= run_test<int8_t,      int8_t,      int32_t,     int32_t,    8     >();
-#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-    pass &= run_test<int4_t,      int4_t,      int32_t,     int32_t,    8     >();
-#endif
     // clang-format on
 
     std::cout << "TestGemm ..... " << (pass ? "SUCCESS" : "FAILURE") << std::endl;
