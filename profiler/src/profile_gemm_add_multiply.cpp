@@ -35,10 +35,10 @@ int profile_gemm_add_multiply(int argc, char* argv[])
         // clang-format off
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8)\n");
-        printf("arg3: matrix layout (0: E[m, n] = FastGeLU(A[m, k] * B[k, n] + D0[m, n] + D1[m, n]);\n");
-        printf("                     1: E[m, n] = FastGeLU(A[m, k] * B[n, k] + D0[m, n] + D1[m, n]);\n");
-        printf("                     2: E[m, n] = FastGeLU(A[k, m] * B[k, n] + D0[m, n] + D1[m, n]);\n");
-        printf("                     3: E[m, n] = FastGeLU(A[k, m] * B[n, k] + D0[m, n] + D1[m, n]))\n");
+        printf("arg3: matrix layout (0: E[m, n] = AddMultiply((A[m, k] * B[k, n] + D0[m, n]) x D1[m, n]);\n");
+        printf("                     1: E[m, n] = AddMultiply((A[m, k] * B[k, n] + D0[m, n]) x D1[m, n]);\n");
+        printf("                     2: E[m, n] = AddMultiply((A[m, k] * B[k, n] + D0[m, n]) x D1[m, n]);\n");
+        printf("                     3: E[m, n] = AddMultiply((A[m, k] * B[k, n] + D0[m, n]) x D1[m, n]))\n");
         printf("arg4: verification (0: no; 1: yes)\n");
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg6: print tensor value (0: no; 1: yes)\n");
