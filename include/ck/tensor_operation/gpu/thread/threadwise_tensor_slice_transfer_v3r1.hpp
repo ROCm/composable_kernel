@@ -96,7 +96,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
           src_element_op_(src_element_op),
           dst_element_op_(dst_element_op)
     {
-        printf("global desc: %s\n", __PRETTY_FUNCTION__);
+        // printf("global desc: %s\n", __PRETTY_FUNCTION__);
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
@@ -128,12 +128,12 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
-        printf("src_access_lengths: %d, %d, %d\n", (src_access_lengths[Number<0>{}])(), src_access_lengths[Number<1>{}](), src_access_lengths[Number<2>{}]());
+        // printf("src_access_lengths: %d, %d, %d\n", (src_access_lengths[Number<0>{}])(), src_access_lengths[Number<1>{}](), src_access_lengths[Number<2>{}]());
         constexpr auto src_dim_access_order = SrcDimAccessOrder{};
 
         constexpr auto ordered_src_access_lengths =
             container_reorder_given_new2old(src_access_lengths, src_dim_access_order);
-        printf("ordered_src_access_lengths: %d, %d, %d\n", (ordered_src_access_lengths[Number<0>{}])(), ordered_src_access_lengths[Number<1>{}](), ordered_src_access_lengths[Number<2>{}]());
+        // printf("ordered_src_access_lengths: %d, %d, %d\n", (ordered_src_access_lengths[Number<0>{}])(), ordered_src_access_lengths[Number<1>{}](), ordered_src_access_lengths[Number<2>{}]());
 
         // make forward steps
         const auto src_forward_steps = generate_tuple(
@@ -147,9 +147,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 return make_tensor_coordinate_step(src_desc, forward_step_idx);
             },
             Number<nDim>{});
-        printf("src_forward_steps: %d, %d, %d\n", (src_forward_steps.GetIndexDiff()[Number<0>{}])(), 
-                                                  (src_forward_steps.GetIndexDiff()[Number<1>{}])(), 
-                                                  (src_forward_steps.GetIndexDiff()[Number<2>{}])() );
 
         // make backward steps
         const auto src_backward_steps = generate_tuple(
@@ -213,7 +210,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid)};
 
             // apply SrcElementwiseOperation on src_vector_container
-            debug_hexprinter(0xffffffff, src_coord_.GetOffset());
+            // debug_hexprinter(0xffffffff, src_coord_.GetOffset());
             static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
                 SrcData src_v;
 

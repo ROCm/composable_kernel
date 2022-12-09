@@ -32,8 +32,11 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     {
     case 0: break;
     case 1:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{1.f, 1.f}(a_m_k.begin(), a_m_k.end());
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{1.f, 1.f}(b_k_n.begin(), b_k_n.end());
+        // CONFIRMED
+        // ck::utils::FillMNID<ADataType>{}(a_m_k.begin(), a_m_k.end());
+        // ck::utils::FillMNID<BDataType>{}(b_k_n.begin(), b_k_n.end());
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k.begin(), a_m_k.end());
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n.begin(), b_k_n.end());
         break;
     default:
         ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k.begin(), a_m_k.end());

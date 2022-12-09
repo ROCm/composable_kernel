@@ -49,7 +49,7 @@ check_err(const std::vector<T>& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 16384)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << out[i] << " != " << ref[i] << std::endl;
@@ -59,6 +59,7 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
+        std::cerr << "err count: " << err_count << std::endl;
         std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
@@ -93,7 +94,7 @@ check_err(const std::vector<T>& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 16384)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -103,6 +104,7 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
+        std::cerr << "err count: " << err_count << std::endl;
         std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
@@ -136,7 +138,7 @@ check_err(span<const T> out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 16384)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -146,6 +148,7 @@ check_err(span<const T> out,
     }
     if(!res)
     {
+        std::cerr << "err count: " << err_count << std::endl;
         std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
@@ -196,7 +199,7 @@ check_err(const std::vector<T>& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 16384)
             {
                 std::cerr << msg << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r
                           << std::endl;
@@ -206,6 +209,7 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
+        std::cerr << "err count: " << err_count << std::endl;
         std::cerr << "max err: " << max_err << std::endl;
     }
     return res;

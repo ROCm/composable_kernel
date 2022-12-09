@@ -73,10 +73,26 @@ constexpr auto type_name() {
   return name;
 }
 
+// Accepet int, float, and Number<> as input
 template <typename T>
-__device__
-void debug_hexprinter(const uint32_t v_target, T v_val){
-    const uint32_t v_dbg = *(reinterpret_cast<uint32_t*>(&v_val));
-    if(v_dbg != v_target)
-        printf("@Thread: %d, Val: %08x != Target: %08x\n", ck::get_thread_local_1d_id(), v_dbg, v_target);
+__host__ __device__
+void debug_hexprinter(const uint32_t v_target, const T v_val, const char* info){
+    if constexpr(std::is_same_v<T,  int> || std::is_same_v<T,  float> )
+    {
+        const uint32_t v_dbg = *(reinterpret_cast<const uint32_t*>(&v_val));
+        if(v_dbg != v_target)
+            printf("%s@Thread: %d, Val: %08x != Target: %08x\n", info, ck::get_thread_local_1d_id(), v_dbg, v_target);    
+    }
+    else if constexpr(std::is_same_v<T, _Float16>)
+    {
+        const uint16_t v_dbg = *(reinterpret_cast<const uint16_t*>(&v_val));
+        if(v_dbg != v_target)
+            printf("%s@Thread: %d, Val: %04x != Target: %08x\n", info, ck::get_thread_local_1d_id(), v_dbg, v_target);    
+    }
+    else
+    {
+        const uint32_t v_dbg = *(reinterpret_cast<const uint32_t*>(&(v_val.value)));
+        if(v_dbg != v_target)
+            printf("%s@Thread: %d, Val: %08x != Target: %08x\n", info, ck::get_thread_local_1d_id(), v_dbg, v_target);
+    }
 }

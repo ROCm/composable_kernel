@@ -137,7 +137,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3
         static_assert(MPerBlock % (MPerWMMA * MRepeat) == 0 && NPerBlock % (NPerWMMA * NRepeat) == 0,
                       "wrong!");
     }
-    // Thread level, register decriptor.
+    // Thread level, register decriptor. Vector-write
     __host__ __device__ static constexpr auto GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs()
     {
         constexpr auto c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens = wmma_gemm.GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths();
@@ -166,6 +166,51 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3
             make_tuple(Sequence<0, 1, 2>{}, Sequence<3, 4, 5>{}));
 
         return wmma_gemm.MakeCDesc_MBlockxRepeat_MWave_MSubGroup_NBlockxRepeat_NWave_NThreadPerSubGroup_MAccVgprs(c_grid_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma);
+    }
+
+    // Thread level, register decriptor. Per-pixel write
+    __host__ __device__ static constexpr auto GetCThreadDescriptor_MRepeat_MWave_MSubGroup_MAccVgprs_NRepeat_NWave_NThreadPerSubGroup()
+    {
+        constexpr auto c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens = wmma_gemm.GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths();
+
+        constexpr auto MSubGroup              = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I0];
+        constexpr auto NThreadPerSubGroup     = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I1];
+        constexpr auto MAccVgprs              = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
+
+        return make_naive_tensor_descriptor_packed(
+            //        |MRepeat           |MWave |MSubGroup |MAccVgprs |NRepeat           |NWave  |NThreadPerSubGroup
+            make_tuple(Number<MRepeat>{}, I1,    MSubGroup, MAccVgprs, Number<NRepeat>{}, I1,     NThreadPerSubGroup));
+    }
+
+    template <typename CGridDesc_M_N>
+    __host__ __device__ static constexpr auto
+    MakeCGridDescriptor_MBlockxRepeat_MWave_MSubGroup_MAccVgprs_NBlockxRepeat_NWave_NThreadPerSubGroup(const CGridDesc_M_N& c_grid_desc_m_n)
+    {
+        const auto M = c_grid_desc_m_n.GetLength(I0);
+        const auto N = c_grid_desc_m_n.GetLength(I1);
+
+        const auto c_grid_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma = transform_tensor_descriptor(
+            c_grid_desc_m_n,
+            make_tuple(make_unmerge_transform(make_tuple(M / (MWaves * MPerWMMA), MWaves, MPerWMMA)),
+                       make_unmerge_transform(make_tuple(N / (NWaves * NPerWMMA), NWaves, NPerWMMA))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0, 1, 2>{}, Sequence<3, 4, 5>{}));
+
+        return wmma_gemm.MakeCDesc_MBlockxRepeat_MWave_MSubGroup_MAccVgprs_NBlockxRepeat_NWave_NThreadPerSubGroup(c_grid_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma);
+    }
+
+    // Provide dimension size
+    __host__ __device__ static constexpr auto GetCBlockDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs()
+    {
+        constexpr auto c_block_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma =
+            make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{},
+                                                           Number<MWaves>{},
+                                                           Number<MPerWMMA>{},
+                                                           Number<NRepeat>{},
+                                                           Number<NWaves>{},
+                                                           Number<NPerWMMA>{}));
+
+        return wmma_gemm.MakeCDesc_MBlockxRepeat_MWave_MSubGroup_NBlockxRepeat_NWave_NThreadPerSubGroup_MAccVgprs(c_block_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma);
     }
 
     __host__ __device__ static constexpr auto MakeABlockDescriptor_K0_M0_M1_M2_K1()
@@ -205,8 +250,28 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
             b_thread_desc_.GetElementSpaceSize());
 
-        constexpr auto RepeatDiff = MRepeat - NRepeat;
+        // constexpr auto RepeatDiff = MRepeat - NRepeat;
 
+        // debug_hexprinter(0xffffffff, a_thread_buf[Number<a_thread_desc_.CalculateOffset( make_tuple(0, 0, 0, 0,0))>{}], "Avalue ");
+        /* First local prefetch, move out of blockwise operation.
+        static_for<0, NRepeat, 1>{}([&](auto iN){
+            b_thread_copy_.Run(b_block_desc_k0_n0_n1_n2_k1,
+                               make_tuple(I0, Number<iN>{}, I0, I0, I0),
+                               b_block_buf,
+                               b_thread_desc_,
+                               make_tuple(I0, Number<iN>{}, I0, I0, I0),
+                               b_thread_buf);
+        });
+        static_for<0, MRepeat, 1>{}([&](auto iN){
+            b_thread_copy_.Run(b_block_desc_k0_n0_n1_n2_k1,
+                               make_tuple(I0, Number<iN>{}, I0, I0, I0),
+                               b_block_buf,
+                               b_thread_desc_,
+                               make_tuple(I0, Number<iN>{}, I0, I0, I0),
+                               b_thread_buf);
+        });
+        */
+        /*
         static_for<0, KPerBlock, WmmaK>{}([&](auto iWmmaK){
             // Cut to Repeat Retangle to Square, assume MRepeat > NRepeat
             static_for<0, RepeatDiff, 1>{}([&](auto iCut){
@@ -297,16 +362,77 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3
                                    b_thread_buf);
             });
         });
+        */
+
+        static_for<0, KPerBlock / WmmaK, 1>{}([&](auto k) { // k=0,1,2 instead of k=0,kpack*1, ...
+            static_for<0, MRepeat, 1>{}([&](auto m0) {
+                // read A
+                a_thread_copy_.Run(a_block_desc_k0_m0_m1_m2_k1,
+                                   make_tuple(Number<k*WmmaK/A_K1>{}, m0, I0, I0, I0),
+                                   a_block_buf,
+                                   a_thread_desc_,
+                                   make_tuple(I0, I0, I0, I0, I0),
+                                   a_thread_buf);
+
+                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    // read B
+                    b_thread_copy_.Run(b_block_desc_k0_n0_n1_n2_k1,
+                                       make_tuple(Number<k*WmmaK/B_K1>{}, n0, I0, I0, I0),
+                                       b_block_buf,
+                                       b_thread_desc_,
+                                       make_tuple(I0, I0, I0, I0, I0),
+                                       b_thread_buf);
+                    vector_type<FloatAB, WmmaK> a_thread_vec;
+                    vector_type<FloatAB, WmmaK> b_thread_vec;
+
+                    static_for<0, WmmaK, 1>{}([&](auto i) {
+                        a_thread_vec.template AsType<FloatAB>()(i) = a_thread_buf
+                            [Number<a_thread_desc_.CalculateOffset(make_tuple(i/A_K1, 0, 0, 0, i%A_K1))>{}];
+                        b_thread_vec.template AsType<FloatAB>()(i) = b_thread_buf
+                            [Number<b_thread_desc_.CalculateOffset(make_tuple(i/B_K1, 0, 0, 0, i%B_K1))>{}];
+                    });
+
+                    using wmma_input_type =
+                        typename vector_type<FloatAB, WmmaK>::type;
+
+                    constexpr index_t c_offset =
+                        c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                    wmma_gemm.template Run(
+                        a_thread_vec.template AsType<wmma_input_type>()(Number<0>{}),
+                        b_thread_vec.template AsType<wmma_input_type>()(Number<0>{}),
+                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                });
+            });
+        });
+
+        // static_for<0, 16, 1>{}([&](auto i){
+            // char info[4];
+            // info[0] = 'A';
+            // info[1] = i/10 + '0';
+            // info[2] = i%10 + '0';
+            // info[3] = '\0';
+            // debug_hexprinter(0xffffffff, a_thread_buf[Number<i>{}], info);
+        // });
+
+        // static_for<0, 16, 1>{}([&](auto i){
+            // char info[4];
+            // info[0] = 'B';
+            // info[1] = i/10 + '0';
+            // info[2] = i%10 + '0';
+            // info[3] = '\0';
+            // debug_hexprinter(0xffffffff, b_thread_buf[Number<i>{}], info);
+        // });
     }
 
     protected:
     // A[M0, M1, M2, K0 = WmmaK]
     static constexpr auto a_thread_desc_ =
-        make_naive_tensor_descriptor_packed(make_tuple(Number<WmmaK/A_K1>{}, Number<MRepeat>{}, I1, I1, Number<A_K1>{}));
+        make_naive_tensor_descriptor_packed(make_tuple(Number<WmmaK/A_K1>{}, I1, I1, I1, Number<A_K1>{}));
 
     // B[N0, N1, N2, K0 = WmmaK]
     static constexpr auto b_thread_desc_ =
-        make_naive_tensor_descriptor_packed(make_tuple(Number<WmmaK/B_K1>{}, Number<MRepeat>{}, I1, I1, Number<B_K1>{}));
+        make_naive_tensor_descriptor_packed(make_tuple(Number<WmmaK/B_K1>{}, I1, I1, I1, Number<B_K1>{}));
 
     // C[M, N, NumRegWMMA]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(

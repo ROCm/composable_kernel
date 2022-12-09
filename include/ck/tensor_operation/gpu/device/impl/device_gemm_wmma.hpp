@@ -20,13 +20,14 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename ADataType,
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename ADataType,
           typename BDataType,
           typename CDataType,
           typename AccDataType,
-          typename ALayout,
-          typename BLayout,
-          typename CLayout,
+          typename CShuffleDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -54,20 +55,22 @@ template <typename ADataType,
           ck::index_t BBlockTransferSrcScalarPerVector,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
           bool BBlockLdsAddExtraN,
-          ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector,
+          index_t CShuffleMRepeatPerShuffle,
+          index_t CShuffleNRepeatPerShuffle,
+          typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+          index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           ck::index_t NumPrefetch         = 1,
           ck::LoopScheduler LoopSched     = make_default_loop_scheduler(),
           ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
-struct DeviceGemmWmma : public DeviceGemm<ALayout,
-                                         BLayout,
-                                         CLayout,
-                                         ADataType,
-                                         BDataType,
-                                         CDataType,
-                                         AElementwiseOperation,
-                                         BElementwiseOperation,
-                                         CElementwiseOperation>
+struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
+                                                   BLayout,
+                                                   CLayout,
+                                                   ADataType,
+                                                   BDataType,
+                                                   CDataType,
+                                                   AElementwiseOperation,
+                                                   BElementwiseOperation,
+                                                   CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -200,6 +203,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
+        CShuffleDataType,
         CDataType,
         InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,
@@ -232,9 +236,10 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
-        Sequence<0, 1, 2, 3, 4, 5, 6>, // CThreadTransferSrcDstAccessOrder,
-        CThreadTransferSrcDstVectorDim,
-        CThreadTransferDstScalarPerVector,
+        CShuffleMRepeatPerShuffle,
+        CShuffleNRepeatPerShuffle,
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CShuffleBlockTransferScalarPerVector_NPerBlock,
         NumPrefetch,
         LoopSched,
         PipelineVer>;
@@ -262,7 +267,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
               a_grid_desc_k0_m_k1_{},
               b_grid_desc_k0_n_k1_{},
               c_grid_desc_m_n_{},
-              c_grid_desc_mblockxrepeat_mwave_msubgroup_nblockxrepeat_nwave_nthreadpersubgroup_maccvgprs_{},
+              c_grid_desc_mblock_mperblock_nblock_nperblock{},
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
@@ -270,9 +275,9 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
         {
-            a_grid_desc_k0_m_k1_ = DeviceGemmWmma::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
-            b_grid_desc_k0_n_k1_ = DeviceGemmWmma::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
-            c_grid_desc_m_n_ = DeviceGemmWmma::MakeCGridDescriptor_M_N(M, N, StrideC);
+            a_grid_desc_k0_m_k1_ = DeviceGemmWmma_CShuffle::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
+            b_grid_desc_k0_n_k1_ = DeviceGemmWmma_CShuffle::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
+            c_grid_desc_m_n_ = DeviceGemmWmma_CShuffle::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             block_2_ctile_map_ =
                 GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
@@ -282,8 +287,8 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                                            c_grid_desc_m_n_,
                                            block_2_ctile_map_))
             {
-                c_grid_desc_mblockxrepeat_mwave_msubgroup_nblockxrepeat_nwave_nthreadpersubgroup_maccvgprs_ =
-                    GridwiseGemm::MakeCGridDescriptor_MBlockxRepeat_MWave_MSubGroup_NBlockxRepeat_NWave_NThreadPerSubGroup_MAccVgprs(c_grid_desc_m_n_);
+                c_grid_desc_mblock_mperblock_nblock_nperblock =
+                    GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n_);
             }
         }
 
@@ -294,8 +299,8 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        typename GridwiseGemm::CGridDescriptor_MBlockxRepeat_MWave_MSubGroup_NBlockxRepeat_NWave_NThreadPerSubGroup_MAccVgprs
-            c_grid_desc_mblockxrepeat_mwave_msubgroup_nblockxrepeat_nwave_nthreadpersubgroup_maccvgprs_;
+        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            c_grid_desc_mblock_mperblock_nblock_nperblock;
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
@@ -307,7 +312,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceGemmWmma::Argument;
+        using Argument = DeviceGemmWmma_CShuffle::Argument;
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
@@ -350,9 +355,9 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceGemmWmma::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmWmma::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::CGridDescriptor_MBlockxRepeat_MWave_MSubGroup_NBlockxRepeat_NWave_NThreadPerSubGroup_MAccVgprs>,
+                    remove_reference_t<DeviceGemmWmma_CShuffle::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGemmWmma_CShuffle::BGridDesc_K0_N_K1>,
+                    remove_reference_t<typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -369,7 +374,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_mblockxrepeat_mwave_msubgroup_nblockxrepeat_nwave_nthreadpersubgroup_maccvgprs_,
+                                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
@@ -381,9 +386,9 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceGemmWmma::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmWmma::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::CGridDescriptor_MBlockxRepeat_MWave_MSubGroup_NBlockxRepeat_NWave_NThreadPerSubGroup_MAccVgprs>,
+                    remove_reference_t<DeviceGemmWmma_CShuffle::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGemmWmma_CShuffle::BGridDesc_K0_N_K1>,
+                    remove_reference_t<typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -400,7 +405,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_mblockxrepeat_mwave_msubgroup_nblockxrepeat_nwave_nthreadpersubgroup_maccvgprs_,
+                                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
@@ -428,8 +433,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
     {
         if(ck::get_device_name() == "gfx1100")
         {
-            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
-                           is_same_v<AccDataType, int32_t>))
+            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {
                 return false;
             }
@@ -530,7 +534,7 @@ struct DeviceGemmWmma : public DeviceGemm<ALayout,
                                                                        {PipelineVersion::v2, "v2"}};
 
         // clang-format off
-        str << "DeviceGemmWmma"
+        str << "DeviceGemmWmma_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

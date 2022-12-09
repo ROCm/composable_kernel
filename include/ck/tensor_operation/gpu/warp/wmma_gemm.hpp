@@ -205,6 +205,7 @@ struct WmmaGemm
     }
 
     // WMMA output supporting C = A * B
+    // Vector Write
     // MPerWMMA_NPerWMMA -> MSubGroup_..._NPerWMMA_MAccVgprPerWave
     template <typename CDesc_MBlockxRepeat_MWave_MPerWMMA_NBlockxRepeat_NWave_NPerWMMA>
     __host__ __device__ static constexpr auto
@@ -237,6 +238,40 @@ struct WmmaGemm
                        Sequence<3>{},
                        Sequence<4>{},
                        Sequence<5>{}));
+    }
+
+    // Per-Pixel write
+    template <typename CDesc_MBlockxRepeat_MWave_MPerWMMA_NBlockxRepeat_NWave_NPerWMMA>
+    __host__ __device__ static constexpr auto
+    MakeCDesc_MBlockxRepeat_MWave_MSubGroup_MAccVgprs_NBlockxRepeat_NWave_NThreadPerSubGroup
+    (const CDesc_MBlockxRepeat_MWave_MPerWMMA_NBlockxRepeat_NWave_NPerWMMA& c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma)
+    {
+        const auto MBlockxRepeat = c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I0);
+        const auto NBlockxRepeat = c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I3);
+        const auto MWave   = c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I1);
+        const auto NWave   = c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I4);
+
+        return transform_tensor_descriptor(
+            c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma,
+            make_tuple(make_pass_through_transform(MBlockxRepeat),
+                       make_pass_through_transform(MWave),
+                       make_unmerge_transform(make_tuple(Number<wmma_instr.num_subgroups>{},
+                                                         Number<wmma_instr.num_acc_vgprs_per_wave>{})),
+                       make_pass_through_transform(NBlockxRepeat),
+                       make_pass_through_transform(NWave),
+                       make_pass_through_transform(Number<wmma_instr.num_thread_per_subgroups>{})),
+            make_tuple(Sequence<0>{},
+                       Sequence<1>{},
+                       Sequence<2>{},
+                       Sequence<3>{},
+                       Sequence<4>{},
+                       Sequence<5>{}),
+            make_tuple(Sequence<0>{},
+                       Sequence<1>{},
+                       Sequence<2, 3>{},
+                       Sequence<4>{},
+                       Sequence<5>{},
+                       Sequence<6>{}));
     }
 
     __device__ static constexpr index_t GetRegSizePerWmma()

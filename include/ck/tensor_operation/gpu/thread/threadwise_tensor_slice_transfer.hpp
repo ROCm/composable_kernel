@@ -119,7 +119,29 @@ struct ThreadwiseTensorSliceTransfer_v1r3
         using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
                                                     DimAccessOrder,
                                                     remove_cv_t<decltype(dst_scalar_per_access)>>;
-
+        // printf("SpaceFillingCurve access_lengths = (%d, %d, %d, %d, %d, %d, %d)\n", SpaceFillingCurve::access_lengths[Number<0>{}].value, 
+        // SpaceFillingCurve::access_lengths[Number<1>{}].value, 
+        // SpaceFillingCurve::access_lengths[Number<2>{}].value, 
+        // SpaceFillingCurve::access_lengths[Number<3>{}].value, 
+        // SpaceFillingCurve::access_lengths[Number<4>{}].value, 
+        // SpaceFillingCurve::access_lengths[Number<5>{}].value, 
+        // SpaceFillingCurve::access_lengths[Number<6>{}].value);
+// 
+        // // printf("SpaceFillingCurve dim_access_order = (%d, %d, %d, %d, %d, %d, %d)\n", SpaceFillingCurve::dim_access_order[Number<0>{}].value, 
+        // SpaceFillingCurve::dim_access_order[Number<1>{}].value, 
+        // SpaceFillingCurve::dim_access_order[Number<2>{}].value, 
+        // SpaceFillingCurve::dim_access_order[Number<3>{}].value, 
+        // SpaceFillingCurve::dim_access_order[Number<4>{}].value, 
+        // SpaceFillingCurve::dim_access_order[Number<5>{}].value, 
+        // SpaceFillingCurve::dim_access_order[Number<6>{}].value);
+// 
+        // // // printf("SpaceFillingCurve ordered_access_lengths = (%d, %d, %d, %d, %d, %d, %d)\n", SpaceFillingCurve::ordered_access_lengths[Number<0>{}].value, 
+        // SpaceFillingCurve::ordered_access_lengths[Number<1>{}].value, 
+        // SpaceFillingCurve::ordered_access_lengths[Number<2>{}].value, 
+        // SpaceFillingCurve::ordered_access_lengths[Number<3>{}].value, 
+        // SpaceFillingCurve::ordered_access_lengths[Number<4>{}].value, 
+        // SpaceFillingCurve::ordered_access_lengths[Number<5>{}].value, 
+        // SpaceFillingCurve::ordered_access_lengths[Number<6>{}].value);
         // TODO: Use SpaceFillingCurve::ScalarsPerAccess instread of DstScalarPerVector?
         static_assert(DstScalarPerVector == SpaceFillingCurve::ScalarPerVector,
                       "wrong!DstScalarPerVector != SpaceFillingCurve::ScalarPerVector");
@@ -136,7 +158,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
             static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
                 constexpr index_t src_offset = src_desc.CalculateOffset(
                     src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
-
+                // debug_hexprinter(0xffffffff, src_offset, "src_coord_iteration");
                 SrcData v;
 
                 // apply element-wise operation
@@ -154,11 +176,11 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                 dst_coord_.GetOffset(),
                 is_dst_valid,
                 dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
-
+            // debug_hexprinter(0xffffffff, dst_coord_.GetOffset(), "dst_coord_iteration");
             if constexpr(idx_1d.value != num_access - 1)
             {
                 constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
-
+                // printf("move forward = (%d, %d, %d, %d, %d, %d, %d)\n", forward_step[Number<0>{}], forward_step[Number<1>{}], forward_step[Number<2>{}], forward_step[Number<3>{}], forward_step[Number<4>{}], forward_step[Number<5>{}], forward_step[Number<6>{}]);
                 move_tensor_coordinate(
                     dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
             }
