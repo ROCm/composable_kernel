@@ -163,7 +163,6 @@ int main()
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor2d(M, N, StrideD1, D1Layout{}));
     Tensor<GammaDataType> gamma_n(f_host_tensor_descriptor1d(N, 1));
     Tensor<BetaDataType> beta_n(f_host_tensor_descriptor1d(N, 1));
-    Tensor<HDataType> e_m_n(f_host_tensor_descriptor2d(M, N, StrideH, HLayout{}));
     Tensor<HDataType> h_m_n(f_host_tensor_descriptor2d(M, N, StrideH, HLayout{}));
 
     a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-1, 1});
@@ -179,7 +178,6 @@ int main()
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
     DeviceMem gamma_device_buf(sizeof(GammaDataType) * gamma_n.mDesc.GetElementSpaceSize());
     DeviceMem beta_device_buf(sizeof(BetaDataType) * beta_n.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(HDataType) * e_m_n.mDesc.GetElementSpaceSize());
     DeviceMem h_device_buf(sizeof(HDataType) * h_m_n.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
@@ -202,7 +200,6 @@ int main()
                                {d0_device_buf.GetDeviceBuffer(), d1_device_buf.GetDeviceBuffer()},
                                gamma_device_buf.GetDeviceBuffer(),
                                beta_device_buf.GetDeviceBuffer(),
-                               e_device_buf.GetDeviceBuffer(),
                                h_device_buf.GetDeviceBuffer(),
                                M,
                                N,
@@ -250,10 +247,7 @@ int main()
                             N,
                             epsilon);
 
-        e_device_buf.FromDevice(e_m_n.mData.data());
         h_device_buf.FromDevice(h_m_n.mData.data());
-
-        pass &= ck::utils::check_err(e_m_n, e_m_n_host, "Error: Incorrect results e_m_n");
         pass &=
             ck::utils::check_err(h_m_n, h_m_n_host, "Error: Incorrect results h_m_n", 1e-2, 1e-2);
     }
