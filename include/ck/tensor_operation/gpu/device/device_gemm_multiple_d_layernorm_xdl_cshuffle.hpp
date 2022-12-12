@@ -223,7 +223,6 @@ template <typename ALayout,
           index_t PostShuffleScalarPerVector,
           typename LayernormThreadClusterSize_M_N,
           typename LayernormThreadSliceSize_M_N,
-          index_t LayernormESrcHDstVectorDim,
           index_t LayernormESrcVectorSize,
           index_t LayernormHDstVectorSize,
           index_t LayernormGammaSrcVectorSize,
@@ -485,7 +484,6 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                              LayernormThreadClusterSize_M_N::At(I1),
                                              LayernormThreadSliceSize_M_N::At(I0),
                                              LayernormThreadSliceSize_M_N::At(I1),
-                                             LayernormESrcHDstVectorDim,
                                              LayernormESrcVectorSize,
                                              LayernormHDstVectorSize,
                                              LayernormGammaSrcVectorSize,
@@ -908,7 +906,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
 
             // check vector store of E
             // only support RowMajor for now
-            if constexpr(is_same_v<ELayout, Row>)
+            if constexpr(is_same_v<ELayout, Row> && is_same_v<HLayout, Row>)
             {
                 if(arg.NRaw_ % PostShuffleScalarPerVector != 0)
                 {

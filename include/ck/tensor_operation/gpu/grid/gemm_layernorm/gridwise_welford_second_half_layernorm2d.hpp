@@ -35,20 +35,18 @@ template <typename EDataType,
           index_t NThreadClusterSize,
           index_t MThreadSliceSize,
           index_t NThreadSliceSize,
-          index_t ESrcHDstVectorDim,
           index_t ESrcVectorSize,
           index_t HDstVectorSize,
           index_t GammaSrcVectorSize,
           index_t BetaSrcVectorSize>
 struct GridwiseWelfordSecondHalfLayernorm2d
 {
-    // TODO - Support ESrcHDstVectorDim == 0
-    static_assert(ESrcHDstVectorDim == 1 && NThreadSliceSize % ESrcVectorSize == 0 &&
+    static_assert(NThreadSliceSize % ESrcVectorSize == 0 &&
                       NThreadSliceSize % GammaSrcVectorSize == 0 &&
                       NThreadSliceSize % BetaSrcVectorSize == 0,
                   "Invalid thread slice sizes and/or vector sizes configuration, please check!");
 
-    static_assert(ESrcHDstVectorDim == 1 && NThreadSliceSize % HDstVectorSize == 0,
+    static_assert(NThreadSliceSize % HDstVectorSize == 0,
                   "Invalid thread slice sizes and/or vector sizes configuration, please check!");
 
     using ThreadClusterLengths_M_N   = Sequence<MThreadClusterSize, NThreadClusterSize>;
@@ -227,7 +225,7 @@ struct GridwiseWelfordSecondHalfLayernorm2d
                                              decltype(thread_buffer_desc_m_n),
                                              ThreadBufferLengths_M_N,
                                              ThreadBufferDimAccessOrder,
-                                             ESrcHDstVectorDim,
+                                             1, // SrcVectorDim
                                              ESrcVectorSize,
                                              1,
                                              true>(
@@ -270,7 +268,7 @@ struct GridwiseWelfordSecondHalfLayernorm2d
                                                HElementwiseOperation,
                                                ThreadBufferLengths_M_N,
                                                ThreadBufferDimAccessOrder,
-                                               ESrcHDstVectorDim,
+                                               1, // DstVectorDim
                                                HDstVectorSize,
                                                InMemoryDataOperationEnum::Set,
                                                1,
