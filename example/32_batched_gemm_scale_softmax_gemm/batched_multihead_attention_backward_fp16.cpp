@@ -45,7 +45,6 @@ Kernel outputs:
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 
-
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 

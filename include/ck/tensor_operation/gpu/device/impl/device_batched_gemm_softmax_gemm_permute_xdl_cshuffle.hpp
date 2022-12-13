@@ -384,7 +384,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
         return transform_tensor_descriptor(
             ygrad_grid_desc_m_o,
-            make_tuple(make_unmerge_transform(make_tuple(Y_M0, Y_M1)), make_pass_through_transform(O)),
+            make_tuple(make_unmerge_transform(make_tuple(Y_M0, Y_M1)),
+                       make_pass_through_transform(O)),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
@@ -456,7 +457,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     //
     // static auto MakeYGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock()
 
-
     //
     // dQ = alpha * dS * K
     //
@@ -514,7 +514,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     using B1GridDesc_G_N_K     = decltype(Transform::MakeB1GridDescriptor_G_N_K({}, {}));
     using CGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
 
-    using VGradGridDesc_N_O = decltype(MakeVGradGridDescriptor_N_O({}, {}));
+    using VGradGridDesc_N_O     = decltype(MakeVGradGridDescriptor_N_O({}, {}));
     using YGradGridDesc_M0_O_M1 = decltype(MakeYGradGridDescriptor_M0_O_M1(YGridDesc_M_O{}));
 
     constexpr static auto make_MaskOutPredicate()
@@ -700,8 +700,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
               vgrad_grid_desc_n_o_{DeviceOp::MakeVGradGridDescriptor_N_O(
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
               /* PTrans descriptor will be constructed in kernel */
-              ygrad_grid_desc_m0_o_m1_{
-                  DeviceOp::MakeYGradGridDescriptor_M0_O_M1(y_grid_desc_m_o_)},
+              ygrad_grid_desc_m0_o_m1_{DeviceOp::MakeYGradGridDescriptor_M0_O_M1(y_grid_desc_m_o_)},
               // batch offsets
               a_grid_desc_g_m_k_{
                   Transform::MakeAGridDescriptor_G_M_K(a_gs_ms_ks_lengths, a_gs_ms_ks_strides)},
