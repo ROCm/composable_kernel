@@ -369,7 +369,8 @@ int run(int argc, char* argv[])
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<DataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
-        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<2>{}); // dy[g0, g1, m, n] = m
+        // ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<DataType>{2});
+        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<2>{}); // dy[g0, g1, m, o]
     }
 
     // calculate y & log-sum-exp beforehand

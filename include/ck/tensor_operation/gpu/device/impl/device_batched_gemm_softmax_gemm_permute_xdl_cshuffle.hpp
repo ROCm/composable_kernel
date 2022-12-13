@@ -35,7 +35,7 @@ template <typename GridwiseGemm,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename B1GridDesc_BK0_N_BK1,
-          typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock,
           typename LSEGridDescriptor_M,
           typename VGradGridDescriptor_N_O,
           typename YGradGridDesc_M0_O_M1,
@@ -65,7 +65,7 @@ __global__ void
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
             const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
-            const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            const YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
             const LSEGridDescriptor_M lse_grid_desc_m,
             // const QGradGridDescriptor_M_K qgrad_grid_desc_m_k, // TODO ANT: add dQ/dK args
@@ -329,6 +329,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         // v_gs_os_ns -> vgrad_gs_ns_os. O dims last because output is row-major.
         // Here directly rearrange lengths/strides before constructing tensor descriptor to reduce
         // transformation overhead
+        // TODO ANT: This will be much easier when inputs are Gs, Ms, Ns, Os. So there's no need to
+        // extract subsequence and shuffle them.
         const index_t num_dims = NumDimG + NumDimN + NumDimO;
 
         // 0, 1, .. NumDimG - 1
@@ -372,30 +374,20 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                    Sequence<padder.PadN, padder.PadO>{});
     }
 
-    template <typename YGridDesc_M_O, typename Number>
-    static auto MakeYGradGridDescriptor_M0_O_M1(const YGridDesc_M_O& ygrad_grid_desc_m_o,
-                                                const Number& M1)
+    template <typename YGridDesc_M_O>
+    static auto MakeYGradGridDescriptor_M0_O_M1(const YGridDesc_M_O& ygrad_grid_desc_m_o)
     {
         const auto M = ygrad_grid_desc_m_o.GetLength(I0);
         const auto O = ygrad_grid_desc_m_o.GetLength(I1);
 
-        const auto M0 = M / M1;
+        const auto Y_M0 = M / Y_M1;
 
         return transform_tensor_descriptor(
             ygrad_grid_desc_m_o,
-            make_tuple(make_unmerge_transform(make_tuple(M0, M1)), make_pass_through_transform(O)),
+            make_tuple(make_unmerge_transform(make_tuple(Y_M0, Y_M1)), make_pass_through_transform(O)),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
-
-    // can we construct YGrad_m0_o_m1 from Y_m_o?
-    // static auto MakeYGradGridDescriptor_M0_O_M1(const std::vector<index_t>&
-    // y_gs_ms_os_lengths_vec,
-    //                                             const std::vector<index_t>&
-    //                                             y_gs_ms_os_strides_vec)
-    // {
-
-    // }
 
     //
     // dP = dY * V^T
@@ -409,6 +401,61 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             Transform::MakeAGridDescriptor_M_K(y_gs_ms_os_lengths_vec, y_gs_ms_os_strides_vec),
             Number<Y_O1>{});
     }
+
+    // V in Gemm B position
+    static auto MakeVGridDescriptor_O0_N_O1(const std::vector<index_t>& v_gs_os_ns_lengths_vec,
+                                            const std::vector<index_t>& v_gs_os_ns_strides_vec)
+    {
+        // v_gs_os_ns -> vgrad_gs_ns_os. O dims last because output is row-major.
+        // Here directly rearrange lengths/strides before constructing tensor descriptor to reduce
+        // transformation overhead
+        // TODO ANT: This will be much easier when inputs are Gs, Ms, Ns, Os. So there's no need to
+        // extract subsequence and shuffle them.
+        const index_t num_dims = NumDimG + NumDimN + NumDimO;
+
+        // 0, 1, .. NumDimG - 1
+        std::vector<index_t> gs_ids(NumDimG);
+        std::iota(gs_ids.begin(), gs_ids.end(), 0);
+
+        // NumDimG, NumDimG + 1, ... NumDimG + NumDimO - 1
+        std::vector<index_t> os_ids(NumDimO);
+        std::iota(os_ids.begin(), os_ids.end(), NumDimG);
+
+        // NumDimG + NumDimO, NumDimG + NumDimO + 1, ... NumDimG + NumDimO + NumDimN - 1
+        std::vector<index_t> ns_ids(NumDimN);
+        std::iota(ns_ids.begin(), ns_ids.end(), NumDimG + NumDimO);
+
+        std::vector<index_t> ids_old2new;
+        ids_old2new.insert(ids_old2new.end(), gs_ids.begin(), gs_ids.end());
+        ids_old2new.insert(ids_old2new.end(), ns_ids.begin(), ns_ids.end());
+        ids_old2new.insert(ids_old2new.end(), os_ids.begin(), os_ids.end());
+
+        std::vector<index_t> v_gs_ns_os_lengths_vec(num_dims), v_gs_ns_os_strides_vec(num_dims);
+        for(int i = 0; i < num_dims; i++)
+        {
+            index_t id_new            = ids_old2new[i];
+            v_gs_ns_os_lengths_vec[i] = v_gs_os_ns_lengths_vec[id_new];
+            v_gs_ns_os_strides_vec[i] = v_gs_os_ns_strides_vec[id_new];
+        }
+
+        const auto v_grid_desc_nraw_oraw =
+            MakeGridDescriptorPair<NumDimG, NumDimN, NumDimO, TensorSpecialization::Default>(
+                v_gs_ns_os_lengths_vec, v_gs_ns_os_strides_vec)
+                .second;
+
+        const auto v_grid_desc_n_o = PadTensorDescriptor(v_grid_desc_nraw_oraw,
+                                                         make_tuple(NPerBlock, Gemm1NPerBlock),
+                                                         Sequence<padder.PadN, padder.PadO>{});
+
+        // N_O to O0_N_O1; to refactor
+        return Transform::MakeB0GridDescriptor_BK0_N_BK1(v_grid_desc_n_o, Number<V_O1>{});
+    }
+
+    //
+    // dS_i_j = P_i_j .* (dP_i_j - dY_i dot Y_i)
+    //
+    // static auto MakeYGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock()
+
 
     //
     // dQ = alpha * dS * K
@@ -460,7 +507,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     using AGridDesc_AK0_M_AK1  = decltype(MakeAGridDescriptor_AK0_M_AK1({}, {}));
     using BGridDesc_BK0_N_BK1  = decltype(MakeBGridDescriptor_BK0_N_BK1({}, {}));
     using B1GridDesc_BK0_N_BK1 = decltype(MakeB1GridDescriptor_BK0_N_BK1({}, {}));
-    using CGridDesc_M_N        = decltype(Transform::MakeCGridDescriptor_M_N({}, {}));
+    using YGridDesc_M_O        = decltype(Transform::MakeCGridDescriptor_M_N({}, {}));
     using LSEGridDesc_M        = decltype(MakeLSEGridDescriptor_M(1));
     using AGridDesc_G_M_K      = decltype(Transform::MakeAGridDescriptor_G_M_K({}, {}));
     using BGridDesc_G_N_K      = decltype(Transform::MakeB0GridDescriptor_G_N_K({}, {}));
@@ -468,8 +515,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     using CGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
 
     using VGradGridDesc_N_O = decltype(MakeVGradGridDescriptor_N_O({}, {}));
-    using YGradGridDesc_M0_O_M1 =
-        decltype(MakeYGradGridDescriptor_M0_O_M1(CGridDesc_M_N{}, Number<Y_M1>{}));
+    using YGradGridDesc_M0_O_M1 = decltype(MakeYGradGridDescriptor_M0_O_M1(YGridDesc_M_O{}));
 
     constexpr static auto make_MaskOutPredicate()
     {
@@ -547,7 +593,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         AGridDesc_AK0_M_AK1,
         BGridDesc_BK0_N_BK1,
         B1GridDesc_BK0_N_BK1,
-        CGridDesc_M_N,
+        YGridDesc_M_O,
         LSEGridDesc_M,
         NumGemmKPrefetchStage,
         BlockSize,
@@ -647,7 +693,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                   DeviceOp::MakeBGridDescriptor_BK0_N_BK1(b_gs_ns_ks_lengths, b_gs_ns_ks_strides)},
               b1_grid_desc_bk0_n_bk1_{DeviceOp::MakeB1GridDescriptor_BK0_N_BK1(
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
-              c_grid_desc_m_n_{Transform::MakeCGridDescriptor_M_N(c_gs_ms_gemm1ns_lengths,
+              y_grid_desc_m_o_{Transform::MakeCGridDescriptor_M_N(c_gs_ms_gemm1ns_lengths,
                                                                   c_gs_ms_gemm1ns_strides)},
               lse_grid_desc_m_{DeviceOp::MakeLSEGridDescriptor_M(lse_gs_ms_lengths[NumDimG])},
               // dV = P^T * dY
@@ -655,7 +701,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
               /* PTrans descriptor will be constructed in kernel */
               ygrad_grid_desc_m0_o_m1_{
-                  DeviceOp::MakeYGradGridDescriptor_M0_O_M1(c_grid_desc_m_n_, Number<Y_M1>{})},
+                  DeviceOp::MakeYGradGridDescriptor_M0_O_M1(y_grid_desc_m_o_)},
               // batch offsets
               a_grid_desc_g_m_k_{
                   Transform::MakeAGridDescriptor_G_M_K(a_gs_ms_ks_lengths, a_gs_ms_ks_strides)},
@@ -665,8 +711,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
               c_grid_desc_g_m_n_{Transform::MakeCGridDescriptor_G_M_N(c_gs_ms_gemm1ns_lengths,
                                                                       c_gs_ms_gemm1ns_strides)},
-              c_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
+              y_grid_desc_mblock_mperblock_oblock_operblock_{},
+              block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(y_grid_desc_m_o_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               acc_element_op_{acc_element_op},
@@ -704,12 +750,12 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                            b_grid_desc_bk0_n_bk1_,
                                            b1_grid_desc_bk0_n_bk1_,
-                                           c_grid_desc_m_n_,
+                                           y_grid_desc_m_o_,
                                            block_2_ctile_map_))
             {
-                c_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                y_grid_desc_mblock_mperblock_oblock_operblock_ =
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        c_grid_desc_m_n_);
+                        y_grid_desc_m_o_);
             }
             Print();
         }
@@ -754,14 +800,14 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
-        CGridDesc_M_N c_grid_desc_m_n_;
+        YGridDesc_M_O y_grid_desc_m_o_;
         LSEGridDesc_M lse_grid_desc_m_;
         AGridDesc_G_M_K a_grid_desc_g_m_k_;
         BGridDesc_G_N_K b_grid_desc_g_n_k_;
         B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
         CGridDesc_G_M_N c_grid_desc_g_m_n_;
-        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            c_grid_desc_mblock_mperblock_nblock_nperblock_;
+        typename GridwiseGemm::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
+            y_grid_desc_mblock_mperblock_oblock_operblock_;
 
         VGradGridDesc_N_O vgrad_grid_desc_n_o_;
         YGradGridDesc_M0_O_M1 ygrad_grid_desc_m0_o_m1_;
@@ -803,7 +849,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             }
 
             const index_t grid_size =
-                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.batch_count_;
+                arg.block_2_ctile_map_.CalculateGridSize(arg.y_grid_desc_m_o_) * arg.batch_count_;
             std::cout << "grid size = " << grid_size << '\n';
             // Gemm0_K
             const auto K =
@@ -824,7 +870,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     DeviceOp::B1GridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                    typename GridwiseGemm::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock,
                     DeviceOp::LSEGridDesc_M,
                     DeviceOp::VGradGridDesc_N_O,
                     DeviceOp::YGradGridDesc_M0_O_M1,
@@ -855,7 +901,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                               arg.a_grid_desc_ak0_m_ak1_,
                                               arg.b_grid_desc_bk0_n_bk1_,
                                               arg.b1_grid_desc_bk0_n_bk1_,
-                                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                              arg.y_grid_desc_mblock_mperblock_oblock_operblock_,
                                               arg.lse_grid_desc_m_,
                                               arg.vgrad_grid_desc_n_o_,
                                               arg.ygrad_grid_desc_m0_o_m1_,
@@ -909,8 +955,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
         // Check if C permute dimension matches GEMM + GEMM shape
         const index_t c_g       = arg.c_grid_desc_g_m_n_.GetLength(I0); // unpadded
-        const index_t c_m       = arg.c_grid_desc_m_n_.GetLength(I0);
-        const index_t c_gemm1n  = arg.c_grid_desc_m_n_.GetLength(I1);
+        const index_t c_m       = arg.y_grid_desc_m_o_.GetLength(I0);
+        const index_t c_gemm1n  = arg.y_grid_desc_m_o_.GetLength(I1);
         const index_t a_m       = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
         const index_t b1_gemm1n = arg.b1_grid_desc_bk0_n_bk1_.GetLength(I1);
 
@@ -960,7 +1006,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.b1_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_m_n_,
+                                           arg.y_grid_desc_m_o_,
                                            arg.block_2_ctile_map_);
     }
 
