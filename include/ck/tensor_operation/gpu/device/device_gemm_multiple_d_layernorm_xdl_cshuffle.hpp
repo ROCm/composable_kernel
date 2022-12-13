@@ -223,7 +223,6 @@ template <typename ALayout,
           index_t PostShuffleScalarPerVector,
           typename LayernormThreadClusterSize_M_N,
           typename LayernormThreadSliceSize_M_N,
-          index_t LayernormESrcVectorSize,
           index_t LayernormHDstVectorSize,
           index_t LayernormGammaSrcVectorSize,
           index_t LayernormBetaSrcVectorSize,
@@ -236,7 +235,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
     using MeanDataType = CShuffleDataType;
     using VarDataType  = CShuffleDataType;
 
-    static constexpr index_t NumDTensor = DsDataType::Size();
+    static constexpr index_t NumDTensor              = DsDataType::Size();
+    static constexpr index_t LayernormESrcVectorSize = LayernormHDstVectorSize;
 
     using LayernormBlockTileSize_M_N =
         Sequence<LayernormThreadClusterSize_M_N::At(0) * LayernormThreadSliceSize_M_N::At(0),
@@ -851,10 +851,13 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
             }
 
             // check vector store of E
-            // only support RowMajor for now
+            // E and H only support RowMajor for now
             if constexpr(is_same_v<ELayout, Row> && is_same_v<HLayout, Row>)
             {
-                if(arg.NRaw_ % PostShuffleScalarPerVector != 0)
+                if(arg.NRaw_ % PostShuffleScalarPerVector != 0 ||
+                   arg.NRaw_ % LayernormGammaSrcVectorSize != 0 ||
+                   arg.NRaw_ % LayernormBetaSrcVectorSize != 0 ||
+                   arg.NRaw_ % LayernormHDstVectorSize != 0)
                 {
                     return false;
                 }
@@ -864,8 +867,6 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                 return false;
             }
         }
-
-        // TODO - layernorm
 
         return true;
     }
