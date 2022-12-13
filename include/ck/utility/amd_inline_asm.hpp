@@ -360,9 +360,7 @@ __device__ void amd_assembly_wmma_f32_16x16x16_f16_w32(half16_t a,
                                                        half16_t b,
                                                        float8_t& c)
 {
-    asm volatile("\n \
-            v_wmma_f32_16x16x16_f16_w32 %0, %1, %2, %0\n \
-            "
+    asm volatile("v_wmma_f32_16x16x16_f16 %0, %1, %2, %0"
                  : "=v"(c)
                  : "v"(a), "v"(b), "0"(c));
 }

@@ -310,7 +310,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
         constexpr auto WmmaK = 16;
         constexpr auto KPack = math::integer_least_multiple(K1, WmmaK);
 
-        using BlockwiseGemm = BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle<
+        using BlockwiseGemm = BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO<
             BlockSize,
             FloatAB,
             FloatAcc,
@@ -367,7 +367,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
         constexpr auto WmmaK = 16;
         constexpr auto KPack = math::integer_least_multiple(K1, WmmaK);
 
-        using BlockwiseGemm = BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle<
+        using BlockwiseGemm = BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO<
             BlockSize,
             FloatAB,
             FloatAcc,
@@ -540,7 +540,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
         constexpr auto KPack = math::integer_least_multiple(K1, WmmaK);
 
         auto blockwise_gemm =
-            BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle<BlockSize,
+            BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO<BlockSize,
                                                          FloatAB,
                                                          FloatAcc,
                                                          decltype(a_block_desc_k0perblock_mperblock_k1),

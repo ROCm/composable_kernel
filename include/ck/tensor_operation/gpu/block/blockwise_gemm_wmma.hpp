@@ -280,24 +280,24 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
                         const BBlockBuffer& b_block_buf,
                         CThreadBuffer& c_thread_buf) const
     {
-        // auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
-            // a_thread_desc_.GetElementSpaceSize());
-        // auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
-            // b_thread_desc_.GetElementSpaceSize());
+        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
+            a_thread_desc_.GetElementSpaceSize());
+        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
+            b_thread_desc_.GetElementSpaceSize());
         
-        StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
-                              FloatAB,
-                              MRepeat,
-                              WmmaK,
-                              true>
-        a_thread_buf;
+        // StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
+                            //   FloatAB,
+                            //   MRepeat,
+                            //   WmmaK,
+                            //   true>
+        // a_thread_buf;
 
-        StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
-                              FloatAB,
-                              NRepeat,
-                              WmmaK,
-                              true>
-        b_thread_buf;
+        // StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
+                            //   FloatAB,
+                            //   NRepeat,
+                            //   WmmaK,
+                            //   true>
+        // b_thread_buf;
 
         static_for<0, KPerBlock / WmmaK, 1>{}([&](auto k) { // k=0,1,2 instead of k=0,kpack*1, ...
             static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -306,8 +306,8 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
                                    make_tuple(Number<k * WmmaK / A_K1>{}, m0, I0, I0, I0),
                                    a_block_buf,
                                    a_thread_desc_,
-                                   make_tuple(I0, I0, I0, I0, I0),
-                                   a_thread_buf.GetVectorTypeReference(Number<m0*WmmaK>{}).template AsType<FloatAB>());
+                                   make_tuple(I0, m0, I0, I0, I0),
+                                   a_thread_buf);
 
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     // read B
@@ -315,28 +315,28 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
                                        make_tuple(Number<k * WmmaK / B_K1>{}, n0, I0, I0, I0),
                                        b_block_buf,
                                        b_thread_desc_,
-                                       make_tuple(I0, I0, I0, I0, I0),
-                                       b_thread_buf.GetVectorTypeReference(Number<n0*WmmaK>{}).template AsType<FloatAB>());
-                    // vector_type<FloatAB, WmmaK> a_thread_vec;
-                    // vector_type<FloatAB, WmmaK> b_thread_vec;
+                                       make_tuple(I0, n0, I0, I0, I0),
+                                       b_thread_buf);
+                    vector_type<FloatAB, WmmaK> a_thread_vec;
+                    vector_type<FloatAB, WmmaK> b_thread_vec;
 
-                    // static_for<0, WmmaK, 1>{}([&](auto i) {
-                        // a_thread_vec.template AsType<FloatAB>()(i) =
-                            // a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                // make_tuple(i / A_K1, m0, 0, 0, i % A_K1))>{}];
-                        // b_thread_vec.template AsType<FloatAB>()(i) =
-                            // b_thread_buf[Number<b_thread_desc_.CalculateOffset(
-                                // make_tuple(i / B_K1, n0, 0, 0, i % B_K1))>{}];
-                    // });
+                    static_for<0, WmmaK, 1>{}([&](auto i) {
+                        a_thread_vec.template AsType<FloatAB>()(i) =
+                            a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                make_tuple(i / A_K1, m0, 0, 0, i % A_K1))>{}];
+                        b_thread_vec.template AsType<FloatAB>()(i) =
+                            b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                make_tuple(i / B_K1, n0, 0, 0, i % B_K1))>{}];
+                    });
 
-                    // using wmma_input_type = typename vector_type<FloatAB, WmmaK>::type;
+                    using wmma_input_type = typename vector_type<FloatAB, WmmaK>::type;
 
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
                     wmma_gemm.template Run(
-                        a_thread_buf.GetVectorTypeReference(Number<m0*WmmaK>{}),
-                        b_thread_buf.GetVectorTypeReference(Number<n0*WmmaK>{}),
+                        a_thread_vec.template AsType<wmma_input_type>()(Number<0>{}),
+                        b_thread_vec.template AsType<wmma_input_type>()(Number<0>{}),
                         c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                 });
             });
@@ -346,11 +346,11 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
     protected:
     // A[M0, M1, M2, K0 = WmmaK]
     static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<WmmaK / A_K1>{}, I1, I1, I1, Number<A_K1>{}));
+        make_tuple(Number<WmmaK / A_K1>{}, Number<MRepeat>{}, I1, I1, Number<A_K1>{}));
 
     // B[N0, N1, N2, K0 = WmmaK]
     static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<WmmaK / B_K1>{}, I1, I1, I1, Number<B_K1>{}));
+        make_tuple(Number<WmmaK / B_K1>{}, Number<NRepeat>{}, I1, I1, Number<B_K1>{}));
 
     // C[M, N, NumRegWMMA]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
@@ -659,7 +659,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_MNKloop
                                make_tuple(I0, m0, I0, I0, I0),
                                a_block_buf,
                                a_thread_desc_,
-                               make_tuple(I0, I0, I0, I0, I0),
+                               make_tuple(I0, Number<m0>{}, I0, I0, I0),
                                a_thread_buf);
 
             static_for<0, NRepeat, 1>{}([&](auto n0) {
@@ -668,7 +668,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_MNKloop
                                    make_tuple(I0, n0, I0, I0, I0),
                                    b_block_buf,
                                    b_thread_desc_,
-                                   make_tuple(I0, I0, I0, I0, I0),
+                                   make_tuple(I0, Number<n0>{}, I0, I0, I0),
                                    b_thread_buf);
                                    
                 static_for<0, KPerBlock / WmmaK, 1>{}([&](auto k) { // k=0,1,2 instead of k=0,kpack*1, ...
@@ -678,10 +678,10 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_MNKloop
                     static_for<0, WmmaK, 1>{}([&](auto i) {
                         a_thread_vec.template AsType<FloatAB>()(i) =
                             a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                make_tuple((k*WmmaK + i) / A_K1, 0, 0, 0, (k*WmmaK + i) % A_K1))>{}];
+                                make_tuple((k*WmmaK + i) / A_K1, m0, 0, 0, (k*WmmaK + i) % A_K1))>{}];
                         b_thread_vec.template AsType<FloatAB>()(i) =
                             b_thread_buf[Number<b_thread_desc_.CalculateOffset(
-                                make_tuple((k*WmmaK + i) / B_K1, 0, 0, 0, (k*WmmaK + i) % B_K1))>{}];
+                                make_tuple((k*WmmaK + i) / B_K1, n0, 0, 0, (k*WmmaK + i) % B_K1))>{}];
                     });
 
                     using wmma_input_type = typename vector_type<FloatAB, WmmaK>::type;
@@ -701,11 +701,11 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_MNKloop
     protected:
     // A[M0, M1, M2, K0 = WmmaK]
     static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<KPerBlock / A_K1>{}, I1, I1, I1, Number<A_K1>{}));
+        make_tuple(Number<KPerBlock / A_K1>{}, Number<MRepeat>{}, I1, I1, Number<A_K1>{}));
 
     // B[N0, N1, N2, K0 = WmmaK]
     static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<KPerBlock / B_K1>{}, I1, I1, I1, Number<B_K1>{}));
+        make_tuple(Number<KPerBlock / B_K1>{}, Number<NRepeat>{}, I1, I1, Number<B_K1>{}));
 
     // C[M, N, NumRegWMMA]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
@@ -716,7 +716,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_MNKloop
                                                          decltype(a_block_desc_k0_m0_m1_m2_k1),
                                                          decltype(a_thread_desc_),
                                                          Sequence<KPerBlock / A_K1, 1, 1, 1, A_K1>,
-                                                         Sequence<3, 0, 1, 2, 4>,
+                                                         Sequence<0, 1, 2, 3, 4>,
                                                          4,
                                                          A_K1,
                                                          A_K1>;
@@ -726,7 +726,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_MNKloop
                                                          decltype(b_block_desc_k0_n0_n1_n2_k1),
                                                          decltype(b_thread_desc_),
                                                          Sequence<KPerBlock / B_K1, 1, 1, 1, B_K1>,
-                                                         Sequence<3, 0, 1, 2, 4>,
+                                                         Sequence<0, 1, 2, 3, 4>,
                                                          4,
                                                          B_K1,
                                                          B_K1>;
@@ -1009,9 +1009,17 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
             b_thread_desc_.GetElementSpaceSize());
 
         constexpr auto RepeatDiff = MRepeat - NRepeat;
-
+        
         static_for<0, KPerBlock, WmmaK>{}([&](auto iWmmaK){
             
+            static_for<0, NRepeat, 1>{}([&](auto iN){
+                    b_thread_copy_.Run(b_block_desc_k0_n0_n1_n2_k1,
+                                       make_tuple(Number<iWmmaK/B_K1>{}, Number<iN>{}, I0, I0, I0),
+                                       b_block_buf,
+                                       b_thread_desc_,
+                                       make_tuple(I0, Number<iN>{}, I0, I0, I0),
+                                       b_thread_buf);
+            });
             // Stage 1: Cut to Repeat Retangle to Square, assume MRepeat > NRepeat
             static_for<0, RepeatDiff, 1>{}([&](auto iCut){
                 a_thread_copy_.Run(a_block_desc_k0_m0_m1_m2_k1,
@@ -1021,12 +1029,12 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
                                    make_tuple(I0, Number<iCut>{}, I0, I0, I0),
                                    a_thread_buf);
                 static_for<0, NRepeat, 1>{}([&](auto iN){
-                    b_thread_copy_.Run(b_block_desc_k0_n0_n1_n2_k1,
-                                       make_tuple(Number<iWmmaK/B_K1>{}, Number<iN>{}, I0, I0, I0),
-                                       b_block_buf,
-                                       b_thread_desc_,
-                                       make_tuple(I0, Number<iN>{}, I0, I0, I0),
-                                       b_thread_buf);
+                    // b_thread_copy_.Run(b_block_desc_k0_n0_n1_n2_k1,
+                                    //    make_tuple(Number<iWmmaK/B_K1>{}, Number<iN>{}, I0, I0, I0),
+                                    //    b_block_buf,
+                                    //    b_thread_desc_,
+                                    //    make_tuple(I0, Number<iN>{}, I0, I0, I0),
+                                    //    b_thread_buf);
 
                     vector_type<FloatAB, WmmaK> a_thread_vec;
                     vector_type<FloatAB, WmmaK> b_thread_vec;
@@ -1042,30 +1050,34 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
                     using wmma_input_type = typename vector_type<FloatAB, WmmaK>::type;
 
                     constexpr index_t c_offset = c_thread_desc_.CalculateOffset(make_tuple(iCut, iN, 0));
-
+                    s_nop();
                     wmma_gemm.template Run(
                             a_thread_vec.template AsType<wmma_input_type>()(Number<0>{}), 
                             b_thread_vec.template AsType<wmma_input_type>()(Number<0>{}),
                             c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                    s_nop();
                 });
             });
-
+            static_for<0, NRepeat, 1>{}([&](auto WmmaInnerloop){
+                a_thread_copy_.Run(a_block_desc_k0_m0_m1_m2_k1,
+                                       make_tuple(Number<iWmmaK/A_K1>{}, Number<WmmaInnerloop+RepeatDiff>{}, I0, I0, I0), 
+                                       a_block_buf,
+                                       a_thread_desc_,
+                                       make_tuple(I0, Number<WmmaInnerloop+RepeatDiff>{}, I0, I0, I0),
+                                       a_thread_buf);
+            });
             // Stage 2: Run FIFO fashion loopover in Square
             static_for<0, NRepeat, 1>{}([&](auto WmmaInnerloop){
+                
                 // Row Repeatation
                 static_for<WmmaInnerloop, NRepeat, 1>{}([&](auto iN){
-                    a_thread_copy_.Run(a_block_desc_k0_m0_m1_m2_k1,
-                                   make_tuple(Number<iWmmaK/A_K1>{}, Number<WmmaInnerloop+RepeatDiff>{}, I0, I0, I0), 
-                                   a_block_buf,
-                                   a_thread_desc_,
-                                   make_tuple(I0, Number<WmmaInnerloop+RepeatDiff>{}, I0, I0, I0),
-                                   a_thread_buf);
-                    b_thread_copy_.Run(b_block_desc_k0_n0_n1_n2_k1,
-                                       make_tuple(Number<iWmmaK/B_K1>{}, Number<iN>{}, I0, I0, I0),
-                                       b_block_buf,
-                                       b_thread_desc_,
-                                       make_tuple(I0, Number<iN>{}, I0, I0, I0),
-                                       b_thread_buf);
+                    
+                    // b_thread_copy_.Run(b_block_desc_k0_n0_n1_n2_k1,
+                                    //    make_tuple(Number<iWmmaK/B_K1>{}, Number<iN>{}, I0, I0, I0),
+                                    //    b_block_buf,
+                                    //    b_thread_desc_,
+                                    //    make_tuple(I0, Number<iN>{}, I0, I0, I0),
+                                    //    b_thread_buf);
                     vector_type<FloatAB, WmmaK> a_thread_vec;
                     vector_type<FloatAB, WmmaK> b_thread_vec;
 
@@ -1081,27 +1093,29 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
 
                     constexpr index_t c_offset = 
                         c_thread_desc_.CalculateOffset(make_tuple(WmmaInnerloop+RepeatDiff, iN, 0));
+                    s_nop();
                     wmma_gemm.template Run(
                             a_thread_vec.template AsType<wmma_input_type>()(Number<0>{}),
                             b_thread_vec.template AsType<wmma_input_type>()(Number<0>{}),
                             c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                    s_nop();
                 });
 
                 // WmmaInnerloop++
                 // Col Repeatation
                 static_for<WmmaInnerloop+1+RepeatDiff, MRepeat, 1>{}([&](auto iM){
-                    a_thread_copy_.Run(a_block_desc_k0_m0_m1_m2_k1,
-                                       make_tuple(Number<iWmmaK/A_K1>{}, Number<iM>{}, I0, I0, I0), 
-                                       a_block_buf,
-                                       a_thread_desc_,
-                                       make_tuple(I0, Number<iM>{}, I0, I0, I0),
-                                       a_thread_buf);
-                    b_thread_copy_.Run(b_block_desc_k0_n0_n1_n2_k1,
-                                       make_tuple(Number<iWmmaK/B_K1>{}, Number<WmmaInnerloop>{}, I0, I0, I0),
-                                       b_block_buf,
-                                       b_thread_desc_,
-                                       make_tuple(I0, Number<WmmaInnerloop>{}, I0, I0, I0),
-                                       b_thread_buf);
+                    // a_thread_copy_.Run(a_block_desc_k0_m0_m1_m2_k1,
+                                    //    make_tuple(Number<iWmmaK/A_K1>{}, Number<iM>{}, I0, I0, I0), 
+                                    //    a_block_buf,
+                                    //    a_thread_desc_,
+                                    //    make_tuple(I0, Number<iM>{}, I0, I0, I0),
+                                    //    a_thread_buf);
+                    // b_thread_copy_.Run(b_block_desc_k0_n0_n1_n2_k1,
+                                    //    make_tuple(Number<iWmmaK/B_K1>{}, Number<WmmaInnerloop>{}, I0, I0, I0),
+                                    //    b_block_buf,
+                                    //    b_thread_desc_,
+                                    //    make_tuple(I0, Number<WmmaInnerloop>{}, I0, I0, I0),
+                                    //    b_thread_buf);
                     vector_type<FloatAB, WmmaK> a_thread_vec;
                     vector_type<FloatAB, WmmaK> b_thread_vec;
 
@@ -1117,10 +1131,12 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
 
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(iM, WmmaInnerloop, 0));
+                    s_nop();
                     wmma_gemm.template Run(
                             a_thread_vec.template AsType<wmma_input_type>()(Number<0>{}),
                             b_thread_vec.template AsType<wmma_input_type>()(Number<0>{}),
                             c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                    s_nop();
                 });
             });
         });
@@ -1144,7 +1160,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
                                                          decltype(a_block_desc_k0_m0_m1_m2_k1),
                                                          decltype(a_thread_desc_),
                                                          Sequence<WmmaK / A_K1, 1, 1, 1, A_K1>,
-                                                         Sequence<3, 0, 1, 2, 4>,
+                                                         Sequence<0, 1, 2, 3, 4>,
                                                          4,
                                                          A_K1,
                                                          A_K1>;
@@ -1154,7 +1170,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
                                                          decltype(b_block_desc_k0_n0_n1_n2_k1),
                                                          decltype(b_thread_desc_),
                                                          Sequence<WmmaK / B_K1, 1, 1, 1, B_K1>,
-                                                         Sequence<3, 0, 1, 2, 4>,
+                                                         Sequence<0, 1, 2, 3, 4>,
                                                          4,
                                                          B_K1,
                                                          B_K1>;
