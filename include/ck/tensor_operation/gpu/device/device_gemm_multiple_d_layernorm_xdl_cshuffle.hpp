@@ -33,7 +33,8 @@ template <typename GridwiseGemmWelford,
           typename BGridDesc_BK0_N_BK1,
           typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
           typename EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-          typename MeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock,
+          typename MeanVarGridDescriptor_MBlock_MPerBlock_NBlock,
+          typename CountGridDescriptor_MBlock_MPerBlock_NBlock,
           typename Block2ETileMap,
           bool HasMainKBlockLoop>
 __global__ void
@@ -57,8 +58,10 @@ __global__ void
                 ds_grid_desc_mblock_mperblock_nblock_nperblock,
             const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
                 e_grid_desc_mblock_mperblock_nblock_nperblock,
-            const MeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock
-                mean_var_count_grid_desc_mblock_mperblock_nblock,
+            const MeanVarGridDescriptor_MBlock_MPerBlock_NBlock
+                mean_var_grid_desc_mblock_mperblock_nblock,
+            const CountGridDescriptor_MBlock_MPerBlock_NBlock
+                count_grid_desc_mblock_mperblock_nblock,
             const Block2ETileMap block_2_etile_map,
             index_t NRaw)
 {
@@ -81,7 +84,8 @@ __global__ void
         b_grid_desc_bk0_n_bk1,
         ds_grid_desc_mblock_mperblock_nblock_nperblock,
         e_grid_desc_mblock_mperblock_nblock_nperblock,
-        mean_var_count_grid_desc_mblock_mperblock_nblock,
+        mean_var_grid_desc_mblock_mperblock_nblock,
+        count_grid_desc_mblock_mperblock_nblock,
         block_2_etile_map,
         NRaw);
 #else
@@ -99,7 +103,8 @@ __global__ void
     ignore = b_grid_desc_bk0_n_bk1;
     ignore = ds_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = e_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore = mean_var_count_grid_desc_mblock_mperblock_nblock;
+    ignore = mean_var_grid_desc_mblock_mperblock_nblock;
+    ignore = count_grid_desc_mblock_mperblock_nblock;
     ignore = block_2_etile_map;
     ignore = NRaw;
 #endif
@@ -114,7 +119,8 @@ template <typename GridwiseWelfordLayernorm,
           typename BetaDataType,
           typename ComputeDataType,
           typename EHGridDesc_M_N,
-          typename LayernormMeanVarCountGridDesc_M_NBlock,
+          typename LayernormMeanVarGridDesc_M_NBlock,
+          typename LayernormCountGridDesc_M_NBlock,
           typename GammaBetaGridDesc_N,
           typename HElementwiseOperation>
 __global__ void
@@ -131,7 +137,8 @@ __global__ void
             HDataType* __restrict__ p_h_grid,
             const EHGridDesc_M_N e_grid_desc_m_n,
             const EHGridDesc_M_N h_grid_desc_m_n,
-            const LayernormMeanVarCountGridDesc_M_NBlock mean_var_count_grid_desc_m_nblock,
+            const LayernormMeanVarGridDesc_M_NBlock mean_var_grid_desc_m_nblock,
+            const LayernormCountGridDesc_M_NBlock count_grid_desc_m_nblock,
             const GammaBetaGridDesc_N gamma_grid_desc_n,
             const GammaBetaGridDesc_N beta_grid_desc_n,
             index_t numMeanVarCountBlockTileIteration_N,
@@ -148,7 +155,8 @@ __global__ void
                                   p_h_grid,
                                   e_grid_desc_m_n,
                                   h_grid_desc_m_n,
-                                  mean_var_count_grid_desc_m_nblock,
+                                  mean_var_grid_desc_m_nblock,
+                                  count_grid_desc_m_nblock,
                                   gamma_grid_desc_n,
                                   beta_grid_desc_n,
                                   numMeanVarCountBlockTileIteration_N,
@@ -315,11 +323,19 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
             Number<NumDTensor>{});
     }
 
-    template <typename LayOut, typename DoPads, index_t MPerTile, index_t NPerTile>
+    template <typename DoPads, index_t MPerTile, index_t NPerTile>
     static auto MakeMeanVarDescriptor_M_N(index_t M, index_t N)
     {
         const auto grid_desc_m_n =
             make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(N, I1));
+        return PadTensorDescriptor(grid_desc_m_n, make_tuple(MPerTile, NPerTile), DoPads{});
+    }
+
+    template <typename DoPads, index_t MPerTile, index_t NPerTile>
+    static auto MakeCountDescriptor_M_N(index_t M, index_t N)
+    {
+        const auto grid_desc_m_n =
+            make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I0, I1));
         return PadTensorDescriptor(grid_desc_m_n, make_tuple(MPerTile, NPerTile), DoPads{});
     }
 
@@ -335,14 +351,21 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}, {}))>;
     // We have to separate mean var descriptor for gemm and layernorm bacause of different grid
     // layout(different padding)
-    using GemmMeanVarCountGridDesc_M_NBlock = decltype(
-        MakeMeanVarDescriptor_M_N<HLayout, Sequence<true, false>, MPerBlock, NPerBlock>(1, 1));
+    using GemmMeanVarGridDesc_M_NBlock =
+        decltype(MakeMeanVarDescriptor_M_N<Sequence<true, false>, MPerBlock, NPerBlock>(1, 1));
 
-    using LayernormMeanVarCountGridDesc_M_NBlock =
-        decltype(MakeMeanVarDescriptor_M_N<HLayout,
-                                           Sequence<true, true>,
+    using GemmCountGridDesc_M_NBlock =
+        decltype(MakeCountDescriptor_M_N<Sequence<true, false>, MPerBlock, NPerBlock>(1, 1));
+
+    using LayernormMeanVarGridDesc_M_NBlock =
+        decltype(MakeMeanVarDescriptor_M_N<Sequence<true, true>,
                                            LayernormBlockTileSize_M_N::At(0),
                                            LayernormBlockTileSize_M_N::At(1)>(1, 1));
+
+    using LayernormCountGridDesc_M_NBlock =
+        decltype(MakeCountDescriptor_M_N<Sequence<true, true>,
+                                         LayernormBlockTileSize_M_N::At(0),
+                                         LayernormBlockTileSize_M_N::At(1)>(1, 1));
 
     using GammaBetaGridDesc_N = decltype(MakeDescriptor_X<LayernormBlockTileSize_M_N::At(1)>(1));
     using EHGridDesc_M_N      = decltype(MakeEHGridDescriptor_M_N<HLayout>(1, 1, 1));
@@ -363,7 +386,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         BGridDesc_N_K,
         DsGridDesc_M_N,
         EHGridDesc_M_N,
-        GemmMeanVarCountGridDesc_M_NBlock,
+        GemmMeanVarGridDesc_M_NBlock,
+        GemmCountGridDesc_M_NBlock,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,
@@ -408,7 +432,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                              BetaDataType,
                                              AccDataType,
                                              EHGridDesc_M_N,
-                                             LayernormMeanVarCountGridDesc_M_NBlock,
+                                             LayernormMeanVarGridDesc_M_NBlock,
+                                             LayernormCountGridDesc_M_NBlock,
                                              GammaBetaGridDesc_N,
                                              HElementwiseOperation,
                                              BlockSize,
@@ -456,8 +481,10 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
               b_grid_desc_n_k_{DeviceOp::MakeBGridDescriptor_N_K(KRaw, NRaw, StrideB)},
               ds_grid_desc_m_n_{},
               e_grid_desc_m_n_{DeviceOp::MakeEHGridDescriptor_M_N<ELayout>(MRaw, NRaw, StrideH)},
-              gemm_mean_var_count_grid_desc_m_nblock_{},
-              layernorm_mean_var_count_grid_desc_m_nblock_{},
+              gemm_mean_var_grid_desc_m_nblock_{},
+              gemm_count_grid_desc_m_nblock_{},
+              layernorm_mean_var_grid_desc_m_nblock_{},
+              layernorm_count_grid_desc_m_nblock_{},
               gamma_grid_desc_n_{
                   DeviceOp::MakeDescriptor_X<LayernormBlockTileSize_M_N::At(1)>(NRaw)},
               beta_grid_desc_n_{
@@ -478,16 +505,25 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
               gemm_nblock_{math::integer_divide_ceil(NRaw, NPerBlock)},
               epsilon_{epsilon}
         {
-            gemm_mean_var_count_grid_desc_m_nblock_ = DeviceOp::
-                MakeMeanVarDescriptor_M_N<HLayout, Sequence<true, false>, MPerBlock, NPerBlock>(
+            gemm_mean_var_grid_desc_m_nblock_ =
+                DeviceOp::MakeMeanVarDescriptor_M_N<Sequence<true, false>, MPerBlock, NPerBlock>(
                     MRaw, gemm_nblock_);
 
-            layernorm_mean_var_count_grid_desc_m_nblock_ =
-                DeviceOp::MakeMeanVarDescriptor_M_N<HLayout,
-                                                    Sequence<true, true>,
+            gemm_count_grid_desc_m_nblock_ =
+                DeviceOp::MakeCountDescriptor_M_N<Sequence<true, false>, MPerBlock, NPerBlock>(
+                    MRaw, gemm_nblock_);
+
+            layernorm_mean_var_grid_desc_m_nblock_ =
+                DeviceOp::MakeMeanVarDescriptor_M_N<Sequence<true, true>,
                                                     LayernormBlockTileSize_M_N::At(0),
                                                     LayernormBlockTileSize_M_N::At(1)>(
                     MRaw, gemm_nblock_);
+
+            layernorm_count_grid_desc_m_nblock_ =
+                DeviceOp::MakeCountDescriptor_M_N<Sequence<true, true>,
+                                                  LayernormBlockTileSize_M_N::At(0),
+                                                  LayernormBlockTileSize_M_N::At(1)>(MRaw,
+                                                                                     gemm_nblock_);
 
             // populate pointer, desc for Ds
             static_for<0, NumDTensor, 1>{}([&](auto i) {
@@ -517,9 +553,13 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                     GridwiseGemmWelford::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         e_grid_desc_m_n_);
 
-                mean_var_count_grid_desc_mblock_mperblock_nblock_ =
+                gemm_mean_var_grid_desc_mblock_mperblock_nblock_ =
                     GridwiseGemmWelford::MakeMeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock(
-                        gemm_mean_var_count_grid_desc_m_nblock_);
+                        gemm_mean_var_grid_desc_m_nblock_);
+
+                gemm_count_grid_desc_mblock_mperblock_nblock_ =
+                    GridwiseGemmWelford::MakeMeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock(
+                        gemm_count_grid_desc_m_nblock_);
             }
         }
 
@@ -551,8 +591,10 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         BGridDesc_N_K b_grid_desc_n_k_;
         DsGridDesc_M_N ds_grid_desc_m_n_;
         EHGridDesc_M_N e_grid_desc_m_n_;
-        GemmMeanVarCountGridDesc_M_NBlock gemm_mean_var_count_grid_desc_m_nblock_;
-        LayernormMeanVarCountGridDesc_M_NBlock layernorm_mean_var_count_grid_desc_m_nblock_;
+        GemmMeanVarGridDesc_M_NBlock gemm_mean_var_grid_desc_m_nblock_;
+        GemmCountGridDesc_M_NBlock gemm_count_grid_desc_m_nblock_;
+        LayernormMeanVarGridDesc_M_NBlock layernorm_mean_var_grid_desc_m_nblock_;
+        LayernormCountGridDesc_M_NBlock layernorm_count_grid_desc_m_nblock_;
         GammaBetaGridDesc_N gamma_grid_desc_n_;
         GammaBetaGridDesc_N beta_grid_desc_n_;
         EHGridDesc_M_N h_grid_desc_m_n_;
@@ -564,8 +606,10 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
             ds_grid_desc_mblock_mperblock_nblock_nperblock_;
         typename GridwiseGemmWelford::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             e_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemmWelford::MeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock
-            mean_var_count_grid_desc_mblock_mperblock_nblock_;
+        typename GridwiseGemmWelford::MeanVarGridDescriptor_MBlock_MPerBlock_NBlock
+            gemm_mean_var_grid_desc_mblock_mperblock_nblock_;
+        typename GridwiseGemmWelford::CountGridDescriptor_MBlock_MPerBlock_NBlock
+            gemm_count_grid_desc_mblock_mperblock_nblock_;
 
         // block-to-e-tile map
         Block2ETileMap block_2_etile_map_;
@@ -628,8 +672,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                             DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                         typename GridwiseGemmWelford::
                             EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                        typename GridwiseGemmWelford::
-                            MeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock,
+                        typename GridwiseGemmWelford::MeanVarGridDescriptor_MBlock_MPerBlock_NBlock,
+                        typename GridwiseGemmWelford::CountGridDescriptor_MBlock_MPerBlock_NBlock,
                         typename GridwiseGemmWelford::DefaultBlock2ETileMap,
                         has_main_loop>;
 
@@ -643,7 +687,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                                            BetaDataType,
                                                            AccDataType,
                                                            EHGridDesc_M_N,
-                                                           LayernormMeanVarCountGridDesc_M_NBlock,
+                                                           LayernormMeanVarGridDesc_M_NBlock,
+                                                           LayernormCountGridDesc_M_NBlock,
                                                            GammaBetaGridDesc_N,
                                                            HElementwiseOperation>;
 
@@ -667,7 +712,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
                                            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.mean_var_count_grid_desc_mblock_mperblock_nblock_,
+                                           arg.gemm_mean_var_grid_desc_mblock_mperblock_nblock_,
+                                           arg.gemm_count_grid_desc_mblock_mperblock_nblock_,
                                            arg.block_2_etile_map_,
                                            arg.NRaw_);
 
@@ -694,7 +740,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                            arg.p_h_grid_,
                                            arg.e_grid_desc_m_n_,
                                            arg.h_grid_desc_m_n_,
-                                           arg.layernorm_mean_var_count_grid_desc_m_nblock_,
+                                           arg.layernorm_mean_var_grid_desc_m_nblock_,
+                                           arg.layernorm_count_grid_desc_m_nblock_,
                                            arg.gamma_grid_desc_n_,
                                            arg.beta_grid_desc_n_,
                                            numMeanVarCountBlockTileIteration_N,
@@ -738,7 +785,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         workspace_size += gemm_welford_size * sizeof(VarDataType) + 64;
 
         // workspace for welford intermediate count
-        workspace_size += gemm_welford_size * sizeof(int32_t) + 64;
+        workspace_size += pArg_->gemm_nblock_ * sizeof(int32_t) + 64;
 
         return (workspace_size);
     };

@@ -27,7 +27,8 @@ template <typename EDataType,
           typename BetaDataType,
           typename ComputeDataType,
           typename EHGridDesc_M_N,
-          typename MeanVarCountGridDesc_M_NBlock,
+          typename MeanVarGridDesc_M_NBlock,
+          typename CountGridDesc_M_NBlock,
           typename GammaBetaGridDesc_N,
           typename HElementwiseOperation,
           index_t BlockSize,
@@ -95,7 +96,8 @@ struct GridwiseWelfordSecondHalfLayernorm2d
                                HDataType* __restrict__ p_h_grid,
                                const EHGridDesc_M_N& e_grid_desc_m_n,
                                const EHGridDesc_M_N& h_grid_desc_m_n,
-                               const MeanVarCountGridDesc_M_NBlock& mean_var_count_grid_desc_m_n,
+                               const MeanVarGridDesc_M_NBlock& mean_var_grid_desc_m_n,
+                               const CountGridDesc_M_NBlock& count_grid_desc_m_n,
                                const GammaBetaGridDesc_N& gamma_grid_desc_n,
                                const GammaBetaGridDesc_N& beta_grid_desc_n,
                                index_t numMeanVarCountBlockTileIteration_N,
@@ -116,13 +118,13 @@ struct GridwiseWelfordSecondHalfLayernorm2d
             p_e_grid, e_grid_desc_m_n.GetElementSpaceSize());
 
         const auto welford_mean_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_in_welford_mean_grid, mean_var_count_grid_desc_m_n.GetElementSpaceSize());
+            p_in_welford_mean_grid, mean_var_grid_desc_m_n.GetElementSpaceSize());
 
         const auto welford_var_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_in_welford_var_grid, mean_var_count_grid_desc_m_n.GetElementSpaceSize());
+            p_in_welford_var_grid, mean_var_grid_desc_m_n.GetElementSpaceSize());
 
         const auto welford_count_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_in_welford_count_grid, mean_var_count_grid_desc_m_n.GetElementSpaceSize());
+            p_in_welford_count_grid, count_grid_desc_m_n.GetElementSpaceSize());
 
         const auto gamma_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_gamma_grid, gamma_grid_desc_n.GetElementSpaceSize());
@@ -173,7 +175,7 @@ struct GridwiseWelfordSecondHalfLayernorm2d
         auto threadwise_mean_load_m_nblock =
             ThreadwiseTensorSliceTransfer_v2<MeanDataType,
                                              ComputeDataType,
-                                             MeanVarCountGridDesc_M_NBlock,
+                                             MeanVarGridDesc_M_NBlock,
                                              decltype(thread_buffer_desc_m_1),
                                              ThreadBufferLengths_M_1,
                                              ThreadBufferDimAccessOrder,
@@ -181,7 +183,7 @@ struct GridwiseWelfordSecondHalfLayernorm2d
                                              1,
                                              1,
                                              true>(
-                mean_var_count_grid_desc_m_n,
+                mean_var_grid_desc_m_n,
                 make_multi_index(block_global_id * M_BlockTileSize +
                                      thread_m_cluster_id * MThreadSliceSize,
                                  thread_n_cluster_id));
@@ -189,7 +191,7 @@ struct GridwiseWelfordSecondHalfLayernorm2d
         auto threadwise_var_load_m_nblock =
             ThreadwiseTensorSliceTransfer_v2<VarDataType,
                                              ComputeDataType,
-                                             MeanVarCountGridDesc_M_NBlock,
+                                             MeanVarGridDesc_M_NBlock,
                                              decltype(thread_buffer_desc_m_1),
                                              ThreadBufferLengths_M_1,
                                              ThreadBufferDimAccessOrder,
@@ -197,7 +199,7 @@ struct GridwiseWelfordSecondHalfLayernorm2d
                                              1,
                                              1,
                                              true>(
-                mean_var_count_grid_desc_m_n,
+                mean_var_grid_desc_m_n,
                 make_multi_index(block_global_id * M_BlockTileSize +
                                      thread_m_cluster_id * MThreadSliceSize,
                                  thread_n_cluster_id));
@@ -205,7 +207,7 @@ struct GridwiseWelfordSecondHalfLayernorm2d
         auto threadwise_count_load_m_nblock =
             ThreadwiseTensorSliceTransfer_v2<int32_t,
                                              int32_t,
-                                             MeanVarCountGridDesc_M_NBlock,
+                                             CountGridDesc_M_NBlock,
                                              decltype(thread_buffer_desc_m_1),
                                              ThreadBufferLengths_M_1,
                                              ThreadBufferDimAccessOrder,
@@ -213,7 +215,7 @@ struct GridwiseWelfordSecondHalfLayernorm2d
                                              1,
                                              1,
                                              true>(
-                mean_var_count_grid_desc_m_n,
+                count_grid_desc_m_n,
                 make_multi_index(block_global_id * M_BlockTileSize +
                                      thread_m_cluster_id * MThreadSliceSize,
                                  thread_n_cluster_id));
@@ -292,19 +294,19 @@ struct GridwiseWelfordSecondHalfLayernorm2d
         for(index_t reducedTiles = 0; reducedTiles < numMeanVarCountBlockTileIteration_N;
             ++reducedTiles)
         {
-            threadwise_mean_load_m_nblock.Run(mean_var_count_grid_desc_m_n,
+            threadwise_mean_load_m_nblock.Run(mean_var_grid_desc_m_n,
                                               welford_mean_global_val_buf,
                                               thread_buffer_desc_m_1,
                                               make_tuple(I0, I0),
                                               in_welford_mean_thread_buf);
 
-            threadwise_var_load_m_nblock.Run(mean_var_count_grid_desc_m_n,
+            threadwise_var_load_m_nblock.Run(mean_var_grid_desc_m_n,
                                              welford_var_global_val_buf,
                                              thread_buffer_desc_m_1,
                                              make_tuple(I0, I0),
                                              in_welford_var_thread_buf);
 
-            threadwise_count_load_m_nblock.Run(mean_var_count_grid_desc_m_n,
+            threadwise_count_load_m_nblock.Run(count_grid_desc_m_n,
                                                welford_count_global_val_buf,
                                                thread_buffer_desc_m_1,
                                                make_tuple(I0, I0),
@@ -317,11 +319,11 @@ struct GridwiseWelfordSecondHalfLayernorm2d
                                    welford_var_thread_buf,
                                    welford_count_thread_buf);
 
-            threadwise_mean_load_m_nblock.MoveSrcSliceWindow(mean_var_count_grid_desc_m_n,
+            threadwise_mean_load_m_nblock.MoveSrcSliceWindow(mean_var_grid_desc_m_n,
                                                              mean_var_count_thread_copy_step_m_n);
-            threadwise_var_load_m_nblock.MoveSrcSliceWindow(mean_var_count_grid_desc_m_n,
+            threadwise_var_load_m_nblock.MoveSrcSliceWindow(mean_var_grid_desc_m_n,
                                                             mean_var_count_thread_copy_step_m_n);
-            threadwise_count_load_m_nblock.MoveSrcSliceWindow(mean_var_count_grid_desc_m_n,
+            threadwise_count_load_m_nblock.MoveSrcSliceWindow(count_grid_desc_m_n,
                                                               mean_var_count_thread_copy_step_m_n);
         }
 
