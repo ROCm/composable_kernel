@@ -234,7 +234,8 @@ template <typename ALayout,
           index_t LayernormHDstVectorSize,
           index_t LayernormGammaSrcVectorSize,
           index_t LayernormBetaSrcVectorSize,
-          LoopScheduler LoopSched = make_default_loop_scheduler()>
+          LoopScheduler LoopSched     = make_default_loop_scheduler(),
+          PipelineVersion PipelineVer = PipelineVersion::v1>
 struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
 {
     using DeviceOp     = DeviceGemmMultipleDLayernorm_Xdl_CShuffle;
@@ -419,7 +420,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         CShuffleNXdlPerWavePerShuffle,
         PostShuffleThreadClusterSize_M_N,
         PostShuffleScalarPerVector,
-        LoopSched>;
+        LoopSched,
+        PipelineVer>;
 
     using Block2ETileMap = typename GridwiseGemmWelford::DefaultBlock2ETileMap;
 
@@ -1008,6 +1010,12 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
     {
         auto str = std::stringstream();
 
+        std::map<LoopScheduler, std::string> LoopSchedToString{
+            {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
+
+        std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
+                                                                       {PipelineVersion::v2, "v2"}};
+
         // clang-format off
         str << "DeviceGemmMultipleDLayernorm_Xdl_CShuffle"
             << "<"
@@ -1018,7 +1026,11 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
             << AK1 << ", "
             << BK1 << ", "
             << getGemmSpecializationString(GemmSpec)
-            << ">";
+            << ">"
+            << " LoopScheduler: "
+            << LoopSchedToString[LoopSched] << ", "
+            << "PipelineVersion: "
+            << PipelineVersionToString[PipelineVer];
         // clang-format on
 
         return str.str();
