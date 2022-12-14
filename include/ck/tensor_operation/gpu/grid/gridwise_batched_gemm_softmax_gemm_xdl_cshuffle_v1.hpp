@@ -1762,21 +1762,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                  vgrad_grid_buf);
 
             // gemm dP
-            pgrad_acc_thread_buf.Clear();
-#if 0
-            if (hipBlockIdx_x == 0 && hipThreadIdx_x % 32 < 4)
-            {
-                printf("j loop idx %d, tid %zd, clear dP[0:3] = %f, %f, %f, %f\n",
-                       gemm1_k_block_outer_index,
-                       hipThreadIdx_x,
-                       pgrad_acc_thread_buf[I0],
-                       pgrad_acc_thread_buf[I1],
-                       pgrad_acc_thread_buf[I2],
-                       pgrad_acc_thread_buf[I3]);
-            }
-#endif
-            block_sync_lds();
             // assume size K == size O so has main block loop
+            block_sync_lds();
             gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(
                 ygrad_grid_desc_o0_m_o1,
                 a_block_desc_ak0_m_ak1, // reuse
@@ -1793,7 +1780,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                 pgrad_blockwise_gemm,
                 pgrad_acc_thread_buf,
                 num_o_block_main_loop);
-#if 1
+#if 0
             if (hipBlockIdx_x == 0 && hipThreadIdx_x % 32 < 4)
             {
                 printf("j loop idx %d, tid %zd, dP[0:3] = %f, %f, %f, %f\n",
