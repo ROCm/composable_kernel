@@ -1781,7 +1781,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                 ygrad_grid_desc_o0_m_o1,
                 a_block_desc_ak0_m_ak1, // reuse
                 pgrad_gemm_tile_ygrad_blockwise_copy,
-                vgrad_grid_buf,
+                ygrad_grid_buf,
                 a_block_buf,             // reuse
                 a_block_slice_copy_step, // reuse
                 v_grid_desc_o0_n_o1,
