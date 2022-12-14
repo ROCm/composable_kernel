@@ -364,12 +364,29 @@ int run(int argc, char* argv[])
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
         break;
+    case 4:
+        q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<DataType>{1});
+        k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
+        v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
+        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<DataType>{2});
+        break;
+    case 5:
+        q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<DataType>{1});
+        k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
+        v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
+        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<2>{}); // dy[g0, g1, m, o]
+        break;
+    case 6:
+        q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<DataType>{1});
+        k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
+        v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
+        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<3>{}); // dy[g0, g1, m, o]
+        break;
     default:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<DataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
-        // ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<DataType>{2});
-        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<2>{}); // dy[g0, g1, m, o]
+        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<DataType>{1}); // dy[g0, g1, m, o]
     }
 
     // calculate y & log-sum-exp beforehand
