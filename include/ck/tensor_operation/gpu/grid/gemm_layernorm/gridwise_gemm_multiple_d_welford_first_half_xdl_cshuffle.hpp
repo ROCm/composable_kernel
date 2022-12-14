@@ -1030,86 +1030,97 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
                         mean_thread_buf(j), var_thread_buf(j), count_thread_buf(j));
                 });
 
-                constexpr auto thread_welford_desc_I_m_I = make_naive_tensor_descriptor_packed(
-                    make_tuple(I1, Number<PostShuffleThreadSliceSize_M>{}, I1));
+                if(post_shuffle_thread_cluster_idx[I1] == 0)
+                {
+                    constexpr auto thread_welford_desc_I_m_I = make_naive_tensor_descriptor_packed(
+                        make_tuple(I1, Number<PostShuffleThreadSliceSize_M>{}, I1));
 
-                constexpr int shuffleMPerBlock =
-                    c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetLength(I1);
+                    constexpr int shuffleMPerBlock =
+                        c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetLength(I1);
 
-                auto mean_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
-                    AccDataType,
-                    MeanDataType,
-                    decltype(thread_welford_desc_I_m_I),
-                    decltype(mean_var_grid_desc_mblock_mperblock_nblock),
-                    tensor_operation::element_wise::PassThrough,
-                    Sequence<1, PostShuffleThreadSliceSize_M, 1>,
-                    Sequence<0, 1, 2>,
-                    1,
-                    1,
-                    InMemoryDataOperationEnum::Set,
-                    1,
-                    false>{mean_var_grid_desc_mblock_mperblock_nblock,
-                           make_multi_index(block_work_idx[I0], // mblock
-                                            shuffleMPerBlock * i +
-                                                post_shuffle_thread_data_idx_begin[I0], // mperblock
-                                            block_work_idx[I1]),                        // nblock
-                           tensor_operation::element_wise::PassThrough{}};
+                    auto mean_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
+                        AccDataType,
+                        MeanDataType,
+                        decltype(thread_welford_desc_I_m_I),
+                        decltype(mean_var_grid_desc_mblock_mperblock_nblock),
+                        tensor_operation::element_wise::PassThrough,
+                        Sequence<1, PostShuffleThreadSliceSize_M, 1>,
+                        Sequence<0, 1, 2>,
+                        1,
+                        1,
+                        InMemoryDataOperationEnum::Set,
+                        1,
+                        false>{
+                        mean_var_grid_desc_mblock_mperblock_nblock,
+                        make_multi_index(block_work_idx[I0], // mblock
+                                         shuffleMPerBlock * i +
+                                             post_shuffle_thread_data_idx_begin[I0], // mperblock
+                                         block_work_idx[I1]),                        // nblock
+                        tensor_operation::element_wise::PassThrough{}};
 
-                auto var_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
-                    AccDataType,
-                    VarDataType,
-                    decltype(thread_welford_desc_I_m_I),
-                    decltype(mean_var_grid_desc_mblock_mperblock_nblock),
-                    tensor_operation::element_wise::PassThrough,
-                    Sequence<1, PostShuffleThreadSliceSize_M, 1>,
-                    Sequence<0, 1, 2>,
-                    1,
-                    1,
-                    InMemoryDataOperationEnum::Set,
-                    1,
-                    false>{mean_var_grid_desc_mblock_mperblock_nblock,
-                           make_multi_index(block_work_idx[I0], // mblock
-                                            shuffleMPerBlock * i +
-                                                post_shuffle_thread_data_idx_begin[I0], // mperblock
-                                            block_work_idx[I1]),                        // nblock
-                           tensor_operation::element_wise::PassThrough{}};
+                    auto var_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
+                        AccDataType,
+                        VarDataType,
+                        decltype(thread_welford_desc_I_m_I),
+                        decltype(mean_var_grid_desc_mblock_mperblock_nblock),
+                        tensor_operation::element_wise::PassThrough,
+                        Sequence<1, PostShuffleThreadSliceSize_M, 1>,
+                        Sequence<0, 1, 2>,
+                        1,
+                        1,
+                        InMemoryDataOperationEnum::Set,
+                        1,
+                        false>{
+                        mean_var_grid_desc_mblock_mperblock_nblock,
+                        make_multi_index(block_work_idx[I0], // mblock
+                                         shuffleMPerBlock * i +
+                                             post_shuffle_thread_data_idx_begin[I0], // mperblock
+                                         block_work_idx[I1]),                        // nblock
+                        tensor_operation::element_wise::PassThrough{}};
 
-                auto count_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
-                    int32_t,
-                    int32_t,
-                    decltype(thread_welford_desc_I_m_I),
-                    decltype(count_grid_desc_mblock_mperblock_nblock),
-                    tensor_operation::element_wise::PassThrough,
-                    Sequence<1, PostShuffleThreadSliceSize_M, 1>,
-                    Sequence<0, 1, 2>,
-                    1,
-                    1,
-                    InMemoryDataOperationEnum::Set,
-                    1,
-                    false>{count_grid_desc_mblock_mperblock_nblock,
-                           make_multi_index(block_work_idx[I0], // mblock
-                                            shuffleMPerBlock * i +
-                                                post_shuffle_thread_data_idx_begin[I0], // mperblock
-                                            block_work_idx[I1]),                        // nblock
-                           tensor_operation::element_wise::PassThrough{}};
+                    mean_thread_copy_vgpr_to_global.Run(thread_welford_desc_I_m_I,
+                                                        make_tuple(I0, I0, I0),
+                                                        mean_thread_buf,
+                                                        mean_var_grid_desc_mblock_mperblock_nblock,
+                                                        mean_grid_buf);
 
-                mean_thread_copy_vgpr_to_global.Run(thread_welford_desc_I_m_I,
-                                                    make_tuple(I0, I0, I0),
-                                                    mean_thread_buf,
-                                                    mean_var_grid_desc_mblock_mperblock_nblock,
-                                                    mean_grid_buf);
+                    var_thread_copy_vgpr_to_global.Run(thread_welford_desc_I_m_I,
+                                                       make_tuple(I0, I0, I0),
+                                                       var_thread_buf,
+                                                       mean_var_grid_desc_mblock_mperblock_nblock,
+                                                       var_grid_buf);
 
-                var_thread_copy_vgpr_to_global.Run(thread_welford_desc_I_m_I,
-                                                   make_tuple(I0, I0, I0),
-                                                   var_thread_buf,
-                                                   mean_var_grid_desc_mblock_mperblock_nblock,
-                                                   var_grid_buf);
+                    if(i == 0 && block_work_idx[I0] == 0 &&
+                       post_shuffle_thread_data_idx_begin[I0] == 0)
+                    {
+                        auto count_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
+                            int32_t,
+                            int32_t,
+                            decltype(thread_welford_desc_I_m_I),
+                            decltype(count_grid_desc_mblock_mperblock_nblock),
+                            tensor_operation::element_wise::PassThrough,
+                            Sequence<1, PostShuffleThreadSliceSize_M, 1>,
+                            Sequence<0, 1, 2>,
+                            1,
+                            1,
+                            InMemoryDataOperationEnum::Set,
+                            1,
+                            false>{count_grid_desc_mblock_mperblock_nblock,
+                                   make_multi_index(
+                                       block_work_idx[I0], // mblock
+                                       shuffleMPerBlock * i +
+                                           post_shuffle_thread_data_idx_begin[I0], // mperblock
+                                       block_work_idx[I1]),                        // nblock
+                                   tensor_operation::element_wise::PassThrough{}};
 
-                count_thread_copy_vgpr_to_global.Run(thread_welford_desc_I_m_I,
-                                                     make_tuple(I0, I0, I0),
-                                                     count_thread_buf,
-                                                     count_grid_desc_mblock_mperblock_nblock,
-                                                     welford_count_grid_buf);
+                        count_thread_copy_vgpr_to_global.Run(
+                            thread_welford_desc_I_m_I,
+                            make_tuple(I0, I0, I0),
+                            count_thread_buf,
+                            count_grid_desc_mblock_mperblock_nblock,
+                            welford_count_grid_buf);
+                    }
+                }
             });
 
         } // shuffle C + Ds + welford + write out
