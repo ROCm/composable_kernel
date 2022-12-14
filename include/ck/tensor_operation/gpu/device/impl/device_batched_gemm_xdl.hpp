@@ -373,7 +373,8 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
               N01_{N01},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              c_element_op_{c_element_op}
+              c_element_op_{c_element_op},
+              kraw_{K}
         {
             if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
                                            b_grid_desc_k0_n_k1_,
@@ -401,6 +402,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
+        index_t kraw_;
     };
 
     // Invoker
@@ -410,6 +412,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+#if 0
             {
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
                           << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
@@ -422,6 +425,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                 std::cout << "arg.c_grid_desc_m_n_{" << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
             }
+#endif
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                             arg.b_grid_desc_k0_n_k1_,
@@ -528,6 +532,11 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(arg.kraw_ % K1 != 0)
+        {
+            return false;
+        }
+
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
                                            arg.c_grid_desc_m_n_,
