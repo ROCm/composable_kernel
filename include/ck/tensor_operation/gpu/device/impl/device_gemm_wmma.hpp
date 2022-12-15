@@ -196,7 +196,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
     // Gridwise descriptor, mapping to whole given provblem.
     using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
     using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
-    using CGridDesc_M_N = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+    using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_wmma<
@@ -276,8 +276,10 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
         {
-            a_grid_desc_k0_m_k1_ = DeviceGemmWmma_CShuffle::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
-            b_grid_desc_k0_n_k1_ = DeviceGemmWmma_CShuffle::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
+            a_grid_desc_k0_m_k1_ =
+                DeviceGemmWmma_CShuffle::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
+            b_grid_desc_k0_n_k1_ =
+                DeviceGemmWmma_CShuffle::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
             c_grid_desc_m_n_ = DeviceGemmWmma_CShuffle::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             block_2_ctile_map_ =
@@ -289,7 +291,8 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
                                            block_2_ctile_map_))
             {
                 c_grid_desc_mblock_mperblock_nblock_nperblock =
-                    GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n_);
+                    GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                        c_grid_desc_m_n_);
             }
         }
 
@@ -359,13 +362,14 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
                     CDataType,
                     remove_reference_t<DeviceGemmWmma_CShuffle::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmWmma_CShuffle::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
+                    remove_reference_t<
+                        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
-                    true>; // Last Option is W/O 
-                    
+                    true>; // Last Option is W/O
+
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,
                                                   dim3(grid_size),
@@ -391,7 +395,8 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
                     CDataType,
                     remove_reference_t<DeviceGemmWmma_CShuffle::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmWmma_CShuffle::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
+                    remove_reference_t<
+                        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,

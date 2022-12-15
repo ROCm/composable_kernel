@@ -283,10 +283,18 @@ struct wmma_type<WmmaInstr::wmma_i32_16x16x16_iu8,
     }
 };
 
-template <typename src_type_a, typename src_type_b, typename dst_type, index_t MPerWmma, index_t NPerWmma>
+template <typename src_type_a,
+          typename src_type_b,
+          typename dst_type,
+          index_t MPerWmma,
+          index_t NPerWmma>
 struct WmmaSelector
 {
-    template <typename src_type_a_, typename src_type_b_, typename dst_type_, index_t MPerWmma_, index_t NPerWmma_>
+    template <typename src_type_a_,
+              typename src_type_b_,
+              typename dst_type_,
+              index_t MPerWmma_,
+              index_t NPerWmma_>
     static constexpr auto GetWmma();
 
     template <>
@@ -424,13 +432,19 @@ struct WmmaGemm
     __device__ void Run(const FloatA& p_a_wave, const FloatB& p_b_wave, FloatC& p_c_thread) const
     {
         static_assert(
-            (is_same<src_type_a, half_t>::value && is_same<src_type_b, half_t>::value && is_same<dst_type, float>::value) ||
-                (is_same<src_type_a, bhalf_t>::value && is_same<src_type_b, bhalf_t>::value && is_same<dst_type, float>::value) ||
-                (is_same<src_type_a, half_t>::value && is_same<src_type_b, half_t>::value && is_same<dst_type, half_t>::value) ||
-                (is_same<src_type_a, bhalf_t>::value && is_same<src_type_b, bhalf_t>::value && is_same<dst_type, bhalf_t>::value) ||
-                (is_same<src_type_a, int8_t>::value && is_same<src_type_b, int8_t>::value && is_same<dst_type, int32_t>::value)
+            (is_same<src_type_a, half_t>::value && is_same<src_type_b, half_t>::value &&
+             is_same<dst_type, float>::value) ||
+                (is_same<src_type_a, bhalf_t>::value && is_same<src_type_b, bhalf_t>::value &&
+                 is_same<dst_type, float>::value) ||
+                (is_same<src_type_a, half_t>::value && is_same<src_type_b, half_t>::value &&
+                 is_same<dst_type, half_t>::value) ||
+                (is_same<src_type_a, bhalf_t>::value && is_same<src_type_b, bhalf_t>::value &&
+                 is_same<dst_type, bhalf_t>::value) ||
+                (is_same<src_type_a, int8_t>::value && is_same<src_type_b, int8_t>::value &&
+                 is_same<dst_type, int32_t>::value)
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-                || (is_same<src_type_a, int4_t>::value && is_same<src_type_b, int4_t>::value && is_same<dst_type, int32_t>::value)
+                || (is_same<src_type_a, int4_t>::value && is_same<src_type_b, int4_t>::value &&
+                    is_same<dst_type, int32_t>::value)
 #endif
                 ,
             "base type couple must be (half, float), (bhalf, float), (half, half), (bhalf, bhalf), "
@@ -479,7 +493,8 @@ struct WmmaGemm
         return TransposeC ? CIndex{n_offset, m_offset} : CIndex{m_offset, n_offset};
     }
 
-    static constexpr auto wmma       = WmmaSelector<src_type_a, src_type_b, dst_type, MPerWmma, NPerWmma>{};
+    static constexpr auto wmma =
+        WmmaSelector<src_type_a, src_type_b, dst_type, MPerWmma, NPerWmma>{};
     static constexpr auto wmma_instr = wmma.selected_wmma;
 
     __host__ __device__ static constexpr auto

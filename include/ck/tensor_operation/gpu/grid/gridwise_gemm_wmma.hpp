@@ -218,7 +218,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
         constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
             b_block_desc_k0perblock_nperblock_k1.GetElementSpaceSize(), max_lds_align);
 
-        return (a_block_space_size_aligned * sizeof(FloatA) + b_block_space_size_aligned * sizeof(FloatB));
+        return (a_block_space_size_aligned * sizeof(FloatA) +
+                b_block_space_size_aligned * sizeof(FloatB));
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -305,19 +306,18 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1))>;
 
     template <bool HasMainKBlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
-    __device__ static void
-    Run(const FloatA* __restrict__ p_a_grid,
-        const FloatB* __restrict__ p_b_grid,
-        FloatC* __restrict__ p_c_grid,
-        void* __restrict__ p_shared,
-        const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
-        const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
-        const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
-            c_grid_desc_mblock_mperblock_nblock_nperblock,
-        const AElementwiseOperation& a_element_op,
-        const BElementwiseOperation& b_element_op,
-        const CElementwiseOperation& c_element_op,
-        const Block2CTileMap& block_2_ctile_map)
+    __device__ static void Run(const FloatA* __restrict__ p_a_grid,
+                               const FloatB* __restrict__ p_b_grid,
+                               FloatC* __restrict__ p_c_grid,
+                               void* __restrict__ p_shared,
+                               const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
+                               const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
+                               const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
+                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const AElementwiseOperation& a_element_op,
+                               const BElementwiseOperation& b_element_op,
+                               const CElementwiseOperation& c_element_op,
+                               const Block2CTileMap& block_2_ctile_map)
     {
         // clang-format off
 /*******************************************************************************/
