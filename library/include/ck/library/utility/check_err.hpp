@@ -65,7 +65,6 @@ check_err(const Range& out,
     }
     if(!res)
     {
-        std::cerr << "err count: " << err_count << std::endl;
         std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
@@ -113,7 +112,6 @@ check_err(const Range& out,
     }
     if(!res)
     {
-        std::cerr << "err count: " << err_count << std::endl;
         std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
@@ -160,7 +158,6 @@ check_err(const Range& out,
     }
     if(!res)
     {
-        std::cerr << "err count: " << err_count << std::endl;
         std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
@@ -212,7 +209,6 @@ check_err(const Range& out,
     }
     if(!res)
     {
-        std::cerr << "err count: " << err_count << std::endl;
         std::cerr << "max err: " << max_err << std::endl;
     }
     return res;
