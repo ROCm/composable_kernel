@@ -177,27 +177,25 @@ struct AddAdd
 struct AddMultiply
 {
     template <typename E, typename C, typename D0, typename D1>
-    __host__ __device__ void operator()(E& e, const C& c, const D0& d0, const D1& d1) const
+    __host__ __device__ void operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
+
+    template <>
+    __host__ __device__ void operator()<half_t, half_t, half_t, half_t>(half_t& e,
+                                                                        const half_t& c,
+                                                                        const half_t& d0,
+                                                                        const half_t& d1) const
     {
-        // Only support floating so far
-        static_assert(is_same<E, half_t>::value || is_same<E, float>::value ||
-                          is_same<E, double>::value,
-                      "Data type is not supported by this operation!");
-
-        static_assert(is_same<C, half_t>::value || is_same<C, float>::value ||
-                          is_same<C, double>::value,
-                      "Data type is not supported by this operation!");
-
-        static_assert(is_same<D0, half_t>::value || is_same<D0, float>::value ||
-                          is_same<D0, double>::value,
-                      "Data type is not supported by this operation!");
-
-        static_assert(is_same<D1, half_t>::value || is_same<D1, float>::value ||
-                          is_same<D1, double>::value,
-                      "Data type is not supported by this operation!");
-
-        const C y = (c + type_convert<C>(d0)) * type_convert<C>(d1);
-        e         = type_convert<E>(y);
+        const half_t y = c + d0 + d1;
+        e              = y;
+    }
+    template <>
+    __host__ __device__ void operator()<half_t, float, half_t, half_t>(half_t& e,
+                                                                       const float& c,
+                                                                       const half_t& d0,
+                                                                       const half_t& d1) const
+    {
+        const half_t y = type_convert<half_t>(c) + d0 + d1;
+        e              = y;
     }
 };
 
