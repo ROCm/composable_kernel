@@ -158,6 +158,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
             if constexpr(idx_1d.value != num_access - 1)
             {
                 constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
+
                 move_tensor_coordinate(
                     dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
             }
