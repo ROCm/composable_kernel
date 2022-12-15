@@ -2,9 +2,10 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/device_elementwise_extension.hpp"
+#include "ck/utility/tuple.hpp"
 #include "ck/utility/data_type.hpp"
 
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl.hpp"
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
@@ -16,7 +17,7 @@ namespace instance {
 using F16 = ck::half_t;
 using F32 = float;
 
-using Normalize = ck::tensor_operation::device::NormalizeInInfer;
+using Normalize = ck::tensor_operation::element_wise::NormalizeInInfer;
 
 // clang-format off
 template <index_t Rank>
@@ -41,7 +42,8 @@ using device_batchnorm_infer_f16_instances =
 // clang-format on
 
 void add_device_batchnorm_infer_rank_4_f16_instances(
-    std::vector<DeviceElementwiseForBatchNormInferPtr<F16, F16, F16, F16, F32, 4>>& instances)
+    std::vector<std::unique_ptr<
+        DeviceElementwise<Tuple<F16, F32, F32, F16, F16>, Tuple<F16>, Normalize, 4>>>& instances)
 {
     add_device_operation_instances(instances, device_batchnorm_infer_f16_instances<4>{});
 }

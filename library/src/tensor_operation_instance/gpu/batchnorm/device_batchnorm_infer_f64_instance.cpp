@@ -3,8 +3,8 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/tuple.hpp"
-#include "ck/tensor_operation/gpu/device/device_elementwise_extension.hpp"
 
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl.hpp"
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
@@ -15,7 +15,7 @@ namespace instance {
 
 using F64 = double;
 
-using Normalize = ck::tensor_operation::device::NormalizeInInfer;
+using Normalize = ck::tensor_operation::element_wise::NormalizeInInfer;
 
 // clang-format off
 template <index_t Rank>
@@ -35,7 +35,8 @@ using device_batchnorm_infer_f64_instances =
 // clang-format on
 
 void add_device_batchnorm_infer_rank_4_f64_instances(
-    std::vector<DeviceElementwiseForBatchNormInferPtr<F64, F64, F64, F64, F64, 4>>& instances)
+    std::vector<std::unique_ptr<
+        DeviceElementwise<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, 4>>>& instances)
 {
     add_device_operation_instances(instances, device_batchnorm_infer_f64_instances<4>{});
 }

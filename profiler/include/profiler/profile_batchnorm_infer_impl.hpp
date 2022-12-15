@@ -13,7 +13,6 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/tensor_operation_instance/gpu/batchnorm_infer.hpp"
-#include "ck/tensor_operation/gpu/device/device_elementwise_extension.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_infer.hpp"
 
 namespace ck {
@@ -165,16 +164,14 @@ bool profile_batchnorm_infer_impl(int do_verification,
         i++;
     };
 
-    using Normalize = ck::tensor_operation::device::NormalizeInInfer;
+    using Normalize = ck::tensor_operation::element_wise::NormalizeInInfer;
 
     // add device batchnorm-infer instances
-    using DeviceOp =
-        ck::tensor_operation::device::DeviceElementwiseForBatchNormInfer<XDataType,
-                                                                         YDataType,
-                                                                         ScaleDataType,
-                                                                         BiasDataType,
-                                                                         MeanVarDataType,
-                                                                         Rank>;
+    using DeviceOp = ck::tensor_operation::device::DeviceElementwise<
+        ck::Tuple<XDataType, MeanVarDataType, MeanVarDataType, ScaleDataType, BiasDataType>,
+        ck::Tuple<YDataType>,
+        Normalize,
+        Rank>;
 
     // get device op instances
     const auto instance_ptrs =

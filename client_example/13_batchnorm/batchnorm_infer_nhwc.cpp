@@ -8,9 +8,7 @@
 #include <vector>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/device_reduce.hpp"
-#include "ck/tensor_operation/gpu/device/device_elementwise_extension.hpp"
-
+#include "ck/utility/tuple.hpp"
 #include "ck/library/tensor_operation_instance/gpu/batchnorm_infer.hpp"
 
 using XDataType       = float;
@@ -81,13 +79,11 @@ int main(int argc, char* argv[])
         i++;
     };
 
-    using DeviceOp =
-        ck::tensor_operation::device::DeviceElementwiseForBatchNormInfer<XDataType,
-                                                                         YDataType,
-                                                                         ScaleDataType,
-                                                                         BiasDataType,
-                                                                         MeanVarDataType,
-                                                                         Rank>;
+    using DeviceOp = ck::tensor_operation::device::DeviceElementwise<
+        ck::Tuple<XDataType, MeanVarDataType, MeanVarDataType, ScaleDataType, BiasDataType>,
+        ck::Tuple<YDataType>,
+        Normalize,
+        Rank>;
 
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
