@@ -201,7 +201,8 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_wmma<
         BlockSize,
-        ADataType, // TODO: distinguish A/B datatype
+        ADataType,
+        BDataType,
         AccDataType,
         CShuffleDataType,
         CDataType,
@@ -353,7 +354,8 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
             {
                 const auto kernel = kernel_gemm_wmma<
                     GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
+                    ADataType,
+                    BDataType,
                     CDataType,
                     remove_reference_t<DeviceGemmWmma_CShuffle::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmWmma_CShuffle::BGridDesc_K0_N_K1>,
@@ -384,7 +386,8 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
             {
                 const auto kernel = kernel_gemm_wmma<
                     GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
+                    ADataType,
+                    BDataType,
                     CDataType,
                     remove_reference_t<DeviceGemmWmma_CShuffle::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmWmma_CShuffle::BGridDesc_K0_N_K1>,

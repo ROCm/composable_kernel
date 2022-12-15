@@ -128,12 +128,10 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
-        // printf("src_access_lengths: %d, %d, %d\n", (src_access_lengths[Number<0>{}])(), src_access_lengths[Number<1>{}](), src_access_lengths[Number<2>{}]());
         constexpr auto src_dim_access_order = SrcDimAccessOrder{};
 
         constexpr auto ordered_src_access_lengths =
             container_reorder_given_new2old(src_access_lengths, src_dim_access_order);
-        // printf("ordered_src_access_lengths: %d, %d, %d\n", (ordered_src_access_lengths[Number<0>{}])(), ordered_src_access_lengths[Number<1>{}](), ordered_src_access_lengths[Number<2>{}]());
 
         // make forward steps
         const auto src_forward_steps = generate_tuple(
@@ -210,7 +208,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid)};
 
             // apply SrcElementwiseOperation on src_vector_container
-            // debug_hexprinter(0xffffffff, src_coord_.GetOffset());
             static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
                 SrcData src_v;
 

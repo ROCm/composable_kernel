@@ -283,51 +283,51 @@ struct wmma_type<WmmaInstr::wmma_i32_16x16x16_iu8,
     }
 };
 
-template <typename src_type, typename dst_type, index_t MPerWmma, index_t NPerWmma>
+template <typename src_type_a, typename src_type_b, typename dst_type, index_t MPerWmma, index_t NPerWmma>
 struct WmmaSelector
 {
-    template <typename src_type_, typename dst_type_, index_t MPerWmma_, index_t NPerWmma_>
+    template <typename src_type_a_, typename src_type_b_, typename dst_type_, index_t MPerWmma_, index_t NPerWmma_>
     static constexpr auto GetWmma();
 
     template <>
-    static constexpr auto GetWmma<half_t, float, 16, 16>()
+    static constexpr auto GetWmma<half_t, half_t, float, 16, 16>()
     {
         return WmmaInstr::wmma_f32_16x16x16_f16;
     }
 
     template <>
-    static constexpr auto GetWmma<bhalf_t, float, 16, 16>()
+    static constexpr auto GetWmma<bhalf_t, bhalf_t, float, 16, 16>()
     {
         return WmmaInstr::wmma_f32_16x16x16_bf16;
     }
 
     template <>
-    static constexpr auto GetWmma<half_t, half_t, 16, 16>()
+    static constexpr auto GetWmma<half_t, half_t, half_t, 16, 16>()
     {
         return WmmaInstr::wmma_f16_16x16x16_f16;
     }
 
     template <>
-    static constexpr auto GetWmma<bhalf_t, bhalf_t, 16, 16>()
+    static constexpr auto GetWmma<bhalf_t, bhalf_t, bhalf_t, 16, 16>()
     {
         return WmmaInstr::wmma_bf16_16x16x16_bf16;
     }
 
     template <>
-    static constexpr auto GetWmma<int8_t, float, 16, 16>()
+    static constexpr auto GetWmma<int8_t, int8_t, int, 16, 16>()
     {
         return WmmaInstr::wmma_i32_16x16x16_iu8;
     }
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     template <>
-    static constexpr auto GetWmma<int4_t, float, 16, 16>()
+    static constexpr auto GetWmma<int4_t, int, 16, 16>()
     {
         return WmmaInstr::wmma_i32_16x16x16_iu4;
     }
 #endif
     // get_warp_size do not return the correct wavesize, hardcode to 32 as workaround
     static constexpr auto selected_wmma =
-        wmma_type<GetWmma<src_type, dst_type, MPerWmma, NPerWmma>(), Number<32>{}>{};
+        wmma_type<GetWmma<src_type_a, src_type_b, dst_type, MPerWmma, NPerWmma>(), Number<32>{}>{};
 
     __host__ __device__ constexpr WmmaSelector()
     {
@@ -344,7 +344,8 @@ struct WmmaSelector
     }
 };
 
-template <typename src_type,
+template <typename src_type_a,
+          typename src_type_b,
           typename dst_type,
           index_t MPerWmma,
           index_t NPerWmma,
@@ -412,46 +413,6 @@ struct WmmaGemm
                        Sequence<5>{}));
     }
 
-    // Per-Pixel write
-    template <typename CDesc_MBlockxRepeat_MWave_MPerWMMA_NBlockxRepeat_NWave_NPerWMMA>
-    __host__ __device__ static constexpr auto
-    MakeCDesc_MBlockxRepeat_MWave_MSubGroup_MAccVgprs_NBlockxRepeat_NWave_NThreadPerSubGroup(
-        const CDesc_MBlockxRepeat_MWave_MPerWMMA_NBlockxRepeat_NWave_NPerWMMA&
-            c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma)
-    {
-        const auto MBlockxRepeat =
-            c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I0);
-        const auto NBlockxRepeat =
-            c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I3);
-        const auto MWave =
-            c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I1);
-        const auto NWave =
-            c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I4);
-
-        return transform_tensor_descriptor(
-            c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma,
-            make_tuple(
-                make_pass_through_transform(MBlockxRepeat),
-                make_pass_through_transform(MWave),
-                make_unmerge_transform(make_tuple(Number<wmma_instr.num_subgroups>{},
-                                                  Number<wmma_instr.num_acc_vgprs_per_wave>{})),
-                make_pass_through_transform(NBlockxRepeat),
-                make_pass_through_transform(NWave),
-                make_pass_through_transform(Number<wmma_instr.num_thread_per_subgroups>{})),
-            make_tuple(Sequence<0>{},
-                       Sequence<1>{},
-                       Sequence<2>{},
-                       Sequence<3>{},
-                       Sequence<4>{},
-                       Sequence<5>{}),
-            make_tuple(Sequence<0>{},
-                       Sequence<1>{},
-                       Sequence<2, 3>{},
-                       Sequence<4>{},
-                       Sequence<5>{},
-                       Sequence<6>{}));
-    }
-
     __device__ static constexpr index_t GetRegSizePerWmma()
     {
         return wmma_instr.num_acc_vgprs_per_wave;
@@ -463,13 +424,13 @@ struct WmmaGemm
     __device__ void Run(const FloatA& p_a_wave, const FloatB& p_b_wave, FloatC& p_c_thread) const
     {
         static_assert(
-            (is_same<src_type, half_t>::value && is_same<dst_type, float>::value) ||
-                (is_same<src_type, bhalf_t>::value && is_same<dst_type, float>::value) ||
-                (is_same<src_type, half_t>::value && is_same<dst_type, half_t>::value) ||
-                (is_same<src_type, bhalf_t>::value && is_same<dst_type, bhalf_t>::value) ||
-                (is_same<src_type, int8_t>::value && is_same<dst_type, int32_t>::value)
+            (is_same<src_type_a, half_t>::value && is_same<src_type_b, half_t>::value && is_same<dst_type, float>::value) ||
+                (is_same<src_type_a, bhalf_t>::value && is_same<src_type_b, bhalf_t>::value && is_same<dst_type, float>::value) ||
+                (is_same<src_type_a, half_t>::value && is_same<src_type_b, half_t>::value && is_same<dst_type, half_t>::value) ||
+                (is_same<src_type_a, bhalf_t>::value && is_same<src_type_b, bhalf_t>::value && is_same<dst_type, bhalf_t>::value) ||
+                (is_same<src_type_a, int8_t>::value && is_same<src_type_b, int8_t>::value && is_same<dst_type, int32_t>::value)
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-                || (is_same<src_type, int4_t>::value && is_same<dst_type, int32_t>::value)
+                || (is_same<src_type_a, int4_t>::value && is_same<src_type_b, int4_t>::value && is_same<dst_type, int32_t>::value)
 #endif
                 ,
             "base type couple must be (half, float), (bhalf, float), (half, half), (bhalf, bhalf), "
@@ -518,7 +479,7 @@ struct WmmaGemm
         return TransposeC ? CIndex{n_offset, m_offset} : CIndex{m_offset, n_offset};
     }
 
-    static constexpr auto wmma       = WmmaSelector<src_type, dst_type, MPerWmma, NPerWmma>{};
+    static constexpr auto wmma       = WmmaSelector<src_type_a, src_type_b, dst_type, MPerWmma, NPerWmma>{};
     static constexpr auto wmma_instr = wmma.selected_wmma;
 
     __host__ __device__ static constexpr auto
