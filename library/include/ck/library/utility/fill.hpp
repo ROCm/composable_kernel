@@ -114,23 +114,5 @@ struct FillConstant
     }
 };
 
-template <typename T>
-struct FillMNID
-{
-    T step_{0.1};
-    int k_num_{32};
-    int mn_num_{128};
-
-    template <typename ForwardIter>
-    void operator()(ForwardIter first, ForwardIter last) const
-    {
-        std::generate(first, last, [=, iter = 0]() mutable {
-            auto tmp = ((iter/k_num_) % mn_num_ ) * step_;
-            iter ++;
-            return tmp;
-        });
-    }
-};
-
 } // namespace utils
 } // namespace ck

@@ -96,7 +96,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
           src_element_op_(src_element_op),
           dst_element_op_(dst_element_op)
     {
-        // printf("global desc: %s\n", __PRETTY_FUNCTION__);
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
@@ -128,6 +127,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
+
         constexpr auto src_dim_access_order = SrcDimAccessOrder{};
 
         constexpr auto ordered_src_access_lengths =
