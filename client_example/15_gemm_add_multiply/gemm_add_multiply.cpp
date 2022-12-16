@@ -18,12 +18,12 @@ using F32 = float;
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
-using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using AddMultiply = ck::tensor_operation::element_wise::AddMultiply;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
-using CDEElementOp = AddAddFastGelu;
+using CDEElementOp = AddMultiply;
 
 using ADataType  = F16;
 using BDataType  = F16;
@@ -110,18 +110,18 @@ int main(int argc, char* argv[])
                                       f_matrix_space_size(M, N, StrideD1, D1Layout{}));
     SimpleDeviceMem e_device_buf(sizeof(EDataType) * f_matrix_space_size(M, N, StrideE, ELayout{}));
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleD<
-        ALayout,
-        BLayout,
-        ck::Tuple<D0Layout, D1Layout>,
-        ELayout,
-        ADataType,
-        BDataType,
-        ck::Tuple<D0DataType, D1DataType>,
-        EDataType,
-        ck::tensor_operation::element_wise::PassThrough,
-        ck::tensor_operation::element_wise::PassThrough,
-        ck::tensor_operation::element_wise::AddMultiply>;
+    using DeviceOp =
+        ck::tensor_operation::device::DeviceGemmMultipleD<ALayout,
+                                                          BLayout,
+                                                          ck::Tuple<D0Layout, D1Layout>,
+                                                          ELayout,
+                                                          ADataType,
+                                                          BDataType,
+                                                          ck::Tuple<D0DataType, D1DataType>,
+                                                          EDataType,
+                                                          AElementOp,
+                                                          BElementOp,
+                                                          CDEElementOp>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
