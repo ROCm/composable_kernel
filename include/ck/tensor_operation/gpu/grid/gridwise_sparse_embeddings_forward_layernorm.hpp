@@ -206,7 +206,7 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
 
                 constexpr auto mean_var_offset =
                     mean_var_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_));
-
+                auto divisor = 1 / __builtin_amdgcn_sqrtf(var_thread_buf(Number<mean_var_offset>{}) + epsilon);
                 static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec_) {
                     constexpr auto register_offset = thread_buf_desc.CalculateOffset(
                         make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
@@ -214,8 +214,7 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
                         gamma_beta_buf_desc.CalculateOffset(make_tuple(i_row_sub_, i_row_vec_));
 
                     auto acc_val = acc_thread_buf[Number<register_offset>{}];
-                    acc_val      = (acc_val - mean_thread_buf(Number<mean_var_offset>{})) /
-                              sqrt(var_thread_buf(Number<mean_var_offset>{}) + epsilon);
+                    acc_val = (acc_val - mean_thread_buf(Number<mean_var_offset>{})) * divisor;
                     acc_val = acc_val * gamma_thread_buf[Number<gamma_beta_offset>{}] +
                               beta_thread_buf[Number<gamma_beta_offset>{}];
 
