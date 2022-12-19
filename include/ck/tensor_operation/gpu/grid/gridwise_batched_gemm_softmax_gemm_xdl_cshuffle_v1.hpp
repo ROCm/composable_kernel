@@ -583,7 +583,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             const auto N    = k_grid_desc_k0_n_k1.GetLength(I1);
             const auto K_K1 = k_grid_desc_k0_n_k1.GetLength(I2);
 
-            constexpr auto K_N1 = BK1;
+            constexpr auto K_N1 = B1K1;
             const auto K_N0     = N / K_N1;
 
             const auto k_grid_desc_n0_k_n1 = transform_tensor_descriptor(
@@ -1998,7 +1998,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
                 qgrad_gemm_tile_k_blockwise_copy.RunWrite(b1_block_desc_bk0_n_bk1, b1_block_buf);
 #if 0
-                if(hipThreadIdx_x == 0 && hipBlockIdx_x == 0) printf("lds dQ gemm K matrix\n");
+                if(hipThreadIdx_x == 0 && hipBlockIdx_x == 0) printf("inner j loop idx %d, lds dQ gemm K matrix =", i.value);
                 if(hipBlockIdx_x == 0)
                 {
                     debug::print_shared(b1_block_buf.p_data_,
@@ -2016,7 +2016,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                             a1_thread_desc_k0_m_k1,
                             make_tuple(I0, I0, I0),
                             a1_thread_buf);
-#if 0
+#if 1
                         if(hipBlockIdx_x == 0 && hipThreadIdx_x % 32 < 4)
                         {
                             printf("inner j loop idx %d, tid %zd, dS downcast[0:3] = %f, %f, %f, %f\n",
