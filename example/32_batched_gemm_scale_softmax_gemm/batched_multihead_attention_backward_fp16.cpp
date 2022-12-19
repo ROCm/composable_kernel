@@ -104,7 +104,7 @@ using DeviceGemmInstance =
         TensorSpecY,
         1,
         256,
-        256,         // MPerBlock
+        128,         // MPerBlock
         128,         // NPerBlock
         32,          // KPerBlock
         64,          // Gemm1NPerBlock
@@ -114,7 +114,7 @@ using DeviceGemmInstance =
         2,           // B1K1
         32,          // MPerXDL
         32,          // NPerXDL
-        2,           // MXdlPerWave
+        1,           // MXdlPerWave
         4,           // NXdlPerWave
         2,           // Gemm1NXdlPerWave
         S<4, 64, 1>, // ABlockTransfer
@@ -375,18 +375,34 @@ int run(int argc, char* argv[])
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<2>{}); // dy[g0, g1, m, o]
+        // dO dot O = [0; 1; 2; ...]
         break;
     case 6:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<DataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<3>{}); // dy[g0, g1, m, o]
+        // assume mnko = 256
+        // P = softmax(QK) = 0.0039 * ones
+        // O = P V = 0.0039 * ones
+        // dP = dO V = [0, 1, 2, ...; 0, 1, 2, ...; ...]
+        // dO dot O = [127.5; ...]
+        // dS = P * (dP - dO dot O)
+        //
         break;
     default:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<DataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<DataType>{1}); // dy[g0, g1, m, o]
+        // assume mnko = 256
+        // P = softmax(QK) = 0.0039 * ones
+        // O = P V = 0.0039 * ones
+        // dP = dO V = ones
+        // dS = P * (dP - (dO dot O))
+        //    = 0.0039 * ones * (ones - 0.0039*256)
+        //    = 0.0039 * ones * (ones - 1)
+        //    = 0
     }
 
     // calculate y & log-sum-exp beforehand
