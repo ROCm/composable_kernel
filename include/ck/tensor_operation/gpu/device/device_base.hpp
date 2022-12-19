@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <string>
+#include <sstream>
 
 #include "ck/stream_config.hpp"
 
@@ -45,6 +46,17 @@ struct BaseOperator
 
     virtual bool IsSupportedArgument(const BaseArgument*) { return false; }
     virtual std::string GetTypeString() const { return ""; }
+
+    virtual std::string GetTypeIdName() const { return typeid(*this).name(); }
+
+    virtual std::string GetTypeIdHashCode() const
+    {
+        std::ostringstream oss;
+
+        oss << std::hex << typeid(*this).hash_code();
+
+        return oss.str();
+    };
 
     virtual size_t GetWorkSpaceSize(const BaseArgument*) const { return 0; }
 
