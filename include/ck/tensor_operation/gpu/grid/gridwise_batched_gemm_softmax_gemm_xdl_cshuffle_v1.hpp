@@ -487,7 +487,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             const auto M1 = ygrad_grid_desc_m0_o_m1.GetLength(I2);
 
             constexpr auto Y_O1 = AK1;
-            const auto Y_O0 = O / Y_O1;
+            const auto Y_O0     = O / Y_O1;
 
             const auto ygrad_grid_desc_o0_m_o1 = transform_tensor_descriptor(
                 ygrad_grid_desc_m0_o_m1,
@@ -508,7 +508,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             const auto N1 = v_grid_desc_n0_o_n1.GetLength(I2);
 
             constexpr auto V_O1 = BK1;
-            const auto V_O0 = O / V_O1;
+            const auto V_O0     = O / V_O1;
 
             const auto v_grid_desc_o0_n_o1 = transform_tensor_descriptor(
                 v_grid_desc_n0_o_n1,
@@ -1414,7 +1414,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                 tensor_operation::element_wise::PassThrough{});
 
         auto pgrad_blockwise_gemm = typename PGradGemmTile_M_N_O::BlockwiseGemm{};
-        auto pgrad_thread_buf = pgrad_blockwise_gemm.GetCThreadBuffer();
+        auto pgrad_thread_buf     = pgrad_blockwise_gemm.GetCThreadBuffer();
         const auto pgrad_gemm_tile_ygrad_block_reset_copy_step =
             make_multi_index(-ygrad_grid_desc_o0_m_o1.GetLength(I0), 0, 0);
         const auto pgrad_gemm_tile_v_block_reset_copy_step =
