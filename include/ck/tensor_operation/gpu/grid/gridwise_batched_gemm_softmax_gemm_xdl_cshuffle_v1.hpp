@@ -1346,7 +1346,6 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                           // per-thread LSE data and y_dot_ygrad is
                                                           // tiled the same way
 
-        // TODO ANT: dP Gemm can reuse first blockwise gemm and pipeline
         const auto ygrad_grid_desc_o0_m_o1 =
             PGradGemmTile_M_N_O::MakeYGradGridDesc_O0_M_O1(ygrad_grid_desc_m0_o_m1);
         const auto v_grid_desc_o0_n_o1 =
@@ -1415,7 +1414,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                 tensor_operation::element_wise::PassThrough{});
 
         auto pgrad_blockwise_gemm = typename PGradGemmTile_M_N_O::BlockwiseGemm{};
-        auto pgrad_acc_thread_buf = pgrad_blockwise_gemm.GetCThreadBuffer();
+        auto pgrad_thread_buf = pgrad_blockwise_gemm.GetCThreadBuffer();
         const auto pgrad_gemm_tile_ygrad_block_reset_copy_step =
             make_multi_index(-ygrad_grid_desc_o0_m_o1.GetLength(I0), 0, 0);
         const auto pgrad_gemm_tile_v_block_reset_copy_step =
@@ -1762,7 +1761,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                  vgrad_grid_buf);
 
             // gemm dP
-            // assume size K == size O so has main block loop
+            // assume size K == size O so HasMainKBlockLoop is the same
             block_sync_lds();
             gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(
                 ygrad_grid_desc_o0_m_o1,
@@ -1778,7 +1777,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                 b_block_buf,             // reuse
                 b_block_slice_copy_step, // reuse
                 pgrad_blockwise_gemm,
-                pgrad_acc_thread_buf,
+                pgrad_thread_buf,
                 num_o_block_main_loop);
 #if 0
             if (hipBlockIdx_x == 0 && hipThreadIdx_x % 32 < 4)
@@ -1786,12 +1785,43 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                 printf("j loop idx %d, tid %zd, dP[0:3] = %f, %f, %f, %f\n",
                        gemm1_k_block_outer_index,
                        hipThreadIdx_x,
-                       pgrad_acc_thread_buf[I0],
-                       pgrad_acc_thread_buf[I1],
-                       pgrad_acc_thread_buf[I2],
-                       pgrad_acc_thread_buf[I3]);
+                       pgrad_thread_buf[I0],
+                       pgrad_thread_buf[I1],
+                       pgrad_thread_buf[I2],
+                       pgrad_thread_buf[I3]);
             }
 #endif
+
+            // calculate dS from dP
+            auto& sgrad_thread_buf = pgrad_thread_buf;
+            constexpr auto pgrad_thread_tile_iterator =
+                pgrad_blockwise_gemm.MakeCThreadTileIterator();
+            constexpr auto pgrad_thread_idx_to_m_n_adaptor =
+                pgrad_blockwise_gemm.MakeCThreadIndexAdaptor8DTo2D();
+            static_for<0, pgrad_thread_tile_iterator.GetNumOfAccess(), 1>{}([&](auto i) {
+                constexpr auto pgrad_thread_idx = pgrad_thread_tile_iterator.GetIndex(i);
+                constexpr auto m =
+                    pgrad_thread_idx_to_m_n_adaptor.CalculateBottomIndex(pgrad_thread_idx)[I0];
+                constexpr auto n =
+                    pgrad_thread_idx_to_m_n_adaptor.CalculateBottomIndex(pgrad_thread_idx)[I1];
+                // dS and P has same thread buf layout
+                sgrad_thread_buf(i) =
+                    acc_thread_buf[i] * (pgrad_thread_buf[i] * y_dot_ygrad_thread_buf[Number<m>{}]);
+            });
+
+#if 0
+            if (hipBlockIdx_x == 0 && hipThreadIdx_x % 32 < 4)
+            {
+                printf("j loop idx %d, tid %zd, dS[0:3] = %f, %f, %f, %f\n",
+                       gemm1_k_block_outer_index,
+                       hipThreadIdx_x,
+                       sgrad_thread_buf[I0],
+                       sgrad_thread_buf[I1],
+                       sgrad_thread_buf[I2],
+                       sgrad_thread_buf[I3]);
+            }
+#endif
+
             // move slice window
             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_ak0_m_ak1,
                                                 a_block_reset_copy_step); // rewind K
