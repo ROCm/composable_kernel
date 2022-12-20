@@ -10,13 +10,13 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_layernorm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gemm_layernorm/gridwise_gemm_multiple_d_welford_first_half_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/grid/gemm_layernorm/gridwise_welford_second_half_layernorm2d.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
-#include "device_base.hpp"
 
 namespace ck {
 
@@ -236,7 +236,21 @@ template <typename ALayout,
           index_t LayernormBetaSrcVectorSize,
           LoopScheduler LoopSched     = make_default_loop_scheduler(),
           PipelineVersion PipelineVer = PipelineVersion::v1>
-struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
+struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
+    : public DeviceGemmMultipleDLayernorm<ALayout,
+                                          BLayout,
+                                          DsLayout,
+                                          HLayout,
+                                          ADataType,
+                                          BDataType,
+                                          DsDataType,
+                                          GammaDataType,
+                                          BetaDataType,
+                                          HDataType,
+                                          AElementwiseOperation,
+                                          BElementwiseOperation,
+                                          CDEElementwiseOperation,
+                                          HElementwiseOperation>
 {
     using DeviceOp     = DeviceGemmMultipleDLayernorm_Xdl_CShuffle;
     using ELayout      = HLayout;
@@ -464,7 +478,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                  index_t StrideB,
                  std::array<index_t, NumDTensor> StrideDs,
                  index_t StrideH,
-                 AccDataType epsilon,
+                 double epsilon,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CDEElementwiseOperation cde_element_op,
@@ -505,7 +519,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
               NRaw_{NRaw},
               KRaw_{KRaw},
               gemm_nblock_{math::integer_divide_ceil(NRaw, NPerBlock)},
-              epsilon_{epsilon}
+              epsilon_{static_cast<AccDataType>(epsilon)}
         {
             gemm_mean_var_grid_desc_m_nblock_ =
                 DeviceOp::MakeMeanVarDescriptor_M_N<Sequence<true, false>, MPerBlock, NPerBlock>(
@@ -931,7 +945,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                              index_t StrideB,
                              std::array<index_t, NumDTensor> StrideDs,
                              index_t StrideH,
-                             AccDataType epsilon,
+                             double epsilon,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CDEElementwiseOperation cde_element_op,
@@ -973,11 +987,11 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
                                                       index_t StrideB,
                                                       std::array<index_t, NumDTensor> StrideDs,
                                                       index_t StrideH,
-                                                      AccDataType epsilon,
+                                                      double epsilon,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CDEElementwiseOperation cde_element_op,
-                                                      HElementwiseOperation h_element_op)
+                                                      HElementwiseOperation h_element_op) override
     {
         return std::make_unique<Argument>(p_a,
                                           p_b,
@@ -1000,7 +1014,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
     }
 
     // polymorphic
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer()
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
         return std::make_unique<Invoker>(Invoker{});
     }
