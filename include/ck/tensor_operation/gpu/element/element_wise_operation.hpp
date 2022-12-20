@@ -185,7 +185,7 @@ struct AddMultiply
                                                                         const half_t& d0,
                                                                         const half_t& d1) const
     {
-        const half_t y = c + d0 + d1;
+        const half_t y = (c + d0) * d1;
         e              = y;
     }
     template <>
@@ -194,7 +194,7 @@ struct AddMultiply
                                                                        const half_t& d0,
                                                                        const half_t& d1) const
     {
-        const half_t y = type_convert<half_t>(c) + d0 + d1;
+        const half_t y = (type_convert<half_t>(c) + d0) * d1;
         e              = y;
     }
     template <>
@@ -203,8 +203,8 @@ struct AddMultiply
                                                                       const half_t& d0,
                                                                       const half_t& d1) const
     {
-        const half_t y = type_convert<half_t>(c) + d0 + d1;
-        e              = y;
+        const float y = (c + d0) * d1;
+        e             = y;
     }
 };
 
