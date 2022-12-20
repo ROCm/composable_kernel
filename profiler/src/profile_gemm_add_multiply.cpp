@@ -101,17 +101,17 @@ int profile_gemm_add_multiply(int argc, char* argv[])
         const int DefaultStrideD1 = ck::is_same_v<D1Layout, Row> ? N : M;
         const int DefaultStrideE  = ck::is_same_v<ELayout, Row> ? N : M;
 
-        bool pass = ck::profiler::profile_gemm_add_add_fastgelu_impl<ADataType,
-                                                                     BDataType,
-                                                                     AccDataType,
-                                                                     D0DataType,
-                                                                     D1DataType,
-                                                                     EDataType,
-                                                                     ALayout,
-                                                                     BLayout,
-                                                                     D0Layout,
-                                                                     D1Layout,
-                                                                     ELayout>(
+        bool pass = ck::profiler::profile_gemm_add_multiply_impl<ADataType,
+                                                                 BDataType,
+                                                                 AccDataType,
+                                                                 D0DataType,
+                                                                 D1DataType,
+                                                                 EDataType,
+                                                                 ALayout,
+                                                                 BLayout,
+                                                                 D0Layout,
+                                                                 D1Layout,
+                                                                 ELayout>(
             do_verification,
             init_method,
             do_log,

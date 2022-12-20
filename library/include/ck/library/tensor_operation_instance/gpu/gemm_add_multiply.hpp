@@ -71,7 +71,7 @@ void add_device_gemm_add_multiply_xdl_c_shuffle_f16_f16_f16_f16_f16_km_nk_mn_mn_
                                                     PassThrough,
                                                     AddMultiply>>>&);
 
-// GEMM + Add + Add + FastGelu
+// GEMM + Add + Multiply
 template <typename ALayout,
           typename BLayout,
           typename D0Layout,

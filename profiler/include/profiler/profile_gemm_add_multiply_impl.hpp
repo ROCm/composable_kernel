@@ -33,18 +33,18 @@ template <typename ADataType,
           typename D0Layout,
           typename D1Layout,
           typename ELayout>
-bool profile_gemm_add_add_fastgelu_impl(int do_verification,
-                                        int init_method,
-                                        bool /*do_log*/,
-                                        bool time_kernel,
-                                        int M,
-                                        int N,
-                                        int K,
-                                        int StrideA,
-                                        int StrideB,
-                                        int StrideD0,
-                                        int StrideD1,
-                                        int StrideE)
+bool profile_gemm_add_multiply_impl(int do_verification,
+                                    int init_method,
+                                    bool /*do_log*/,
+                                    bool time_kernel,
+                                    int M,
+                                    int N,
+                                    int K,
+                                    int StrideA,
+                                    int StrideB,
+                                    int StrideD0,
+                                    int StrideD1,
+                                    int StrideE)
 {
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
