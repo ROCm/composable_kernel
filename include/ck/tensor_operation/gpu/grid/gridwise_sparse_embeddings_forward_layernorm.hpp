@@ -18,6 +18,7 @@ template <typename GridwiseSparseEmbedding,
           typename AccDataType,
           typename OutType,
           typename OutGridDesc,
+          typename ReduceOperation,
           ck::index_t NumEmbeddings>
 #if CK_USE_LAUNCH_BOUNDS
 __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -29,9 +30,10 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const GammaDataType* p_gamma,
         const BetaDataType* p_beta,
         const OutGridDesc out_grid_desc,
-        const AccDataType epsilon)
+        const AccDataType epsilon,
+        const ReduceOperation reduce_op)
 {
-    GridwiseSparseEmbedding::Run(p_out, p_embs, p_indexes, p_gamma, p_beta, out_grid_desc, epsilon);
+    GridwiseSparseEmbedding::Run(p_out, p_embs, p_indexes, p_gamma, p_beta, out_grid_desc, epsilon, reduce_op);
 }
 
 template <typename EmbType,
@@ -41,6 +43,7 @@ template <typename EmbType,
           typename AccDataType,
           typename OutType,
           typename OutGridDesc,
+          typename ReduceOperation,
           ck::index_t BlockSize,
           ck::index_t DimClusterSize,
           ck::index_t RowClusterSize,
@@ -91,7 +94,8 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
                                const GammaDataType* p_gamma,
                                const BetaDataType* p_beta,
                                const OutGridDesc,
-                               const AccDataType epsilon)
+                               const AccDataType epsilon,
+                               const ReduceOperation reduce_op)
     {
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
@@ -149,11 +153,11 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
                 auto thread_offset = (thread_row_cluster_id + i_row_sub_ * RowClusterSize) *
                                      sizeof(EmbType) * RowVectorSize;
                 static_for<0, NumEmbeddings, 1>{}([&](auto i_embedding_) {
-                    IndexType index = index_bufs[i_embedding_.value][Number<current_dim>{}];
+                    IndexType index = index_bufs[i_embedding_][Number<current_dim>{}];
 
                     int32x4_t emb_res = make_wave_buffer_resource_with_default_range(
-                        p_embs[i_embedding_.value] + index * RowPerBlock);
-                    emb_vectors(i_embedding_.value).template AsType<src_vector_t>()(I0) =
+                        p_embs[i_embedding_] + index * RowPerBlock);
+                    emb_vectors(i_embedding_).template AsType<src_vector_t>()(I0) =
                         amd_buffer_load_impl<EmbType, RowVectorSize>(emb_res, thread_offset, 0);
                 });
 
@@ -161,8 +165,8 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
                     constexpr auto register_offset = thread_buf_desc.CalculateOffset(
                         make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
                     static_for<0, NumEmbeddings, 1>{}([&](auto i_embedding_) {
-                        in_thread_bufs(i_embedding_.value)(Number<register_offset>{}) =
-                            emb_vectors[i_embedding_.value].template AsType<EmbType>()[i_row_vec_];
+                        in_thread_bufs(i_embedding_)(Number<register_offset>{}) =
+                            emb_vectors[i_embedding_].template AsType<EmbType>()[i_row_vec_];
                     });
                 });
             });
@@ -174,8 +178,8 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
                     constexpr auto register_offset = thread_buf_desc.CalculateOffset(
                         make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
                     static_for<0, NumEmbeddings, 1>{}([&](auto i_embedding_) {
-                        acc_thread_buf(Number<register_offset>{}) += ck::type_convert<AccDataType>(
-                            in_thread_bufs(i_embedding_.value)(Number<register_offset>{}));
+                        reduce_op(acc_thread_buf(Number<register_offset>{}), acc_thread_buf(Number<register_offset>{}), ck::type_convert<AccDataType>(
+                            in_thread_bufs(i_embedding_)(Number<register_offset>{})));
                     });
                 });
             });
@@ -237,8 +241,8 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
         ck::static_for<0, DimPerBlock, 1>{}([&](auto i_idx_) {
             // prefer use s_load
             ck::static_for<0, NumEmbeddings, 1>{}([&](auto i_embedding_) {
-                index_bufs(i_embedding_.value)(i_idx_) =
-                    p_indexes[i_embedding_.value][index_start + i_idx_.value];
+                index_bufs(i_embedding_)(i_idx_) =
+                    p_indexes[i_embedding_][index_start + i_idx_.value];
             });
         });
 

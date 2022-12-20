@@ -24,6 +24,7 @@ template <typename EmbType,
           typename BetaDataType,
           typename AccDataType,
           typename OutType,
+          typename ReduceOperation,
           ck::index_t BlockSize,
           ck::index_t DimClusterSize,
           ck::index_t RowClusterSize,
@@ -48,7 +49,8 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
                  const BetaDataType* p_beta,
                  const ck::index_t EmbeddingDim,
                  const ck::index_t IndexLength,
-                 const AccDataType epsilon)
+                 const AccDataType epsilon,
+                 const ReduceOperation reduce_op)
             : p_out_(p_out),
               p_embs_(p_embs),
               p_indexs_(p_indexs),
@@ -56,7 +58,8 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
               p_beta_(p_beta),
               EmbeddingDim_(EmbeddingDim),
               IndexLength_(IndexLength),
-              epsilon_(epsilon)
+              epsilon_(epsilon),
+              reduce_op_(reduce_op)
         {
             grid_size_ = (IndexLength + DimClusterSize - 1) / DimClusterSize;
         }
@@ -69,6 +72,7 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
         ck::index_t EmbeddingDim_;
         ck::index_t IndexLength_;
         AccDataType epsilon_;
+        ReduceOperation reduce_op_;
 
         size_t grid_size_;
     };
@@ -81,7 +85,8 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
                         const void* p_beta,
                         ck::index_t EmbeddingDim,
                         ck::index_t IndexLength,
-                        const AccDataType epsilon)
+                        const AccDataType epsilon,
+                        const ReduceOperation reduce_op)
     {
         return std::make_unique<Argument>(reinterpret_cast<OutType*>(p_out),
                                           p_embs,
@@ -90,7 +95,8 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
                                           reinterpret_cast<const BetaDataType*>(p_beta),
                                           EmbeddingDim,
                                           IndexLength,
-                                          epsilon);
+                                          epsilon,
+                                          reduce_op);
     }
 
     using GridwiseSparseEmbedding =
@@ -101,6 +107,7 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
                                                  AccDataType,
                                                  OutType,
                                                  decltype(MakeOutputDescriptor(1, 1)),
+                                                 ReduceOperation,
                                                  BlockSize,
                                                  DimClusterSize,
                                                  RowClusterSize,
@@ -124,6 +131,7 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
                                                            AccDataType,
                                                            OutType,
                                                            decltype(out_desc),
+                                                           ReduceOperation,
                                                            NumEmbeddings>;
             float avg_time = 0;
             avg_time += launch_and_time_kernel(stream_config,
@@ -137,7 +145,8 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
                                                arg.p_gamma_,
                                                arg.p_beta_,
                                                out_desc,
-                                               arg.epsilon_);
+                                               arg.epsilon_,
+                                               arg.reduce_op_);
 
             return (avg_time);
         }
