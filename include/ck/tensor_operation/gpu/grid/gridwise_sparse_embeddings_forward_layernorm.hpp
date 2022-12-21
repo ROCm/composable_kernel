@@ -18,7 +18,7 @@ template <typename GridwiseSparseEmbedding,
           typename AccDataType,
           typename OutType,
           typename OutGridDesc,
-          typename ReduceOperation,
+          typename ElementwiseOperation,
           ck::index_t NumEmbeddings>
 #if CK_USE_LAUNCH_BOUNDS
 __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -31,9 +31,10 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const BetaDataType* p_beta,
         const OutGridDesc out_grid_desc,
         const AccDataType epsilon,
-        const ReduceOperation reduce_op)
+        const ElementwiseOperation elementwise_op)
 {
-    GridwiseSparseEmbedding::Run(p_out, p_embs, p_indexes, p_gamma, p_beta, out_grid_desc, epsilon, reduce_op);
+    GridwiseSparseEmbedding::Run(
+        p_out, p_embs, p_indexes, p_gamma, p_beta, out_grid_desc, epsilon, elementwise_op);
 }
 
 template <typename EmbType,
@@ -43,7 +44,7 @@ template <typename EmbType,
           typename AccDataType,
           typename OutType,
           typename OutGridDesc,
-          typename ReduceOperation,
+          typename ElementwiseOperation,
           ck::index_t BlockSize,
           ck::index_t DimClusterSize,
           ck::index_t RowClusterSize,
@@ -95,7 +96,7 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
                                const BetaDataType* p_beta,
                                const OutGridDesc,
                                const AccDataType epsilon,
-                               const ReduceOperation reduce_op)
+                               const ElementwiseOperation elementwise_op)
     {
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
@@ -127,7 +128,7 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
         constexpr auto gamma_beta_buf_desc =
             make_naive_tensor_descriptor_packed(make_tuple(RowSubBlocks, RowVectorSize));
 
-        ck::Array<StaticBuffer<AddressSpaceEnum::Vgpr, EmbType, thread_buf_size, true>,
+        ck::Array<StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, thread_buf_size, true>,
                   NumEmbeddings>
             in_thread_bufs;
         ck::Array<StaticBuffer<AddressSpaceEnum::Vgpr, IndexType, DimPerBlock, true>, NumEmbeddings>
@@ -166,7 +167,8 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
                         make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
                     static_for<0, NumEmbeddings, 1>{}([&](auto i_embedding_) {
                         in_thread_bufs(i_embedding_)(Number<register_offset>{}) =
-                            emb_vectors[i_embedding_].template AsType<EmbType>()[i_row_vec_];
+                            ck::type_convert<AccDataType>(
+                                emb_vectors[i_embedding_].template AsType<EmbType>()[i_row_vec_]);
                     });
                 });
             });
@@ -177,10 +179,17 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
                 static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec_) {
                     constexpr auto register_offset = thread_buf_desc.CalculateOffset(
                         make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
-                    static_for<0, NumEmbeddings, 1>{}([&](auto i_embedding_) {
-                        reduce_op(acc_thread_buf(Number<register_offset>{}), acc_thread_buf(Number<register_offset>{}), ck::type_convert<AccDataType>(
-                            in_thread_bufs(i_embedding_)(Number<register_offset>{})));
-                    });
+                    auto in_data_refs = generate_tie(
+                        [&](auto i_embedding_) -> const auto& {
+                            return in_thread_bufs(i_embedding_)(Number<register_offset>{});
+                        },
+                        Number<NumEmbeddings>{});
+                    auto out_data_refs = generate_tie(
+                        [&](auto output_index_) -> auto& {
+                            return acc_thread_buf(Number<register_offset>{});
+                        },
+                        Number<1>{});
+                    unpack2(elementwise_op, out_data_refs, in_data_refs);
                 });
             });
         };
@@ -210,7 +219,8 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
 
                 constexpr auto mean_var_offset =
                     mean_var_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_));
-                auto divisor = 1 / __builtin_amdgcn_sqrtf(var_thread_buf(Number<mean_var_offset>{}) + epsilon);
+                auto divisor =
+                    1 / __builtin_amdgcn_sqrtf(var_thread_buf(Number<mean_var_offset>{}) + epsilon);
                 static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec_) {
                     constexpr auto register_offset = thread_buf_desc.CalculateOffset(
                         make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
@@ -218,8 +228,8 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
                         gamma_beta_buf_desc.CalculateOffset(make_tuple(i_row_sub_, i_row_vec_));
 
                     auto acc_val = acc_thread_buf[Number<register_offset>{}];
-                    acc_val = (acc_val - mean_thread_buf(Number<mean_var_offset>{})) * divisor;
-                    acc_val = acc_val * gamma_thread_buf[Number<gamma_beta_offset>{}] +
+                    acc_val      = (acc_val - mean_thread_buf(Number<mean_var_offset>{})) * divisor;
+                    acc_val      = acc_val * gamma_thread_buf[Number<gamma_beta_offset>{}] +
                               beta_thread_buf[Number<gamma_beta_offset>{}];
 
                     out_vector.template AsType<OutType>()(Number<i_row_vec_>{}) =
