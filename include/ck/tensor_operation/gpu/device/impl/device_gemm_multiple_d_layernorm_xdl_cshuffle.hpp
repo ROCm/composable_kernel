@@ -523,12 +523,13 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
               gemm_nblock_{math::integer_divide_ceil(NRaw, NPerBlock)},
               epsilon_{static_cast<AccDataType>(epsilon)}
         {
+            // We don't need to pad in N dimension in gemm for mean/var/count. Set NPerTile 1.
             gemm_mean_var_grid_desc_m_nblock_ =
-                DeviceOp::MakeMeanVarDescriptor_M_N<Sequence<true, false>, MPerBlock, NPerBlock>(
+                DeviceOp::MakeMeanVarDescriptor_M_N<Sequence<true, false>, MPerBlock, 1>(
                     MRaw, gemm_nblock_);
 
             gemm_count_grid_desc_m_nblock_ =
-                DeviceOp::MakeCountDescriptor_M_N<Sequence<true, false>, MPerBlock, NPerBlock>(
+                DeviceOp::MakeCountDescriptor_M_N<Sequence<true, false>, MPerBlock, 1>(
                     MRaw, gemm_nblock_);
 
             layernorm_mean_var_grid_desc_m_nblock_ =
