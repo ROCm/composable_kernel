@@ -59,7 +59,7 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
               EmbeddingDim_(EmbeddingDim),
               IndexLength_(IndexLength),
               epsilon_(epsilon),
-              reduce_op_(elementwise_op)
+              elementwise_op_(elementwise_op)
         {
             grid_size_ = (IndexLength + DimClusterSize - 1) / DimClusterSize;
         }
@@ -72,7 +72,7 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
         ck::index_t EmbeddingDim_;
         ck::index_t IndexLength_;
         AccDataType epsilon_;
-        ElementwiseOperation reduce_op_;
+        ElementwiseOperation elementwise_op_;
 
         size_t grid_size_;
     };
@@ -146,7 +146,7 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
                                                arg.p_beta_,
                                                out_desc,
                                                arg.epsilon_,
-                                               arg.reduce_op_);
+                                               arg.elementwise_op_);
 
             return (avg_time);
         }
