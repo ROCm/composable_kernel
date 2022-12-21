@@ -349,6 +349,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
     template <typename DoPads, index_t MPerTile, index_t NPerTile>
     static auto MakeCountDescriptor_M_N(index_t M, index_t N)
     {
+        // We will broadcast [N] to [M, N] in this descriptor
+        // Hence, 1st stride is 0
         const auto grid_desc_m_n =
             make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I0, I1));
         return PadTensorDescriptor(grid_desc_m_n, make_tuple(MPerTile, NPerTile), DoPads{});
