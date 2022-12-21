@@ -25,16 +25,16 @@ using GammaDataType = ck::half_t;
 using BetaDataType  = ck::half_t;
 using AccDataType   = float;
 using OutType       = ck::half_t;
-using ElementwiseOperation = ck::tensor_operation::element_wise::AddAdd;
+using EmbElementwiseOperation = ck::tensor_operation::element_wise::AddAdd;
 
-using DeviceInstance_fp16_e256   = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, ElementwiseOperation, 256,  1,  256, 1,  256,   1, 1, 3>;
-using DeviceInstance_fp16_e512   = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, ElementwiseOperation, 256,  1,  256, 1,  512,   1, 2, 3>;
-using DeviceInstance_fp16_e768   = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, ElementwiseOperation, 256,  1,  256, 1,  768,   1, 1, 3>;
-using DeviceInstance_fp16_e1024  = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, ElementwiseOperation, 256,  1,  256, 1,  1024,  1, 2, 3>;
-using DeviceInstance_fp16_e1536  = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, ElementwiseOperation, 256,  1,  256, 1,  1536,  1, 2, 3>;
-using DeviceInstance_fp16_e2048  = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, ElementwiseOperation, 256,  1,  256, 1,  2048,  1, 2, 3>;
-using DeviceInstance_fp16_e4096  = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, ElementwiseOperation, 256,  1,  256, 1,  4096,  1, 8, 3>;
-using DeviceInstance_fp16_e8192  = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, ElementwiseOperation, 256,  1,  256, 1,  8192,  1, 8, 3>;
+using DeviceInstance_fp16_e256   = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, EmbElementwiseOperation, 256,  1,  256, 1,  256,   1, 1, 3>;
+using DeviceInstance_fp16_e512   = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, EmbElementwiseOperation, 256,  1,  256, 1,  512,   1, 2, 3>;
+using DeviceInstance_fp16_e768   = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, EmbElementwiseOperation, 256,  1,  256, 1,  768,   1, 1, 3>;
+using DeviceInstance_fp16_e1024  = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, EmbElementwiseOperation, 256,  1,  256, 1,  1024,  1, 2, 3>;
+using DeviceInstance_fp16_e1536  = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, EmbElementwiseOperation, 256,  1,  256, 1,  1536,  1, 2, 3>;
+using DeviceInstance_fp16_e2048  = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, EmbElementwiseOperation, 256,  1,  256, 1,  2048,  1, 2, 3>;
+using DeviceInstance_fp16_e4096  = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, EmbElementwiseOperation, 256,  1,  256, 1,  4096,  1, 8, 3>;
+using DeviceInstance_fp16_e8192  = ck::tensor_operation::device::DeviceSparseEmbeddingsForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, EmbElementwiseOperation, 256,  1,  256, 1,  8192,  1, 8, 3>;
 
 template<typename emb_type, ck::index_t dim> struct emb_kernel{};
 
@@ -137,7 +137,7 @@ int main()
                                                                 current_dim,
                                                                 index_length,
                                                                 epsilon,
-                                                                ElementwiseOperation{});
+                                                                EmbElementwiseOperation{});
         std::cout << "Dim:" << current_dim << ", kernel:" << device_instance.GetTypeString()
                   << std::endl
                   << std::flush;

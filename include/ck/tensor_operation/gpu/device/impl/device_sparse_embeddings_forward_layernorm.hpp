@@ -24,7 +24,7 @@ template <typename EmbType,
           typename BetaDataType,
           typename AccDataType,
           typename OutType,
-          typename ElementwiseOperation,
+          typename EmbElementwiseOperation,
           ck::index_t BlockSize,
           ck::index_t DimClusterSize,
           ck::index_t RowClusterSize,
@@ -50,7 +50,7 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
                  const ck::index_t EmbeddingDim,
                  const ck::index_t IndexLength,
                  const AccDataType epsilon,
-                 const ElementwiseOperation elementwise_op)
+                 const EmbElementwiseOperation emb_elementwise_op)
             : p_out_(p_out),
               p_embs_(p_embs),
               p_indexs_(p_indexs),
@@ -59,7 +59,7 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
               EmbeddingDim_(EmbeddingDim),
               IndexLength_(IndexLength),
               epsilon_(epsilon),
-              elementwise_op_(elementwise_op)
+              emb_elementwise_op_(emb_elementwise_op)
         {
             grid_size_ = (IndexLength + DimClusterSize - 1) / DimClusterSize;
         }
@@ -72,7 +72,7 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
         ck::index_t EmbeddingDim_;
         ck::index_t IndexLength_;
         AccDataType epsilon_;
-        ElementwiseOperation elementwise_op_;
+        EmbElementwiseOperation emb_elementwise_op_;
 
         size_t grid_size_;
     };
@@ -86,7 +86,7 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
                         ck::index_t EmbeddingDim,
                         ck::index_t IndexLength,
                         const AccDataType epsilon,
-                        const ElementwiseOperation elementwise_op)
+                        const EmbElementwiseOperation emb_elementwise_op)
     {
         return std::make_unique<Argument>(reinterpret_cast<OutType*>(p_out),
                                           p_embs,
@@ -96,7 +96,7 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
                                           EmbeddingDim,
                                           IndexLength,
                                           epsilon,
-                                          elementwise_op);
+                                          emb_elementwise_op);
     }
 
     using GridwiseSparseEmbedding =
@@ -107,7 +107,7 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
                                                  AccDataType,
                                                  OutType,
                                                  decltype(MakeOutputDescriptor(1, 1)),
-                                                 ElementwiseOperation,
+                                                 EmbElementwiseOperation,
                                                  BlockSize,
                                                  DimClusterSize,
                                                  RowClusterSize,
@@ -131,7 +131,7 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
                                                            AccDataType,
                                                            OutType,
                                                            decltype(out_desc),
-                                                           ElementwiseOperation,
+                                                           EmbElementwiseOperation,
                                                            NumEmbeddings>;
             float avg_time = 0;
             avg_time += launch_and_time_kernel(stream_config,
@@ -146,7 +146,7 @@ struct DeviceSparseEmbeddingsForwardLayernorm : public BaseOperator
                                                arg.p_beta_,
                                                out_desc,
                                                arg.epsilon_,
-                                               arg.elementwise_op_);
+                                               arg.emb_elementwise_op_);
 
             return (avg_time);
         }

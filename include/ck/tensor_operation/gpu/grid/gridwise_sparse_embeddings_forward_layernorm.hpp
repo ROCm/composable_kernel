@@ -18,7 +18,7 @@ template <typename GridwiseSparseEmbedding,
           typename AccDataType,
           typename OutType,
           typename OutGridDesc,
-          typename ElementwiseOperation,
+          typename EmbElementwiseOperation,
           ck::index_t NumEmbeddings>
 #if CK_USE_LAUNCH_BOUNDS
 __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -31,10 +31,10 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const BetaDataType* p_beta,
         const OutGridDesc out_grid_desc,
         const AccDataType epsilon,
-        const ElementwiseOperation elementwise_op)
+        const EmbElementwiseOperation emb_elementwise_op)
 {
     GridwiseSparseEmbedding::Run(
-        p_out, p_embs, p_indexes, p_gamma, p_beta, out_grid_desc, epsilon, elementwise_op);
+        p_out, p_embs, p_indexes, p_gamma, p_beta, out_grid_desc, epsilon, emb_elementwise_op);
 }
 
 template <typename EmbType,
@@ -44,7 +44,7 @@ template <typename EmbType,
           typename AccDataType,
           typename OutType,
           typename OutGridDesc,
-          typename ElementwiseOperation,
+          typename EmbElementwiseOperation,
           ck::index_t BlockSize,
           ck::index_t DimClusterSize,
           ck::index_t RowClusterSize,
@@ -96,7 +96,7 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
                                const BetaDataType* p_beta,
                                const OutGridDesc,
                                const AccDataType epsilon,
-                               const ElementwiseOperation elementwise_op)
+                               const EmbElementwiseOperation emb_elementwise_op)
     {
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
@@ -189,7 +189,7 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
                             return acc_thread_buf(Number<register_offset>{});
                         },
                         Number<1>{});
-                    unpack2(elementwise_op, out_data_refs, in_data_refs);
+                    unpack2(emb_elementwise_op, out_data_refs, in_data_refs);
                 });
             });
         };
