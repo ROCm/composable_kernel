@@ -195,7 +195,8 @@ bool profile_reduce_impl_impl(bool do_verification,
     constexpr bool invalid_reduce = (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3 ||
                                      invalid_reduce_4 || invalid_reduce_5 || invalid_reduce_6);
 
-    bool pass = true;
+    int num_kernel = 0;
+    bool pass      = true;
 
     if constexpr(!invalid_reduce)
     {
@@ -371,6 +372,8 @@ bool profile_reduce_impl_impl(bool do_verification,
 
             if(!reduce_ptr->IsSupportedArgument(argument_ptr.get()))
                 continue;
+            else
+                num_kernel++;
 
             std::string reduce_name = reduce_ptr->GetTypeString();
 
@@ -434,14 +437,20 @@ bool profile_reduce_impl_impl(bool do_verification,
             };
         };
 
-        if(time_kernel)
+        if(time_kernel && num_kernel > 0)
             std::cout << "Best Perf: " << best_avg_time << " ms, " << best_gb_per_sec << " GB/s"
                       << std::endl;
     }
     else
     {
-        std::cout << "The requested reduction operation is not supported, please check !!!"
-                  << std::endl;
+        throw std::runtime_error(
+            "The requested reduction operation is not supported, please check!");
+    };
+
+    if(num_kernel == 0)
+    {
+        std::cout << "Error: No kernel is applicable" << std::endl;
+        return false;
     };
 
     return pass;
