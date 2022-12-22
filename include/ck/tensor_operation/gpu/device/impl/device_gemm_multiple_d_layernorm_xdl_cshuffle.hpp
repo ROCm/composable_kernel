@@ -231,9 +231,6 @@ template <typename ALayout,
           index_t PostShuffleScalarPerVector,
           typename LayernormThreadClusterSize_M_N,
           typename LayernormThreadSliceSize_M_N,
-          index_t LayernormHDstVectorSize,
-          index_t LayernormGammaSrcVectorSize,
-          index_t LayernormBetaSrcVectorSize,
           LoopScheduler LoopSched     = make_default_loop_scheduler(),
           PipelineVersion PipelineVer = PipelineVersion::v1>
 struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
@@ -258,8 +255,11 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
     using MeanDataType = CShuffleDataType;
     using VarDataType  = CShuffleDataType;
 
-    static constexpr index_t NumDTensor              = DsDataType::Size();
-    static constexpr index_t LayernormESrcVectorSize = LayernormHDstVectorSize;
+    static constexpr index_t NumDTensor                  = DsDataType::Size();
+    static constexpr index_t LayernormHDstVectorSize     = PostShuffleScalarPerVector;
+    static constexpr index_t LayernormGammaSrcVectorSize = PostShuffleScalarPerVector;
+    static constexpr index_t LayernormBetaSrcVectorSize  = PostShuffleScalarPerVector;
+    static constexpr index_t LayernormESrcVectorSize     = PostShuffleScalarPerVector;
 
     using LayernormBlockTileSize_M_N =
         Sequence<LayernormThreadClusterSize_M_N::At(0) * LayernormThreadSliceSize_M_N::At(0),
