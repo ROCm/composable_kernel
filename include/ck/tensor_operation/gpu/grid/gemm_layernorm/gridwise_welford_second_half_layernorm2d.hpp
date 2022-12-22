@@ -69,12 +69,12 @@ struct GridwiseWelfordSecondHalfLayernorm2d
     static constexpr auto thread_buffer_desc_n =
         make_naive_tensor_descriptor_packed(make_tuple(Number<NThreadSliceSize>{}));
 
-    using ThreadReduceSrcDesc_M_1 = decltype(thread_buffer_desc_m_1);
-    using ThreadReduceDstDesc_M =
+    using ThreadWelfordSrcDesc_M_1 = decltype(thread_buffer_desc_m_1);
+    using ThreadWelfordDstDesc_M =
         decltype(make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{})));
 
     using ThreadwiseWelford =
-        ThreadwiseWelfordMerge<ComputeDataType, ThreadReduceSrcDesc_M_1, ThreadReduceDstDesc_M>;
+        ThreadwiseWelfordMerge<ComputeDataType, ThreadWelfordSrcDesc_M_1, ThreadWelfordDstDesc_M>;
 
     using BlockwiseWelford = BlockwiseWelford<ComputeDataType,
                                               BlockSize,
@@ -298,8 +298,7 @@ struct GridwiseWelfordSecondHalfLayernorm2d
             welford_count_thread_buf(I) = 0;
         });
 
-        for(index_t reducedTiles = 0; reducedTiles < numMeanVarCountBlockTileIteration_N;
-            ++reducedTiles)
+        for(index_t n = 0; n < numMeanVarCountBlockTileIteration_N; ++n)
         {
             threadwise_mean_load_m_nblock.Run(mean_var_grid_desc_m_n,
                                               welford_mean_global_val_buf,
@@ -386,10 +385,10 @@ struct GridwiseWelfordSecondHalfLayernorm2d
         });
 
         threadwise_h_store_m_n.Run(thread_buffer_desc_m_n,
-                                       make_tuple(I0, I0),
-                                       h_thread_buf,
-                                       h_grid_desc_m_n,
-                                       h_global_val_buf);
+                                   make_tuple(I0, I0),
+                                   h_thread_buf,
+                                   h_grid_desc_m_n,
+                                   h_global_val_buf);
 
     } // run
 };
