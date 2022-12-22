@@ -142,7 +142,7 @@ __global__ void
             const GammaBetaGridDesc_N gamma_grid_desc_n,
             const GammaBetaGridDesc_N beta_grid_desc_n,
             index_t numMeanVarCountBlockTileIteration_N,
-            index_t numNormBlockTileIteration_N,
+            index_t NBlockClusterLength,
             ComputeDataType epsilon,
             HElementwiseOperation h_element_op)
 {
@@ -160,7 +160,7 @@ __global__ void
                                   gamma_grid_desc_n,
                                   beta_grid_desc_n,
                                   numMeanVarCountBlockTileIteration_N,
-                                  numNormBlockTileIteration_N,
+                                  NBlockClusterLength,
                                   epsilon,
                                   h_element_op);
 }
@@ -557,7 +557,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
                     DeviceOp::MakeEHGridDescriptor_M_N<DLayout>(MRaw, NRaw, StrideDs[i]);
             });
 
-            // populate desc for Ds/E/F/G
+            // populate desc for Ds/E/mean/var/count
             if(GridwiseGemmWelford::CheckValidity(a_grid_desc_m_k_,
                                                   b_grid_desc_n_k_,
                                                   ds_grid_desc_m_n_,
@@ -736,13 +736,14 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
                                            arg.block_2_etile_map_,
                                            arg.NRaw_);
 
-                grid_size = math::integer_divide_ceil(M, LayernormBlockTileSize_M_N::At(0));
+                index_t MBlockClusterLength =
+                    math::integer_divide_ceil(M, LayernormBlockTileSize_M_N::At(0));
+                index_t NBlockClusterLength =
+                    math::integer_divide_ceil(N, LayernormBlockTileSize_M_N::At(1));
+                grid_size = MBlockClusterLength * NBlockClusterLength;
 
                 index_t numMeanVarCountBlockTileIteration_N = math::integer_divide_ceil(
                     arg.gemm_nblock_, LayernormThreadClusterSize_M_N::At(I1));
-
-                index_t numNormBlockTileIteration_N =
-                    math::integer_divide_ceil(N, LayernormBlockTileSize_M_N::At(I1));
 
                 avg_time +=
                     launch_and_time_kernel(stream_config,
@@ -764,7 +765,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
                                            arg.gamma_grid_desc_n_,
                                            arg.beta_grid_desc_n_,
                                            numMeanVarCountBlockTileIteration_N,
-                                           numNormBlockTileIteration_N,
+                                           NBlockClusterLength,
                                            arg.epsilon_,
                                            arg.h_element_op_);
 
