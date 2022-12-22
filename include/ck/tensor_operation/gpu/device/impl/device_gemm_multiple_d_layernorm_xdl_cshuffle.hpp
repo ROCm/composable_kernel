@@ -230,7 +230,7 @@ template <typename ALayout,
           typename PostShuffleThreadClusterSize_M_N,
           index_t PostShuffleScalarPerVector,
           typename LayernormThreadClusterSize_M_N,
-          typename LayernormThreadSliceSize_M_N,
+          index_t LayernormThreadSliceSize_M,
           LoopScheduler LoopSched     = make_default_loop_scheduler(),
           PipelineVersion PipelineVer = PipelineVersion::v1>
 struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
@@ -260,10 +260,10 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
     static constexpr index_t LayernormGammaSrcVectorSize = PostShuffleScalarPerVector;
     static constexpr index_t LayernormBetaSrcVectorSize  = PostShuffleScalarPerVector;
     static constexpr index_t LayernormESrcVectorSize     = PostShuffleScalarPerVector;
-
+    static constexpr index_t LayernormThreadSliceSize_N  = PostShuffleScalarPerVector;
     using LayernormBlockTileSize_M_N =
-        Sequence<LayernormThreadClusterSize_M_N::At(0) * LayernormThreadSliceSize_M_N::At(0),
-                 LayernormThreadClusterSize_M_N::At(1) * LayernormThreadSliceSize_M_N::At(1)>;
+        Sequence<LayernormThreadClusterSize_M_N::At(0) * LayernormThreadSliceSize_M,
+                 LayernormThreadClusterSize_M_N::At(1) * LayernormThreadSliceSize_N>;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -457,8 +457,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
                                              BlockSize,
                                              LayernormThreadClusterSize_M_N::At(I0),
                                              LayernormThreadClusterSize_M_N::At(I1),
-                                             LayernormThreadSliceSize_M_N::At(I0),
-                                             LayernormThreadSliceSize_M_N::At(I1),
+                                             LayernormThreadSliceSize_M,
+                                             LayernormThreadSliceSize_N,
                                              LayernormESrcVectorSize,
                                              LayernormHDstVectorSize,
                                              LayernormGammaSrcVectorSize,
