@@ -198,7 +198,7 @@ int reduce_multiblock_atomic_add_impl(bool do_verification,
 
         auto invoker_ptr_ref = reduce_ref.MakeInvokerPointer();
 
-        (void)invoker_ptr_ref->Run(argument_ptr_ref.get());
+        invoker_ptr_ref->Run(argument_ptr_ref.get());
     };
 
     auto reduce = DeviceReduceInstance{};

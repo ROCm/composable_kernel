@@ -244,7 +244,7 @@ int main(int argc, char* argv[])
 
         auto invoker_ptr_ref = reduce_ref.MakeInvokerPointer();
 
-        (void)invoker_ptr_ref->Run(argument_ptr_ref.get());
+        invoker_ptr_ref->Run(argument_ptr_ref.get());
     };
 
     auto reduce_1 = DeviceReduceInstance_1{};
