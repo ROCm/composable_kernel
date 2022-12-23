@@ -251,9 +251,14 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
 {
     using DeviceOp     = DeviceGemmMultipleDLayernorm_Xdl_CShuffle;
     using ELayout      = HLayout;
+    // EDataType, MeanDataType and VarDataType must be the same.
+    // eg. M, N, K = [1, 1, 1],
+    // in case of layernorm, divisor = 1 / sqrt(var + 1e-5) = 316.227783
+    // if (x - mean) != 0, (x - mean) * divisor * gamma might be too large
+    // However, (x - mean) * divisor * gamma should be 0 in this case
     using EDataType    = HDataType;
-    using MeanDataType = CShuffleDataType;
-    using VarDataType  = CShuffleDataType;
+    using MeanDataType = HDataType;
+    using VarDataType  = HDataType;
 
     static constexpr index_t NumDTensor                  = DsDataType::Size();
     static constexpr index_t LayernormHDstVectorSize     = PostShuffleScalarPerVector;
