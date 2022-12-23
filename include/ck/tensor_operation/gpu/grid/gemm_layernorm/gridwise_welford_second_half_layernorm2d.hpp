@@ -239,7 +239,7 @@ struct GridwiseWelfordSecondHalfLayernorm2d
                     block_work_idx[I0] * M_BlockTileSize + thread_m_cluster_id * MThreadSliceSize,
                     block_work_idx[I1] * N_BlockTileSize + thread_n_cluster_id * NThreadSliceSize));
 
-        auto threadwise_gamma_load_m_n =
+        auto threadwise_gamma_load_n =
             ThreadwiseTensorSliceTransfer_v2<GammaDataType,
                                              ComputeDataType,
                                              decltype(gamma_grid_desc_n),
@@ -254,7 +254,7 @@ struct GridwiseWelfordSecondHalfLayernorm2d
                 make_multi_index(block_work_idx[I1] * N_BlockTileSize +
                                  thread_n_cluster_id * NThreadSliceSize));
 
-        auto threadwise_beta_load_m_n =
+        auto threadwise_beta_load_n =
             ThreadwiseTensorSliceTransfer_v2<BetaDataType,
                                              ComputeDataType,
                                              decltype(beta_grid_desc_n),
@@ -358,11 +358,11 @@ struct GridwiseWelfordSecondHalfLayernorm2d
             });
         });
 
-        threadwise_gamma_load_m_n.Run(gamma_grid_desc_n,
-                                      gamma_global_val_buf,
-                                      thread_buffer_desc_n,
-                                      make_tuple(I0),
-                                      gamma_thread_buf);
+        threadwise_gamma_load_n.Run(gamma_grid_desc_n,
+                                    gamma_global_val_buf,
+                                    thread_buffer_desc_n,
+                                    make_tuple(I0),
+                                    gamma_thread_buf);
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto m) {
             static_for<0, NThreadSliceSize, 1>{}([&](auto n) {
@@ -371,11 +371,11 @@ struct GridwiseWelfordSecondHalfLayernorm2d
             });
         });
 
-        threadwise_beta_load_m_n.Run(beta_grid_desc_n,
-                                     beta_global_val_buf,
-                                     thread_buffer_desc_n,
-                                     make_tuple(I0),
-                                     beta_thread_buf);
+        threadwise_beta_load_n.Run(beta_grid_desc_n,
+                                   beta_global_val_buf,
+                                   thread_buffer_desc_n,
+                                   make_tuple(I0),
+                                   beta_thread_buf);
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto m) {
             static_for<0, NThreadSliceSize, 1>{}([&](auto n) {
