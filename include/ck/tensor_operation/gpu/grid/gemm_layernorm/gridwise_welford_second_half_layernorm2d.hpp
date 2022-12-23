@@ -350,7 +350,7 @@ struct GridwiseWelfordSecondHalfLayernorm2d
                                   e_thread_buf);
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto m) {
-            auto divisor = 1 / __builtin_amdgcn_sqrtf(welford_var_thread_buf(m) + epsilon);
+            auto divisor = 1 / ck::math::sqrt(welford_var_thread_buf(m) + epsilon);
             static_for<0, NThreadSliceSize, 1>{}([&](auto n) {
                 constexpr auto m_n = thread_buffer_desc_m_n.CalculateOffset(make_tuple(m, n));
                 h_thread_buf(Number<m_n>{}) =
