@@ -91,7 +91,7 @@ struct ReferenceLayernorm : public device::BaseOperator
             for(int m = 0; m < M; ++m)
             {
                 AccDataType divisor =
-                    static_cast<AccDataType>(1 / ck::math::sqrt(var(m) + arg.epsilon_));
+                    static_cast<AccDataType>(1) / ck::math::sqrt(var(m) + arg.epsilon_);
 
                 for(int n = 0; n < N; ++n)
                 {
