@@ -492,11 +492,17 @@ int run(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    // TODO ANT: add dQ/dK/dV flops & bytes
-    std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
+    // 5 GEMM ops in total:
+    // S_MNK / dP_MNO Gemm (Gemm0 rcr)
+    // dQ_MKN Gemm (Gemm1 rrr)
+    // dV_NOM / dK_NKM Gemm (Gemm2 crr)
+    // 3x MNK + 2x MNO
+    std::size_t flop = (size_t(3) * M * N * K + size_t(2) * M * N * O) * 2 * BatchCount;
+    // Q/K/V/Y, dQ/dK/dV/dY, LSE
     std::size_t num_btype = (sizeof(DataType) * M * K + sizeof(DataType) * K * N +
                              sizeof(DataType) * N * O + sizeof(DataType) * M * O) *
-                            BatchCount;
+                                size_t(2) * BatchCount +
+                            sizeof(LSEDataType) * M * BatchCount;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
