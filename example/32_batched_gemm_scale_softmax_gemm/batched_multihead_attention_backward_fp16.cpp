@@ -647,7 +647,10 @@ int run(int argc, char* argv[])
                                      1e-2);
         std::cout << "Checking kgrad:\n";
         pass &= ck::utils::check_err(kgrad_gs_ns_ks_device_result.mData,
-                                     kgrad_gs_ns_ks_host_result.mData);
+                                     kgrad_gs_ns_ks_host_result.mData,
+                                     "error",
+                                     1e-2,
+                                     1e-2);
         std::cout << "Checking vgrad:\n";
         pass &= ck::utils::check_err(vgrad_gs_os_ns_device_result.mData,
                                      vgrad_gs_os_ns_host_result.mData,
@@ -656,7 +659,7 @@ int run(int argc, char* argv[])
                                      1e-2);
     }
 
-    return pass ? 0 : 1;
+    return pass ? (std::cout << "pass\n", 0) : (std::cout << "fail\n", 1);
 }
 
 int main(int argc, char* argv[]) { return run(argc, argv); }
