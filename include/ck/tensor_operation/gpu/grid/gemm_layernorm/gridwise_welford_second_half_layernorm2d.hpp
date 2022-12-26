@@ -19,10 +19,8 @@
 
 namespace ck {
 
-template <typename EDataType,
+template <typename EMeanVarDataType,
           typename HDataType,
-          typename MeanDataType,
-          typename VarDataType,
           typename GammaDataType,
           typename BetaDataType,
           typename ComputeDataType,
@@ -87,9 +85,9 @@ struct GridwiseWelfordSecondHalfLayernorm2d
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t N_BlockTileSize = NThreadClusterSize * NThreadSliceSize;
 
-    __device__ static void Run(const EDataType* __restrict__ p_e_grid,
-                               const MeanDataType* __restrict__ p_in_welford_mean_grid,
-                               const VarDataType* __restrict__ p_in_welford_var_grid,
+    __device__ static void Run(const EMeanVarDataType* __restrict__ p_e_grid,
+                               const EMeanVarDataType* __restrict__ p_in_welford_mean_grid,
+                               const EMeanVarDataType* __restrict__ p_in_welford_var_grid,
                                const int32_t* __restrict__ p_in_welford_count_grid,
                                const GammaDataType* __restrict__ p_gamma_grid,
                                const BetaDataType* __restrict__ p_beta_grid,
@@ -176,7 +174,7 @@ struct GridwiseWelfordSecondHalfLayernorm2d
 
         // IO
         auto threadwise_mean_load_m_nblock =
-            ThreadwiseTensorSliceTransfer_v2<MeanDataType,
+            ThreadwiseTensorSliceTransfer_v2<EMeanVarDataType,
                                              ComputeDataType,
                                              MeanVarGridDesc_M_NBlock,
                                              decltype(thread_buffer_desc_m_1),
@@ -192,7 +190,7 @@ struct GridwiseWelfordSecondHalfLayernorm2d
                                  thread_n_cluster_id));
 
         auto threadwise_var_load_m_nblock =
-            ThreadwiseTensorSliceTransfer_v2<VarDataType,
+            ThreadwiseTensorSliceTransfer_v2<EMeanVarDataType,
                                              ComputeDataType,
                                              MeanVarGridDesc_M_NBlock,
                                              decltype(thread_buffer_desc_m_1),
@@ -224,7 +222,7 @@ struct GridwiseWelfordSecondHalfLayernorm2d
                                  thread_n_cluster_id));
 
         auto threadwise_e_load_m_n =
-            ThreadwiseTensorSliceTransfer_v2<EDataType,
+            ThreadwiseTensorSliceTransfer_v2<EMeanVarDataType,
                                              ComputeDataType,
                                              decltype(e_grid_desc_m_n),
                                              decltype(thread_buffer_desc_m_n),

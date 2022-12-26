@@ -36,9 +36,7 @@ template <typename ABDataType,
           typename AccDataType,
           typename CShuffleDataType,
           typename DsDataType,
-          typename EDataType,
-          typename MeanDataType,
-          typename VarDataType,
+          typename EMeanVarDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
@@ -329,7 +327,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
 
         if(!(a_grid_desc_m_k.GetElementSpaceSize() * sizeof(ABDataType) <= TwoGB &&
              b_grid_desc_n_k.GetElementSpaceSize() * sizeof(ABDataType) <= TwoGB &&
-             e_grid_desc_m_n.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
+             e_grid_desc_m_n.GetElementSpaceSize() * sizeof(EMeanVarDataType) <= TwoGB))
         {
             return false;
         }
@@ -370,9 +368,9 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
     Run(const ABDataType* __restrict__ p_a_grid,
         const ABDataType* __restrict__ p_b_grid,
         DsGridPointer p_ds_grid,
-        EDataType* __restrict__ p_e_grid,
-        MeanDataType* __restrict__ p_welford_mean_grid,
-        VarDataType* __restrict__ p_welford_var_grid,
+        EMeanVarDataType* __restrict__ p_e_grid,
+        EMeanVarDataType* __restrict__ p_welford_mean_grid,
+        EMeanVarDataType* __restrict__ p_welford_var_grid,
         int32_t* __restrict__ p_welford_count,
         void* __restrict__ p_shared,
         const AElementwiseOperation& a_element_op,
@@ -825,7 +823,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
 
             auto e_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
                 AccDataType,
-                EDataType,
+                EMeanVarDataType,
                 decltype(post_shuffle_thread_desc_I1_mperblock_I1_nperblock),
                 decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
                 tensor_operation::element_wise::PassThrough,
@@ -1042,7 +1040,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
 
                     auto mean_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
                         AccDataType,
-                        MeanDataType,
+                        EMeanVarDataType,
                         decltype(thread_welford_desc_I_m_I),
                         decltype(mean_var_grid_desc_mblock_mperblock_nblock),
                         tensor_operation::element_wise::PassThrough,
@@ -1062,7 +1060,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
 
                     auto var_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
                         AccDataType,
-                        VarDataType,
+                        EMeanVarDataType,
                         decltype(thread_welford_desc_I_m_I),
                         decltype(mean_var_grid_desc_mblock_mperblock_nblock),
                         tensor_operation::element_wise::PassThrough,

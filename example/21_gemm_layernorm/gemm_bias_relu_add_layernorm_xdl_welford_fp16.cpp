@@ -39,6 +39,7 @@ using CShuffleDataType = F32;
 using D0DataType       = F16;
 using D1DataType       = F16;
 using DsDataType       = ck::Tuple<D0DataType, D1DataType>;
+using EMeanVarDataType = F16;
 using GammaDataType    = F16;
 using BetaDataType     = F16;
 using HDataType        = F16;
@@ -60,11 +61,11 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 
 // clang-format off
 using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDLayernorm_Xdl_CShuffle
-//######| ALayout| BLayout| DsLayout| HLayout|     AData|     BData|     AccData|         CShuffle|     DsData|     GammaData|     BetaData|     HData|           A|           B|          CDE|            H|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|           PostShuffle|     PostShuffle|            Layernorm|       Layernorm|
-//######|        |        |         |        |      Type|      Type|        Type|         DataType|       Type|          Type|         Type|      Type| Elementwise| Elementwise|  Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|  ThreadClusterLengths| ScalarPerVector| ThreadClusterLengths| ThreadSliceSize|
-//######|        |        |         |        |          |          |            |                 |           |              |             |          |   Operation|   Operation|    Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                  _M_N|            _M_N|                 _M_N|              _M|
-//######|        |        |         |        |          |          |            |                 |           |              |             |          |            |            |             |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                      |                |                     |                |
-        < ALayout, BLayout, DsLayout, HLayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, GammaDataType, BetaDataType, HDataType,  AElementOp,  BElementOp, CDEElementOp,   HElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,              S<32, 8>,               8,             S<8, 32>,               8>;
+//######| ALayout| BLayout| DsLayout| HLayout|     AData|     BData|     AccData|         CShuffle|     DsData|     EMeanVarData|     GammaData|     BetaData|     HData|           A|           B|          CDE|            H|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|           PostShuffle|     PostShuffle|            Layernorm|       Layernorm|
+//######|        |        |         |        |      Type|      Type|        Type|         DataType|       Type|             Type|          Type|         Type|      Type| Elementwise| Elementwise|  Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|  ThreadClusterLengths| ScalarPerVector| ThreadClusterLengths| ThreadSliceSize|
+//######|        |        |         |        |          |          |            |                 |           |                 |              |             |          |   Operation|   Operation|    Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                  _M_N|            _M_N|                 _M_N|              _M|
+//######|        |        |         |        |          |          |            |                 |           |                 |              |             |          |            |            |             |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                      |                |                     |                |
+        < ALayout, BLayout, DsLayout, HLayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EMeanVarDataType, GammaDataType, BetaDataType, HDataType,  AElementOp,  BElementOp, CDEElementOp,   HElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,              S<32, 8>,               8,             S<8, 32>,               8>;
 // clang-format on
 
 auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
@@ -86,7 +87,7 @@ auto f_host_tensor_descriptor2d =
         }
     };
 
-void host_gemm_layernorm(Tensor<HDataType>& e_m_n,
+void host_gemm_layernorm(Tensor<EMeanVarDataType>& e_m_n,
                          Tensor<HDataType>& h_m_n,
                          const Tensor<ADataType>& a_m_k,
                          const Tensor<BDataType>& b_k_n,
@@ -109,7 +110,7 @@ void host_gemm_layernorm(Tensor<HDataType>& e_m_n,
                                                                     BElementOp,
                                                                     PassThrough>;
 
-    using ReferenceLayernorm = ck::tensor_operation::host::ReferenceLayernorm<HDataType,
+    using ReferenceLayernorm = ck::tensor_operation::host::ReferenceLayernorm<EMeanVarDataType,
                                                                               GammaDataType,
                                                                               BetaDataType,
                                                                               HDataType,
@@ -229,7 +230,7 @@ int main()
 
     if(do_verification)
     {
-        Tensor<HDataType> e_m_n_host(HostTensorDescriptor{M, N});
+        Tensor<EMeanVarDataType> e_m_n_host(HostTensorDescriptor{M, N});
         Tensor<HDataType> h_m_n_host(HostTensorDescriptor{M, N});
 
         host_gemm_layernorm(e_m_n_host,
