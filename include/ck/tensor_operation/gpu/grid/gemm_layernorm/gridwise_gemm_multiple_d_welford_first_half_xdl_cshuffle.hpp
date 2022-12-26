@@ -755,7 +755,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
             // To apply D0, D1, ... and Welford.
             // threadwise copy from LDS to VGPR
             constexpr auto post_shuffle_thread_cluster_desc =
-                make_cluster_descriptor(PostShuffleThreadClusterSize_M_N{}, Sequence<1, 0>{});
+                make_cluster_descriptor(PostShuffleThreadClusterSize_M_N{}, Sequence<0, 1>{});
 
             const auto post_shuffle_thread_cluster_idx =
                 post_shuffle_thread_cluster_desc.CalculateBottomIndex(
@@ -861,7 +861,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
             using BlockwiseWelford = BlockwiseWelford<AccDataType,
                                                       BlockSize,
                                                       PostShuffleThreadClusterSize_M_N,
-                                                      Sequence<1, 0>,
+                                                      Sequence<0, 1>,
                                                       false>;
 
             constexpr int num_shuffleM =
