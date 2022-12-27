@@ -23,8 +23,6 @@ Kernel outputs:
 
 */
 
-#pragma clang diagnostic ignored "-Wunused-variable" // TODO ANT: remove
-
 #define PRINT_HOST 0
 
 #include <iostream>
