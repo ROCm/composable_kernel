@@ -28,7 +28,8 @@ TEST(ReferenceSoftmax, Run)
 
     auto ref_softmax_argument = ref_softmax.MakeArgument(x, y, alpha, beta, {1});
     ref_softmax_invoker.Run(ref_softmax_argument);
-    EXPECT_TRUE((utils::check_err(y.mData, {0.73105858, 0.268941421, 0.26894142, 0.73105858})));
+    EXPECT_TRUE((utils::check_err(
+        y.mData, std::vector<float>{0.73105858f, 0.268941421f, 0.26894142f, 0.73105858f})));
 }
 
 TEST(ReferenceSoftmax, RunWithCalculatedStats)
@@ -57,8 +58,8 @@ TEST(ReferenceSoftmax, RunWithCalculatedStats)
     {
         auto ref_softmax_argument = ref_softmax.MakeArgument(x, y, alpha, beta, {1}, &stats);
         ref_softmax_invoker.Run(ref_softmax_argument);
-        EXPECT_TRUE(
-            (utils::check_err(stats.mData, {1.74366838, 1.74366838, 1.74366838, 1.74366838})));
+        EXPECT_TRUE((utils::check_err(
+            stats.mData, std::vector<float>{1.74366838f, 1.74366838f, 1.74366838f, 1.74366838f})));
     }
 
     {
