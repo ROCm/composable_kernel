@@ -234,11 +234,11 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();
     static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
 
-    // TODO ANT: implement bias combination
+    // TODO: implement bias combination
     static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
 
 #if 0
-    // TODO ANT: use alias
+    // TODO: use alias
     static constexpr index_t NumDimGemm0M = NumDimM;
     static constexpr index_t NumDimGemm0N = NumDimN;
     static constexpr index_t NumDimGemm0K = NumDimK;
@@ -329,7 +329,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         // v_gs_os_ns -> vgrad_gs_ns_os. O dims last because output is row-major.
         // Here directly rearrange lengths/strides before constructing tensor descriptor to reduce
         // transformation overhead
-        // TODO ANT: This will be much easier when inputs are Gs, Ms, Ns, Os. So there's no need to
+        // TODO: This will be much easier when inputs are Gs, Ms, Ns, Os. So there's no need to
         // extract subsequence and shuffle them.
         const index_t num_dims = NumDimG + NumDimN + NumDimO;
 
@@ -410,7 +410,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         // v_gs_os_ns -> vgrad_gs_ns_os. O dims last because output is row-major.
         // Here directly rearrange lengths/strides before constructing tensor descriptor to reduce
         // transformation overhead
-        // TODO ANT: This will be much easier when inputs are Gs, Ms, Ns, Os. So there's no need to
+        // TODO: This will be much easier when inputs are Gs, Ms, Ns, Os. So there's no need to
         // extract subsequence and shuffle them.
         const index_t num_dims = NumDimG + NumDimN + NumDimO;
 
@@ -738,7 +738,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                   c_grid_desc_g_m_n_,
                   type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize())}
         {
-            // TODO ANT: implement bias addition
+            // TODO: implement bias addition
             ignore = p_acc0_biases;
             ignore = p_acc1_biases;
             ignore = acc0_biases_gs_ms_ns_lengths;
@@ -950,7 +950,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             return false;
         }
 
-        // TODO ANT: Check if tensor specialization & strides mismatch
+        // TODO: Check if tensor specialization & strides mismatch
 
         // Check if C permute dimension matches GEMM + GEMM shape
         const index_t c_g       = arg.c_grid_desc_g_m_n_.GetLength(I0); // unpadded
