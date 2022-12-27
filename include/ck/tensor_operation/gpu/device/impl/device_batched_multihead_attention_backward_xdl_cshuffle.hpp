@@ -728,7 +728,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         y_grid_desc_m_o_);
             }
-            Print();
+            // Print();
         }
 
         void Print() const
@@ -822,7 +822,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
 
             const index_t grid_size =
                 arg.block_2_ctile_map_.CalculateGridSize(arg.y_grid_desc_m_o_) * arg.batch_count_;
-            std::cout << "grid size = " << grid_size << '\n';
+
             // Gemm0_K
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
