@@ -68,8 +68,6 @@ __global__ void
             const YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
             const LSEGridDescriptor_M lse_grid_desc_m,
-            // const QGradGridDescriptor_M_K qgrad_grid_desc_m_k, // TODO ANT: add dQ/dK args
-            // const KGradGridDescriptor_N_K kgrad_grid_desc_n_k,
             const VGradGridDescriptor_N_O vgrad_grid_desc_n_o,
             const YGradGridDesc_M0_O_M1 ygrad_grid_desc_m0_o_m1,
             const Block2CTileMap block_2_ctile_map,
@@ -207,26 +205,8 @@ template <index_t NumDimG,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           MaskingSpecialization MaskingSpec,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
-#if 0
-    : public DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
-                                                 NumDimM,
-                                                 NumDimN,
-                                                 NumDimK,
-                                                 NumDimO,
-                                                 DataType,
-                                                 DataType,
-                                                 DataType,
-                                                 DataType,
-                                                 Acc0BiasDataType,
-                                                 Acc1BiasDataType,
-                                                 AElementwiseOperation,
-                                                 BElementwiseOperation,
-                                                 AccElementwiseOperation,
-                                                 B1ElementwiseOperation,
-                                                 CElementwiseOperation,
-                                                 MaskingSpec>
-#endif
+struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
+    : public BaseOperator // TODO inherit atten bwd op
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
@@ -247,7 +227,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     static constexpr index_t NumDimGemm1K = NumDimN;
 #endif
 
-    using DeviceOp = DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle;
+    using DeviceOp = DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -363,12 +343,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                 v_gs_ns_os_lengths_vec, v_gs_ns_os_strides_vec)
                 .second;
 
-        // LogRangeAsType<float>(std::cout << "v_gs_os_ns_lengths_vec: ", v_gs_os_ns_lengths_vec,
-        // ",") << std::endl; LogRangeAsType<float>(std::cout << "v_gs_os_ns_strides_vec: ",
-        // v_gs_os_ns_strides_vec, ",") << std::endl; LogRangeAsType<float>(std::cout <<
-        // "v_gs_ns_os_lengths_vec: ", v_gs_ns_os_lengths_vec, ",") << std::endl;
-        // LogRangeAsType<float>(std::cout << "v_gs_ns_os_strides_vec: ", v_gs_ns_os_strides_vec,
-        // ",") << std::endl;
         return PadTensorDescriptor(vgrad_desc_nraw_oraw,
                                    make_tuple(NPerBlock, Gemm1NPerBlock),
                                    Sequence<padder.PadN, padder.PadO>{});
@@ -455,7 +429,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     //
     // dS_i_j = P_i_j .* (dP_i_j - dY_i dot Y_i)
     //
-    // static auto MakeYGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock()
 
     //
     // dQ = alpha * dS * K
@@ -643,7 +616,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle>;
 
     // Argument
-    // FIXME: constness
     struct Argument : public BaseArgument
     {
         Argument(
@@ -696,10 +668,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
               y_grid_desc_m_o_{Transform::MakeCGridDescriptor_M_N(c_gs_ms_gemm1ns_lengths,
                                                                   c_gs_ms_gemm1ns_strides)},
               lse_grid_desc_m_{DeviceOp::MakeLSEGridDescriptor_M(lse_gs_ms_lengths[NumDimG])},
-              // dV = P^T * dY
               vgrad_grid_desc_n_o_{DeviceOp::MakeVGradGridDescriptor_N_O(
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
-              /* PTrans descriptor will be constructed in kernel */
               ygrad_grid_desc_m0_o_m1_{DeviceOp::MakeYGradGridDescriptor_M0_O_M1(y_grid_desc_m_o_)},
               // batch offsets
               a_grid_desc_g_m_k_{
@@ -791,9 +761,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         const DataType* p_c_grid_;
         const LSEDataType* p_lse_grid_;
         const DataType* p_ygrad_grid_;
-        DataType* p_vgrad_grid_;
         DataType* p_qgrad_grid_;
         DataType* p_kgrad_grid_;
+        DataType* p_vgrad_grid_;
 
         // tensor descriptor
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
@@ -801,15 +771,16 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
         YGridDesc_M_O y_grid_desc_m_o_;
         LSEGridDesc_M lse_grid_desc_m_;
+        VGradGridDesc_N_O vgrad_grid_desc_n_o_;
+        YGradGridDesc_M0_O_M1 ygrad_grid_desc_m0_o_m1_;
+
+        // batch offsets
         AGridDesc_G_M_K a_grid_desc_g_m_k_;
         BGridDesc_G_N_K b_grid_desc_g_n_k_;
         B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
         CGridDesc_G_M_N c_grid_desc_g_m_n_;
         typename GridwiseGemm::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
             y_grid_desc_mblock_mperblock_oblock_operblock_;
-
-        VGradGridDesc_N_O vgrad_grid_desc_n_o_;
-        YGradGridDesc_M0_O_M1 ygrad_grid_desc_m0_o_m1_;
 
         // block-to-c-tile map
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
@@ -927,7 +898,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
         // polymorphic
         float Run(const BaseArgument* p_arg,
-                  const StreamConfig& stream_config = StreamConfig{}) // override
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
@@ -1010,7 +981,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     }
 
     // polymorphic
-    bool IsSupportedArgument(const BaseArgument* p_arg) // override
+    bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
@@ -1154,12 +1125,12 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     }
 
     // polymorphic
-    std::string GetTypeString() const // override
+    std::string GetTypeString() const override
     {
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle"
+        str << "DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

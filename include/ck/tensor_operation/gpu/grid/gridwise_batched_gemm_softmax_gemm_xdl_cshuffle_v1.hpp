@@ -788,7 +788,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             make_multi_index(-MPerBlock / Gemm2Params_N_O_M::B_M1, 0, 0);
 
         template <typename CGradDesc_N_O>
-        __host__ __device__ static const auto
+        __host__ __device__ static auto
         MakeCGridDesc_N0_O0_N1_O1_N2_O2_O3_O4(const CGradDesc_N_O& c_grid_desc_n_o)
         {
             // HACK: for unmerge transform, the length of highest dim is irrelevant so we put dummy
@@ -811,7 +811,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         static constexpr auto c_thread_desc_n0_o0_n1_o1_n2_o2_o3_o4 =
             BlockwiseGemm::GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
 
-        __host__ __device__ static const auto GetCThreadOriginOnBlock_N0_O0_N1_O1_N2_O2_O3_O4()
+        __host__ __device__ static auto GetCThreadOriginOnBlock_N0_O0_N1_O1_N2_O2_O3_O4()
         {
             return to_multi_index(BlockwiseGemm::CalculateCThreadOriginDataIndex8D(I0, I0, I0, I0));
         }
@@ -863,7 +863,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         // Make all input tensors 2D and transform them into appropriate 3D form in kernel to make
         // things more concise
         template <typename YGradGridDesc_M0_O_M1_>
-        __device__ static const auto
+        __device__ static auto
         MakeYGradGridDesc_O0_M_O1(const YGradGridDesc_M0_O_M1_& ygrad_grid_desc_m0_o_m1)
         {
             const auto M0 = ygrad_grid_desc_m0_o_m1.GetLength(I0);
@@ -884,7 +884,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         }
 
         template <typename VGridDesc_N0_O_N1_>
-        __device__ static const auto
+        __device__ static auto
         MakeVGridDesc_O0_N_O1(const VGridDesc_N0_O_N1_& v_grid_desc_n0_o_n1)
         {
             const auto N0 = v_grid_desc_n0_o_n1.GetLength(I0);
@@ -909,7 +909,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
     struct QGradGemmTile_M_K_N
     {
         template <typename QGridDesc_K0_M_K1_>
-        __device__ static const auto MakeQGradGridDesc_MBlock_MPerBlock_KBlock_KPerBlock(
+        __device__ static auto MakeQGradGridDesc_MBlock_MPerBlock_KBlock_KPerBlock(
             const QGridDesc_K0_M_K1_& q_grid_desc_k0_m_k1)
         {
             const auto K0 = q_grid_desc_k0_m_k1.GetLength(I0);
@@ -936,7 +936,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         }
 
         template <typename KGridDesc_K0_N_K1_>
-        __device__ static const auto
+        __device__ static auto
         MakeKGridDesc_N0_K_N1(const KGridDesc_K0_N_K1_& k_grid_desc_k0_n_k1)
         {
             const auto K_K0 = k_grid_desc_k0_n_k1.GetLength(I0);
@@ -961,7 +961,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
     {
         // B position
         template <typename QGridDesc_K0_M_K1_>
-        __device__ static const auto
+        __device__ static auto
         MakeQGridDesc_M0_K_M1(const QGridDesc_K0_M_K1_& q_grid_desc_k0_m_k1)
         {
             const auto Q_K0 = q_grid_desc_k0_m_k1.GetLength(I0);
@@ -983,7 +983,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
         // C position
         template <typename KGridDesc_K0_N_K1_>
-        __device__ static const auto
+        __device__ static auto
         MakeKGradGridDesc_N_K(const KGridDesc_K0_N_K1_& k_grid_desc_k0_n_k1)
         {
             const auto K_K0 = k_grid_desc_k0_n_k1.GetLength(I0);
@@ -1667,9 +1667,6 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                     typename arithmetic_sequence_gen<0, c_thread_lengths.Size(), 1>::type,
                     typename uniform_sequence_gen<c_thread_lengths.Size(), 1>::type,
                     false>; // SnakeCurved
-
-                auto acc0_thread_origin = s_blockwise_gemm.CalculateCThreadOriginDataIndex8D(
-                    Number<0>{}, Number<0>{}, Number<0>{}, Number<0>{});
 
                 constexpr auto block_idx_to_m_n_adaptor = make_single_stage_tensor_adaptor(
                     make_tuple(make_unmerge_transform(make_tuple(M0, M1, M2)),

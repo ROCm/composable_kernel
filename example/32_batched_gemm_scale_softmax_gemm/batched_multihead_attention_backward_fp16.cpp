@@ -80,7 +80,7 @@ static constexpr auto TensorSpecV = ck::tensor_operation::device::TensorSpeciali
 static constexpr auto TensorSpecY = ck::tensor_operation::device::TensorSpecialization::Default;
 
 using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -665,7 +665,7 @@ int run(int argc, char* argv[])
                                      1e-2);
     }
 
-    return pass ? (std::cout << "pass\n", 0) : (std::cout << "fail\n", 1);
+    return pass ? ((void)(std::cout << "pass\n"), 0) : ((void)(std::cout << "fail\n"), 1);
 }
 
 int main(int argc, char* argv[]) { return run(argc, argv); }
