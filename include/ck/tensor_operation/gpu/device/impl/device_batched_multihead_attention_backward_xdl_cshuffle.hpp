@@ -9,11 +9,13 @@
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute.hpp"
+// #include "ck/tensor_operation/gpu/device/device_batched_multihead_attention_backward.hpp" // TODO
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_softmax_gemm_xdl_cshuffle_v1.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_multihead_attention_backward_xdl_cshuffle_v1.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -206,7 +208,7 @@ template <index_t NumDimG,
           MaskingSpecialization MaskingSpec,
           LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
-    : public BaseOperator // TODO inherit atten bwd op
+    : public BaseOperator // TODO inherit atten bwd op once API stablizes
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
@@ -552,7 +554,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
     };
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle<
+    using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle<
         DataType, // TODO: distinguish A/B datatype
         LSEDataType,
         GemmAccDataType,
