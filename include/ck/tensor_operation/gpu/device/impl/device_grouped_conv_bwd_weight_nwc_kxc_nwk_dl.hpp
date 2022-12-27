@@ -10,9 +10,8 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_conv_bwd_weight.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_weight.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_bwd_weight.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_dl_v1r3.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -58,7 +57,7 @@ template <ck::index_t NDimSpatial,
           index_t CThreadTransferSrcDstVectorDim,
           index_t CThreadTransferDstScalarPerVector>
 struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
-    : public DeviceConvBwdWeight<
+    : public DeviceGroupedConvBwdWeight<
           NDimSpatial,
           ck::tuple_element_t<NDimSpatial - 1,
                               ck::Tuple<ck::tensor_layout::convolution::NWC,
@@ -121,13 +120,13 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
     MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(ck::index_t N,
                                                     ck::index_t K,
                                                     ck::index_t C,
-                                                    std::vector<ck::index_t> input_spatial_lengths,
-                                                    std::vector<ck::index_t> filter_spatial_lengths,
-                                                    std::vector<ck::index_t> output_spatial_lengths,
-                                                    std::vector<ck::index_t> conv_filter_strides,
-                                                    std::vector<ck::index_t> conv_filter_dilations,
-                                                    std::vector<ck::index_t> input_left_pads,
-                                                    std::vector<ck::index_t> input_right_pads,
+                                                    std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
+                                                    std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
+                                                    std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
+                                                    std::array<ck::index_t, NDimSpatial> conv_filter_strides,
+                                                    std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
+                                                    std::array<ck::index_t, NDimSpatial> input_left_pads,
+                                                    std::array<ck::index_t, NDimSpatial> input_right_pads,
                                                     ck::index_t batch_k)
     {
         using namespace ck;
@@ -273,13 +272,13 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
     MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(ck::index_t N,
                                                     ck::index_t K,
                                                     ck::index_t C,
-                                                    std::vector<ck::index_t> input_spatial_lengths,
-                                                    std::vector<ck::index_t> filter_spatial_lengths,
-                                                    std::vector<ck::index_t> output_spatial_lengths,
-                                                    std::vector<ck::index_t> conv_filter_strides,
-                                                    std::vector<ck::index_t> conv_filter_dilations,
-                                                    std::vector<ck::index_t> input_left_pads,
-                                                    std::vector<ck::index_t> input_right_pads,
+                                                    std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
+                                                    std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
+                                                    std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
+                                                    std::array<ck::index_t, NDimSpatial> conv_filter_strides,
+                                                    std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
+                                                    std::array<ck::index_t, NDimSpatial> input_left_pads,
+                                                    std::array<ck::index_t, NDimSpatial> input_right_pads,
                                                     ck::index_t batch_k)
     {
         using namespace ck;
@@ -441,13 +440,13 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
     MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(ck::index_t N,
                                                     ck::index_t K,
                                                     ck::index_t C,
-                                                    std::vector<ck::index_t> input_spatial_lengths,
-                                                    std::vector<ck::index_t> filter_spatial_lengths,
-                                                    std::vector<ck::index_t> output_spatial_lengths,
-                                                    std::vector<ck::index_t> conv_filter_strides,
-                                                    std::vector<ck::index_t> conv_filter_dilations,
-                                                    std::vector<ck::index_t> input_left_pads,
-                                                    std::vector<ck::index_t> input_right_pads,
+                                                    std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
+                                                    std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
+                                                    std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
+                                                    std::array<ck::index_t, NDimSpatial> conv_filter_strides,
+                                                    std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
+                                                    std::array<ck::index_t, NDimSpatial> input_left_pads,
+                                                    std::array<ck::index_t, NDimSpatial> input_right_pads,
                                                     ck::index_t batch_k)
     {
         using namespace ck;
@@ -707,16 +706,17 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
         Argument(const InDataType* p_in_grid,
                  WeiDataType* p_wei_grid,
                  const OutDataType* p_out_grid,
+                 ck::index_t G,
                  ck::index_t N,
                  ck::index_t K,
                  ck::index_t C,
-                 std::vector<ck::index_t> input_spatial_lengths,
-                 std::vector<ck::index_t> filter_spatial_lengths,
-                 std::vector<ck::index_t> output_spatial_lengths,
-                 std::vector<ck::index_t> conv_filter_strides,
-                 std::vector<ck::index_t> conv_filter_dilations,
-                 std::vector<ck::index_t> input_left_pads,
-                 std::vector<ck::index_t> input_right_pads,
+                 std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
+                 std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
+                 std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
+                 std::array<ck::index_t, NDimSpatial> conv_filter_strides,
+                 std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
+                 std::array<ck::index_t, NDimSpatial> input_left_pads,
+                 std::array<ck::index_t, NDimSpatial> input_right_pads,
                  InElementwiseOperation in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op)
@@ -729,6 +729,7 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
               a_element_op_{out_element_op},
               b_element_op_{wei_element_op},
               c_element_op_{in_element_op},
+              Conv_G_{G},
               Conv_N_{N},
               Conv_K_{K},
               Conv_C_{C},
@@ -786,17 +787,18 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
         InElementwiseOperation c_element_op_;
         
         // for checking IsSupportedArgument()
+        index_t Conv_G_;
         index_t Conv_N_;
         index_t Conv_K_;
         index_t Conv_C_;
 
-        std::vector<ck::index_t> input_spatial_lengths_;
-        std::vector<ck::index_t> filter_spatial_lengths_;
-        std::vector<ck::index_t> output_spatial_lengths_;
-        std::vector<ck::index_t> conv_filter_strides_;
-        std::vector<ck::index_t> conv_filter_dilations_;
-        std::vector<ck::index_t> input_left_pads_;
-        std::vector<ck::index_t> input_right_pads_;
+        std::array<ck::index_t, NDimSpatial> input_spatial_lengths_;
+        std::array<ck::index_t, NDimSpatial> filter_spatial_lengths_;
+        std::array<ck::index_t, NDimSpatial> output_spatial_lengths_;
+        std::array<ck::index_t, NDimSpatial> conv_filter_strides_;
+        std::array<ck::index_t, NDimSpatial> conv_filter_dilations_;
+        std::array<ck::index_t, NDimSpatial> input_left_pads_;
+        std::array<ck::index_t, NDimSpatial> input_right_pads_;
         index_t k_batch_;
     };
 
@@ -996,16 +998,17 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
     static auto MakeArgument(const InDataType* p_in_grid,
                              WeiDataType* p_wei_grid,
                              const OutDataType* p_out_grid,
+                             ck::index_t G,
                              ck::index_t N,
                              ck::index_t K,
                              ck::index_t C,
-                             std::vector<ck::index_t> input_spatial_lengths,
-                             std::vector<ck::index_t> filter_spatial_lengths,
-                             std::vector<ck::index_t> output_spatial_lengths,
-                             std::vector<ck::index_t> conv_filter_strides,
-                             std::vector<ck::index_t> conv_filter_dilations,
-                             std::vector<ck::index_t> input_left_pads,
-                             std::vector<ck::index_t> input_right_pads,
+                             std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
+                             std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
+                             std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
+                             std::array<ck::index_t, NDimSpatial> conv_filter_strides,
+                             std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
+                             std::array<ck::index_t, NDimSpatial> input_left_pads,
+                             std::array<ck::index_t, NDimSpatial> input_right_pads,
                              InElementwiseOperation in_element_op,
                              WeiElementwiseOperation wei_element_op,
                              OutElementwiseOperation out_element_op,
@@ -1014,6 +1017,7 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
         return Argument{p_in_grid,
                         p_wei_grid,
                         p_out_grid,
+                        G,
                         N,
                         K,
                         C,
@@ -1035,16 +1039,17 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
     MakeArgumentPointer(const void* p_in_grid,
                         void* p_wei_grid,
                         const void* p_out_grid,
+                        ck::index_t G,
                         ck::index_t N,
                         ck::index_t K,
                         ck::index_t C,
-                        std::vector<ck::index_t> input_spatial_lengths,
-                        std::vector<ck::index_t> filter_spatial_lengths,
-                        std::vector<ck::index_t> output_spatial_lengths,
-                        std::vector<ck::index_t> conv_filter_strides,
-                        std::vector<ck::index_t> conv_filter_dilations,
-                        std::vector<ck::index_t> input_left_pads,
-                        std::vector<ck::index_t> input_right_pads,
+                        std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
+                        std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
+                        std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
+                        std::array<ck::index_t, NDimSpatial> conv_filter_strides,
+                        std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
+                        std::array<ck::index_t, NDimSpatial> input_left_pads,
+                        std::array<ck::index_t, NDimSpatial> input_right_pads,
                         InElementwiseOperation in_element_op,
                         WeiElementwiseOperation wei_element_op,
                         OutElementwiseOperation out_element_op,
@@ -1053,6 +1058,7 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
         return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_grid),
                                           static_cast<WeiDataType*>(p_wei_grid),
                                           static_cast<const OutDataType*>(p_out_grid),
+                                          G,
                                           N,
                                           K,
                                           C,
