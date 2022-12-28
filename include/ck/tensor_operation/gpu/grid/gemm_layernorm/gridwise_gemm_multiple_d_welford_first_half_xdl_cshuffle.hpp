@@ -1074,7 +1074,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
                         var_grid_buf); // write variance
 
                     // Stride of count is [0, 1]. Only the first row in count[0, 0:nblock] need
-                    // to be writed.
+                    // to be written.
                     if(i == 0 && block_work_idx[I0] == 0 &&
                        post_shuffle_thread_data_idx_begin[I0] == 0)
                     {
