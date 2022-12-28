@@ -212,11 +212,6 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
 #endif
 
     // P = Softmax(S)
-    // >>> scipy.special.softmax(numpy.eye(4), 1)
-    // array([[0.47536689, 0.1748777 , 0.1748777 , 0.1748777 ],
-    //        [0.1748777 , 0.47536689, 0.1748777 , 0.1748777 ],
-    //        [0.1748777 , 0.1748777 , 0.47536689, 0.1748777 ],
-    //        [0.1748777 , 0.1748777 , 0.1748777 , 0.47536689]])
     auto ref_softmax          = ReferenceSoftmaxInstance{};
     auto ref_softmax_invoker  = ref_softmax.MakeInvoker();
     auto ref_softmax_argument = ref_softmax.MakeArgument(s_g_m_n, p_g_m_n, 1, 0, {2}, &lse_g_m);
@@ -249,8 +244,7 @@ int run(int argc, char* argv[])
     ck::index_t G0 = 3;
     ck::index_t G1 = 2;
 
-    // float alpha = 1.f / std::sqrt(K); // TODO: make scaling aware
-    float alpha = 1.f;
+    float alpha = 1.f / std::sqrt(K);
 
     bool input_permute  = false;
     bool output_permute = false;
@@ -487,10 +481,6 @@ int run(int argc, char* argv[])
         std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
         return 0;
-    }
-    if(alpha != 1.0f)
-    {
-        std::cout << "not yet implemented scaling" << std::endl; // TODO: make scaling aware
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
