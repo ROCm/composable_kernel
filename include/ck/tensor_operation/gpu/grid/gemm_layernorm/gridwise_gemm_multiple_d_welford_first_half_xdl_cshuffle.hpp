@@ -1025,7 +1025,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
 
                 static_for<0, PostShuffleThreadSliceSize_M, 1>{}([&](auto j) {
                     block_sync_lds();
-                    count_thread_buf = threadwise_welfords(i).cur_count_;
+                    count_thread_buf(j) = threadwise_welfords(i).cur_count_;
                     BlockwiseWelford::Run(
                         mean_thread_buf(j), var_thread_buf(j), count_thread_buf(j));
                 });
