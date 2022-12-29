@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_nwc_kxc_nwk_dl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_gnwc_gkxc_gnwk_dl.hpp"
 
 #include <iostream>
 #include <numeric>
