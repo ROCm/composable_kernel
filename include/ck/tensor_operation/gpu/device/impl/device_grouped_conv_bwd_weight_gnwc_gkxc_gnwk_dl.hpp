@@ -163,12 +163,12 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto out_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
                 out_gemmkpad_gemmm_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
                            make_pass_through_transform(GemmM)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
             // B: input tensor
             const auto in_gemmktotal_gemmn_grid_desc =
@@ -181,19 +181,19 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto in_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
+            const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
                 in_gemmkpad_gemmn_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
                            make_pass_through_transform(GemmM)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
             // C: weights tensor
             const auto wei_gemmm_gemmn_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(K, X * C));
 
-            return make_tuple(out_gemmk0_gemmm_gemmk1_grid_desc,
-                              in_gemmk0_gemmn_gemmk1_grid_desc,
+            return make_tuple(out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
+                              in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
                               wei_gemmm_gemmn_grid_desc);
         }
         else
@@ -211,12 +211,12 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto out_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
                 out_gemmkpad_gemmm_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
                            make_pass_through_transform(GemmM)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
             // B: input tensor
             const auto in_n_wip_c_grid_desc = transform_tensor_descriptor(
@@ -225,7 +225,7 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
                            make_pad_transform(Wi, InLeftPadW, InRightPadW),
                            make_pass_through_transform(C)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));   
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
             const auto in_n_x_wo_c_grid_desc = transform_tensor_descriptor(
                 in_n_wip_c_grid_desc,
@@ -250,19 +250,19 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto in_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
+            const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
                 in_gemmkpad_gemmn_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
                            make_pass_through_transform(GemmN)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));    
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));   
 
             // C: weight tensor
             const auto wei_gemmm_gemmn_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(K, X * C));
 
-            return make_tuple(out_gemmk0_gemmm_gemmk1_grid_desc,
-                              in_gemmk0_gemmn_gemmk1_grid_desc,
+            return make_tuple(out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
+                              in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
                               wei_gemmm_gemmn_grid_desc);         
         }
 
@@ -328,12 +328,12 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto out_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
                 out_gemmkpad_gemmm_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
                            make_pass_through_transform(GemmM)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
             // B: input tensor
             const auto in_gemmktotal_gemmn_grid_desc =
@@ -346,19 +346,19 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto in_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
+            const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
                 in_gemmkpad_gemmn_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
                            make_pass_through_transform(GemmM)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
-            // C: weights tensor
+            // C: weight tensor
             const auto wei_gemmm_gemmn_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(K, Y * X * C));
 
-            return make_tuple(out_gemmk0_gemmm_gemmk1_grid_desc,
-                              in_gemmk0_gemmn_gemmk1_grid_desc,
+            return make_tuple(out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
+                              in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
                               wei_gemmm_gemmn_grid_desc);
         }
         else
@@ -376,12 +376,12 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto out_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
                 out_gemmkpad_gemmm_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
                            make_pass_through_transform(GemmM)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
             // B: input tensor
             const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
@@ -417,19 +417,19 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto in_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
+            const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
                 in_gemmkpad_gemmn_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
                            make_pass_through_transform(GemmN)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
             // C: weight tensor
             const auto wei_gemmm_gemmn_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(K, Y * X * C));
 
-            return make_tuple(out_gemmk0_gemmm_gemmk1_grid_desc,
-                              in_gemmk0_gemmn_gemmk1_grid_desc,
+            return make_tuple(out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
+                              in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
                               wei_gemmm_gemmn_grid_desc);
         }
 
@@ -503,12 +503,12 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto out_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
                 out_gemmkpad_gemmm_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
                            make_pass_through_transform(GemmM)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
             // B: input tensor
             const auto in_gemmktotal_gemmn_grid_desc =
@@ -521,19 +521,19 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto in_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
+            const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
                 in_gemmkpad_gemmn_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
                            make_pass_through_transform(GemmM)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
-            // C: weights tensor
+            // C: weight tensor
             const auto wei_gemmm_gemmn_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(K, Z * Y * X * C));
 
-            return make_tuple(out_gemmk0_gemmm_gemmk1_grid_desc,
-                              in_gemmk0_gemmn_gemmk1_grid_desc,
+            return make_tuple(out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
+                              in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
                               wei_gemmm_gemmn_grid_desc);
         }
         else
@@ -551,12 +551,12 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto out_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
                 out_gemmkpad_gemmm_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
                            make_pass_through_transform(GemmM)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
             // B: input tensor
             const auto in_n_dip_hip_wip_c_grid_desc = transform_tensor_descriptor(
@@ -601,19 +601,19 @@ struct DeviceConvNdBwdWeightNwcKxcNwk_Dl
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto in_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
+            const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
                 in_gemmkpad_gemmn_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
                            make_pass_through_transform(GemmN)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
             // C: weight tensor
             const auto wei_gemmm_gemmn_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(K, Z * Y * X * C));
 
-            return make_tuple(out_gemmk0_gemmm_gemmk1_grid_desc,
-                              in_gemmk0_gemmn_gemmk1_grid_desc,
+            return make_tuple(out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
+                              in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
                               wei_gemmm_gemmn_grid_desc);
         }
 
