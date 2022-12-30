@@ -210,7 +210,7 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
 
     // masking
 #if USING_MASK
-    auto N          = s_g_m_n.GetLengths()[1];
+    auto N          = s_g_m_n.GetLengths()[2];
     const auto mask = DeviceGemmInstance::C0MatrixMask(N);
     s_g_m_n.ForEach([&](auto& self, auto idx) {
         if(mask.IsMaskedElement(idx[1], idx[2]))
