@@ -460,7 +460,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                  BElementwiseOperation b_element_op,
                  AccElementwiseOperation acc_element_op,
                  B1ElementwiseOperation b1_element_op,
-                 CElementwiseOperation c_element_op)
+                 CElementwiseOperation c_element_op,
+                 float p_dropout)
             : a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               acc_element_op_{acc_element_op},
@@ -572,6 +573,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                       problem_desc.c_gs_ms_os_strides[NumDimG + NumDimM + NumDimO - 1]},
                      c_grid_desc_m_n});
             }
+
+            p_dropout_ = 1.f - p_dropout;
         }
 
         std::vector<GroupKernelArg> group_kernel_args_;
@@ -585,6 +588,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
         AccElementwiseOperation acc_element_op_;
         B1ElementwiseOperation b1_element_op_;
         CElementwiseOperation c_element_op_;
+
+        float p_dropout_;
     };
 
     // Invoker
@@ -788,7 +793,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                              BElementwiseOperation b_element_op,
                              AccElementwiseOperation acc_element_op,
                              B1ElementwiseOperation b1_element_op,
-                             CElementwiseOperation c_element_op)
+                             CElementwiseOperation c_element_op,
+                             float p_dropout)
     {
         return Argument{p_a_vec,
                         p_b_vec,
@@ -801,7 +807,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                         b_element_op,
                         acc_element_op,
                         b1_element_op,
-                        c_element_op};
+                        c_element_op,
+                        p_dropout};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -819,7 +826,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                         BElementwiseOperation b_element_op,
                         AccElementwiseOperation acc_element_op,
                         B1ElementwiseOperation b1_element_op,
-                        CElementwiseOperation c_element_op) override
+                        CElementwiseOperation c_element_op,
+                        float p_dropout) override
     {
         return std::make_unique<Argument>(p_a_vec,
                                           p_b_vec,
@@ -832,7 +840,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                           b_element_op,
                                           acc_element_op,
                                           b1_element_op,
-                                          c_element_op);
+                                          c_element_op,
+                                          p_dropout);
     }
 
     // polymorphic
