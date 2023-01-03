@@ -42,7 +42,8 @@ __global__ void
             const BElementwiseOperation b_element_op,
             const AccElementwiseOperation acc_element_op,
             const B1ElementwiseOperation b1_element_op,
-            const CElementwiseOperation c_element_op)
+            const CElementwiseOperation c_element_op,
+            const float p_dropout)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -100,7 +101,8 @@ __global__ void
         arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
         arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
         arg_ptr[group_id].block_2_ctile_map_,
-        arg_ptr[group_id].c0_matrix_mask_);
+        arg_ptr[group_id].c0_matrix_mask_,
+        p_dropout);
 #else
     ignore = group_kernel_args;
     ignore = group_count;
@@ -649,7 +651,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                     arg.b_element_op_,
                     arg.acc_element_op_,
                     arg.b1_element_op_,
-                    arg.c_element_op_);
+                    arg.c_element_op_,
+                    arg.p_dropout_);
             };
 
             // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need
