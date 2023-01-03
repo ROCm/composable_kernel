@@ -29,7 +29,8 @@ template <typename GridwiseGemm,
           typename AccElementwiseOperation,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
-          bool HasMainKBlockLoop>
+          bool HasMainKBlockLoop,
+          bool IsDropout>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -83,7 +84,7 @@ __global__ void
     const long_index_t c_batch_offset  = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetCBasePtr(g_idx)));
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(
+    GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
         arg_ptr[group_id].p_a_grid_ + a_batch_offset,
         arg_ptr[group_id].p_b_grid_ + b_batch_offset,
         arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
@@ -574,6 +575,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                      c_grid_desc_m_n});
             }
 
+            is_dropout_ = p_dropout > 0.0 ;
             p_dropout_ = 1.f - p_dropout;
         }
 
@@ -590,6 +592,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
         CElementwiseOperation c_element_op_;
 
         float p_dropout_;
+        bool is_dropout_;
     };
 
     // Invoker
@@ -622,7 +625,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
             float ave_time = 0;
 
-            auto launch_kernel = [&](auto has_main_k_block_loop_) {
+            auto launch_kernel = [&](auto has_main_k_block_loop_, auto is_dropout_) {
                 const auto kernel =
                     kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v1<GridwiseGemm,
                                                                      GroupKernelArg,
@@ -631,7 +634,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                                                      AccElementwiseOperation,
                                                                      B1ElementwiseOperation,
                                                                      CElementwiseOperation,
-                                                                     has_main_k_block_loop_>;
+                                                                     has_main_k_block_loop_,
+                                                                     is_dropout_>;
 
                 return launch_and_time_kernel(
                     stream_config,
@@ -652,11 +656,25 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
             // to concern Gemm0's loop
             if(all_has_main_k_block_loop)
             {
-                ave_time = launch_kernel(integral_constant<bool, true>{});
+                if(arg.is_dropout_)
+                {
+                    ave_time = launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, true>{});
+                }
+                else
+                {
+                    ave_time = launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, false>{});
+                }
             }
             else if(!some_has_main_k_block_loop)
             {
-                ave_time = launch_kernel(integral_constant<bool, false>{});
+                if(arg.is_dropout_)
+                {
+                    ave_time = launch_kernel(integral_constant<bool, false>{}, integral_constant<bool, true>{});
+                }
+                else
+                {
+                    ave_time = launch_kernel(integral_constant<bool, false>{}, integral_constant<bool, false>{});
+                }
             }
             else
             {

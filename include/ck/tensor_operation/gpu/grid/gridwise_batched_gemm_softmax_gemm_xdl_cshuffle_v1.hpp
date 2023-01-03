@@ -338,7 +338,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
     };
 
-    template <bool HasMainKBlockLoop, typename Block2CTileMap, typename C0MatrixMask>
+    template <bool HasMainKBlockLoop, bool IsDropout, typename Block2CTileMap, typename C0MatrixMask>
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
                                const FloatAB* __restrict__ p_b1_grid,
@@ -355,7 +355,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
                                const Block2CTileMap& block_2_ctile_map,
-                               const C0MatrixMask& c0_matrix_mask)
+                               const C0MatrixMask& c0_matrix_mask,
+                               const float P_Dropout)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -809,6 +810,9 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             SoftmaxBuf& sum = blockwise_softmax.sum_value_buf;
 
             blockwise_softmax.Run(acc_thread_buf, workspace_buf);
+            
+            if constexpr(IsDropout) //dropout
+                blockwise_softmax.ApplyDropout(acc_thread_buf);
 
             // TODO: may convert to log domain
             running_max_new = mathext::max(max, running_max);
