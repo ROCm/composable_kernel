@@ -75,7 +75,7 @@ static constexpr auto MaskingSpec =
     ck::tensor_operation::device::MaskingSpecialization::MaskOutUpperTriangle;
 #else
 static constexpr auto MaskingSpec =
-    ck::tensor_operation::device::MaskingSpecialization::MaskOutUpperTriangle;
+    ck::tensor_operation::device::MaskingSpecialization::MaskDisabled;
 #endif
 
 static constexpr auto TensorSpecQ = ck::tensor_operation::device::TensorSpecialization::Default;

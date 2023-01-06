@@ -1267,7 +1267,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle
                 k_grid_desc_n0_k_n1,
                 make_multi_index(0, o_block_data_idx_on_grid, 0),
                 b1_element_op,
-                Gemm1::b_block_desc_bk0_n_bk1,
+                Gemm1::b_block_desc_bk0_n_bk1, // there n actually is k, k is N, so name can be
+                                               // b_block_desc_bn0_k_bn1
                 make_multi_index(0, 0, 0),
                 tensor_operation::element_wise::PassThrough{});
 
