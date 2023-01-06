@@ -20,7 +20,7 @@ using MeanVarDataType = float;
 constexpr int Rank                  = 4;
 constexpr int NumBatchNormReduceDim = 3;
 
-using Normalize = ck::tensor_operation::device::NormalizeInInfer;
+using Normalize = ck::tensor_operation::element_wise::NormalizeInInfer;
 
 const double epsilon = std::numeric_limits<float>::epsilon();
 
