@@ -657,7 +657,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-#if 0
+#if DEBUG_LOG
             {
                 std::cout << "arg.Batch_ = " << arg.Batch_ << std::endl;
 

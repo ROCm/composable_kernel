@@ -485,19 +485,15 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             std::cout << "a_grid_desc_g_m_k_: " << a_grid_desc_g_m_k_.GetLength(I0) << ", "
                       << a_grid_desc_g_m_k_.GetLength(I1) << ", "
                       << a_grid_desc_g_m_k_.GetLength(I2) << '\n';
-            // a_grid_desc_g_m_k_.Print();
             std::cout << "b_grid_desc_g_n_k_: " << b_grid_desc_g_n_k_.GetLength(I0) << ", "
                       << b_grid_desc_g_n_k_.GetLength(I1) << ", "
                       << b_grid_desc_g_n_k_.GetLength(I2) << '\n';
-            // b_grid_desc_g_n_k_.Print();
             std::cout << "b1_grid_desc_g_n_k_: " << b1_grid_desc_g_n_k_.GetLength(I0) << ", "
                       << b1_grid_desc_g_n_k_.GetLength(I1) << ", "
                       << b1_grid_desc_g_n_k_.GetLength(I2) << '\n';
-            // b1_grid_desc_g_n_k_.Print();
             std::cout << "c_grid_desc_g_m_n_: " << c_grid_desc_g_m_n_.GetLength(I0) << ", "
                       << c_grid_desc_g_m_n_.GetLength(I1) << ", "
                       << c_grid_desc_g_m_n_.GetLength(I2) << '\n';
-            // c_grid_desc_g_m_n_.Print();
         }
 
         // pointers
@@ -636,7 +632,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-#if 0
+#if DEBUG_LOG
         arg.Print();
 #endif
 
