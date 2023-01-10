@@ -500,7 +500,7 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
 
             for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
             {
-#if DEBUG_LOG
+#ifdef DEBUG_LOG
                 std::cout << "group: " << i << " arg.a_grid_desc_ak0_m_ak1_{"
                           << arg.gemm_desc_kernel_arg_[i].a_grid_desc_ak0_m_ak1_.GetLength(I0)
                           << ", "
