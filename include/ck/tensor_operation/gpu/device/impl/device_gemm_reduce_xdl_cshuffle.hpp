@@ -526,7 +526,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceOperatio
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
 
                 std::cout << "arg.reduce_grid_desc_m_{ " << arg.reduce_grid_desc_m_.GetLength(I0) 
-			              << "}" << std::endl;
+                          << "}" << std::endl;
             }
 #endif
 
