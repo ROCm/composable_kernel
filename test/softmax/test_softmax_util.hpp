@@ -13,7 +13,7 @@
 #include "ck/tensor_operation/gpu/device/impl/device_softmax_impl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "include/ck/utility/data_type.hpp"
-#include "profiler/include/profile_softmax_impl.hpp"
+#include "profiler/profile_softmax_impl.hpp"
 
 namespace ck {
 

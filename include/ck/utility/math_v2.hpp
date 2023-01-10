@@ -114,7 +114,16 @@ static inline __device__ int4_t abs(int4_t x)
 };
 #endif
 
-static inline __device__ half_t abs(half_t x) { return ::__habs(x); };
+static inline __device__ half_t abs(half_t x)
+{
+    uint16_t xx = ck::bit_cast<uint16_t>(x);
+
+    uint16_t abs_xx = xx & 0x7fff;
+
+    half_t abs_x = ck::bit_cast<half_t>(abs_xx);
+
+    return abs_x;
+};
 
 static inline __device__ bool isnan(float x) { return ::isnan(x); };
 
@@ -140,7 +149,12 @@ static inline __device__ bool isnan(int4_t x)
 };
 #endif
 
-static inline __device__ bool isnan(half_t x) { return ::__hisnan(x); };
+static inline __device__ bool isnan(half_t x)
+{
+    uint16_t xx = ck::bit_cast<uint16_t>(x);
+
+    return (xx & 0x7FFF) > 0x7C00;
+};
 
 static inline __device__ float sqrt(float x) { return ::sqrtf(x); };
 

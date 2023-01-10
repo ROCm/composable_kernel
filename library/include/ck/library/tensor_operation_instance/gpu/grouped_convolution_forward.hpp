@@ -131,6 +131,47 @@ void add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_int8_instances(
                                                               PassThrough,
                                                               PassThrough>>>& instances);
 
+void add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              GNHWC,
+                                                              GKYXC,
+                                                              Empty_Tuple,
+                                                              GNHWK,
+                                                              F16,
+                                                              F16,
+                                                              Empty_Tuple,
+                                                              F16,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              GNHWC,
+                                                              GKYXC,
+                                                              Empty_Tuple,
+                                                              GNHWK,
+                                                              F32,
+                                                              F32,
+                                                              Empty_Tuple,
+                                                              F32,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_int8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              GNHWC,
+                                                              GKYXC,
+                                                              Empty_Tuple,
+                                                              GNHWK,
+                                                              int8_t,
+                                                              int8_t,
+                                                              Empty_Tuple,
+                                                              int8_t,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
 // grouped conv2d forward, NHWGC/GKYXC/NHWGK
 void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
@@ -273,11 +314,13 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, float>)
             {
                 add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f32_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f32_instances(op_ptrs);
             }
             else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
                               is_same_v<OutDataType, half_t>)
             {
                 add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f16_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f16_instances(op_ptrs);
             }
             else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
                               is_same_v<WeiDataType, ck::bhalf_t> &&
@@ -289,6 +332,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                               is_same_v<OutDataType, int8_t>)
             {
                 add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_int8_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_int8_instances(op_ptrs);
             }
         }
         else if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NHWGC> &&
