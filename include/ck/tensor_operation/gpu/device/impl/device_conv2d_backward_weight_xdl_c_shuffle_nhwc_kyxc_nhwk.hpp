@@ -510,7 +510,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         {
             if(stream_config.log_level_ > 0)
             {
-                Print();
+                Print(arg);
             }
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
