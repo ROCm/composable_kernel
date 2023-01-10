@@ -632,7 +632,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-#ifdef DEBUG_LOG
+#if DEBUG_LOG
         arg.Print();
 #endif
 

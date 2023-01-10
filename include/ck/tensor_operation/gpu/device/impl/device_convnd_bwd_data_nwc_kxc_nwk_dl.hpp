@@ -1272,7 +1272,7 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Dl
             float ave_time = 0;
             for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
             {
-#ifdef DEBUG_LOG
+#if DEBUG_LOG
                 {
                     std::cout << "arg.a_grid_desc_k0_m_k1_container_{"
                               << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) << ", "

@@ -327,7 +327,7 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-#ifdef DEBUG_LOG
+#if DEBUG_LOG
             {
                 std::cout << "arg.a_grid_desc_k0_m0_m1_k1_{"
                           << arg.a_grid_desc_k0_m_k1_.GetLength(I0) << ", "

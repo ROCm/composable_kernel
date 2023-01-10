@@ -644,7 +644,7 @@ struct
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-#ifdef DEBUG_LOG
+#if DEBUG_LOG
             {
                 std::cout << DeviceOp{}.GetTypeString() << std::endl;
                 std::cout << "N " << arg.Conv_N_ << ", "
