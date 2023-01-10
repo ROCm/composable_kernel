@@ -400,7 +400,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
         {
             if(stream_config.log_level_ > 0)
             {
-                Print();
+                Print(arg);
             }
 
             const auto kbatch = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0);
