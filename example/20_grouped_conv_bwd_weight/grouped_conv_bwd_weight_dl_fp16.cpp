@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_gnwc_gkxc_gnwk_dl.hpp"
-
+#include <algorithm>
 #include <iostream>
-#include <numeric>
-#include <initializer_list>
-#include <cstdlib>
+#include <iterator>
 
 #include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_gnwc_gkxc_gnwk_dl.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -37,7 +36,7 @@ static constexpr auto ConvBwdWeightDefault =
 
 template <ck::index_t NDimSpatial>
 using DeviceConvBwdWeightInstance =
-    ck::tensor_operation::device::DeviceConvNdBwdWeightNwcKxcNwk_Dl<
+    ck::tensor_operation::device::DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Dl<
         NDimSpatial,          // NDimSpatial
         InDataType,           // InDataType
         WeiDataType,          // WeiDataType
@@ -142,7 +141,7 @@ int run_conv_bwd_weight(bool do_verification,
     std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
     std::array<ck::index_t, NDimSpatial> input_right_pads{};
-    
+
     auto range_copy = [](const auto& from, auto to) { std::copy(begin(from), end(from), to); };
 
     range_copy(conv_param.input_spatial_lengths_, begin(input_spatial_lengths));
@@ -295,16 +294,16 @@ int main(int argc, char* argv[])
                                    WeiElementOp,
                                    OutElementOp,
                                    DeviceConvBwdWeightInstance<1>>(do_verification,
-                                                                     init_method,
-                                                                     time_kernel,
-                                                                     conv_param,
-                                                                     in_g_n_c_wis_desc,
-                                                                     wei_g_k_c_xs_desc,
-                                                                     out_g_n_k_wos_desc,
-                                                                     in_element_op,
-                                                                     wei_element_op,
-                                                                     out_element_op,
-                                                                     split_k);
+                                                                   init_method,
+                                                                   time_kernel,
+                                                                   conv_param,
+                                                                   in_g_n_c_wis_desc,
+                                                                   wei_g_k_c_xs_desc,
+                                                                   out_g_n_k_wos_desc,
+                                                                   in_element_op,
+                                                                   wei_element_op,
+                                                                   out_element_op,
+                                                                   split_k);
     }
     else if(conv_param.num_dim_spatial_ == 2)
     {
@@ -332,16 +331,16 @@ int main(int argc, char* argv[])
                                    WeiElementOp,
                                    OutElementOp,
                                    DeviceConvBwdWeightInstance<2>>(do_verification,
-                                                                     init_method,
-                                                                     time_kernel,
-                                                                     conv_param,
-                                                                     in_g_n_c_wis_desc,
-                                                                     wei_g_k_c_xs_desc,
-                                                                     out_g_n_k_wos_desc,
-                                                                     in_element_op,
-                                                                     wei_element_op,
-                                                                     out_element_op,
-                                                                     split_k);
+                                                                   init_method,
+                                                                   time_kernel,
+                                                                   conv_param,
+                                                                   in_g_n_c_wis_desc,
+                                                                   wei_g_k_c_xs_desc,
+                                                                   out_g_n_k_wos_desc,
+                                                                   in_element_op,
+                                                                   wei_element_op,
+                                                                   out_element_op,
+                                                                   split_k);
     }
     else if(conv_param.num_dim_spatial_ == 3)
     {
@@ -369,16 +368,16 @@ int main(int argc, char* argv[])
                                    WeiElementOp,
                                    OutElementOp,
                                    DeviceConvBwdWeightInstance<3>>(do_verification,
-                                                                     init_method,
-                                                                     time_kernel,
-                                                                     conv_param,
-                                                                     in_g_n_c_wis_desc,
-                                                                     wei_g_k_c_xs_desc,
-                                                                     out_g_n_k_wos_desc,
-                                                                     in_element_op,
-                                                                     wei_element_op,
-                                                                     out_element_op,
-                                                                     split_k);
+                                                                   init_method,
+                                                                   time_kernel,
+                                                                   conv_param,
+                                                                   in_g_n_c_wis_desc,
+                                                                   wei_g_k_c_xs_desc,
+                                                                   out_g_n_k_wos_desc,
+                                                                   in_element_op,
+                                                                   wei_element_op,
+                                                                   out_element_op,
+                                                                   split_k);
     }
 
     return 0;
