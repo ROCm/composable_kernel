@@ -850,7 +850,6 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
                                         arg.e_grid_desc_m_n_,
                                         arg.block_2_etile_map_))
         {
-            std::cout << "CheckValidity" << std::endl;
             return false;
         }
 
@@ -865,7 +864,6 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
             if(!(arg.a_mz_stride_ == 1 &&
                  arg.a_grid_desc_ak0_m_ak1_.GetLength(I1) % ABlockTransferSrcScalarPerVector == 0))
             {
-                std::cout << "1" << std::endl;
                 return false;
             }
         }
@@ -874,7 +872,6 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
             if(!(arg.a_kz_stride_ == 1 &&
                  arg.a_grid_desc_ak0_m_ak1_.GetLength(I2) % ABlockTransferSrcScalarPerVector == 0))
             {
-                std::cout << "2" << std::endl;
                 return false;
             }
         }
@@ -885,7 +882,6 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
             if(!(arg.b_nz_stride_ == 1 &&
                  arg.b_grid_desc_bk0_n_bk1_.GetLength(I1) % BBlockTransferSrcScalarPerVector == 0))
             {
-                std::cout << "3" << std::endl;
                 return false;
             }
         }
@@ -894,7 +890,6 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
             if(!(arg.b_kz_stride_ == 1 &&
                  arg.b_grid_desc_bk0_n_bk1_.GetLength(I2) % BBlockTransferSrcScalarPerVector == 0))
             {
-                std::cout << "4" << std::endl;
                 return false;
             }
         }
@@ -908,25 +903,22 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
                          CDEBlockTransferScalarPerVector_NPerBlock ==
                      0))
             {
-                std::cout << "5" << std::endl;
                 valid_d_access = false;
             }
         });
 
         if(valid_d_access == false)
         {
-            std::cout << "6" << std::endl;
             return false;
         }
 
         // vector memory access of E: always on NPerBlock dimension
-       if(!((arg.e_nz_stride_ == 1 &&
+        if(!((arg.e_nz_stride_ == 1 &&
               arg.e_grid_desc_mblock_mperblock_nblock_nperblock_.GetLength(I3) %
                       CDEBlockTransferScalarPerVector_NPerBlock ==
                   0) ||
              CDEBlockTransferScalarPerVector_NPerBlock == 1))
         {
-            std::cout << "7" << std::endl;
             return false;
         }
 
