@@ -316,7 +316,7 @@ int run(int argc, char* argv[])
     std::vector<DeviceMemPtr> ygrad_tensors_device;
     std::vector<DeviceMemPtr> kgrad_tensors_device;
     std::vector<DeviceMemPtr> vgrad_tensors_device;
-    std::size_t group_count = 1;
+    std::size_t group_count = 3;
     std::size_t flop = 0, num_byte = 0;
     for(std::size_t i=0; i<group_count; i++){
         // int M  = 128 * (rand() % 8 + 1);
@@ -538,6 +538,17 @@ int run(int argc, char* argv[])
         Scale{alpha},
         QKVElementOp{},
         YElementOp{});
+        
+    DeviceMem problem_desc_workspace(gemm.GetWorkSpaceSize(&argument));
+
+    gemm.SetWorkSpacePointer(&argument, problem_desc_workspace.GetDeviceBuffer());
+
+    if(!gemm.IsSupportedArgument(argument))
+    {
+        std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+        return 0;
+    }
 
     if(!gemm.IsSupportedArgument(argument))
     {

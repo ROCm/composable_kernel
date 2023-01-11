@@ -1062,6 +1062,11 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
+    size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
+    {
+        return dynamic_cast<const Argument*>(p_arg)->group_count_ * sizeof(GroupKernelArg);
+    }
+
     static auto MakeArgument(const std::vector<const DataType*>& p_As,
                              const std::vector<const DataType*>& p_Bs,
                              const std::vector<const DataType*>& p_B1s,
