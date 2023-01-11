@@ -115,6 +115,14 @@ struct BlockwiseSoftmax
             return keep ? val : float(0);
         };
 
+        ushort tmp[8];
+        ck::philox ph0(0, get_thread_global_1d_id(), 1);
+        ck::uint4_to_ushort8(ph0(), tmp);
+        block_sync_lds();
+        for(int i = 0; i < 8; i++){
+          printf("rand num at %d is %u \n", i, tmp[i]);
+        }
+
         if( get_thread_global_1d_id() == 0){
             printf("MRepeat: %d \n", MRepeat);
             printf("KRepeat: %d \n", KRepeat);
