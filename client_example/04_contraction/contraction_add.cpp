@@ -57,14 +57,14 @@ int main(int argc, char* argv[])
 {
     ck::index_t G0 = 1;
 
-    ck::index_t M0 = 4;
+    ck::index_t M0 = 64;
     ck::index_t M1 = 256;
 
     ck::index_t N0 = 3;
-    ck::index_t N1 = 16;
-    ck::index_t N2 = 128;
+    ck::index_t N1 = 12;
+    ck::index_t N2 = 64;
 
-    ck::index_t K0 = 256;
+    ck::index_t K0 = 768;
 
     // A[M0, M1, M2, K0]
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, M0, M1, K0};
