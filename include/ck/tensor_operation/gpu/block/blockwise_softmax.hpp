@@ -109,7 +109,7 @@ struct BlockwiseSoftmax
     }
 
     template <typename CThreadBuffer>
-    __host__ __device__ void ApplyDropout(CThreadBuffer& in_thread_buf, float p_dropout){
+    __host__ __device__ void ApplyDropout(CThreadBuffer& in_thread_buf, ushort p_dropout_16bits){
 
         auto encode_dropout = [](bool keep, float val) {
             return keep ? val : float(0);
@@ -123,7 +123,7 @@ struct BlockwiseSoftmax
         static_for<0, MRepeat, 1>{}([&](auto iM) {
             static_for<0, KRepeat, 1>{}([&](auto iK) {
                 auto offset = Number<ThreadSliceDesc_M_K{}.CalculateOffset(make_tuple(iM, iK))>{};
-                in_thread_buf(offset) = encode_dropout( 0 < p_dropout , in_thread_buf(offset));
+                in_thread_buf(offset) = encode_dropout( 0 < p_dropout_16bits , in_thread_buf(offset));
             });
         });
     }
