@@ -143,6 +143,29 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
                       "wrong!");
     }
 
+    // Thread level, register decriptor. Vector-write
+    __host__ __device__ static constexpr auto
+    GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs()
+    {
+        constexpr auto c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens =
+            wmma_gemm.GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths();
+
+        constexpr auto MSubGroup          = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I0];
+        constexpr auto NThreadPerSubGroup = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I1];
+        constexpr auto MAccVgprs          = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
+
+        return make_naive_tensor_descriptor_packed(
+            //        |MRepeat           |MWave |MSubGroup |NRepeat           |NWave
+            //        |NThreadPerSubGroup |MAccVgprs
+            make_tuple(Number<MRepeat>{},
+                       I1,
+                       MSubGroup,
+                       Number<NRepeat>{},
+                       I1,
+                       NThreadPerSubGroup,
+                       MAccVgprs));
+    }
+
     // Provide dimension size
     __host__ __device__ static constexpr auto
     GetCBlockDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs()
@@ -550,12 +573,12 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
 
                 constexpr index_t c_offset =
                     c_thread_desc_.CalculateOffset(make_tuple(iCut, iN, 0));
-                s_nop();
+                // s_nop();
                 wmma_gemm.template Run(
                     a_thread_vec.template AsType<wmma_input_type_a>()(Number<0>{}),
                     b_thread_vec.template AsType<wmma_input_type_b>()(Number<0>{}),
                     c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                s_nop();
+                // s_nop();
             });
             if constexpr(KPerBlock > WmmaK)
             {
@@ -590,12 +613,12 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
 
                     constexpr index_t c_offset = c_thread_desc_.CalculateOffset(
                         make_tuple(WmmaInnerloop + RepeatDiff, iN, 0));
-                    s_nop();
+                    // s_nop();
                     wmma_gemm.template Run(
                         a_thread_vec.template AsType<wmma_input_type_a>()(Number<0>{}),
                         b_thread_vec.template AsType<wmma_input_type_b>()(Number<0>{}),
                         c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                    s_nop();
+                    // s_nop();
                 });
 
                 // Read Consumed Next inner loop A
@@ -626,12 +649,12 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
 
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(iM, WmmaInnerloop, 0));
-                    s_nop();
+                    // s_nop();
                     wmma_gemm.template Run(
                         a_thread_vec.template AsType<wmma_input_type_a>()(Number<0>{}),
                         b_thread_vec.template AsType<wmma_input_type_b>()(Number<0>{}),
                         c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                    s_nop();
+                    // s_nop();
                 });
                 // Read Consumed Next inner loop B
                 b_thread_copy_.Run(
@@ -662,12 +685,12 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
 
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(iCut, iN, 0));
-                    s_nop();
+                    // s_nop();
                     wmma_gemm.template Run(
                         a_thread_vec.template AsType<wmma_input_type_a>()(Number<0>{}),
                         b_thread_vec.template AsType<wmma_input_type_b>()(Number<0>{}),
                         c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                    s_nop();
+                    // s_nop();
                 });
                 if constexpr(KPerBlock > WmmaK)
                 {
@@ -702,12 +725,12 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
 
                 constexpr index_t c_offset =
                     c_thread_desc_.CalculateOffset(make_tuple(WmmaInnerloop + RepeatDiff, iN, 0));
-                s_nop();
+                // s_nop();
                 wmma_gemm.template Run(
                     a_thread_vec.template AsType<wmma_input_type_a>()(Number<0>{}),
                     b_thread_vec.template AsType<wmma_input_type_b>()(Number<0>{}),
                     c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                s_nop();
+                // s_nop();
             });
 
             // Col Repeatation
@@ -728,12 +751,12 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
 
                 constexpr index_t c_offset =
                     c_thread_desc_.CalculateOffset(make_tuple(iM, WmmaInnerloop, 0));
-                s_nop();
+                // s_nop();
                 wmma_gemm.template Run(
                     a_thread_vec.template AsType<wmma_input_type_a>()(Number<0>{}),
                     b_thread_vec.template AsType<wmma_input_type_b>()(Number<0>{}),
                     c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                s_nop();
+                // s_nop();
             });
         });
     }
