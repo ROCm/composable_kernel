@@ -488,7 +488,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     {
         using Argument = DeviceOp::Argument;
 
-        void ShowInfo(const Argument& arg)
+        void Print(const Argument& arg)
         {
             std::cout << "arg.a_grid_desc_kbatch_k0_m_k1_{"
                       << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0) << ", "
@@ -508,7 +508,10 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            ShowInfo(arg);
+            if(stream_config.log_level_ > 0)
+            {
+                Print(arg);
+            }
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
                                             arg.b_grid_desc_kbatch_k0_n_k1_,

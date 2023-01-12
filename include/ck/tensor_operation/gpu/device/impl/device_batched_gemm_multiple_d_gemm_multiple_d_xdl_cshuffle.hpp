@@ -579,6 +579,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                                          BatchStrideD1s,
                                          BatchStrideE1}
         {
+#if DEBUG_LOG
             std::cout << "a0_grid_desc_m_k_{" << a0_grid_desc_m_k_.GetLength(I0) << ", "
                       << a0_grid_desc_m_k_.GetLength(I1) << "}" << std::endl;
             std::cout << "b0_grid_desc_n_k_{" << b0_grid_desc_n_k_.GetLength(I0) << ", "
@@ -601,6 +602,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                       << std::endl;
             std::cout << "e1_grid_desc_m_n_{" << e1_grid_desc_m_n_.GetLength(I0) << ", "
                       << e1_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+#endif
 
             static_for<0, NumD0Tensor, 1>{}([&](auto i) {
                 using D0Layout   = remove_cvref_t<tuple_element_t<i.value, D0sLayout>>;
