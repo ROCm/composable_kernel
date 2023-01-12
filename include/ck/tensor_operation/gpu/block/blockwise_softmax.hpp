@@ -109,29 +109,39 @@ struct BlockwiseSoftmax
     }
 
     template <typename CThreadBuffer>
-    __host__ __device__ void ApplyDropout(CThreadBuffer& in_thread_buf, ushort p_dropout_16bits){
+    __host__ __device__ void ApplyDropout(CThreadBuffer& in_thread_buf, ushort p_dropout_16bits, ck::philox ph){
 
         auto encode_dropout = [](bool keep, float val) {
             return keep ? val : float(0);
         };
+        
+        constexpr int tmp_size = MRepeat * KRepeat;
+        constexpr int philox_calls = tmp_size / 8;
 
-        ushort tmp[8];
-        ck::philox ph0(0, get_thread_global_1d_id(), 1);
-        ck::uint4_to_ushort8(ph0(), tmp);
+        //ck::philox ph(0, 0, get_thread_global_1d_id() * 32);
+        ushort tmp[tmp_size];
+        for(int i = 0; i < philox_calls; i++){
+            ck::uint4_to_ushort8(ph(philox_calls), (tmp + i * 8));
+        }
+
         block_sync_lds();
-        for(int i = 0; i < 8; i++){
-          printf("rand num at %d is %u \n", i, tmp[i]);
+        for(int i = 0; i < 64; i++){
+          printf("rand num at %d is %hu \n", i, tmp[i]);
         }
 
-        if( get_thread_global_1d_id() == 0){
-            printf("MRepeat: %d \n", MRepeat);
-            printf("KRepeat: %d \n", KRepeat);
-        }
+        //printf("p_dropout_16bits is %hu \n", p_dropout_16bits);
 
+        //if( get_thread_global_1d_id() == 0){
+        //    printf("MRepeat: %d \n", MRepeat);
+        //    printf("KRepeat: %d \n", KRepeat);
+        //}
+
+        int tmp_index = 0;
         static_for<0, MRepeat, 1>{}([&](auto iM) {
             static_for<0, KRepeat, 1>{}([&](auto iK) {
                 auto offset = Number<ThreadSliceDesc_M_K{}.CalculateOffset(make_tuple(iM, iK))>{};
-                in_thread_buf(offset) = encode_dropout( 0 < p_dropout_16bits , in_thread_buf(offset));
+                in_thread_buf(offset) = encode_dropout( tmp[tmp_index] < p_dropout_16bits , in_thread_buf(offset));
+                tmp_index = tmp_index + 1;
             });
         });
     }

@@ -7,6 +7,7 @@
 #include <sstream>
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/philox_rand.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -43,12 +44,15 @@ __global__ void
             const AccElementwiseOperation acc_element_op,
             const B1ElementwiseOperation b1_element_op,
             const CElementwiseOperation c_element_op,
-            const ushort p_dropout_in_16bits)
+            const ushort p_dropout_in_16bits,
+            const unsigned long long seed)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();
+
+    ck::philox ph(seed, 0, block_id);
 
     const auto arg_ptr = reinterpret_cast<const GroupKernelArg*>(
         cast_pointer_to_generic_address_space(group_kernel_args));
@@ -102,7 +106,8 @@ __global__ void
         arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
         arg_ptr[group_id].block_2_ctile_map_,
         arg_ptr[group_id].c0_matrix_mask_,
-        p_dropout_in_16bits);
+        p_dropout_in_16bits,
+        ph);
 #else
     ignore = group_kernel_args;
     ignore = group_count;
@@ -464,12 +469,15 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                  AccElementwiseOperation acc_element_op,
                  B1ElementwiseOperation b1_element_op,
                  CElementwiseOperation c_element_op,
-                 float p_dropout)
+                 float p_dropout,
+                 unsigned long long seed
+                 )
             : a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               acc_element_op_{acc_element_op},
               b1_element_op_{b1_element_op},
-              c_element_op_{c_element_op}
+              c_element_op_{c_element_op},
+              seed_(seed)
         {
             // TODO ANT: implement bias addition
             group_count_ = problem_desc_vec.size();
@@ -577,7 +585,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                      c_grid_desc_m_n});
             }
 
-            is_dropout_ = p_dropout > 0.0 ;
+            is_dropout_ = p_dropout > 0.0 ; //
             p_dropout_ = 1.f - p_dropout;
             p_dropout_in_16bits_ = uint16_t(std::floor(p_dropout_ * 65535.0));
         }
@@ -596,6 +604,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
         float p_dropout_;
         ushort p_dropout_in_16bits_;
+        unsigned long long seed_;
         bool is_dropout_;
     };
 
@@ -654,7 +663,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                     arg.acc_element_op_,
                     arg.b1_element_op_,
                     arg.c_element_op_,
-                    arg.p_dropout_in_16bits_);
+                    arg.p_dropout_in_16bits_,
+                    arg.seed_);
             };
 
             // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need
@@ -817,7 +827,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                              AccElementwiseOperation acc_element_op,
                              B1ElementwiseOperation b1_element_op,
                              CElementwiseOperation c_element_op,
-                             float p_dropout)
+                             float p_dropout,
+                             const unsigned long long seed = 0)
     {
         return Argument{p_a_vec,
                         p_b_vec,
@@ -831,7 +842,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                         acc_element_op,
                         b1_element_op,
                         c_element_op,
-                        p_dropout};
+                        p_dropout,
+                        seed};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -850,7 +862,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                         AccElementwiseOperation acc_element_op,
                         B1ElementwiseOperation b1_element_op,
                         CElementwiseOperation c_element_op,
-                        float p_dropout) override
+                        float p_dropout,
+                        const unsigned long long seed = 0) override
     {
         return std::make_unique<Argument>(p_a_vec,
                                           p_b_vec,
@@ -864,7 +877,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                           acc_element_op,
                                           b1_element_op,
                                           c_element_op,
-                                          p_dropout);
+                                          p_dropout,
+                                          seed);
     }
 
     // polymorphic

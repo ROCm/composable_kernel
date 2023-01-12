@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/philox_rand.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -356,7 +357,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
                                const Block2CTileMap& block_2_ctile_map,
                                const C0MatrixMask& c0_matrix_mask,
-                               const ushort p_dropout_in_16bits)
+                               const ushort p_dropout_in_16bits,
+                               ck::philox ph)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -812,7 +814,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             blockwise_softmax.Run(acc_thread_buf, workspace_buf);
             
             if constexpr(IsDropout) //dropout
-                blockwise_softmax.ApplyDropout(acc_thread_buf, p_dropout_in_16bits);
+                blockwise_softmax.ApplyDropout(acc_thread_buf, p_dropout_in_16bits, ph);
 
             // TODO: may convert to log domain
             running_max_new = mathext::max(max, running_max);

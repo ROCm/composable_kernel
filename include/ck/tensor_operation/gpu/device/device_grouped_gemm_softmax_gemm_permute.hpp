@@ -66,7 +66,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute : public BaseOperator
                         Acc0ElementwiseOperation acc0_element_op,
                         B1ElementwiseOperation b1_element_op,
                         CElementwiseOperation c_element_op,
-                        float p_dropout) = 0;
+                        float p_dropout,
+                        unsigned long long seed = 0) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
