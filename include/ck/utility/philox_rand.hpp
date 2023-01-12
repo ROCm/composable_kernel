@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 namespace ck {
@@ -8,7 +11,7 @@ class philox
     __device__ inline philox(unsigned long long seed,
                              unsigned long long subsequence,
                              unsigned long long offset)
-        : key(reinterpret_cast<const uint2&>(seed))
+        : h_seed(reinterpret_cast<const uint2&>(seed))
     {
 
         ull2* tmp = reinterpret_cast<ull2*>(&counter);
@@ -16,52 +19,65 @@ class philox
         tmp->y    = subsequence;
     }
 
-    __device__ inline uint4 operator()()
+    __device__ inline uint4 get_philox_4x32()
     {
 
         uint4 counter_ = counter;
-        uint2 key_     = key;
+        uint2 key_     = h_seed;
 // 7-round philox
 #pragma unroll
         for(int i = 0; i < 6; i++)
         {
-            counter_ = single_round(counter_, key_);
+            counter_ = single_loop(counter_, key_);
             key_.x += kPhilox10A;
             key_.y += kPhilox10B;
         }
-        uint4 output = single_round(counter_, key_);
+        uint4 output = single_loop(counter_, key_);
         incr();
-        /*
-        if ((threadIdx.x == 0) && (blockIdx.x == 0) && (blockIdx.y == 0)) {
-            printf("Philox counter: %u, %u, %u, %u\n", counter.x, counter.y, counter.z, counter.w);
-            printf("Philox output: %u, %u, %u, %u\n", output.x, output.y, output.z, output.w);
-        }
-        if ((threadIdx.x == 1) && (blockIdx.x == 0) && (blockIdx.y == 0)) {
-            printf("Philox counter: %u, %u, %u, %u\n", counter.x, counter.y, counter.z, counter.w);
-            printf("Philox output: %u, %u, %u, %u\n", output.x, output.y, output.z, output.w);
-        }
-        */
+
         return output;
     }
 
-    __device__ inline uint4 operator()(const unsigned long long subsequence)
+    __device__ inline uint4 get_philox_4x32(const unsigned long long subsequence)
     {
 
         uint4 counter_ = counter;
         ull2* tmp      = reinterpret_cast<ull2*>(&counter_);
         tmp->y         = subsequence;
 
-        uint2 key_ = key;
+        uint2 key_ = h_seed;
 // 7-round philox
 #pragma unroll
         for(int i = 0; i < 6; i++)
         {
-            counter_ = single_round(counter_, key_);
+            counter_ = single_loop(counter_, key_);
             key_.x += kPhilox10A;
             key_.y += kPhilox10B;
         }
-        uint4 output = single_round(counter_, key_);
+        uint4 output = single_loop(counter_, key_);
         return output;
+    }
+
+    __device__ void get_randon_8x16(ushort* b)
+    {
+        uint4 tmp_ph;
+        tmp_ph = get_philox_4x32();
+
+        b[0] = tmp_ph.x;
+        b[1] = tmp_ph.y;
+        b[2] = tmp_ph.z;
+        b[3] = tmp_ph.w;
+    }
+
+    __device__ void get_randon_8x16(ushort* b, const unsigned long long subsequence)
+    {
+        uint4 tmp_ph;
+        tmp_ph = get_philox_4x32(subsequence);
+
+        b[0] = tmp_ph.x;
+        b[1] = tmp_ph.y;
+        b[2] = tmp_ph.z;
+        b[3] = tmp_ph.w;
     }
 
     private:
@@ -71,7 +87,7 @@ class philox
         uint64_t y;
     };
     uint4 counter;
-    const uint2 key;
+    const uint2 h_seed;
 
     __device__ uint4 incr(uint4 ctr)
     {
@@ -101,7 +117,7 @@ class philox
 
     __device__ inline void incr() { counter = incr(counter); }
 
-    __device__ uint2 mulhilo32(const unsigned int a, const unsigned int b)
+    __device__ uint2 u32_high_low_multi(const unsigned int a, const unsigned int b)
     {
         uint2* res;
         uint2 tmp_res;
@@ -113,11 +129,11 @@ class philox
         return *res;
     }
 
-    __device__ inline uint4 single_round(const uint4 ctr, const uint2 i_key)
+    __device__ inline uint4 single_loop(const uint4 ctr, const uint2 i_key)
     {
 
-        uint2 res0 = mulhilo32(kPhiloxSA, ctr.x);
-        uint2 res1 = mulhilo32(kPhiloxSB, ctr.z);
+        uint2 res0 = u32_high_low_multi(kPhiloxSA, ctr.x);
+        uint2 res1 = u32_high_low_multi(kPhiloxSB, ctr.z);
         uint4 ret  = {res1.y ^ ctr.y ^ i_key.x, res1.x, res0.y ^ ctr.w ^ i_key.y, res0.x};
         return ret;
     }
@@ -128,42 +144,4 @@ class philox
     static const unsigned long kPhiloxSB  = 0xCD9E8D57;
 };
 
-__device__ void uint4_to_ushort8(const uint4 a, ushort* b)
-{
-    uint* b_tmp = reinterpret_cast<uint*>(b);
-    b_tmp[0]    = a.x;
-    b_tmp[1]    = a.y;
-    b_tmp[2]    = a.z;
-    b_tmp[3]    = a.w;
-}
-
 } // namespace ck
-
-/*
-__global__ void rand_use(){
-
-    const int tidx_global = blockIdx.x * blockDim.x + threadIdx.x;
-    ushort tmp[8];
-    ck::philox ph0(0, tidx_global, 0);
-    ck::uint4_to_ushort8(ph0(), tmp);
-    __syncthreads();
-    for(int i = 0; i < 8; i++){
-      printf("rand num at %d is %u \n", i, tmp[i]);
-    }
-}
-
-int main(){
-
-    int blockSize, gridSize;
-
-    blockSize = 4;
-    gridSize = 4;
-
-    hipLaunchKernelGGL(rand_use, dim3(gridSize), dim3(blockSize), 0, 0);
-
-    hipDeviceSynchronize();
-
-    return 0;
-
-}
-*/
