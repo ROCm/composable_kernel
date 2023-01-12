@@ -325,18 +325,13 @@ int run(int argc, char* argv[])
     std::size_t group_count = 3;
     std::size_t flop = 0, num_byte = 0;
     for(std::size_t i=0; i<group_count; i++){
-        // int M  = 128 * (rand() % 8 + 1);
-        // int N  = 128 * (rand() % 8 + 1);
-        // int K  = 40;
-        // int O  = 40 * (rand() % 2 + 1);
-        // int G0 = rand() % 3 + 1;
-        // int G1 = rand() % 5 + 1;
-        ck::index_t M  = 512;
-        ck::index_t N  = 512;
-        ck::index_t K  = 128;
-        ck::index_t O  = 128;
-        ck::index_t G0 = 3;
-        ck::index_t G1 = 2;
+        int M  = 128 * (rand() % 4 + 1);
+        int N  = 128 * (rand() % 4 + 1);
+        int K  = 128;
+        int O  = 128;
+        int G0 = rand() % 3 + 1;
+        int G1 = rand() % 2 + 1;
+
         std::vector<ck::index_t> q_gs_ms_ks_lengths{G0, G1, M, K};
         std::vector<ck::index_t> q_gs_ms_ks_strides =
             input_permute
