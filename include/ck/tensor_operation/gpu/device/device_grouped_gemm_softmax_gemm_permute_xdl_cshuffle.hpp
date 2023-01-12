@@ -470,8 +470,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                  B1ElementwiseOperation b1_element_op,
                  CElementwiseOperation c_element_op,
                  float p_dropout,
-                 unsigned long long seed
-                 )
+                 unsigned long long seed)
             : a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               acc_element_op_{acc_element_op},
@@ -585,8 +584,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                      c_grid_desc_m_n});
             }
 
-            is_dropout_ = p_dropout > 0.0 ; //
-            p_dropout_ = 1.f - p_dropout;
+            is_dropout_          = p_dropout > 0.0; //
+            p_dropout_           = 1.f - p_dropout;
             p_dropout_in_16bits_ = uint16_t(std::floor(p_dropout_ * 65535.0));
         }
 
@@ -673,22 +672,26 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
             {
                 if(arg.is_dropout_)
                 {
-                    ave_time = launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, true>{});
+                    ave_time = launch_kernel(integral_constant<bool, true>{},
+                                             integral_constant<bool, true>{});
                 }
                 else
                 {
-                    ave_time = launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, false>{});
+                    ave_time = launch_kernel(integral_constant<bool, true>{},
+                                             integral_constant<bool, false>{});
                 }
             }
             else if(!some_has_main_k_block_loop)
             {
                 if(arg.is_dropout_)
                 {
-                    ave_time = launch_kernel(integral_constant<bool, false>{}, integral_constant<bool, true>{});
+                    ave_time = launch_kernel(integral_constant<bool, false>{},
+                                             integral_constant<bool, true>{});
                 }
                 else
                 {
-                    ave_time = launch_kernel(integral_constant<bool, false>{}, integral_constant<bool, false>{});
+                    ave_time = launch_kernel(integral_constant<bool, false>{},
+                                             integral_constant<bool, false>{});
                 }
             }
             else

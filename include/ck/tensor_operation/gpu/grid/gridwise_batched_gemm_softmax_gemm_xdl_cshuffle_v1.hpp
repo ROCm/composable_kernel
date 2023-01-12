@@ -339,7 +339,10 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
     };
 
-    template <bool HasMainKBlockLoop, bool IsDropout, typename Block2CTileMap, typename C0MatrixMask>
+    template <bool HasMainKBlockLoop,
+              bool IsDropout,
+              typename Block2CTileMap,
+              typename C0MatrixMask>
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
                                const FloatAB* __restrict__ p_b1_grid,
@@ -812,9 +815,19 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             SoftmaxBuf& sum = blockwise_softmax.sum_value_buf;
 
             blockwise_softmax.Run(acc_thread_buf, workspace_buf);
-            
-            if constexpr(IsDropout) //dropout
-                blockwise_softmax.ApplyDropout(acc_thread_buf, p_dropout_in_16bits, ph);
+
+            if constexpr(IsDropout) // dropout
+            {
+                // if( get_thread_global_1d_id() == 0 ){
+                //    printf("gemm1_k_block_outer_index: %d & %d \n", gemm1_k_block_outer_index,
+                //    num_gemm1_k_block_outer_loop);
+                //}
+                blockwise_softmax.ApplyDropout(acc_thread_buf,
+                                               p_dropout_in_16bits,
+                                               ph,
+                                               gemm1_k_block_outer_index,
+                                               num_gemm1_k_block_outer_loop);
+            }
 
             // TODO: may convert to log domain
             running_max_new = mathext::max(max, running_max);
