@@ -50,7 +50,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     const index_t block_id = get_block_1d_id();
-    const auto arg_ptr = reinterpret_cast<const GroupKernelArg*>(
+    const auto arg_ptr     = reinterpret_cast<const GroupKernelArg*>(
         cast_pointer_to_generic_address_space(group_kernel_args));
 
     index_t left     = 0;
@@ -718,9 +718,9 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle
                 const auto p_c_grid     = static_cast<const DataType*>(p_Cs[i]);
                 const auto p_lse_grid   = static_cast<const LSEDataType*>(p_LSEs[i]);
                 const auto p_ygrad_grid = static_cast<const DataType*>(p_Ygrads[i]);
-                auto p_qgrad_grid = static_cast<DataType*>(p_Qgrads[i]);
-                auto p_kgrad_grid = static_cast<DataType*>(p_Kgrads[i]);
-                auto p_vgrad_grid = static_cast<DataType*>(p_Vgrads[i]);
+                auto p_qgrad_grid       = static_cast<DataType*>(p_Qgrads[i]);
+                auto p_kgrad_grid       = static_cast<DataType*>(p_Kgrads[i]);
+                auto p_vgrad_grid       = static_cast<DataType*>(p_Vgrads[i]);
 
                 const auto& problem_desc = problem_desc_vec[i];
 
@@ -844,31 +844,6 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle
             // ignore = acc1_biases_gs_ms_gemm1ns_strides;
         }
 
-        // void Print() const
-        // {
-        //     std::cout << "a_grid_desc_g_m_k_: " << a_grid_desc_g_m_k_.GetLength(I0) << ", "
-        //               << a_grid_desc_g_m_k_.GetLength(I1) << ", "
-        //               << a_grid_desc_g_m_k_.GetLength(I2) << '\n';
-        //     // a_grid_desc_g_m_k_.Print();
-        //     std::cout << "b_grid_desc_g_n_k_: " << b_grid_desc_g_n_k_.GetLength(I0) << ", "
-        //               << b_grid_desc_g_n_k_.GetLength(I1) << ", "
-        //               << b_grid_desc_g_n_k_.GetLength(I2) << '\n';
-        //     // b_grid_desc_g_n_k_.Print();
-        //     std::cout << "b1_grid_desc_g_o_n_: " << b1_grid_desc_g_n_k_.GetLength(I0) << ", "
-        //               << b1_grid_desc_g_n_k_.GetLength(I1) << ", "
-        //               << b1_grid_desc_g_n_k_.GetLength(I2) << '\n';
-        //     // b1_grid_desc_g_n_k_.Print();
-        //     std::cout << "c_grid_desc_g_m_o_: " << c_grid_desc_g_m_n_.GetLength(I0) << ", "
-        //               << c_grid_desc_g_m_n_.GetLength(I1) << ", "
-        //               << c_grid_desc_g_m_n_.GetLength(I2) << '\n';
-        //     // c_grid_desc_g_m_n_.Print();
-        //     std::cout << "vgrad_grid_desc_n_o_: " << vgrad_grid_desc_n_o_.GetLength(I0) << ", "
-        //               << vgrad_grid_desc_n_o_.GetLength(I1) << '\n';
-        //     std::cout << "ygrad_grid_desc_m0_o_m1_: " << ygrad_grid_desc_m0_o_m1_.GetLength(I0)
-        //               << ", " << ygrad_grid_desc_m0_o_m1_.GetLength(I1) << ", "
-        //               << ygrad_grid_desc_m0_o_m1_.GetLength(I2) << '\n';
-        // }
-
         // element-wise op
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
@@ -914,15 +889,15 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle
             float ave_time = 0;
 
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
-                const auto kernel = kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v1<
-                    GridwiseGemm,
-                    GroupKernelArg,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    AccElementwiseOperation,
-                    B1ElementwiseOperation,
-                    CElementwiseOperation,
-                    has_main_k_block_loop_>;
+                const auto kernel =
+                    kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v1<GridwiseGemm,
+                                                                     GroupKernelArg,
+                                                                     AElementwiseOperation,
+                                                                     BElementwiseOperation,
+                                                                     AccElementwiseOperation,
+                                                                     B1ElementwiseOperation,
+                                                                     CElementwiseOperation,
+                                                                     has_main_k_block_loop_>;
 
                 return launch_and_time_kernel(
                     stream_config,
