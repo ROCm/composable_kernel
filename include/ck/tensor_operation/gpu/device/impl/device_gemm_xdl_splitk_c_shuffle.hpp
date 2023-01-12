@@ -378,7 +378,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
     {
         using Argument = DeviceGemmXdlSplitKCShuffle::Argument;
 
-        void ShowInfo(const Argument& arg)
+        void Print(const Argument& arg)
         {
             std::cout << "arg.a_grid_desc_kbatch_k0_m_k1_{"
                       << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0) << ", "
@@ -398,7 +398,10 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            ShowInfo(arg);
+            if(stream_config.log_level_ > 0)
+            {
+                Print(arg);
+            }
 
             const auto kbatch = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0);
 

@@ -1274,6 +1274,7 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
             float ave_time = 0;
             for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
             {
+#if DEBUG_LOG
                 {
                     std::cout << "arg.a_grid_desc_k0_m_k1_container_{"
                               << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) << ", "
@@ -1310,6 +1311,7 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
                               << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I7)
                               << " ) " << std::endl;
                 }
+#endif
 
                 if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
                                                 arg.b_grid_desc_k0_n_k1_container_[i],
