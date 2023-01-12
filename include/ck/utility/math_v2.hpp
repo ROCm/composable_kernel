@@ -3,7 +3,9 @@
 
 #pragma once
 
+#ifndef __HIP_DEVICE_COMPILE__
 #include <cmath>
+#endif
 
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type.hpp"
