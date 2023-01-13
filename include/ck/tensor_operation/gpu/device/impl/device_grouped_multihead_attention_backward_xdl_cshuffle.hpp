@@ -38,7 +38,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
 __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-    kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v1(
+    kernel_grouped_multihead_attention_backward_xdl_cshuffle_v1(
         const void CK_CONSTANT_ADDRESS_SPACE* group_kernel_args,
         const index_t group_count,
         const AElementwiseOperation a_element_op,
@@ -890,14 +890,14 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle
 
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
                 const auto kernel =
-                    kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v1<GridwiseGemm,
-                                                                     GroupKernelArg,
-                                                                     AElementwiseOperation,
-                                                                     BElementwiseOperation,
-                                                                     AccElementwiseOperation,
-                                                                     B1ElementwiseOperation,
-                                                                     CElementwiseOperation,
-                                                                     has_main_k_block_loop_>;
+                    kernel_grouped_multihead_attention_backward_xdl_cshuffle_v1<GridwiseGemm,
+                                                                                GroupKernelArg,
+                                                                                AElementwiseOperation,
+                                                                                BElementwiseOperation,
+                                                                                AccElementwiseOperation,
+                                                                                B1ElementwiseOperation,
+                                                                                CElementwiseOperation,
+                                                                                has_main_k_block_loop_>;
 
                 return launch_and_time_kernel(
                     stream_config,
