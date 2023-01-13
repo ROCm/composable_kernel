@@ -84,24 +84,25 @@ __global__ void
     const index_t block_id = get_block_1d_id();
     ck::philox ph(seed, 0, block_id * 4);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(p_a_grid + a_batch_offset,
-                                                             p_b_grid + b_batch_offset,
-                                                             p_b1_grid + b1_batch_offset,
-                                                             p_c_grid + c_batch_offset,
-                                                             p_shared,
-                                                             a_element_op,
-                                                             b_element_op,
-                                                             acc_element_op,
-                                                             b1_element_op,
-                                                             c_element_op,
-                                                             a_grid_desc_ak0_m_ak1,
-                                                             b_grid_desc_bk0_n_bk1,
-                                                             b1_grid_desc_bk0_n_bk1,
-                                                             c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                             block_2_ctile_map,
-                                                             c0_matrix_mask,
-                                                             p_dropout_in_16bits,
-                                                             ph);
+    GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
+        p_a_grid + a_batch_offset,
+        p_b_grid + b_batch_offset,
+        p_b1_grid + b1_batch_offset,
+        p_c_grid + c_batch_offset,
+        p_shared,
+        a_element_op,
+        b_element_op,
+        acc_element_op,
+        b1_element_op,
+        c_element_op,
+        a_grid_desc_ak0_m_ak1,
+        b_grid_desc_bk0_n_bk1,
+        b1_grid_desc_bk0_n_bk1,
+        c_grid_desc_mblock_mperblock_nblock_nperblock,
+        block_2_ctile_map,
+        c0_matrix_mask,
+        p_dropout_in_16bits,
+        ph);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -726,8 +727,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                         NRaw,          KRaw,         Gemm1NRaw,    Batch,        StrideA,
                         StrideB,       StrideB1,     StrideC,      BatchStrideA, BatchStrideB,
                         BatchStrideB1, BatchStrideC, a_element_op, b_element_op, acc_element_op,
-                        b1_element_op, c_element_op, p_dropout,
-                        seed};
+                        b1_element_op, c_element_op, p_dropout,    seed};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
