@@ -7,6 +7,7 @@
 #include <sstream>
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/philox_rand.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -37,7 +38,8 @@ template <typename GridwiseGemm,
           typename Block2CTileMap,
           typename ComputeBasePtrOfStridedBatch,
           typename C0MatrixMask,
-          bool HasMainKBlockLoop>
+          bool HasMainKBlockLoop,
+          bool IsDropout>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -60,7 +62,9 @@ __global__ void
             const Block2CTileMap block_2_ctile_map,
             const index_t batch_count,
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
-            const C0MatrixMask c0_matrix_mask)
+            const C0MatrixMask c0_matrix_mask,
+            const ushort p_dropout_in_16bits,
+            const unsigned long long seed)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -77,22 +81,27 @@ __global__ void
     const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetCBasePtr(g_idx)));
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
-                                                  p_b_grid + b_batch_offset,
-                                                  p_b1_grid + b1_batch_offset,
-                                                  p_c_grid + c_batch_offset,
-                                                  p_shared,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  acc_element_op,
-                                                  b1_element_op,
-                                                  c_element_op,
-                                                  a_grid_desc_ak0_m_ak1,
-                                                  b_grid_desc_bk0_n_bk1,
-                                                  b1_grid_desc_bk0_n_bk1,
-                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  block_2_ctile_map,
-                                                  c0_matrix_mask);
+    const index_t block_id = get_block_1d_id();
+    ck::philox ph(seed, 0, block_id * 4);
+
+    GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(p_a_grid + a_batch_offset,
+                                                             p_b_grid + b_batch_offset,
+                                                             p_b1_grid + b1_batch_offset,
+                                                             p_c_grid + c_batch_offset,
+                                                             p_shared,
+                                                             a_element_op,
+                                                             b_element_op,
+                                                             acc_element_op,
+                                                             b1_element_op,
+                                                             c_element_op,
+                                                             a_grid_desc_ak0_m_ak1,
+                                                             b_grid_desc_bk0_n_bk1,
+                                                             b1_grid_desc_bk0_n_bk1,
+                                                             c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                             block_2_ctile_map,
+                                                             c0_matrix_mask,
+                                                             p_dropout_in_16bits,
+                                                             ph);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -453,7 +462,9 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                  BElementwiseOperation b_element_op,
                  AccElementwiseOperation acc_element_op,
                  B1ElementwiseOperation b1_element_op,
-                 CElementwiseOperation c_element_op)
+                 CElementwiseOperation c_element_op,
+                 float p_dropout,
+                 unsigned long long seed)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_b1_grid_{p_b1_grid},
@@ -473,7 +484,8 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
               batch_count_(Batch),
               compute_base_ptr_of_batch_{BatchStrideA, BatchStrideB, BatchStrideB1, BatchStrideC},
               c0_matrix_mask_{NRaw},
-              raw_lengths_m_n_k_o_{MRaw, NRaw, KRaw, Gemm1NRaw}
+              raw_lengths_m_n_k_o_{MRaw, NRaw, KRaw, Gemm1NRaw},
+              seed_(seed)
         {
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                            b_grid_desc_bk0_n_bk1_,
@@ -485,6 +497,10 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         c_grid_desc_m_n_);
             }
+
+            is_dropout_          = p_dropout > 0.0;
+            p_dropout_           = 1.f - p_dropout;
+            p_dropout_in_16bits_ = uint16_t(std::floor(p_dropout_ * 65535.0));
         }
 
         //  private:
@@ -512,6 +528,11 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
         // For robust IsSupportedArgument() check
         std::vector<index_t> raw_lengths_m_n_k_o_;
+
+        float p_dropout_;
+        ushort p_dropout_in_16bits_;
+        unsigned long long seed_;
+        bool is_dropout_;
     };
 
     // Invoker
@@ -539,7 +560,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
             float ave_time = 0;
 
-            auto launch_kernel = [&](auto has_main_k_block_loop_) {
+            auto launch_kernel = [&](auto has_main_k_block_loop_, auto is_dropout_) {
                 const auto kernel = kernel_batched_gemm_softmax_gemm_xdl_cshuffle_v1<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
@@ -556,7 +577,8 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     ComputeBasePtrOfStridedBatch,
                     C0MatrixMask,
-                    has_main_k_block_loop_>;
+                    has_main_k_block_loop_,
+                    is_dropout_>;
 
                 return launch_and_time_kernel(stream_config,
                                               kernel,
@@ -579,18 +601,38 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                               arg.block_2_ctile_map_,
                                               arg.batch_count_,
                                               arg.compute_base_ptr_of_batch_,
-                                              arg.c0_matrix_mask_);
+                                              arg.c0_matrix_mask_,
+                                              arg.p_dropout_in_16bits_,
+                                              arg.seed_);
             };
 
             // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need
             // to concern Gemm0's loop
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                ave_time = launch_kernel(integral_constant<bool, true>{});
+                if(arg.is_dropout_)
+                {
+                    ave_time = launch_kernel(integral_constant<bool, true>{},
+                                             integral_constant<bool, true>{});
+                }
+                else
+                {
+                    ave_time = launch_kernel(integral_constant<bool, true>{},
+                                             integral_constant<bool, false>{});
+                }
             }
             else
             {
-                ave_time = launch_kernel(integral_constant<bool, false>{});
+                if(arg.is_dropout_)
+                {
+                    ave_time = launch_kernel(integral_constant<bool, false>{},
+                                             integral_constant<bool, true>{});
+                }
+                else
+                {
+                    ave_time = launch_kernel(integral_constant<bool, false>{},
+                                             integral_constant<bool, false>{});
+                }
             }
 
             return ave_time;
@@ -676,13 +718,16 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                              BElementwiseOperation b_element_op,
                              AccElementwiseOperation acc_element_op,
                              B1ElementwiseOperation b1_element_op,
-                             CElementwiseOperation c_element_op)
+                             CElementwiseOperation c_element_op,
+                             float p_dropout,
+                             unsigned long long seed = 0)
     {
         return Argument{p_a,           p_b,          p_b1,         p_c,          MRaw,
                         NRaw,          KRaw,         Gemm1NRaw,    Batch,        StrideA,
                         StrideB,       StrideB1,     StrideC,      BatchStrideA, BatchStrideB,
                         BatchStrideB1, BatchStrideC, a_element_op, b_element_op, acc_element_op,
-                        b1_element_op, c_element_op};
+                        b1_element_op, c_element_op, p_dropout,
+                        seed};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -709,7 +754,9 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                       BElementwiseOperation b_element_op,
                                                       AccElementwiseOperation acc_element_op,
                                                       B1ElementwiseOperation b1_element_op,
-                                                      CElementwiseOperation c_element_op) override
+                                                      CElementwiseOperation c_element_op,
+                                                      float p_dropout,
+                                                      unsigned long long seed = 0) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -732,7 +779,9 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                           b_element_op,
                                           acc_element_op,
                                           b1_element_op,
-                                          c_element_op);
+                                          c_element_op,
+                                          p_dropout,
+                                          seed);
     }
 
     // polymorphic

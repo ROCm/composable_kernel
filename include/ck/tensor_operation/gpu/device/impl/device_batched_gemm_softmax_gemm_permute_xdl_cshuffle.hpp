@@ -7,6 +7,7 @@
 #include <sstream>
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/philox_rand.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute.hpp"
