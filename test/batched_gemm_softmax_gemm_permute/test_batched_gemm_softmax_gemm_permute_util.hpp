@@ -212,15 +212,16 @@ struct DeviceInstanceWrapper_G2M1N1K1O1_TNTT_FP16_M128_N128_K32_O128
                                           b1_gs_os_ns_strides,
                                           c_gs_ms_os_lengths,
                                           c_gs_ms_os_strides,
-                                          {},             // acc0_biases_gs_ms_ns_lengths
-                                          {},             // acc0_biases_gs_ms_ns_strides
-                                          {},             // acc1_biases_gs_ms_os_lengths
-                                          {},             // acc1_biases_gs_ms_os_strides
-                                          PassThrough{},  // a_element_op
-                                          PassThrough{},  // b0_element_op
-                                          Scale{1.f},     // acc0_element_op
-                                          PassThrough{},  // b1_element_op
-                                          PassThrough{}); // c_element_op
+                                          {},            // acc0_biases_gs_ms_ns_lengths
+                                          {},            // acc0_biases_gs_ms_ns_strides
+                                          {},            // acc1_biases_gs_ms_os_lengths
+                                          {},            // acc1_biases_gs_ms_os_strides
+                                          PassThrough{}, // a_element_op
+                                          PassThrough{}, // b0_element_op
+                                          Scale{1.f},    // acc0_element_op
+                                          PassThrough{}, // b1_element_op
+                                          PassThrough{}, // c_element_op
+                                          0);            // p_dropout
 
         return gemm.IsSupportedArgument(argument);
     }
@@ -353,15 +354,16 @@ struct DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128
                                           b1_gs_os_ns_strides,
                                           c_gs_ms_os_lengths,
                                           c_gs_ms_os_strides,
-                                          {},             // acc0_biases_gs_ms_ns_lengths
-                                          {},             // acc0_biases_gs_ms_ns_strides
-                                          {},             // acc1_biases_gs_ms_os_lengths
-                                          {},             // acc1_biases_gs_ms_os_strides
-                                          PassThrough{},  // a_element_op
-                                          PassThrough{},  // b0_element_op
-                                          Scale{1.f},     // acc0_element_op
-                                          PassThrough{},  // b1_element_op
-                                          PassThrough{}); // c_element_op
+                                          {},            // acc0_biases_gs_ms_ns_lengths
+                                          {},            // acc0_biases_gs_ms_ns_strides
+                                          {},            // acc1_biases_gs_ms_os_lengths
+                                          {},            // acc1_biases_gs_ms_os_strides
+                                          PassThrough{}, // a_element_op
+                                          PassThrough{}, // b0_element_op
+                                          Scale{1.f},    // acc0_element_op
+                                          PassThrough{}, // b1_element_op
+                                          PassThrough{}, // c_element_op
+                                          0);            // p_dropout
 
         return gemm.IsSupportedArgument(argument);
     }

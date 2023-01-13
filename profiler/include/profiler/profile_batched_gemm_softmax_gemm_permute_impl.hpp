@@ -278,7 +278,8 @@ bool profile_batched_gemm_softmax_gemm_permute_impl(bool do_verification,
             b0_element_op,
             acc0_element_op,
             b1_element_op,
-            c_element_op);
+            c_element_op,
+            0);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

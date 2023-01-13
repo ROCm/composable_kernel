@@ -177,20 +177,21 @@ struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
                                           N,
                                           K,
                                           O,
-                                          0,              // BatchCount
-                                          0,              // StrideA
-                                          0,              // StrideB0
-                                          0,              // StrideB1
-                                          0,              // StrideC
-                                          0,              // BatchStrideA
-                                          0,              // BatchStrideB0
-                                          0,              // BatchStrideB1
-                                          0,              // BatchStrideC
-                                          PassThrough{},  // a_element_op
-                                          PassThrough{},  // b0_element_op
-                                          PassThrough{},  // acc0_element_op
-                                          PassThrough{},  // b1_element_op
-                                          PassThrough{}); // c_element_op
+                                          0,             // BatchCount
+                                          0,             // StrideA
+                                          0,             // StrideB0
+                                          0,             // StrideB1
+                                          0,             // StrideC
+                                          0,             // BatchStrideA
+                                          0,             // BatchStrideB0
+                                          0,             // BatchStrideB1
+                                          0,             // BatchStrideC
+                                          PassThrough{}, // a_element_op
+                                          PassThrough{}, // b0_element_op
+                                          PassThrough{}, // acc0_element_op
+                                          PassThrough{}, // b1_element_op
+                                          PassThrough{}, // c_element_op
+                                          0);            // p_dropout
 
         return gemm.IsSupportedArgument(argument);
     }
