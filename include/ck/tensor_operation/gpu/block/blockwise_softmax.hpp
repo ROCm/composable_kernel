@@ -127,7 +127,7 @@ struct BlockwiseSoftmax
         ushort tmp[tmp_size];
         for(int i = 0; i < philox_calls; i++)
         {
-            ph.get_randon_8x16((tmp + i * 8), (uni_subsequence + i));
+            ph.get_random_8x16((tmp + i * 8), (uni_subsequence + i));
         }
 
         block_sync_lds();

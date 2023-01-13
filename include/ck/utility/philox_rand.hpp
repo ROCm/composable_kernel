@@ -58,26 +58,30 @@ class philox
         return output;
     }
 
-    __device__ void get_randon_8x16(ushort* b)
+    __device__ void get_random_8x16(ushort* out)
     {
         uint4 tmp_ph;
         tmp_ph = get_philox_4x32();
 
-        b[0] = tmp_ph.x;
-        b[1] = tmp_ph.y;
-        b[2] = tmp_ph.z;
-        b[3] = tmp_ph.w;
+        uint32_t* out_tmp = reinterpret_cast<uint32_t*>(&out[0]);
+
+        out_tmp[0] = tmp_ph.x;
+        out_tmp[1] = tmp_ph.y;
+        out_tmp[2] = tmp_ph.z;
+        out_tmp[3] = tmp_ph.w;
     }
 
-    __device__ void get_randon_8x16(ushort* b, const unsigned long long subsequence)
+    __device__ void get_random_8x16(ushort* out, const unsigned long long subsequence)
     {
         uint4 tmp_ph;
         tmp_ph = get_philox_4x32(subsequence);
 
-        b[0] = tmp_ph.x;
-        b[1] = tmp_ph.y;
-        b[2] = tmp_ph.z;
-        b[3] = tmp_ph.w;
+        uint32_t* out_tmp = reinterpret_cast<uint32_t*>(&out[0]);
+
+        out_tmp[0] = tmp_ph.x;
+        out_tmp[1] = tmp_ph.y;
+        out_tmp[2] = tmp_ph.z;
+        out_tmp[3] = tmp_ph.w;
     }
 
     private:
