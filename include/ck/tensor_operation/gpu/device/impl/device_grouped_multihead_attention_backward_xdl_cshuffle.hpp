@@ -665,15 +665,15 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle
     // Argument
     struct Argument : public BaseArgument
     {
-        Argument(const std::vector<const DataType*>& p_As,
-                 const std::vector<const DataType*>& p_Bs,
-                 const std::vector<const DataType*>& p_B1s,
-                 const std::vector<const DataType*>& p_Cs, // for dS
-                 const std::vector<const LSEDataType*>& p_LSEs,
-                 const std::vector<const DataType*>& p_Ygrads,
-                 std::vector<DataType*>& p_Qgrads,
-                 std::vector<DataType*>& p_Kgrads,
-                 std::vector<DataType*>& p_Vgrads,
+        Argument(const std::vector<const void*>& p_As,
+                 const std::vector<const void*>& p_Bs,
+                 const std::vector<const void*>& p_B1s,
+                 const std::vector<const void*>& p_Cs, // for dS
+                 const std::vector<const void*>& p_LSEs,
+                 const std::vector<const void*>& p_Ygrads,
+                 std::vector<void*>& p_Qgrads,
+                 std::vector<void*>& p_Kgrads,
+                 std::vector<void*>& p_Vgrads,
                  const std::array<void*, NumAcc0Bias>& p_acc0_biases,
                  const std::array<void*, NumAcc1Bias>& p_acc1_biases,
                  const std::vector<ProblemDesc>& problem_desc_vec,
@@ -1042,15 +1042,15 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle
         return dynamic_cast<const Argument*>(p_arg)->group_count_ * sizeof(GroupKernelArg);
     }
 
-    static auto MakeArgument(const std::vector<const DataType*>& p_As,
-                             const std::vector<const DataType*>& p_Bs,
-                             const std::vector<const DataType*>& p_B1s,
-                             const std::vector<const DataType*>& p_Cs, // for dS
-                             const std::vector<const LSEDataType*>& p_LSEs,
-                             const std::vector<const DataType*>& p_Ygrads,
-                             std::vector<DataType*>& p_Qgrads,
-                             std::vector<DataType*>& p_Kgrads,
-                             std::vector<DataType*>& p_Vgrads,
+    static auto MakeArgument(const std::vector<const void*>& p_As,
+                             const std::vector<const void*>& p_Bs,
+                             const std::vector<const void*>& p_B1s,
+                             const std::vector<const void*>& p_Cs, // for dS
+                             const std::vector<const void*>& p_LSEs,
+                             const std::vector<const void*>& p_Ygrads,
+                             std::vector<void*>& p_Qgrads,
+                             std::vector<void*>& p_Kgrads,
+                             std::vector<void*>& p_Vgrads,
                              const std::array<void*, NumAcc0Bias>& p_acc0_biases,
                              const std::array<void*, NumAcc1Bias>& p_acc1_biases,
                              const std::vector<ProblemDesc>& problem_desc_vec,
@@ -1084,15 +1084,15 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle
     // polymorphic
     // FIXME: constness
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const std::vector<const DataType*>& p_As,
-                        const std::vector<const DataType*>& p_Bs,
-                        const std::vector<const DataType*>& p_B1s,
-                        const std::vector<const DataType*>& p_Cs, // for dS
-                        const std::vector<const LSEDataType*>& p_LSEs,
-                        const std::vector<const DataType*>& p_Ygrads,
-                        std::vector<DataType*>& p_Qgrads,
-                        std::vector<DataType*>& p_Kgrads,
-                        std::vector<DataType*>& p_Vgrads,
+    MakeArgumentPointer(const std::vector<const void*>& p_As,
+                        const std::vector<const void*>& p_Bs,
+                        const std::vector<const void*>& p_B1s,
+                        const std::vector<const void*>& p_Cs, // for dS
+                        const std::vector<const void*>& p_LSEs,
+                        const std::vector<const void*>& p_Ygrads,
+                        std::vector<void*>& p_Qgrads,
+                        std::vector<void*>& p_Kgrads,
+                        std::vector<void*>& p_Vgrads,
                         const std::array<void*, NumAcc0Bias>& p_acc0_biases,
                         const std::array<void*, NumAcc1Bias>& p_acc1_biases,
                         const std::vector<ProblemDesc>& problem_desc_vec,
