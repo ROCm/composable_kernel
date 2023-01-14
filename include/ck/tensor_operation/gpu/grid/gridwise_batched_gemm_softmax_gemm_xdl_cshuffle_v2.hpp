@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/philox_rand.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -15,6 +16,7 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_softmax.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_dropout.hpp"
 
 namespace ck {
 
@@ -357,7 +359,10 @@ struct GridwiseBatchedGemmSoftmaxGemmTrain_Xdl_CShuffle
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
     };
 
-    template <bool HasMainKBlockLoop, typename Block2CTileMap, typename C0MatrixMask>
+    template <bool HasMainKBlockLoop,
+              bool IsDropout,
+              typename Block2CTileMap,
+              typename C0MatrixMask>
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
                                const FloatAB* __restrict__ p_b1_grid,
@@ -376,7 +381,9 @@ struct GridwiseBatchedGemmSoftmaxGemmTrain_Xdl_CShuffle
                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
                                const LSEGridDesc_M& lse_grid_desc_m,
                                const Block2CTileMap& block_2_ctile_map,
-                               const C0MatrixMask& c0_matrix_mask)
+                               const C0MatrixMask& c0_matrix_mask,
+                               const ushort p_dropout_in_16bits,
+                               ck::philox ph)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -721,6 +728,8 @@ struct GridwiseBatchedGemmSoftmaxGemmTrain_Xdl_CShuffle
                                                   decltype(thread_cluster_desc_m_n),
                                                   decltype(thread_slice_desc_m_n)>{};
 
+        auto blockwise_dropout = BlockwiseDropout<decltype(thread_slice_desc_m_n)>{};
+
         const index_t num_gemm1_k_block_outer_loop =
             b_grid_desc_bk0_n_bk1.GetLength(I1) / NPerBlock;
         constexpr index_t num_gemm1_k_block_inner_loop = NPerBlock / Gemm1KPerBlock;
@@ -861,6 +870,15 @@ struct GridwiseBatchedGemmSoftmaxGemmTrain_Xdl_CShuffle
             SoftmaxBuf& sum = blockwise_softmax.sum_value_buf;
 
             blockwise_softmax.Run(acc_thread_buf, workspace_buf);
+
+            if constexpr(IsDropout) // dropout
+            {
+                blockwise_dropout.ApplyDropout(acc_thread_buf,
+                                               p_dropout_in_16bits,
+                                               ph,
+                                               gemm1_k_block_outer_index,
+                                               num_gemm1_k_block_outer_loop);
+            }
 
             // TODO: may convert to log domain
             running_max_new = mathext::max(max, running_max);

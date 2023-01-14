@@ -140,7 +140,8 @@ int run(int argc, char* argv[])
                       << "b0_gs_ns_ks[" << i << "]: " << b0_gs_ns_ks.mDesc << ", "
                       << "b1_gs_os_ns[" << i << "]: " << b1_gs_os_ns.mDesc << ", "
                       << "c_gs_ms_os[" << i << "]: " << c_gs_ms_os_device_result.mDesc << ", "
-                      << "lse_gs_ms_os[" << i << "]: " << lse_gs_ms_device_result.mDesc << std::endl;
+                      << "lse_gs_ms_os[" << i << "]: " << lse_gs_ms_device_result.mDesc
+                      << std::endl;
         }
 
         switch(init_method)
@@ -172,7 +173,6 @@ int run(int argc, char* argv[])
         b1_tensors.push_back(b1_gs_os_ns);
         c_tensors.push_back(c_gs_ms_os_device_result);
         lse_tensors.push_back(lse_gs_ms_device_result);
-
 
         a_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(ADataType) * a_gs_ms_ks.mDesc.GetElementSpaceSize()));
@@ -217,7 +217,8 @@ int run(int argc, char* argv[])
                                       b0_element_op,
                                       acc0_element_op,
                                       b1_element_op,
-                                      c_element_op);
+                                      c_element_op,
+                                      0); // dropout ratio
 
     // specify workspace for problem_desc
     DeviceMem problem_desc_workspace(gemm.GetWorkSpaceSize(&argument));
@@ -254,8 +255,8 @@ int run(int argc, char* argv[])
 
             const auto& c_gs_ms_os_lengths = problem_descs[i].c_gs_ms_os_lengths;
             const auto& c_gs_ms_os_strides = problem_descs[i].c_gs_ms_os_strides;
-            const auto& lse_gs_ms_lengths = problem_descs[i].lse_gs_ms_lengths;
-            const auto& lse_gs_ms_strides = problem_descs[i].lse_gs_ms_strides;
+            const auto& lse_gs_ms_lengths  = problem_descs[i].lse_gs_ms_lengths;
+            const auto& lse_gs_ms_strides  = problem_descs[i].lse_gs_ms_strides;
 
             const auto& a_gs_ms_ks         = a_tensors[i];
             const auto& b0_gs_ns_ks        = b0_tensors[i];
@@ -305,9 +306,10 @@ int run(int argc, char* argv[])
             });
 
             // softmax
-            auto ref_softmax          = ReferenceSoftmaxInstance{};
-            auto ref_softmax_invoker  = ref_softmax.MakeInvoker();
-            auto ref_softmax_argument = ref_softmax.MakeArgument(acc0_g_m_n, a1_g_m_n, 1, 0, {2}, &lse_g_m_host_result);
+            auto ref_softmax         = ReferenceSoftmaxInstance{};
+            auto ref_softmax_invoker = ref_softmax.MakeInvoker();
+            auto ref_softmax_argument =
+                ref_softmax.MakeArgument(acc0_g_m_n, a1_g_m_n, 1, 0, {2}, &lse_g_m_host_result);
 
             ref_softmax_invoker.Run(ref_softmax_argument);
 
@@ -347,25 +349,25 @@ int run(int argc, char* argv[])
 
             // when BF16 is taken, set absolute error and relative error to 0.01
             if(std::is_same_v<ADataType, ck::bhalf_t> && std::is_same_v<B0DataType, ck::bhalf_t> &&
-            std::is_same_v<B1DataType, ck::bhalf_t> && std::is_same_v<CDataType, ck::bhalf_t>)
+               std::is_same_v<B1DataType, ck::bhalf_t> && std::is_same_v<CDataType, ck::bhalf_t>)
             {
                 rtol = 1e-2;
                 atol = 1e-2;
             }
 
             // bool pass_ =
-            //     ck::utils::check_err(c_gs_ms_os_device_result.mData, c_gs_ms_os_host_result.mData);
-            bool pass_ =
-                ck::utils::check_err(c_gs_ms_os_device_result.mData,
-                                    c_gs_ms_os_host_result.mData,
-                                    "Error: Incorrect results c!",
-                                    rtol,
-                                    atol) &&
-                       ck::utils::check_err(lse_gs_ms_device_result.mData,
-                                            lse_gs_ms_host_result.mData,
-                                            "Error: Incorrect results lse!",
-                                            rtol,
-                                            atol);
+            //     ck::utils::check_err(c_gs_ms_os_device_result.mData,
+            //     c_gs_ms_os_host_result.mData);
+            bool pass_ = ck::utils::check_err(c_gs_ms_os_device_result.mData,
+                                              c_gs_ms_os_host_result.mData,
+                                              "Error: Incorrect results c!",
+                                              rtol,
+                                              atol) &&
+                         ck::utils::check_err(lse_gs_ms_device_result.mData,
+                                              lse_gs_ms_host_result.mData,
+                                              "Error: Incorrect results lse!",
+                                              rtol,
+                                              atol);
             pass &= pass_;
         }
     }
