@@ -1057,3 +1057,13 @@ struct NumericLimits<int4_t>
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
 } // namespace ck
+
+namespace std {
+
+inline std::ostream& operator<<(std::ostream& os, const ck::half_t& p)
+{
+    os << static_cast<float>(p);
+    return os;
+}
+
+} // namespace std

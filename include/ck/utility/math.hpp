@@ -168,6 +168,22 @@ __device__ double exp<double>(double x)
     return exp(x);
 }
 
+// disallow implicit type casting
+template <typename T>
+__device__ T log(T x);
+
+template <>
+__device__ float log<float>(float x)
+{
+    return __logf(x);
+}
+
+template <>
+__device__ double log<double>(double x)
+{
+    return log(x);
+}
+
 // greatest common divisor, aka highest common factor
 __host__ __device__ constexpr index_t gcd(index_t x, index_t y)
 {
