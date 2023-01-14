@@ -177,7 +177,8 @@ int run(int argc, char* argv[])
         b0_element_op,
         acc0_element_op,
         b1_element_op,
-        c_element_op);
+        c_element_op,
+        0); // dropout ratio
 
     if(!gemm.IsSupportedArgument(argument))
     {
