@@ -40,11 +40,6 @@ struct BlockwiseDropout
 
         block_sync_lds();
 
-        for(int i = 0; i < tmp_size; i++)
-        {
-            printf("%u \n", tmp[i]);
-        }
-
         int tmp_index = 0;
         static_for<0, MRepeat, 1>{}([&](auto iM) {
             static_for<0, KRepeat, 1>{}([&](auto iK) {
