@@ -24,6 +24,7 @@ namespace tensor_operation {
 namespace device {
 
 template <typename GridwiseGemm,
+          typename GemmAccDataType,
           typename GroupKernelArg,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
@@ -45,6 +46,7 @@ __global__ void
             const B1ElementwiseOperation b1_element_op,
             const CElementwiseOperation c_element_op,
             const ushort p_dropout_in_16bits,
+            GemmAccDataType p_dropout_rescale,
             const unsigned long long seed)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
@@ -52,7 +54,7 @@ __global__ void
 
     const index_t block_id = get_block_1d_id();
 
-    ck::philox ph(seed, 0, block_id);
+    ck::philox ph(seed, 0, block_id * 4);
 
     const auto arg_ptr = reinterpret_cast<const GroupKernelArg*>(
         cast_pointer_to_generic_address_space(group_kernel_args));
@@ -111,6 +113,7 @@ __global__ void
         arg_ptr[group_id].block_2_ctile_map_,
         arg_ptr[group_id].c0_matrix_mask_,
         p_dropout_in_16bits,
+        p_dropout_rescale,
         ph);
 #else
     ignore = group_kernel_args;
@@ -642,6 +645,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
             is_dropout_          = p_dropout > 0.0; //
             p_dropout_           = 1.f - p_dropout;
             p_dropout_in_16bits_ = uint16_t(std::floor(p_dropout_ * 65535.0));
+            p_dropout_           = 1.f / p_dropout_;
+            p_dropout_rescale_   = type_convert<GemmAccDataType>(p_dropout_);
         }
 
         std::vector<GroupKernelArg> group_kernel_args_;
@@ -659,6 +664,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
         float p_dropout_;
         ushort p_dropout_in_16bits_;
         unsigned long long seed_;
+        GemmAccDataType p_dropout_rescale_;
         bool is_dropout_;
     };
 
@@ -695,6 +701,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
             auto launch_kernel = [&](auto has_main_k_block_loop_, auto is_dropout_) {
                 const auto kernel =
                     kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v2<GridwiseGemm,
+                                                                     GemmAccDataType,
                                                                      GroupKernelArg,
                                                                      AElementwiseOperation,
                                                                      BElementwiseOperation,
@@ -718,6 +725,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
                     arg.b1_element_op_,
                     arg.c_element_op_,
                     arg.p_dropout_in_16bits_,
+                    arg.p_dropout_rescale_,
                     arg.seed_);
             };
 

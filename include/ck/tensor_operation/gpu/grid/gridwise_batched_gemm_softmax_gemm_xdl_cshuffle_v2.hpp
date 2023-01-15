@@ -383,6 +383,7 @@ struct GridwiseBatchedGemmSoftmaxGemmTrain_Xdl_CShuffle
                                const Block2CTileMap& block_2_ctile_map,
                                const C0MatrixMask& c0_matrix_mask,
                                const ushort p_dropout_in_16bits,
+                               FloatGemmAcc p_dropout_rescale,
                                ck::philox ph)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -728,7 +729,8 @@ struct GridwiseBatchedGemmSoftmaxGemmTrain_Xdl_CShuffle
                                                   decltype(thread_cluster_desc_m_n),
                                                   decltype(thread_slice_desc_m_n)>{};
 
-        auto blockwise_dropout = BlockwiseDropout<decltype(thread_slice_desc_m_n)>{};
+        auto blockwise_dropout = BlockwiseDropout<FloatGemmAcc, decltype(thread_slice_desc_m_n)>{
+            p_dropout_in_16bits, p_dropout_rescale};
 
         const index_t num_gemm1_k_block_outer_loop =
             b_grid_desc_bk0_n_bk1.GetLength(I1) / NPerBlock;
@@ -873,11 +875,8 @@ struct GridwiseBatchedGemmSoftmaxGemmTrain_Xdl_CShuffle
 
             if constexpr(IsDropout) // dropout
             {
-                blockwise_dropout.ApplyDropout(acc_thread_buf,
-                                               p_dropout_in_16bits,
-                                               ph,
-                                               gemm1_k_block_outer_index,
-                                               num_gemm1_k_block_outer_loop);
+                blockwise_dropout.ApplyDropout(
+                    acc_thread_buf, ph, gemm1_k_block_outer_index, num_gemm1_k_block_outer_loop);
             }
 
             // TODO: may convert to log domain

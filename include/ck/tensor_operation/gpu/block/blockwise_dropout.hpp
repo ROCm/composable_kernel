@@ -8,7 +8,7 @@
 
 namespace ck {
 
-template <typename ThreadSliceDesc_M_K>
+template <typename DataType, typename ThreadSliceDesc_M_K>
 struct BlockwiseDropout
 {
     static constexpr auto I0         = Number<0>{};
@@ -18,13 +18,14 @@ struct BlockwiseDropout
 
     template <typename CThreadBuffer>
     __host__ __device__ void ApplyDropout(CThreadBuffer& in_thread_buf,
-                                          ushort p_dropout_16bits,
                                           ck::philox ph,
                                           const int repeat_index,
                                           const int total_repeats)
     {
 
-        auto if_dropout = [](bool keep, float val) { return keep ? val : float(0); };
+        auto execute_dropout = [&](bool keep, DataType val) {
+            return keep ? val * p_dropout_rescale : float(0);
+        };
 
         constexpr int tmp_size = MRepeat * KRepeat;
         int philox_calls       = tmp_size / 8;
@@ -45,11 +46,14 @@ struct BlockwiseDropout
             static_for<0, KRepeat, 1>{}([&](auto iK) {
                 auto offset = Number<ThreadSliceDesc_M_K{}.CalculateOffset(make_tuple(iM, iK))>{};
                 in_thread_buf(offset) =
-                    if_dropout(tmp[tmp_index] < p_dropout_16bits, in_thread_buf(offset));
+                    execute_dropout(tmp[tmp_index] < p_dropout_16bits, in_thread_buf(offset));
                 tmp_index = tmp_index + 1;
             });
         });
     }
+
+    ushort p_dropout_16bits;
+    DataType p_dropout_rescale;
 };
 
 } // namespace ck
