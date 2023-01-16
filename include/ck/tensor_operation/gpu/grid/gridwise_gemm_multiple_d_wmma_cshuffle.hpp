@@ -29,6 +29,98 @@ template <typename GridwiseOp,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
+          typename ComputePtrOffsetOfBatch,
+          typename Block2CTileMap,
+          bool HasMainKBlockLoop>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_contraction_multiple_d_wmma_cshuffle(
+            const ADataType* __restrict__ p_a_grid,
+            const BDataType* __restrict__ p_b_grid,
+            DsPointer p_ds_grid,
+            EDataType* __restrict__ p_e_grid,
+            const index_t batch_count,
+            const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
+            const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
+            const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                ds_grid_desc_mblock_mperblock_nblock_nperblock,
+            const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                e_grid_desc_mblock_mperblock_nblock_nperblock,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CDEElementwiseOperation cde_element_op,
+            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
+            const Block2CTileMap block_2_etile_map)
+{
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+    __shared__ char p_shared[GridwiseOp::GetSharedMemoryNumberOfByte()];
+
+    const index_t num_blocks_per_batch =
+        __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
+    const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
+
+    const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
+    const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
+    const long_index_t e_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
+
+    const auto ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
+
+    DsPointer p_ds_grid_grp;
+
+    static constexpr index_t NumDTensor =
+        DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock::Size();
+
+    static_for<0, NumDTensor, 1>{}(
+        [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_batch_offset[i]; });
+
+    GridwiseOp::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
+                                                p_b_grid + b_batch_offset,
+                                                p_ds_grid_grp,
+                                                p_e_grid + e_batch_offset,
+                                                p_shared,
+                                                a_grid_desc_k0_m_k1,
+                                                b_grid_desc_k0_n_k1,
+                                                ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                a_element_op,
+                                                b_element_op,
+                                                cde_element_op,
+                                                block_2_etile_map);
+#else
+    ignore = p_a_grid;
+    ignore = p_b_grid;
+    ignore = p_ds_grid;
+    ignore = p_e_grid;
+    ignore = batch_count;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = cde_element_op;
+    ignore = a_grid_desc_k0_m_k1;
+    ignore = b_grid_desc_k0_n_k1;
+    ignore = ds_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = e_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = block_2_etile_map;
+    ignore = compute_ptr_offset_of_batch;
+#endif
+}
+
+template <typename GridwiseOp,
+          typename ADataType,
+          typename BDataType,
+          typename DsPointer,
+          typename EDataType,
+          typename AGridDesc_K0_M_K1,
+          typename BGridDesc_K0_N_K1,
+          typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CDEElementwiseOperation,
           typename Block2CTileMap,
           bool HasMainKBlockLoop>
 __global__ void
