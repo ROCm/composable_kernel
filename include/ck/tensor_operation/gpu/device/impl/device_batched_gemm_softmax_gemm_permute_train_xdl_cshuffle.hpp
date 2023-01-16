@@ -557,9 +557,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
 
             seed_   = std::get<0>(seeds);
             offset_ = std::get<1>(seeds);
-
-            std::cout << "seed_" << seed_ << std::endl;
-            std::cout << "offset_" << offset_ << std::endl;
         }
 
         void Print() const
