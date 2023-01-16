@@ -17,10 +17,7 @@ struct BlockwiseDropout
     static constexpr index_t KRepeat = ThreadSliceDesc_M_K{}.GetLength(I1);
 
     template <typename CThreadBuffer>
-    __host__ __device__ void ApplyDropout(CThreadBuffer& in_thread_buf,
-                                          ck::philox ph,
-                                          const int repeat_index,
-                                          const int total_repeats)
+    __host__ __device__ void ApplyDropout(CThreadBuffer& in_thread_buf, ck::philox ph)
     {
 
         auto execute_dropout = [&](bool keep, DataType val) {
@@ -28,15 +25,13 @@ struct BlockwiseDropout
         };
 
         constexpr int tmp_size = MRepeat * KRepeat;
-        int philox_calls       = tmp_size / 8;
-        int tid                = get_thread_global_1d_id();
-        unsigned long long uni_subsequence =
-            tid * total_repeats * philox_calls + repeat_index * philox_calls;
+
+        int philox_calls = tmp_size / 8;
 
         ushort tmp[tmp_size];
         for(int i = 0; i < philox_calls; i++)
         {
-            ph.get_random_8x16((tmp + i * 8), (uni_subsequence + i));
+            ph.get_random_8x16((tmp + i * 8));
         }
 
         block_sync_lds();

@@ -129,7 +129,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermuteTrain : public BaseOperator
                         B1ElementwiseOperation b1_element_op,
                         CElementwiseOperation c_element_op,
                         float p_dropout,
-                        const unsigned long long seed = 0) = 0;
+                        std::tuple<unsigned long long, unsigned long long> seeds) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };

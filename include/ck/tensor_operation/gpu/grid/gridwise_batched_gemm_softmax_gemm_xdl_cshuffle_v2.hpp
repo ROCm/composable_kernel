@@ -781,6 +781,7 @@ struct GridwiseBatchedGemmSoftmaxGemmTrain_Xdl_CShuffle
 
         // gemm1 K loop
         index_t gemm1_k_block_outer_index = 0;
+
         do
         {
             auto n_block_data_idx_on_grid =
@@ -875,8 +876,7 @@ struct GridwiseBatchedGemmSoftmaxGemmTrain_Xdl_CShuffle
 
             if constexpr(IsDropout) // dropout
             {
-                blockwise_dropout.ApplyDropout(
-                    acc_thread_buf, ph, gemm1_k_block_outer_index, num_gemm1_k_block_outer_loop);
+                blockwise_dropout.ApplyDropout(acc_thread_buf, ph);
             }
 
             // TODO: may convert to log domain

@@ -178,7 +178,8 @@ int run(int argc, char* argv[])
         acc0_element_op,
         b1_element_op,
         c_element_op,
-        0); // dropout ratio
+        0,        // dropout ratio
+        {0, 64}); // dropout random seed and offset
 
     if(!gemm.IsSupportedArgument(argument))
     {

@@ -218,7 +218,8 @@ int run(int argc, char* argv[])
                                       acc0_element_op,
                                       b1_element_op,
                                       c_element_op,
-                                      0); // dropout ratio
+                                      0,         // dropout ratio
+                                      {0, 448}); // dropout random seed and offset
 
     // specify workspace for problem_desc
     DeviceMem problem_desc_workspace(gemm.GetWorkSpaceSize(&argument));
