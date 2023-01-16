@@ -16,7 +16,7 @@ struct BlockwiseDropout
     static constexpr index_t MRepeat = ThreadSliceDesc_M_K{}.GetLength(I0);
     static constexpr index_t KRepeat = ThreadSliceDesc_M_K{}.GetLength(I1);
 
-    template <typename CThreadBuffer>
+    template <typename CThreadBuffer, bool using_sign_bit = false>
     __host__ __device__ void ApplyDropout(CThreadBuffer& in_thread_buf,
                                           ck::philox ph,
                                           const int repeat_index,
@@ -24,7 +24,8 @@ struct BlockwiseDropout
     {
 
         auto execute_dropout = [&](bool keep, DataType val) {
-            return keep ? val * p_dropout_rescale : float(0);
+            return keep ? val * p_dropout_rescale
+                        : (using_sign_bit ? -val * p_dropout_rescale : float(0));
         };
 
         constexpr int tmp_size = MRepeat * KRepeat;

@@ -130,6 +130,7 @@ __global__ void
                                                   block_2_ctile_map,
                                                   c0_matrix_mask,
                                                   p_dropout_in_16bits,
+                                                  p_dropout,
                                                   rp_dropout,
                                                   ph);
 #else
