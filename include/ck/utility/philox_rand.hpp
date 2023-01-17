@@ -97,24 +97,6 @@ class philox
     {
 
         uint4 res;
-        // uint4 tmp;
-        // asm volatile("v_mov_b32 %8  1; \n"
-        //             "v_mov_b32 %9  0; \n"
-        //             "v_mov_b32 %10 0; \n"
-        //             "v_mov_b32 %11 0; \n"
-        //             "v_add_co_u32     %0, %4, %8;  "
-        //             "v_addc_co_u32    %1, %5, %9;  "
-        //             "v_addc_co_u32    %2, %6, %10; "
-        //             "v_addc_u32       %3, %7, %11; "
-        //             : "=v"(res.x), "=v"(res.y), "=v"(res.z), "=v"(res.w)
-        //             : "v"(ctr.x),
-        //               "v"(ctr.y),
-        //               "v"(ctr.z),
-        //               "v"(ctr.w),
-        //               "v"(tmp.x),
-        //               "v"(tmp.y),
-        //               "v"(tmp.z),
-        //               "v"(tmp.w));
         res.x = ctr.x + 1;
         res.y = ctr.y;
         res.z = ctr.z;
