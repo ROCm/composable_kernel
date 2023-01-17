@@ -1,2 +1,0 @@
-add_executable(client_gemm_add_relu_add_layernorm gemm_add_relu_add_layernorm.cpp)
-target_link_libraries(client_gemm_add_relu_add_layernorm PRIVATE composable_kernel::device_operations)
