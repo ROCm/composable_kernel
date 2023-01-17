@@ -73,8 +73,8 @@ struct DeviceMultipleReduceMultiBlock : public DeviceMultipleReduce<Rank,
         static_for<0, NumReduction, 1>{}([&](auto I) {
             using OutDataType = remove_cvref_t<decltype(OutDataTypeTuple{}[I])>;
             flag =
-                flag && ck::reduce::InMemoryDataOperatonSupportedOnDataType<OutMemoryDataOperation,
-                                                                            OutDataType>::value;
+                flag && ck::reduce::InMemoryDataOperationSupportedOnDataType<OutMemoryDataOperation,
+                                                                             OutDataType>::value;
         });
 
         return flag;

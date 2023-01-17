@@ -15,14 +15,14 @@ namespace instance {
 
 // clang-format off
 // InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOperation | InElementwiseOp | AccElementwiseOp | PropagateNan | UseIndex 
-extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 4, 3, ReduceMin, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 3, PassThrough, PassThrough>>&);
-extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 4, 4, ReduceMin, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 4, PassThrough, PassThrough>>&);
-extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 4, 1, ReduceMin, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 1, PassThrough, PassThrough>>&);
-extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 2, 1, ReduceMin, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<2, 1, PassThrough, PassThrough>>&);
-extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 4, 3, ReduceMin, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 3, PassThrough, PassThrough>>&);
-extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 4, 4, ReduceMin, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 4, PassThrough, PassThrough>>&);
-extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 4, 1, ReduceMin, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 1, PassThrough, PassThrough>>&);
-extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 2, 1, ReduceMin, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<2, 1, PassThrough, PassThrough>>&);
+extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 4, 3, ReduceMin, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<I8, I8, I8, 4, 3, ReduceMin, PassThrough, PassThrough, false, false>>&);
+extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 4, 4, ReduceMin, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<I8, I8, I8, 4, 4, ReduceMin, PassThrough, PassThrough, false, false>>&);
+extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 4, 1, ReduceMin, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<I8, I8, I8, 4, 1, ReduceMin, PassThrough, PassThrough, false, false>>&);
+extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 2, 1, ReduceMin, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<I8, I8, I8, 2, 1, ReduceMin, PassThrough, PassThrough, false, false>>&);
+extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 4, 3, ReduceMin, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<I8, I8, I8, 4, 3, ReduceMin, PassThrough, PassThrough, false, true>>&);
+extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 4, 4, ReduceMin, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<I8, I8, I8, 4, 4, ReduceMin, PassThrough, PassThrough, false, true>>&);
+extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 4, 1, ReduceMin, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<I8, I8, I8, 4, 1, ReduceMin, PassThrough, PassThrough, false, true>>&);
+extern template void add_device_reduce_instance_threadwise<I8, I8, I8, 2, 1, ReduceMin, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<I8, I8, I8, 2, 1, ReduceMin, PassThrough, PassThrough, false, true>>&);
 // clang-format on
 
 } // namespace instance
