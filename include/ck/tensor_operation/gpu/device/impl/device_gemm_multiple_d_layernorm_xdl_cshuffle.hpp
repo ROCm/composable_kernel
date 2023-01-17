@@ -669,6 +669,9 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
             {
                 throw std::runtime_error("wrong! GridwiseGemmWelford has invalid setting");
             }
+            if(arg.p_workspace_e_grid_ == nullptr || arg.p_workspace_mean_ == nullptr ||
+               arg.p_workspace_var_ == nullptr || arg.p_workspace_count_ == nullptr)
+                throw std::runtime_error("wrong! WorkSpace pointer has not been set");
 
             index_t grid_size = arg.block_2_etile_map_.CalculateGridSize(arg.gemm_e_grid_desc_m_n_);
 
