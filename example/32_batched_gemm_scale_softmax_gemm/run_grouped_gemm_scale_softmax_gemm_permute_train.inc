@@ -219,7 +219,8 @@ int run(int argc, char* argv[])
                                       b1_element_op,
                                       c_element_op,
                                       0,         // dropout ratio
-                                      {0, 448}); // dropout random seed and offset
+                                      {0, 448}); // dropout random seed and offset, offset should be
+                                                 // at least the number of elements on a thread
 
     // specify workspace for problem_desc
     DeviceMem problem_desc_workspace(gemm.GetWorkSpaceSize(&argument));
