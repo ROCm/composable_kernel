@@ -15,6 +15,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 #include "ck/library/utility/check_err.hpp"
@@ -69,21 +70,20 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDLayern
 // clang-format on
 
 auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-    return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                std::vector<std::size_t>({stride}));
+    return HostTensorDescriptor({len}, {stride});
 };
 
 auto f_host_tensor_descriptor2d =
     [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+        using namespace ck::literals;
+
         if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                        std::vector<std::size_t>({stride, 1}));
+            return HostTensorDescriptor({row, col}, {stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                        std::vector<std::size_t>({1, stride}));
+            return HostTensorDescriptor({row, col}, {1_uz, stride});
         }
     };
 
@@ -97,6 +97,7 @@ void host_gemm_layernorm(Tensor<HDataType>& h_m_n,
                          AElementOp a_element_op,
                          BElementOp b_element_op,
                          CDEElementOp cde_element_op,
+                         HElementOp h_element_op,
                          int M,
                          int N,
                          AccDataType epsilon = 1e-5)
@@ -145,7 +146,7 @@ void host_gemm_layernorm(Tensor<HDataType>& h_m_n,
     auto ref_layernorm_invoker = ref_layernorm.MakeInvoker();
 
     auto ref_layernorm_argument = ref_layernorm.MakeArgument(
-        e_m_n, gamma_n, beta_n, h_m_n, HElementOp{}, {M, N}, {1}, epsilon);
+        e_m_n, gamma_n, beta_n, h_m_n, h_element_op, {M, N}, {1}, epsilon);
     ref_layernorm_invoker.Run(ref_layernorm_argument);
 }
 
@@ -249,6 +250,7 @@ int main()
                             a_element_op,
                             b_element_op,
                             cde_element_op,
+                            h_element_op,
                             M,
                             N,
                             epsilon);
