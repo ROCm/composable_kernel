@@ -32,7 +32,8 @@ class TestGemmAddReluAddLayernorm : public ::testing::Test
 
     void Run()
     {
-        std::vector<std::vector<ck::index_t>> lengths = {{1024, 1024, 1024}};
+        std::vector<std::vector<ck::index_t>> lengths = {
+            {1024, 1024, 1024}, {2048, 640, 640}, {1, 1, 1}};
 
         for(auto length : lengths)
         {
