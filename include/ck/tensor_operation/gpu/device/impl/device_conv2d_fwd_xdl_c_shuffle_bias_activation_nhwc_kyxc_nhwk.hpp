@@ -614,7 +614,7 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-#if 0
+#if DEBUG_LOG
             {
                 std::cout << DeviceOp{}.GetTypeString() << std::endl;
                 std::cout << "N " << arg.Conv_N_ << ", "

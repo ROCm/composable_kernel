@@ -170,6 +170,9 @@
 #define CK_WORKAROUND_SWDEV_XXXXXX_BF16_ATTEN_FWD_GFX908_ISSUE 0
 #endif // __gfx908__
 
+// flag to enable (1) or disable (0) the debugging output in some kernels
+#define DEBUG_LOG 0
+
 namespace ck {
 
 enum struct InMemoryDataOperationEnum

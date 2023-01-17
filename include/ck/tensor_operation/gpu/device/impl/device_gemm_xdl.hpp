@@ -310,7 +310,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-#if 0
+#if DEBUG_LOG
             {
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
                           << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
