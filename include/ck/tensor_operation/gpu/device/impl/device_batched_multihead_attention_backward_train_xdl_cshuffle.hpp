@@ -16,7 +16,7 @@
 #include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_multihead_attention_backward_xdl_cshuffle_v1.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_multihead_attention_backward_xdl_cshuffle_v2.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -97,6 +97,14 @@ __global__ void
     const long_index_t lse_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetLSEBasePtr(g_idx)));
 
+    float p_dropout                  = 1 - 0.2;
+    const ushort p_dropout_in_16bits = 65536 * p_dropout;
+    float rp_dropout                 = 1.0 / p_dropout;
+    const unsigned long long seed    = 0;
+
+    const index_t block_id = get_block_1d_id();
+    ck::philox ph(seed, 0, block_id * 4);
+
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
                                                   p_b_grid + b_batch_offset,
                                                   p_b1_grid + b1_batch_offset,
@@ -120,7 +128,11 @@ __global__ void
                                                   vgrad_grid_desc_n_o,
                                                   ygrad_grid_desc_m0_o_m1,
                                                   block_2_ctile_map,
-                                                  c0_matrix_mask);
+                                                  c0_matrix_mask,
+                                                  p_dropout_in_16bits,
+                                                  p_dropout,
+                                                  rp_dropout,
+                                                  ph);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -208,7 +220,7 @@ template <index_t NumDimG,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           MaskingSpecialization MaskingSpec,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
+struct DeviceBatchedMultiheadAttentionBackward_Train_Xdl_CShuffle
     : public BaseOperator // TODO inherit atten bwd op once API stablizes
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
@@ -230,7 +242,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
     static constexpr index_t NumDimGemm1K = NumDimN;
 #endif
 
-    using DeviceOp = DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle;
+    using DeviceOp = DeviceBatchedMultiheadAttentionBackward_Train_Xdl_CShuffle;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -555,7 +567,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
     };
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle<
+    using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2<
         DataType, // TODO: distinguish A/B datatype
         LSEDataType,
         GemmAccDataType,
@@ -652,7 +664,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
             BElementwiseOperation b_element_op,
             AccElementwiseOperation acc_element_op,
             B1ElementwiseOperation b1_element_op,
-            CElementwiseOperation c_element_op)
+            CElementwiseOperation c_element_op,
+            float,
+            std::tuple<unsigned long long, unsigned long long>)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_b1_grid_{p_b1_grid},
@@ -1020,7 +1034,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
         BElementwiseOperation b_element_op,
         AccElementwiseOperation acc_element_op,
         B1ElementwiseOperation b1_element_op,
-        CElementwiseOperation c_element_op)
+        CElementwiseOperation c_element_op,
+        float p_drop,
+        std::tuple<unsigned long long, unsigned long long> seed)
     {
         return Argument{p_a,
                         p_b,
@@ -1050,7 +1066,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
                         b_element_op,
                         acc_element_op,
                         b1_element_op,
-                        c_element_op};
+                        c_element_op,
+                        p_drop,
+                        seed};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -1088,7 +1106,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
         BElementwiseOperation b_element_op,
         AccElementwiseOperation acc_element_op,
         B1ElementwiseOperation b1_element_op,
-        CElementwiseOperation c_element_op) // override
+        CElementwiseOperation c_element_op,
+        float p_drop,
+        std::tuple<unsigned long long, unsigned long long> seed) // override
     {
         return std::make_unique<Argument>(static_cast<const DataType*>(p_a),
                                           static_cast<const DataType*>(p_b),
@@ -1118,7 +1138,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
                                           b_element_op,
                                           acc_element_op,
                                           b1_element_op,
-                                          c_element_op);
+                                          c_element_op,
+                                          p_drop,
+                                          seed);
     }
 
     // polymorphic
@@ -1133,7 +1155,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle"
+        str << "DeviceBatchedMultiheadAttentionBackward_Train_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

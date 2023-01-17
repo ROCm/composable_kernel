@@ -34,7 +34,7 @@ Kernel outputs:
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_train_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -55,6 +55,7 @@ using Scale       = ck::tensor_operation::element_wise::Scale;
 
 using QKVElementOp = PassThrough;
 using YElementOp   = PassThrough;
+using VElementOp   = Scale;
 
 using DataType         = F16;
 using AccDataType      = F32;
@@ -84,7 +85,7 @@ static constexpr auto TensorSpecV = ck::tensor_operation::device::TensorSpeciali
 static constexpr auto TensorSpecY = ck::tensor_operation::device::TensorSpecialization::Default;
 
 using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Train_Xdl_CShuffle<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -255,6 +256,14 @@ int run(int argc, char* argv[])
 
     bool input_permute  = false;
     bool output_permute = false;
+  
+    float p_drop                     = 0.2;
+    float p_dropout                  = 1 - p_drop;
+    float rp_dropout                 = 1.0 / p_dropout;
+    const unsigned long long seed    = 1;
+    const unsigned long long offset  = 0;
+
+    float scale_rp_dropout = alpha * rp_dropout;
 
     if(argc == 1)
     {
@@ -479,9 +488,11 @@ int run(int argc, char* argv[])
         {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
         QKVElementOp{},
         QKVElementOp{},
-        Scale{alpha}, 
+        Scale{scale_rp_dropout},  //dQ *= scale_rp_dropout
         QKVElementOp{},
-        YElementOp{});
+        YElementOp{},
+        p_drop,
+        std::tuple<unsigned long long,unsigned long long>(seed,offset));
 
     if(!gemm.IsSupportedArgument(argument))
     {
