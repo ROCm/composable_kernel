@@ -11,10 +11,10 @@ namespace instance {
 
 // clang-format off
 // InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOperation | InElementwiseOp | AccElementwiseOp | PropagateNan | UseIndex 
-template void add_device_reduce_instance_blockwise<F32, F64, F32, 4, 3, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 3, PassThrough, PassThrough>>&); 
-template void add_device_reduce_instance_blockwise<F32, F64, F32, 4, 4, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 4, PassThrough, PassThrough>>&); 
-template void add_device_reduce_instance_blockwise<F32, F64, F32, 4, 1, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 1, PassThrough, PassThrough>>&); 
-template void add_device_reduce_instance_blockwise<F32, F64, F32, 2, 1, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<2, 1, PassThrough, PassThrough>>&);
+template void add_device_reduce_instance_blockwise<F32, F64, F32, 4, 3, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F64, F32, 4, 3, ReduceAdd, PassThrough, PassThrough, false, false>>&); 
+template void add_device_reduce_instance_blockwise<F32, F64, F32, 4, 4, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F64, F32, 4, 4, ReduceAdd, PassThrough, PassThrough, false, false>>&); 
+template void add_device_reduce_instance_blockwise<F32, F64, F32, 4, 1, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F64, F32, 4, 1, ReduceAdd, PassThrough, PassThrough, false, false>>&); 
+template void add_device_reduce_instance_blockwise<F32, F64, F32, 2, 1, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F64, F32, 2, 1, ReduceAdd, PassThrough, PassThrough, false, false>>&);
 // clang-format on
 
 } // namespace instance

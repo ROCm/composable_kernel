@@ -13,10 +13,16 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <index_t Rank,
+template <typename InDataType,
+          typename AccDataType,
+          typename OutDataType,
+          index_t Rank,
           index_t NumReduceDim,
+          typename ReduceOperation,
           typename InElementwiseOperation,
-          typename AccElementwiseOperation>
+          typename AccElementwiseOperation,
+          bool PropagateNan,
+          bool OutputIndex>
 struct DeviceReduce : public BaseOperator
 {
     static constexpr index_t NumOutDim = (Rank - NumReduceDim == 0) ? 1 : Rank - NumReduceDim;
@@ -39,12 +45,26 @@ struct DeviceReduce : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <index_t Rank,
+template <typename InDataType,
+          typename AccDataType,
+          typename OutDataType,
+          index_t Rank,
           index_t NumReduceDim,
+          typename ReduceOperation,
           typename InElementwiseOperation,
-          typename AccElementwiseOperation>
-using DeviceReducePtr = std::unique_ptr<
-    DeviceReduce<Rank, NumReduceDim, InElementwiseOperation, AccElementwiseOperation>>;
+          typename AccElementwiseOperation,
+          bool PropagateNan,
+          bool OutputIndex>
+using DeviceReducePtr = std::unique_ptr<DeviceReduce<InDataType,
+                                                     AccDataType,
+                                                     OutDataType,
+                                                     Rank,
+                                                     NumReduceDim,
+                                                     ReduceOperation,
+                                                     InElementwiseOperation,
+                                                     AccElementwiseOperation,
+                                                     PropagateNan,
+                                                     OutputIndex>>;
 
 } // namespace device
 } // namespace tensor_operation
