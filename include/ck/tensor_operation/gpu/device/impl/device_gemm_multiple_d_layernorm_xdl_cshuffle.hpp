@@ -942,7 +942,11 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
             }
         }
 
-        return true;
+        return GridwiseGemmWelford::CheckValidity(arg.a_grid_desc_m_k_,
+                                                  arg.b_grid_desc_n_k_,
+                                                  arg.ds_grid_desc_m_n_,
+                                                  arg.gemm_e_grid_desc_m_n_,
+                                                  arg.block_2_etile_map_);
     }
 
     // polymorphic
