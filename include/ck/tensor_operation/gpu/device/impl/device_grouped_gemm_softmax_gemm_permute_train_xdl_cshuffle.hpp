@@ -46,15 +46,17 @@ __global__ void
             const B1ElementwiseOperation b1_element_op,
             const CElementwiseOperation c_element_op,
             const ushort p_dropout_in_16bits,
-            GemmAccDataType p_dropout_rescale,
-            const unsigned long long seed)
+            const GemmAccDataType p_dropout_rescale,
+            const unsigned long long seed,
+            const unsigned long long offset)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    const index_t block_id = get_block_1d_id();
+    const index_t block_id         = get_block_1d_id();
+    const index_t global_thread_id = get_thread_global_1d_id();
 
-    ck::philox ph(seed, 0, block_id * 4);
+    ck::philox ph(seed, global_thread_id, offset);
 
     const auto arg_ptr = reinterpret_cast<const GroupKernelArg*>(
         cast_pointer_to_generic_address_space(group_kernel_args));
@@ -519,13 +521,12 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
                  B1ElementwiseOperation b1_element_op,
                  CElementwiseOperation c_element_op,
                  float p_dropout,
-                 unsigned long long seed)
+                 std::tuple<unsigned long long, unsigned long long> seeds)
             : a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               acc_element_op_{acc_element_op},
               b1_element_op_{b1_element_op},
-              c_element_op_{c_element_op},
-              seed_(seed)
+              c_element_op_{c_element_op}
         {
             // TODO ANT: implement bias addition
             group_count_ = problem_desc_vec.size();
@@ -647,6 +648,9 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
             p_dropout_in_16bits_ = uint16_t(std::floor(p_dropout_ * 65535.0));
             p_dropout_           = 1.f / p_dropout_;
             p_dropout_rescale_   = type_convert<GemmAccDataType>(p_dropout_);
+
+            seed_   = std::get<0>(seeds);
+            offset_ = std::get<1>(seeds);
         }
 
         std::vector<GroupKernelArg> group_kernel_args_;
@@ -664,6 +668,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
         float p_dropout_;
         ushort p_dropout_in_16bits_;
         unsigned long long seed_;
+        unsigned long long offset_;
         GemmAccDataType p_dropout_rescale_;
         bool is_dropout_;
     };
@@ -726,7 +731,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
                     arg.c_element_op_,
                     arg.p_dropout_in_16bits_,
                     arg.p_dropout_rescale_,
-                    arg.seed_);
+                    arg.seed_,
+                    arg.offset_);
             };
 
             // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need
@@ -895,7 +901,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
                              B1ElementwiseOperation b1_element_op,
                              CElementwiseOperation c_element_op,
                              float p_dropout,
-                             const unsigned long long seed = 0)
+                             std::tuple<unsigned long long, unsigned long long> seeds)
     {
         return Argument{p_a_vec,
                         p_b_vec,
@@ -911,7 +917,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
                         b1_element_op,
                         c_element_op,
                         p_dropout,
-                        seed};
+                        seeds};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -932,7 +938,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
                         B1ElementwiseOperation b1_element_op,
                         CElementwiseOperation c_element_op,
                         float p_dropout,
-                        const unsigned long long seed = 0) override
+                        std::tuple<unsigned long long, unsigned long long> seeds) override
     {
         return std::make_unique<Argument>(p_a_vec,
                                           p_b_vec,
@@ -948,7 +954,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
                                           b1_element_op,
                                           c_element_op,
                                           p_dropout,
-                                          seed);
+                                          seeds);
     }
 
     // polymorphic
