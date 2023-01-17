@@ -255,6 +255,12 @@ int run(int argc, char* argv[])
 
     bool input_permute  = false;
     bool output_permute = false;
+  
+    float p_drop                     = 0.2;
+    float p_dropout                  = 1 - p_drop;
+    float rp_dropout                 = 1.0 / p_dropout;
+
+    float scale_rp_dropout = alpha * rp_dropout;
 
     if(argc == 1)
     {
@@ -479,7 +485,7 @@ int run(int argc, char* argv[])
         {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
         QKVElementOp{},
         QKVElementOp{},
-        Scale{alpha},
+        Scale{scale_rp_dropout},  //dQ *= scale_rp_dropout
         QKVElementOp{},
         YElementOp{});
 

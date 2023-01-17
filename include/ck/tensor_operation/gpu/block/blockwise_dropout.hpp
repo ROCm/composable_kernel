@@ -21,8 +21,10 @@ struct BlockwiseDropout
     {
 
         auto execute_dropout = [&](bool keep, DataType val) {
-            return keep ? val * p_dropout_rescale
-                        : (using_sign_bit ? -val * p_dropout_rescale : float(0));
+            if constexpr(using_sign_bit)
+                return keep ? val : -val;
+            else
+                return keep ? val * p_dropout_rescale : float(0);
         };
 
         constexpr int tmp_size = MRepeat * KRepeat;
