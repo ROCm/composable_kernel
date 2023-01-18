@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
@@ -20,6 +19,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_sparse_embedding3_forward_layernorm.hpp"
 
+// clang-format off
 using EmbType       = ck::half_t;
 using IndexType     = int64_t;
 using GammaDataType = ck::half_t;
@@ -126,19 +126,20 @@ int main()
         beta_dev.ToDevice(beta.mData.data());
 
         auto device_instance = typename emb_kernel<EmbType, current_dim>::kernel_type{};
-        auto argument_ptr    = device_instance.MakeArgumentPointer(out_dev.GetDeviceBuffer(),
-                                                                {ck::type_convert<EmbType*>(emb_a_dev.GetDeviceBuffer()),
-                                                                ck::type_convert<EmbType*>(emb_b_dev.GetDeviceBuffer()),
-                                                                ck::type_convert<EmbType*>(emb_c_dev.GetDeviceBuffer())},
-                                                                {ck::type_convert<IndexType*>(index_a_dev.GetDeviceBuffer()),
-                                                                ck::type_convert<IndexType*>(index_b_dev.GetDeviceBuffer()),
-                                                                ck::type_convert<IndexType*>(index_c_dev.GetDeviceBuffer())},
-                                                                gamma_dev.GetDeviceBuffer(),
-                                                                beta_dev.GetDeviceBuffer(),
-                                                                current_dim,
-                                                                index_length,
-                                                                epsilon,
-                                                                EmbElementwiseOperation{});
+        auto argument_ptr    = device_instance.MakeArgumentPointer(
+            out_dev.GetDeviceBuffer(),
+            {ck::type_convert<EmbType*>(emb_a_dev.GetDeviceBuffer()),
+                ck::type_convert<EmbType*>(emb_b_dev.GetDeviceBuffer()),
+                ck::type_convert<EmbType*>(emb_c_dev.GetDeviceBuffer())},
+            {ck::type_convert<IndexType*>(index_a_dev.GetDeviceBuffer()),
+                ck::type_convert<IndexType*>(index_b_dev.GetDeviceBuffer()),
+                ck::type_convert<IndexType*>(index_c_dev.GetDeviceBuffer())},
+            gamma_dev.GetDeviceBuffer(),
+            beta_dev.GetDeviceBuffer(),
+            current_dim,
+            index_length,
+            epsilon,
+            EmbElementwiseOperation{});
         std::cout << "Dim:" << current_dim << ", kernel:" << device_instance.GetTypeString()
                   << std::endl
                   << std::flush;
