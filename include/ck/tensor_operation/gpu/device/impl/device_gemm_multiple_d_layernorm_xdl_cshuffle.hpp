@@ -1062,7 +1062,12 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
             << GemmKPerBlock << ", "
             << AK1 << ", "
             << BK1 << ", "
-            << getGemmSpecializationString(GemmSpec)
+            << getGemmSpecializationString(GemmSpec) << ", "
+            << PostShuffleThreadClusterSize_M_N::At(I0) << ", "
+            << PostShuffleThreadClusterSize_M_N::At(I1) << ", "
+            << LayernormThreadClusterSize_M_N::At(I0) << ", "
+            << LayernormThreadClusterSize_M_N::At(I1) << ", "
+            << LayernormThreadSliceSize_M
             << ">"
             << " LoopScheduler: "
             << LoopSchedToString[LoopSched] << ", "
