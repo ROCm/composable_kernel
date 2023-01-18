@@ -4,3 +4,6 @@ target_link_libraries(client_contraction_scale PRIVATE composable_kernel::device
 add_executable(client_contraction_bilinear contraction_bilinear.cpp)
 target_link_libraries(client_contraction_bilinear PRIVATE composable_kernel::device_operations)
 
+add_executable(contraction_g1m2n3k1_add_xdl_fp16 contraction_g1m2n3k1_add_xdl_fp16.cpp)
+target_link_libraries(contraction_g1m2n3k1_add_xdl_fp16 PRIVATE composable_kernel::device_operations)
+
