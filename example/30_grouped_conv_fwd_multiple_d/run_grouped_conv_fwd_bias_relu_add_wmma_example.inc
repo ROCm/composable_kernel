@@ -54,7 +54,7 @@ using DeviceConvFwdInstance =
         256,         // BlockSize
         128,         // MPerBlock
         256,         // NPerBlock
-        8,           // K0PerBlock
+        4,           // K0PerBlock
         8,           // K1
         16,          // MPerWMMA
         16,          // NPerWMMA

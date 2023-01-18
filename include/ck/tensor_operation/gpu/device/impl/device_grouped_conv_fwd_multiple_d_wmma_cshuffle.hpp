@@ -435,20 +435,12 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             ds_grid_desc_m_n_ = DeviceOp::MakeDsGridDescriptor_M_N(ds_g_n_k_wos_lengths, ds_g_n_k_wos_strides);
 
             // populate desc for Ds/E
-            if(GridwiseOp::CheckValidity(a_grid_desc_ak0_m_ak1_,
-                                           b_grid_desc_bk0_n_bk1_,
-                                           ds_grid_desc_m_n_,
-                                           e_grid_desc_m_n_,
-                                           block_2_etile_map_))
-            {
-                // e_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                    // GridwiseOp::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        // e_grid_desc_m_n_);
-
-                // ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                    // GridwiseOp::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        // ds_grid_desc_m_n_);
-            }
+            e_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                GridwiseOp::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    e_grid_desc_m_n_);
+            ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                GridwiseOp::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    ds_grid_desc_m_n_);
         }
 
         void Print() const
@@ -518,16 +510,6 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             if(stream_config.log_level_ > 0)
             {
                 arg.Print();
-            }
-
-            if(!GridwiseOp::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
-                                          arg.b_grid_desc_bk0_n_bk1_,
-                                          arg.ds_grid_desc_m_n_,
-                                          arg.e_grid_desc_m_n_,
-                                          arg.block_2_etile_map_))
-            {
-                throw std::runtime_error(
-                    "wrong! GridwiseGemmMultipleD_wmma_cshuffle has invalid setting");
             }
 
             const index_t grid_size =
