@@ -397,42 +397,9 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
     using BGridDesc_N_K    = decltype(MakeBGridDescriptor_N_K({}, {}));
     using DsGridDesc_M_N   = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}))>;
     using EGridDesc_M_N    = decltype(MakeEGridDescriptor_M_N({}, {}));
+
     using DsGridDesc_G_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_G_M_N({}, {}))>;
     using EGridDesc_G_M_N  = decltype(MakeEGridDescriptor_G_M_N({}, {}));
-
-    // A desc for source in blockwise copy
-    template <typename AGridDesc_M_K>
-    __host__ __device__ static constexpr auto
-    MakeAGridDescriptor_K0_M_K1(const AGridDesc_M_K& a_grid_desc_m_k)
-    {
-        const auto M = a_grid_desc_m_k.GetLength(I0);
-        const auto K = a_grid_desc_m_k.GetLength(I1);
-
-        const auto AK0 = K / K1;
-
-        return transform_tensor_descriptor(
-            a_grid_desc_m_k,
-            make_tuple(make_unmerge_transform(make_tuple(AK0, K1)), make_pass_through_transform(M)),
-            make_tuple(Sequence<1>{}, Sequence<0>{}),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-    }
-
-    // B desc for source in blockwise copy
-    template <typename BGridDesc_N_K>
-    __host__ __device__ static constexpr auto
-    MakeBGridDescriptor_K0_N_K1(const BGridDesc_N_K& b_grid_desc_n_k)
-    {
-        const auto N = b_grid_desc_n_k.GetLength(I0);
-        const auto K = b_grid_desc_n_k.GetLength(I1);
-
-        const auto BK0 = K / K1;
-
-        return transform_tensor_descriptor(
-            b_grid_desc_n_k,
-            make_tuple(make_unmerge_transform(make_tuple(BK0, K1)), make_pass_through_transform(N)),
-            make_tuple(Sequence<1>{}, Sequence<0>{}),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-    }
 
     struct ComputePtrOffsetOfStridedBatch
     {
@@ -481,6 +448,40 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         DsGridDesc_G_M_N ds_grid_desc_g_m_n_;
         EGridDesc_G_M_N e_grid_desc_g_m_n_;
     };
+
+    // A desc for source in blockwise copy
+    template <typename AGridDesc_M_K>
+    __host__ __device__ static constexpr auto
+    MakeAGridDescriptor_K0_M_K1(const AGridDesc_M_K& a_grid_desc_m_k)
+    {
+        const auto M = a_grid_desc_m_k.GetLength(I0);
+        const auto K = a_grid_desc_m_k.GetLength(I1);
+
+        const auto AK0 = K / K1;
+
+        return transform_tensor_descriptor(
+            a_grid_desc_m_k,
+            make_tuple(make_unmerge_transform(make_tuple(AK0, K1)), make_pass_through_transform(M)),
+            make_tuple(Sequence<1>{}, Sequence<0>{}),
+            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+    }
+
+    // B desc for source in blockwise copy
+    template <typename BGridDesc_N_K>
+    __host__ __device__ static constexpr auto
+    MakeBGridDescriptor_K0_N_K1(const BGridDesc_N_K& b_grid_desc_n_k)
+    {
+        const auto N = b_grid_desc_n_k.GetLength(I0);
+        const auto K = b_grid_desc_n_k.GetLength(I1);
+
+        const auto BK0 = K / K1;
+
+        return transform_tensor_descriptor(
+            b_grid_desc_n_k,
+            make_tuple(make_unmerge_transform(make_tuple(BK0, K1)), make_pass_through_transform(N)),
+            make_tuple(Sequence<1>{}, Sequence<0>{}),
+            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+    }
 
     using AGridDesc_K0_M_K1 = decltype(DeviceOp::MakeAGridDescriptor_K0_M_K1(AGridDesc_M_K{}));
     using BGridDesc_K0_N_K1 = decltype(DeviceOp::MakeBGridDescriptor_K0_N_K1(BGridDesc_N_K{}));
@@ -592,41 +593,34 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
               compute_ptr_offset_of_batch_{
                   a_batch_stride_, b_batch_stride_, ds_grid_desc_g_m_n_, e_grid_desc_g_m_n_}
         {
-            a_grid_desc_m_k_ =
-                DeviceOp::MakeAGridDescriptor_M_K(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
-            a_grid_desc_m_k_ =
-                DeviceOp::MakeBGridDescriptor_N_K(b_gs_ns_ks_lengths, b_gs_ns_ks_strides);
-            a_grid_desc_k0_m_k1_ = DeviceOp::MakeAGridDescriptor_K0_M_K1(a_grid_desc_m_k_);
-            b_grid_desc_k0_n_k1_ = DeviceOp::MakeBGridDescriptor_K0_N_K1(b_grid_desc_n_k_);
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
 
                 // D pointer
                 p_ds_grid_(i) = static_cast<const DDataType*>(p_ds_grid[i]);
-
-                // D desc
-                ds_grid_desc_m_n_(i) = DeviceOp::MakeEGridDescriptor_M_N(ds_gs_ms_ns_lengths[i],
-                                                                         ds_gs_ms_ns_strides[i]);
             });
-            e_grid_desc_m_n_ =
-                DeviceOp::MakeEGridDescriptor_M_N(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
+
+            a_grid_desc_m_k_ =
+                DeviceOp::MakeAGridDescriptor_M_K(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
+            b_grid_desc_n_k_ =
+                DeviceOp::MakeBGridDescriptor_N_K(b_gs_ns_ks_lengths, b_gs_ns_ks_strides);
+            
+            ds_grid_desc_m_n_ = DeviceOp::MakeDsGridDescriptor_M_N(ds_gs_ms_ns_lengths, ds_gs_ms_ns_strides);
+            
+            e_grid_desc_m_n_ = DeviceOp::MakeEGridDescriptor_M_N(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
+
+            a_grid_desc_k0_m_k1_ = DeviceOp::MakeAGridDescriptor_K0_M_K1(a_grid_desc_m_k_);
+            b_grid_desc_k0_n_k1_ = DeviceOp::MakeBGridDescriptor_K0_N_K1(b_grid_desc_n_k_);
 
             block_2_ctile_map_ = GridwiseOp::MakeDefaultBlock2CTileMap(e_grid_desc_m_n_, M01, N01);
 
-            if(GridwiseOp::CheckValidity(a_grid_desc_k0_m_k1_,
-                                         b_grid_desc_k0_n_k1_,
-                                         ds_grid_desc_m_n_,
-                                         e_grid_desc_m_n_,
-                                         block_2_ctile_map_))
-            {
-                ds_grid_desc_mblock_mperblock_nblock_nperblock =
-                    GridwiseOp::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        ds_grid_desc_m_n_);
+            ds_grid_desc_mblock_mperblock_nblock_nperblock =
+                GridwiseOp::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    ds_grid_desc_m_n_);
 
-                e_grid_desc_mblock_mperblock_nblock_nperblock =
-                    GridwiseOp::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        e_grid_desc_m_n_);
-            }
+            e_grid_desc_mblock_mperblock_nblock_nperblock =
+                GridwiseOp::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    e_grid_desc_m_n_);
 
             // for sanity check of vector memory access
             a_mz_stride_ = a_gs_ms_ks_strides[NumDimG + NumDimM - 1];
@@ -700,128 +694,61 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-#if 0
-            {
-                std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
-                          << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
-                          << arg.a_grid_desc_k0_m_k1_.GetLength(I2) << "}" << std::endl;
-
-                std::cout << "arg.b_grid_desc_k0_n_k1_{" << arg.b_grid_desc_k0_n_k1_.GetLength(I0)
-                          << ", " << arg.b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
-                          << arg.b_grid_desc_k0_n_k1_.GetLength(I2) << "}" << std::endl;
-
-                std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) 
-                          << ", " << arg.c_grid_desc_m_n_.GetLength(I1) << ", "
-                          << arg.c_grid_desc_m_n_.GetLength(I2) << "}" << std::endl;
-            }
-#endif
-
-            if(!GridwiseOp::CheckValidity(arg.a_grid_desc_k0_m_k1_,
-                                          arg.b_grid_desc_k0_n_k1_,
-                                          arg.ds_grid_desc_m_n_,
-                                          arg.e_grid_desc_m_n_,
-                                          arg.block_2_ctile_map_))
-            {
-                throw std::runtime_error(
-                    "wrong! GridwiseGemmMultipleD_wmma_cshuffle has invalid setting");
-            }
-
             const index_t G = arg.e_grid_desc_g_m_n_.GetLength(I0);
 
-            const index_t grid_size =
-                arg.block_2_ctile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * G;
+            const index_t grid_size = arg.block_2_ctile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * G;
 
-            const auto K =
-                arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
+            const auto K = arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
 
-            float ave_time = 0;
+            auto launch_kernel = [&](auto has_main_k_block_loop) {
+                constexpr bool has_main_loop = has_main_k_block_loop.value;
+
+                const auto kernel = kernel_contraction_multiple_d_wmma_cshuffle<
+                    GridwiseOp,
+                    ADataType,
+                    BDataType,
+                    typename GridwiseOp::DsGridPointer,
+                    EDataType,
+                    DeviceOp::AGridDesc_K0_M_K1,
+                    DeviceOp::BGridDesc_K0_N_K1,
+                    typename GridwiseOp::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                    typename GridwiseOp::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                    AElementwiseOperation,
+                    BElementwiseOperation,
+                    CDEElementwiseOperation,
+                    ComputePtrOffsetOfStridedBatch,
+                    typename GridwiseOp::DefaultBlock2CTileMap,
+                    has_main_loop>;
+
+                return launch_and_time_kernel(stream_config,
+                                              kernel,
+                                              dim3(grid_size),
+                                              dim3(BlockSize),
+                                              0,
+                                              arg.p_a_grid_,
+                                              arg.p_b_grid_,
+                                              arg.p_ds_grid_,
+                                              arg.p_e_grid_,
+                                              G,
+                                              arg.a_grid_desc_k0_m_k1_,
+                                              arg.b_grid_desc_k0_n_k1_,
+                                              arg.ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              arg.e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              arg.a_element_op_,
+                                              arg.b_element_op_,
+                                              arg.cde_element_op_,
+                                              arg.compute_ptr_offset_of_batch_,
+                                              arg.block_2_ctile_map_);
+            };
 
             if(GridwiseOp::CalculateHasMainKBlockLoop(K))
             {
-                const auto kernel = kernel_contraction_multiple_d_wmma_cshuffle<
-                    GridwiseOp,
-                    ADataType,
-                    BDataType,
-                    typename GridwiseOp::DsGridPointer,
-                    EDataType,
-                    remove_reference_t<typename DeviceOp::AGridDesc_K0_M_K1>,
-                    remove_reference_t<typename DeviceOp::BGridDesc_K0_N_K1>,
-                    remove_reference_t<
-                        typename GridwiseOp::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
-                    remove_reference_t<
-                        typename GridwiseOp::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CDEElementwiseOperation,
-                    ComputePtrOffsetOfStridedBatch,
-                    remove_reference_t<typename GridwiseOp::DefaultBlock2CTileMap>,
-                    true>; // Last Option is W/O
-
-                ave_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_ds_grid_,
-                                           arg.p_e_grid_,
-                                           G,
-                                           arg.a_grid_desc_k0_m_k1_,
-                                           arg.b_grid_desc_k0_n_k1_,
-                                           arg.ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                           arg.e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.cde_element_op_,
-                                           arg.compute_ptr_offset_of_batch_,
-                                           arg.block_2_ctile_map_);
+                return launch_kernel(integral_constant<bool, true>{});
             }
             else
             {
-                const auto kernel = kernel_contraction_multiple_d_wmma_cshuffle<
-                    GridwiseOp,
-                    ADataType,
-                    BDataType,
-                    typename GridwiseOp::DsGridPointer,
-                    EDataType,
-                    remove_reference_t<typename DeviceOp::AGridDesc_K0_M_K1>,
-                    remove_reference_t<typename DeviceOp::BGridDesc_K0_N_K1>,
-                    remove_reference_t<
-                        typename GridwiseOp::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
-                    remove_reference_t<
-                        typename GridwiseOp::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CDEElementwiseOperation,
-                    ComputePtrOffsetOfStridedBatch,
-                    remove_reference_t<typename GridwiseOp::DefaultBlock2CTileMap>,
-                    false>;
-
-                ave_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_ds_grid_,
-                                           arg.p_e_grid_,
-                                           G,
-                                           arg.a_grid_desc_k0_m_k1_,
-                                           arg.b_grid_desc_k0_n_k1_,
-                                           arg.ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                           arg.e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.cde_element_op_,
-                                           arg.compute_ptr_offset_of_batch_,
-                                           arg.block_2_ctile_map_);
+                return launch_kernel(integral_constant<bool, false>{});
             }
-
-            return ave_time;
         }
 
         // polymorphic

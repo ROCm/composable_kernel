@@ -56,7 +56,7 @@ using DeviceOpInstanceKKNN =
         NumDimK,
         ADataType,
         BDataType,
-        ck::Tuple<DDataType>,
+        DsDataType,
         EDataType,
         AccDataType,
         CShuffleDataType,
@@ -239,18 +239,18 @@ int main(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = false;
+    bool time_kernel     = true;
 
     ck::index_t G0 = 1;
-    ck::index_t G1 = 1;
+    ck::index_t G1 = 2;
 
-    ck::index_t M0 = 1;
-    ck::index_t M1 = 1;
+    ck::index_t M0 = 4;
+    ck::index_t M1 = 128;
 
-    ck::index_t N0 = 1;
-    ck::index_t N1 = 1;
+    ck::index_t N0 = 16;
+    ck::index_t N1 = 256;
 
-    ck::index_t K0 = 1;
+    ck::index_t K0 = 2048;
 
     // A[G0, G1, M0, M1, K0]
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M0, M1, K0};
@@ -284,13 +284,11 @@ int main(int argc, char* argv[])
         printf("arg3: time kernel (0=no, 1=yes)\n");
         exit(0);
     }
-    std::cout<<"CP -4 "<<std::endl;
     Tensor<ADataType> a_gs_ms_ks(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
     Tensor<BDataType> b_gs_ns_ks(b_gs_ns_ks_lengths, b_gs_ns_ks_strides);
     Tensor<DDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
     Tensor<EDataType> e_gs_ms_ns_host_result(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
     Tensor<EDataType> e_gs_ms_ns_device_result(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
-    std::cout<<"CP -3 "<<std::endl;
     std::cout << "a_gs_ms_ks: " << a_gs_ms_ks.mDesc << std::endl;
     std::cout << "b_gs_ns_ks: " << b_gs_ns_ks.mDesc << std::endl;
     std::cout << "d_gs_ms_ns: " << d_gs_ms_ns.mDesc << std::endl;
@@ -310,17 +308,14 @@ int main(int argc, char* argv[])
         d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<DDataType>{-0.5, 0.5});
         break;
     }
-    std::cout<<"CP -2 "<<std::endl;
     DeviceMem a_device_buf(sizeof(ADataType) * a_gs_ms_ks.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(BDataType) * b_gs_ns_ks.mDesc.GetElementSpaceSize());
     DeviceMem d_device_buf(sizeof(DDataType) * d_gs_ms_ns.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataType) *
-                           e_gs_ms_ns_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem e_device_buf(sizeof(EDataType) * e_gs_ms_ns_device_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_gs_ms_ks.mData.data());
     b_device_buf.ToDevice(b_gs_ns_ks.mData.data());
     d_device_buf.ToDevice(d_gs_ms_ns.mData.data());
-    std::cout<<"CP -1 "<<std::endl;
 
     // set zero
     e_device_buf.SetZero();
@@ -330,7 +325,6 @@ int main(int argc, char* argv[])
     auto cde_element_op = CDEElementOp{};
 
     // device operation
-    std::cout<<"CP 0 "<<std::endl;
     auto op       = DeviceOpInstance{};
     auto invoker  = op.MakeInvoker();
     auto argument = op.MakeArgument(a_device_buf.GetDeviceBuffer(),
@@ -348,7 +342,6 @@ int main(int argc, char* argv[])
                                     a_element_op,
                                     b_element_op,
                                     cde_element_op);
-    std::cout<<"CP 1 "<<std::endl;
 
     if(!op.IsSupportedArgument(argument))
     {
@@ -358,7 +351,6 @@ int main(int argc, char* argv[])
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
-    std::cout<<"CP 2 "<<std::endl;
 
     ck::index_t G =
         ck::accumulate_n<ck::index_t>(e_gs_ms_ns_lengths.begin(), NumDimG, 1, std::multiplies<>{});
@@ -371,7 +363,7 @@ int main(int argc, char* argv[])
 
     ck::index_t K = ck::accumulate_n<ck::index_t>(
         a_gs_ms_ks_lengths.begin() + NumDimG + NumDimM, NumDimK, 1, std::multiplies<>{});
-
+    std::cout<<"GMNK="<<G<<", "<<M<<", "<<N<<", "<<K<<std::endl;
     std::size_t flop      = std::size_t(2) * G * M * N * K;
     std::size_t num_btype = sizeof(ADataType) * G * M * K + sizeof(BDataType) * G * K * N +
                             sizeof(DDataType) * G * M * N + sizeof(EDataType) * G * M * N;
