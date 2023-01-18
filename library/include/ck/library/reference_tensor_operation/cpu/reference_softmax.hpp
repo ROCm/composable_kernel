@@ -24,11 +24,14 @@ struct ReferenceSoftmax : public device::BaseOperator
     {
         Argument(const Tensor<InDataType>& in,
                  Tensor<OutDataType>& out,
-                 AccDataType alpha,
-                 AccDataType beta,
+                 double alpha,
+                 double beta,
                  const std::vector<index_t> sm_reduce_dims)
-            : in_(in), out_(out), alpha_(alpha), beta_(beta), sm_reduce_dims_(sm_reduce_dims)
+            : in_(in), out_(out), sm_reduce_dims_(sm_reduce_dims)
         {
+            alpha_ = static_cast<AccDataType>(alpha);
+            beta_  = static_cast<AccDataType>(beta);
+
             // std::cout << "debug: scalar dims: ";
             for(size_t i = 0; i < in.mDesc.GetNumOfDimension(); i++)
             {
@@ -143,8 +146,8 @@ struct ReferenceSoftmax : public device::BaseOperator
 
     static auto MakeArgument(const Tensor<InDataType>& in,
                              Tensor<OutDataType>& out,
-                             AccDataType alpha,
-                             AccDataType beta,
+                             double alpha,
+                             double beta,
                              const std::vector<index_t> sm_reduce_dims)
     {
         return Argument{in, out, alpha, beta, sm_reduce_dims};

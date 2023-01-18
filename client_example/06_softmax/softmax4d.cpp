@@ -47,8 +47,8 @@ int main(int argc, char* argv[])
     ck::index_t num_elements =
         std::accumulate(in_lengths.begin(), in_lengths.end(), 1, std::multiplies<ck::index_t>());
 
-    AccDataType alpha{2.0f};
-    AccDataType beta{2.0f};
+    double alpha{2.0};
+    double beta{2.0};
 
     SimpleDeviceMem in(sizeof(InDataType) * num_elements);
     SimpleDeviceMem out(sizeof(OutDataType) * num_elements);
@@ -82,8 +82,8 @@ int main(int argc, char* argv[])
         auto argument_ptr   = op_ptr->MakeArgumentPointer(in_lengths,
                                                         in_strides,
                                                         reduce_dims,
-                                                        &alpha,
-                                                        &beta,
+                                                        alpha,
+                                                        beta,
                                                         in.GetDeviceBuffer(),
                                                         out.GetDeviceBuffer(),
                                                         PassThrough{},
@@ -129,8 +129,8 @@ int main(int argc, char* argv[])
         auto argument_ptr = op_ptr->MakeArgumentPointer(in_lengths,
                                                         in_strides,
                                                         reduce_dims,
-                                                        &alpha,
-                                                        &beta,
+                                                        alpha,
+                                                        beta,
                                                         in.GetDeviceBuffer(),
                                                         out.GetDeviceBuffer(),
                                                         PassThrough{},

@@ -217,8 +217,8 @@ int mean_meansquare_dual_reduce_test(size_t n,
     size_t invariant_total_length = n;
     size_t reduce_total_length    = h * w * c;
 
-    const AccDataType alpha = ck::type_convert<AccDataType>(1.0f);
-    const AccDataType beta  = ck::type_convert<AccDataType>(0.0f);
+    const double alpha = 1.0f;
+    const double beta  = 0.0f;
 
     std::size_t num_thread = 1;
 
@@ -267,8 +267,8 @@ int mean_meansquare_dual_reduce_test(size_t n,
         i_outLengths,
         {i_outStrides, i_outStrides},
         reduceDims,
-        {&alpha, &alpha},
-        {&beta, &beta},
+        {alpha, alpha},
+        {beta, beta},
         in_dev.GetDeviceBuffer(),
         {mean_dev.GetDeviceBuffer(), meansquare_dev.GetDeviceBuffer()},
         ck::make_tuple(InElementwiseOperation_Mean{}, InElementwiseOperation_Meansquare{}),
