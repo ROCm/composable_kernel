@@ -723,7 +723,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
                                           arg.block_2_ctile_map_))
             {
                 throw std::runtime_error(
-                    "wrong! GridwiseGemmMultipleD_xdl_cshuffle has invalid setting");
+                    "wrong! GridwiseGemmMultipleD_wmma_cshuffle has invalid setting");
             }
 
             const index_t G = arg.e_grid_desc_g_m_n_.GetLength(I0);
