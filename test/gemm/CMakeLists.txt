@@ -18,6 +18,7 @@ add_library(gemm_standalone_xdl_fp16_instances STATIC
     instance/gemm_f16_nn_instance.cpp
     instance/gemm_f16_nt_instance.cpp
     instance/gemm_f16_tn_instance.cpp
+    instance/gemm_wavelet_f16_tn_instance.cpp
     instance/gemm_f16_tt_instance.cpp
 )
 add_test_executable(test_gemm_standalone_xdl_fp16 gemm_standalone_xdl_fp16.cpp)
