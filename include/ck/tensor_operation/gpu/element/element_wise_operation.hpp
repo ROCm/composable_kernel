@@ -173,6 +173,42 @@ struct AddAdd
 };
 
 // C = A * B
+// E = (C + D0) x D1
+struct AddMultiply
+{
+    template <typename E, typename C, typename D0, typename D1>
+    __host__ __device__ void operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
+
+    template <>
+    __host__ __device__ void operator()<half_t, half_t, half_t, half_t>(half_t& e,
+                                                                        const half_t& c,
+                                                                        const half_t& d0,
+                                                                        const half_t& d1) const
+    {
+        const half_t y = (c + d0) * d1;
+        e              = y;
+    }
+    template <>
+    __host__ __device__ void operator()<half_t, float, half_t, half_t>(half_t& e,
+                                                                       const float& c,
+                                                                       const half_t& d0,
+                                                                       const half_t& d1) const
+    {
+        const half_t y = (type_convert<half_t>(c) + d0) * d1;
+        e              = y;
+    }
+    template <>
+    __host__ __device__ void operator()<float, float, half_t, half_t>(float& e,
+                                                                      const float& c,
+                                                                      const half_t& d0,
+                                                                      const half_t& d1) const
+    {
+        const float y = (c + d0) * d1;
+        e             = y;
+    }
+};
+
+// C = A * B
 // E = FastGelu(C + D0 + D1)
 struct AddAddFastGelu
 {
