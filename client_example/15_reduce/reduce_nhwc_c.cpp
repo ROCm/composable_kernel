@@ -61,8 +61,8 @@ int main(int argc, char* argv[])
     for(auto dim : reduce_dims)
         reduce_length *= in_lengths[dim];
 
-    float alpha{1.0f};
-    float beta{0.0f};
+    double alpha{1.0};
+    double beta{0.0};
 
     SimpleDeviceMem in(sizeof(InDataType) * num_in_elements);
     SimpleDeviceMem out(sizeof(OutDataType) * num_out_elements);

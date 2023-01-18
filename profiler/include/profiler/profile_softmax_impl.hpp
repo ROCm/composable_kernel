@@ -48,8 +48,8 @@ bool profile_softmax_impl(int do_verification,
                           std::vector<index_t> in_length,
                           std::vector<index_t> in_strides,
                           std::vector<index_t> reduce_dims,
-                          AccDataType alpha,
-                          AccDataType beta)
+                          double alpha,
+                          double beta)
 {
     if(Rank != in_length.size())
     {
@@ -122,8 +122,8 @@ bool profile_softmax_impl(int do_verification,
         auto argument_ptr = inst_ptr->MakeArgumentPointer(in_tensor_lengths,
                                                           in_tensor_strides,
                                                           reduce_dims,
-                                                          &alpha,
-                                                          &beta,
+                                                          alpha,
+                                                          beta,
                                                           in_dev.GetDeviceBuffer(),
                                                           out_dev.GetDeviceBuffer(),
                                                           PassThrough{},
