@@ -4,7 +4,6 @@
 #pragma once
 
 #include <array>
-#include <cmath>
 #include <memory>
 #include <type_traits>
 
