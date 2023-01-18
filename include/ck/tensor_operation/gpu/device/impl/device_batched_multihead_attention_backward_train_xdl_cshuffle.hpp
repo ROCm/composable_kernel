@@ -750,6 +750,10 @@ struct DeviceBatchedMultiheadAttentionBackward_Train_Xdl_CShuffle
 
             seed_   = std::get<0>(seeds);
             offset_ = std::get<1>(seeds);
+
+            c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
+                GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
+                    a_grid_desc_g_m_k_.GetLength(I1), b_grid_desc_g_n_k_.GetLength(I1));
             // Print();
         }
 
@@ -805,6 +809,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Train_Xdl_CShuffle
         CGridDesc_G_M_N c_grid_desc_g_m_n_;
         typename GridwiseGemm::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
             y_grid_desc_mblock_mperblock_oblock_operblock_;
+
+        typename GridwiseGemm::CGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
+            c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
 
         // block-to-c-tile map
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;

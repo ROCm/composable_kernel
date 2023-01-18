@@ -96,6 +96,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
+    static constexpr auto WaveSize = 64;
     // K1 should be Number<...>
     // Gemm0
     static constexpr auto AK0 = Number<KPerBlock / AK1Value>{};
@@ -114,6 +115,46 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
     using GridwiseGemmPipe = remove_cvref_t<decltype(
         GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage>())>;
+
+    // C desc for source in blockwise copy
+    __host__ __device__ static constexpr auto
+    MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const index_t M, const index_t N)
+    {
+        constexpr auto mfma = MfmaSelector<DataType, MPerXdl, NPerXdl>::selected_mfma;
+        constexpr auto N3   = mfma.num_groups_per_blk;
+        constexpr auto N4   = mfma.num_input_blks;
+        constexpr auto N5   = mfma.group_size;
+        return transform_tensor_descriptor(
+            make_naive_tensor_descriptor_packed(make_tuple(M, N)),
+            make_tuple(make_unmerge_transform(
+                           make_tuple(M / MPerBlock, MXdlPerWave, Gemm0MWaves, MPerXdl)),
+                       make_unmerge_transform(
+                           make_tuple(N / NPerBlock, NXdlPerWave, Gemm0NWaves, N3, N4, N5))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0, 2, 4, 6>{}, Sequence<1, 3, 5, 7, 8, 9>{}));
+    }
+
+    __device__ static auto GetGemm0WaveIdx()
+    {
+        const index_t thread_id = get_thread_local_1d_id();
+
+        constexpr auto threadid_to_wave_idx_adaptor = make_single_stage_tensor_adaptor(
+            make_tuple(make_merge_transform(make_tuple(Gemm0MWaves, Gemm0NWaves, WaveSize))),
+            make_tuple(Sequence<0, 1, 2>{}),
+            make_tuple(Sequence<0>{}));
+
+        return threadid_to_wave_idx_adaptor.CalculateBottomIndex(make_multi_index(thread_id));
+    }
+
+    __device__ static auto GetGemm0WaveMNIdx(const index_t thread_id)
+    {
+        constexpr auto wave_threadid_to_mn_idx_adaptor = make_single_stage_tensor_adaptor(
+            make_tuple(make_merge_transform(make_tuple(WaveSize / MPerXdl, MPerXdl))),
+            make_tuple(Sequence<0, 1>{}),
+            make_tuple(Sequence<0>{}));
+
+        return wave_threadid_to_mn_idx_adaptor.CalculateBottomIndex(make_multi_index(thread_id));
+    }
 
     template <typename ABlockDesc_AK0_M_AK1>
     __host__ __device__ static constexpr auto
@@ -348,6 +389,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
     using DefaultBlock2CTileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}))>;
+
+    using CGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5 =
+        remove_cvref_t<decltype(MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(0, 0))>;
 
     // S / dP Gemm (type 1 rcr)
     struct Gemm0
@@ -1369,6 +1413,66 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                  acc0_thread_origin[I0],   // mrepeat
                                  acc0_thread_origin[I2],   // mwave
                                  acc0_thread_origin[I4])}; // mperxdl
+
+        //
+        // z vgpr copy to global
+        //
+        // z matrix threadwise desc
+        constexpr auto z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+            make_naive_tensor_descriptor_packed(make_tuple(I1,   // MBlockId
+                                                           I1,   // NBlockID
+                                                           m0,   // MRepeat
+                                                           n0,   // NRepeat
+                                                           m1,   // MWaveId
+                                                           n1,   // NWaveId
+                                                           m2,   // MPerXdl
+                                                           n2,   // NGroupNum
+                                                           n3,   // NInputNum
+                                                           n4)); // registerNum
+        // z matrix global desc
+        const auto M = q_grid_desc_k0_m_k1.GetLength(I1);
+        const auto N = k_grid_desc_k0_n_k1.GetLength(I1);
+        const auto z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+            MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(M, N);
+
+        const auto wave_id     = GetGemm0WaveIdx();
+        const auto wave_m_n_id = GetGemm0WaveMNIdx(wave_id[I2]); // I2: 0~63
+
+        auto z_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
+            ushort,
+            ushort,
+            decltype(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5),
+            decltype(z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5),
+            tensor_operation::element_wise::PassThrough,
+            Sequence<I1, // MBlockId
+                     I1, // NBlockID
+                     m0, // MRepeat
+                     n0, // NRepeat
+                     m1, // MWaveId
+                     n1, // NWaveId
+                     m2, // MPerXdl
+                     n2, // NGroupNum
+                     n3, // NInputNum
+                     n4>,
+            Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
+            9,  // DstVectorDim
+            n4, // DstScalarPerVector
+            InMemoryDataOperationEnum::Set,
+            1, // DstScalarStrideInVector
+            true>{z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                  make_multi_index(block_work_idx[I0], // MBlockId
+                                   0,                  // NBlockId
+                                   0,                  // mrepeat
+                                   0,                  // nrepeat
+                                   wave_id[I0],        // MWaveId
+                                   wave_id[I1],        // NWaveId
+                                   wave_m_n_id[I1],    // MPerXdl
+                                   0,                  // group
+                                   wave_m_n_id[I0],    // NInputIndex
+                                   0),
+                  tensor_operation::element_wise::PassThrough{}};
+
+        ignore = z_thread_copy_vgpr_to_global;
 
         //
         // set up dV / dK Gemm (type 3 crr)
