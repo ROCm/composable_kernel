@@ -9,6 +9,7 @@
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_multiblock.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_reduce.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
@@ -16,7 +17,6 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/host_common_util.hpp"
-#include "ck/library/utility/host_reduction.hpp"
 
 #include "reduce_example_common.hpp"
 
@@ -149,29 +149,6 @@ int reduce_multiblock_atomic_add_impl(bool do_verification,
         reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(
             static_cast<int32_t>(reduce_total_length));
 
-    if(do_verification)
-    {
-        ReductionHost<InOutDataType,
-                      AccDataType,
-                      InOutDataType,
-                      ReduceOperation,
-                      InElementwiseOperation,
-                      AccElementwiseOperation,
-                      Rank,
-                      NumReduceDim,
-                      PropagateNan,
-                      false>
-            hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
-
-        hostReduce.Run(alpha,
-                       in.mData.data(),
-                       beta,
-                       out_ref.mData.data(),
-                       nullptr,
-                       in_elementwise_op,
-                       acc_elementwise_op);
-    };
-
     std::array<index_t, Rank> arrInLengths;
     std::array<index_t, Rank> arrInStrides;
     std::array<index_t, NumOutDim> arrOutLengths;
@@ -182,6 +159,48 @@ int reduce_multiblock_atomic_add_impl(bool do_verification,
     ck::ranges::copy(outLengths, arrOutLengths.begin());
     ck::ranges::copy(outStrides, arrOutStrides.begin());
 
+    if(do_verification)
+    {
+        using ReferenceReduceInstance =
+            ck::tensor_operation::host::ReferenceReduce<InOutDataType,
+                                                        AccDataType,
+                                                        InOutDataType,
+                                                        Rank,
+                                                        NumReduceDim,
+                                                        ReduceOperation,
+                                                        InElementwiseOperation,
+                                                        AccElementwiseOperation,
+                                                        PropagateNan,
+                                                        false>;
+
+        auto reduce_ref = ReferenceReduceInstance{};
+
+        auto argument_ptr_ref = reduce_ref.MakeArgumentPointer(arrInLengths,
+                                                               arrInStrides,
+                                                               arrOutLengths,
+                                                               arrOutStrides,
+                                                               reduceDims,
+                                                               static_cast<double>(alpha),
+                                                               static_cast<double>(beta),
+                                                               in.mData.data(),
+                                                               nullptr,
+                                                               out_ref.mData.data(),
+                                                               nullptr,
+                                                               in_elementwise_op,
+                                                               acc_elementwise_op);
+
+        if(!reduce_ref.IsSupportedArgument(argument_ptr_ref.get()))
+        {
+            std::cout << "The runtime parameters not supported by the reduce reference, exiting!"
+                      << std::endl;
+            return (false);
+        };
+
+        auto invoker_ptr_ref = reduce_ref.MakeInvokerPointer();
+
+        invoker_ptr_ref->Run(argument_ptr_ref.get());
+    };
+
     auto reduce = DeviceReduceInstance{};
 
     auto argument_ptr = reduce.MakeArgumentPointer(arrInLengths,
@@ -189,8 +208,8 @@ int reduce_multiblock_atomic_add_impl(bool do_verification,
                                                    arrOutLengths,
                                                    arrOutStrides,
                                                    reduceDims,
-                                                   alpha,
-                                                   beta,
+                                                   static_cast<double>(alpha),
+                                                   static_cast<double>(beta),
                                                    in_dev.GetDeviceBuffer(),
                                                    nullptr,
                                                    out_dev.GetDeviceBuffer(),
@@ -200,9 +219,8 @@ int reduce_multiblock_atomic_add_impl(bool do_verification,
 
     if(!reduce.IsSupportedArgument(argument_ptr.get()))
     {
-        std::cerr
-            << "The runtime parameters seems not supported by the DeviceReduce instance, exiting!"
-            << std::endl;
+        std::cerr << "The runtime parameters not supported by the DeviceReduce instance, exiting!"
+                  << std::endl;
 
         return (-2);
     };

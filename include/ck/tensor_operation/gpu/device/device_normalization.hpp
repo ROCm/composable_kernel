@@ -28,7 +28,7 @@ struct DeviceNormalization : public BaseOperator
                         const std::vector<index_t> betaStrides,
                         const std::vector<index_t> yStrides,
                         const std::vector<index_t> reduceDims,
-                        AccDataType epsilon,
+                        double epsilon,
                         const void* p_x,
                         const void* p_gamma,
                         const void* p_beta,
