@@ -49,6 +49,7 @@ using S = ck::Sequence<Is...>;
 
 using F16 = ck::half_t;
 using F32 = float;
+using U16 = unsigned short;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Scale       = ck::tensor_operation::element_wise::Scale;
@@ -61,6 +62,7 @@ using DataType         = F16;
 using AccDataType      = F32;
 using ShuffleDataType  = F32;
 using LSEDataType      = F32;
+using ZDataType        = U16;
 using Acc0BiasDataType = ck::Tuple<>;
 using Acc1BiasDataType = ck::Tuple<>;
 
@@ -92,6 +94,7 @@ using DeviceGemmInstance =
         NumDimK,
         NumDimO,
         DataType,
+        ZDataType,
         LSEDataType,
         Acc0BiasDataType,
         Acc1BiasDataType,
@@ -330,6 +333,12 @@ int run(int argc, char* argv[])
             ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // Y layout [G0, M, G1, O]
             : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // Y layout [G0, G1, M, O]
 
+
+    std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
+    std::vector<ck::index_t> z_gs_ms_ns_strides =
+        input_permute
+            ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // Z layout [G0, M, G1, N]
+            : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // Z layout [G0, G1, M, N]
     // The softmax stat log-sum-exp (LSE) is used to speed up softmax calculation in backward pass
     // Pi = exp(Si) / sum(exp(S0) + exp(S1) + ...)
     //    = exp(Si) / exp(log(sum(exp() + ...)))
@@ -341,6 +350,7 @@ int run(int argc, char* argv[])
 
     Tensor<DataType> q_gs_ms_ks(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
     Tensor<DataType> k_gs_ns_ks(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
+    Tensor<ZDataType> z_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
     Tensor<DataType> v_gs_os_ns(v_gs_os_ns_lengths, v_gs_os_ns_strides);
     Tensor<DataType> y_gs_ms_os(y_gs_ms_os_lengths, y_gs_ms_os_strides);
     Tensor<DataType> ygrad_gs_ms_os(y_gs_ms_os_lengths, y_gs_ms_os_strides);
@@ -348,10 +358,12 @@ int run(int argc, char* argv[])
 
     std::cout << "q_gs_ms_ks: " << q_gs_ms_ks.mDesc << std::endl;
     std::cout << "k_gs_ns_ks: " << k_gs_ns_ks.mDesc << std::endl;
+    std::cout << "z_gs_ms_ks: " << z_gs_ms_ns.mDesc << std::endl;
     std::cout << "v_gs_os_ns: " << v_gs_os_ns.mDesc << std::endl;
     std::cout << "y_gs_ms_os: " << y_gs_ms_os.mDesc << std::endl;
     std::cout << "lse_gs_ms_os: " << lse_gs_ms.mDesc << std::endl;
 
+    z_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DataType>{-1});
     switch(init_method)
     {
     case 0: break;
@@ -417,6 +429,7 @@ int run(int argc, char* argv[])
     // calculate y & log-sum-exp beforehand
     Tensor<DataType> q_g_m_k({BatchCount, M, K});
     Tensor<DataType> k_g_n_k({BatchCount, N, K});
+    Tensor<ZDataType> z_g_m_n({BatchCount, M, N});
     Tensor<DataType> v_g_n_o({BatchCount, N, O});
     Tensor<AccDataType> s_g_m_n({BatchCount, M, N});
     Tensor<DataType> p_g_m_n({BatchCount, M, N});
@@ -427,6 +440,8 @@ int run(int argc, char* argv[])
         [&](auto& self, auto idx) { q_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
     k_gs_ns_ks.ForEach(
         [&](auto& self, auto idx) { k_g_n_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
+    z_gs_ms_ns.ForEach(
+        [&](auto& self, auto idx) { z_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
     v_gs_os_ns.ForEach(
         [&](auto& self, auto idx) { v_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx); });
     lse_gs_ms.ForEach(
@@ -442,6 +457,7 @@ int run(int argc, char* argv[])
     // qkv gradients have the same descriptor as with qkv
     DeviceMem q_device_buf(sizeof(DataType) * q_gs_ms_ks.mDesc.GetElementSpaceSize());
     DeviceMem k_device_buf(sizeof(DataType) * k_gs_ns_ks.mDesc.GetElementSpaceSize());
+    DeviceMem z_device_buf(sizeof(ZDataType) * z_gs_ms_ns.mDesc.GetElementSpaceSize());
     DeviceMem v_device_buf(sizeof(DataType) * v_gs_os_ns.mDesc.GetElementSpaceSize());
     DeviceMem y_device_buf(sizeof(DataType) * y_gs_ms_os.mDesc.GetElementSpaceSize());
     DeviceMem lse_device_buf(sizeof(LSEDataType) * lse_gs_ms.mDesc.GetElementSpaceSize());
@@ -452,6 +468,7 @@ int run(int argc, char* argv[])
 
     q_device_buf.ToDevice(q_gs_ms_ks.mData.data());
     k_device_buf.ToDevice(k_gs_ns_ks.mData.data());
+    z_device_buf.ToDevice(z_gs_ms_ns.mData.data());
     v_device_buf.ToDevice(v_gs_os_ns.mData.data());
     y_device_buf.ToDevice(y_gs_ms_os.mData.data());
     lse_device_buf.ToDevice(lse_gs_ms.mData.data());
@@ -464,6 +481,7 @@ int run(int argc, char* argv[])
     auto argument = gemm.MakeArgument(
         static_cast<DataType*>(q_device_buf.GetDeviceBuffer()),
         static_cast<DataType*>(k_device_buf.GetDeviceBuffer()),
+        static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
         static_cast<DataType*>(v_device_buf.GetDeviceBuffer()),
         static_cast<DataType*>(y_device_buf.GetDeviceBuffer()),
         static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
@@ -477,6 +495,8 @@ int run(int argc, char* argv[])
         q_gs_ms_ks_strides,
         k_gs_ns_ks_lengths,
         k_gs_ns_ks_strides,
+        z_gs_ms_ns_lengths,
+        z_gs_ms_ns_strides,
         v_gs_os_ns_lengths,
         v_gs_os_ns_strides,
         y_gs_ms_os_lengths,

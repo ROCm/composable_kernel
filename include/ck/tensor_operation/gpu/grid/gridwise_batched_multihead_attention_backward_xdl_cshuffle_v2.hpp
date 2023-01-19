@@ -32,6 +32,7 @@ template <typename DataType,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename QGridDesc_K0_M_K1,
           typename KGridDesc_K0_N_K1,
+          typename ZGridDesc_M_N,
           typename VGridDesc_N0_O_N1,
           typename CGridDesc_M_N,
           typename LSEGridDesc_M,
@@ -118,14 +119,17 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
     // C desc for source in blockwise copy
     __host__ __device__ static constexpr auto
-    MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const index_t M, const index_t N)
+    MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const ZGridDesc_M_N& z_grid_desc_m_n)
     {
+        const auto M = z_grid_desc_m_n.GetLength(I0);
+        const auto N = z_grid_desc_m_n.GetLength(I1);
+
         constexpr auto mfma = MfmaSelector<DataType, MPerXdl, NPerXdl>::selected_mfma;
         constexpr auto N3   = mfma.num_groups_per_blk;
         constexpr auto N4   = mfma.num_input_blks;
         constexpr auto N5   = mfma.group_size;
         return transform_tensor_descriptor(
-            make_naive_tensor_descriptor_packed(make_tuple(M, N)),
+            z_grid_desc_m_n,
             make_tuple(make_unmerge_transform(
                            make_tuple(M / MPerBlock, MXdlPerWave, Gemm0MWaves, MPerXdl)),
                        make_unmerge_transform(
@@ -390,8 +394,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
     using DefaultBlock2CTileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}))>;
 
-    using CGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5 =
-        remove_cvref_t<decltype(MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(0, 0))>;
+    using CGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5 = remove_cvref_t<decltype(
+        MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(ZGridDesc_M_N{}))>;
 
     // S / dP Gemm (type 1 rcr)
     struct Gemm0
@@ -1121,6 +1125,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
               typename YGradGridDesc_M0_O_M1>
     __device__ static void Run(const DataType* __restrict__ p_q_grid,
                                const DataType* __restrict__ p_k_grid,
+                               unsigned short* __restrict__ p_z_grid,
                                const DataType* __restrict__ p_v_grid,
                                const DataType* __restrict__ p_y_grid,
                                const FloatLSE* __restrict__ p_lse_grid,
@@ -1136,6 +1141,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                const CElementwiseOperation& c_element_op,
                                const QGridDesc_K0_M_K1& q_grid_desc_k0_m_k1,
                                const KGridDesc_K0_N_K1& k_grid_desc_k0_n_k1,
+                               const ZGridDesc_M_N& z_grid_desc_m_n,
                                const VGridDesc_N0_O_N1& v_grid_desc_n0_o_n1,
                                const YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock&
                                    y_grid_desc_mblock_mperblock_oblock_operblock,
@@ -1149,6 +1155,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                FloatGemmAcc rp_dropout,
                                ck::philox& ph)
     {
+        ignore                = p_z_grid;
+        ignore                = z_grid_desc_m_n;
         const auto q_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_q_grid, q_grid_desc_k0_m_k1.GetElementSpaceSize());
         const auto k_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -1418,6 +1426,18 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
         // z vgpr copy to global
         //
         // z matrix threadwise desc
+        if(get_thread_global_1d_id() == 0)
+        {
+            printf("m0: %d n0: %d m1: %d n1: %d m2: %d n2: %d n3: %d n4: %d \n",
+                   m0.value, // MRepeat
+                   n0.value, // NRepeat
+                   m1.value, // MWaveId
+                   n1.value, // NWaveId
+                   m2.value, // MPerXdl
+                   n2.value, // NGroupNum
+                   n3.value, // NInputNum
+                   n4.value);
+        }
         constexpr auto z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
             make_naive_tensor_descriptor_packed(make_tuple(I1,   // MBlockId
                                                            I1,   // NBlockID
@@ -1430,14 +1450,20 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                                            n3,   // NInputNum
                                                            n4)); // registerNum
         // z matrix global desc
-        const auto M = q_grid_desc_k0_m_k1.GetLength(I1);
-        const auto N = k_grid_desc_k0_n_k1.GetLength(I1);
         const auto z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
-            MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(M, N);
+            MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(z_grid_desc_m_n);
 
         const auto wave_id     = GetGemm0WaveIdx();
         const auto wave_m_n_id = GetGemm0WaveMNIdx(wave_id[I2]); // I2: 0~63
-
+        if(get_thread_global_1d_id() == 191)
+        {
+            printf("wave_id{ %d, %d, %d}, wave_m_n_id{%d, %d}\n",
+                   wave_id[I0],
+                   wave_id[I1],
+                   wave_id[I2],
+                   wave_m_n_id[I0],
+                   wave_m_n_id[I1]);
+        }
         auto z_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
             ushort,
             ushort,
