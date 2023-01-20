@@ -6,11 +6,11 @@
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/reduce/reduce.hpp"
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
-#include "ck/library/utility/host_reduction.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_reduce.hpp"
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 
@@ -158,11 +158,6 @@ bool profile_reduce_impl_impl(bool do_verification,
 
     constexpr bool OutputIndex = (op_support_indices && UseIndex);
 
-    constexpr bool out_support_atomic_add = std::is_same<OutDataType, float>::value;
-    constexpr bool op_support_atomic_add =
-        !op_support_indices && ReduceOpId != ReduceTensorOp::NORM2;
-    constexpr bool use_atomic_add = (out_support_atomic_add && op_support_atomic_add);
-
     // 1) If InDataType is half_t, must use half_t as AccDataType for indexable reduction operations
     // 2) If InDataType is half_t, must use float as AccDataType for non-indexable reduction
     // operations
@@ -200,7 +195,8 @@ bool profile_reduce_impl_impl(bool do_verification,
     constexpr bool invalid_reduce = (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3 ||
                                      invalid_reduce_4 || invalid_reduce_5 || invalid_reduce_6);
 
-    bool pass = true;
+    int num_kernel = 0;
+    bool pass      = true;
 
     if constexpr(!invalid_reduce)
     {
@@ -286,73 +282,23 @@ bool profile_reduce_impl_impl(bool do_verification,
             reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(
                 static_cast<int32_t>(reduce_total_length));
 
-        using DeviceReduceInstPtr =
-            DeviceReducePtr<Rank, NumReduceDim, InElementwiseOperation, AccElementwiseOperation>;
-
-        std::vector<DeviceReduceInstPtr> reduce_ptrs;
-
-        add_device_reduce_instance_threadwise<InDataType,
-                                              AccDataType,
-                                              OutDataType,
-                                              Rank,
-                                              NumReduceDim,
-                                              ReduceOperation,
-                                              InElementwiseOperation,
-                                              AccElementwiseOperation,
-                                              PropagateNan,
-                                              UseIndex>(reduce_ptrs);
-
-        add_device_reduce_instance_blockwise<InDataType,
-                                             AccDataType,
-                                             OutDataType,
-                                             Rank,
-                                             NumReduceDim,
-                                             ReduceOperation,
-                                             InElementwiseOperation,
-                                             AccElementwiseOperation,
-                                             PropagateNan,
-                                             UseIndex>(reduce_ptrs);
-
-        if constexpr(use_atomic_add)
-        {
-            add_device_reduce_instance_multiblock_atomic_add<InDataType,
-                                                             AccDataType,
-                                                             OutDataType,
-                                                             Rank,
-                                                             NumReduceDim,
-                                                             ReduceOperation,
-                                                             InElementwiseOperation,
-                                                             AccElementwiseOperation,
-                                                             PropagateNan,
-                                                             UseIndex>(reduce_ptrs);
-        }
+        using ReduceOp = ck::tensor_operation::device::DeviceReduce<InDataType,
+                                                                    AccDataType,
+                                                                    OutDataType,
+                                                                    Rank,
+                                                                    NumReduceDim,
+                                                                    ReduceOperation,
+                                                                    InElementwiseOperation,
+                                                                    AccElementwiseOperation,
+                                                                    PropagateNan,
+                                                                    OutputIndex>;
+        const auto reduce_ptrs =
+            ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+                ReduceOp>::GetInstances();
 
         if(reduce_ptrs.empty())
         {
             throw std::runtime_error("Wrong! No device REDUCE instance found");
-        };
-
-        if(do_verification)
-        {
-            ReductionHost<InDataType,
-                          AccDataType,
-                          OutDataType,
-                          ReduceOperation,
-                          InElementwiseOperation,
-                          AccElementwiseOperation,
-                          Rank,
-                          NumReduceDim,
-                          PropagateNan,
-                          OutputIndex>
-                hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
-
-            hostReduce.Run(alpha,
-                           in.mData.data(),
-                           beta,
-                           out_ref.mData.data(),
-                           out_indices_ref.mData.data(),
-                           in_elementwise_op,
-                           acc_elementwise_op);
         };
 
         std::array<index_t, Rank> arrInLengths;
@@ -365,6 +311,49 @@ bool profile_reduce_impl_impl(bool do_verification,
         ck::ranges::copy(outLengths, arrOutLengths.begin());
         ck::ranges::copy(outStrides, arrOutStrides.begin());
 
+        if(do_verification)
+        {
+            using ReferenceReduceInstance =
+                ck::tensor_operation::host::ReferenceReduce<InDataType,
+                                                            AccDataType,
+                                                            OutDataType,
+                                                            Rank,
+                                                            NumReduceDim,
+                                                            ReduceOperation,
+                                                            InElementwiseOperation,
+                                                            AccElementwiseOperation,
+                                                            PropagateNan,
+                                                            OutputIndex>;
+
+            auto reduce_ref = ReferenceReduceInstance{};
+
+            auto argument_ptr_ref = reduce_ref.MakeArgumentPointer(arrInLengths,
+                                                                   arrInStrides,
+                                                                   arrOutLengths,
+                                                                   arrOutStrides,
+                                                                   reduceDims,
+                                                                   static_cast<double>(alpha),
+                                                                   static_cast<double>(beta),
+                                                                   in.mData.data(),
+                                                                   nullptr,
+                                                                   out_ref.mData.data(),
+                                                                   out_indices_ref.mData.data(),
+                                                                   in_elementwise_op,
+                                                                   acc_elementwise_op);
+
+            if(!reduce_ref.IsSupportedArgument(argument_ptr_ref.get()))
+            {
+                std::cout
+                    << "The runtime parameters not supported by the reduce reference, exiting!"
+                    << std::endl;
+                return (false);
+            };
+
+            auto invoker_ptr_ref = reduce_ref.MakeInvokerPointer();
+
+            (void)invoker_ptr_ref->Run(argument_ptr_ref.get());
+        };
+
         for(auto& reduce_ptr : reduce_ptrs)
         {
             auto argument_ptr = reduce_ptr->MakeArgumentPointer(arrInLengths,
@@ -372,8 +361,8 @@ bool profile_reduce_impl_impl(bool do_verification,
                                                                 arrOutLengths,
                                                                 arrOutStrides,
                                                                 reduceDims,
-                                                                alpha,
-                                                                beta,
+                                                                static_cast<double>(alpha),
+                                                                static_cast<double>(beta),
                                                                 in_dev.GetDeviceBuffer(),
                                                                 nullptr,
                                                                 out_dev.GetDeviceBuffer(),
@@ -383,6 +372,8 @@ bool profile_reduce_impl_impl(bool do_verification,
 
             if(!reduce_ptr->IsSupportedArgument(argument_ptr.get()))
                 continue;
+            else
+                num_kernel++;
 
             std::string reduce_name = reduce_ptr->GetTypeString();
 
@@ -446,14 +437,20 @@ bool profile_reduce_impl_impl(bool do_verification,
             };
         };
 
-        if(time_kernel)
+        if(time_kernel && num_kernel > 0)
             std::cout << "Best Perf: " << best_avg_time << " ms, " << best_gb_per_sec << " GB/s"
                       << std::endl;
     }
     else
     {
-        std::cout << "The requested reduction operation is not supported, please check !!!"
-                  << std::endl;
+        throw std::runtime_error(
+            "The requested reduction operation is not supported, please check!");
+    };
+
+    if(num_kernel == 0)
+    {
+        std::cout << "Error: No kernel is applicable" << std::endl;
+        return false;
     };
 
     return pass;

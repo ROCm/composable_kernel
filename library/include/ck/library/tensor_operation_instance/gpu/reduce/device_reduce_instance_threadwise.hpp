@@ -62,8 +62,16 @@ template <typename InDataType,
           bool PropagateNan,
           bool OutputIndex>
 void add_device_reduce_instance_threadwise(
-    std::vector<DeviceReducePtr<Rank, NumReduceDim, InElementwiseOp, AccElementwiseOp>>&
-        device_op_instances)
+    std::vector<DeviceReducePtr<InDataType,
+                                AccDataType,
+                                OutDataType,
+                                Rank,
+                                NumReduceDim,
+                                ReduceOperation,
+                                InElementwiseOp,
+                                AccElementwiseOp,
+                                PropagateNan,
+                                OutputIndex>>& device_op_instances)
 {
     using cfg1 = ReductionConfiguration_1<256, 256, 1>;
 

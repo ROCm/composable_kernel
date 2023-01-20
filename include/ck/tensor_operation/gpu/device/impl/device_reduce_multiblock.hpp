@@ -40,8 +40,16 @@ template <typename InDataType,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
           index_t OutDstVectorSize>
-struct DeviceReduceMultiBlock
-    : public DeviceReduce<Rank, NumReduceDim, InElementwiseOperation, AccElementwiseOperation>
+struct DeviceReduceMultiBlock : public DeviceReduce<InDataType,
+                                                    AccDataType,
+                                                    OutDataType,
+                                                    Rank,
+                                                    NumReduceDim,
+                                                    ReduceOperation,
+                                                    InElementwiseOperation,
+                                                    AccElementwiseOperation,
+                                                    PropagateNan,
+                                                    OutputIndex>
 {
     static_assert(Rank <= 6, "Bigger Rank size is not supported!");
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
@@ -67,8 +75,8 @@ struct DeviceReduceMultiBlock
     static constexpr bool use_multiblock =
         (OutMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd);
 
-    static_assert(ck::reduce::InMemoryDataOperatonSupportedOnDataType<OutMemoryDataOperation,
-                                                                      OutDataType>::value,
+    static_assert(ck::reduce::InMemoryDataOperationSupportedOnDataType<OutMemoryDataOperation,
+                                                                       OutDataType>::value,
                   "The OutDataType must support the specified OutMemoryDataOperation!");
 
     static_assert(!use_multiblock || (use_multiblock && !OutputIndex),
@@ -209,8 +217,8 @@ struct DeviceReduceMultiBlock
                  const std::array<index_t, NumDstDim> outLengths,
                  const std::array<index_t, NumDstDim> outStrides,
                  const std::array<int, NumReduceDim> reduceDims,
-                 float alpha,
-                 float beta,
+                 double alpha,
+                 double beta,
                  const InDataType* in_dev,
                  const IndexDataType* in_index_dev,
                  OutDataType* out_dev,
@@ -494,8 +502,8 @@ struct DeviceReduceMultiBlock
                         const std::array<index_t, NumDstDim> outLengths,
                         const std::array<index_t, NumDstDim> outStrides,
                         const std::array<int, NumReduceDim> reduceDims,
-                        float alpha,
-                        float beta,
+                        double alpha,
+                        double beta,
                         const void* in_dev,
                         const void* in_index_dev,
                         void* out_dev,
