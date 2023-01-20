@@ -32,9 +32,9 @@ struct SimpleDeviceMem
     void* p_mem_;
 };
 
-std::size_t GetFlops(ck::index_t N, 
+std::size_t GetFlops(ck::index_t N,
                      ck::index_t K,
-                     ck::index_t C,    
+                     ck::index_t C,
                      const std::vector<ck::index_t>& output_spatial_lengths,
                      const std::vector<ck::index_t>& weights_spatial_lengths)
 {
@@ -52,39 +52,39 @@ std::size_t GetFlops(ck::index_t N,
 }
 
 template <typename InDataType>
-std::size_t GetInputByte(ck::index_t N, 
-                         ck::index_t C,
-                         const std::vector<ck::index_t>& input_spatial_lengths)
+std::size_t
+GetInputByte(ck::index_t N, ck::index_t C, const std::vector<ck::index_t>& input_spatial_lengths)
 {
     // sizeof(InDataType) * (N * C * <input spatial lengths product>) +
-    return sizeof(InDataType) * N * C * std::accumulate(std::begin(input_spatial_lengths),
-                                                 std::end(input_spatial_lengths),
-                                                 static_cast<std::size_t>(1),
-                                                 std::multiplies<>());
+    return sizeof(InDataType) * N * C *
+           std::accumulate(std::begin(input_spatial_lengths),
+                           std::end(input_spatial_lengths),
+                           static_cast<std::size_t>(1),
+                           std::multiplies<>());
 }
 
 template <typename WeiDataType>
-std::size_t GetWeightByte(ck::index_t K,
-                          ck::index_t C,   
-                          const std::vector<ck::index_t>& weights_spatial_lengths)
+std::size_t
+GetWeightByte(ck::index_t K, ck::index_t C, const std::vector<ck::index_t>& weights_spatial_lengths)
 {
     // sizeof(WeiDataType) * (K * C * <filter spatial lengths product>) +
-    return sizeof(WeiDataType) * K * C * std::accumulate(std::begin(weights_spatial_lengths),
-                                                  std::end(weights_spatial_lengths),
-                                                  static_cast<std::size_t>(1),
-                                                  std::multiplies<>());
+    return sizeof(WeiDataType) * K * C *
+           std::accumulate(std::begin(weights_spatial_lengths),
+                           std::end(weights_spatial_lengths),
+                           static_cast<std::size_t>(1),
+                           std::multiplies<>());
 }
 
 template <typename OutDataType>
-std::size_t GetOutputByte(ck::index_t N, 
-                          ck::index_t K,
-                          const std::vector<ck::index_t>& output_spatial_lengths)
+std::size_t
+GetOutputByte(ck::index_t N, ck::index_t K, const std::vector<ck::index_t>& output_spatial_lengths)
 {
     // sizeof(OutDataType) * (N * K * <output spatial lengths product>);
-    return sizeof(OutDataType) * N * K * std::accumulate(std::begin(output_spatial_lengths),
-                                                  std::end(output_spatial_lengths),
-                                                  static_cast<std::size_t>(1),
-                                                  std::multiplies<std::size_t>());
+    return sizeof(OutDataType) * N * K *
+           std::accumulate(std::begin(output_spatial_lengths),
+                           std::end(output_spatial_lengths),
+                           static_cast<std::size_t>(1),
+                           std::multiplies<std::size_t>());
 }
 
 template <ck::index_t NumDimSpatial,
@@ -101,14 +101,14 @@ bool run_conv_bwd_data(ck::index_t N,
                        const std::vector<ck::index_t>& wei_spatial_lengths,
                        const std::vector<ck::index_t>& out_spatial_lengths)
 {
-    std::size_t in_mem_size = GetInputByte<InDataType>(N, C, in_spatial_lengths);
+    std::size_t in_mem_size  = GetInputByte<InDataType>(N, C, in_spatial_lengths);
     std::size_t wei_mem_size = GetWeightByte<WeiDataType>(K, C, wei_spatial_lengths);
     std::size_t out_mem_size = GetOutputByte<OutDataType>(N, K, out_spatial_lengths);
 
     SimpleDeviceMem in(in_mem_size);
     SimpleDeviceMem wei(wei_mem_size);
     SimpleDeviceMem out(out_mem_size);
-    
+
     std::vector<ck::index_t> filter_strides(NumDimSpatial, 1);
     std::vector<ck::index_t> filter_dilations(NumDimSpatial, 1);
     std::vector<ck::index_t> input_left_pads(NumDimSpatial, 1);
@@ -136,9 +136,8 @@ bool run_conv_bwd_data(ck::index_t N,
     float best_gb_per_sec = 0;
     float best_tflops     = 0;
 
-    std::size_t flop = GetFlops(N, K, C, out_spatial_lengths, wei_spatial_lengths);
+    std::size_t flop      = GetFlops(N, K, C, out_spatial_lengths, wei_spatial_lengths);
     std::size_t num_bytes = in_mem_size + wei_mem_size + out_mem_size;
-
 
     // profile device operation instances
     std::cout << "Run all instances and do timing" << std::endl;
@@ -147,21 +146,21 @@ bool run_conv_bwd_data(ck::index_t N,
     {
         auto& op_ptr        = op_ptrs[i];
         auto argument_ptr   = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
-                                                          wei.GetDeviceBuffer(),
-                                                          out.GetDeviceBuffer(),
-                                                          N,
-                                                          K,
-                                                          C,
-                                                          in_spatial_lengths,
-                                                          wei_spatial_lengths,
-                                                          out_spatial_lengths,
-                                                          filter_strides,
-                                                          filter_dilations,
-                                                          input_left_pads,
-                                                          input_right_pads,
-                                                          PassThrough{},
-                                                          PassThrough{},
-                                                          PassThrough{});
+                                                        wei.GetDeviceBuffer(),
+                                                        out.GetDeviceBuffer(),
+                                                        N,
+                                                        K,
+                                                        C,
+                                                        in_spatial_lengths,
+                                                        wei_spatial_lengths,
+                                                        out_spatial_lengths,
+                                                        filter_strides,
+                                                        filter_dilations,
+                                                        input_left_pads,
+                                                        input_right_pads,
+                                                        PassThrough{},
+                                                        PassThrough{},
+                                                        PassThrough{});
         auto invoker_ptr    = op_ptr->MakeInvokerPointer();
         std::string op_name = op_ptr->GetTypeString();
 
@@ -204,22 +203,22 @@ bool run_conv_bwd_data(ck::index_t N,
         auto& op_ptr = op_ptrs[best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
                   << std::endl;
-        auto argument_ptr   = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
-                                                          wei.GetDeviceBuffer(),
-                                                          out.GetDeviceBuffer(),
-                                                          N,
-                                                          K,
-                                                          C,
-                                                          in_spatial_lengths,
-                                                          wei_spatial_lengths,
-                                                          out_spatial_lengths,
-                                                          filter_strides,
-                                                          filter_dilations,
-                                                          input_left_pads,
-                                                          input_right_pads,
-                                                          PassThrough{},
-                                                          PassThrough{},
-                                                          PassThrough{});
+        auto argument_ptr = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
+                                                        wei.GetDeviceBuffer(),
+                                                        out.GetDeviceBuffer(),
+                                                        N,
+                                                        K,
+                                                        C,
+                                                        in_spatial_lengths,
+                                                        wei_spatial_lengths,
+                                                        out_spatial_lengths,
+                                                        filter_strides,
+                                                        filter_dilations,
+                                                        input_left_pads,
+                                                        input_right_pads,
+                                                        PassThrough{},
+                                                        PassThrough{},
+                                                        PassThrough{});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

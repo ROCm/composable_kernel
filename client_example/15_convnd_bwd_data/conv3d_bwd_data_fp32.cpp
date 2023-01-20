@@ -10,9 +10,9 @@ using InDataType  = float;
 using WeiDataType = float;
 using OutDataType = float;
 
-using InLayout    = ck::tensor_layout::convolution::NDHWC;
-using WeiLayout   = ck::tensor_layout::convolution::KZYXC;
-using OutLayout   = ck::tensor_layout::convolution::NDHWK;
+using InLayout  = ck::tensor_layout::convolution::NDHWC;
+using WeiLayout = ck::tensor_layout::convolution::KZYXC;
+using OutLayout = ck::tensor_layout::convolution::NDHWK;
 
 static constexpr ck::index_t NumDimSpatial = 3;
 static constexpr ck::index_t N             = 64;
@@ -36,8 +36,7 @@ int main()
                              OutDataType,
                              InLayout,
                              WeiLayout,
-                             OutLayout>(
-           N, K, C, {Di, Hi, Wi}, {Z, Y, X}, {Do, Ho, Wo})
-           ? EXIT_SUCCESS
-           : EXIT_FAILURE;
+                             OutLayout>(N, K, C, {Di, Hi, Wi}, {Z, Y, X}, {Do, Ho, Wo})
+               ? EXIT_SUCCESS
+               : EXIT_FAILURE;
 }
