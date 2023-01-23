@@ -32,9 +32,10 @@ struct SimpleDeviceMem
     void* p_mem_;
 };
 
-template <ck::index_t NumDimSpatial>
-std::size_t GetFlops(const std::array<ck::index_t, NumDimSpatial + 3>& output_lengths,
-                     const std::array<ck::index_t, NumDimSpatial + 3>& weights_lengths)
+template <ck::index_t NumDimSpatial, ck::index_t NumNonSpatialDim = 3>
+std::size_t
+GetFlops(const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& output_lengths,
+         const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& weights_lengths)
 {
     // 2 * G * N * K * C * <output spatial lengths product> * <filter spatial lengths product>
 
@@ -44,18 +45,19 @@ std::size_t GetFlops(const std::array<ck::index_t, NumDimSpatial + 3>& output_le
     ck::index_t C = weights_lengths[2];
 
     return static_cast<std::size_t>(2) * G * N * K * C *
-           std::accumulate(std::next(std::begin(output_lengths), 3),
+           std::accumulate(std::next(std::begin(output_lengths), NumNonSpatialDim),
                            std::end(output_lengths),
                            static_cast<std::size_t>(1),
                            std::multiplies<>()) *
-           std::accumulate(std::next(std::begin(weights_lengths), 3),
+           std::accumulate(std::next(std::begin(weights_lengths), NumNonSpatialDim),
                            std::end(weights_lengths),
                            static_cast<std::size_t>(1),
                            std::multiplies<>());
 }
 
 template <typename InDataType, ck::index_t NumDimSpatial>
-std::size_t GetInputByte(const std::array<ck::index_t, NumDimSpatial + 3>& input_lengths)
+std::size_t
+GetInputByte(const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& input_lengths)
 {
     // sizeof(InDataType) * (G * N * C * <input spatial lengths product>) +
     return sizeof(InDataType) * std::accumulate(std::begin(input_lengths),
@@ -65,7 +67,8 @@ std::size_t GetInputByte(const std::array<ck::index_t, NumDimSpatial + 3>& input
 }
 
 template <typename WeiDataType, ck::index_t NumDimSpatial>
-std::size_t GetWeightByte(const std::array<ck::index_t, NumDimSpatial + 3>& weights_lengths)
+std::size_t
+GetWeightByte(const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& weights_lengths)
 {
     // sizeof(WeiDataType) * (G * K * C * <filter spatial lengths product>) +
     return sizeof(WeiDataType) * std::accumulate(std::begin(weights_lengths),
@@ -75,7 +78,8 @@ std::size_t GetWeightByte(const std::array<ck::index_t, NumDimSpatial + 3>& weig
 }
 
 template <typename OutDataType, ck::index_t NumDimSpatial>
-std::size_t GetOutputByte(const std::array<ck::index_t, NumDimSpatial + 3>& output_lengths)
+std::size_t
+GetOutputByte(const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& output_lengths)
 {
     // sizeof(OutDataType) * (G * N * K * <output spatial lengths product>);
     return sizeof(OutDataType) * std::accumulate(std::begin(output_lengths),
@@ -84,26 +88,17 @@ std::size_t GetOutputByte(const std::array<ck::index_t, NumDimSpatial + 3>& outp
                                                  std::multiplies<std::size_t>());
 }
 
-template <typename T, ck::index_t NumDimSpatial>
-void print_array(const std::array<T, NumDimSpatial + 3>& a)
-{
-    for(int i = 0; i < NumDimSpatial + 3; ++i)
-    {
-        std::cout << a[i] << ", ";
-    }
-    std::cout << std::endl;
-}
-
 template <ck::index_t NumDimSpatial,
           typename InDataType,
           typename WeiDataType,
           typename OutDataType,
           typename InLayout,
           typename WeiLayout,
-          typename OutLayout>
-bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + 3> in_lengths,
-                          std::array<ck::index_t, NumDimSpatial + 3> wei_lengths,
-                          std::array<ck::index_t, NumDimSpatial + 3> out_lengths)
+          typename OutLayout,
+          ck::index_t NumNonSpatialDim = 3>
+bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> in_lengths,
+                          std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> wei_lengths,
+                          std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> out_lengths)
 {
     std::size_t in_mem_size  = GetInputByte<InDataType, NumDimSpatial>(in_lengths);
     std::size_t wei_mem_size = GetWeightByte<WeiDataType, NumDimSpatial>(wei_lengths);
@@ -113,9 +108,9 @@ bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + 3> in_lengths,
     SimpleDeviceMem wei(wei_mem_size);
     SimpleDeviceMem out(out_mem_size);
 
-    std::array<ck::index_t, NumDimSpatial + 3> in_strides;
-    std::array<ck::index_t, NumDimSpatial + 3> wei_strides;
-    std::array<ck::index_t, NumDimSpatial + 3> out_strides;
+    std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> in_strides;
+    std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> wei_strides;
+    std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> out_strides;
     in_strides.fill(0);
     wei_strides.fill(0);
     out_strides.fill(0);
@@ -214,8 +209,8 @@ bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + 3> in_lengths,
             in_strides,
             wei_lengths,
             wei_strides,
-            std::array<std::array<ck::index_t, NumDimSpatial + 3>, 0>{{}},
-            std::array<std::array<ck::index_t, NumDimSpatial + 3>, 0>{{}},
+            std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 0>{{}},
+            std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 0>{{}},
             out_lengths,
             out_strides,
             conv_filter_strides,
@@ -277,8 +272,8 @@ bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + 3> in_lengths,
             in_strides,
             wei_lengths,
             wei_strides,
-            std::array<std::array<ck::index_t, NumDimSpatial + 3>, 0>{{}},
-            std::array<std::array<ck::index_t, NumDimSpatial + 3>, 0>{{}},
+            std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 0>{{}},
+            std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 0>{{}},
             out_lengths,
             out_strides,
             conv_filter_strides,

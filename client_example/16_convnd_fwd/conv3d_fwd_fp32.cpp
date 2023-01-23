@@ -24,10 +24,10 @@ static constexpr ck::index_t Y             = 3;
 static constexpr ck::index_t X             = 3;
 static constexpr ck::index_t Di            = 28;
 static constexpr ck::index_t Hi            = 28;
-static constexpr ck::index_t Wi            = 28;
+static constexpr ck::index_t Wi            = 3;
 static constexpr ck::index_t Do            = 28;
 static constexpr ck::index_t Ho            = 28;
-static constexpr ck::index_t Wo            = 28;
+static constexpr ck::index_t Wo            = 3;
 
 int main()
 {
