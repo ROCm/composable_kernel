@@ -38,7 +38,7 @@ template <typename GridwiseGemm,
           typename CElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
-          typename ZGridDesc_M_N,
+          typename ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
           typename B1GridDesc_BK0_N_BK1,
           typename YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock,
           typename LSEGridDescriptor_M,
@@ -70,7 +70,8 @@ __global__ void
             const CElementwiseOperation c_element_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-            const ZGridDesc_M_N z_grid_desc_m_n,
+            const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
+                c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
             const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
             const YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -129,7 +130,7 @@ __global__ void
                                                   c_element_op,
                                                   a_grid_desc_ak0_m_ak1,
                                                   b_grid_desc_bk0_n_bk1,
-                                                  z_grid_desc_m_n,
+                                                  c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                                                   b1_grid_desc_bk0_n_bk1,
                                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   lse_grid_desc_m,
@@ -847,7 +848,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Train_Xdl_CShuffle
         typename GridwiseGemm::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
             y_grid_desc_mblock_mperblock_oblock_operblock_;
 
-        typename GridwiseGemm::CGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
+        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
             c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
 
         // block-to-c-tile map
@@ -914,7 +915,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Train_Xdl_CShuffle
                     CElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
-                    DeviceOp::ZGridDesc_M_N,
+                    typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
                     DeviceOp::B1GridDesc_BK0_N_BK1,
                     typename GridwiseGemm::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock,
                     DeviceOp::LSEGridDesc_M,
@@ -947,7 +948,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Train_Xdl_CShuffle
                                               arg.c_element_op_,
                                               arg.a_grid_desc_ak0_m_ak1_,
                                               arg.b_grid_desc_bk0_n_bk1_,
-                                              arg.z_grid_desc_m_n_,
+                                              arg.c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
                                               arg.b1_grid_desc_bk0_n_bk1_,
                                               arg.y_grid_desc_mblock_mperblock_oblock_operblock_,
                                               arg.lse_grid_desc_m_,

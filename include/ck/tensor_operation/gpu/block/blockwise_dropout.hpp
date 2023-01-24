@@ -16,8 +16,9 @@ struct BlockwiseDropout
     static constexpr index_t MRepeat = ThreadSliceDesc_M_K{}.GetLength(I0);
     static constexpr index_t KRepeat = ThreadSliceDesc_M_K{}.GetLength(I1);
 
-    template <typename CThreadBuffer, bool using_sign_bit = false>
-    __host__ __device__ void ApplyDropout(CThreadBuffer& in_thread_buf, ck::philox ph)
+    template <typename CThreadBuffer, typename ZThreadBuffer, bool using_sign_bit = false>
+    __host__ __device__ void
+    ApplyDropout(CThreadBuffer& in_thread_buf, ck::philox ph, ZThreadBuffer& z_thread_buf)
     {
 
         auto execute_dropout = [&](bool keep, DataType val) {
@@ -45,7 +46,8 @@ struct BlockwiseDropout
                 auto offset = Number<ThreadSliceDesc_M_K{}.CalculateOffset(make_tuple(iM, iK))>{};
                 in_thread_buf(offset) =
                     execute_dropout(tmp[tmp_index] < p_dropout_16bits, in_thread_buf(offset));
-                tmp_index = tmp_index + 1;
+                z_thread_buf(offset) = tmp[tmp_index];
+                tmp_index            = tmp_index + 1;
             });
         });
     }
