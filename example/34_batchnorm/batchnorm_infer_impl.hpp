@@ -10,7 +10,7 @@
 #include "ck/utility/sequence.hpp"
 #include "ck/utility/tuple.hpp"
 #include "ck/utility/reduction_operator.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl.hpp"
 
 #include "batchnorm_common.hpp"
 
@@ -46,7 +46,7 @@ int bnorm_infer(
     static_assert(NumBatchNormReduceDim < Rank,
                   "Invalid number of reduced dimensions for batchnorm!");
 
-    using DeviceNormalizeInstance = ck::tensor_operation::device::DeviceElementwise<
+    using DeviceNormalizeInstance = ck::tensor_operation::device::DeviceElementwiseImpl<
         ck::Tuple<XDataType, AccDataType, AccDataType, AccDataType, AccDataType>, // x, mean,
                                                                                   // variance,
                                                                                   // scale,

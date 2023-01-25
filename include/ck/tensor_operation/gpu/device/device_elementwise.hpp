@@ -17,7 +17,7 @@ template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
           index_t NumDim>
-struct DeviceElementwiseBase : public BaseOperator
+struct DeviceElementwise : public BaseOperator
 {
     static constexpr int NumInput  = InDataTypeTuple::Size();
     static constexpr int NumOutput = OutDataTypeTuple::Size();
@@ -37,8 +37,8 @@ template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
           index_t NumDim>
-using DeviceElementwiseBasePtr = std::unique_ptr<
-    DeviceElementwiseBase<InDataTypeTuple, OutDataTypeTuple, ElementwiseOperation, NumDim>>;
+using DeviceElementwisePtr = std::unique_ptr<
+    DeviceElementwise<InDataTypeTuple, OutDataTypeTuple, ElementwiseOperation, NumDim>>;
 
 } // namespace device
 } // namespace tensor_operation

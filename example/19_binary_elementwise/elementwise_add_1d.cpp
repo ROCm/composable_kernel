@@ -5,7 +5,7 @@
 #include <cstdlib>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -21,13 +21,13 @@ using CDataType  = F16;
 using Add = ck::tensor_operation::element_wise::Add;
 
 using DeviceElementwiseAddInstance =
-    ck::tensor_operation::device::DeviceElementwise<ck::Tuple<ABDataType, ABDataType>,
-                                                    ck::Tuple<CDataType>,
-                                                    Add,
-                                                    1,
-                                                    8,
-                                                    ck::Sequence<8, 8>,
-                                                    ck::Sequence<8>>;
+    ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ABDataType, ABDataType>,
+                                                        ck::Tuple<CDataType>,
+                                                        Add,
+                                                        1,
+                                                        8,
+                                                        ck::Sequence<8, 8>,
+                                                        ck::Sequence<8>>;
 
 template <typename HostTensorA, typename HostTensorB, typename HostTensorC, typename Functor>
 void host_elementwise1D(

@@ -8,7 +8,7 @@
 
 #include "ck/utility/math.hpp"
 #include "ck/utility/sequence.hpp"
-#include "ck/tensor_operation/gpu/device/device_elementwise_base.hpp"
+#include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_1d.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 
@@ -25,8 +25,8 @@ template <typename InDataTypeTuple,
           index_t MPerThread,
           typename InScalarPerVectorSeq,
           typename OutScalarPerVectorSeq>
-struct DeviceElementwise
-    : public DeviceElementwiseBase<InDataTypeTuple, OutDataTypeTuple, ElementwiseOperation, NumDim>
+struct DeviceElementwiseImpl
+    : public DeviceElementwise<InDataTypeTuple, OutDataTypeTuple, ElementwiseOperation, NumDim>
 {
     static constexpr int NumInput  = InDataTypeTuple::Size();
     static constexpr int NumOutput = OutDataTypeTuple::Size();
