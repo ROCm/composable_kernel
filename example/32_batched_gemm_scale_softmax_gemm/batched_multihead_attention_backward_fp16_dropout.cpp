@@ -248,12 +248,12 @@ int run(int argc, char* argv[])
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
     // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
     // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t M  = 512;
-    ck::index_t N  = 512;
+    ck::index_t M  = 128;
+    ck::index_t N  = 256;
     ck::index_t K  = 128;
     ck::index_t O  = 128;
-    ck::index_t G0 = 3;
-    ck::index_t G1 = 2;
+    ck::index_t G0 = 1;
+    ck::index_t G1 = 1;
 
     float alpha = 1.f / std::sqrt(K);
 
@@ -363,7 +363,7 @@ int run(int argc, char* argv[])
     std::cout << "y_gs_ms_os: " << y_gs_ms_os.mDesc << std::endl;
     std::cout << "lse_gs_ms_os: " << lse_gs_ms.mDesc << std::endl;
 
-    z_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DataType>{-1});
+    z_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DataType>{0});
     switch(init_method)
     {
     case 0: break;
@@ -475,6 +475,7 @@ int run(int argc, char* argv[])
     ygrad_device_buf.ToDevice(ygrad_gs_ms_os.mData.data());
     kgrad_device_buf.SetZero();
     vgrad_device_buf.SetZero();
+    //z_device_buf.SetZero();
 
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
@@ -545,6 +546,10 @@ int run(int argc, char* argv[])
     bool pass = true;
     if(do_verification)
     {
+        //copy z matirx data form device
+        z_device_buf.FromDevice(z_g_m_n.mData.data());
+        //std::cout << "z_g_m_n ref:\n" << z_g_m_n;
+
         kgrad_device_buf.SetZero(); // reset global accum buffer and rerun
         vgrad_device_buf.SetZero();
         invoker.Run(argument, StreamConfig{nullptr, false});

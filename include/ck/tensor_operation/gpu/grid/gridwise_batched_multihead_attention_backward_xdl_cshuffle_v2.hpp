@@ -1441,7 +1441,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
         // z vgpr copy to global
         //
         // z matrix threadwise desc
-        if(get_thread_global_1d_id() == 0)
+        /*if(get_thread_global_1d_id() == 0)
         {
             printf("m0: %d n0: %d m1: %d n1: %d m2: %d n2: %d n3: %d n4: %d \n",
                    m0.value, // MRepeat
@@ -1452,7 +1452,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                    n2.value, // NGroupNum
                    n3.value, // NInputNum
                    n4.value);
-        }
+        }*/
         constexpr auto z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
             make_naive_tensor_descriptor_packed(make_tuple(I1,   // MBlockId
                                                            I1,   // NBlockID
@@ -1470,6 +1470,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                      z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize(),
                      true>
             z_tenor_buffer;
+        z_tenor_buffer.Clear();
         // z matrix global desc
         /*const auto M = q_grid_desc_k0_m_k1.GetLength(I1);
         const auto N = k_grid_desc_k0_n_k1.GetLength(I1);
@@ -1482,7 +1483,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
         const auto wave_id     = GetGemm0WaveIdx();
         const auto wave_m_n_id = GetGemm0WaveMNIdx(wave_id[I2]); // I2: 0~63
-        if(get_thread_global_1d_id() == 191)
+        /*if(get_thread_global_1d_id() == 191)
         {
             printf("wave_id{ %d, %d, %d}, wave_m_n_id{%d, %d}\n",
                    wave_id[I0],
@@ -1490,7 +1491,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                    wave_id[I2],
                    wave_m_n_id[I0],
                    wave_m_n_id[I1]);
-        }
+        }*/
         auto z_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
             ushort,
             ushort,
@@ -2115,6 +2116,14 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                 Gemm2::b_block_reset_copy_step); // rewind M
             kgrad_thread_copy_vgpr_to_global.MoveDstSliceWindow(
                 kgrad_grid_desc_n0_o0_n1_o1_n2_o2_o3_o4, Gemm2::c_block_slice_copy_step); // step N
+
+            z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+                z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                make_multi_index(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
+            if(get_thread_global_1d_id() == 1)
+                printf("gemm1_k_block_outer_index: %d num_gemm1_k_block_outer_loop: %d\n",
+                       gemm1_k_block_outer_index,
+                       num_gemm1_k_block_outer_loop);
 
         } while(++gemm1_k_block_outer_index < num_gemm1_k_block_outer_loop); // end j loop
 
