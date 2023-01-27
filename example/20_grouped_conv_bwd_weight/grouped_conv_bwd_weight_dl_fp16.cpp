@@ -56,20 +56,20 @@ using DeviceConvBwdWeightInstance =
         1,                    // KPerThread
         S<8, 2>,              // M1N1ThreadClusterM1Xs
         S<8, 2>,              // M1N1ThreadClusterN1Xs
-        S<8, 1, 1, 2>,        // ABlockTransferThreadSliceLengths_K0_M0_M1_K1
-        S<2, 1, 128, 1>,      // ABlockTransferThreadClusterLengths_K0_M0_M1_K1
-        S<1, 2, 0, 3>,        // ABlockTransferThreadClusterArrangeOrder
-        S<1, 2, 0, 3>,        // ABlockTransferSrcAccessOrder
-        S<4, 1, 1, 2>,        // ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1
-        S<1, 2, 0, 3>,        // ABlockTransferSrcVectorTensorContiguousDimOrder
-        S<1, 1, 1, 2>,        // ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1
-        S<1, 1, 8, 2>,        // BBlockTransferThreadSliceLengths_K0_N0_N1_K1
-        S<16, 1, 16, 1>,      // BBlockTransferThreadClusterLengths_K0_N0_N1_K1
-        S<0, 3, 1, 2>,        // BBlockTransferThreadClusterArrangeOrder
-        S<0, 3, 1, 2>,        // BBlockTransferSrcAccessOrder
-        S<1, 1, 8, 1>,        // BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1
-        S<0, 3, 1, 2>,        // BBlockTransferSrcVectorTensorContiguousDimOrder
-        S<1, 1, 1, 2>,        // BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1
+        S<1, 8, 1, 1, 2>,     // ABlockTransferThreadSliceLengths_K0_M0_M1_K1
+        S<1, 2, 1, 128, 1>,   // ABlockTransferThreadClusterLengths_K0_M0_M1_K1
+        S<0, 2, 3, 1, 4>,     // ABlockTransferThreadClusterArrangeOrder
+        S<0, 2, 3, 1, 4>,     // ABlockTransferSrcAccessOrder
+        S<1, 4, 1, 1, 2>,     // ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1
+        S<0, 2, 3, 1, 4>,     // ABlockTransferSrcVectorTensorContiguousDimOrder
+        S<1, 1, 1, 1, 2>,     // ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1
+        S<1, 1, 1, 8, 2>,     // BBlockTransferThreadSliceLengths_K0_N0_N1_K1
+        S<1, 16, 1, 16, 1>,   // BBlockTransferThreadClusterLengths_K0_N0_N1_K1
+        S<0, 1, 4, 2, 3>,     // BBlockTransferThreadClusterArrangeOrder
+        S<0, 1, 4, 2, 3>,     // BBlockTransferSrcAccessOrder
+        S<1, 1, 1, 8, 1>,     // BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1
+        S<0, 1, 4, 2, 3>,     // BBlockTransferSrcVectorTensorContiguousDimOrder
+        S<1, 1, 1, 1, 2>,     // BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1
         S<0, 1, 2, 3, 4, 5>,  // CThreadTransferSrcDstAccessOrder
         5,                    // CThreadTransferSrcDstVectorDim
         4>;                   // CThreadTransferDstScalarPerVector
