@@ -479,7 +479,7 @@ int run(int argc, char* argv[])
         {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
         QKVElementOp{},
         QKVElementOp{},
-        Scale{alpha}, 
+        Scale{alpha},
         QKVElementOp{},
         YElementOp{});
 

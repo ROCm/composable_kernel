@@ -96,6 +96,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
     static constexpr auto I5 = Number<5>{};
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
+    static constexpr auto I8 = Number<8>{};
+    static constexpr auto I9 = Number<9>{};
 
     static constexpr auto WaveSize = 64;
     // K1 should be Number<...>
@@ -1483,7 +1485,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
         const auto wave_id     = GetGemm0WaveIdx();
         const auto wave_m_n_id = GetGemm0WaveMNIdx(wave_id[I2]); // I2: 0~63
-        /*if(get_thread_global_1d_id() == 191)
+        if(get_thread_global_1d_id() == 191)
         {
             printf("wave_id{ %d, %d, %d}, wave_m_n_id{%d, %d}\n",
                    wave_id[I0],
@@ -1491,7 +1493,18 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                    wave_id[I2],
                    wave_m_n_id[I0],
                    wave_m_n_id[I1]);
-        }*/
+            printf("z grid descripter{%d, %d, %d, %d, %d, %d, %d, %d, %d, %d}\n",
+                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I0),
+                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I1),
+                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I2),
+                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I3),
+                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I4),
+                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I5),
+                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I6),
+                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I7),
+                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I8),
+                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I9));
+        }
         auto z_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
             ushort,
             ushort,
@@ -1767,8 +1780,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
         const index_t num_gemm1_k_block_outer_loop = k_grid_desc_k0_n_k1.GetLength(I1) / NPerBlock;
         constexpr index_t num_gemm1_k_block_inner_loop = NPerBlock / Gemm1KPerBlock;
 
-        const index_t K   = k_grid_desc_k0_n_k1.GetLength(I0) * k_grid_desc_k0_n_k1.GetLength(I2);
-        const float scale = 1.0f / std::sqrt(K);
+        const index_t K    = k_grid_desc_k0_n_k1.GetLength(I0) * k_grid_desc_k0_n_k1.GetLength(I2);
+        const float scalar = 1.0f / std::sqrt(K);
         // Initialize dQ
         qgrad_thread_buf.Clear();
 
@@ -1849,14 +1862,14 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                     }
                     else
                     {
-                        s_slash_p_thread_buf(i) = scale * s_slash_p_thread_buf[i];
+                        s_slash_p_thread_buf(i) = scalar * s_slash_p_thread_buf[i];
                     }
                 });
             }
             else
             {
                 static_for<0, s_slash_p_thread_buf.Size(), 1>{}(
-                    [&](auto i) { s_slash_p_thread_buf(i) = scale * s_slash_p_thread_buf[i]; });
+                    [&](auto i) { s_slash_p_thread_buf(i) = scalar * s_slash_p_thread_buf[i]; });
             }
 
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm

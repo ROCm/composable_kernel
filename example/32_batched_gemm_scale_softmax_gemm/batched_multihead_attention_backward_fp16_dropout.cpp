@@ -24,12 +24,13 @@ Kernel outputs:
 */
 
 #define PRINT_HOST 0
-#define USING_MASK 1
+#define USING_MASK 0
 
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
+#include <fstream>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
@@ -259,12 +260,12 @@ int run(int argc, char* argv[])
 
     bool input_permute  = false;
     bool output_permute = false;
-  
-    float p_drop                     = 0.2;
-    float p_dropout                  = 1 - p_drop;
-    float rp_dropout                 = 1.0 / p_dropout;
-    const unsigned long long seed    = 1;
-    const unsigned long long offset  = 0;
+
+    float p_drop                    = 0.2;
+    float p_dropout                 = 1 - p_drop;
+    float rp_dropout                = 1.0 / p_dropout;
+    const unsigned long long seed   = 1;
+    const unsigned long long offset = 0;
 
     float scale_rp_dropout = alpha * rp_dropout;
 
@@ -332,7 +333,6 @@ int run(int argc, char* argv[])
         output_permute
             ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // Y layout [G0, M, G1, O]
             : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // Y layout [G0, G1, M, O]
-
 
     std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
     std::vector<ck::index_t> z_gs_ms_ns_strides =
@@ -475,7 +475,7 @@ int run(int argc, char* argv[])
     ygrad_device_buf.ToDevice(ygrad_gs_ms_os.mData.data());
     kgrad_device_buf.SetZero();
     vgrad_device_buf.SetZero();
-    //z_device_buf.SetZero();
+    // z_device_buf.SetZero();
 
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
@@ -509,11 +509,11 @@ int run(int argc, char* argv[])
         {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
         QKVElementOp{},
         QKVElementOp{},
-        Scale{scale_rp_dropout},  //dQ *= scale_rp_dropout
+        Scale{scale_rp_dropout}, // dQ *= scale_rp_dropout
         QKVElementOp{},
         YElementOp{},
         p_drop,
-        std::tuple<unsigned long long,unsigned long long>(seed,offset));
+        std::tuple<unsigned long long, unsigned long long>(seed, offset));
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -543,13 +543,14 @@ int run(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
+    // copy z matirx data form device
+    std::ofstream file("./z_matrix_txt");
+    z_device_buf.FromDevice(z_g_m_n.mData.data());
+    file << z_g_m_n << std::endl;
+    //       std::cout << "z_g_m_n ref:\n" << z_g_m_n;
     bool pass = true;
     if(do_verification)
     {
-        //copy z matirx data form device
-        z_device_buf.FromDevice(z_g_m_n.mData.data());
-        //std::cout << "z_g_m_n ref:\n" << z_g_m_n;
-
         kgrad_device_buf.SetZero(); // reset global accum buffer and rerun
         vgrad_device_buf.SetZero();
         invoker.Run(argument, StreamConfig{nullptr, false});
