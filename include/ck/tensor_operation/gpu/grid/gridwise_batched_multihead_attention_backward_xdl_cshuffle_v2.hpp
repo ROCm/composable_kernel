@@ -1443,18 +1443,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
         // z vgpr copy to global
         //
         // z matrix threadwise desc
-        /*if(get_thread_global_1d_id() == 0)
-        {
-            printf("m0: %d n0: %d m1: %d n1: %d m2: %d n2: %d n3: %d n4: %d \n",
-                   m0.value, // MRepeat
-                   n0.value, // NRepeat
-                   m1.value, // MWaveId
-                   n1.value, // NWaveId
-                   m2.value, // MPerXdl
-                   n2.value, // NGroupNum
-                   n3.value, // NInputNum
-                   n4.value);
-        }*/
         constexpr auto z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
             make_naive_tensor_descriptor_packed(make_tuple(I1,   // MBlockId
                                                            I1,   // NBlockID
@@ -1485,26 +1473,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
         const auto wave_id     = GetGemm0WaveIdx();
         const auto wave_m_n_id = GetGemm0WaveMNIdx(wave_id[I2]); // I2: 0~63
-        if(get_thread_global_1d_id() == 191)
-        {
-            printf("wave_id{ %d, %d, %d}, wave_m_n_id{%d, %d}\n",
-                   wave_id[I0],
-                   wave_id[I1],
-                   wave_id[I2],
-                   wave_m_n_id[I0],
-                   wave_m_n_id[I1]);
-            printf("z grid descripter{%d, %d, %d, %d, %d, %d, %d, %d, %d, %d}\n",
-                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I0),
-                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I1),
-                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I2),
-                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I3),
-                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I4),
-                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I5),
-                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I6),
-                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I7),
-                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I8),
-                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetLength(I9));
-        }
+
         auto z_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
             ushort,
             ushort,
@@ -2133,10 +2102,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
                 z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                 make_multi_index(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
-            if(get_thread_global_1d_id() == 1)
-                printf("gemm1_k_block_outer_index: %d num_gemm1_k_block_outer_loop: %d\n",
-                       gemm1_k_block_outer_index,
-                       num_gemm1_k_block_outer_loop);
 
         } while(++gemm1_k_block_outer_index < num_gemm1_k_block_outer_loop); // end j loop
 
