@@ -25,14 +25,20 @@ struct ReferenceDropout : public device::BaseOperator
         Argument(const Tensor<RefDataType>& ref,
                  const Tensor<InDataType>& in,
                  Tensor<OutDataType>& out,
-                 RefDataType p_dropout)
-            : ref_(ref), in_(in), out_(out), p_dropout_(p_dropout)
+                 RefDataType p_dropout_in_16bits,
+                 float rp_dropout)
+            : ref_(ref),
+              in_(in),
+              out_(out),
+              p_dropout_in_16bits_(p_dropout_in_16bits),
+              rp_dropout_(ck::type_convert<OutDataType>(rp_dropout))
         {
         }
         const Tensor<RefDataType>& ref_;
         const Tensor<InDataType>& in_;
         Tensor<OutDataType>& out_;
-        RefDataType p_dropout_;
+        RefDataType p_dropout_in_16bits_;
+        OutDataType rp_dropout_;
     };
 
     // Invoker
@@ -41,7 +47,8 @@ struct ReferenceDropout : public device::BaseOperator
         float Run(const Argument& arg)
         {
             arg.out_.ForEach([&](auto& self, auto idx) {
-                self(idx) = arg.ref_(idx) < arg.p_dropout_ ? arg.in_(idx) : 0;
+                self(idx) =
+                    arg.ref_(idx) < arg.p_dropout_in_16bits_ ? arg.in_(idx) * arg.rp_dropout_ : 0;
             });
             return 0;
         }
@@ -64,9 +71,10 @@ struct ReferenceDropout : public device::BaseOperator
     static auto MakeArgument(const Tensor<RefDataType>& ref,
                              const Tensor<InDataType>& in,
                              Tensor<OutDataType>& out,
-                             RefDataType p_dropout)
+                             RefDataType p_dropout_in_16bits,
+                             float rp_dropout)
     {
-        return Argument{ref, in, out, p_dropout};
+        return Argument{ref, in, out, p_dropout_in_16bits, rp_dropout};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

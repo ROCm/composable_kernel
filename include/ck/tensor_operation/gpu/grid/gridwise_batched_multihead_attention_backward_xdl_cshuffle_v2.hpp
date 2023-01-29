@@ -1900,7 +1900,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                           "");
 
             // TODO: tune gemm2 pipeline
-            // dV = P^T * dY
+            // dV = P_drop^T * dY
             v_slash_k_grad_thread_buf.Clear();
             static_for<0, num_gemm2_loop, 1>{}([&](auto gemm2_loop_idx) { // gemm dV
                 // load VGrad Gemm B
