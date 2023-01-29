@@ -36,16 +36,16 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-    kernel_grouped_multihead_attention_backward_xdl_cshuffle_v2(
-        const void CK_CONSTANT_ADDRESS_SPACE* group_kernel_args,
-        const index_t group_count,
-        const AElementwiseOperation a_element_op,
-        const BElementwiseOperation b_element_op,
-        const AccElementwiseOperation acc_element_op,
-        const B1ElementwiseOperation b1_element_op,
-        const CElementwiseOperation c_element_op)
+        kernel_grouped_multihead_attention_backward_xdl_cshuffle_v2(
+            const void CK_CONSTANT_ADDRESS_SPACE* group_kernel_args,
+            const index_t group_count,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const AccElementwiseOperation acc_element_op,
+            const B1ElementwiseOperation b1_element_op,
+            const CElementwiseOperation c_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -739,8 +739,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
                 const auto vgrad_grid_desc_n_o = DeviceOp::MakeVGradGridDescriptor_N_O(
                     problem_desc.b1_gs_gemm1ns_gemm1ks_lengths,
                     problem_desc.b1_gs_gemm1ns_gemm1ks_strides);
-                const auto ygrad_grid_desc_o0_m_o1 =
-                    DeviceOp::MakeYGradGridDescriptor_O0_M_O1(problem_desc.c_gs_ms_gemm1ns_lengths, problem_desc.c_gs_ms_gemm1ns_strides);
+                const auto ygrad_grid_desc_o0_m_o1 = DeviceOp::MakeYGradGridDescriptor_O0_M_O1(
+                    problem_desc.c_gs_ms_gemm1ns_lengths, problem_desc.c_gs_ms_gemm1ns_strides);
 
                 const auto a_grid_desc_g_m_k = Transform::MakeAGridDescriptor_G_M_K(
                     problem_desc.a_gs_ms_ks_lengths, problem_desc.a_gs_ms_ks_strides);
@@ -889,15 +889,15 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
             float ave_time = 0;
 
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
-                const auto kernel =
-                    kernel_grouped_multihead_attention_backward_xdl_cshuffle_v2<GridwiseGemm,
-                                                                                GroupKernelArg,
-                                                                                AElementwiseOperation,
-                                                                                BElementwiseOperation,
-                                                                                AccElementwiseOperation,
-                                                                                B1ElementwiseOperation,
-                                                                                CElementwiseOperation,
-                                                                                has_main_k_block_loop_>;
+                const auto kernel = kernel_grouped_multihead_attention_backward_xdl_cshuffle_v2<
+                    GridwiseGemm,
+                    GroupKernelArg,
+                    AElementwiseOperation,
+                    BElementwiseOperation,
+                    AccElementwiseOperation,
+                    B1ElementwiseOperation,
+                    CElementwiseOperation,
+                    has_main_k_block_loop_>;
 
                 return launch_and_time_kernel(
                     stream_config,
@@ -963,7 +963,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
             const index_t c_m       = kernel_arg.y_grid_desc_m_o_.GetLength(I0);
             const index_t c_gemm1n  = kernel_arg.y_grid_desc_m_o_.GetLength(I1);
             const index_t a_m       = kernel_arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
-            const index_t b1_gemm1n = kernel_arg.b1_grid_desc_bk0_n_bk1_.GetLength(I0) * kernel_arg.b1_grid_desc_bk0_n_bk1_.GetLength(I2);
+            const index_t b1_gemm1n = kernel_arg.b1_grid_desc_bk0_n_bk1_.GetLength(I0) *
+                                      kernel_arg.b1_grid_desc_bk0_n_bk1_.GetLength(I2);
 
             if(!(c_g == device_arg.batch_count_ && c_m == a_m && c_gemm1n == b1_gemm1n))
             {
@@ -992,12 +993,12 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
             }
 
             // Check vector load/store requirement
-            const auto a_stride_lowest  = ABlockTransferSrcVectorDim == 2
-                                              ? device_arg.a_mz_kz_strides_[1]
-                                              : device_arg.a_mz_kz_strides_[0];
-            const auto b_stride_lowest  = BBlockTransferSrcVectorDim == 2
-                                              ? device_arg.b_nz_kz_strides_[1]
-                                              : device_arg.b_nz_kz_strides_[0];
+            const auto a_stride_lowest = ABlockTransferSrcVectorDim == 2
+                                             ? device_arg.a_mz_kz_strides_[1]
+                                             : device_arg.a_mz_kz_strides_[0];
+            const auto b_stride_lowest = BBlockTransferSrcVectorDim == 2
+                                             ? device_arg.b_nz_kz_strides_[1]
+                                             : device_arg.b_nz_kz_strides_[0];
             const auto b1_stride_lowest = B1BlockTransferSrcVectorDim == 2
                                               ? device_arg.b1_nz_kz_strides_[1]
                                               : device_arg.b1_nz_kz_strides_[0];
