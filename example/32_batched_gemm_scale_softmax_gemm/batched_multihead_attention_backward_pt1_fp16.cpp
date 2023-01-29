@@ -84,7 +84,7 @@ static constexpr auto TensorSpecV = ck::tensor_operation::device::TensorSpeciali
 static constexpr auto TensorSpecY = ck::tensor_operation::device::TensorSpecialization::Default;
 
 using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -248,8 +248,8 @@ int run(int argc, char* argv[])
     ck::index_t N  = 512;
     ck::index_t K  = 64;
     ck::index_t O  = 64;
-    ck::index_t G0 = 4;
-    ck::index_t G1 = 16;
+    ck::index_t G0 = 54; //54
+    ck::index_t G1 = 16; //16
 
     float alpha = 1.f / std::sqrt(K);
 
