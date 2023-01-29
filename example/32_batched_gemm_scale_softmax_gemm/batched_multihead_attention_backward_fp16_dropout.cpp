@@ -24,7 +24,7 @@ Kernel outputs:
 */
 
 #define PRINT_HOST 0
-#define USING_MASK 0
+#define USING_MASK 1
 
 #include <iostream>
 #include <numeric>
@@ -642,7 +642,7 @@ int run(int argc, char* argv[])
             std::cout << "pgrad_drop_g_m_n ref:\n" << pgrad_drop_g_m_n;
         }
 #endif
-        // dP = dP_dropout . Z
+        // dP = dP_dropout x Z
         auto ref_dropout         = ReferenceDropoutInstance{};
         auto ref_dropout_invoker = ref_dropout.MakeInvoker();
         auto ref_dropout_argment = ref_dropout.MakeArgument(
