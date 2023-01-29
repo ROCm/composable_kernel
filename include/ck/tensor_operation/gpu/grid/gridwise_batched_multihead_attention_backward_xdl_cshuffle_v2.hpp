@@ -80,7 +80,7 @@ template <typename DataType,
           bool PadN,
           bool MaskOutUpperTriangle,
           PipelineVersion PipelineVer = PipelineVersion::v1>
-struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle
+struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 {
     static_assert(LoopSched == LoopScheduler::Default,
                   "Non-default loop scheduler is currently not supported");

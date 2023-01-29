@@ -248,8 +248,8 @@ int run(int argc, char* argv[])
     ck::index_t N  = 512;
     ck::index_t K  = 64;
     ck::index_t O  = 64;
-    ck::index_t G0 = 54; //54
-    ck::index_t G1 = 16; //16
+    ck::index_t G0 = 2; //54
+    ck::index_t G1 = 2; //16
 
     float alpha = 1.f / std::sqrt(K);
 

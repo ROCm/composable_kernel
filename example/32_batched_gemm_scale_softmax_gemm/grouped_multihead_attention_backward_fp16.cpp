@@ -35,6 +35,7 @@ Kernel outputs:
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_multihead_attention_backward_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_multihead_attention_backward_xdl_cshuffle_v2.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -43,6 +44,8 @@ Kernel outputs:
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+
+#define FLASH_ATTN_IMPLENTATION 0
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -83,6 +86,7 @@ static constexpr auto TensorSpecK = ck::tensor_operation::device::TensorSpeciali
 static constexpr auto TensorSpecV = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecY = ck::tensor_operation::device::TensorSpecialization::Default;
 
+#if FLASH_ATTN_IMPLENTATION
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle<
         NumDimG,
@@ -147,7 +151,72 @@ using DeviceGemmInstance =
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
-
+#else
+using DeviceGemmInstance = 
+    ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2<
+        NumDimG,
+        NumDimM,
+        NumDimN,
+        NumDimK,
+        NumDimO,
+        DataType,
+        LSEDataType,
+        Acc0BiasDataType,
+        Acc1BiasDataType,
+        AccDataType,
+        ShuffleDataType,
+        QKVElementOp,
+        QKVElementOp,
+        Scale,
+        QKVElementOp,
+        YElementOp,
+        GemmSpec,
+        TensorSpecQ,
+        TensorSpecK,
+        TensorSpecV,
+        TensorSpecY,
+        1,
+        256,
+        128,         // MPerBlock
+        128,         // NPerBlock
+        64,          // KPerBlock
+        64,          // Gemm1NPerBlock
+        32,          // Gemm1KPerBlock
+        8,           // AK1
+        8,           // BK1
+        2,           // B1K1
+        32,          // MPerXDL
+        32,          // NPerXDL
+        1,           // MXdlPerWave
+        4,           // NXdlPerWave
+        2,           // Gemm1NXdlPerWave
+        S<4, 64, 1>, // ABlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<4, 64, 1>, // BBlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<8, 32, 1>, // B1BlockTransfer
+        S<0, 2, 1>,
+        S<0, 2, 1>,
+        1,
+        4,
+        2,
+        false,
+        1,              // CShuffleMXdlPerWavePerShuffle
+        2,              // CShuffleNXdlPerWavePerShuffle
+        S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        MaskingSpec>;   // MaskingSpecialization
+#endif
 // Ref Gemm0: S = alpha * Q * K^T
 // fp16 in, fp32 out
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<DataType,
@@ -327,11 +396,10 @@ int run(int argc, char* argv[])
     for(std::size_t i=0; i<group_count; i++){
         int M  = 128 * (rand() % 4 + 1);
         int N  = 128 * (rand() % 4 + 1);
-        int K  = 128;
-        int O  = 128;
+        int K  = 64;
+        int O  = 64;
         int G0 = rand() % 3 + 1;
         int G1 = rand() % 2 + 1;
-
         std::vector<ck::index_t> q_gs_ms_ks_lengths{G0, G1, M, K};
         std::vector<ck::index_t> q_gs_ms_ks_strides =
             input_permute
