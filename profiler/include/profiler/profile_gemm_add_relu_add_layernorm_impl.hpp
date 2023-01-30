@@ -317,8 +317,7 @@ bool profile_gemm_add_relu_add_layernorm_impl(int do_verification,
                 h_device_buf.FromDevice(h_m_n.mData.data());
 
                 pass = pass && ck::utils::check_err(
-                                   h_m_n, h_m_n_host, "Error: Incorrect results h_m_n", 1e-2,
-                                   1e-2);
+                                   h_m_n, h_m_n_host, "Error: Incorrect results h_m_n", 1e-2, 1e-2);
             }
         }
         else
