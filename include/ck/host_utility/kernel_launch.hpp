@@ -20,6 +20,7 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
 #if CK_TIME_KERNEL
     if(stream_config.time_kernel_)
     {
+#if DEBUG_LOG
         printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
                __func__,
                grid_dim.x,
@@ -28,16 +29,19 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
                block_dim.x,
                block_dim.y,
                block_dim.z);
+#endif
 
-        const int nrepeat = 10;
-
+#if RUN_WARMUP
+#if DEBUG_LOG
         printf("Warm up 1 time\n");
-
+#endif
         // warm up
         kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
-
+#endif
+        const int nrepeat = 10;
+#if DEBUG_LOG
         printf("Start running %d times...\n", nrepeat);
-
+#endif
         hipEvent_t start, stop;
 
         hip_check_error(hipEventCreate(&start));

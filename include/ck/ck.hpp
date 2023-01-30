@@ -178,6 +178,9 @@
 // flag to enable (1) or disable (0) the debugging output in some kernels
 #define DEBUG_LOG 0
 
+// flag to run kernel warm-up: 0 do not run warm-up; 1 run warm-up
+#define RUN_WARMUP 1
+
 namespace ck {
 
 enum struct InMemoryDataOperationEnum
