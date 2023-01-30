@@ -431,9 +431,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
             const index_t grid_size =
                 arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_);
 
-            const auto K =
-                arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
-
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;
 
@@ -470,6 +467,8 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                                               arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
                                               arg.block_2_etile_map_);
             };
+
+            const auto K = arg.a_grid_desc_m_k_.GetLength(I1);
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {

@@ -251,27 +251,27 @@ constexpr T GetIdentityValueForInMemoryDataOperation(InMemoryDataOperationEnum o
 };
 
 template <InMemoryDataOperationEnum Operation, typename DataType>
-struct InMemoryDataOperatonSupportedOnDataType
+struct InMemoryDataOperationSupportedOnDataType
 {
     static constexpr bool value = false;
 };
 
 template <typename DataType>
-struct InMemoryDataOperatonSupportedOnDataType<InMemoryDataOperationEnum::AtomicAdd, DataType>
+struct InMemoryDataOperationSupportedOnDataType<InMemoryDataOperationEnum::AtomicAdd, DataType>
 {
     static constexpr bool value =
         is_same<DataType, float>::value || is_same<DataType, double>::value;
 };
 
 template <typename DataType>
-struct InMemoryDataOperatonSupportedOnDataType<InMemoryDataOperationEnum::AtomicMax, DataType>
+struct InMemoryDataOperationSupportedOnDataType<InMemoryDataOperationEnum::AtomicMax, DataType>
 {
     static constexpr bool value =
         is_same<DataType, float>::value || is_same<DataType, double>::value;
 };
 
 template <typename DataType>
-struct InMemoryDataOperatonSupportedOnDataType<InMemoryDataOperationEnum::Set, DataType>
+struct InMemoryDataOperationSupportedOnDataType<InMemoryDataOperationEnum::Set, DataType>
 {
     static constexpr bool value =
         is_same<DataType, float>::value || is_same<DataType, double>::value ||
@@ -280,7 +280,7 @@ struct InMemoryDataOperatonSupportedOnDataType<InMemoryDataOperationEnum::Set, D
 };
 
 template <typename DataType>
-struct InMemoryDataOperatonSupportedOnDataType<InMemoryDataOperationEnum::Add, DataType>
+struct InMemoryDataOperationSupportedOnDataType<InMemoryDataOperationEnum::Add, DataType>
 {
     static constexpr bool value =
         is_same<DataType, float>::value || is_same<DataType, double>::value ||
