@@ -285,7 +285,6 @@ int run(int argc, char* argv[])
     const unsigned long long seed   = 1;
     const unsigned long long offset = 0;
 
-    float scale_rp_dropout = alpha * rp_dropout;
 
     if(argc == 1)
     {
@@ -539,7 +538,7 @@ int run(int argc, char* argv[])
         {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
         QKVElementOp{},
         QKVElementOp{},
-        Scale{scale_rp_dropout}, // dQ *= scale_rp_dropout
+        Scale{alpha},
         QKVElementOp{},
         YElementOp{},
         p_drop,

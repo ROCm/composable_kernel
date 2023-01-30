@@ -84,7 +84,6 @@ __global__ void
             const C0MatrixMask c0_matrix_mask,
             const ushort p_dropout_in_16bits,
             const float p_dropout,
-            const float rp_dropout,
             const unsigned long long seed,
             const unsigned long long offset)
 {
@@ -140,7 +139,6 @@ __global__ void
                                                   c0_matrix_mask,
                                                   p_dropout_in_16bits,
                                                   p_dropout,
-                                                  rp_dropout,
                                                   ph);
 #else
     ignore = p_a_grid;
@@ -784,6 +782,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Train_Xdl_CShuffle
             p_dropout_in_16bits_ = uint16_t(std::floor(p_dropout_ * 65535.0));
             rp_dropout_          = 1.f / p_dropout_;
 
+            acc_element_op_.Append(rp_dropout_);
+
             seed_   = std::get<0>(seeds);
             offset_ = std::get<1>(seeds);
 
@@ -960,7 +960,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Train_Xdl_CShuffle
                                               arg.c0_matrix_mask_,
                                               arg.p_dropout_in_16bits_,
                                               arg.p_dropout_,
-                                              arg.rp_dropout_,
                                               arg.seed_,
                                               arg.offset_);
             };

@@ -1171,9 +1171,10 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                const C0MatrixMask& c0_matrix_mask,
                                const ushort p_dropout_in_16bits,
                                FloatGemmAcc p_dropout,
-                               FloatGemmAcc rp_dropout,
                                ck::philox& ph)
     {
+        const FloatGemmAcc rp_dropout = 1.0f / p_dropout;
+
         const auto q_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_q_grid, q_grid_desc_k0_m_k1.GetElementSpaceSize());
         const auto k_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
