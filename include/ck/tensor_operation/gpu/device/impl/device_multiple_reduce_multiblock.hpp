@@ -73,8 +73,8 @@ struct DeviceMultipleReduceMultiBlock : public DeviceMultipleReduce<Rank,
         static_for<0, NumReduction, 1>{}([&](auto I) {
             using OutDataType = remove_cvref_t<decltype(OutDataTypeTuple{}[I])>;
             flag =
-                flag && ck::reduce::InMemoryDataOperatonSupportedOnDataType<OutMemoryDataOperation,
-                                                                            OutDataType>::value;
+                flag && ck::reduce::InMemoryDataOperationSupportedOnDataType<OutMemoryDataOperation,
+                                                                             OutDataType>::value;
         });
 
         return flag;
@@ -270,8 +270,8 @@ struct DeviceMultipleReduceMultiBlock : public DeviceMultipleReduce<Rank,
                  const std::array<index_t, NumOutputDim>& outLengths,
                  const std::array<std::array<index_t, NumOutputDim>, NumReduction>& outStridesArray,
                  const std::array<int, NumReduceDim>& reduceDims,
-                 const std::array<const void*, NumReduction>& alphas,
-                 const std::array<const void*, NumReduction>& betas,
+                 const std::array<double, NumReduction>& alphas,
+                 const std::array<double, NumReduction>& betas,
                  const void* in_dev,
                  const std::array<void*, NumReduction>& out_dev_buffers,
                  const InElementwiseOperationTuple in_elementwise_op_tuple,
@@ -286,8 +286,8 @@ struct DeviceMultipleReduceMultiBlock : public DeviceMultipleReduce<Rank,
 
             for(size_t i = 0; i < NumReduction; i++)
             {
-                alpha_values_(i) = *static_cast<const AccDataType*>(alphas[i]);
-                beta_values_(i)  = *static_cast<const AccDataType*>(betas[i]);
+                alpha_values_(i) = static_cast<AccDataType>(alphas[i]);
+                beta_values_(i)  = static_cast<AccDataType>(betas[i]);
             };
 
             in_dev_ = static_cast<const InDataType*>(in_dev);
@@ -547,8 +547,8 @@ struct DeviceMultipleReduceMultiBlock : public DeviceMultipleReduce<Rank,
         const std::array<index_t, NumOutputDim> outLengths,
         const std::array<std::array<index_t, NumOutputDim>, NumReduction> outStridesArray,
         const std::array<int, NumReduceDim> reduceDims,
-        const std::array<const void*, NumReduction> alphas,
-        const std::array<const void*, NumReduction> betas,
+        const std::array<double, NumReduction> alphas,
+        const std::array<double, NumReduction> betas,
         const void* in_dev,
         const std::array<void*, NumReduction> out_dev_buffers,
         const InElementwiseOperationTuple in_elementwise_op_tuple,
