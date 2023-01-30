@@ -270,8 +270,8 @@ int run(int argc, char* argv[])
     ck::index_t N  = 512;
     ck::index_t K  = 128;
     ck::index_t O  = 128;
-    ck::index_t G0 = 1;
-    ck::index_t G1 = 1;
+    ck::index_t G0 = 3;
+    ck::index_t G1 = 2;
 
     float alpha = 1.f / std::sqrt(K);
 
@@ -284,7 +284,6 @@ int run(int argc, char* argv[])
     float rp_dropout                = 1.0 / p_dropout;
     const unsigned long long seed   = 1;
     const unsigned long long offset = 0;
-
 
     if(argc == 1)
     {

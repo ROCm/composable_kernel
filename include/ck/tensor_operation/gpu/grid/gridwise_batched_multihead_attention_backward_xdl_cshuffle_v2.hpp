@@ -1169,11 +1169,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                const YGradGridDesc_M0_O_M1& ygrad_grid_desc_m0_o_m1,
                                const Block2CTileMap& block_2_ctile_map,
                                const C0MatrixMask& c0_matrix_mask,
-                               const ushort p_dropout_in_16bits,
                                FloatGemmAcc p_dropout,
                                ck::philox& ph)
     {
-        const FloatGemmAcc rp_dropout = 1.0f / p_dropout;
+        const ushort p_dropout_in_16bits = uint16_t(std::floor(p_dropout * 65535.0));
+        const FloatGemmAcc rp_dropout    = 1.0f / p_dropout;
 
         const auto q_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_q_grid, q_grid_desc_k0_m_k1.GetElementSpaceSize());

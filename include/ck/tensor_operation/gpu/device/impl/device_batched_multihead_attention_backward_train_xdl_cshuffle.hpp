@@ -82,7 +82,6 @@ __global__ void
             const index_t batch_count,
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
             const C0MatrixMask c0_matrix_mask,
-            const ushort p_dropout_in_16bits,
             const float p_dropout,
             const unsigned long long seed,
             const unsigned long long offset)
@@ -137,7 +136,6 @@ __global__ void
                                                   ygrad_grid_desc_m0_o_m1,
                                                   block_2_ctile_map,
                                                   c0_matrix_mask,
-                                                  p_dropout_in_16bits,
                                                   p_dropout,
                                                   ph);
 #else
@@ -778,10 +776,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Train_Xdl_CShuffle
                         y_grid_desc_m_o_);
             }
 
-            p_dropout_           = 1.f - p_drop;
-            p_dropout_in_16bits_ = uint16_t(std::floor(p_dropout_ * 65535.0));
-            rp_dropout_          = 1.f / p_dropout_;
-
+            p_dropout_        = 1.f - p_drop;
+            float rp_dropout_ = 1.f / p_dropout_;
             acc_element_op_.Append(rp_dropout_);
 
             seed_   = std::get<0>(seeds);
@@ -875,8 +871,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Train_Xdl_CShuffle
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
 
         float p_dropout_;
-        ushort p_dropout_in_16bits_;
-        GemmAccDataType rp_dropout_;
         unsigned long long seed_;
         unsigned long long offset_;
     };
@@ -958,7 +952,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Train_Xdl_CShuffle
                                               arg.batch_count_,
                                               arg.compute_base_ptr_of_batch_,
                                               arg.c0_matrix_mask_,
-                                              arg.p_dropout_in_16bits_,
                                               arg.p_dropout_,
                                               arg.seed_,
                                               arg.offset_);
