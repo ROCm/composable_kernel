@@ -49,51 +49,50 @@ static constexpr auto ABSpec = ck::tensor_operation::device::TensorSpecializatio
 static constexpr auto DESpec = ck::tensor_operation::device::TensorSpecialization::Default;
 
 using DeviceOpInstanceKKNN =
-    ck::tensor_operation::device::DeviceBatchedContractionMultipleD_Wmma_CShuffle<
-        NumDimG,
-        NumDimM,
-        NumDimN,
-        NumDimK,
-        ADataType,
-        BDataType,
-        DsDataType,
-        EDataType,
-        AccDataType,
-        CShuffleDataType,
-        AElementOp,
-        BElementOp,
-        CDEElementOp,
-        GemmSpec,
-        ABSpec,
-        ABSpec,
-        DESpec,
-        256,
-        128,
-        256,
-        8,
-        8,
-        16,
-        16,
-        4,
-        4,
-        S<4, 64, 1>,
-        S<1, 0, 2>,
-        S<1, 0, 2>,
-        2,
-        8,
-        8,
-        true,
-        S<4, 64, 1>,
-        S<1, 0, 2>,
-        S<1, 0, 2>,
-        2,
-        8,
-        8,
-        true,
-        1,
-        1,
-        S<1, 32, 1, 8>,
-        8>;
+    ck::tensor_operation::device::DeviceBatchedContractionMultipleD_Wmma_CShuffle<NumDimG,
+                                                                                  NumDimM,
+                                                                                  NumDimN,
+                                                                                  NumDimK,
+                                                                                  ADataType,
+                                                                                  BDataType,
+                                                                                  DsDataType,
+                                                                                  EDataType,
+                                                                                  AccDataType,
+                                                                                  CShuffleDataType,
+                                                                                  AElementOp,
+                                                                                  BElementOp,
+                                                                                  CDEElementOp,
+                                                                                  GemmSpec,
+                                                                                  ABSpec,
+                                                                                  ABSpec,
+                                                                                  DESpec,
+                                                                                  256,
+                                                                                  128,
+                                                                                  256,
+                                                                                  8,
+                                                                                  8,
+                                                                                  16,
+                                                                                  16,
+                                                                                  4,
+                                                                                  4,
+                                                                                  S<4, 64, 1>,
+                                                                                  S<1, 0, 2>,
+                                                                                  S<1, 0, 2>,
+                                                                                  2,
+                                                                                  8,
+                                                                                  8,
+                                                                                  true,
+                                                                                  S<4, 64, 1>,
+                                                                                  S<1, 0, 2>,
+                                                                                  S<1, 0, 2>,
+                                                                                  2,
+                                                                                  8,
+                                                                                  8,
+                                                                                  true,
+                                                                                  1,
+                                                                                  1,
+                                                                                  S<1, 32, 1, 8>,
+                                                                                  8>;
 
 using DeviceOpInstance = DeviceOpInstanceKKNN;
 
@@ -311,7 +310,8 @@ int main(int argc, char* argv[])
     DeviceMem a_device_buf(sizeof(ADataType) * a_gs_ms_ks.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(BDataType) * b_gs_ns_ks.mDesc.GetElementSpaceSize());
     DeviceMem d_device_buf(sizeof(DDataType) * d_gs_ms_ns.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataType) * e_gs_ms_ns_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem e_device_buf(sizeof(EDataType) *
+                           e_gs_ms_ns_device_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_gs_ms_ks.mData.data());
     b_device_buf.ToDevice(b_gs_ns_ks.mData.data());
@@ -363,7 +363,7 @@ int main(int argc, char* argv[])
 
     ck::index_t K = ck::accumulate_n<ck::index_t>(
         a_gs_ms_ks_lengths.begin() + NumDimG + NumDimM, NumDimK, 1, std::multiplies<>{});
-    std::cout<<"GMNK="<<G<<", "<<M<<", "<<N<<", "<<K<<std::endl;
+    std::cout << "GMNK=" << G << ", " << M << ", " << N << ", " << K << std::endl;
     std::size_t flop      = std::size_t(2) * G * M * N * K;
     std::size_t num_btype = sizeof(ADataType) * G * M * K + sizeof(BDataType) * G * K * N +
                             sizeof(DDataType) * G * M * N + sizeof(EDataType) * G * M * N;

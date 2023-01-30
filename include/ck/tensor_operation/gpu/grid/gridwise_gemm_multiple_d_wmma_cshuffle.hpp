@@ -148,14 +148,14 @@ __global__ void
             const Block2CTileMap block_2_etile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__))
-    //printf("entry kernel launch");
+    // printf("entry kernel launch");
     __shared__ char p_shared[GridwiseOp::GetSharedMemoryNumberOfByte()];
 
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
-    //printf("before compute_ptr_offset call");
+    // printf("before compute_ptr_offset call");
     const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
     const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
@@ -167,15 +167,15 @@ __global__ void
 
     static constexpr index_t NumDTensor =
         DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock::Size();
-    
+
     DsPointer p_ds_grid_grp;
 
-    //printf("before allocate pointer d");
+    // printf("before allocate pointer d");
 
     static_for<0, NumDTensor, 1>{}(
         [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_batch_offset[i]; });
 
-    //printf("before entry");
+    // printf("before entry");
 
     GridwiseOp::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
                                                 p_b_grid + b_batch_offset,
@@ -529,7 +529,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
     template <typename DsGridDesc_M_N_>
     __host__ __device__ static constexpr auto
     MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const DsGridDesc_M_N_& ds_grid_desc_m_n)
-    {   
+    {
         return generate_tuple(
             [&](auto i) {
                 return MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(ds_grid_desc_m_n[i]);
@@ -570,7 +570,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
                                const CDEElementwiseOperation& cde_element_op,
                                const Block2CTileMap& block_2_ctile_map)
     {
-        //printf("safe entry");
+        // printf("safe entry");
         // clang-format off
 /*******************************************************************************/
 // Memory buffer zone.
