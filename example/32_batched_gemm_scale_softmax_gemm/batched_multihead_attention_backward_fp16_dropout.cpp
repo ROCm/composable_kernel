@@ -239,13 +239,12 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
 
     ref_softmax_invoker.Run(ref_softmax_argument);
 
-    // P_dropout
+    // P_dropped
     auto ref_dropout         = ReferenceDropoutInstance{};
     auto ref_dropout_invoker = ref_dropout.MakeInvoker();
     auto ref_dropout_argment =
         ref_dropout.MakeArgument(z_g_m_n, p_g_m_n, p_drop_g_m_n, p_dropout_in_16bits, rp_dropout);
     ref_dropout_invoker.Run(ref_dropout_argment);
-    // std::cout << "p_drop_g_m_n ref:\n" << p_drop_g_m_n;
 
     // Y = P_dropout * V
     auto ref_gemm1          = ReferenceGemm1Instance{};
