@@ -149,6 +149,13 @@ struct ReferenceSoftmax : public device::BaseOperator
                                                   ck::type_convert<AccDataType>(
                                                       arg.sm_stats_ptr_[0](to_sm_stats_idx(idx)))) +
                             arg.beta_ * self(idx);
+                // printf(
+                //     "exponent %f, exp() = %f\n",
+                //     ck::type_convert<AccDataType>(arg.in_(idx)) -
+                //         ck::type_convert<AccDataType>(arg.sm_stats_ptr_[0](to_sm_stats_idx(idx))),
+                //     std::exp(
+                //         ck::type_convert<AccDataType>(arg.in_(idx)) -
+                //         ck::type_convert<AccDataType>(arg.sm_stats_ptr_[0](to_sm_stats_idx(idx)))));
             });
 
             return 0;

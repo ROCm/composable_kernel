@@ -143,6 +143,16 @@ struct DynamicBuffer
         }
     }
 
+    __host__ __device__ void Clear()
+    {
+        static_assert(GetAddressSpace() == AddressSpaceEnum::Lds,
+                      "wrong! only local data share is supported");
+        for(index_t i = get_thread_local_1d_id(); i < element_space_size_; i += get_block_size())
+        {
+            Set(i, true, T{0});
+        }
+    }
+
     template <typename X,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
@@ -302,7 +312,9 @@ struct DynamicBuffer
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X should contain multiple T");
 
-        static_assert(GetAddressSpace() == AddressSpaceEnum::Global, "only support global mem");
+        static_assert(GetAddressSpace() == AddressSpaceEnum::Global ||
+                          GetAddressSpace() == AddressSpaceEnum::Lds,
+                      "only support global mem or local data share");
 
 #if CK_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER && CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
         bool constexpr use_amd_buffer_addressing =
@@ -319,7 +331,7 @@ struct DynamicBuffer
         bool constexpr use_amd_buffer_addressing = false;
 #endif
 
-        if constexpr(use_amd_buffer_addressing)
+        if constexpr(use_amd_buffer_addressing && GetAddressSpace() == AddressSpaceEnum::Global)
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
