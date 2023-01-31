@@ -68,7 +68,7 @@ __global__ void
             const index_t batch_count,
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -790,7 +790,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
+        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" || ck::get_device_name() == "gfx940"))
         {
             return false;
         }
