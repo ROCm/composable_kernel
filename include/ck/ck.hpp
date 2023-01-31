@@ -179,7 +179,7 @@
 #define DEBUG_LOG 0
 
 // flag to run kernel warm-up: 0 do not run warm-up; 1 run warm-up
-#define RUN_WARMUP 1
+#define RUN_WARMUP 0
 
 namespace ck {
 
