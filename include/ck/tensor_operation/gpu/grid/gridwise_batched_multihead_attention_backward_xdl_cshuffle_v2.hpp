@@ -1509,8 +1509,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                    0),
                   tensor_operation::element_wise::PassThrough{}};
 
-        ignore = z_thread_copy_vgpr_to_global;
-
         //
         // set up dV / dK Gemm (type 3 crr)
         //
@@ -1854,11 +1852,14 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                                     true>(s_slash_p_thread_buf, ph, z_tenor_buffer);
 
             // save z to global
-            z_thread_copy_vgpr_to_global.Run(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                             make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                                             z_tenor_buffer,
-                                             z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                             z_grid_buf);
+            if(p_z_grid)
+            {
+                z_thread_copy_vgpr_to_global.Run(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                                 make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                                                 z_tenor_buffer,
+                                                 z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                                 z_grid_buf);
+            }
 
             block_sync_lds(); // wait for gemm1 LDS read
 
