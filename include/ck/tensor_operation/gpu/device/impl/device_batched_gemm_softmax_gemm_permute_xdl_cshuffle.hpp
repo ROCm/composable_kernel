@@ -207,9 +207,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();
     static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
 
-    // TODO ANT: implement bias combination
-    //static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
-
 #if 0
     // TODO ANT: use alias
     static constexpr index_t NumDimGemm0M = NumDimM;
@@ -268,7 +265,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     using AGridDesc_G_M_K      = decltype(Transform::MakeAGridDescriptor_G_M_K({}, {}));
     using BGridDesc_G_N_K      = decltype(Transform::MakeB0GridDescriptor_G_N_K({}, {}));
     using B1GridDesc_G_N_K     = decltype(Transform::MakeB1GridDescriptor_G_N_K({}, {}));
-    using CGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
+    using CGridDesc_G_M_O      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
 
     constexpr static auto make_MaskOutPredicate()
     {
@@ -288,11 +285,11 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         ComputeBasePtrOfStridedBatch(const AGridDesc_G_M_K& a_grid_desc_g_m_k,
                                      const BGridDesc_G_N_K& b_grid_desc_g_n_k,
                                      const B1GridDesc_G_N_K& b1_grid_desc_g_n_k,
-                                     const CGridDesc_G_M_N& c_grid_desc_g_m_n)
+                                     const CGridDesc_G_M_O& c_grid_desc_g_m_o)
             : a_grid_desc_g_m_k_(a_grid_desc_g_m_k),
               b_grid_desc_g_n_k_(b_grid_desc_g_n_k),
               b1_grid_desc_g_n_k_(b1_grid_desc_g_n_k),
-              c_grid_desc_g_m_n_(c_grid_desc_g_m_n)
+              c_grid_desc_g_m_o_(c_grid_desc_g_m_o)
         {
         }
 
@@ -313,14 +310,14 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
         __host__ __device__ constexpr long_index_t GetCBasePtr(index_t g_idx) const
         {
-            return c_grid_desc_g_m_n_.CalculateOffset(make_multi_index(g_idx, 0, 0));
+            return c_grid_desc_g_m_o_.CalculateOffset(make_multi_index(g_idx, 0, 0));
         }
 
         private:
         AGridDesc_G_M_K a_grid_desc_g_m_k_;
         BGridDesc_G_N_K b_grid_desc_g_n_k_;
         B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
-        CGridDesc_G_M_N c_grid_desc_g_m_n_;
+        CGridDesc_G_M_O c_grid_desc_g_m_o_;
     };
 
     // GridwiseGemm
@@ -434,7 +431,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                   Transform::MakeB0GridDescriptor_G_N_K(b_gs_ns_ks_lengths, b_gs_ns_ks_strides)},
               b1_grid_desc_g_n_k_{Transform::MakeB1GridDescriptor_G_N_K(
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
-              c_grid_desc_g_m_n_{Transform::MakeCGridDescriptor_G_M_N(c_gs_ms_gemm1ns_lengths,
+              c_grid_desc_g_m_o_{Transform::MakeCGridDescriptor_G_M_N(c_gs_ms_gemm1ns_lengths,
                                                                       c_gs_ms_gemm1ns_strides)},
               c_grid_desc_mblock_mperblock_nblock_nperblock_{},
               block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
@@ -456,9 +453,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                 b1_gs_gemm1ns_gemm1ks_strides[NumDimG + NumDimO + NumDimN - 1]},
               c_mz_gemm1nz_strides_{c_gs_ms_gemm1ns_strides[NumDimG + NumDimM - 1],
                                     c_gs_ms_gemm1ns_strides[NumDimG + NumDimM + NumDimO - 1]},
-              batch_count_{c_grid_desc_g_m_n_.GetLength(I0)},
+              batch_count_{c_grid_desc_g_m_o_.GetLength(I0)},
               compute_base_ptr_of_batch_{
-                  a_grid_desc_g_m_k_, b_grid_desc_g_n_k_, b1_grid_desc_g_n_k_, c_grid_desc_g_m_n_}
+                  a_grid_desc_g_m_k_, b_grid_desc_g_n_k_, b1_grid_desc_g_n_k_, c_grid_desc_g_m_o_}
         {
             // TODO ANT: implement bias addition
             ignore = p_acc0_biases;
@@ -491,9 +488,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             std::cout << "b1_grid_desc_g_n_k_: " << b1_grid_desc_g_n_k_.GetLength(I0) << ", "
                       << b1_grid_desc_g_n_k_.GetLength(I1) << ", "
                       << b1_grid_desc_g_n_k_.GetLength(I2) << '\n';
-            std::cout << "c_grid_desc_g_m_n_: " << c_grid_desc_g_m_n_.GetLength(I0) << ", "
-                      << c_grid_desc_g_m_n_.GetLength(I1) << ", "
-                      << c_grid_desc_g_m_n_.GetLength(I2) << '\n';
+            std::cout << "c_grid_desc_g_m_o_: " << c_grid_desc_g_m_o_.GetLength(I0) << ", "
+                      << c_grid_desc_g_m_o_.GetLength(I1) << ", "
+                      << c_grid_desc_g_m_o_.GetLength(I2) << '\n';
         }
 
         // pointers
@@ -510,7 +507,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         AGridDesc_G_M_K a_grid_desc_g_m_k_;
         BGridDesc_G_N_K b_grid_desc_g_n_k_;
         B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
-        CGridDesc_G_M_N c_grid_desc_g_m_n_;
+        CGridDesc_G_M_O c_grid_desc_g_m_o_;
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
 
@@ -644,7 +641,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         // TODO ANT: Check if tensor specialization & strides mismatch
 
         // Check if C permute dimension matches GEMM + GEMM shape
-        const index_t c_g       = arg.c_grid_desc_g_m_n_.GetLength(I0); // unpadded
+        const index_t c_g       = arg.c_grid_desc_g_m_o_.GetLength(I0); // unpadded
         const index_t c_m       = arg.c_grid_desc_m_n_.GetLength(I0);
         const index_t c_gemm1n  = arg.c_grid_desc_m_n_.GetLength(I1);
         const index_t a_m       = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
