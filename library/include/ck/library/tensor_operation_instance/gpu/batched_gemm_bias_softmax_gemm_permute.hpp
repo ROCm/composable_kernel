@@ -135,7 +135,7 @@ struct DeviceOperationInstanceFactory<
                                                          B0DataType,
                                                          B1DataType,
                                                          CDataType,
-                                                         Acc0DataTypes,
+                                                         Acc0BiasDataType,
                                                          ck::Tuple<>,
                                                          PassThrough,
                                                          PassThrough,
@@ -151,7 +151,7 @@ struct DeviceOperationInstanceFactory<
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<B0DataType, half_t> &&
                      is_same_v<B1DataType, half_t> && is_same_v<CDataType, half_t> &&
                      Acc0BiasDataType::Size() == 1 &&
-                     is_same_v<tuple_element_t<0, Acc0BiasDataType>, halft_t>)
+                     is_same_v<tuple_element_t<0, Acc0BiasDataType>, half_t>)
         {
             if constexpr(MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle)
             {
