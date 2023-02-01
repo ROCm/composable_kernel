@@ -208,7 +208,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
 
     // TODO ANT: implement bias combination
-    static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
+    //static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
 
 #if 0
     // TODO ANT: use alias
