@@ -1,0 +1,1 @@
+add_example_executable(example_fused_attention fused_attention.cpp)
