@@ -32,19 +32,25 @@ using CElementOp    = ck::tensor_operation::element_wise::PassThrough;
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 constexpr static auto MaskingSpec =
     ck::tensor_operation::device::MaskingSpecialization::MaskDisabled;
-static constexpr auto TensorDefault = ck::tensor_operation::device::TensorSpecialization::Default;
+static constexpr auto TensorSpecA  = ck::tensor_operation::device::TensorSpecialization::Default;
+static constexpr auto TensorSpecB0 = ck::tensor_operation::device::TensorSpecialization::Default;
+static constexpr auto TensorSpecB1 = ck::tensor_operation::device::TensorSpecialization::Default;
+static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecialization::Default;
 
-using F16         = ck::half_t;
-using F32         = float;
-using ADataType   = ck::half_t;
-using B0DataType  = ck::half_t;
-using B1DataType  = ck::half_t;
-using CDataType   = ck::half_t;
-using D0DataType  = ck::half_t;
-using AccDataType = float;
+using F16              = ck::half_t;
+using F32              = float;
+using ADataType        = F16;
+using B0DataType       = F16;
+using B1DataType       = F16;
+using AccDataType      = F32;
+using CShuffleDataType = F32;
+using CDataType        = F16;
+using D0DataType       = F16;
+using Acc0BiasDataType = ck::Tuple<>;
+using Acc1BiasDataType = ck::Tuple<>;
 
 static constexpr ck::index_t NumDimG = 2;
 static constexpr ck::index_t NumDimM = 1;
@@ -53,84 +59,108 @@ static constexpr ck::index_t NumDimK = 1;
 static constexpr ck::index_t NumDimO = 1;
 
 using DeviceOpInstance =
-    ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<NumDimG,
-                                                                                   NumDimM,
-                                                                                   NumDimN,
-                                                                                   NumDimK,
-                                                                                   NumDimO,
-                                                                                   F16,
-                                                                                   F16,
-                                                                                   F16,
-                                                                                   F16,
-                                                                                   ck::Tuple<F16>,
-                                                                                   ck::Tuple<>,
-                                                                                   F32,
-                                                                                   F16,
-                                                                                   PassThrough,
-                                                                                   PassThrough,
-                                                                                   Scale,
-                                                                                   PassThrough,
-                                                                                   PassThrough,
-                                                                                   GemmDefault,
-                                                                                   TensorDefault,
-                                                                                   TensorDefault,
-                                                                                   TensorDefault,
-                                                                                   TensorDefault,
-                                                                                   1,
-                                                                                   256,
-                                                                                   256,
-                                                                                   128,
-                                                                                   32,
-                                                                                   64,
-                                                                                   32,
-                                                                                   8,
-                                                                                   8,
-                                                                                   2,
-                                                                                   32,
-                                                                                   32,
-                                                                                   2,
-                                                                                   4,
-                                                                                   2,
-                                                                                   S<4, 64, 1>,
-                                                                                   S<1, 0, 2>,
-                                                                                   S<1, 0, 2>,
-                                                                                   2,
-                                                                                   8,
-                                                                                   8,
-                                                                                   true,
-                                                                                   S<4, 64, 1>,
-                                                                                   S<1, 0, 2>,
-                                                                                   S<1, 0, 2>,
-                                                                                   2,
-                                                                                   8,
-                                                                                   8,
-                                                                                   true,
-                                                                                   S<16, 16, 1>,
-                                                                                   S<0, 2, 1>,
-                                                                                   S<0, 2, 1>,
-                                                                                   1,
-                                                                                   4,
-                                                                                   2,
-                                                                                   false,
-                                                                                   1,
-                                                                                   2,
-                                                                                   S<1, 32, 1, 8>,
-                                                                                   8,
-                                                                                   MaskingSpec>;
+    ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<
+        NumDimG,
+        NumDimM,
+        NumDimN,
+        NumDimK,
+        NumDimO,
+        ADataType,
+        B0DataType,
+        B1DataType,
+        CDataType,
+        Acc0BiasDataType,
+        Acc1BiasDataType,
+        AccDataType,
+        CShuffleDataType,
+        AElementOp,
+        B0ElementOp,
+        Acc0ElementOp,
+        B1ElementOp,
+        CElementOp,
+        GemmSpec,
+        TensorSpecA,
+        TensorSpecB0,
+        TensorSpecB1,
+        TensorSpecC,
+        1,
+        256,
+        128,         // MPerBlock
+        128,         // NPerBlock
+        32,          // KPerBlock
+        64,          // Gemm1NPerBlock
+        32,          // Gemm1KPerBlock
+        8,           // AK1
+        8,           // BK1
+        2,           // B1K1
+        32,          // MPerXDL
+        32,          // NPerXDL
+        1,           // MXdlPerWave
+        4,           // NXdlPerWave
+        2,           // Gemm1NXdlPerWave
+        S<4, 64, 1>, // ABlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<4, 64, 1>, // BBlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<16, 16, 1>, // B1BlockTransfer
+        S<0, 2, 1>,
+        S<0, 2, 1>,
+        1,
+        4,
+        2,
+        false,
+        1,              // CShuffleMXdlPerWavePerShuffle
+        2,              // CShuffleNXdlPerWavePerShuffle
+        S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        MaskingSpec>;   // MaskingSpecialization
 
+// Ref Gemm0: fp16 in, fp32 out
+using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+                                                                                B0DataType,
+                                                                                AccDataType,
+                                                                                AccDataType,
+                                                                                AElementOp,
+                                                                                B0ElementOp,
+                                                                                Acc0ElementOp>;
+
+// Ref Softmax: fp32 in, fp16 out
+using ReferenceSoftmaxInstance =
+    ck::tensor_operation::host::ReferenceSoftmax<AccDataType, ADataType, AccDataType>;
+
+// Ref Gemm1: fp16 in, fp16 out
+using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+                                                                                B1DataType,
+                                                                                CDataType,
+                                                                                AccDataType,
+                                                                                AElementOp,
+                                                                                B1ElementOp,
+                                                                                CElementOp>;
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = false;
 
-    int G0      = 48;
-    int G1      = 16;
-    int M       = 1024;
-    int N       = 1024;
-    int K       = 64;
-    int O       = 64;
-    float alpha = 1 / sqrtf(K);
+    int G0              = 3;
+    int G1              = 2;
+    int M               = 1024;
+    int N               = 1024;
+    int K               = 64;
+    int O               = 64;
+    float alpha         = 1;
+    bool input_permute  = false;
+    bool output_permute = true;
     if(argc == 1)
     {
         // use default case
@@ -154,7 +184,9 @@ int main(int argc, char* argv[])
         G0 = std::stoi(argv[8]);
         G1 = std::stoi(argv[9]);
 
-        alpha = std::stof(argv[10]);
+        alpha          = std::stof(argv[10]);
+        input_permute  = std::stoi(argv[11]);
+        output_permute = std::stoi(argv[12]);
     }
     else
     {
@@ -165,21 +197,29 @@ int main(int argc, char* argv[])
         printf("arg10: scale (alpha)\n");
         exit(0);
     }
-    // A layout [G0, M, G1, K]
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
-    std::vector<ck::index_t> a_gs_ms_ks_strides{M * G1 * K, K, G1 * K, 1};
+    std::vector<ck::index_t> a_gs_ms_ks_strides =
+        input_permute
+            ? std::vector<ck::index_t>{M * G1 * K, K, G1 * K, 1} // A layout [G0, M, G1, K]
+            : std::vector<ck::index_t>{G1 * M * K, M * K, K, 1}; // A layout [G0, G1, M, K]
 
-    // B0 layout [G0, N, G1, K]
     std::vector<ck::index_t> b0_gs_ns_ks_lengths{G0, G1, N, K};
-    std::vector<ck::index_t> b0_gs_ns_ks_strides{N * G1 * K, K, G1 * K, 1};
+    std::vector<ck::index_t> b0_gs_ns_ks_strides =
+        input_permute
+            ? std::vector<ck::index_t>{N * G1 * K, K, G1 * K, 1} // B0 layout [G0, N, G1, K]
+            : std::vector<ck::index_t>{G1 * N * K, N * K, K, 1}; // B0 layout [G0, G1, N, K]
 
-    // B1 layout [G0, N, G1, O]
     std::vector<ck::index_t> b1_gs_os_ns_lengths{G0, G1, O, N};
-    std::vector<ck::index_t> b1_gs_os_ns_strides{N * G1 * O, O, 1, G1 * O};
+    std::vector<ck::index_t> b1_gs_os_ns_strides =
+        input_permute
+            ? std::vector<ck::index_t>{N * G1 * O, O, 1, G1 * O} // B1 layout [G0, N, G1, O]
+            : std::vector<ck::index_t>{G1 * N * O, N * O, 1, O}; // B1 layout [G0, G1, N, O]
 
-    // C layout [G0, M, G1, O]
     std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1, M, O};
-    std::vector<ck::index_t> c_gs_ms_os_strides{M * G1 * O, O, G1 * O, 1};
+    std::vector<ck::index_t> c_gs_ms_os_strides =
+        output_permute
+            ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // C layout [G0, M, G1, O]
+            : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
 
     // D layout [G0, M, G1, N]
     std::vector<ck::index_t> d0_gs_ms_os_lengths{G0, G1, M, N};
@@ -226,35 +266,43 @@ int main(int argc, char* argv[])
     DeviceMem b1_device_buf(sizeof(B1DataType) * G0 * G1 * O * N);
     DeviceMem c_device_buf(sizeof(CDataType) * G0 * G1 * M * O);
 
+    a_device_buf.ToDevice(a_gs_ms_ks.mData.data());
+    b0_device_buf.ToDevice(b0_gs_ns_ks.mData.data());
+    b1_device_buf.ToDevice(b1_gs_os_ns.mData.data());
+
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
 
-    auto argument = device_op.MakeArgument(
-        static_cast<const ADataType*>(a_device_buf.GetDeviceBuffer()),
-        static_cast<const B0DataType*>(b0_device_buf.GetDeviceBuffer()),
-        static_cast<const B1DataType*>(b1_device_buf.GetDeviceBuffer()),
-        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-        std::array<void*, 1>{d0_device_buf.GetDeviceBuffer()}, // p_acc0_biases
-        {},                                                    // p_acc1_biases
-        a_gs_ms_ks_lengths,
-        a_gs_ms_ks_strides,
-        b0_gs_ns_ks_lengths,
-        b0_gs_ns_ks_strides,
-        b1_gs_os_ns_lengths,
-        b1_gs_os_ns_strides,
-        c_gs_ms_os_lengths,
-        c_gs_ms_os_strides,
-        std::array<std::vector<ck::index_t>, 1>{
-            d0_gs_ms_os_lengths}, // acc0_biases_gs_ms_ns_lengths
-        std::array<std::vector<ck::index_t>, 1>{
-            d0_gs_ms_os_strides}, // acc0_biases_gs_ms_ns_strides
-        {},                       // acc1_biases_gs_ms_os_lengths
-        {},                       // acc1_biases_gs_ms_os_strides
-        AElementOp{},
-        B0ElementOp{},
-        Acc0ElementOp{alpha},
-        B1ElementOp{},
-        CElementOp{});
+    auto a_element_op    = AElementOp{};
+    auto b0_element_op   = B0ElementOp{};
+    auto acc0_element_op = Acc0ElementOp{alpha};
+    auto b1_element_op   = B1ElementOp{};
+    auto c_element_op    = CElementOp{};
+
+    auto argument =
+        device_op.MakeArgument(static_cast<const ADataType*>(a_device_buf.GetDeviceBuffer()),
+                               static_cast<const B0DataType*>(b0_device_buf.GetDeviceBuffer()),
+                               static_cast<const B1DataType*>(b1_device_buf.GetDeviceBuffer()),
+                               static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                               {}, // p_acc0_biases
+                               {}, // p_acc1_biases
+                               a_gs_ms_ks_lengths,
+                               a_gs_ms_ks_strides,
+                               b0_gs_ns_ks_lengths,
+                               b0_gs_ns_ks_strides,
+                               b1_gs_os_ns_lengths,
+                               b1_gs_os_ns_strides,
+                               c_gs_ms_os_lengths,
+                               c_gs_ms_os_strides,
+                               {}, // acc0_biases_gs_ms_ns_lengths
+                               {}, // acc0_biases_gs_ms_ns_strides
+                               {}, // acc1_biases_gs_ms_os_lengths
+                               {}, // acc1_biases_gs_ms_os_strides
+                               a_element_op,
+                               b0_element_op,
+                               acc0_element_op,
+                               b1_element_op,
+                               c_element_op);
 
     if(!device_op.IsSupportedArgument(argument))
     {
@@ -263,10 +311,11 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * G0 * G1;
-    std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
+    ck::index_t BatchCount = G0 * G1;
+    std::size_t flop       = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
+    std::size_t num_btype  = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
                              sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O) *
-                            G0 * G1;
+                            BatchCount;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -275,7 +324,80 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << std::endl;
 
-    if(do_verification) {}
+    if(do_verification)
+    {
+        c_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
+
+        Tensor<ADataType> a_g_m_k({BatchCount, M, K});
+        Tensor<B0DataType> b0_g_k_n({BatchCount, K, N});
+        Tensor<B1DataType> b1_g_n_o({BatchCount, N, O});
+        Tensor<AccDataType> acc0_g_m_n({BatchCount, M, N});        // scratch object after gemm0
+        Tensor<ADataType> a1_g_m_n({BatchCount, M, N});            // scratch object after softmax
+        Tensor<CDataType> c_g_m_o_host_result({BatchCount, M, O}); // scratch object after gemm1
+
+        // permute
+        a_gs_ms_ks.ForEach([&](auto& self, auto idx) {
+            a_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        });
+        b0_gs_ns_ks.ForEach([&](auto& self, auto idx) {
+            b0_g_k_n(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+        });
+        b1_gs_os_ns.ForEach([&](auto& self, auto idx) {
+            b1_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+        });
+
+        // gemm 0
+        auto ref_gemm0          = ReferenceGemm0Instance{};
+        auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();
+        auto ref_gemm0_argument = ref_gemm0.MakeArgument(
+            a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, acc0_element_op);
+
+        ref_gemm0_invoker.Run(ref_gemm0_argument);
+
+        // masking
+        const auto mask = DeviceOpInstance::C0MatrixMask(N);
+        acc0_g_m_n.ForEach([&](auto& self, auto idx) {
+            if(mask.IsMaskedElement(idx[1], idx[2]))
+                self(idx) = -ck::NumericLimits<float>::Infinity();
+        });
+
+        // softmax
+        auto ref_softmax          = ReferenceSoftmaxInstance{};
+        auto ref_softmax_invoker  = ref_softmax.MakeInvoker();
+        auto ref_softmax_argument = ref_softmax.MakeArgument(acc0_g_m_n, a1_g_m_n, 1, 0, {2});
+
+        ref_softmax_invoker.Run(ref_softmax_argument);
+
+        // gemm1
+        auto ref_gemm1          = ReferenceGemm1Instance{};
+        auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
+        auto ref_gemm1_argument = ref_gemm1.MakeArgument(
+            a1_g_m_n, b1_g_n_o, c_g_m_o_host_result, PassThrough{}, b1_element_op, c_element_op);
+
+        ref_gemm1_invoker.Run(ref_gemm1_argument);
+
+        // permute
+        c_gs_ms_os_host_result.ForEach([&](auto& self, auto idx) {
+            const size_t& g0 = idx[0];
+            const size_t& g1 = idx[1];
+
+            const size_t g = g0 * G1 + g1;
+
+            self(idx) = c_g_m_o_host_result(g, idx[2], idx[3]);
+        });
+
+        // default absolute error and relative error is 0.001
+        double rtol = 1e-3;
+        double atol = 1e-3;
+
+        return ck::utils::check_err(c_gs_ms_os_device_result.mData,
+                                    c_gs_ms_os_host_result.mData,
+                                    "Error: Incorrect results!",
+                                    rtol,
+                                    atol)
+                   ? 0
+                   : 1;
+    }
 
     return 0;
 }
