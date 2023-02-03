@@ -129,7 +129,11 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
         return make_tuple(c_thread_m, c_thread_n);
     }
 
-    __host__ __device__ BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle()
+    using Tuple5 = decltype(CalculateAThreadOriginDataIndex());
+    __host__ __device__ BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle(
+        Tuple4 a_origin = CalculateAThreadOriginDataIndex(),
+        Tuple4 b_origin = CalculateBThreadOriginDataIndex())
+        : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
     {
         static_assert(AK0MK1BlockDesc::IsKnownAtCompileTime() &&
                           BK0NK1BlockDesc::IsKnownAtCompileTime(),
@@ -299,8 +303,8 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
                                                          B_K1,
                                                          B_K1>;
 
-    AThreadCopy a_thread_copy_{CalculateAThreadOriginDataIndex()};
-    BThreadCopy b_thread_copy_{CalculateBThreadOriginDataIndex()};
+    AThreadCopy a_thread_copy_;
+    BThreadCopy b_thread_copy_;
 };
 
 // block wise level pipe designed for inline asm

@@ -23,11 +23,11 @@ struct intrin_wmma_f32_16x16x16_f16_w32<16, 16>
     {
         // * Inline assembly need to elimate the duplicated data load, compiler won't help you
         // delete them.
-        amd_assembly_wmma_f32_16x16x16_f16_w32(
-            reg_a, reg_b, reg_c.template AsType<float8_t>()(Number<0>{}));
-        // reg_c.template AsType<float8_t>()(Number<0>{}) =
-        // __builtin_amdgcn_wmma_f32_16x16x16_f16_w32( reg_a, reg_b, reg_c.template
-        // AsType<float8_t>()[Number<0>{}]);
+        // amd_assembly_wmma_f32_16x16x16_f16_w32(
+            // reg_a, reg_b, reg_c.template AsType<float8_t>()(Number<0>{}));
+        reg_c.template AsType<float8_t>()(Number<0>{}) =
+        __builtin_amdgcn_wmma_f32_16x16x16_f16_w32( reg_a, reg_b, reg_c.template
+        AsType<float8_t>()[Number<0>{}]);
     }
 };
 
