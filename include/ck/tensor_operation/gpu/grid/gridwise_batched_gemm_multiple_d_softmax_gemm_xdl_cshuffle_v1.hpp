@@ -31,7 +31,7 @@ template <typename FloatAB,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename B1GridDesc_BK0_N_BK1,
-          typename CGridDesc_M_O,
+          typename C1GridDesc_M_N,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
           index_t MPerBlock,
@@ -211,7 +211,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
     CheckValidity(const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                   const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                   const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
-                  const CGridDesc_M_O& c_grid_desc_m_o,
+                  const C1GridDesc_M_N& c1_grid_desc_m_n,
                   const Block2CTileMap& block_2_ctile_map)
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
@@ -223,7 +223,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
         const auto K = a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2);
         const auto Gemm1N = b1_grid_desc_bk0_n_bk1.GetLength(I1);
 
-        if(!(M == c_grid_desc_m_o.GetLength(I0) && Gemm1N == c_grid_desc_m_o.GetLength(I1)))
+        if(!(M == c1_grid_desc_m_n.GetLength(I0) && Gemm1N == c1_grid_desc_m_n.GetLength(I1)))
         {
             return false;
         }
@@ -253,7 +253,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
             return false;
         }
 
-        if(!block_2_ctile_map.CheckValidity(c_grid_desc_m_o))
+        if(!block_2_ctile_map.CheckValidity(c1_grid_desc_m_n))
         {
             return false;
         }
@@ -270,37 +270,37 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
     }
 
     __host__ __device__ static constexpr auto
-    MakeCGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock(const CGridDesc_M_O& c_grid_desc_m_o)
+    MakeC1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const C1GridDesc_M_N& c1_grid_desc_m_n)
     {
-        const auto M = c_grid_desc_m_o.GetLength(I0);
-        const auto O = c_grid_desc_m_o.GetLength(I1);
+        const auto M = c1_grid_desc_m_n.GetLength(I0);
+        const auto N = c1_grid_desc_m_n.GetLength(I1);
 
         const auto MBlock = M / MPerBlock;
-        const auto OBlock = O / Gemm1NPerBlock;
+        const auto NBlock = N / Gemm1NPerBlock;
 
-        const auto c_grid_desc_mblock_mperblock_oblock_operblock = transform_tensor_descriptor(
-            c_grid_desc_m_o,
+        const auto c_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
+            c1_grid_desc_m_n,
             make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{})),
-                       make_unmerge_transform(make_tuple(OBlock, Number<Gemm1NPerBlock>{}))),
+                       make_unmerge_transform(make_tuple(NBlock, Number<Gemm1NPerBlock>{}))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
 
-        return c_grid_desc_mblock_mperblock_oblock_operblock;
+        return c_grid_desc_mblock_mperblock_nblock_nperblock;
     }
 
     // return block_id to C matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
-    MakeDefaultBlock2CTileMap(const CGridDesc_M_O& c_grid_desc_m_o)
+    MakeDefaultBlock2CTileMap(const C1GridDesc_M_N& c1_grid_desc_m_n)
     {
-        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, Gemm1NPerBlock, CGridDesc_M_O>(
-            c_grid_desc_m_o);
+        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, Gemm1NPerBlock, C1GridDesc_M_N>(
+            c1_grid_desc_m_n);
     }
 
-    using CGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock = remove_cvref_t<decltype(
-        MakeCGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock(CGridDesc_M_O{}))>;
+    using C1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
+        MakeC1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(C1GridDesc_M_N{}))>;
 
     using DefaultBlock2CTileMap =
-        remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_O{}))>;
+        remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(C1GridDesc_M_N{}))>;
 
     struct SharedMemTrait
     {
@@ -352,8 +352,8 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                                const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
-                               const CGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock&
-                                   c_grid_desc_mblock_mperblock_oblock_operblock,
+                               const C1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
+                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
                                const Block2CTileMap& block_2_ctile_map,
                                const C0MatrixMask& c0_matrix_mask)
     {
@@ -364,7 +364,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
         const auto b1_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b1_grid, b1_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_c_grid, c_grid_desc_mblock_mperblock_oblock_operblock.GetElementSpaceSize());
+            p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         // divide block work by [M, N]
         const auto block_work_idx =
@@ -372,8 +372,8 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
 
         if(!block_2_ctile_map.ValidCTileIndex(
                block_work_idx,
-               make_tuple(c_grid_desc_mblock_mperblock_oblock_operblock.GetLength(I0),
-                          c_grid_desc_mblock_mperblock_oblock_operblock.GetLength(I2))))
+               make_tuple(c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
+                          c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
         {
             return;
         }
@@ -1056,7 +1056,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                 FloatCShuffle,        // typename SrcData,
                 FloatC,               // typename DstData,
                 decltype(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
-                decltype(c_grid_desc_mblock_mperblock_oblock_operblock),
+                decltype(c_grid_desc_mblock_mperblock_nblock_nperblock),
                 Sequence<0, 1, 2, 3>,                           // typename DimAccessOrder,
                 3,                                              // index_t VectorDim,
                 CShuffleBlockTransferScalarPerVector_NPerBlock, // index_t ScalarPerVector,
@@ -1064,7 +1064,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                 false> // bool ThreadTransferDstResetCoordinateAfterRun>
                 {c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
                  make_multi_index(0, 0, 0, 0),
-                 c_grid_desc_mblock_mperblock_oblock_operblock,
+                 c_grid_desc_mblock_mperblock_nblock_nperblock,
                  make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
                  c_element_op};
 
@@ -1112,7 +1112,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                 c_shuffle_block_copy_lds_to_global.Run(
                     c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
                     c_shuffle_block_buf,
-                    c_grid_desc_mblock_mperblock_oblock_operblock,
+                    c_grid_desc_mblock_mperblock_nblock_nperblock,
                     c_grid_buf);
 
                 if constexpr(access_id < num_access - 1)
@@ -1121,7 +1121,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
 
                     // move on C
                     c_shuffle_block_copy_lds_to_global.MoveDstSliceWindow(
-                        c_grid_desc_mblock_mperblock_oblock_operblock, c_global_step);
+                        c_grid_desc_mblock_mperblock_nblock_nperblock, c_global_step);
                 }
             });
         }
