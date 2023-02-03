@@ -38,7 +38,6 @@ GetFlops(const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& output
          const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& weights_lengths)
 {
     // 2 * G * N * K * C * <output spatial lengths product> * <filter spatial lengths product>
-
     ck::index_t G = weights_lengths[0];
     ck::index_t N = output_lengths[1];
     ck::index_t K = weights_lengths[1];
@@ -131,22 +130,37 @@ bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + NumNonSpatialD
                      std::next(rbegin(out_strides)),
                      std::multiplies<>{});
 
-    // transpose GNDHWC/GKZYXC/GNDHWK to GNCDHW/GKCZYX/GNKDHW
+    // transpose NDHWGC/KZYXGC/NDHWGK to GNDHWC/GKZYXC/GNDHWK to GNCDHW/GKCZYX/GNKDHW
+    std::rotate(std::next(rbegin(in_lengths)), std::next(rbegin(in_lengths), 2), rend(in_lengths));
     std::rotate(rbegin(in_lengths),
                 std::next(rbegin(in_lengths)),
                 std::next(rbegin(in_lengths), NumDimSpatial + 1));
+
+    std::rotate(std::next(rbegin(in_strides)), std::next(rbegin(in_strides), 2), rend(in_strides));
     std::rotate(rbegin(in_strides),
                 std::next(rbegin(in_strides)),
                 std::next(rbegin(in_strides), NumDimSpatial + 1));
+
+    std::rotate(
+        std::next(rbegin(wei_lengths)), std::next(rbegin(wei_lengths), 2), rend(wei_lengths));
     std::rotate(rbegin(wei_lengths),
                 std::next(rbegin(wei_lengths)),
                 std::next(rbegin(wei_lengths), NumDimSpatial + 1));
+
+    std::rotate(
+        std::next(rbegin(wei_strides)), std::next(rbegin(wei_strides), 2), rend(wei_strides));
     std::rotate(rbegin(wei_strides),
                 std::next(rbegin(wei_strides)),
                 std::next(rbegin(wei_strides), NumDimSpatial + 1));
+
+    std::rotate(
+        std::next(rbegin(out_lengths)), std::next(rbegin(out_lengths), 2), rend(out_lengths));
     std::rotate(rbegin(out_lengths),
                 std::next(rbegin(out_lengths)),
                 std::next(rbegin(out_lengths), NumDimSpatial + 1));
+
+    std::rotate(
+        std::next(rbegin(out_strides)), std::next(rbegin(out_strides), 2), rend(out_strides));
     std::rotate(rbegin(out_strides),
                 std::next(rbegin(out_strides)),
                 std::next(rbegin(out_strides), NumDimSpatial + 1));

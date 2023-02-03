@@ -10,9 +10,9 @@ using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;
 using OutDataType = ck::half_t;
 
-using InLayout  = ck::tensor_layout::convolution::GNDHWC;
-using WeiLayout = ck::tensor_layout::convolution::GKZYXC;
-using OutLayout = ck::tensor_layout::convolution::GNDHWK;
+using InLayout  = ck::tensor_layout::convolution::NDHWGC;
+using WeiLayout = ck::tensor_layout::convolution::KZYXGC;
+using OutLayout = ck::tensor_layout::convolution::NDHWGK;
 
 static constexpr ck::index_t NumDimSpatial = 3;
 static constexpr ck::index_t G             = 1;
@@ -38,7 +38,7 @@ int main()
                                 InLayout,
                                 WeiLayout,
                                 OutLayout>(
-               {G, N, Di, Hi, Wi, C}, {G, K, Z, Y, X, C}, {G, N, Do, Ho, Wo, K})
+               {N, Di, Hi, Wi, G, C}, {K, Z, Y, X, G, C}, {N, Do, Ho, Wo, G, K})
                ? EXIT_SUCCESS
                : EXIT_FAILURE;
 }
