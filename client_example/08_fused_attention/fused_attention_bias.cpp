@@ -185,29 +185,32 @@ int main(int argc, char* argv[])
         auto& op_ptr = op_ptrs[best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
                   << std::endl;
-        auto argument_ptr = op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
-                                                        b0_device_buf.GetDeviceBuffer(),
-                                                        b1_device_buf.GetDeviceBuffer(),
-                                                        c_device_buf.GetDeviceBuffer(),
-                                                        {}, // p_acc0_biases
-                                                        {}, // p_acc1_biases
-                                                        a_gs_ms_ks_lengths,
-                                                        a_gs_ms_ks_strides,
-                                                        b0_gs_ns_ks_lengths,
-                                                        b0_gs_ns_ks_strides,
-                                                        b1_gs_os_ns_lengths,
-                                                        b1_gs_os_ns_strides,
-                                                        c_gs_ms_os_lengths,
-                                                        c_gs_ms_os_strides,
-                                                        {}, // acc0_biases_gs_ms_ns_lengths
-                                                        {}, // acc0_biases_gs_ms_ns_strides
-                                                        {}, // acc1_biases_gs_ms_os_lengths
-                                                        {}, // acc1_biases_gs_ms_os_strides
-                                                        AElementOp{},
-                                                        B0ElementOp{},
-                                                        Acc0ElementOp{1 / sqrtf(K)},
-                                                        B1ElementOp{},
-                                                        CElementOp{});
+        auto argument_ptr = op_ptr->MakeArgumentPointer(
+            a_device_buf.GetDeviceBuffer(),
+            b0_device_buf.GetDeviceBuffer(),
+            b1_device_buf.GetDeviceBuffer(),
+            c_device_buf.GetDeviceBuffer(),
+            std::array<void*, 1>{d0_device_buf.GetDeviceBuffer()}, // p_acc0_biases
+            {},                                                    // p_acc1_biases
+            a_gs_ms_ks_lengths,
+            a_gs_ms_ks_strides,
+            b0_gs_ns_ks_lengths,
+            b0_gs_ns_ks_strides,
+            b1_gs_os_ns_lengths,
+            b1_gs_os_ns_strides,
+            c_gs_ms_os_lengths,
+            c_gs_ms_os_strides,
+            std::array<std::vector<ck::index_t>, 1>{
+                d0_gs_ms_os_lengths}, // acc0_biases_gs_ms_ns_lengths
+            std::array<std::vector<ck::index_t>, 1>{
+                d0_gs_ms_os_strides}, // acc0_biases_gs_ms_ns_strides
+            {},                       // acc1_biases_gs_ms_os_lengths
+            {},                       // acc1_biases_gs_ms_os_strides
+            AElementOp{},
+            B0ElementOp{},
+            Acc0ElementOp{1 / sqrtf(K)},
+            B1ElementOp{},
+            CElementOp{});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
