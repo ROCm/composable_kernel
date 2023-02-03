@@ -176,10 +176,8 @@ int run_conv_bwd_weight(bool do_verification,
 
     if(!conv.IsSupportedArgument(argument))
     {
-        std::cout << "wrong! device_conv with the specified compilation parameters does "
-                     "not support this Conv problem"
-                  << std::endl;
-        return 1;
+        std::cout << "Example not supported, please check parameters or device!";
+        return 0;
     }
 
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
