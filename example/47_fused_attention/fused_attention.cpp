@@ -49,7 +49,7 @@ using AccDataType      = F32;
 using CShuffleDataType = F32;
 using CDataType        = F16;
 using D0DataType       = F16;
-using Acc0BiasDataType = ck::Tuple<>;
+using Acc0BiasDataType = ck::Tuple<D0DataType>;
 using Acc1BiasDataType = ck::Tuple<>;
 
 static constexpr ck::index_t NumDimG = 2;
@@ -152,15 +152,14 @@ int main(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = false;
 
-    int G0              = 3;
-    int G1              = 2;
-    int M               = 1024;
-    int N               = 1024;
-    int K               = 64;
-    int O               = 64;
-    float alpha         = 1;
-    bool input_permute  = false;
-    bool output_permute = true;
+    int G0      = 3;
+    int G1      = 2;
+    int M       = 1024;
+    int N       = 1024;
+    int K       = 64;
+    int O       = 64;
+    float alpha = 1;
+
     if(argc == 1)
     {
         // use default case
@@ -184,9 +183,7 @@ int main(int argc, char* argv[])
         G0 = std::stoi(argv[8]);
         G1 = std::stoi(argv[9]);
 
-        alpha          = std::stof(argv[10]);
-        input_permute  = std::stoi(argv[11]);
-        output_permute = std::stoi(argv[12]);
+        alpha = std::stof(argv[10]);
     }
     else
     {
@@ -197,37 +194,31 @@ int main(int argc, char* argv[])
         printf("arg10: scale (alpha)\n");
         exit(0);
     }
+
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
-    std::vector<ck::index_t> a_gs_ms_ks_strides =
-        input_permute
-            ? std::vector<ck::index_t>{M * G1 * K, K, G1 * K, 1} // A layout [G0, M, G1, K]
-            : std::vector<ck::index_t>{G1 * M * K, M * K, K, 1}; // A layout [G0, G1, M, K]
+    std::vector<ck::index_t> a_gs_ms_ks_strides{
+        M * G1 * K, K, G1 * K, 1}; // A layout [G0, M, G1, K]
 
     std::vector<ck::index_t> b0_gs_ns_ks_lengths{G0, G1, N, K};
-    std::vector<ck::index_t> b0_gs_ns_ks_strides =
-        input_permute
-            ? std::vector<ck::index_t>{N * G1 * K, K, G1 * K, 1} // B0 layout [G0, N, G1, K]
-            : std::vector<ck::index_t>{G1 * N * K, N * K, K, 1}; // B0 layout [G0, G1, N, K]
+    std::vector<ck::index_t> b0_gs_ns_ks_strides{
+        N * G1 * K, K, G1 * K, 1}; // B0 layout [G0, N, G1, K]
 
     std::vector<ck::index_t> b1_gs_os_ns_lengths{G0, G1, O, N};
-    std::vector<ck::index_t> b1_gs_os_ns_strides =
-        input_permute
-            ? std::vector<ck::index_t>{N * G1 * O, O, 1, G1 * O} // B1 layout [G0, N, G1, O]
-            : std::vector<ck::index_t>{G1 * N * O, N * O, 1, O}; // B1 layout [G0, G1, N, O]
+    std::vector<ck::index_t> b1_gs_os_ns_strides{
+        N * G1 * O, O, 1, G1 * O}; // B1 layout [G0, N, G1, O]
 
     std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1, M, O};
-    std::vector<ck::index_t> c_gs_ms_os_strides =
-        output_permute
-            ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // C layout [G0, M, G1, O]
-            : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
+    std::vector<ck::index_t> c_gs_ms_os_strides{
+        M * G1 * O, O, G1 * O, 1}; // C layout [G0, M, G1, O]
 
     // D layout [G0, M, G1, N]
-    std::vector<ck::index_t> d0_gs_ms_os_lengths{G0, G1, M, N};
-    std::vector<ck::index_t> d0_gs_ms_os_strides{M * G1 * O, O, G1 * O, 1};
+    std::vector<ck::index_t> d0_gs_ms_ns_lengths{G0, G1, M, N};
+    std::vector<ck::index_t> d0_gs_ms_ns_strides{M * G1 * N, N, G1 * N, 1};
 
     Tensor<ADataType> a_gs_ms_ks(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
     Tensor<B0DataType> b0_gs_ns_ks(b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides);
     Tensor<B1DataType> b1_gs_os_ns(b1_gs_os_ns_lengths, b1_gs_os_ns_strides);
+    Tensor<D0DataType> d0_gs_ms_ns(d0_gs_ms_ns_lengths, d0_gs_ms_ns_strides);
     Tensor<CDataType> c_gs_ms_os_host_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
     Tensor<CDataType> c_gs_ms_os_device_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
 
@@ -243,21 +234,25 @@ int main(int argc, char* argv[])
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
         break;
     case 2:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-1, 1});
         break;
     case 3:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
         break;
     default:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_Sequential<2>{});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
     }
 
     DeviceMem a_device_buf(sizeof(ADataType) * G0 * G1 * M * K);
@@ -269,6 +264,7 @@ int main(int argc, char* argv[])
     a_device_buf.ToDevice(a_gs_ms_ks.mData.data());
     b0_device_buf.ToDevice(b0_gs_ns_ks.mData.data());
     b1_device_buf.ToDevice(b1_gs_os_ns.mData.data());
+    d0_device_buf.ToDevice(d0_gs_ms_ns.mData.data());
 
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
@@ -279,30 +275,32 @@ int main(int argc, char* argv[])
     auto b1_element_op   = B1ElementOp{};
     auto c_element_op    = CElementOp{};
 
-    auto argument =
-        device_op.MakeArgument(static_cast<const ADataType*>(a_device_buf.GetDeviceBuffer()),
-                               static_cast<const B0DataType*>(b0_device_buf.GetDeviceBuffer()),
-                               static_cast<const B1DataType*>(b1_device_buf.GetDeviceBuffer()),
-                               static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                               {}, // p_acc0_biases
-                               {}, // p_acc1_biases
-                               a_gs_ms_ks_lengths,
-                               a_gs_ms_ks_strides,
-                               b0_gs_ns_ks_lengths,
-                               b0_gs_ns_ks_strides,
-                               b1_gs_os_ns_lengths,
-                               b1_gs_os_ns_strides,
-                               c_gs_ms_os_lengths,
-                               c_gs_ms_os_strides,
-                               {}, // acc0_biases_gs_ms_ns_lengths
-                               {}, // acc0_biases_gs_ms_ns_strides
-                               {}, // acc1_biases_gs_ms_os_lengths
-                               {}, // acc1_biases_gs_ms_os_strides
-                               a_element_op,
-                               b0_element_op,
-                               acc0_element_op,
-                               b1_element_op,
-                               c_element_op);
+    auto argument = device_op.MakeArgument(
+        static_cast<const ADataType*>(a_device_buf.GetDeviceBuffer()),
+        static_cast<const B0DataType*>(b0_device_buf.GetDeviceBuffer()),
+        static_cast<const B1DataType*>(b1_device_buf.GetDeviceBuffer()),
+        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+        std::array<void*, 1>{d0_device_buf.GetDeviceBuffer()}, // p_acc0_biases
+        {},                                                    // p_acc1_biases
+        a_gs_ms_ks_lengths,
+        a_gs_ms_ks_strides,
+        b0_gs_ns_ks_lengths,
+        b0_gs_ns_ks_strides,
+        b1_gs_os_ns_lengths,
+        b1_gs_os_ns_strides,
+        c_gs_ms_os_lengths,
+        c_gs_ms_os_strides,
+        std::array<std::vector<ck::index_t>, 1>{
+            d0_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
+        std::array<std::vector<ck::index_t>, 1>{
+            d0_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
+        {},                       // acc1_biases_gs_ms_os_lengths
+        {},                       // acc1_biases_gs_ms_os_strides
+        a_element_op,
+        b0_element_op,
+        acc0_element_op,
+        b1_element_op,
+        c_element_op);
 
     if(!device_op.IsSupportedArgument(argument))
     {

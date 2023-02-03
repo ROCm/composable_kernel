@@ -69,8 +69,8 @@ int main(int argc, char* argv[])
     std::vector<ck::index_t> c_gs_ms_os_strides{M * G1 * O, O, G1 * O, 1};
 
     // D layout [G0, M, G1, N]
-    std::vector<ck::index_t> d0_gs_ms_os_lengths{G0, G1, M, N};
-    std::vector<ck::index_t> d0_gs_ms_os_strides{M * G1 * O, O, G1 * O, 1};
+    std::vector<ck::index_t> d0_gs_ms_ns_lengths{G0, G1, M, N};
+    std::vector<ck::index_t> d0_gs_ms_ns_strides{M * G1 * N, N, G1 * N, 1};
 
     SimpleDeviceMem a_device_buf(sizeof(ADataType) * G0 * G1 * M * K);
     SimpleDeviceMem b0_device_buf(sizeof(B0DataType) * G0 * G1 * N * K);
@@ -131,9 +131,9 @@ int main(int argc, char* argv[])
             c_gs_ms_os_lengths,
             c_gs_ms_os_strides,
             std::array<std::vector<ck::index_t>, 1>{
-                d0_gs_ms_os_lengths}, // acc0_biases_gs_ms_ns_lengths
+                d0_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
             std::array<std::vector<ck::index_t>, 1>{
-                d0_gs_ms_os_strides}, // acc0_biases_gs_ms_ns_strides
+                d0_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
             {},                       // acc1_biases_gs_ms_os_lengths
             {},                       // acc1_biases_gs_ms_os_strides
             AElementOp{},
@@ -201,9 +201,9 @@ int main(int argc, char* argv[])
             c_gs_ms_os_lengths,
             c_gs_ms_os_strides,
             std::array<std::vector<ck::index_t>, 1>{
-                d0_gs_ms_os_lengths}, // acc0_biases_gs_ms_ns_lengths
+                d0_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
             std::array<std::vector<ck::index_t>, 1>{
-                d0_gs_ms_os_strides}, // acc0_biases_gs_ms_ns_strides
+                d0_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
             {},                       // acc1_biases_gs_ms_os_lengths
             {},                       // acc1_biases_gs_ms_os_strides
             AElementOp{},
