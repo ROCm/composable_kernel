@@ -137,7 +137,7 @@ bool profile_gemm_add_relu_add_layernorm_impl(int do_verification,
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             using namespace ck::literals;
 
-            if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
+            if constexpr(std::is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
             {
                 return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
