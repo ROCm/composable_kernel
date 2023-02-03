@@ -319,7 +319,7 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
             });
 
             static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
-                auto divisor = 1 / __builtin_amdgcn_sqrtf(var_thread_buf(iM) + epsilon);
+                auto divisor = 1 / ck::math::sqrt(var_thread_buf(iM) + epsilon);
                 static_for<0, XThreadBufferNumber, 1>{}([&](auto iK0) {
                     static_for<0, XSrcVectorSize, 1>{}([&](auto iK1) {
                         constexpr auto offset_m_k =

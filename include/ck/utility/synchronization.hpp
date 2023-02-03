@@ -18,6 +18,7 @@ __device__ void block_sync_lds()
     __syncthreads();
 #endif
 }
+
 __device__ void s_nop()
 {
 #if 1

@@ -221,18 +221,19 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                  const std::vector<index_t> yStrides,
                  const std::vector<index_t> reduceDims,
                  AccElementwiseOperation acc_elementwise_op,
-                 AccDataType epsilon,
+                 double epsilon,
                  const XDataType* p_x,
                  const GammaDataType* p_gamma,
                  const BetaDataType* p_beta,
                  YDataType* p_y)
-            : epsilon_(epsilon),
-              p_x_(p_x),
+            : p_x_(p_x),
               p_gamma_(p_gamma),
               p_beta_(p_beta),
               p_y_(p_y),
               acc_elementwise_op_(acc_elementwise_op)
         {
+            epsilon_ = static_cast<AccDataType>(epsilon);
+
             Lengths_      = shuffle_tensor_dimensions<Rank, NumReduceDim>(lengths, reduceDims);
             xStrides_     = shuffle_tensor_dimensions<Rank, NumReduceDim>(xStrides, reduceDims);
             yStrides_     = shuffle_tensor_dimensions<Rank, NumReduceDim>(yStrides, reduceDims);
@@ -421,7 +422,7 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                         const std::vector<index_t> betaStrides,
                         const std::vector<index_t> yStrides,
                         const std::vector<index_t> reduceDims,
-                        AccDataType epsilon,
+                        double epsilon,
                         const void* p_x,
                         const void* p_gamma,
                         const void* p_beta,
