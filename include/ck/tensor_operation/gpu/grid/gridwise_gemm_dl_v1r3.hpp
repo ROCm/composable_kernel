@@ -812,11 +812,9 @@ struct GridwiseGemmDl_bkm_bkn_mn_v1r3
         }
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
-        const index_t m_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I1] * MPerBlock);
+        const index_t m_block_data_idx_on_grid = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
 
-        const index_t n_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I2] * NPerBlock);
+        const index_t n_block_data_idx_on_grid = __builtin_amdgcn_readfirstlane(block_work_idx[I2]);
 
         // TODO: change this. I think it needs multi-dimensional alignment
         constexpr auto max_lds_align = K1;
@@ -980,7 +978,7 @@ struct GridwiseGemmDl_bkm_bkn_mn_v1r3
 
         if constexpr(HasMainKBlockLoop)
         {
-            const auto K0 = a_grid_desc_b_k0_m0_m1_k1.GetLength(I0);
+            const auto K0 = a_grid_desc_b_k0_m0_m1_k1.GetLength(I1);
 
             index_t k_block_data_begin = 0;
 

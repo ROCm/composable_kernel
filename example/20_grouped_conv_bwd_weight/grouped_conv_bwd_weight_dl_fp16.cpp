@@ -60,9 +60,9 @@ using DeviceConvBwdWeightInstance =
         S<1, 2, 1, 128, 1>,   // ABlockTransferThreadClusterLengths_K0_M0_M1_K1
         S<0, 2, 3, 1, 4>,     // ABlockTransferThreadClusterArrangeOrder
         S<0, 2, 3, 1, 4>,     // ABlockTransferSrcAccessOrder
-        S<1, 4, 1, 1, 2>,     // ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1
+        S<1, 1, 1, 1, 1>,     // ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1
         S<0, 2, 3, 1, 4>,     // ABlockTransferSrcVectorTensorContiguousDimOrder
-        S<1, 1, 1, 1, 2>,     // ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1
+        S<1, 1, 1, 1, 1>,     // ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1
         S<1, 1, 1, 8, 2>,     // BBlockTransferThreadSliceLengths_K0_N0_N1_K1
         S<1, 16, 1, 16, 1>,   // BBlockTransferThreadClusterLengths_K0_N0_N1_K1
         S<0, 1, 4, 2, 3>,     // BBlockTransferThreadClusterArrangeOrder
