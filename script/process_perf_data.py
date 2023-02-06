@@ -3,6 +3,7 @@ import os, io, argparse, datetime
 #import numpy as np
 import sqlalchemy
 from sqlalchemy.types import NVARCHAR, Float, Integer
+from sqlalchemy import text
 import pymysql
 import pandas as pd
 from sshtunnel import SSHTunnelForwarder
@@ -141,8 +142,8 @@ def parse_logfile(logfile):
 
 
 def get_baseline(table, connection):
-    query = '''SELECT * from '''+table+''' WHERE Datetime = (SELECT MAX(Datetime) FROM '''+table+''' where Branch_ID='develop' );'''
-    return pd.read_sql_query(query, connection)
+    query = text('''SELECT * from '''+table+''' WHERE Datetime = (SELECT MAX(Datetime) FROM '''+table+''' where Branch_ID='develop' );''')
+    return pd.read_sql(query, connection)
 
 def store_new_test_result(table_name, test_results, testlist, branch_name, node_id, gpu_arch, compute_units, rocm_vers, hip_vers, environment, connection):
     params=[str(branch_name),str(node_id),str(gpu_arch),compute_units,str(rocm_vers),str(hip_vers),str(environment),str(datetime.datetime.now())]
