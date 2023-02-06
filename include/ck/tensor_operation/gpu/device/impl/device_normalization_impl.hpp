@@ -462,8 +462,8 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
 
         // clang-format off
         str << "DeviceNormalizationImpl<" << BlockSize << ",";
-        str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
-        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
+        str << "Cluster_MK_" << MThreadClusterSize << "_" << KThreadClusterSize << ",";
+        str << "Slice_MK_" << MThreadSliceSize << "_" << KThreadSliceSize << ",";
         str << "XYSrcVectorDim_" << XYSrcVectorDim  << ",";
         str << "VectorSize_X" << XSrcVectorSize << "_Gamma" << GammaSrcVectorSize << "_Beta" << BetaSrcVectorSize << "_Y" << YDstVectorSize << ">";
         // clang-format on
