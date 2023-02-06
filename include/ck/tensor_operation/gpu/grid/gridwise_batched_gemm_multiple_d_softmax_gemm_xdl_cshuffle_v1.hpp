@@ -28,6 +28,7 @@ template <typename FloatAB,
           typename AccElementwiseOperation,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
+          typename D0ElementwiseOperation,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
@@ -300,6 +301,30 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
             c1_grid_desc_m_n);
     }
 
+    __device__ static auto GetGemm0WaveIdx()
+    {
+        const index_t thread_id = get_thread_local_1d_id();
+        constexpr auto WaveSize = MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.wave_size;
+
+        constexpr auto threadid_to_wave_idx_adaptor = make_single_stage_tensor_adaptor(
+            make_tuple(make_merge_transform(make_tuple(Gemm0MWaves, Gemm0NWaves, WaveSize))),
+            make_tuple(Sequence<0, 1, 2>{}),
+            make_tuple(Sequence<0>{}));
+
+        return threadid_to_wave_idx_adaptor.CalculateBottomIndex(make_multi_index(thread_id));
+    }
+
+    __device__ static auto GetGemm0WaveMNIdx(const index_t thread_id)
+    {
+        constexpr auto WaveSize = MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.wave_size;
+        constexpr auto wave_threadid_to_mn_idx_adaptor = make_single_stage_tensor_adaptor(
+            make_tuple(make_merge_transform(make_tuple(WaveSize / MPerXdl, MPerXdl))),
+            make_tuple(Sequence<0, 1>{}),
+            make_tuple(Sequence<0>{}));
+
+        return wave_threadid_to_mn_idx_adaptor.CalculateBottomIndex(make_multi_index(thread_id));
+    }
+
     static constexpr auto MakeD0sGridPointer()
     {
         return generate_tuple(
@@ -401,6 +426,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                                const AccElementwiseOperation& acc_element_op,
                                const B1ElementwiseOperation& b1_element_op,
                                const CElementwiseOperation& c_element_op,
+                               const D0ElementwiseOperation& d0_element_op,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                                const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
@@ -411,7 +437,6 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                                const Block2CTileMap& block_2_ctile_map,
                                const C0MatrixMask& c0_matrix_mask)
     {
-        ignore                = d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -427,7 +452,6 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                     d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i].GetElementSpaceSize());
             },
             Number<NumD0Tensor>{});
-        ignore  = d0s_grid_buf;
 
         // divide block work by [M, N]
         const auto block_work_idx =
@@ -595,6 +619,66 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
 
         constexpr auto b1_block_slice_copy_step = make_multi_index(Gemm1KPerBlock / B1K1, 0, 0);
 
+        // d0 matrix threadwise copy
+        constexpr auto d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+            make_naive_tensor_descriptor_packed(make_tuple(I1,   // MBlockId
+                                                           I1,   // NBlockID
+                                                           I1,   // MRepeat
+                                                           I1,   // NRepeat
+                                                           I1,   // MWaveId
+                                                           I1,   // NWaveId
+                                                           I1,   // MPerXdl
+                                                           I1,   // NGroupNum
+                                                           I1,   // NInputNum
+                                                           n4)); // registerNum
+
+        auto d0s_thread_buf = generate_tuple(
+            [&](auto i) {
+                using D0DataType = remove_cvref_t<tuple_element_t<i.value, D0sDataType>>;
+                return StaticBuffer<
+                    AddressSpaceEnum::Vgpr,
+                    D0DataType,
+                    d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize(),
+                    true>{};
+            },
+            Number<NumD0Tensor>{});
+
+        const auto wave_id     = GetGemm0WaveIdx();
+        const auto wave_m_n_id = GetGemm0WaveMNIdx(wave_id[I2]); // I2: 0~63
+
+        constexpr auto acc0_thread_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(Number<MXdlPerWave>{}, Number<NXdlPerWave>{}, n2, n4));
+
+        auto d0s_threadwise_copy = generate_tuple(
+            [&](auto i) {
+                using D0DataType = remove_cvref_t<tuple_element_t<i.value, D0sDataType>>;
+                return ThreadwiseTensorSliceTransfer_v2<
+                    D0DataType,
+                    D0DataType,
+                    decltype(d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i]),
+                    decltype(d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5),
+                    Sequence<I1, I1, I1, I1, I1, I1, I1, I1, I1, n4>,
+                    Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
+                    9,
+                    n4,
+                    1,
+                    false>(d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
+                           make_multi_index(block_work_idx[I0], // MBlockId
+                                            0,                  // NBlockId
+                                            0,                  // mrepeat
+                                            0,                  // nrepeat
+                                            wave_id[I0],        // MWaveId
+                                            wave_id[I1],        // NWaveId
+                                            wave_m_n_id[I1],    // MPerXdl
+                                            0,                  // group
+                                            wave_m_n_id[I0],    // NInputIndex
+                                            0));                // register number
+            },
+            Number<NumD0Tensor>{});
+        ignore = d0s_grid_buf;
+        ignore = d0s_threadwise_copy;
+        ignore = d0s_thread_buf;
+        ignore = acc0_thread_desc;
         // acc_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 to acc_thread_desc_k0_m_k1
         // n0_n1_n2_n3 -> k0
         // m0_m1_m2 -> m
@@ -803,6 +887,66 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                                                                    blockwise_gemm,
                                                                    acc_thread_buf,
                                                                    num_k_block_main_loop);
+            // multiple d
+            {
+                static_for<0, MXdlPerWave, 1>{}([&](auto mr) {
+                    static_for<0, NXdlPerWave, 1>{}([&](auto nr) {
+                        static_for<0, n2, 1>{}([&](auto groupid) {
+                            static_for<0, NumD0Tensor, 1>{}([&](auto i) {
+                                d0s_threadwise_copy(i).Run(
+                                    d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
+                                    d0s_grid_buf[i],
+                                    d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                    make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                                    d0s_thread_buf(i));
+                            });
+
+                            static_for<0, n4, 1>{}([&](auto i) {
+                                constexpr index_t c_offset = acc0_thread_desc.CalculateOffset(
+                                    make_tuple(mr, nr, groupid, i));
+
+                                // get reference to src data
+                                const auto src_data_refs = generate_tie(
+                                    // return type should be lvalue
+                                    [&](auto iSrc) -> const auto& {
+                                        return d0s_thread_buf[iSrc][i];
+                                    },
+                                    Number<NumD0Tensor>{});
+
+                                // get reference to dst data
+                                auto dst_data_refs = generate_tie(
+                                    // return type should be lvalue
+                                    [&](auto) -> auto& {
+                                        return acc_thread_buf(Number<c_offset>{});
+                                    },
+                                    Number<2>{});
+
+                                unpack2(d0_element_op, dst_data_refs, src_data_refs);
+                            });
+                            static_for<0, NumD0Tensor, 1>{}([&](auto i) {
+                                d0s_threadwise_copy(i).MoveSrcSliceWindow(
+                                    d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
+                                    make_multi_index(0, 0, 0, 0, 0, 0, 0, 1, 0, 0));
+                            });
+                        });
+                        static_for<0, NumD0Tensor, 1>{}([&](auto i) {
+                            d0s_threadwise_copy(i).MoveSrcSliceWindow(
+                                d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
+                                make_multi_index(0, 0, 0, 1, 0, 0, 0, -n2.value, 0, 0));
+                        });
+                    });
+                    static_for<0, NumD0Tensor, 1>{}([&](auto i) {
+                        d0s_threadwise_copy(i).MoveSrcSliceWindow(
+                            d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
+                            make_multi_index(0, 0, 1, -NXdlPerWave, 0, 0, 0, 0, 0, 0));
+                    });
+                });
+                static_for<0, NumD0Tensor, 1>{}([&](auto i) {
+                    d0s_threadwise_copy(i).MoveSrcSliceWindow(
+                        d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
+                        make_multi_index(0, 1, -MXdlPerWave, 0, 0, 0, 0, 0, 0, 0));
+                });
+            }
 
             // do MNK padding or upper triangular masking
             if constexpr(MaskOutUpperTriangle || PadN)

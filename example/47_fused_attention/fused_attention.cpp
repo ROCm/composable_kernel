@@ -5,7 +5,6 @@
 #include <vector>
 
 #include "ck/ck.hpp"
-#include "ck/library/tensor_operation_instance/gpu/batched_gemm_bias_softmax_gemm_permute.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_softmax_gemm_permute_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute.hpp"
@@ -25,7 +24,7 @@ using Scale       = ck::tensor_operation::element_wise::Scale;
 using AElementOp    = ck::tensor_operation::element_wise::PassThrough;
 using B0ElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using Acc0ElementOp = ck::tensor_operation::element_wise::Scale;
-using D0ElementOp   = ck::tensor_operation::element_wise::PassThrough;
+using D0ElementOp   = ck::tensor_operation::element_wise::Add;
 using B1ElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp    = ck::tensor_operation::element_wise::PassThrough;
 
@@ -78,6 +77,7 @@ using DeviceOpInstance =
         Acc0ElementOp,
         B1ElementOp,
         CElementOp,
+        D0ElementOp,
         GemmSpec,
         TensorSpecA,
         TensorSpecB0,
@@ -274,6 +274,7 @@ int main(int argc, char* argv[])
     auto acc0_element_op = Acc0ElementOp{alpha};
     auto b1_element_op   = B1ElementOp{};
     auto c_element_op    = CElementOp{};
+    auto d0_element_op   = D0ElementOp{};
 
     auto argument = device_op.MakeArgument(
         static_cast<const ADataType*>(a_device_buf.GetDeviceBuffer()),
@@ -300,7 +301,8 @@ int main(int argc, char* argv[])
         b0_element_op,
         acc0_element_op,
         b1_element_op,
-        c_element_op);
+        c_element_op,
+        d0_element_op);
 
     if(!device_op.IsSupportedArgument(argument))
     {
@@ -332,6 +334,7 @@ int main(int argc, char* argv[])
         Tensor<AccDataType> acc0_g_m_n({BatchCount, M, N});        // scratch object after gemm0
         Tensor<ADataType> a1_g_m_n({BatchCount, M, N});            // scratch object after softmax
         Tensor<CDataType> c_g_m_o_host_result({BatchCount, M, O}); // scratch object after gemm1
+        Tensor<D0DataType> d0_g_m_n({BatchCount, M, N});
 
         // permute
         a_gs_ms_ks.ForEach([&](auto& self, auto idx) {
@@ -343,6 +346,9 @@ int main(int argc, char* argv[])
         b1_gs_os_ns.ForEach([&](auto& self, auto idx) {
             b1_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
         });
+        d0_gs_ms_ns.ForEach([&](auto& self, auto idx) {
+            d0_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        });
 
         // gemm 0
         auto ref_gemm0          = ReferenceGemm0Instance{};
@@ -352,6 +358,9 @@ int main(int argc, char* argv[])
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
+        acc0_g_m_n.ForEach([&](auto&, auto idx) {
+            d0_element_op(acc0_g_m_n(idx), acc0_g_m_n(idx), d0_g_m_n(idx));
+        });
         // masking
         const auto mask = DeviceOpInstance::C0MatrixMask(N);
         acc0_g_m_n.ForEach([&](auto& self, auto idx) {
