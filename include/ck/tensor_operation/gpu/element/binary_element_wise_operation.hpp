@@ -51,6 +51,14 @@ struct Add
 
     template <>
     __host__ __device__ constexpr void
+    operator()<float>(float& y, const float& x0, const bhalf_t& x1) const
+    {
+        const float x1_tmp = ck::type_convert<float>(x1);
+        y  = x0 + x1_tmp;
+    }
+
+    template <>
+    __host__ __device__ constexpr void
     operator()<bhalf_t>(bhalf_t& y, const bhalf_t& x0, const bhalf_t& x1) const
     {
         const float x1_tmp = ck::type_convert<float>(x0);
