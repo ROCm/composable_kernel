@@ -306,17 +306,18 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
 
     ref_softmax_invoker.Run(ref_softmax_argument);
 
+    // P_dropped
     auto ref_dropout         = ReferenceDropoutInstance{};
     auto ref_dropout_invoker = ref_dropout.MakeInvoker();
     auto ref_dropout_argment =
         ref_dropout.MakeArgument(z_g_m_n, p_g_m_n, p_drop_g_m_n, p_dropout_in_16bits, rp_dropout);
     ref_dropout_invoker.Run(ref_dropout_argment);
 
-    // Y = P * V
+    // Y = P_dropout * V
     auto ref_gemm1          = ReferenceGemm1Instance{};
     auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
     auto ref_gemm1_argument = ref_gemm1.MakeArgument(
-        p_g_m_n, v_g_n_o, y_g_m_o, PassThrough{}, PassThrough{}, PassThrough{});
+        p_drop_g_m_n, v_g_n_o, y_g_m_o, PassThrough{}, PassThrough{}, PassThrough{});
 
     ref_gemm1_invoker.Run(ref_gemm1_argument);
 }
@@ -425,8 +426,8 @@ int run(int argc, char* argv[])
     {
         int M  = 128 * (rand() % 4 + 1);
         int N  = 128 * (rand() % 4 + 1);
-        int K  = 64;
-        int O  = 64;
+        int K  = 128;
+        int O  = 128;
         int G0 = rand() % 3 + 1;
         int G1 = rand() % 2 + 1;
         std::vector<ck::index_t> q_gs_ms_ks_lengths{G0, G1, M, K};
@@ -720,6 +721,36 @@ int run(int argc, char* argv[])
             kgrad_tensors_device[i]->SetZero();
             vgrad_tensors_device[i]->SetZero();
         }
+        // p_z = std::vector<void*>(p_z.size(), nullptr);
+        // argument =
+        //     gemm.MakeArgument(p_q,
+        //                     p_k,
+        //                     p_z,
+        //                     p_v,
+        //                     p_y,
+        //                     p_lse,
+        //                     p_ygrad,
+        //                     p_qgrad,
+        //                     p_kgrad,
+        //                     p_vgrad,
+        //                     {}, // std::array<void*, 1> p_acc0_biases;
+        //                     {}, // std::array<void*, 1> p_acc1_biases;
+        //                     problem_descs,
+        //                     QKVElementOp{},
+        //                     QKVElementOp{},
+        //                     Scale{alpha},
+        //                     QKVElementOp{},
+        //                     YElementOp{},
+        //                     p_drop,
+        //                     std::tuple<unsigned long long, unsigned long long>(seed, offset));
+        // DeviceMem problem_desc_workspace(gemm.GetWorkSpaceSize(&argument));
+        // gemm.SetWorkSpacePointer(&argument, problem_desc_workspace.GetDeviceBuffer());
+        // if(!gemm.IsSupportedArgument(argument))
+        // {
+        //     std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+        //     return 0;
+        // }
         invoker.Run(argument, StreamConfig{nullptr, false});
         for(std::size_t i = 0; i < group_count; i++)
         {
