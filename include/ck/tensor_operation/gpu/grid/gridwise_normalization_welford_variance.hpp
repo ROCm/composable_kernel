@@ -60,6 +60,10 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
     static constexpr auto thread_cluster_desc =
         make_cluster_descriptor(ThreadClusterLengths_M_K{}, ThreadClusterArrangeOrder{});
 
+    using ThreadBufferLengths_M_K                = Sequence<MThreadSliceSize, XSrcVectorSize>;
+    static constexpr auto thread_buffer_desc_m_k = make_naive_tensor_descriptor_packed(
+        make_tuple(Number<MThreadSliceSize>{}, Number<XSrcVectorSize>{}));
+
     using ThreadReduceSrcDesc_M_K = decltype(make_naive_tensor_descriptor_packed(
         make_tuple(Number<MThreadSliceSize>{}, Number<XSrcVectorSize>{})));
     using ThreadReduceDstDesc_M =
@@ -81,7 +85,7 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
     static constexpr index_t K_BlockTileSize     = KThreadClusterSize * KThreadSliceSize;
     static constexpr index_t K_BlockTileStepSize = KThreadClusterSize * XSrcVectorSize;
 
-    static constexpr auto ThreadBufferNumber     = Number<KThreadSliceSize / XSrcVectorSize>{};
+    static constexpr auto ThreadBufferNumber = Number<KThreadSliceSize / XSrcVectorSize>{};
 
     __device__ static int GetKPerThread(const GridDesc_M_K& x_grid_desc_m_k,
                                         int thread_k_cluster_id)
@@ -173,10 +177,6 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
 
         const auto thread_m_cluster_id = thread_cluster_idx[I0];
         const auto thread_k_cluster_id = thread_cluster_idx[I1];
-
-        using ThreadBufferLengths_M_K         = Sequence<MThreadSliceSize, XSrcVectorSize>;
-        constexpr auto thread_buffer_desc_m_k = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<MThreadSliceSize>{}, Number<XSrcVectorSize>{}));
 
         auto threadwise_x_load = ThreadwiseTensorSliceTransfer_v2<XDataType,
                                                                   AccDataType,
