@@ -25,10 +25,9 @@ template <typename FloatAB,
           typename D0sDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename AccElementwiseOperation,
+          typename C0DEElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename CElementwiseOperation,
-          typename D0ElementwiseOperation,
+          typename C1DEElementwiseOperation,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
@@ -423,10 +422,9 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                                void* __restrict__ p_shared,
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
-                               const AccElementwiseOperation& acc_element_op,
+                               const C0DEElementwiseOperation& c0de_element_op,
                                const B1ElementwiseOperation& b1_element_op,
-                               const CElementwiseOperation& c_element_op,
-                               const D0ElementwiseOperation& d0_element_op,
+                               const C1DEElementwiseOperation& c1de_element_op,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                                const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
@@ -888,6 +886,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                                                                    acc_thread_buf,
                                                                    num_k_block_main_loop);
             // multiple d
+            if constexpr(NumD0Tensor)
             {
                 static_for<0, MXdlPerWave, 1>{}([&](auto mr) {
                     static_for<0, NXdlPerWave, 1>{}([&](auto nr) {
@@ -921,7 +920,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                                     },
                                     Number<2>{});
 
-                                unpack2(d0_element_op, dst_data_refs, src_data_refs);
+                                unpack2(c0de_element_op, dst_data_refs, src_data_refs);
                             });
                             static_for<0, NumD0Tensor, 1>{}([&](auto i) {
                                 d0s_threadwise_copy(i).MoveSrcSliceWindow(
@@ -946,6 +945,11 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                         d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
                         make_multi_index(0, 1, -MXdlPerWave, 0, 0, 0, 0, 0, 0, 0));
                 });
+            }
+            else
+            {
+                static_for<0, acc_thread_buf.Size(), 1>{}(
+                    [&](auto i) { c0de_element_op(acc_thread_buf(i), acc_thread_buf[i]); });
             }
 
             // do MNK padding or upper triangular masking
@@ -997,16 +1001,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                     {
                         acc_thread_buf(i) = -ck::NumericLimits<float>::Infinity();
                     }
-                    else
-                    {
-                        acc_element_op(acc_thread_buf(i), acc_thread_buf[i]);
-                    }
                 });
-            }
-            else
-            {
-                static_for<0, acc_thread_buf.Size(), 1>{}(
-                    [&](auto i) { acc_element_op(acc_thread_buf(i), acc_thread_buf[i]); });
             }
 
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
@@ -1252,7 +1247,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
             // shuffle: blockwise copy C from LDS to global
             auto c_shuffle_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
                 ThisThreadBlock,            // ThreadGroup
-                CElementwiseOperation,      // ElementwiseOperation,
+                C1DEElementwiseOperation,      // ElementwiseOperation,
                 CGlobalMemoryDataOperation, // DstInMemOp,
                 Sequence<1,
                          CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
@@ -1273,7 +1268,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                  make_multi_index(0, 0, 0, 0),
                  c_grid_desc_mblock_mperblock_nblock_nperblock,
                  make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
-                 c_element_op};
+                 c1de_element_op};
 
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =

@@ -54,7 +54,7 @@ struct Add
     operator()<float>(float& y, const float& x0, const bhalf_t& x1) const
     {
         const float x1_tmp = ck::type_convert<float>(x1);
-        y  = x0 + x1_tmp;
+        y                  = x0 + x1_tmp;
     }
 
     template <>
@@ -73,6 +73,23 @@ struct Add
     {
         y = x0 + x1;
     };
+};
+
+struct ScaleAdd
+{
+    __host__ __device__ ScaleAdd(float scale) : scale_(scale) {}
+
+    template <typename Y, typename X0, typename X1>
+    __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
+
+    template <>
+    __host__ __device__ void
+    operator()<float, float, half_t>(float& y, const float& x0, const half_t& x1) const
+    {
+        y = scale_ * x0 + x1;
+    };
+
+    float scale_;
 };
 
 struct Subtract

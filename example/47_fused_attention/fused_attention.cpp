@@ -21,12 +21,12 @@
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Scale       = ck::tensor_operation::element_wise::Scale;
 
-using AElementOp    = ck::tensor_operation::element_wise::PassThrough;
-using B0ElementOp   = ck::tensor_operation::element_wise::PassThrough;
-using Acc0ElementOp = ck::tensor_operation::element_wise::Scale;
-using D0ElementOp   = ck::tensor_operation::element_wise::Add;
-using B1ElementOp   = ck::tensor_operation::element_wise::PassThrough;
-using CElementOp    = ck::tensor_operation::element_wise::PassThrough;
+using AElementOp     = ck::tensor_operation::element_wise::PassThrough;
+using B0ElementOp    = ck::tensor_operation::element_wise::PassThrough;
+using C0DEElementOp = ck::tensor_operation::element_wise::ScaleAdd;
+using Acc0ElementOp  = ck::tensor_operation::element_wise::PassThrough;
+using B1ElementOp    = ck::tensor_operation::element_wise::PassThrough;
+using CElementOp     = ck::tensor_operation::element_wise::PassThrough;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -74,10 +74,9 @@ using DeviceOpInstance =
         CShuffleDataType,
         AElementOp,
         B0ElementOp,
-        Acc0ElementOp,
+        C0DEElementOp,
         B1ElementOp,
         CElementOp,
-        D0ElementOp,
         GemmSpec,
         TensorSpecA,
         TensorSpecB0,
@@ -269,12 +268,12 @@ int main(int argc, char* argv[])
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
 
-    auto a_element_op    = AElementOp{};
-    auto b0_element_op   = B0ElementOp{};
-    auto acc0_element_op = Acc0ElementOp{alpha};
-    auto b1_element_op   = B1ElementOp{};
-    auto c_element_op    = CElementOp{};
-    auto d0_element_op   = D0ElementOp{};
+    auto a_element_op     = AElementOp{};
+    auto b0_element_op    = B0ElementOp{};
+    auto c0de_element_op = C0DEElementOp{alpha};
+    auto acc0_element_op  = Acc0ElementOp{};
+    auto b1_element_op    = B1ElementOp{};
+    auto c_element_op     = CElementOp{};
 
     auto argument = device_op.MakeArgument(
         static_cast<const ADataType*>(a_device_buf.GetDeviceBuffer()),
@@ -299,10 +298,9 @@ int main(int argc, char* argv[])
         {},                       // acc1_biases_gs_ms_os_strides
         a_element_op,
         b0_element_op,
-        acc0_element_op,
+        c0de_element_op,
         b1_element_op,
-        c_element_op,
-        d0_element_op);
+        c_element_op);
 
     if(!device_op.IsSupportedArgument(argument))
     {
@@ -359,7 +357,7 @@ int main(int argc, char* argv[])
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
         acc0_g_m_n.ForEach([&](auto&, auto idx) {
-            d0_element_op(acc0_g_m_n(idx), acc0_g_m_n(idx), d0_g_m_n(idx));
+            c0de_element_op(acc0_g_m_n(idx), acc0_g_m_n(idx), d0_g_m_n(idx));
         });
         // masking
         const auto mask = DeviceOpInstance::C0MatrixMask(N);

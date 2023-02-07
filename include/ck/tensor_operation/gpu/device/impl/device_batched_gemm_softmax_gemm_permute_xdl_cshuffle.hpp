@@ -28,10 +28,9 @@ template <typename GridwiseGemm,
           typename D0sPointer,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename AccElementwiseOperation,
+          typename C0DEElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename CElementwiseOperation,
-          typename D0ElementwiseOperation,
+          typename C1DEElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename B1GridDesc_BK0_N_BK1,
@@ -53,10 +52,9 @@ __global__ void
             D0sPointer p_d0s_grid,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
-            const AccElementwiseOperation acc_element_op,
+            const C0DEElementwiseOperation c0de_element_op,
             const B1ElementwiseOperation b1_element_op,
-            const CElementwiseOperation c_element_op,
-            const D0ElementwiseOperation d0_element_op,
+            const C1DEElementwiseOperation c1de_element_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
             const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
@@ -98,10 +96,9 @@ __global__ void
                                                   p_shared,
                                                   a_element_op,
                                                   b_element_op,
-                                                  acc_element_op,
+                                                  c0de_element_op,
                                                   b1_element_op,
-                                                  c_element_op,
-                                                  d0_element_op,
+                                                  c1de_element_op,
                                                   a_grid_desc_ak0_m_ak1,
                                                   b_grid_desc_bk0_n_bk1,
                                                   b1_grid_desc_bk0_n_bk1,
@@ -116,10 +113,9 @@ __global__ void
     ignore = p_c_grid;
     ignore = a_element_op;
     ignore = b_element_op;
-    ignore = acc_element_op;
+    ignore = c0de_element_op;
     ignore = b1_element_op;
-    ignore = c_element_op;
-    ignore = d0_element_op;
+    ignore = c1de_element_op;
     ignore = a_grid_desc_ak0_m_ak1;
     ignore = b_grid_desc_bk0_n_bk1;
     ignore = b1_grid_desc_bk0_n_bk1;
@@ -150,10 +146,9 @@ template <index_t NumDimG,
           typename CShuffleDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename AccElementwiseOperation,
+          typename C0DEElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename CElementwiseOperation,
-          typename D0ElementwiseOperation,
+          typename C1DEElementwiseOperation,
           GemmSpecialization GemmSpec,
           TensorSpecialization ASpec,
           TensorSpecialization BSpec,
@@ -215,10 +210,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                                  D1sDataType,
                                                  AElementwiseOperation,
                                                  BElementwiseOperation,
-                                                 AccElementwiseOperation,
+                                                 C0DEElementwiseOperation,
                                                  B1ElementwiseOperation,
-                                                 CElementwiseOperation,
-                                                 D0ElementwiseOperation,
+                                                 C1DEElementwiseOperation,
                                                  MaskingSpec>
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
@@ -385,10 +379,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         D0sDataType,
         AElementwiseOperation,
         BElementwiseOperation,
-        AccElementwiseOperation,
+        C0DEElementwiseOperation,
         B1ElementwiseOperation,
-        CElementwiseOperation,
-        D0ElementwiseOperation,
+        C1DEElementwiseOperation,
         InMemoryDataOperationEnum::Set,
         AGridDesc_AK0_M_AK1,
         BGridDesc_BK0_N_BK1,
@@ -469,10 +462,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                 acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
             AElementwiseOperation a_element_op,
             BElementwiseOperation b_element_op,
-            AccElementwiseOperation acc_element_op,
+            C0DEElementwiseOperation c0de_element_op,
             B1ElementwiseOperation b1_element_op,
-            CElementwiseOperation c_element_op,
-            D0ElementwiseOperation d0_element_op)
+            C1DEElementwiseOperation c1de_element_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_b1_grid_{p_b1_grid},
@@ -501,10 +493,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
               block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c1_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              acc_element_op_{acc_element_op},
+              c0de_element_op_{c0de_element_op},
               b1_element_op_{b1_element_op},
-              c_element_op_{c_element_op},
-              d0_element_op_{d0_element_op},
+              c1de_element_op_{c1de_element_op},
               c0_matrix_mask_{b_grid_desc_g_n_k_.GetLength(I1)},
               raw_lengths_mz_nz_kz_gemm1nz_{a_gs_ms_ks_lengths[NumDimG + NumDimM - 1],
                                             b_gs_ns_ks_lengths[NumDimG + NumDimN - 1],
@@ -599,10 +590,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         // element-wise op
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
-        AccElementwiseOperation acc_element_op_;
+        C0DEElementwiseOperation c0de_element_op_;
         B1ElementwiseOperation b1_element_op_;
-        CElementwiseOperation c_element_op_;
-        D0ElementwiseOperation d0_element_op_;
+        C1DEElementwiseOperation c1de_element_op_;
 
         // check C0 masking and padding
         C0MatrixMask c0_matrix_mask_;
@@ -647,10 +637,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                     typename GridwiseGemm::D0sGridPointer,
                     AElementwiseOperation,
                     BElementwiseOperation,
-                    AccElementwiseOperation,
+                    C0DEElementwiseOperation,
                     B1ElementwiseOperation,
-                    CElementwiseOperation,
-                    D0ElementwiseOperation,
+                    C1DEElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     DeviceOp::B1GridDesc_BK0_N_BK1,
@@ -673,10 +662,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                               arg.p_d0s_grid_,
                                               arg.a_element_op_,
                                               arg.b_element_op_,
-                                              arg.acc_element_op_,
+                                              arg.c0de_element_op_,
                                               arg.b1_element_op_,
-                                              arg.c_element_op_,
-                                              arg.d0_element_op_,
+                                              arg.c1de_element_op_,
                                               arg.a_grid_desc_ak0_m_ak1_,
                                               arg.b_grid_desc_bk0_n_bk1_,
                                               arg.b1_grid_desc_bk0_n_bk1_,
@@ -815,10 +803,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
         AElementwiseOperation a_element_op,
         BElementwiseOperation b_element_op,
-        AccElementwiseOperation acc_element_op,
+        C0DEElementwiseOperation c0de_element_op,
         B1ElementwiseOperation b1_element_op,
-        CElementwiseOperation c_element_op,
-        D0ElementwiseOperation d0_element_op)
+        C1DEElementwiseOperation c1de_element_op)
     {
         return Argument{p_a,
                         p_b,
@@ -840,10 +827,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                         acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
                         a_element_op,
                         b_element_op,
-                        acc_element_op,
+                        c0de_element_op,
                         b1_element_op,
-                        c_element_op,
-                        d0_element_op};
+                        c1de_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -873,10 +859,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
         AElementwiseOperation a_element_op,
         BElementwiseOperation b_element_op,
-        AccElementwiseOperation acc_element_op,
+        C0DEElementwiseOperation c0de_element_op,
         B1ElementwiseOperation b1_element_op,
-        CElementwiseOperation c_element_op,
-        D0ElementwiseOperation d0_element_op) override
+        C1DEElementwiseOperation c1de_element_op) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -898,10 +883,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                           acc1_biases_gs_ms_gemm1ns_strides,
                                           a_element_op,
                                           b_element_op,
-                                          acc_element_op,
+                                          c0de_element_op,
                                           b1_element_op,
-                                          c_element_op,
-                                          d0_element_op);
+                                          c1de_element_op);
     }
 
     // polymorphic
