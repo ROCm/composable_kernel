@@ -21,12 +21,12 @@
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Scale       = ck::tensor_operation::element_wise::Scale;
 
-using AElementOp     = ck::tensor_operation::element_wise::PassThrough;
-using B0ElementOp    = ck::tensor_operation::element_wise::PassThrough;
+using AElementOp    = ck::tensor_operation::element_wise::PassThrough;
+using B0ElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using C0DEElementOp = ck::tensor_operation::element_wise::ScaleAdd;
-using Acc0ElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using B1ElementOp    = ck::tensor_operation::element_wise::PassThrough;
-using CElementOp     = ck::tensor_operation::element_wise::PassThrough;
+using Acc0ElementOp = ck::tensor_operation::element_wise::PassThrough;
+using B1ElementOp   = ck::tensor_operation::element_wise::PassThrough;
+using CElementOp    = ck::tensor_operation::element_wise::PassThrough;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -268,12 +268,12 @@ int main(int argc, char* argv[])
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
 
-    auto a_element_op     = AElementOp{};
-    auto b0_element_op    = B0ElementOp{};
+    auto a_element_op    = AElementOp{};
+    auto b0_element_op   = B0ElementOp{};
     auto c0de_element_op = C0DEElementOp{alpha};
-    auto acc0_element_op  = Acc0ElementOp{};
-    auto b1_element_op    = B1ElementOp{};
-    auto c_element_op     = CElementOp{};
+    auto acc0_element_op = Acc0ElementOp{};
+    auto b1_element_op   = B1ElementOp{};
+    auto c_element_op    = CElementOp{};
 
     auto argument = device_op.MakeArgument(
         static_cast<const ADataType*>(a_device_buf.GetDeviceBuffer()),
