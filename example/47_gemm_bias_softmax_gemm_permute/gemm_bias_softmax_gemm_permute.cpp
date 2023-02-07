@@ -19,7 +19,6 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Scale       = ck::tensor_operation::element_wise::Scale;
 
 using AElementOp    = ck::tensor_operation::element_wise::PassThrough;
 using B0ElementOp   = ck::tensor_operation::element_wise::PassThrough;
@@ -311,9 +310,10 @@ int main(int argc, char* argv[])
 
     ck::index_t BatchCount = G0 * G1;
     std::size_t flop       = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
-    std::size_t num_btype  = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
-                             sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O) *
-                            BatchCount;
+    std::size_t num_btype =
+        (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N + sizeof(B1DataType) * N * O +
+         sizeof(CDataType) * M * O + sizeof(D0DataType) * M * N) *
+        BatchCount;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 

@@ -32,7 +32,7 @@ void add_device_batched_gemm_bias_masking_softmax_gemm_permute_xdl_cshuffle_f16_
                                             ck::Tuple<>,
                                             PassThrough,
                                             PassThrough,
-                                            Scale,
+                                            ScaleAdd,
                                             PassThrough,
                                             PassThrough,
                                             MaskingSpecialization::MaskOutUpperTriangle>>>&
@@ -53,7 +53,7 @@ void add_device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_
                                                             ck::Tuple<>,
                                                             PassThrough,
                                                             PassThrough,
-                                                            Scale,
+                                                            ScaleAdd,
                                                             PassThrough,
                                                             PassThrough,
                                                             MaskingSpecialization::MaskDisabled>>>&
@@ -74,7 +74,7 @@ void add_device_batched_gemm_bias_masking_softmax_gemm_permute_xdl_cshuffle_bf16
                                             ck::Tuple<>,
                                             PassThrough,
                                             PassThrough,
-                                            Scale,
+                                            ScaleAdd,
                                             PassThrough,
                                             PassThrough,
                                             MaskingSpecialization::MaskOutUpperTriangle>>>&
@@ -95,7 +95,7 @@ void add_device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_bf16_bf16_bf
                                                             ck::Tuple<>,
                                                             PassThrough,
                                                             PassThrough,
-                                                            Scale,
+                                                            ScaleAdd,
                                                             PassThrough,
                                                             PassThrough,
                                                             MaskingSpecialization::MaskDisabled>>>&
@@ -121,7 +121,7 @@ struct DeviceOperationInstanceFactory<
                                                                       ck::Tuple<>,
                                                                       PassThrough,
                                                                       PassThrough,
-                                                                      Scale,
+                                                                      ScaleAdd,
                                                                       PassThrough,
                                                                       PassThrough,
                                                                       MaskingSpec>>
@@ -139,7 +139,7 @@ struct DeviceOperationInstanceFactory<
                                                          ck::Tuple<>,
                                                          PassThrough,
                                                          PassThrough,
-                                                         Scale,
+                                                         ScaleAdd,
                                                          PassThrough,
                                                          PassThrough,
                                                          MaskingSpec>;

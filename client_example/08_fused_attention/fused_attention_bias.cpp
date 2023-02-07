@@ -151,7 +151,8 @@ int main(int argc, char* argv[])
 
             std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * G0 * G1;
             std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
-                                     sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O) *
+                                     sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O +
+                                     sizeof(D0DataType) * M * N) *
                                     G0 * G1;
 
             float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
