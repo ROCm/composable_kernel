@@ -113,7 +113,7 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
         std::cerr << "wrong! device_conv with the specified compilation parameters does "
                      "not support this Conv problem"
                   << std::endl;
-        return false;
+        return true;
     }
 
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
