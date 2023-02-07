@@ -86,7 +86,14 @@ struct ScaleAdd
     __host__ __device__ void
     operator()<float, float, half_t>(float& y, const float& x0, const half_t& x1) const
     {
-        y = scale_ * x0 + x1;
+        y = scale_ * x0 + ck::type_convert<float>(x1);
+    };
+
+    template <>
+    __host__ __device__ void
+    operator()<float, float, bhalf_t>(float& y, const float& x0, const bhalf_t& x1) const
+    {
+        y = scale_ * x0 + ck::type_convert<float>(x1);
     };
 
     float scale_;

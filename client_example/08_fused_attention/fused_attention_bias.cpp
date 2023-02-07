@@ -12,8 +12,7 @@
 
 using AElementOp    = ck::tensor_operation::element_wise::PassThrough;
 using B0ElementOp   = ck::tensor_operation::element_wise::PassThrough;
-using Acc0ElementOp = ck::tensor_operation::element_wise::Scale;
-using D0ElementOp   = ck::tensor_operation::element_wise::PassThrough;
+using Acc0ElementOp = ck::tensor_operation::element_wise::ScaleAdd;
 using B1ElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp    = ck::tensor_operation::element_wise::PassThrough;
 
