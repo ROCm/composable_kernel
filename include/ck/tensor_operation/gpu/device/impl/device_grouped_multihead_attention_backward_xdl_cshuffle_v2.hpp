@@ -681,6 +681,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
             if(!(group_count_ == ck::type_convert<ck::index_t>(p_As.size()) &&
                  group_count_ == ck::type_convert<ck::index_t>(p_Bs.size()) &&
+                 group_count_ == ck::type_convert<ck::index_t>(p_Zs.size()) &&
                  group_count_ == ck::type_convert<ck::index_t>(p_B1s.size()) &&
                  group_count_ == ck::type_convert<ck::index_t>(p_Cs.size()) &&
                  group_count_ == ck::type_convert<ck::index_t>(p_Ygrads.size()) &&
