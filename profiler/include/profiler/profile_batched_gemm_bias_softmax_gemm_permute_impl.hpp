@@ -140,10 +140,7 @@ bool profile_batched_gemm_bias_softmax_gemm_permute_impl(bool do_verification,
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
-        if(std::is_same_v<D0DataType, ck::bhalf_t>)
-            d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-0.01, 0.01});
-        else
-            d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-0.5, 0.5});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-0.5, 0.5});
         break;
     case 3:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
@@ -227,6 +224,9 @@ bool profile_batched_gemm_bias_softmax_gemm_permute_impl(bool do_verification,
         });
         b1_gs_os_ns.ForEach([&](auto& self, auto idx) {
             b1_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+        });
+        d0_gs_ms_ns.ForEach([&](auto& self, auto idx) {
+            d0_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
         });
 
         auto ref_gemm0          = ReferenceGemm0Instance{};
