@@ -673,10 +673,6 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                                             0));                // register number
             },
             Number<NumD0Tensor>{});
-        ignore = d0s_grid_buf;
-        ignore = d0s_threadwise_copy;
-        ignore = d0s_thread_buf;
-        ignore = acc0_thread_desc;
         // acc_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 to acc_thread_desc_k0_m_k1
         // n0_n1_n2_n3 -> k0
         // m0_m1_m2 -> m
