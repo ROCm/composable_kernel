@@ -221,6 +221,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     static constexpr index_t NumD0Tensor = D0sDataType::Size();
     static constexpr index_t NumD1Tensor = D1sDataType::Size();
 
+    // TODO ANT: implement bias combination
+    static_assert(NumD1Tensor == 0, "Gemm1 Bias addition is unimplemented");
+
 #if 0
     // TODO ANT: use alias
     static constexpr index_t NumDimGemm0M = NumDimM;
