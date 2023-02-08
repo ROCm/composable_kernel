@@ -17,7 +17,7 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_softmax_gemm_permute_train_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_forward_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -31,17 +31,17 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using BF16 = ck::bhalf_t;
-using F32  = float;
+using F16 = ck::half_t;
+using F32 = float;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-using ADataType        = BF16;
-using B0DataType       = BF16;
-using B1DataType       = BF16;
+using ADataType        = F16;
+using B0DataType       = F16;
+using B1DataType       = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
-using CDataType        = BF16;
+using CDataType        = F16;
 using LSEDataType      = F32;
 using Acc0BiasDataType = ck::Tuple<>;
 using Acc1BiasDataType = ck::Tuple<>;
@@ -68,7 +68,7 @@ static constexpr auto TensorSpecB1 = ck::tensor_operation::device::TensorSpecial
 static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecialization::Default;
 
 using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -135,7 +135,7 @@ using DeviceGemmInstance =
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
 
-// Ref Gemm0: bf16 in, fp32 out
+// Ref Gemm0: fp16 in, fp32 out
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                                 B0DataType,
                                                                                 AccDataType,
@@ -144,11 +144,11 @@ using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 B0ElementOp,
                                                                                 Acc0ElementOp>;
 
-// Ref Softmax: fp32 in, bf16 out
+// Ref Softmax: fp32 in, fp16 out
 using ReferenceSoftmaxInstance =
     ck::tensor_operation::host::ReferenceSoftmax<AccDataType, ADataType, AccDataType>;
 
-// Ref Gemm1: bf16 in, bf16 out
+// Ref Gemm1: fp16 in, fp16 out
 using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                                 B1DataType,
                                                                                 CDataType,
@@ -157,6 +157,6 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 B1ElementOp,
                                                                                 CElementOp>;
 
-#include "run_batched_gemm_scale_softmax_gemm_permute_train.inc"
+#include "run_batched_multihead_attention_forward.inc"
 
 int main(int argc, char* argv[]) { return run(argc, argv); }

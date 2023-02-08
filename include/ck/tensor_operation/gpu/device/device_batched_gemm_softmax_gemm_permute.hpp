@@ -84,7 +84,7 @@ template <index_t NumDimG,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
           MaskingSpecialization MaskingSpec>
-struct DeviceBatchedGemmSoftmaxGemmPermuteTrain : public BaseOperator
+struct DeviceBatchedMultiheadAttentionForward : public BaseOperator
 {
     static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();
     static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
