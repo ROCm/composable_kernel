@@ -8,3 +8,7 @@ Composable Kernel User Guide
    :numbered:
 
    Linux_Install_Guide
+   Supported_Primitives_Guide
+   API_Reference_Guide
+   Contributors_Guide
+   Disclaimer
