@@ -19,7 +19,13 @@ def runShell(String command){
 }
 
 def getDockerImageName(){
-    def img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
+    def img
+    if (params.COMPILER_COMMIT == ""){
+        img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
+    }
+    else{
+        img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${params.COMPILER_COMMIT:0:6}"
+    }
     return img
 }
 
