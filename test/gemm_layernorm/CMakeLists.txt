@@ -1,0 +1,7 @@
+add_custom_target(test_gemm_layernorm)
+
+add_gtest_executable(test_gemm_add_relu_add_layernorm_fp16 test_gemm_add_relu_add_layernorm_fp16.cpp)
+
+target_link_libraries(test_gemm_add_relu_add_layernorm_fp16 PRIVATE utility device_gemm_add_relu_add_layernorm_instance)
+
+add_dependencies(test_gemm_layernorm test_gemm_add_relu_add_layernorm_fp16)

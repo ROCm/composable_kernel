@@ -158,9 +158,9 @@ static inline __device__ bool isnan(half_t x)
     return (xx & 0x7FFF) > 0x7C00;
 };
 
-static inline __device__ float sqrt(float x) { return ::sqrtf(x); };
+static inline __device__ float sqrt(float x) { return __builtin_amdgcn_sqrtf(x); };
 
-static inline __device__ double sqrt(double x) { return ::sqrt(x); };
+static inline __device__ double sqrt(double x) { return __builtin_amdgcn_sqrt(x); };
 
 } // namespace math
 } // namespace ck
