@@ -533,7 +533,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
         constexpr auto b1_block_desc_l0perblock_nperblock_l1 = GetB1BlockDescriptor_L0PerBlock_NPerBlock_L1();
 
         // A1 matrix blockwise copy
-        auto a1_blockwise_copy = ThreadwiseTensorSliceTransfer_StaticToStatic<
+        auto a1_blockwise_copy = ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow<
             FloatAcc,
             FloatA,
             decltype(acc_thread_desc_k0_m_k1),
@@ -542,7 +542,11 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
             Sequence<A1ThreadSliceK0, A1ThreadSliceM, A1ThreadSliceK1>,
             Sequence<1, 0, 2>,
             2,
-            n4>{tensor_operation::element_wise::PassThrough{}};
+            n4,
+        //  dst Rowlane
+        //  0x76543210  0xfedcba98
+        //  src Rowlane
+            0x76543210, 0xfedcba98>{tensor_operation::element_wise::PassThrough{}};
         
         // B1 matrix blockwise copy
         auto b1_blockwise_copy =
@@ -700,12 +704,6 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
             running_sum_new = mathext::exp(running_max - running_max_new) * running_sum +
                               mathext::exp(max - running_max_new) * sum;
             
-            // Intra-Row data permutation, make swizzled A input for WMMA
-            __builtin_amdgcn_permlane16(0xeca86420, 0xfdb97531);
-            // Low/high row move data to low/high half of thread buffer
-            /* thread copy*/
-            // Inter-Row data permutation, fullfill data duplication requirement
-            __builtin_amdgcn_permlanex16(0x76543210, 0xfedcba98);
             // gemm1
             {
                 // TODO: explore using dynamic buffer for a1 thread buffer
