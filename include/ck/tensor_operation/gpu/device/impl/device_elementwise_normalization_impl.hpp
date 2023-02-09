@@ -533,6 +533,11 @@ struct DeviceElementwiseNormalizationImpl
                 return (false);
         }
 
+        if(p_arg_->x_lds_size_ >= 65536)
+        {
+            return (false);
+        }
+
         return true;
     };
 
