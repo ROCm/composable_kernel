@@ -185,9 +185,7 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
                         },
                         Number<NumEmbeddings>{});
                     auto out_data_refs = generate_tie(
-                        [&](auto output_index_) -> auto& {
-                            return acc_thread_buf(Number<register_offset>{});
-                        },
+                        [&](auto) -> auto& { return acc_thread_buf(Number<register_offset>{}); },
                         Number<1>{});
                     unpack2(emb_elementwise_op, out_data_refs, in_data_refs);
                 });
