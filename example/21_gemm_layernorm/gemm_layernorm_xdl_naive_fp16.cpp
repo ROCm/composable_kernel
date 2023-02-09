@@ -4,7 +4,6 @@
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
-#include <cstdlib>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -115,7 +114,7 @@ auto f_host_tensor_descriptor2d =
     [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
         using namespace ck::literals;
 
-        if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+        if constexpr(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
         {
             return HostTensorDescriptor({row, col}, {stride, 1_uz});
         }
