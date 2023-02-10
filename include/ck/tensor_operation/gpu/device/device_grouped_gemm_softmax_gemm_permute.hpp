@@ -88,7 +88,7 @@ template <index_t NumDimG,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
           MaskingSpecialization MaskingSpec>
-struct DeviceGroupedGemmSoftmaxGemmPermuteTrain : public BaseOperator
+struct DeviceGroupedMultiheadAttentionForward : public BaseOperator
 {
     struct ProblemDesc
     {

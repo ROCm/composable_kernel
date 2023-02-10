@@ -50,7 +50,8 @@ template <index_t BlockSize,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack>
+          index_t KPack,
+          bool TransposeC = false>
 struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 {
     static constexpr auto I0 = Number<0>{};
@@ -72,7 +73,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr index_t A_K1 = AK0MK1BlockDesc{}.GetLength(I2);
     static constexpr index_t B_K1 = BK0NK1BlockDesc{}.GetLength(I2);
 
-    static constexpr auto xdlops_gemm = XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack>{};
+    static constexpr auto xdlops_gemm = XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack, TransposeC>{};
 
     static constexpr index_t KPerThread = KPerBlock / xdlops_gemm.K0PerXdlops;
 
@@ -185,6 +186,21 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                       "wrong!");
     }
 
+    // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'
+    __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4()
+    {
+        constexpr auto c_m0_m1_m2_n_tblk_lens = xdlops_gemm.GetCM0M1M2NThreadBlkLengths();
+
+        constexpr auto M0 = c_m0_m1_m2_n_tblk_lens[I0];
+        constexpr auto M1 = c_m0_m1_m2_n_tblk_lens[I1];
+        constexpr auto M2 = c_m0_m1_m2_n_tblk_lens[I2];
+        constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I3];
+
+        return make_naive_tensor_descriptor_packed(
+            make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, N, M0, M1, M2));
+    }
+
+    // XDL output supporting C_xdl = A_xdl * B_xdl
     __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2()
     {
         constexpr auto c_m0_m1_m2_n_tblk_lens = xdlops_gemm.GetCM0M1M2NThreadBlkLengths();
@@ -211,6 +227,21 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
             make_tuple(I1, Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, M1, M2, N));
     }
 
+    // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'
+    __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4()
+    {
+        constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =
+            make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{},
+                                                           Number<NRepeat>{},
+                                                           Number<MWaves>{},
+                                                           Number<NWaves>{},
+                                                           Number<MPerXDL>{},
+                                                           Number<NPerXDL>{}));
+
+        return xdlops_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_N2_N3_N4(c_block_desc_m0_n0_m1_n1_m2_n2);
+    }
+
+    // XDL output supporting C_xdl = A_xdl * B_xdl
     __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2()
     {
         constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =
@@ -302,6 +333,58 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     static constexpr auto a_block_desc_m0_m1_m2_k = MakeABlockDescriptor_M0_M1_M2_K();
     static constexpr auto b_block_desc_n0_n1_n2_k = MakeBBlockDescriptor_N0_N1_N2_K();
+
+    __host__ __device__ static constexpr auto MakeCThreadTileIterator()
+    {
+        constexpr auto c_thread_lengths = conditional_expr<TransposeC>(
+            GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths(),
+            GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2().GetLengths());
+        return SpaceFillingCurve<
+            decltype(c_thread_lengths),
+            typename arithmetic_sequence_gen<0, c_thread_lengths.Size(), 1>::type,
+            typename uniform_sequence_gen<c_thread_lengths.Size(), 1>::type,
+            false>{}; // SnakeCurved
+    }
+
+    __host__ __device__ static constexpr auto MakeCThreadIndexAdaptor8DTo2D()
+    {
+        if constexpr(TransposeC)
+        {
+            constexpr auto c_thread_desc = GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
+            constexpr auto m0            = c_thread_desc.GetLength(Number<0>{});
+            constexpr auto n0            = c_thread_desc.GetLength(Number<1>{});
+            constexpr auto m1            = c_thread_desc.GetLength(Number<2>{});
+            constexpr auto n1            = c_thread_desc.GetLength(Number<3>{});
+            constexpr auto m2            = c_thread_desc.GetLength(Number<4>{});
+            constexpr auto n2            = c_thread_desc.GetLength(Number<5>{});
+            constexpr auto n3            = c_thread_desc.GetLength(Number<6>{});
+            constexpr auto n4            = c_thread_desc.GetLength(Number<7>{});
+            constexpr auto thread_idx_to_m_n_adaptor = make_single_stage_tensor_adaptor(
+                make_tuple(make_unmerge_transform(make_tuple(m0, m1, m2)),
+                           make_unmerge_transform(make_tuple(n0, n1, n2, n3, n4))),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5, 6, 7>{}));
+            return thread_idx_to_m_n_adaptor;
+        }
+        else
+        {
+            constexpr auto c_thread_desc = GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+            constexpr auto m0            = c_thread_desc.GetLength(Number<0>{});
+            constexpr auto n0            = c_thread_desc.GetLength(Number<1>{});
+            constexpr auto m1            = c_thread_desc.GetLength(Number<2>{});
+            constexpr auto n1            = c_thread_desc.GetLength(Number<3>{});
+            constexpr auto m2            = c_thread_desc.GetLength(Number<4>{});
+            constexpr auto m3            = c_thread_desc.GetLength(Number<5>{});
+            constexpr auto m4            = c_thread_desc.GetLength(Number<6>{});
+            constexpr auto n2            = c_thread_desc.GetLength(Number<7>{});
+            constexpr auto thread_idx_to_m_n_adaptor = make_single_stage_tensor_adaptor(
+                make_tuple(make_unmerge_transform(make_tuple(m0, m1, m2, m3, m4)),
+                           make_unmerge_transform(make_tuple(n0, n1, n2))),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2, 4, 5, 6>{}, Sequence<1, 3, 7>{}));
+            return thread_idx_to_m_n_adaptor;
+        }
+    }
 
     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
     __device__ void Run(const ABlockBuffer& a_block_buf,
@@ -904,6 +987,58 @@ struct BlockwiseGemmXdlops_v2
 
     static constexpr AMmaTileDesc a_block_desc_m0_m1_m2_k;
     static constexpr BMmaTileDesc b_block_desc_n0_n1_n2_k;
+
+    __host__ __device__ static constexpr auto MakeCThreadTileIterator()
+    {
+        constexpr auto c_thread_lengths = conditional_expr<TransposeC>(
+            GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths(),
+            GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2().GetLengths());
+        return SpaceFillingCurve<
+            decltype(c_thread_lengths),
+            typename arithmetic_sequence_gen<0, c_thread_lengths.Size(), 1>::type,
+            typename uniform_sequence_gen<c_thread_lengths.Size(), 1>::type,
+            false>{}; // SnakeCurved
+    }
+
+    __host__ __device__ static constexpr auto MakeCThreadIndexAdaptor8DTo2D()
+    {
+        if constexpr(TransposeC)
+        {
+            constexpr auto c_thread_desc = GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
+            constexpr auto m0            = c_thread_desc.GetLength(Number<0>{});
+            constexpr auto n0            = c_thread_desc.GetLength(Number<1>{});
+            constexpr auto m1            = c_thread_desc.GetLength(Number<2>{});
+            constexpr auto n1            = c_thread_desc.GetLength(Number<3>{});
+            constexpr auto m2            = c_thread_desc.GetLength(Number<4>{});
+            constexpr auto n2            = c_thread_desc.GetLength(Number<5>{});
+            constexpr auto n3            = c_thread_desc.GetLength(Number<6>{});
+            constexpr auto n4            = c_thread_desc.GetLength(Number<7>{});
+            constexpr auto thread_idx_to_m_n_adaptor = make_single_stage_tensor_adaptor(
+                make_tuple(make_unmerge_transform(make_tuple(m0, m1, m2)),
+                           make_unmerge_transform(make_tuple(n0, n1, n2, n3, n4))),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5, 6, 7>{}));
+            return thread_idx_to_m_n_adaptor;
+        }
+        else
+        {
+            constexpr auto c_thread_desc = GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+            constexpr auto m0            = c_thread_desc.GetLength(Number<0>{});
+            constexpr auto n0            = c_thread_desc.GetLength(Number<1>{});
+            constexpr auto m1            = c_thread_desc.GetLength(Number<2>{});
+            constexpr auto n1            = c_thread_desc.GetLength(Number<3>{});
+            constexpr auto m2            = c_thread_desc.GetLength(Number<4>{});
+            constexpr auto m3            = c_thread_desc.GetLength(Number<5>{});
+            constexpr auto m4            = c_thread_desc.GetLength(Number<6>{});
+            constexpr auto n2            = c_thread_desc.GetLength(Number<7>{});
+            constexpr auto thread_idx_to_m_n_adaptor = make_single_stage_tensor_adaptor(
+                make_tuple(make_unmerge_transform(make_tuple(m0, m1, m2, m3, m4)),
+                           make_unmerge_transform(make_tuple(n0, n1, n2))),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2, 4, 5, 6>{}, Sequence<1, 3, 7>{}));
+            return thread_idx_to_m_n_adaptor;
+        }
+    }
 
     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
     __device__ void Run(const ABlockBuffer& a_block_buf,

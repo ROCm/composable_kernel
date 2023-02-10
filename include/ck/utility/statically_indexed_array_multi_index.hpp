@@ -100,6 +100,17 @@ __host__ __device__ constexpr auto operator*(const Tuple<Xs...>& x, const Y& y)
     return r;
 }
 
+template <typename... Xs, index_t N>
+__host__ __device__ constexpr auto operator*(const Tuple<Xs...>& x, const Number<N>& y)
+{
+    constexpr index_t NSize = sizeof...(Xs);
+
+    // Tuple<Xs...> r;
+    // static_for<0, NSize, 1>{}([&](auto i) { r(i) = x[i] * y; });
+    // return r;
+    return generate_tuple([&](auto i) { return x[i] * y; }, Number<NSize>{});
+}
+
 // MultiIndex = scalar * MultiIndex
 template <typename... Xs,
           typename Y,
