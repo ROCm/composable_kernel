@@ -60,7 +60,7 @@ RUN dpkg -i dumb-init_*.deb && rm dumb-init_*.deb
 ARG PREFIX=/opt/rocm
 # Install packages for processing the performance results
 RUN pip3 install --upgrade pip
-RUN pip3 install sqlalchemy
+RUN pip3 install sqlalchemy==1.4.46
 RUN pip3 install pymysql
 RUN pip3 install pandas
 RUN pip3 install setuptools-rust
