@@ -1649,8 +1649,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             YDotYGrad_M_O::SrcScalarPerVector, // SrcScalarPerVector
             1,                                 // SrcScalarStrideInVector
             true /* ResetCoordAfterRun */,
-            true /* InvalidElementAsNaN */>(y_grid_desc_mblock_mperblock_oblock_operblock,
-                                            y_thread_data_on_grid_idx);
+            false /* InvalidElementAsNaN */>(y_grid_desc_mblock_mperblock_oblock_operblock,
+                                             y_thread_data_on_grid_idx);
 
         auto y_thread_buf                 = typename YDotYGrad_M_O::SrcBufType{};
         auto ygrad_thread_buf             = typename YDotYGrad_M_O::SrcBufType{};

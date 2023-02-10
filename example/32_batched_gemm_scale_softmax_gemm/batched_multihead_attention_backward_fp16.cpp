@@ -30,7 +30,6 @@ Kernel outputs:
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <fstream>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
@@ -611,9 +610,8 @@ int run(int argc, char* argv[])
               << gemm.GetTypeString() << std::endl;
 
     // copy z matirx data form device
-    std::ofstream file("./z_matrix_txt");
     z_device_buf.FromDevice(z_g_m_n.mData.data());
-    file << z_g_m_n << std::endl;
+
     //       std::cout << "z_g_m_n ref:\n" << z_g_m_n;
     bool pass = true;
     if(do_verification)
