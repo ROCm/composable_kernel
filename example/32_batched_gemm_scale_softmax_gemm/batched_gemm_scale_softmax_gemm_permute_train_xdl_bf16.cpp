@@ -32,7 +32,7 @@ template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using BF16 = ck::bhalf_t;
-using F32 = float;
+using F32  = float;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
