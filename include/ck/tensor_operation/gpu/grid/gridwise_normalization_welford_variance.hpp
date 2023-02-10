@@ -122,11 +122,6 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
                                YDataType* const __restrict__ p_y_global,
                                const YElementwiseOperation y_elementwise_op)
     {
-        if constexpr(SweepOnce)
-        {
-            num_k_block_tile_iteration = 1;
-        }
-
         auto y_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_y_global, y_grid_desc_m_k.GetElementSpaceSize());
 
