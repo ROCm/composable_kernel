@@ -502,14 +502,60 @@ int run(int argc, char* argv[])
     ygrad_device_buf.ToDevice(ygrad_gs_ms_os.mData.data());
     kgrad_device_buf.SetZero();
     vgrad_device_buf.SetZero();
-    // z_device_buf.SetZero();
 
-    auto gemm     = DeviceGemmInstance{};
-    auto invoker  = gemm.MakeInvoker();
+    auto gemm    = DeviceGemmInstance{};
+    auto invoker = gemm.MakeInvoker();
+    // get z matrix
+    {
+        auto argument = gemm.MakeArgument(
+            static_cast<DataType*>(q_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(k_device_buf.GetDeviceBuffer()),
+            static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(v_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(y_device_buf.GetDeviceBuffer()),
+            static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(ygrad_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(qgrad_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(kgrad_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(vgrad_device_buf.GetDeviceBuffer()),
+            {}, // std::array<void*, 1> p_acc0_biases;
+            {}, // std::array<void*, 1> p_acc1_biases;
+            q_gs_ms_ks_lengths,
+            q_gs_ms_ks_strides,
+            k_gs_ns_ks_lengths,
+            k_gs_ns_ks_strides,
+            z_gs_ms_ns_lengths,
+            z_gs_ms_ns_strides,
+            v_gs_os_ns_lengths,
+            v_gs_os_ns_strides,
+            y_gs_ms_os_lengths,
+            y_gs_ms_os_strides,
+            lse_gs_ms_lengths,
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+            QKVElementOp{},
+            QKVElementOp{},
+            Scale{alpha},
+            QKVElementOp{},
+            YElementOp{},
+            p_drop,
+            std::tuple<unsigned long long, unsigned long long>(seed, offset));
+
+        if(!gemm.IsSupportedArgument(argument))
+        {
+            std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+            return 0;
+        }
+        invoker.Run(argument, StreamConfig{nullptr, false});
+    }
+    // not need output z matrix
     auto argument = gemm.MakeArgument(
         static_cast<DataType*>(q_device_buf.GetDeviceBuffer()),
         static_cast<DataType*>(k_device_buf.GetDeviceBuffer()),
-        static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
+        static_cast<ZDataType*>(nullptr), // set to nullptr
         static_cast<DataType*>(v_device_buf.GetDeviceBuffer()),
         static_cast<DataType*>(y_device_buf.GetDeviceBuffer()),
         static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
@@ -541,14 +587,8 @@ int run(int argc, char* argv[])
         YElementOp{},
         p_drop,
         std::tuple<unsigned long long, unsigned long long>(seed, offset));
-
-    if(!gemm.IsSupportedArgument(argument))
-    {
-        std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
-
-        return 0;
-    }
-
+    kgrad_device_buf.SetZero(); // reset global accum buffer and rerun
+    vgrad_device_buf.SetZero();
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     // 5 GEMM ops in total:
@@ -596,45 +636,7 @@ int run(int argc, char* argv[])
         });
         y_device_buf.ToDevice(y_gs_ms_os.mData.data());
 
-        //
         // call kernel again
-        //
-        // example set Z matrix to null, will not ouput z matrix data
-        argument = gemm.MakeArgument(
-            static_cast<DataType*>(q_device_buf.GetDeviceBuffer()),
-            static_cast<DataType*>(k_device_buf.GetDeviceBuffer()),
-            static_cast<ZDataType*>(nullptr), // set to nullptr
-            static_cast<DataType*>(v_device_buf.GetDeviceBuffer()),
-            static_cast<DataType*>(y_device_buf.GetDeviceBuffer()),
-            static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-            static_cast<DataType*>(ygrad_device_buf.GetDeviceBuffer()),
-            static_cast<DataType*>(qgrad_device_buf.GetDeviceBuffer()),
-            static_cast<DataType*>(kgrad_device_buf.GetDeviceBuffer()),
-            static_cast<DataType*>(vgrad_device_buf.GetDeviceBuffer()),
-            {}, // std::array<void*, 1> p_acc0_biases;
-            {}, // std::array<void*, 1> p_acc1_biases;
-            q_gs_ms_ks_lengths,
-            q_gs_ms_ks_strides,
-            k_gs_ns_ks_lengths,
-            k_gs_ns_ks_strides,
-            z_gs_ms_ns_lengths,
-            z_gs_ms_ns_strides,
-            v_gs_os_ns_lengths,
-            v_gs_os_ns_strides,
-            y_gs_ms_os_lengths,
-            y_gs_ms_os_strides,
-            lse_gs_ms_lengths,
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
-            QKVElementOp{},
-            QKVElementOp{},
-            Scale{alpha},
-            QKVElementOp{},
-            YElementOp{},
-            p_drop,
-            std::tuple<unsigned long long, unsigned long long>(seed, offset));
         kgrad_device_buf.SetZero(); // reset global accum buffer and rerun
         vgrad_device_buf.SetZero();
         invoker.Run(argument, StreamConfig{nullptr, false});
