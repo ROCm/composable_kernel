@@ -98,6 +98,8 @@ struct GridwiseBatchedGemmSoftmaxGemmTrain_Xdl_CShuffle
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
+    static constexpr auto WaveSize = 64;
+
     // K1 should be Number<...>
     // Gemm0
     static constexpr auto AK0 = Number<KPerBlock / AK1Value>{};
@@ -124,7 +126,7 @@ struct GridwiseBatchedGemmSoftmaxGemmTrain_Xdl_CShuffle
         const auto M = z_grid_desc_m_n.GetLength(I0);
         const auto N = z_grid_desc_m_n.GetLength(I1);
 
-        constexpr auto mfma = MfmaSelector<DataType, MPerXdl, NPerXdl>::selected_mfma;
+        constexpr auto mfma = MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma;
         constexpr auto N3   = mfma.num_groups_per_blk;
         constexpr auto N4   = mfma.num_input_blks;
         constexpr auto N5   = mfma.group_size;
@@ -140,7 +142,7 @@ struct GridwiseBatchedGemmSoftmaxGemmTrain_Xdl_CShuffle
     __host__ __device__ static constexpr auto
     MakeZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const index_t M, const index_t N) ////=> for z use
     {
-        constexpr auto mfma = MfmaSelector<DataType, MPerXdl, NPerXdl>::selected_mfma;
+        constexpr auto mfma = MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma;
         constexpr auto N3   = mfma.num_groups_per_blk;
         constexpr auto N4   = mfma.num_input_blks;
         constexpr auto N5   = mfma.group_size;

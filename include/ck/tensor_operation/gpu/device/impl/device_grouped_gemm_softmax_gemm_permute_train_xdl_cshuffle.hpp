@@ -97,12 +97,17 @@ __global__ void
     const long_index_t lse_batch_offset = __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(
         arg_ptr[group_id].compute_base_ptr_of_batch_.GetLSEBasePtr(g_idx)));
 
+    //unsigned short* p_z_grid_in = //
+    //    (arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
+    //                                            : arg_ptr[group_id].p_z_grid_ + z_batch_offset);
+
     GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
         arg_ptr[group_id].p_a_grid_ + a_batch_offset,
         arg_ptr[group_id].p_b_grid_ + b_batch_offset,
         arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
         arg_ptr[group_id].p_c_grid_ + c_batch_offset,
-        arg_ptr[group_id].p_z_grid_ + z_batch_offset,
+        arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
+                        : arg_ptr[group_id].p_z_grid_ + z_batch_offset,
         arg_ptr[group_id].p_lse_grid_ + lse_batch_offset,
         p_shared,
         a_element_op,
@@ -114,7 +119,7 @@ __global__ void
         arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
         arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
         arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
-        arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5, ////////
+        arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_, ////////
         arg_ptr[group_id].lse_grid_desc_m_,
         arg_ptr[group_id].block_2_ctile_map_,
         arg_ptr[group_id].c0_matrix_mask_,
@@ -411,7 +416,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
         BGridDesc_G_N_K b_grid_desc_g_n_k_;
         B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
         CGridDesc_G_M_N c_grid_desc_g_m_n_;
-        ZGridDesc_G_M_N& z_grid_desc_g_m_n_;
+        ZGridDesc_G_M_N z_grid_desc_g_m_n_;
         index_t BatchStrideLSE_;
     };
 
@@ -490,7 +495,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
         const BDataType* p_b_grid_;
         const B1DataType* p_b1_grid_;
         CDataType* p_c_grid_;
-        ZDataType* p_z_grid;
+        ZDataType* p_z_grid_;
         LSEDataType* p_lse_grid_;
 
         // tensor descriptors for block/thread-wise copy
@@ -499,6 +504,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
+        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
+            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
         ZGridDesc_M_N z_grid_desc_m_n_;
         LSEGridDesc_M lse_grid_desc_m_;
 
@@ -592,7 +599,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
                 const auto c_grid_desc_m_n = Transform::MakeCGridDescriptor_M_N(
                     problem_desc.c_gs_ms_os_lengths, problem_desc.c_gs_ms_os_strides);
                 const auto z_grid_desc_m_n = MakeZGridDescriptor_M_N(
-                    problem_desc.z_gs_ms_os_lengths, problem_desc.z_gs_ms_os_strides);
+                    problem_desc.z_gs_ms_ns_lengths, problem_desc.z_gs_ms_ns_strides);
                 const auto lse_grid_desc_m =
                     DeviceOp::MakeLSEGridDescriptor_M(problem_desc.lse_gs_ms_lengths[NumDimG]);
 
@@ -610,6 +617,13 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
                 const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         c_grid_desc_m_n);
+                
+                //typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
+                //    z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
+
+                auto z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
+                        z_grid_desc_m_n);
 
                 const index_t BlockStart     = grid_size_;
                 const auto block_2_ctile_map = Block2CTileMap(c_grid_desc_m_n, BlockStart);
@@ -654,7 +668,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
                                               b_grid_desc_bk0_n_bk1,
                                               b1_grid_desc_bk0_n_bk1,
                                               c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                              z_grid_desc_g_m_n,
+                                              z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                              z_grid_desc_m_n,
                                               lse_grid_desc_m,
                                               block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n),
                                               compute_base_ptr_of_batch,

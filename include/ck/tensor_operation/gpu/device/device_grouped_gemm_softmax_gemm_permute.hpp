@@ -105,8 +105,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermuteTrain : public BaseOperator
         std::vector<index_t> c_gs_ms_os_lengths;
         std::vector<index_t> c_gs_ms_os_strides;
 
-        std::vector<index_t> z_gs_ms_os_lengths;
-        std::vector<index_t> z_gs_ms_os_strides;
+        std::vector<index_t> z_gs_ms_ns_lengths;
+        std::vector<index_t> z_gs_ms_ns_strides;
 
         std::vector<index_t> lse_gs_ms_lengths;
         std::vector<index_t> lse_gs_ms_strides;
