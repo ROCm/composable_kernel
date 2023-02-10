@@ -56,8 +56,8 @@ class SimpleAppArgs
     int option_index = 0;
 
     public:
-    std::vector<size_t> inLengths   = {8, 128, 2048};
-    std::vector<AccDataType> scales = {2.0f, 2.0f};
+    std::vector<size_t> inLengths = {8, 128, 2048};
+    std::vector<double> scales    = {2.0, 2.0};
 
     bool do_verification = true;
     int init_method      = 2;
@@ -151,8 +151,8 @@ int main(int argc, char* argv[])
     auto inStrides  = in.mDesc.GetStrides();
     auto outStrides = out.mDesc.GetStrides();
 
-    AccDataType alpha = args.scales[0];
-    AccDataType beta  = args.scales[1];
+    double alpha = args.scales[0];
+    double beta  = args.scales[1];
 
     std::cout << "in: " << in.mDesc << std::endl;
     std::cout << "out: " << out.mDesc << std::endl;
@@ -221,8 +221,8 @@ int main(int argc, char* argv[])
     auto argument_ptr = device_instance.MakeArgumentPointer(i_inLengths,
                                                             i_inStrides,
                                                             reduceDims,
-                                                            &alpha,
-                                                            &beta,
+                                                            alpha,
+                                                            beta,
                                                             in_dev.GetDeviceBuffer(),
                                                             out_dev.GetDeviceBuffer(),
                                                             PassThrough{},
@@ -246,7 +246,7 @@ int main(int argc, char* argv[])
         invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
         out_dev.FromDevice(out.mData.data());
         // LogRangeAsType<float>(std::cout << "tensor out: " , out.mData, ",") << std::endl;
-        pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
+        pass = pass && ck::utils::check_err(out, out_ref);
     };
 
     float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, args.time_kernel});

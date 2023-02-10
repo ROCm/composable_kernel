@@ -3,6 +3,7 @@ import os, io, argparse, datetime
 #import numpy as np
 import sqlalchemy
 from sqlalchemy.types import NVARCHAR, Float, Integer
+from sqlalchemy import text
 import pymysql
 import pandas as pd
 from sshtunnel import SSHTunnelForwarder
@@ -81,7 +82,7 @@ def parse_logfile(logfile):
     StrideA=[]
     StrideB=[]
     StrideC=[]
-    if 'perf_gemm' in logfile:
+    if 'perf_gemm.log' in logfile:
         for line in open(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
@@ -120,14 +121,14 @@ def parse_logfile(logfile):
         res = [x for _,x in sorted(zip(tests,tflops))]
         #sorted_kernels = [x for _,x in sorted(zip(tests,kernels))]
         test_list=list(range(1,len(tests)+1))
-    #parse conv_fwd performance tests:
-    elif 'conv_fwd' in logfile:
+    #parse conv_fwd and conv_bwd performance tests:
+    elif 'conv_fwd' in logfile or 'conv_bwd_data' in logfile:
         for line in open(logfile):
             if 'tflops:' in line:
                 lst=line.split()
                 res.append(lst[1])
     #parse all other performance tests:
-    elif 'resnet50' in logfile or 'batched_gemm' in logfile or 'grouped_gemm' in logfile or 'conv_bwd_data' in logfile or 'gemm_bilinear' in logfile or 'reduction' in logfile:
+    elif 'resnet50' in logfile or 'batched_gemm' in logfile or 'grouped_gemm' in logfile  or 'gemm_bilinear' in logfile or 'reduction' in logfile:
         for line in open(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
@@ -141,15 +142,15 @@ def parse_logfile(logfile):
 
 
 def get_baseline(table, connection):
-    query = '''SELECT * from '''+table+''' WHERE Datetime = (SELECT MAX(Datetime) FROM '''+table+''' where Branch_ID='develop' );'''
-    return pd.read_sql_query(query, connection)
+    query = text('''SELECT * from '''+table+''' WHERE Datetime = (SELECT MAX(Datetime) FROM '''+table+''' where Branch_ID='develop' );''')
+    return pd.read_sql(query, connection)
 
 def store_new_test_result(table_name, test_results, testlist, branch_name, node_id, gpu_arch, compute_units, rocm_vers, hip_vers, environment, connection):
     params=[str(branch_name),str(node_id),str(gpu_arch),compute_units,str(rocm_vers),str(hip_vers),str(environment),str(datetime.datetime.now())]
     df=pd.DataFrame(data=[params],columns=['Branch_ID','Node_ID','GPU_arch','Compute Units','ROCM_version','HIP_version','Environment','Datetime'])
     df_add=pd.DataFrame(data=[test_results],columns=testlist)
     df=pd.concat([df,df_add],axis=1)
-    print("new test results dataframe:",df)
+    #print("new test results dataframe:",df)
     df.to_sql(table_name,connection,if_exists='append',index=False)
     return 0
 
@@ -165,7 +166,7 @@ def compare_test_to_baseline(baseline,test,testlist):
                 print("test # ",i,"shows regression by {:.3f}%".format(
                     (float(test[i])-base_list[i])/base_list[i]*100))
                 regression=1
-            ave_perf=ave_perf+float(test[i])/base_list[i]
+            if base_list[i]>0: ave_perf=ave_perf+float(test[i])/base_list[i]
         if regression==0:
             print("no regressions found")
         ave_perf=ave_perf/len(base_list)
@@ -248,7 +249,7 @@ def main():
         conn = sqlEngine.connect()
 
         #save gemm performance tests:
-        if 'perf_gemm' in filename:
+        if 'perf_gemm.log' in filename:
             #write the ck_gemm_test_params table only needed once the test set changes
             #post_test_params(test_list,conn)
             for i in range(1,len(results)+1):

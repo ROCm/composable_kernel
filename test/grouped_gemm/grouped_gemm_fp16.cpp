@@ -2,8 +2,9 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
+#include <random>
 
-#include "profiler/include/profile_grouped_gemm_impl.hpp"
+#include "profiler/profile_grouped_gemm_impl.hpp"
 
 namespace {
 
@@ -18,7 +19,10 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 template <typename ALayout, typename BLayout, typename CLayout>
 bool TestGroupedGemm()
 {
-    int group_count = rand() % 10 + 1;
+
+    std::mt19937 gen(19391);
+    std::uniform_int_distribution<> distrib(1, 10);
+    int group_count = distrib(gen);
 
     // GEMM shape
     std::vector<ck::tensor_operation::device::GemmDesc> gemm_descs;
@@ -29,9 +33,9 @@ bool TestGroupedGemm()
 
     for(int i = 0; i < group_count; i++)
     {
-        Ms.push_back(256 + 256 * (rand() % 10));
-        Ns.push_back(256 + 256 * (rand() % 10));
-        Ks.push_back(128 + 128 * (rand() % 10));
+        Ms.push_back(256 + 256 * distrib(gen));
+        Ns.push_back(256 + 256 * distrib(gen));
+        Ks.push_back(128 + 128 * distrib(gen));
 
         StrideAs.push_back(std::is_same<Row, ALayout>::value ? Ks[i] : Ms[i]);
         StrideBs.push_back(std::is_same<Row, BLayout>::value ? Ns[i] : Ks[i]);

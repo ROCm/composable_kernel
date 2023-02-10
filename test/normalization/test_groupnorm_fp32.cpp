@@ -2,7 +2,7 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
-#include "profiler/include/profile_groupnorm_impl.hpp"
+#include "profiler/profile_groupnorm_impl.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -20,7 +20,7 @@ class TestGroupnorm : public ::testing::Test
 
     void Run()
     {
-        // N, H, W, G, C
+        // [N, H, W, G, C], reduce H, W, C
         std::vector<std::vector<ck::index_t>> lengths = {{1, 1, 1, 1, 1},
                                                          {1, 2, 3, 4, 5},
                                                          {256, 9, 9, 9, 9},
@@ -43,13 +43,6 @@ class TestGroupnorm : public ::testing::Test
 
 using KernelTypes = ::testing::Types<
     // XDataType, GammaDataType, BetaDataType, AccDataType, YDataType>
-    std::tuple<F32, F32, F32, F32, F32>,
-    std::tuple<F32, F32, F32, F32, F32>,
-    std::tuple<F32, F32, F32, F32, F32>,
-    std::tuple<F32, F32, F32, F32, F32>,
-    std::tuple<F32, F32, F32, F32, F32>,
-    std::tuple<F32, F32, F32, F32, F32>,
-    std::tuple<F32, F32, F32, F32, F32>,
     std::tuple<F32, F32, F32, F32, F32>>;
 
 TYPED_TEST_SUITE(TestGroupnorm, KernelTypes);

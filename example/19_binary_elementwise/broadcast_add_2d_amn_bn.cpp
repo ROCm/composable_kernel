@@ -6,12 +6,13 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -22,13 +23,13 @@ using CDataType  = F16;
 using Add = ck::tensor_operation::element_wise::Add;
 
 using DeviceElementwiseAddInstance =
-    ck::tensor_operation::device::DeviceElementwise<ck::Tuple<ABDataType, ABDataType>,
-                                                    ck::Tuple<CDataType>,
-                                                    Add,
-                                                    2,
-                                                    8,
-                                                    ck::Sequence<8, 8>,
-                                                    ck::Sequence<8>>;
+    ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ABDataType, ABDataType>,
+                                                        ck::Tuple<CDataType>,
+                                                        Add,
+                                                        2,
+                                                        8,
+                                                        ck::Sequence<8, 8>,
+                                                        ck::Sequence<8>>;
 
 template <typename HostTensorA,
           typename HostTensorB,
@@ -71,13 +72,13 @@ int main()
     ck::index_t Stride = 1024;
 
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                    std::vector<std::size_t>({stride}));
+        return HostTensorDescriptor({len}, {stride});
     };
 
     auto f_host_tensor_descriptor2d = [](std::size_t row, std::size_t col, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                    std::vector<std::size_t>({stride, 1}));
+        using namespace ck::literals;
+
+        return HostTensorDescriptor({row, col}, {stride, 1_uz});
     };
 
     Tensor<ABDataType> a_m_n(f_host_tensor_descriptor2d(M, N, Stride));
@@ -128,8 +129,7 @@ int main()
         host_broadcast2D<Tensor<ABDataType>, Tensor<ABDataType>, Tensor<CDataType>, Add, 0>(
             host_c_m_n, a_m_n, b_n, M, N, Add{});
 
-        pass &= ck::utils::check_err(
-            c_m_n.mData, host_c_m_n.mData, "Error: Incorrect results c", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(c_m_n, host_c_m_n, "Error: Incorrect results c", 1e-3, 1e-3);
     }
 
     return pass ? 0 : 1;

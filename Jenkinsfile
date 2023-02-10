@@ -19,7 +19,14 @@ def runShell(String command){
 }
 
 def getDockerImageName(){
-    def img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
+    def img
+    if (params.COMPILER_COMMIT == ""){
+        img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
+    }
+    else{
+        def commit = "${params.COMPILER_COMMIT}"[0..6]
+        img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
+    }
     return img
 }
 
@@ -550,8 +557,9 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;COMPILER_VERSION=release
-                                              0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-stg-open''' : ""
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true
+                                              0 21 * * * % RUN_FULL_QA=false;COMPILER_VERSION=release;COMPILER_COMMIT=
+                                              0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=''' : ""
 
 pipeline {
     agent none
@@ -568,16 +576,16 @@ pipeline {
             description: "Force building docker image (default: false), set to true if docker image needs to be updated.")
         string(
             name: 'ROCMVERSION', 
-            defaultValue: '5.3', 
-            description: 'Specify which ROCM version to use: 5.2.3, or 5.3 (default), etc.')
+            defaultValue: '5.4.3', 
+            description: 'Specify which ROCM version to use: 5.4.3 (default).')
         string(
             name: 'COMPILER_VERSION', 
-            defaultValue: 'release', 
-            description: 'Specify which version of compiler to use: ck-9110, release (default), or amd-stg-open.')
+            defaultValue: 'amd-stg-open', 
+            description: 'Specify which version of compiler to use: ck-9110, release, or amd-stg-open (default).')
         string(
             name: 'COMPILER_COMMIT', 
-            defaultValue: '', 
-            description: 'Specify which commit of compiler branch to use: leave empty to use the latest commit (default), or use 8a82e4eb7ba28521ba9a9424a0315a8a16590424 commit of amd-stg-open branch.')
+            defaultValue: '5541927df00eabd6a110180170eca7785d436ee3', 
+            description: 'Specify which commit of compiler branch to use: leave empty to use the latest commit, or use 5541927df00eabd6a110180170eca7785d436ee3 (default) commit of amd-stg-open branch.')
         string(
             name: 'BUILD_COMPILER', 
             defaultValue: 'hipcc', 
@@ -618,9 +626,9 @@ pipeline {
                 stage('Clang Format') {
                     agent{ label rocmnode("nogpu") }
                     environment{
-                        execute_cmd = "find .. -iname \'*.h\' \
-                                -o -iname \'*.hpp\' \
-                                -o -iname \'*.cpp\' \
+                        execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
+                                -o -not -path \'*.git*\' -iname \'*.hpp\' \
+                                -o -not -path \'*.git*\' -iname \'*.cpp\' \
                                 -o -iname \'*.h.in\' \
                                 -o -iname \'*.hpp.in\' \
                                 -o -iname \'*.cpp.in\' \

@@ -16,6 +16,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 #include "ck/library/utility/host_gemm.hpp"
@@ -93,15 +94,15 @@ int test_gemm(const gemmArgs& args)
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, bool row_major) {
+            using namespace ck::literals;
+
             if(row_major)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -225,9 +226,8 @@ int main(int argc, char* argv[])
     std::vector<gemmArgs> test_cases;
     if(argc == 1)
     {
-        test_cases = {{GemmMatrixLayout::MK_KN_MN, 3, 3, 3, 3, 3, 3, 1}};
-        // JD: Populate with more and meaningful
-        return 0;
+        test_cases = {{GemmMatrixLayout::MK_KN_MN, 1024, 1024, 1024, 1024, 1024, 1024, 2},
+                      {GemmMatrixLayout::MK_KN_MN, 1024, 1024, 1024, 1024, 1024, 1024, 8}};
     }
     else if(argc == 9)
     {
@@ -252,11 +252,10 @@ int main(int argc, char* argv[])
         printf("arg2 to 7: M, N, K, StrideA, StrideB, StrideC KBatch\n");
         return -1;
     }
+    bool error = false;
     for(const auto& kinder : test_cases)
     {
-        const auto res = test_gemm(kinder);
-        if(!res)
-            return -1;
+        error |= test_gemm(kinder);
     }
-    return 0;
+    return error ? 1 : 0;
 }

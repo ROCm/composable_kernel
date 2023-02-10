@@ -15,6 +15,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/numeric.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -246,21 +247,11 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    Tensor<ADataType> a_gs_ms_ks(
-        std::vector<std::size_t>(a_gs_ms_ks_lengths.begin(), a_gs_ms_ks_lengths.end()),
-        std::vector<std::size_t>(a_gs_ms_ks_strides.begin(), a_gs_ms_ks_strides.end()));
-    Tensor<BDataType> b_gs_ns_ks(
-        std::vector<std::size_t>(b_gs_ns_ks_lengths.begin(), b_gs_ns_ks_lengths.end()),
-        std::vector<std::size_t>(b_gs_ns_ks_strides.begin(), b_gs_ns_ks_strides.end()));
-    Tensor<DDataType> d_gs_ms_ns(
-        std::vector<std::size_t>(d_gs_ms_ns_lengths.begin(), d_gs_ms_ns_lengths.end()),
-        std::vector<std::size_t>(d_gs_ms_ns_strides.begin(), d_gs_ms_ns_strides.end()));
-    Tensor<EDataType> e_gs_ms_ns_host_result(
-        std::vector<std::size_t>(e_gs_ms_ns_lengths.begin(), e_gs_ms_ns_lengths.end()),
-        std::vector<std::size_t>(e_gs_ms_ns_strides.begin(), e_gs_ms_ns_strides.end()));
-    Tensor<EDataType> e_gs_ms_ns_device_result(
-        std::vector<std::size_t>(e_gs_ms_ns_lengths.begin(), e_gs_ms_ns_lengths.end()),
-        std::vector<std::size_t>(e_gs_ms_ns_strides.begin(), e_gs_ms_ns_strides.end()));
+    Tensor<ADataType> a_gs_ms_ks(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
+    Tensor<BDataType> b_gs_ns_ks(b_gs_ns_ks_lengths, b_gs_ns_ks_strides);
+    Tensor<DDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
+    Tensor<EDataType> e_gs_ms_ns_host_result(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
+    Tensor<EDataType> e_gs_ms_ns_device_result(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
 
     std::cout << "a_gs_ms_ks: " << a_gs_ms_ks.mDesc << std::endl;
     std::cout << "b_gs_ns_ks: " << b_gs_ns_ks.mDesc << std::endl;
@@ -327,20 +318,14 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    ck::index_t M = std::accumulate(e_gs_ms_ns_lengths.begin(),
-                                    e_gs_ms_ns_lengths.begin() + NumDimM,
-                                    ck::index_t{1},
-                                    std::multiplies<ck::index_t>{});
+    ck::index_t M =
+        ck::accumulate_n<ck::index_t>(e_gs_ms_ns_lengths.begin(), NumDimM, 1, std::multiplies<>{});
 
-    ck::index_t N = std::accumulate(e_gs_ms_ns_lengths.begin() + NumDimM,
-                                    e_gs_ms_ns_lengths.begin() + NumDimM + NumDimN,
-                                    ck::index_t{1},
-                                    std::multiplies<ck::index_t>{});
+    ck::index_t N = ck::accumulate_n<ck::index_t>(
+        e_gs_ms_ns_lengths.begin() + NumDimM, NumDimN, 1, std::multiplies<>{});
 
-    ck::index_t K = std::accumulate(a_gs_ms_ks_lengths.begin() + NumDimM,
-                                    a_gs_ms_ks_lengths.begin() + NumDimM + NumDimK,
-                                    ck::index_t{1},
-                                    std::multiplies<ck::index_t>{});
+    ck::index_t K = ck::accumulate_n<ck::index_t>(
+        a_gs_ms_ks_lengths.begin() + NumDimM, NumDimK, 1, std::multiplies<>{});
 
     std::size_t flop      = std::size_t(2) * M * N * K;
     std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
@@ -357,9 +342,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        Tensor<CShuffleDataType> c_gs_ms_ns_host_result(
-            std::vector<std::size_t>(e_gs_ms_ns_lengths.begin(), e_gs_ms_ns_lengths.end()),
-            std::vector<std::size_t>(e_gs_ms_ns_strides.begin(), e_gs_ms_ns_strides.end()));
+        Tensor<CShuffleDataType> c_gs_ms_ns_host_result(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
 
         using ReferenceOpInstance = ReferenceContraction_G1_M3_N2_K1<NumDimG,
                                                                      NumDimM,
@@ -408,9 +391,7 @@ int main(int argc, char* argv[])
             }
         }
 
-        return ck::utils::check_err(e_gs_ms_ns_device_result.mData, e_gs_ms_ns_host_result.mData)
-                   ? 0
-                   : 1;
+        return ck::utils::check_err(e_gs_ms_ns_device_result, e_gs_ms_ns_host_result) ? 0 : 1;
     }
 
     return 0;

@@ -59,7 +59,7 @@ cmake                                                                           
 -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                         \
 -D CMAKE_CXX_FLAGS="-O3"                                                                          \
 -D CMAKE_BUILD_TYPE=Release                                                                       \
--D GPU_TARGETS=gfx908;gfx90a                                                                      \
+-D GPU_TARGETS="gfx908;gfx90a"                                                                    \
 ..
 ```
 

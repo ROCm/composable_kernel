@@ -12,6 +12,7 @@
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/utility/data_type.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -216,8 +217,8 @@ int mean_meansquare_dual_reduce_test(size_t n,
     size_t invariant_total_length = n;
     size_t reduce_total_length    = h * w * c;
 
-    const AccDataType alpha = ck::type_convert<AccDataType>(1.0f);
-    const AccDataType beta  = ck::type_convert<AccDataType>(0.0f);
+    const double alpha = 1.0f;
+    const double beta  = 0.0f;
 
     std::size_t num_thread = 1;
 
@@ -253,10 +254,10 @@ int mean_meansquare_dual_reduce_test(size_t n,
     std::array<ck::index_t, NumOutputDim> i_outLengths;
     std::array<ck::index_t, NumOutputDim> i_outStrides;
 
-    std::copy(inLengths.begin(), inLengths.end(), i_inLengths.begin());
-    std::copy(inStrides.begin(), inStrides.end(), i_inStrides.begin());
-    std::copy(outLengths.begin(), outLengths.end(), i_outLengths.begin());
-    std::copy(outStrides.begin(), outStrides.end(), i_outStrides.begin());
+    ck::ranges::copy(inLengths, i_inLengths.begin());
+    ck::ranges::copy(inStrides, i_inStrides.begin());
+    ck::ranges::copy(outLengths, i_outLengths.begin());
+    ck::ranges::copy(outStrides, i_outStrides.begin());
 
     auto dual_reduce_op = DeviceDualReduce{};
 
@@ -266,8 +267,8 @@ int mean_meansquare_dual_reduce_test(size_t n,
         i_outLengths,
         {i_outStrides, i_outStrides},
         reduceDims,
-        {&alpha, &alpha},
-        {&beta, &beta},
+        {alpha, alpha},
+        {beta, beta},
         in_dev.GetDeviceBuffer(),
         {mean_dev.GetDeviceBuffer(), meansquare_dev.GetDeviceBuffer()},
         ck::make_tuple(InElementwiseOperation_Mean{}, InElementwiseOperation_Meansquare{}),
@@ -305,8 +306,8 @@ int mean_meansquare_dual_reduce_test(size_t n,
     {
         mean_dev.FromDevice(mean.mData.data());
         meansquare_dev.FromDevice(meansquare.mData.data());
-        pass = pass && ck::utils::check_err(mean.mData, mean_ref.mData);
-        pass = pass && ck::utils::check_err(meansquare.mData, meansquare_ref.mData);
+        pass = pass && ck::utils::check_err(mean, mean_ref);
+        pass = pass && ck::utils::check_err(meansquare, meansquare_ref);
     };
 
     return (pass ? 0 : 1);

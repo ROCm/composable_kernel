@@ -28,11 +28,13 @@ struct DeviceNormalization : public BaseOperator
                         const std::vector<index_t> betaStrides,
                         const std::vector<index_t> yStrides,
                         const std::vector<index_t> reduceDims,
-                        AccDataType epsilon,
+                        double epsilon,
                         const void* p_x,
                         const void* p_gamma,
                         const void* p_beta,
                         void* p_y,
+                        void* p_savedMean,
+                        void* p_savedInvVar,
                         AccElementwiseOperation acc_elementwise_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;

@@ -64,7 +64,8 @@ template <typename ALayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched = make_default_loop_scheduler()>
+          LoopScheduler LoopSched     = make_default_loop_scheduler(),
+          PipelineVersion PipelineVer = PipelineVersion::v1>
 struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                                                    BLayout,
                                                    CLayout,
@@ -393,7 +394,8 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         CShuffleNXdlPerWavePerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
-        LoopSched>;
+        LoopSched,
+        PipelineVer>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -420,7 +422,8 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
               block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              c_element_op_{c_element_op}
+              c_element_op_{c_element_op},
+              kraw_{KRaw}
         {
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                            b_grid_desc_bk0_n_bk1_,
@@ -446,6 +449,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
+        index_t kraw_;
     };
 
     // Invoker
@@ -455,7 +459,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-#if 0
+#if DEBUG_LOG
             {
                 std::cout << "arg.a_grid_desc_ak0_m_ak1_{"
                           << arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) << ", "
@@ -482,7 +486,6 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
 
             const index_t grid_size =
                 arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
-
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
 
@@ -576,6 +579,15 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
             return false;
         }
 
+        if((arg.kraw_ % AK1 != 0 || arg.kraw_ % BK1 != 0) &&
+           !(GemmSpec == GemmSpecialization::MKPadding ||
+             GemmSpec == GemmSpecialization::NKPadding ||
+             GemmSpec == GemmSpecialization::MNKPadding ||
+             GemmSpec == GemmSpecialization::KPadding))
+        {
+            return false;
+        }
+
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.c_grid_desc_m_n_,
@@ -656,6 +668,12 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
     {
         auto str = std::stringstream();
 
+        std::map<LoopScheduler, std::string> LoopSchedToString{
+            {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
+
+        std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
+                                                                       {PipelineVersion::v2, "v2"}};
+
         // clang-format off
         str << "DeviceGemm_Xdl_CShuffle"
             << "<"
@@ -665,7 +683,11 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
             << KPerBlock << ", "
             << AK1 << ", "
             << BK1
-            << ">";
+            << ">"
+            << " LoopScheduler: "
+            << LoopSchedToString[LoopSched] << ", "
+            << "PipelineVersion: "
+            << PipelineVersionToString[PipelineVer];;
         // clang-format on
 
         return str.str();

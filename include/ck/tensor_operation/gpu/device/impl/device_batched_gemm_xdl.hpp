@@ -150,7 +150,10 @@ template <typename ADataType,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector>
+          ck::index_t CThreadTransferDstScalarPerVector,
+          ck::index_t NumGemmKPrefetchStage = 1,
+          ck::LoopScheduler LoopSched       = make_default_loop_scheduler(),
+          ck::PipelineVersion PipelineVer   = ck::PipelineVersion::v1>
 struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                                                        BLayout,
                                                        CLayout,
@@ -323,7 +326,10 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                                                 BBlockLdsAddExtraN,
                                                 Sequence<2, 3, 0, 1, 7, 5, 4, 6>,
                                                 CThreadTransferSrcDstVectorDim,
-                                                CThreadTransferDstScalarPerVector>;
+                                                CThreadTransferDstScalarPerVector,
+                                                NumGemmKPrefetchStage,
+                                                LoopSched,
+                                                PipelineVer>;
 
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
@@ -367,7 +373,8 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
               N01_{N01},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              c_element_op_{c_element_op}
+              c_element_op_{c_element_op},
+              kraw_{K}
         {
             if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
                                            b_grid_desc_k0_n_k1_,
@@ -395,6 +402,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
+        index_t kraw_;
     };
 
     // Invoker
@@ -404,6 +412,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+#if DEBUG_LOG
             {
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
                           << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
@@ -416,6 +425,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                 std::cout << "arg.c_grid_desc_m_n_{" << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
             }
+#endif
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                             arg.b_grid_desc_k0_n_k1_,
@@ -522,6 +532,11 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(arg.kraw_ % K1 != 0)
+        {
+            return false;
+        }
+
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
                                            arg.c_grid_desc_m_n_,
@@ -622,6 +637,12 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
     {
         auto str = std::stringstream();
 
+        std::map<LoopScheduler, std::string> LoopSchedToString{
+            {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
+
+        std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
+                                                                       {PipelineVersion::v2, "v2"}};
+
         // clang-format off
         str << "DeviceBatchedGemmXdl"
             << "<"
@@ -629,7 +650,13 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
             << MPerBlock << ", "
             << NPerBlock << ", "
             << K0PerBlock
-            << ">";
+            << ">"
+            << " NumGemmKPrefetchStage: "
+            << NumGemmKPrefetchStage << ", "
+            << "LoopScheduler: "
+            << LoopSchedToString[LoopSched] << ", "
+            << "PipelineVersion: "
+            << PipelineVersionToString[PipelineVer];
         // clang-format on
 
         return str.str();
