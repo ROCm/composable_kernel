@@ -21,20 +21,20 @@ template <typename GridwiseReduction,
           typename GammaDataType,
           typename BetaDataType,
           typename YDataType,
-          typename AccDataType,
-          typename AccElementwiseOperation,
+          typename ConputeDataType,
+          typename YElementwiseOperation,
           typename GridDesc_M_K>
 __global__ void kernel_normalization(const GridDesc_M_K x_grid_desc_m_k,
                                      const GridDesc_M_K gamma_grid_desc_m_k,
                                      const GridDesc_M_K beta_grid_desc_m_k,
                                      const GridDesc_M_K y_grid_desc_m_k,
                                      index_t num_k_block_tile_iteration,
-                                     AccDataType epsilon,
+                                     ConputeDataType epsilon,
                                      const XDataType* const __restrict__ p_x_global,
                                      const GammaDataType* const __restrict__ p_gamma_global,
                                      const BetaDataType* const __restrict__ p_beta_global,
                                      YDataType* const __restrict__ p_y_global,
-                                     const AccElementwiseOperation acc_elementwise_op)
+                                     const YElementwiseOperation y_elementwise_op)
 {
     GridwiseReduction::Run(x_grid_desc_m_k,
                            gamma_grid_desc_m_k,
@@ -46,7 +46,7 @@ __global__ void kernel_normalization(const GridDesc_M_K x_grid_desc_m_k,
                            p_gamma_global,
                            p_beta_global,
                            p_y_global,
-                           acc_elementwise_op);
+                           y_elementwise_op);
 };
 } // namespace ck
 
@@ -58,9 +58,9 @@ namespace device {
 template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
-          typename AccDataType,
+          typename ConputeDataType,
           typename YDataType,
-          typename AccElementwiseOperation,
+          typename YElementwiseOperation,
           index_t Rank,
           index_t NumReduceDim,
           index_t BlockSize,
@@ -78,9 +78,9 @@ template <typename XDataType,
 struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                                                             GammaDataType,
                                                             BetaDataType,
-                                                            AccDataType,
+                                                            ConputeDataType,
                                                             YDataType,
-                                                            AccElementwiseOperation,
+                                                            YElementwiseOperation,
                                                             Rank,
                                                             NumReduceDim>
 {
@@ -172,8 +172,8 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                                                       GammaDataType,
                                                       BetaDataType,
                                                       YDataType,
-                                                      AccDataType,
-                                                      AccElementwiseOperation,
+                                                      ConputeDataType,
+                                                      YElementwiseOperation,
                                                       GridDesc_M_K,
                                                       BlockSize,
                                                       MThreadClusterSize,
@@ -194,8 +194,8 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                                                       GammaDataType,
                                                       BetaDataType,
                                                       YDataType,
-                                                      AccDataType,
-                                                      AccElementwiseOperation,
+                                                      ConputeDataType,
+                                                      YElementwiseOperation,
                                                       GridDesc_M_K,
                                                       BlockSize,
                                                       MThreadClusterSize,
@@ -220,7 +220,7 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                  const std::vector<index_t> betaStrides,
                  const std::vector<index_t> yStrides,
                  const std::vector<index_t> reduceDims,
-                 AccElementwiseOperation acc_elementwise_op,
+                 YElementwiseOperation y_elementwise_op,
                  double epsilon,
                  const XDataType* p_x,
                  const GammaDataType* p_gamma,
@@ -230,9 +230,9 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
               p_gamma_(p_gamma),
               p_beta_(p_beta),
               p_y_(p_y),
-              acc_elementwise_op_(acc_elementwise_op)
+              y_elementwise_op_(y_elementwise_op)
         {
-            epsilon_ = static_cast<AccDataType>(epsilon);
+            epsilon_ = static_cast<ConputeDataType>(epsilon);
 
             Lengths_      = shuffle_tensor_dimensions<Rank, NumReduceDim>(lengths, reduceDims);
             xStrides_     = shuffle_tensor_dimensions<Rank, NumReduceDim>(xStrides, reduceDims);
@@ -265,7 +265,7 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                 x_grid_desc_m_k_.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
         }
 
-        AccDataType epsilon_;
+        ConputeDataType epsilon_;
 
         const XDataType* p_x_;
         const GammaDataType* p_gamma_;
@@ -278,7 +278,7 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
         std::vector<index_t> betaStrides_;
         std::vector<index_t> yStrides_;
 
-        AccElementwiseOperation acc_elementwise_op_;
+        YElementwiseOperation y_elementwise_op_;
 
         int blkGroupSize_;
         int numBlockTileIteration_;
@@ -301,16 +301,16 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                                                                 GammaDataType,
                                                                 BetaDataType,
                                                                 YDataType,
-                                                                AccDataType,
-                                                                AccElementwiseOperation,
+                                                                ConputeDataType,
+                                                                YElementwiseOperation,
                                                                 GridDesc_M_K>
                                          : kernel_normalization<GridwiseReduceLayernormGeneric,
                                                                 XDataType,
                                                                 GammaDataType,
                                                                 BetaDataType,
                                                                 YDataType,
-                                                                AccDataType,
-                                                                AccElementwiseOperation,
+                                                                ConputeDataType,
+                                                                YElementwiseOperation,
                                                                 GridDesc_M_K>;
 
             float avg_time = 0;
@@ -329,7 +329,7 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                                                arg.p_gamma_,
                                                arg.p_beta_,
                                                arg.p_y_,
-                                               arg.acc_elementwise_op_);
+                                               arg.y_elementwise_op_);
 
             return (avg_time);
         };
@@ -429,7 +429,7 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                         void* p_y,
                         void* p_saveMean,
                         void* p_saveInvVar,
-                        AccElementwiseOperation acc_elementwise_op) override
+                        YElementwiseOperation y_elementwise_op) override
     {
         // TODO
         // Optional cache of the intermediate results (mean and InvVariance) during the
@@ -443,7 +443,7 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                                           betaStrides,
                                           yStrides,
                                           reduceDims,
-                                          acc_elementwise_op,
+                                          y_elementwise_op,
                                           epsilon,
                                           static_cast<const XDataType*>(p_x),
                                           static_cast<const GammaDataType*>(p_gamma),

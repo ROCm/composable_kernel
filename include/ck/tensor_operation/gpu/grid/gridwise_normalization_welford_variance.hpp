@@ -16,8 +16,8 @@ template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
           typename YDataType,
-          typename AccDataType,
-          typename AccElementwiseOperation,
+          typename ComputeDataType,
+          typename YElementwiseOperation,
           typename GridDesc_M_K,
           index_t BlockSize,
           index_t MThreadClusterSize,
@@ -70,9 +70,9 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
         decltype(make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{})));
 
     using ThreadwiseWelford =
-        ThreadwiseWelford<AccDataType, ThreadReduceSrcDesc_M_K, ThreadReduceDstDesc_M>;
+        ThreadwiseWelford<ComputeDataType, ThreadReduceSrcDesc_M_K, ThreadReduceDstDesc_M>;
 
-    using BlockwiseWelford = BlockwiseWelford<AccDataType,
+    using BlockwiseWelford = BlockwiseWelford<ComputeDataType,
                                               BlockSize,
                                               ThreadClusterLengths_M_K,
                                               ThreadClusterArrangeOrder>;
@@ -115,12 +115,12 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
                                const GridDesc_M_K& beta_grid_desc_m_k,
                                const GridDesc_M_K& y_grid_desc_m_k,
                                index_t num_k_block_tile_iteration,
-                               AccDataType epsilon,
+                               ComputeDataType epsilon,
                                const XDataType* const __restrict__ p_x_global,
                                const GammaDataType* const __restrict__ p_gamma_global,
                                const BetaDataType* const __restrict__ p_beta_global,
                                YDataType* const __restrict__ p_y_global,
-                               const AccElementwiseOperation acc_elementwise_op)
+                               const YElementwiseOperation y_elementwise_op)
     {
         if constexpr(SweepOnce)
         {
@@ -133,7 +133,7 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
         auto x_thread_buf = generate_tuple(
             [&](auto) {
                 return StaticBuffer<AddressSpaceEnum::Vgpr,
-                                    AccDataType,
+                                    ComputeDataType,
                                     MThreadSliceSize * XSrcVectorSize,
                                     true>{};
             },
@@ -142,7 +142,7 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
         auto gamma_thread_buf = generate_tuple(
             [&](auto) {
                 return StaticBuffer<AddressSpaceEnum::Vgpr,
-                                    AccDataType,
+                                    ComputeDataType,
                                     MThreadSliceSize * GammaSrcVectorSize,
                                     true>{};
             },
@@ -151,7 +151,7 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
         auto beta_thread_buf = generate_tuple(
             [&](auto) {
                 return StaticBuffer<AddressSpaceEnum::Vgpr,
-                                    AccDataType,
+                                    ComputeDataType,
                                     MThreadSliceSize * BetaSrcVectorSize,
                                     true>{};
             },
@@ -160,14 +160,16 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
         auto y_thread_buf = generate_tuple(
             [&](auto) {
                 return StaticBuffer<AddressSpaceEnum::Vgpr,
-                                    AccDataType,
+                                    ComputeDataType,
                                     MThreadSliceSize * YDstVectorSize,
                                     true>{};
             },
             Number<ThreadBufferNumber>{});
 
-        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> mean_thread_buf;
-        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> var_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, MThreadSliceSize, true>
+            mean_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, MThreadSliceSize, true>
+            var_thread_buf;
 
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
@@ -179,7 +181,7 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
         const auto thread_k_cluster_id = thread_cluster_idx[I1];
 
         auto threadwise_x_load = ThreadwiseTensorSliceTransfer_v2<XDataType,
-                                                                  AccDataType,
+                                                                  ComputeDataType,
                                                                   GridDesc_M_K,
                                                                   decltype(thread_buffer_desc_m_k),
                                                                   ThreadBufferLengths_M_K,
@@ -195,7 +197,7 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
 
         auto threadwise_gamma_load =
             ThreadwiseTensorSliceTransfer_v2<GammaDataType,
-                                             AccDataType,
+                                             ComputeDataType,
                                              GridDesc_M_K,
                                              decltype(thread_buffer_desc_m_k),
                                              ThreadBufferLengths_M_K,
@@ -211,7 +213,7 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
 
         auto threadwise_beta_load =
             ThreadwiseTensorSliceTransfer_v2<BetaDataType,
-                                             AccDataType,
+                                             ComputeDataType,
                                              GridDesc_M_K,
                                              decltype(thread_buffer_desc_m_k),
                                              ThreadBufferLengths_M_K,
@@ -226,11 +228,11 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
                                  thread_k_cluster_id * BetaSrcVectorSize));
 
         auto threadwise_y_store =
-            ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
+            ThreadwiseTensorSliceTransfer_v1r3<ComputeDataType,
                                                YDataType,
                                                decltype(thread_buffer_desc_m_k),
                                                GridDesc_M_K,
-                                               AccElementwiseOperation,
+                                               YElementwiseOperation,
                                                ThreadBufferLengths_M_K,
                                                ThreadBufferDimAccessOrder,
                                                YDstVectorDim,
@@ -242,7 +244,7 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
                 make_multi_index(block_global_id * M_BlockTileSize +
                                      thread_m_cluster_id * MThreadSliceSize,
                                  thread_k_cluster_id * YDstVectorSize),
-                acc_elementwise_op);
+                y_elementwise_op);
 
         constexpr auto thread_copy_fwd_step_m_k = make_multi_index(0, K_BlockTileStepSize);
         constexpr auto thread_copy_bwd_step_m_k =
@@ -261,8 +263,8 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
         threadwise_welford.max_count_ = GetKPerThread(x_grid_desc_m_k, thread_k_cluster_id);
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            mean_thread_buf(I) = type_convert<AccDataType>(0.0f);
-            var_thread_buf(I)  = type_convert<AccDataType>(0.0f);
+            mean_thread_buf(I) = type_convert<ComputeDataType>(0.0f);
+            var_thread_buf(I)  = type_convert<ComputeDataType>(0.0f);
         });
 
         // Separate sweep once and sweep twice pipeline
