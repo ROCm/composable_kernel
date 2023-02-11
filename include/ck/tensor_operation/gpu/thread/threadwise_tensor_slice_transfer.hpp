@@ -1313,8 +1313,8 @@ template <typename SrcData,
           typename DimAccessOrder,
           index_t DstVectorDim,
           index_t DstScalarPerVector,
-          index_t LowEightRowlaneIdx,
-          index_t HighEightRowLaneIdx,
+          uint32_t LowEightRowlaneIdx,
+          uint32_t HighEightRowLaneIdx,
           typename enable_if<SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                              bool>::type = false>
 struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow

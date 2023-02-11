@@ -369,7 +369,7 @@ struct WmmaGemm
     static constexpr auto I5 = Number<5>{};
 
     using CIndex   = MultiIndex<2>;
-    using CIndex4D = MultiIndex<4>;
+    using CIndex3D = MultiIndex<3>;
 
     __host__ __device__ constexpr WmmaGemm()
     {
@@ -419,6 +419,46 @@ struct WmmaGemm
                        Sequence<3>{},
                        Sequence<4>{},
                        Sequence<5>{}));
+    }
+
+    // Transposed WMMA Output C' = B' * A'
+    template <typename CDesc_MBlockxRepeat_MWave_MPerWMMA_NBlockxRepeat_NWave_NPerWMMA>
+    __host__ __device__ static constexpr auto
+    MakeCDesc_MBlockxRepeat_MWave_MThreadPerSubGroup_NBlockxRepeat_NWave_NSubGroup_NAccVgprs(
+        const CDesc_MBlockxRepeat_MWave_MPerWMMA_NBlockxRepeat_NWave_NPerWMMA&
+            c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma)
+    {
+        const auto MBlockxRepeat =
+            c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I0);
+        const auto NBlockxRepeat =
+            c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I3);
+        const auto MWave =
+            c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I1);
+        const auto NWave =
+            c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I4);
+
+        return transform_tensor_descriptor(
+            c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma,
+            make_tuple(
+                make_pass_through_transform(MBlockxRepeat),
+                make_pass_through_transform(MWave),
+                make_pass_through_transform(Number<wmma_instr.num_thread_per_subgroups>{}),
+                make_pass_through_transform(NBlockxRepeat),
+                make_pass_through_transform(NWave),                
+                make_unmerge_transform(make_tuple(Number<wmma_instr.num_subgroups>{},
+                                                  Number<wmma_instr.num_acc_vgprs_per_wave>{}))),
+            make_tuple(Sequence<0>{},
+                       Sequence<1>{},
+                       Sequence<2>{},
+                       Sequence<3>{},
+                       Sequence<4>{},
+                       Sequence<5>{}),
+            make_tuple(Sequence<0>{},
+                       Sequence<1>{},
+                       Sequence<2>{},
+                       Sequence<3>{},
+                       Sequence<4>{},
+                       Sequence<5, 6>{}));
     }
 
     __device__ static constexpr index_t GetRegSizePerWmma()
@@ -491,6 +531,14 @@ struct WmmaGemm
         index_t m_offset = GetSubGroupId() * wmma_instr.num_acc_vgprs_per_wave;
 
         return TransposeC ? CIndex{n_offset, m_offset} : CIndex{m_offset, n_offset};
+    }
+
+    __device__ static CIndex3D GetBeginOfThreadBlk3D()
+    {
+        index_t n_offset = GetLaneIdUnderSubGroup();
+        index_t m_offset = GetSubGroupId();
+
+        return TransposeC ? CIndex3D{n_offset, m_offset, I0} : CIndex3D{m_offset, n_offset, I0};
     }
 
     static constexpr auto wmma =

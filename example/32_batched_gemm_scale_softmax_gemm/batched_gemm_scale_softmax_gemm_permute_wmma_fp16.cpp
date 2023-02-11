@@ -2,7 +2,7 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 /*
-Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g_k_n) * B1_g_n_o
+Gemm + Softmax + Gemm fused operation. Computes C_g_m_n = Softmax(A_g_m_k * B0_g_k_l) * B1_g_l_n
                                                                   |-----------------|
                                                                           Gemm0
                                                           |-------------------------------------|
@@ -39,7 +39,8 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using ADataType        = F16;
 using B0DataType       = F16;
 using B1DataType       = F16;
-using AccDataType      = F32;
+using Acc0DataType      = F32;
+using Acc1DataType      = F32;
 using CShuffleDataType = F32;
 using CDataType        = F16;
 using Acc0BiasDataType = ck::Tuple<>;
@@ -67,7 +68,7 @@ static constexpr auto TensorSpecB1 = ck::tensor_operation::device::TensorSpecial
 static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecialization::Default;
 
 using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -76,11 +77,12 @@ using DeviceGemmInstance =
         ADataType,
         B0DataType,
         B1DataType,
-        CDataType,
         Acc0BiasDataType,
+        Acc0DataType,
         Acc1BiasDataType,
-        AccDataType,
+        Acc1DataType,
         CShuffleDataType,
+        CDataType,
         AElementOp,
         B0ElementOp,
         Acc0ElementOp,
@@ -91,21 +93,21 @@ using DeviceGemmInstance =
         TensorSpecB0,
         TensorSpecB1,
         TensorSpecC,
-        1,
         256,
         128,         // MPerBlock
-        128,         // NPerBlock
-        32,          // KPerBlock
-        64,          // Gemm1NPerBlock
-        32,          // Gemm1KPerBlock
-        8,           // AK1
-        8,           // BK1
-        2,           // B1K1
-        32,          // MPerXDL
-        32,          // NPerXDL
-        1,           // MXdlPerWave
-        4,           // NXdlPerWave
-        2,           // Gemm1NXdlPerWave
+        128,         // LPerBlock
+        4,           // K0PerBlock
+        8,           // K1
+        64,          // NPerBlock
+        4,           // L0PerBlock
+        8,           // L1
+        16,          // MPerWMMA
+        16,          // LPerWMMA
+        16,          // NPerWMMA
+        //Per repeat = wave_m = wave_num, wave_n = 1
+        1,           // MRepeat
+        8,           // LRepeat
+        4,           // NRepeat
         S<4, 64, 1>, // ABlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
@@ -113,44 +115,44 @@ using DeviceGemmInstance =
         8,
         8,
         true,
-        S<4, 64, 1>, // BBlockTransfer
+        S<4, 64, 1>, // B0BlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
         2,
         8,
         8,
         true,
-        S<16, 16, 1>, // B1BlockTransfer
-        S<0, 2, 1>,
-        S<0, 2, 1>,
+        S<4, 64, 1>, // B1BlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
         1,
-        4,
-        2,
+        8,
+        8,
         false,
         1,              // CShuffleMXdlPerWavePerShuffle
         2,              // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        4,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
 
 // Ref Gemm0: fp16 in, fp32 out
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                                 B0DataType,
-                                                                                AccDataType,
-                                                                                AccDataType,
+                                                                                Acc0DataType,
+                                                                                Acc1DataType,
                                                                                 AElementOp,
                                                                                 B0ElementOp,
                                                                                 Acc0ElementOp>;
 
 // Ref Softmax: fp32 in, fp16 out
 using ReferenceSoftmaxInstance =
-    ck::tensor_operation::host::ReferenceSoftmax<AccDataType, ADataType, AccDataType>;
+    ck::tensor_operation::host::ReferenceSoftmax<Acc0DataType, ADataType, Acc0DataType>;
 
 // Ref Gemm1: fp16 in, fp16 out
 using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                                 B1DataType,
                                                                                 CDataType,
-                                                                                AccDataType,
+                                                                                Acc1DataType,
                                                                                 AElementOp,
                                                                                 B1ElementOp,
                                                                                 CElementOp>;
