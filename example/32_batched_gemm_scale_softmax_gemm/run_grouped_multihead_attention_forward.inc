@@ -48,6 +48,7 @@ int run(int argc, char* argv[])
     std::vector<const void*> p_b0;
     std::vector<const void*> p_b1;
     std::vector<void*> p_c;
+    std::vector<void*> p_z;
     std::vector<void*> p_lse;
     std::vector<std::vector<int>> g0_g1_m_n_k_o;
 
@@ -55,6 +56,7 @@ int run(int argc, char* argv[])
     std::vector<Tensor<B0DataType>> b0_tensors;
     std::vector<Tensor<B1DataType>> b1_tensors;
     std::vector<Tensor<CDataType>> c_tensors;
+    std::vector<Tensor<ZDataType>> z_tensors;
     std::vector<Tensor<LSEDataType>> lse_tensors;
 
     using DeviceMemPtr = std::unique_ptr<DeviceMem>;
@@ -62,6 +64,7 @@ int run(int argc, char* argv[])
     std::vector<DeviceMemPtr> b0_tensors_device;
     std::vector<DeviceMemPtr> b1_tensors_device;
     std::vector<DeviceMemPtr> c_tensors_device;
+    std::vector<DeviceMemPtr> z_tensors_device;
     std::vector<DeviceMemPtr> lse_tensors_device;
 
     std::size_t flop = 0, num_byte = 0;
@@ -101,6 +104,12 @@ int run(int argc, char* argv[])
             output_permute
                 ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // C layout [G0, M, G1, O]
                 : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
+        
+        std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
+        std::vector<ck::index_t> z_gs_ms_ns_strides =
+            output_permute
+                ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // Z layout [G0, M, G1, N]
+                : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // Z layout [G0, G1, M, N]
 
         std::vector<ck::index_t> lse_gs_ms_lengths{G0, G1, M};
         std::vector<ck::index_t> lse_gs_ms_strides =
@@ -114,6 +123,8 @@ int run(int argc, char* argv[])
                                  b1_gs_os_ns_strides,
                                  c_gs_ms_os_lengths,
                                  c_gs_ms_os_strides,
+                                 z_gs_ms_ns_lengths,
+                                 z_gs_ms_ns_strides,
                                  lse_gs_ms_lengths,
                                  lse_gs_ms_strides,
                                  {},   // acc0_biases_gs_ms_ns_lengths
@@ -126,6 +137,7 @@ int run(int argc, char* argv[])
         Tensor<B0DataType> b0_gs_ns_ks(b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides);
         Tensor<B1DataType> b1_gs_os_ns(b1_gs_os_ns_lengths, b1_gs_os_ns_strides);
         Tensor<CDataType> c_gs_ms_os_device_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
+        Tensor<ZDataType> z_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
         Tensor<LSEDataType> lse_gs_ms_device_result(lse_gs_ms_lengths, lse_gs_ms_strides);
 
         int Batch = G0 * G1;
@@ -140,9 +152,12 @@ int run(int argc, char* argv[])
                       << "b0_gs_ns_ks[" << i << "]: " << b0_gs_ns_ks.mDesc << ", "
                       << "b1_gs_os_ns[" << i << "]: " << b1_gs_os_ns.mDesc << ", "
                       << "c_gs_ms_os[" << i << "]: " << c_gs_ms_os_device_result.mDesc << ", "
+                      << "c_gs_ms_os[" << i << "]: " << c_gs_ms_os_device_result.mDesc << ", "
                       << "lse_gs_ms_os[" << i << "]: " << lse_gs_ms_device_result.mDesc
                       << std::endl;
         }
+
+        z_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DataType>{0});
 
         switch(init_method)
         {
@@ -172,6 +187,7 @@ int run(int argc, char* argv[])
         b0_tensors.push_back(b0_gs_ns_ks);
         b1_tensors.push_back(b1_gs_os_ns);
         c_tensors.push_back(c_gs_ms_os_device_result);
+        z_tensors.push_back(z_gs_ms_ns);
         lse_tensors.push_back(lse_gs_ms_device_result);
 
         a_tensors_device.emplace_back(std::make_unique<DeviceMem>(
@@ -182,6 +198,8 @@ int run(int argc, char* argv[])
             sizeof(B1DataType) * b1_gs_os_ns.mDesc.GetElementSpaceSize()));
         c_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(CDataType) * c_gs_ms_os_device_result.mDesc.GetElementSpaceSize()));
+        z_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(ZDataType) * z_gs_ms_ns.mDesc.GetElementSpaceSize()));
         lse_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(LSEDataType) * lse_gs_ms_device_result.mDesc.GetElementSpaceSize()));
 
@@ -193,6 +211,7 @@ int run(int argc, char* argv[])
         p_b0.push_back(b0_tensors_device[i]->GetDeviceBuffer());
         p_b1.push_back(b1_tensors_device[i]->GetDeviceBuffer());
         p_c.push_back(c_tensors_device[i]->GetDeviceBuffer());
+        p_z.push_back(z_tensors_device[i]->GetDeviceBuffer());
         p_lse.push_back(lse_tensors_device[i]->GetDeviceBuffer());
     }
 
@@ -209,6 +228,7 @@ int run(int argc, char* argv[])
                                       p_b0,
                                       p_b1,
                                       p_c,
+                                      p_z,
                                       p_lse,
                                       {}, // p_acc0_biases
                                       {}, // p_acc1_biases
