@@ -10,6 +10,13 @@ int run(int argc, char* argv[])
     bool input_permute  = false;
     bool output_permute = true;
 
+    float p_drop                    = 0.2;
+    float p_dropout                 = 1 - p_drop;
+    uint16_t p_dropout_in_16bits    = uint16_t(std::floor(p_dropout * 65535.0));
+    float rp_dropout                = 1.0 / p_dropout;
+    const unsigned long long seed   = 1;
+    const unsigned long long offset = 0;
+
     if(argc == 1)
     {
         // use default case
@@ -104,7 +111,7 @@ int run(int argc, char* argv[])
             output_permute
                 ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // C layout [G0, M, G1, O]
                 : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
-        
+
         std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
         std::vector<ck::index_t> z_gs_ms_ns_strides =
             output_permute
@@ -152,12 +159,12 @@ int run(int argc, char* argv[])
                       << "b0_gs_ns_ks[" << i << "]: " << b0_gs_ns_ks.mDesc << ", "
                       << "b1_gs_os_ns[" << i << "]: " << b1_gs_os_ns.mDesc << ", "
                       << "c_gs_ms_os[" << i << "]: " << c_gs_ms_os_device_result.mDesc << ", "
-                      << "c_gs_ms_os[" << i << "]: " << c_gs_ms_os_device_result.mDesc << ", "
+                      << "z_gs_ms_ns[" << i << "]: " << z_gs_ms_ns.mDesc << ", "
                       << "lse_gs_ms_os[" << i << "]: " << lse_gs_ms_device_result.mDesc
                       << std::endl;
         }
 
-        z_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DataType>{0});
+        z_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<ZDataType>{0});
 
         switch(init_method)
         {
@@ -238,7 +245,7 @@ int run(int argc, char* argv[])
                                       acc0_element_op,
                                       b1_element_op,
                                       c_element_op,
-                                      0,         // dropout ratio
+                                      p_drop,    // dropout ratio
                                       {0, 448}); // dropout random seed and offset, offset should be
                                                  // at least the number of elements on a thread
 
