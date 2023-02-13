@@ -18,6 +18,7 @@ Full documentation for Composable Kernel is not yet available.
 - Added multi-D GEMM client APIs (#534).
 - Added multi-embeddings support (#542).
 - Added Navi3x blockwise GEMM and real GEMM support (#541).
+- Added Navi grouped ConvBwdWeight support (#505).
 
 ### Changed
 - Changed ...
