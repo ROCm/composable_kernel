@@ -163,5 +163,4 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
 
 #include "run_grouped_multihead_attention_forward.inc"
 
-
 int main(int argc, char* argv[]) { return run(argc, argv); }

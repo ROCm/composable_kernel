@@ -120,8 +120,8 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage>())>;
 
     // C desc for source in blockwise copy
-    __host__ __device__ static constexpr auto
-    MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const ZGridDesc_M_N& z_grid_desc_m_n) ////=> for z use
+    __host__ __device__ static constexpr auto MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
+        const ZGridDesc_M_N& z_grid_desc_m_n) ////=> for z use
     {
         const auto M = z_grid_desc_m_n.GetLength(I0);
         const auto N = z_grid_desc_m_n.GetLength(I1);
@@ -140,7 +140,8 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             make_tuple(Sequence<0, 2, 4, 6>{}, Sequence<1, 3, 5, 7, 8, 9>{}));
     }
     __host__ __device__ static constexpr auto
-    MakeZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const index_t M, const index_t N) ////=> for z use
+    MakeZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const index_t M,
+                                                      const index_t N) ////=> for z use
     {
         constexpr auto mfma = MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma;
         constexpr auto N3   = mfma.num_groups_per_blk;
@@ -1018,7 +1019,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             if constexpr(IsDropout) // dropout
             {
 
-            // save z to global
+                // save z to global
                 if(p_z_grid)
                 {
                     // P_dropped
@@ -1027,11 +1028,12 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                                             true>(
                         acc_thread_buf, ph, z_tenor_buffer);
 
-                    z_thread_copy_vgpr_to_global.Run(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                                     make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                                                     z_tenor_buffer,
-                                                     z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                                     z_grid_buf);
+                    z_thread_copy_vgpr_to_global.Run(
+                        z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                        make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                        z_tenor_buffer,
+                        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                        z_grid_buf);
                 }
                 else
                 {
@@ -1041,7 +1043,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 }
             }
 
-            //if constexpr(IsDropout) // dropout
+            // if constexpr(IsDropout) // dropout
             //{
             //    blockwise_dropout.ApplyDropout(acc_thread_buf, ph);
             //}
