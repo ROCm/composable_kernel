@@ -50,6 +50,7 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                                                             Rank,
                                                             NumReduceDim>
 {
+    static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize);
     static_assert(
         ((GammaSrcVectorDim == 0 && MThreadSliceSize % GammaSrcVectorSize == 0) ||
          (GammaSrcVectorDim == 1 && KThreadSliceSize % GammaSrcVectorSize == 0)),
