@@ -133,14 +133,7 @@ struct GridwiseNormalizationNaiveVariance_mk_to_mk
             },
             Number<ThreadBufferNumber>{});
 
-        auto beta_thread_buf = generate_tuple(
-            [&](auto) {
-                return StaticBuffer<AddressSpaceEnum::Vgpr,
-                                    ComputeDataType,
-                                    MThreadSliceSize * BetaSrcVectorSize,
-                                    true>{};
-            },
-            Number<ThreadBufferNumber>{});
+        auto& beta_thread_buf = gamma_thread_buf;
 
         auto y_thread_buf = generate_tuple(
             [&](auto) {
@@ -314,15 +307,6 @@ struct GridwiseNormalizationNaiveVariance_mk_to_mk
             static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
                 auto divisor = 1 / ck::math::sqrt(var_thread_buf(iM) + epsilon);
                 static_for<0, ThreadBufferNumber, 1>{}([&](auto iK0) {
-                    threadwise_beta_load.Run(beta_grid_desc_m_k,
-                                             beta_global_val_buf,
-                                             thread_buffer_desc_m_k,
-                                             make_tuple(I0, I0),
-                                             beta_thread_buf(iK0));
-                    if constexpr(iK0 != ThreadBufferNumber - 1)
-                        threadwise_beta_load.MoveSrcSliceWindow(beta_grid_desc_m_k,
-                                                                thread_copy_fwd_step_m_k);
-
                     static_for<0, XSrcVectorSize, 1>{}([&](auto iK1) {
                         constexpr auto offset_m_k =
                             thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK1));
@@ -335,7 +319,32 @@ struct GridwiseNormalizationNaiveVariance_mk_to_mk
                         // gamma & beta
                         y_thread_buf(iK0)(Number<offset_m_k>{}) =
                             y_thread_buf(iK0)(Number<offset_m_k>{}) *
-                                gamma_thread_buf(iK0)(Number<offset_m_k>{}) +
+                            gamma_thread_buf(iK0)(Number<offset_m_k>{});
+                    });
+                });
+            });
+
+            static_for<0, ThreadBufferNumber, 1>{}([&](auto i) {
+                threadwise_beta_load.Run(beta_grid_desc_m_k,
+                                         beta_global_val_buf,
+                                         thread_buffer_desc_m_k,
+                                         make_tuple(I0, I0),
+                                         beta_thread_buf(i));
+
+                if constexpr(i != ThreadBufferNumber - 1)
+                    threadwise_beta_load.MoveSrcSliceWindow(beta_grid_desc_m_k,
+                                                            thread_copy_fwd_step_m_k);
+            });
+
+            static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
+                static_for<0, ThreadBufferNumber, 1>{}([&](auto iK0) {
+                    static_for<0, XSrcVectorSize, 1>{}([&](auto iK1) {
+                        constexpr auto offset_m_k =
+                            thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK1));
+
+                        // beta
+                        y_thread_buf(iK0)(Number<offset_m_k>{}) =
+                            y_thread_buf(iK0)(Number<offset_m_k>{}) +
                             beta_thread_buf(iK0)(Number<offset_m_k>{});
                     });
                 });
