@@ -30,7 +30,6 @@ Kernel outputs:
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <fstream>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
@@ -264,8 +263,8 @@ int run(int argc, char* argv[])
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
     // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
     // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t M  = 512;
-    ck::index_t N  = 512;
+    ck::index_t M  = 512; // 512
+    ck::index_t N  = 512; // 512
     ck::index_t K  = 64;
     ck::index_t O  = 64;
     ck::index_t G0 = 4; // 54
@@ -501,108 +500,15 @@ int run(int argc, char* argv[])
     ygrad_device_buf.ToDevice(ygrad_gs_ms_os.mData.data());
     kgrad_device_buf.SetZero();
     vgrad_device_buf.SetZero();
-    // z_device_buf.SetZero();
 
-    auto gemm     = DeviceGemmInstance{};
-    auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(
-        static_cast<DataType*>(q_device_buf.GetDeviceBuffer()),
-        static_cast<DataType*>(k_device_buf.GetDeviceBuffer()),
-        static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
-        static_cast<DataType*>(v_device_buf.GetDeviceBuffer()),
-        static_cast<DataType*>(y_device_buf.GetDeviceBuffer()),
-        static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-        static_cast<DataType*>(ygrad_device_buf.GetDeviceBuffer()),
-        static_cast<DataType*>(qgrad_device_buf.GetDeviceBuffer()),
-        static_cast<DataType*>(kgrad_device_buf.GetDeviceBuffer()),
-        static_cast<DataType*>(vgrad_device_buf.GetDeviceBuffer()),
-        {}, // std::array<void*, 1> p_acc0_biases;
-        {}, // std::array<void*, 1> p_acc1_biases;
-        q_gs_ms_ks_lengths,
-        q_gs_ms_ks_strides,
-        k_gs_ns_ks_lengths,
-        k_gs_ns_ks_strides,
-        z_gs_ms_ns_lengths,
-        z_gs_ms_ns_strides,
-        v_gs_os_ns_lengths,
-        v_gs_os_ns_strides,
-        y_gs_ms_os_lengths,
-        y_gs_ms_os_strides,
-        lse_gs_ms_lengths,
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
-        QKVElementOp{},
-        QKVElementOp{},
-        Scale{alpha},
-        QKVElementOp{},
-        YElementOp{},
-        p_drop,
-        std::tuple<unsigned long long, unsigned long long>(seed, offset));
-
-    if(!gemm.IsSupportedArgument(argument))
+    auto gemm    = DeviceGemmInstance{};
+    auto invoker = gemm.MakeInvoker();
+    // get z matrix
     {
-        std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
-
-        return 0;
-    }
-
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
-
-    // 5 GEMM ops in total:
-    // S_MNK / dP_MNO Gemm (Gemm0 rcr)
-    // dQ_MKN Gemm (Gemm1 rrr)
-    // dV_NOM / dK_NKM Gemm (Gemm2 crr)
-    // 3x MNK + 2x MNO
-    std::size_t flop = (size_t(3) * M * N * K + size_t(2) * M * N * O) * 2 * BatchCount;
-    // Q/K/V/Y, dQ/dK/dV/dY, LSE
-    std::size_t num_btype = (sizeof(DataType) * M * K + sizeof(DataType) * K * N +
-                             sizeof(DataType) * N * O + sizeof(DataType) * M * O) *
-                                size_t(2) * BatchCount +
-                            sizeof(LSEDataType) * M * BatchCount;
-
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << gemm.GetTypeString() << std::endl;
-
-    // copy z matirx data form device
-    std::ofstream file("./z_matrix_txt");
-    z_device_buf.FromDevice(z_g_m_n.mData.data());
-    file << z_g_m_n << std::endl;
-    //       std::cout << "z_g_m_n ref:\n" << z_g_m_n;
-    bool pass = true;
-    if(do_verification)
-    {
-        // run fwd again for y, cause z_g_m_n update
-        run_attention_fwd_host(q_g_m_k,
-                               k_g_n_k,
-                               v_g_n_o,
-                               alpha,
-                               s_g_m_n,
-                               p_g_m_n,
-                               y_g_m_o,
-                               lse_g_m,
-                               p_drop_g_m_n,
-                               z_g_m_n,
-                               p_dropout_in_16bits,
-                               rp_dropout);
-        y_gs_ms_os.ForEach([&](auto& self, auto idx) {
-            self(idx) = y_g_m_o(idx[0] * G1 + idx[1], idx[2], idx[3]);
-        });
-        y_device_buf.ToDevice(y_gs_ms_os.mData.data());
-
-        //
-        // call kernel again
-        //
-        // example set Z matrix to null, will not ouput z matrix data
-        argument = gemm.MakeArgument(
+        auto argument = gemm.MakeArgument(
             static_cast<DataType*>(q_device_buf.GetDeviceBuffer()),
             static_cast<DataType*>(k_device_buf.GetDeviceBuffer()),
-            static_cast<ZDataType*>(nullptr), // set to nullptr
+            static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
             static_cast<DataType*>(v_device_buf.GetDeviceBuffer()),
             static_cast<DataType*>(y_device_buf.GetDeviceBuffer()),
             static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
@@ -634,6 +540,100 @@ int run(int argc, char* argv[])
             YElementOp{},
             p_drop,
             std::tuple<unsigned long long, unsigned long long>(seed, offset));
+
+        if(!gemm.IsSupportedArgument(argument))
+        {
+            std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+            return 0;
+        }
+        invoker.Run(argument, StreamConfig{nullptr, false});
+    }
+    // not need output z matrix
+    auto argument = gemm.MakeArgument(
+        static_cast<DataType*>(q_device_buf.GetDeviceBuffer()),
+        static_cast<DataType*>(k_device_buf.GetDeviceBuffer()),
+        static_cast<ZDataType*>(nullptr), // set to nullptr
+        static_cast<DataType*>(v_device_buf.GetDeviceBuffer()),
+        static_cast<DataType*>(y_device_buf.GetDeviceBuffer()),
+        static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
+        static_cast<DataType*>(ygrad_device_buf.GetDeviceBuffer()),
+        static_cast<DataType*>(qgrad_device_buf.GetDeviceBuffer()),
+        static_cast<DataType*>(kgrad_device_buf.GetDeviceBuffer()),
+        static_cast<DataType*>(vgrad_device_buf.GetDeviceBuffer()),
+        {}, // std::array<void*, 1> p_acc0_biases;
+        {}, // std::array<void*, 1> p_acc1_biases;
+        q_gs_ms_ks_lengths,
+        q_gs_ms_ks_strides,
+        k_gs_ns_ks_lengths,
+        k_gs_ns_ks_strides,
+        z_gs_ms_ns_lengths,
+        z_gs_ms_ns_strides,
+        v_gs_os_ns_lengths,
+        v_gs_os_ns_strides,
+        y_gs_ms_os_lengths,
+        y_gs_ms_os_strides,
+        lse_gs_ms_lengths,
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+        QKVElementOp{},
+        QKVElementOp{},
+        Scale{alpha},
+        QKVElementOp{},
+        YElementOp{},
+        p_drop,
+        std::tuple<unsigned long long, unsigned long long>(seed, offset));
+    kgrad_device_buf.SetZero(); // reset global accum buffer and rerun
+    vgrad_device_buf.SetZero();
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+
+    // 5 GEMM ops in total:
+    // S_MNK / dP_MNO Gemm (Gemm0 rcr)
+    // dQ_MKN Gemm (Gemm1 rrr)
+    // dV_NOM / dK_NKM Gemm (Gemm2 crr)
+    // 3x MNK + 2x MNO
+    std::size_t flop = (size_t(3) * M * N * K + size_t(2) * M * N * O) * 2 * BatchCount;
+    // Q/K/V/Y, dQ/dK/dV/dY, LSE
+    std::size_t num_btype = (sizeof(DataType) * M * K + sizeof(DataType) * K * N +
+                             sizeof(DataType) * N * O + sizeof(DataType) * M * O) *
+                                size_t(2) * BatchCount +
+                            sizeof(LSEDataType) * M * BatchCount;
+
+    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << gemm.GetTypeString() << std::endl;
+
+    // copy z matirx data form device
+    z_device_buf.FromDevice(z_g_m_n.mData.data());
+
+    //       std::cout << "z_g_m_n ref:\n" << z_g_m_n;
+    bool pass = true;
+    if(do_verification)
+    {
+        // run fwd again for y, cause z_g_m_n update
+        run_attention_fwd_host(q_g_m_k,
+                               k_g_n_k,
+                               v_g_n_o,
+                               alpha,
+                               s_g_m_n,
+                               p_g_m_n,
+                               y_g_m_o,
+                               lse_g_m,
+                               p_drop_g_m_n,
+                               z_g_m_n,
+                               p_dropout_in_16bits,
+                               rp_dropout);
+        y_gs_ms_os.ForEach([&](auto& self, auto idx) {
+            self(idx) = y_g_m_o(idx[0] * G1 + idx[1], idx[2], idx[3]);
+        });
+        y_device_buf.ToDevice(y_gs_ms_os.mData.data());
+
+        // call kernel again
         kgrad_device_buf.SetZero(); // reset global accum buffer and rerun
         vgrad_device_buf.SetZero();
         invoker.Run(argument, StreamConfig{nullptr, false});
