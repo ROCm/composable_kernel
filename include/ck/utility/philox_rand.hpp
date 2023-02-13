@@ -109,12 +109,9 @@ class philox
     __device__ uint2 u32_high_low_multi(const unsigned int a, const unsigned int b)
     {
         uint2* res;
-        uint2 tmp_res;
-        asm("v_mul_hi_u32    %0, %2, %3\n\t"
-            "v_mul_lo_u32    %1, %2, %3\n\t"
-            : "=v"(tmp_res.x), "=v"(tmp_res.y)
-            : "v"(a), "v"(b));
-        res = &tmp_res;
+        unsigned long long tmp;
+        tmp = static_cast<unsigned long long>(a) * b;
+        res = reinterpret_cast<uint2*>(&tmp);
         return *res;
     }
 

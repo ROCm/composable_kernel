@@ -79,6 +79,7 @@ template <index_t NumDimG,
           typename B0DataType,
           typename B1DataType,
           typename CDataType,
+          typename ZDataType,
           typename LSEDataType,
           typename Acc0BiasDataType,
           typename Acc1BiasDataType,
@@ -104,6 +105,9 @@ struct DeviceGroupedMultiheadAttentionForward : public BaseOperator
         std::vector<index_t> c_gs_ms_os_lengths;
         std::vector<index_t> c_gs_ms_os_strides;
 
+        std::vector<index_t> z_gs_ms_ns_lengths;
+        std::vector<index_t> z_gs_ms_ns_strides;
+
         std::vector<index_t> lse_gs_ms_lengths;
         std::vector<index_t> lse_gs_ms_strides;
 
@@ -119,6 +123,7 @@ struct DeviceGroupedMultiheadAttentionForward : public BaseOperator
                         std::vector<const void*> p_b0_vec,
                         std::vector<const void*> p_b1_vec,
                         std::vector<void*> p_c_vec,
+                        std::vector<void*> p_z_vec,
                         std::vector<void*> p_lse_vec,
                         std::vector<std::vector<const void*>> p_acc0_biases_vec,
                         std::vector<std::vector<const void*>> p_acc1_biases_vec,

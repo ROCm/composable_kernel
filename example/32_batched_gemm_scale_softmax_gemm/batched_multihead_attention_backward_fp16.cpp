@@ -43,23 +43,27 @@ Kernel outputs:
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_dropout.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using F16 = ck::half_t;
 using F32 = float;
+using U16 = unsigned short;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Scale       = ck::tensor_operation::element_wise::Scale;
 
 using QKVElementOp = PassThrough;
 using YElementOp   = PassThrough;
+using VElementOp   = Scale;
 
 using DataType         = F16;
 using AccDataType      = F32;
 using ShuffleDataType  = F32;
 using LSEDataType      = F32;
+using ZDataType        = U16;
 using Acc0BiasDataType = ck::Tuple<>;
 using Acc1BiasDataType = ck::Tuple<>;
 
@@ -91,6 +95,7 @@ using DeviceGemmInstance =
         NumDimK,
         NumDimO,
         DataType,
+        ZDataType,
         LSEDataType,
         Acc0BiasDataType,
         Acc1BiasDataType,
@@ -182,12 +187,16 @@ using ReferenceGemmGradInstance = ck::tensor_operation::host::ReferenceBatchedGe
                                                                                    PassThrough,
                                                                                    PassThrough,
                                                                                    Scale>;
+// Ref dropout
+using ReferenceDropoutInstance =
+    ck::tensor_operation::host::ReferenceDropout<ushort, DataType, DataType>;
 
 template <typename TensorQ,
           typename TensorK,
           typename TensorV,
           typename TensorS,
           typename TensorP,
+          typename TensorZ,
           typename TensorY,
           typename TensorLSE = TensorP>
 void run_attention_fwd_host(const TensorQ& q_g_m_k,
@@ -197,7 +206,11 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
                             TensorS& s_g_m_n,
                             TensorP& p_g_m_n,
                             TensorY& y_g_m_o,
-                            TensorLSE& lse_g_m)
+                            TensorLSE& lse_g_m,
+                            TensorP& p_drop_g_m_n,
+                            TensorZ& z_g_m_n,
+                            ushort p_dropout_in_16bits,
+                            float rp_dropout)
 {
     // S = alpha * Q * K^T
     auto k_g_k_n            = k_g_n_k.Transpose({0, 2, 1});
@@ -225,11 +238,18 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
 
     ref_softmax_invoker.Run(ref_softmax_argument);
 
-    // Y = P * V
+    // P_dropped
+    auto ref_dropout         = ReferenceDropoutInstance{};
+    auto ref_dropout_invoker = ref_dropout.MakeInvoker();
+    auto ref_dropout_argment =
+        ref_dropout.MakeArgument(z_g_m_n, p_g_m_n, p_drop_g_m_n, p_dropout_in_16bits, rp_dropout);
+    ref_dropout_invoker.Run(ref_dropout_argment);
+
+    // Y = P_dropout * V
     auto ref_gemm1          = ReferenceGemm1Instance{};
     auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
     auto ref_gemm1_argument = ref_gemm1.MakeArgument(
-        p_g_m_n, v_g_n_o, y_g_m_o, PassThrough{}, PassThrough{}, PassThrough{});
+        p_drop_g_m_n, v_g_n_o, y_g_m_o, PassThrough{}, PassThrough{}, PassThrough{});
 
     ref_gemm1_invoker.Run(ref_gemm1_argument);
 }
@@ -255,6 +275,13 @@ int run(int argc, char* argv[])
 
     bool input_permute  = false;
     bool output_permute = false;
+
+    float p_drop                    = 0.2;
+    float p_dropout                 = 1 - p_drop;
+    uint16_t p_dropout_in_16bits    = uint16_t(std::floor(p_dropout * 65535.0));
+    float rp_dropout                = 1.0 / p_dropout;
+    const unsigned long long seed   = 1;
+    const unsigned long long offset = 0;
 
     if(argc == 1)
     {
@@ -321,6 +348,11 @@ int run(int argc, char* argv[])
             ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // Y layout [G0, M, G1, O]
             : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // Y layout [G0, G1, M, O]
 
+    std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
+    std::vector<ck::index_t> z_gs_ms_ns_strides =
+        input_permute
+            ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // Z layout [G0, M, G1, N]
+            : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // Z layout [G0, G1, M, N]
     // The softmax stat log-sum-exp (LSE) is used to speed up softmax calculation in backward pass
     // Pi = exp(Si) / sum(exp(S0) + exp(S1) + ...)
     //    = exp(Si) / exp(log(sum(exp() + ...)))
@@ -332,6 +364,7 @@ int run(int argc, char* argv[])
 
     Tensor<DataType> q_gs_ms_ks(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
     Tensor<DataType> k_gs_ns_ks(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
+    Tensor<ZDataType> z_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
     Tensor<DataType> v_gs_os_ns(v_gs_os_ns_lengths, v_gs_os_ns_strides);
     Tensor<DataType> y_gs_ms_os(y_gs_ms_os_lengths, y_gs_ms_os_strides);
     Tensor<DataType> ygrad_gs_ms_os(y_gs_ms_os_lengths, y_gs_ms_os_strides);
@@ -339,10 +372,12 @@ int run(int argc, char* argv[])
 
     std::cout << "q_gs_ms_ks: " << q_gs_ms_ks.mDesc << std::endl;
     std::cout << "k_gs_ns_ks: " << k_gs_ns_ks.mDesc << std::endl;
+    std::cout << "z_gs_ms_ks: " << z_gs_ms_ns.mDesc << std::endl;
     std::cout << "v_gs_os_ns: " << v_gs_os_ns.mDesc << std::endl;
     std::cout << "y_gs_ms_os: " << y_gs_ms_os.mDesc << std::endl;
     std::cout << "lse_gs_ms_os: " << lse_gs_ms.mDesc << std::endl;
 
+    z_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DataType>{0});
     switch(init_method)
     {
     case 0: break;
@@ -408,9 +443,11 @@ int run(int argc, char* argv[])
     // calculate y & log-sum-exp beforehand
     Tensor<DataType> q_g_m_k({BatchCount, M, K});
     Tensor<DataType> k_g_n_k({BatchCount, N, K});
+    Tensor<ZDataType> z_g_m_n({BatchCount, M, N});
     Tensor<DataType> v_g_n_o({BatchCount, N, O});
     Tensor<AccDataType> s_g_m_n({BatchCount, M, N});
     Tensor<DataType> p_g_m_n({BatchCount, M, N});
+    Tensor<DataType> p_drop_g_m_n({BatchCount, M, N});
     Tensor<DataType> y_g_m_o({BatchCount, M, O});
     Tensor<LSEDataType> lse_g_m({BatchCount, M});
 
@@ -418,12 +455,25 @@ int run(int argc, char* argv[])
         [&](auto& self, auto idx) { q_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
     k_gs_ns_ks.ForEach(
         [&](auto& self, auto idx) { k_g_n_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
+    z_gs_ms_ns.ForEach(
+        [&](auto& self, auto idx) { z_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
     v_gs_os_ns.ForEach(
         [&](auto& self, auto idx) { v_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx); });
     lse_gs_ms.ForEach(
         [&](auto& self, auto idx) { lse_g_m(idx[0] * G1 + idx[1], idx[2]) = self(idx); });
 
-    run_attention_fwd_host(q_g_m_k, k_g_n_k, v_g_n_o, alpha, s_g_m_n, p_g_m_n, y_g_m_o, lse_g_m);
+    run_attention_fwd_host(q_g_m_k,
+                           k_g_n_k,
+                           v_g_n_o,
+                           alpha,
+                           s_g_m_n,
+                           p_g_m_n,
+                           y_g_m_o,
+                           lse_g_m,
+                           p_drop_g_m_n,
+                           z_g_m_n,
+                           p_dropout_in_16bits,
+                           rp_dropout);
 
     y_gs_ms_os.ForEach(
         [&](auto& self, auto idx) { self(idx) = y_g_m_o(idx[0] * G1 + idx[1], idx[2], idx[3]); });
@@ -433,6 +483,7 @@ int run(int argc, char* argv[])
     // qkv gradients have the same descriptor as with qkv
     DeviceMem q_device_buf(sizeof(DataType) * q_gs_ms_ks.mDesc.GetElementSpaceSize());
     DeviceMem k_device_buf(sizeof(DataType) * k_gs_ns_ks.mDesc.GetElementSpaceSize());
+    DeviceMem z_device_buf(sizeof(ZDataType) * z_gs_ms_ns.mDesc.GetElementSpaceSize());
     DeviceMem v_device_buf(sizeof(DataType) * v_gs_os_ns.mDesc.GetElementSpaceSize());
     DeviceMem y_device_buf(sizeof(DataType) * y_gs_ms_os.mDesc.GetElementSpaceSize());
     DeviceMem lse_device_buf(sizeof(LSEDataType) * lse_gs_ms.mDesc.GetElementSpaceSize());
@@ -443,6 +494,7 @@ int run(int argc, char* argv[])
 
     q_device_buf.ToDevice(q_gs_ms_ks.mData.data());
     k_device_buf.ToDevice(k_gs_ns_ks.mData.data());
+    z_device_buf.ToDevice(z_gs_ms_ns.mData.data());
     v_device_buf.ToDevice(v_gs_os_ns.mData.data());
     y_device_buf.ToDevice(y_gs_ms_os.mData.data());
     lse_device_buf.ToDevice(lse_gs_ms.mData.data());
@@ -450,11 +502,59 @@ int run(int argc, char* argv[])
     kgrad_device_buf.SetZero();
     vgrad_device_buf.SetZero();
 
-    auto gemm     = DeviceGemmInstance{};
-    auto invoker  = gemm.MakeInvoker();
+    auto gemm    = DeviceGemmInstance{};
+    auto invoker = gemm.MakeInvoker();
+    // get z matrix
+    {
+        auto argument = gemm.MakeArgument(
+            static_cast<DataType*>(q_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(k_device_buf.GetDeviceBuffer()),
+            static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(v_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(y_device_buf.GetDeviceBuffer()),
+            static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(ygrad_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(qgrad_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(kgrad_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(vgrad_device_buf.GetDeviceBuffer()),
+            {}, // std::array<void*, 1> p_acc0_biases;
+            {}, // std::array<void*, 1> p_acc1_biases;
+            q_gs_ms_ks_lengths,
+            q_gs_ms_ks_strides,
+            k_gs_ns_ks_lengths,
+            k_gs_ns_ks_strides,
+            z_gs_ms_ns_lengths,
+            z_gs_ms_ns_strides,
+            v_gs_os_ns_lengths,
+            v_gs_os_ns_strides,
+            y_gs_ms_os_lengths,
+            y_gs_ms_os_strides,
+            lse_gs_ms_lengths,
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+            QKVElementOp{},
+            QKVElementOp{},
+            Scale{alpha},
+            QKVElementOp{},
+            YElementOp{},
+            p_drop,
+            std::tuple<unsigned long long, unsigned long long>(seed, offset));
+
+        if(!gemm.IsSupportedArgument(argument))
+        {
+            std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+            return 0;
+        }
+        invoker.Run(argument, StreamConfig{nullptr, false});
+    }
+    // not need output z matrix
     auto argument = gemm.MakeArgument(
         static_cast<DataType*>(q_device_buf.GetDeviceBuffer()),
         static_cast<DataType*>(k_device_buf.GetDeviceBuffer()),
+        static_cast<ZDataType*>(nullptr), // set to nullptr
         static_cast<DataType*>(v_device_buf.GetDeviceBuffer()),
         static_cast<DataType*>(y_device_buf.GetDeviceBuffer()),
         static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
@@ -468,6 +568,8 @@ int run(int argc, char* argv[])
         q_gs_ms_ks_strides,
         k_gs_ns_ks_lengths,
         k_gs_ns_ks_strides,
+        z_gs_ms_ns_lengths,
+        z_gs_ms_ns_strides,
         v_gs_os_ns_lengths,
         v_gs_os_ns_strides,
         y_gs_ms_os_lengths,
@@ -481,15 +583,11 @@ int run(int argc, char* argv[])
         QKVElementOp{},
         Scale{alpha},
         QKVElementOp{},
-        YElementOp{});
-
-    if(!gemm.IsSupportedArgument(argument))
-    {
-        std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
-
-        return 0;
-    }
-
+        YElementOp{},
+        p_drop,
+        std::tuple<unsigned long long, unsigned long long>(seed, offset));
+    kgrad_device_buf.SetZero(); // reset global accum buffer and rerun
+    vgrad_device_buf.SetZero();
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     // 5 GEMM ops in total:
@@ -511,9 +609,32 @@ int run(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
+    // copy z matirx data form device
+    z_device_buf.FromDevice(z_g_m_n.mData.data());
+
+    //       std::cout << "z_g_m_n ref:\n" << z_g_m_n;
     bool pass = true;
     if(do_verification)
     {
+        // run fowad again for y, cause z_g_m_n update
+        run_attention_fwd_host(q_g_m_k,
+                               k_g_n_k,
+                               v_g_n_o,
+                               alpha,
+                               s_g_m_n,
+                               p_g_m_n,
+                               y_g_m_o,
+                               lse_g_m,
+                               p_drop_g_m_n,
+                               z_g_m_n,
+                               p_dropout_in_16bits,
+                               rp_dropout);
+        y_gs_ms_os.ForEach([&](auto& self, auto idx) {
+            self(idx) = y_g_m_o(idx[0] * G1 + idx[1], idx[2], idx[3]);
+        });
+        y_device_buf.ToDevice(y_gs_ms_os.mData.data());
+
+        // call kernel again
         kgrad_device_buf.SetZero(); // reset global accum buffer and rerun
         vgrad_device_buf.SetZero();
         invoker.Run(argument, StreamConfig{nullptr, false});
@@ -523,6 +644,7 @@ int run(int argc, char* argv[])
         Tensor<DataType> vgrad_g_n_o({BatchCount, N, O});
         Tensor<DataType> sgrad_g_m_n({BatchCount, M, N});
         Tensor<DataType> pgrad_g_m_n({BatchCount, M, N});
+        Tensor<DataType> pgrad_drop_g_m_n({BatchCount, M, N});
         Tensor<DataType> ygrad_g_m_o({BatchCount, M, O});
         Tensor<DataType> ygrad_dot_y_g_m({BatchCount, M});
 
@@ -544,20 +666,26 @@ int run(int argc, char* argv[])
         auto ref_gemm_grad_invoker = ref_gemm_grad.MakeInvoker();
         using RefGemmGradArg       = ReferenceGemmGradInstance::Argument;
 
-        // dP = dY * V^T
+        // dP_dropout = dY * V^T
         auto v_g_o_n = v_g_n_o.Transpose({0, 2, 1});
         ref_gemm_grad_invoker.Run(RefGemmGradArg{
-            ygrad_g_m_o, v_g_o_n, pgrad_g_m_n, PassThrough{}, PassThrough{}, Scale{1.f}});
+            ygrad_g_m_o, v_g_o_n, pgrad_drop_g_m_n, PassThrough{}, PassThrough{}, Scale{1.f}});
 #if PRINT_HOST
         {
             std::cout << "===== dP = dY * V^T\n";
-            std::cout << "ygrad_g_m_o ref:\n" << ygrad_g_m_o;
+            std::cout << "ygrad_drop_g_m_o ref:\n" << ygrad_drop_g_m_n;
             std::cout << "v_g_o_n ref:\n" << v_g_o_n;
-            std::cout << "pgrad_g_m_n ref:\n" << pgrad_g_m_n;
+            std::cout << "pgrad_drop_g_m_n ref:\n" << pgrad_drop_g_m_n;
         }
 #endif
+        // dP = dP_dropout x Z
+        auto ref_dropout         = ReferenceDropoutInstance{};
+        auto ref_dropout_invoker = ref_dropout.MakeInvoker();
+        auto ref_dropout_argment = ref_dropout.MakeArgument(
+            z_g_m_n, pgrad_drop_g_m_n, pgrad_g_m_n, p_dropout_in_16bits, rp_dropout);
+        ref_dropout_invoker.Run(ref_dropout_argment);
 
-        // dS_i_j = P_i_j .* (dP_i_j - dY_i dot Y_i)
+        // dS_i_j = P_i_j .* (dP_i_j -  dY_i dot Y_i)
         sgrad_g_m_n.ForEach([&](auto& self, auto idx_gmn) {
             float ygrad_dot_y = 0;
             for(int o = 0; o < O; o++)
@@ -578,15 +706,14 @@ int run(int argc, char* argv[])
             std::cout << "sgrad_g_m_n ref:\n" << sgrad_g_m_n;
         }
 #endif
-
-        // dV = P^T * dY
-        auto p_g_n_m = p_g_m_n.Transpose({0, 2, 1});
+        // dV = P_drop^T * dY
+        auto p_drop_g_n_m = p_drop_g_m_n.Transpose({0, 2, 1});
         ref_gemm_grad_invoker.Run(RefGemmGradArg{
-            p_g_n_m, ygrad_g_m_o, vgrad_g_n_o, PassThrough{}, PassThrough{}, Scale{1.f}});
+            p_drop_g_n_m, ygrad_g_m_o, vgrad_g_n_o, PassThrough{}, PassThrough{}, Scale{1.0f}});
 #if PRINT_HOST
         {
             std::cout << "===== dV = P^T * dY\n";
-            std::cout << "p_g_n_m ref:\n" << p_g_n_m;
+            std::cout << "p_drop_g_n_m ref:\n" << p_drop_g_n_m;
             std::cout << "ygrad_g_m_o ref:\n" << ygrad_g_m_o;
             std::cout << "vgrad_g_n_o ref:\n" << vgrad_g_n_o;
         }

@@ -33,6 +33,7 @@ using S = ck::Sequence<Is...>;
 
 using F16 = ck::half_t;
 using F32 = float;
+using U16 = unsigned short;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -42,6 +43,7 @@ using B1DataType       = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using CDataType        = F16;
+using ZDataType        = U16;
 using LSEDataType      = F32;
 using Acc0BiasDataType = ck::Tuple<>;
 using Acc1BiasDataType = ck::Tuple<>;
@@ -69,6 +71,7 @@ static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecial
 
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle<
+
         NumDimG,
         NumDimM,
         NumDimN,
@@ -78,6 +81,7 @@ using DeviceGemmInstance =
         B0DataType,
         B1DataType,
         CDataType,
+        ZDataType,
         LSEDataType,
         Acc0BiasDataType,
         Acc1BiasDataType,
@@ -158,5 +162,6 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 CElementOp>;
 
 #include "run_grouped_multihead_attention_forward.inc"
+
 
 int main(int argc, char* argv[]) { return run(argc, argv); }
