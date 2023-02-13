@@ -1,4 +1,4 @@
-"""Copyright (C) 2016-2023 Advanced Micro Devices, Inc. All rights reserved.
+"""Copyright (C) 2018-2023 Advanced Micro Devices, Inc. All rights reserved.
 
    Permission is hereby granted, free of charge, to any person obtaining a copy
    of this software and associated documentation files (the "Software"), to deal
@@ -77,7 +77,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Composable Kernel (CK)'
-copyright = u'2016-2023, Advanced Micro Devices'
+copyright = u'2018-2023, Advanced Micro Devices'
 author = u'Advanced Micro Devices'
 
 # The version info for the project you're documenting, acts as replacement for
