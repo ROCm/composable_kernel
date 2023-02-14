@@ -29,12 +29,12 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
                block_dim.y,
                block_dim.z);
 
-        const int nrepeat = 10;
+        const int nrepeat = 1;
 
-        printf("Warm up 1 time\n");
+        // printf("Warm up 1 time\n");
 
         // warm up
-        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+        // kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
 
         printf("Start running %d times...\n", nrepeat);
 

@@ -145,14 +145,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
         B0Spec,
         B1Spec,
         CSpec>;
-    // K1 = Max Vector Access Pixels
-    static constexpr auto K1Number = Number<K1>{};
-
-    static constexpr auto matrix_padder =
-        MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, K0PerBlock* K1};
 
     static auto MakeAGridDescriptor_AK0_M_AK1(const std::vector<index_t>& a_gs_ms_ks_lengths_vec,
-                                        const std::vector<index_t>& a_gs_ms_ks_strides_vec)
+                                              const std::vector<index_t>& a_gs_ms_ks_strides_vec)
     {
         return Transform::MakeAGridDescriptor_AK0_M_AK1(
             Transform::MakeAGridDescriptor_M_K(a_gs_ms_ks_lengths_vec, a_gs_ms_ks_strides_vec),
@@ -160,20 +155,18 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
     }
 
     static auto MakeB0GridDescriptor_BK0_L_BK1(const std::vector<index_t>& b0_gs_ls_ks_lengths_vec,
-                                              const std::vector<index_t>& b0_gs_ls_ks_strides_vec)
+                                               const std::vector<index_t>& b0_gs_ls_ks_strides_vec)
     {
         return Transform::MakeB0GridDescriptor_BK0_N_BK1(
             Transform::MakeB0GridDescriptor_N_K(b0_gs_ls_ks_lengths_vec, b0_gs_ls_ks_strides_vec),
             Number<K1>{});
     }
 
-    static auto
-    MakeB1GridDescriptor_BL0_N_BL1(const std::vector<index_t>& b1_gs_ns_ls_lengths_vec,
-                                   const std::vector<index_t>& b1_gs_ns_ls_strides_vec)
+    static auto MakeB1GridDescriptor_BL0_N_BL1(const std::vector<index_t>& b1_gs_ns_ls_lengths_vec,
+                                               const std::vector<index_t>& b1_gs_ns_ls_strides_vec)
     {
         return Transform::MakeB1GridDescriptor_BK0_N_BK1(
-            Transform::MakeB1GridDescriptor_N_K(b1_gs_ns_ls_lengths_vec,
-                                                b1_gs_ns_ls_strides_vec),
+            Transform::MakeB1GridDescriptor_N_K(b1_gs_ns_ls_lengths_vec, b1_gs_ns_ls_strides_vec),
             Number<L1>{});
     }
 
@@ -462,8 +455,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
             const auto K = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
 
             auto launch_kernel = [&](auto has_main_k_block_loop) {
-                constexpr bool has_main_loop = has_main_k_block_loop.value;
-
                 const auto kernel = kernel_batched_gemm_softmax_gemm_wmma_cshuffle<
                     GridwiseOp,
                     ADataType,
@@ -482,7 +473,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
                     ComputeBasePtrOfStridedBatch,
                     C0MatrixMask,
                     typename GridwiseOp::DefaultBlock2CTileMap,
-                    has_main_loop>;
+                    has_main_k_block_loop>;
 
                 return launch_and_time_kernel(stream_config,
                                               kernel,
@@ -754,11 +745,15 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
             << K0PerBlock << ", "
             << K1 << ", "
             << MPerBlock << ", "
-            << NPerWMMA << ", "
-            << MPerBlock << ", "
             << NPerBlock << ", "
             << L0PerBlock << ", "
             << L1
+            << getGemmSpecializationString(GemmSpec) << ", "
+            << "ASpec" << getTensorSpecializationString(ASpec) << ", "
+            << "B0Spec" << getTensorSpecializationString(B0Spec) << ", "
+            << "B1Spec" << getTensorSpecializationString(B1Spec) << ", "
+            << "CSpec" << getTensorSpecializationString(CSpec) << ", "
+            << getMaskingSpecializationString(MaskingSpec)
             << ">"
             << " NumPrefetch: "
             << NumPrefetch << ", "

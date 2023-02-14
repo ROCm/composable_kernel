@@ -56,6 +56,18 @@ struct GeneratorTensor_1<int8_t>
 };
 
 template <typename T>
+struct GeneratorTensor_dec1
+{
+    T value = 0.1;
+
+    template <typename... Is>
+    T operator()(Is...)
+    {
+        return value;
+    }
+};
+
+template <typename T>
 struct GeneratorTensor_2
 {
     int min_value = 0;

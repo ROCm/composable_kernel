@@ -517,12 +517,12 @@ struct WmmaGemm
 
     __host__ __device__ static auto CalculateAThreadOriginDataIndex()
     {
-        return GetSwizzledLaneIdLow();
+        return TransposeC ? GetLaneIdUnderSubGroup() : GetSwizzledLaneIdLow();
     }
 
     __host__ __device__ static auto CalculateBThreadOriginDataIndex()
     {
-        return GetLaneIdUnderSubGroup();
+        return TransposeC ? GetSwizzledLaneIdLow() : GetLaneIdUnderSubGroup();
     }
 
     __device__ static CIndex GetBeginOfThreadBlk()

@@ -117,6 +117,26 @@ int run(int argc, char* argv[])
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
         break;
+    case 4: // A, B0, B1 1
+        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
+        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        break;
+    case 5: // Rand: b1 ; unit: a b0	 fail
+        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
+        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
+        break;
+    case 6: // Rand: b0 ; unit: a b1	 fail
+        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
+        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        break;
+    case 7: // Rand: a  ; unit: b0 b1    pass
+        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        break;
     default:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_Sequential<2>{});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
@@ -220,6 +240,12 @@ int run(int argc, char* argv[])
             a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, acc0_element_op);
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
+        // for(int i =0; i< 128; i++){
+            // for(int j =0; j< 128; j++){
+                // printf("%0.2lf ", acc0_g_m_n.mData[i*128 +j]);
+            // }
+            // printf("\n");
+        // }
 
         // masking
         const auto mask = DeviceGemmInstance::C0MatrixMask(N);

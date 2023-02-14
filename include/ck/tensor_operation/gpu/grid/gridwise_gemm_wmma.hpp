@@ -140,6 +140,39 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
     using GridwiseGemmPipe = remove_cvref_t<decltype(
         GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
+    template <typename ABlockDesc_AK0_M_AK1>
+    __host__ __device__ static constexpr auto MakeABlockDescriptor_K0_M0_M1_M2_K1(const ABlockDesc_AK0_M_AK1&)
+    {
+        constexpr index_t A_K0 = ABlockDesc_AK0_M_AK1{}.GetLength(I0);
+        constexpr index_t A_K1 = ABlockDesc_AK0_M_AK1{}.GetLength(I2);
+        constexpr index_t MWaves = MPerBlock / (MRepeat * MPerWmma);
+
+        return transform_tensor_descriptor(
+            ABlockDesc_AK0_M_AK1{},
+            make_tuple(make_pass_through_transform(Number<A_K0>{}),
+                       make_unmerge_transform(
+                           make_tuple(Number<MRepeat>{}, Number<MWaves>{}, Number<MPerWmma>{})),
+                       make_pass_through_transform(Number<A_K1>{})),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+            make_tuple(Sequence<0>{}, Sequence<1, 2, 3>{}, Sequence<4>{}));
+    }
+
+     template <typename BBlockDesc_BK0_N_BK1>
+    __host__ __device__ static constexpr auto MakeBBlockDescriptor_K0_N0_N1_N2_K1(const BBlockDesc_BK0_N_BK1&)
+    {
+        constexpr index_t B_K0 = BBlockDesc_BK0_N_BK1{}.GetLength(I0);
+        constexpr index_t B_K1 = BBlockDesc_BK0_N_BK1{}.GetLength(I2);
+        constexpr index_t NWaves = NPerBlock / (NRepeat * NPerWmma);
+        return transform_tensor_descriptor(
+            BBlockDesc_BK0_N_BK1{},
+            make_tuple(make_pass_through_transform(Number<B_K0>{}),
+                       make_unmerge_transform(
+                           make_tuple(Number<NRepeat>{}, Number<NWaves>{}, Number<NPerWmma>{})),
+                       make_pass_through_transform(Number<B_K1>{})),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+            make_tuple(Sequence<0>{}, Sequence<1, 2, 3>{}, Sequence<4>{}));
+    }
+
     __host__ __device__ static constexpr auto GetABlockDescriptor_K0PerBlock_MPerBlock_K1()
     {
         constexpr auto max_lds_align = K1;
@@ -414,17 +447,20 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
         constexpr auto KPack = math::integer_least_multiple(K1, WmmaK);
 
         auto blockwise_gemm =
-            BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle<BlockSize,
-                                                         FloatA,
-                                                         FloatB,
-                                                         FloatAcc,
-                                                         decltype(a_block_desc_k0perblock_mperblock_k1),
-                                                         decltype(b_block_desc_k0perblock_nperblock_k1),
-                                                         MPerWmma,
-                                                         NPerWmma,
-                                                         MRepeat,
-                                                         NRepeat,
-                                                         KPack>{};
+            BlockwiseGemmWMMA<BlockSize,
+                              FloatA,
+                              FloatB,
+                              FloatAcc,
+                              decltype(MakeABlockDescriptor_K0_M0_M1_M2_K1(a_block_desc_k0perblock_mperblock_k1)),
+                              decltype(MakeBBlockDescriptor_K0_N0_N1_N2_K1(b_block_desc_k0perblock_nperblock_k1)),
+                              MPerBlock,
+                              NPerBlock,
+                              K0PerBlock * K1,
+                              MPerWmma,
+                              NPerWmma,
+                              MRepeat,
+                              NRepeat,
+                              KPack>{};
 
         // Prepare Register for C matrix
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();

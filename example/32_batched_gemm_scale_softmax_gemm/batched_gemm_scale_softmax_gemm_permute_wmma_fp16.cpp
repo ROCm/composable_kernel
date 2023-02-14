@@ -39,8 +39,8 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using ADataType        = F16;
 using B0DataType       = F16;
 using B1DataType       = F16;
-using Acc0DataType      = F32;
-using Acc1DataType      = F32;
+using Acc0DataType     = F32;
+using Acc1DataType     = F32;
 using CShuffleDataType = F32;
 using CDataType        = F16;
 using Acc0BiasDataType = ck::Tuple<>;
@@ -125,12 +125,12 @@ using DeviceGemmInstance =
         S<4, 64, 1>, // B1BlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
-        1,
+        2,
         8,
         8,
         false,
-        1,              // CShuffleMXdlPerWavePerShuffle
-        2,              // CShuffleNXdlPerWavePerShuffle
+        1,              // CShuffleMWmmaPerWavePerShuffle
+        2,              // CShuffleNWmmaPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         4,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization

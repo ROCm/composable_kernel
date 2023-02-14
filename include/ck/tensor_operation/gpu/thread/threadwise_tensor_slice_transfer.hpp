@@ -1382,6 +1382,7 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
 
             // copy data from src_buf into dst_vector
             static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
+                // idx_md err. as dst access 2 strided elements while src visit 1 per loop 
                 constexpr index_t src_offset = src_desc.CalculateOffset(
                     src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
 
@@ -1396,13 +1397,13 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
                 if(get_thread_local_1d_id() % 32 > 16){
                     // apply type convert
                     dst_buf(Number<dst_offset>{}) = type_convert<DstData>(v);
-                    dst_buf(Number<dst_offset + dst_buf.size()/2>{}) = __builtin_amdgcn_permlanex16(type_convert<DstData>(dst_buf(Number<dst_offset + dst_buf.size()/2>{})), 
+                    dst_buf(Number<dst_offset + DstScalarPerVector>{}) = __builtin_amdgcn_permlanex16(type_convert<DstData>(dst_buf(Number<dst_offset + DstScalarPerVector>{})), 
                                                                                                     type_convert<DstData>(v), 
                                                                                                     LowEightRowlaneIdx, HighEightRowLaneIdx, 1, 0);
                 }
                 else{
                     // apply type convert
-                    dst_buf(Number<dst_offset + dst_buf.size()/2>{}) = type_convert<DstData>(v);
+                    dst_buf(Number<dst_offset + DstScalarPerVector>{}) = type_convert<DstData>(v);
                     dst_buf(Number<dst_offset>{}) = __builtin_amdgcn_permlanex16(type_convert<DstData>(dst_buf(Number<dst_offset>{})), 
                                                                                  type_convert<DstData>(v), 
                                                                                  LowEightRowlaneIdx, HighEightRowLaneIdx, 1, 0);

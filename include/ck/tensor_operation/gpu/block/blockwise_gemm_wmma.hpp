@@ -16,19 +16,36 @@ template <index_t BlockSize,
           typename FloatA,
           typename FloatB,
           typename FloatAcc,
-          typename AK0MK1BlockDesc,
-          typename BK0NK1BlockDesc,
+          typename ABlockDesc,
+          typename BBlockDesc,
+          index_t MPerBlock,
+          index_t NPerBlock,
+          index_t KPerBlock,
           index_t MPerWMMA,
           index_t NPerWMMA,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack>
-/* A: K0PerBlock x MPerBlock x K1
+          index_t KPack,
+          bool TransposeC = false>
+/* Option: Read from LDS, big buffer hold all threads required data
+ * Source
+ * A: K0PerBlock x MPerBlock x K1
  * B: K0PerBlock x NPerBlock x K1
- * C: MRepeat x MWave x MSubGroup x NRepeat x NWave x NThreadPerSubGroup x MAccVgprs
+ * Destination
+ * C, non-transpose
+ * thread level: MRepeat x NRepeat x MAccVgprs  
+ * block  level: MRepeat x MWave x MSubGroup x NRepeat x NWave x NThreadPerSubGroup x MAccVgprs
  * KPACK == WMMA_K = 16
+ * 
+ * Option: Read from VMEM, small buffer hold each thread own required data (Skip LDS)
+ * Source:
+ * A(if skip LDS): MRepeat x KPack
+ * B(if skip LDS): NRepeat x KPack
+ * Destination
+ * C, non-transpose
+ * block level: MRepeat x MWave x MSubGroup x NRepeat x NWave x NThreadPerSubGroup x MAccVgprs
  */
-struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
+struct BlockwiseGemmWMMA
 {
     static constexpr auto I0    = Number<0>{};
     static constexpr auto I1    = Number<1>{};
@@ -42,18 +59,10 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
     // Hardcode of WaveSize, since current HIP Runtime(5.4.0-10984) could not return correct one.
     static constexpr index_t WaveSize = 32;
 
-    static constexpr index_t MPerBlock = AK0MK1BlockDesc{}.GetLength(I1);
-    static constexpr index_t NPerBlock = BK0NK1BlockDesc{}.GetLength(I1);
-    static constexpr index_t KPerBlock =
-        BK0NK1BlockDesc{}.GetLength(I0) * BK0NK1BlockDesc{}.GetLength(I2);
+    static constexpr index_t A_K1 = ABlockDesc{}.GetLength(I4);
+    static constexpr index_t B_K1 = BBlockDesc{}.GetLength(I4);
 
-    static constexpr index_t A_K0 = AK0MK1BlockDesc{}.GetLength(I0);
-    static constexpr index_t B_K0 = BK0NK1BlockDesc{}.GetLength(I0);
-    static constexpr index_t A_K1 = AK0MK1BlockDesc{}.GetLength(I2);
-    static constexpr index_t B_K1 = BK0NK1BlockDesc{}.GetLength(I2);
-
-    static constexpr auto wmma_gemm =
-        WmmaGemm<FloatA, FloatB, FloatAcc, MPerWMMA, NPerWMMA, KPack>{};
+    static constexpr auto wmma_gemm = WmmaGemm<FloatA, FloatB, FloatAcc, MPerWMMA, NPerWMMA, KPack, TransposeC>{};
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerWMMA);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerWMMA);
@@ -79,6 +88,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
         return threadid_to_wave_idx_adaptor.CalculateBottomIndex(make_multi_index(thread_id));
     }
 
+    // Default, Block buffer in LDS, thread level offset enabled
     __device__ static auto CalculateAThreadOriginDataIndex()
     {
         const auto wave_idx = GetWaveIdx();
@@ -129,23 +139,63 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
         return make_tuple(c_thread_m, c_thread_n);
     }
 
-    // using Tuple5 = decltype(CalculateAThreadOriginDataIndex());
-    // __host__ __device__ BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle(
-        // Tuple4 a_origin = CalculateAThreadOriginDataIndex(),
-        // Tuple4 b_origin = CalculateBThreadOriginDataIndex())
-        // : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
-    __host__ __device__ BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle()
+    template <index_t m0, index_t n0>
+    __device__ static auto CalculateCThreadOriginDataIndex7D(Number<m0>, Number<n0>)
     {
-        static_assert(AK0MK1BlockDesc::IsKnownAtCompileTime() &&
-                          BK0NK1BlockDesc::IsKnownAtCompileTime(),
+        const auto wave_idx = GetWaveIdx();
+
+        const auto waveId_m = wave_idx[I0];
+        const auto waveId_n = wave_idx[I1];
+
+        const auto blk_idx = wmma_gemm.GetBeginOfThreadBlk3D();
+
+        return make_tuple(Number<m0>{},
+                          blk_idx[I0],
+                          waveId_m,
+                          Number<n0>{},
+                          waveId_n,
+                          blk_idx[I1],
+                          blk_idx[I2]);
+    }
+
+    using Tuple5 = decltype(CalculateAThreadOriginDataIndex());
+    __host__ __device__ BlockwiseGemmWMMA(Tuple5 a_origin = CalculateAThreadOriginDataIndex(),
+                                          Tuple5 b_origin = CalculateBThreadOriginDataIndex())
+        : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
+    {
+        static_assert(ABlockDesc::IsKnownAtCompileTime() && BBlockDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
         static_assert(ThisThreadBlock::GetNumOfThread() == MWaves * NWaves * WaveSize,
                       "ThisThreadBlock::GetNumOfThread() != MWaves * NWaves * WaveSize\n");
 
-        static_assert(MPerBlock % (MPerWMMA * MRepeat) == 0 &&
-                          NPerBlock % (NPerWMMA * NRepeat) == 0,
+        static_assert(MPerBlock % (MPerWMMA * MRepeat) == 0 && NPerBlock % (NPerWMMA * NRepeat) == 0,
                       "wrong!");
+
+        // printf("tid %03d, Mat-B offset %d\n", get_thread_local_1d_id()%32, CalculateBThreadOriginDataIndex().At(Number<3>{}));
+    }
+
+    // transposed WMMA output C' = B' * A'
+    __host__ __device__ static constexpr auto
+    GetCThreadDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs()
+    {
+        constexpr auto c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens =
+            wmma_gemm.GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths();
+
+        // constexpr auto NSubGroup          = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I0];
+        // constexpr auto MThreadPerSubGroup = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I1];
+        constexpr auto NAccVgprs          = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
+
+        return make_naive_tensor_descriptor_packed(
+            //        |MRepeat            |MWave |MSubGroup |NRepeat           |NWave
+            //        |NThreadPerSubGroup |MAccVgprs
+            make_tuple(Number<MRepeat>{},
+                       I1,
+                       I1,
+                       Number<NRepeat>{},
+                       I1,
+                       I1,
+                       NAccVgprs));
     }
 
     // Thread level, register decriptor. Vector-write
@@ -171,6 +221,45 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
                        MAccVgprs));
     }
 
+    template <typename CGridDesc_M_N>
+    __host__ __device__ static constexpr auto
+    MakeCGridDescriptor_MBlockxRepeat_MWave_MSubGroup_NBlockxRepeat_NWave_NThreadPerSubGroup_MAccVgprs(
+        const CGridDesc_M_N& c_grid_desc_m_n)
+    {
+        const auto M = c_grid_desc_m_n.GetLength(I0);
+        const auto N = c_grid_desc_m_n.GetLength(I1);
+
+        const auto c_grid_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma =
+            transform_tensor_descriptor(
+                c_grid_desc_m_n,
+                make_tuple(
+                    make_unmerge_transform(make_tuple(M / (MWaves * MPerWMMA), MWaves, MPerWMMA)),
+                    make_unmerge_transform(make_tuple(N / (NWaves * NPerWMMA), NWaves, NPerWMMA))),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 1, 2>{}, Sequence<3, 4, 5>{}));
+
+        return wmma_gemm
+            .MakeCDesc_MBlockxRepeat_MWave_MSubGroup_NBlockxRepeat_NWave_NThreadPerSubGroup_MAccVgprs(
+                c_grid_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma);
+    }
+
+    // transposed WMMA output C' = B' * A'
+    __host__ __device__ static constexpr auto
+    GetCBlockDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs()
+    {
+        constexpr auto c_block_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma =
+            make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{},
+                                                           Number<MWaves>{},
+                                                           Number<MPerWMMA>{},
+                                                           Number<NRepeat>{},
+                                                           Number<NWaves>{},
+                                                           Number<NPerWMMA>{}));
+
+        return wmma_gemm
+            .MakeCDesc_MBlockxRepeat_MWave_MThreadPerSubGroup_NBlockxRepeat_NWave_NSubGroup_NAccVgprs(
+                c_block_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma);
+    }
+
     // Provide dimension size
     __host__ __device__ static constexpr auto
     GetCBlockDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs()
@@ -188,33 +277,10 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
                 c_block_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma);
     }
 
-    __host__ __device__ static constexpr auto MakeABlockDescriptor_K0_M0_M1_M2_K1()
-    {
-        return transform_tensor_descriptor(
-            AK0MK1BlockDesc{},
-            make_tuple(make_pass_through_transform(Number<A_K0>{}),
-                       make_unmerge_transform(
-                           make_tuple(Number<MRepeat>{}, Number<MWaves>{}, Number<MPerWMMA>{})),
-                       make_pass_through_transform(Number<A_K1>{})),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-            make_tuple(Sequence<0>{}, Sequence<1, 2, 3>{}, Sequence<4>{}));
-    }
-
-    __host__ __device__ static constexpr auto MakeBBlockDescriptor_K0_N0_N1_N2_K1()
-    {
-        return transform_tensor_descriptor(
-            BK0NK1BlockDesc{},
-            make_tuple(make_pass_through_transform(Number<B_K0>{}),
-                       make_unmerge_transform(
-                           make_tuple(Number<NRepeat>{}, Number<NWaves>{}, Number<NPerWMMA>{})),
-                       make_pass_through_transform(Number<B_K1>{})),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-            make_tuple(Sequence<0>{}, Sequence<1, 2, 3>{}, Sequence<4>{}));
-    }
-
+    // Describe how data allocated in thread copy src buffer
     // M0_M1_M2 = MRepeat_MWave_MPerWmma, N0_N1_N2 = NRepeat_NWave_NPerWmma
-    static constexpr auto a_block_desc_k0_m0_m1_m2_k1 = MakeABlockDescriptor_K0_M0_M1_M2_K1();
-    static constexpr auto b_block_desc_k0_n0_n1_n2_k1 = MakeBBlockDescriptor_K0_N0_N1_N2_K1();
+    static constexpr ABlockDesc a_block_desc_k0_m0_m1_m2_k1;
+    static constexpr BBlockDesc b_block_desc_k0_n0_n1_n2_k1;
 
     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
     __device__ void Run(const ABlockBuffer& a_block_buf,
@@ -235,6 +301,9 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
                                    a_thread_desc_,
                                    make_tuple(I0, m0, I0, I0, I0),
                                    a_thread_buf);
+                // static_for<0, a_thread_buf.size(), 1>{}([&](auto i) {
+                    // a_thread_buf(i) = 1;
+                // });
 
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     // read B
@@ -254,6 +323,9 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
                         b_thread_vec.template AsType<FloatB>()(i) =
                             b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                 make_tuple(i / B_K1, n0, 0, 0, i % B_K1))>{}];
+                        
+                        // a_thread_vec.template AsType<FloatA>()(i) = 1;
+                        // b_thread_vec.template AsType<FloatB>()(i) = 1;
                     });
 
                     using wmma_input_type_a = typename vector_type<FloatA, WmmaK>::type;
@@ -261,6 +333,12 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
 
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+                    
+
+                    // printf("GPU Gemm0 input, Tid %03d, A%2d = %04x, B%2d = %0x4\n", 
+                            // get_thread_local_1d_id(), 
+                            // i.value, *(reinterpret_cast<uint16_t*>(&a_thread_vec.template AsType<FloatA>()(i))), 
+                            // i.value, *(reinterpret_cast<uint16_t*>(&b_thread_vec.template AsType<FloatB>()(i)))); 
 
                     wmma_gemm.template Run(
                         a_thread_vec.template AsType<wmma_input_type_a>()(Number<0>{}),
@@ -304,10 +382,8 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
                                                          B_K1,
                                                          B_K1>;
 
-    AThreadCopy a_thread_copy_{CalculateAThreadOriginDataIndex()};
-    BThreadCopy b_thread_copy_{CalculateBThreadOriginDataIndex()};
-    // AThreadCopy a_thread_copy_;
-    // BThreadCopy b_thread_copy_;
+    AThreadCopy a_thread_copy_;
+    BThreadCopy b_thread_copy_;
 };
 
 // block wise level pipe designed for inline asm
@@ -601,7 +677,9 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatB>(
             b_thread_desc_.GetElementSpaceSize());
 
+        // TODO: Fix it, MRepeat < NRepeat
         constexpr auto RepeatDiff = MRepeat - NRepeat;
+
         // Read all Mrepeat, Nrepeat
         static_for<0, NRepeat, 1>{}([&](auto iN) {
             b_thread_copy_.Run(b_block_desc_k0_n0_n1_n2_k1,
