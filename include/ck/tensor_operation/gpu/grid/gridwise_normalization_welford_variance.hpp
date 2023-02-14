@@ -144,7 +144,7 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
             Number<ThreadBufferNumber>{});
 
         auto& beta_thread_buf = gamma_thread_buf;
-        auto& y_thread_buf = x_thread_buf;
+        auto& y_thread_buf    = x_thread_buf;
 
         StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, MThreadSliceSize, true>
             mean_thread_buf;
