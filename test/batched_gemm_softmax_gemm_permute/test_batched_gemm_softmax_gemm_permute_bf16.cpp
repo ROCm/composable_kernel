@@ -27,7 +27,7 @@ using KernelTypes = ::testing::Types<
 
 TYPED_TEST_SUITE(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, KernelTypes);
 
-TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, DISABLED_Test_BF16) { this->Run(); }
+TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Test_BF16) { this->Run(); }
 
 TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Test_BF16_PadM)
 {
@@ -96,7 +96,7 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Test_BF16_OddO)
     this->Run();
 }
 
-TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, DISABLED_Bench_BF16_IrregularK)
+TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Bench_BF16_IrregularK)
 {
     this->lengths_ = std::vector<std::vector<int>>{{256, 256, 160, 160, 1, 16},
                                                    {256, 64, 160, 64, 1, 16},
@@ -109,7 +109,7 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, DISABLED_Bench_BF1
     this->Run();
 }
 
-TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, DISABLED_Bench_BF16)
+TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Bench_BF16)
 {
     this->lengths_ = std::vector<std::vector<int>>{
         {256, 256, 64, 64, 48, 16},
