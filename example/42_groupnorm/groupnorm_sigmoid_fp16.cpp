@@ -23,11 +23,11 @@
 constexpr int Rank         = 5;
 constexpr int NumReduceDim = 3;
 
-using XDataType     = ck::half_t;
-using GammaDataType = ck::half_t;
-using BetaDataType  = ck::half_t;
-using YDataType     = ck::half_t;
-using AccDataType   = float;
+using XDataType       = ck::half_t;
+using GammaDataType   = ck::half_t;
+using BetaDataType    = ck::half_t;
+using YDataType       = ck::half_t;
+using ComputeDataType = float;
 
 struct YElementOp
 {
@@ -50,7 +50,7 @@ using DeviceInstance =
     ck::tensor_operation::device::DeviceNormalizationImpl<XDataType,
                                                           GammaDataType,
                                                           BetaDataType,
-                                                          AccDataType,
+                                                          ComputeDataType,
                                                           YDataType,
                                                           YElementOp,
                                                           Rank,
@@ -157,7 +157,7 @@ int main(int argc, char* argv[])
                                                                                  GammaDataType,
                                                                                  BetaDataType,
                                                                                  YDataType,
-                                                                                 AccDataType,
+                                                                                 ComputeDataType,
                                                                                  YElementOp>;
 
         ReferenceInstance ref;
