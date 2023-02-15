@@ -95,6 +95,12 @@ struct Scale
         y = scale_ * x;
     };
 
+    template <>
+    __host__ __device__ void operator()<double, double>(double& y, const double& x) const
+    {
+        y = scale_ * x;
+    };
+
     float scale_;
 };
 
