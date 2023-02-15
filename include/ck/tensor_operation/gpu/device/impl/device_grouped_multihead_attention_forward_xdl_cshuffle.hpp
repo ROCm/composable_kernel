@@ -97,17 +97,18 @@ __global__ void
     const long_index_t lse_batch_offset = __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(
         arg_ptr[group_id].compute_base_ptr_of_batch_.GetLSEBasePtr(g_idx)));
 
-    // unsigned short* p_z_grid_in = //
-    //    (arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
-    //                                            : arg_ptr[group_id].p_z_grid_ + z_batch_offset);
+    unsigned short* p_z_grid_in = //
+        (arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
+                                                : arg_ptr[group_id].p_z_grid_ + z_batch_offset);
 
     GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
         arg_ptr[group_id].p_a_grid_ + a_batch_offset,
         arg_ptr[group_id].p_b_grid_ + b_batch_offset,
         arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
         arg_ptr[group_id].p_c_grid_ + c_batch_offset,
-        arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
-                                               : arg_ptr[group_id].p_z_grid_ + z_batch_offset,
+        p_z_grid_in,
+        // arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
+        //                                       : arg_ptr[group_id].p_z_grid_ + z_batch_offset,
         arg_ptr[group_id].p_lse_grid_ + lse_batch_offset,
         p_shared,
         a_element_op,
@@ -417,6 +418,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
         B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
         CGridDesc_G_M_N c_grid_desc_g_m_n_;
         ZGridDesc_G_M_N z_grid_desc_g_m_n_;
+
         index_t BatchStrideLSE_;
     };
 
@@ -621,7 +623,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
                 // typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
                 //    z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
 
-                auto z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+                const auto z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
                     GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
                         z_grid_desc_m_n);
 

@@ -5,12 +5,12 @@ int run(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = false;
+    bool time_kernel     = true;
 
     bool input_permute  = false;
     bool output_permute = true;
 
-    float p_drop                    = 0.2;
+    float p_drop                    = 0.1;
     float p_dropout                 = 1 - p_drop;
     uint16_t p_dropout_in_16bits    = uint16_t(std::floor(p_dropout * 65535.0));
     float rp_dropout                = 1.0 / p_dropout;
@@ -45,9 +45,9 @@ int run(int argc, char* argv[])
         exit(0);
     }
 
-    float alpha = 1; // scaling after 1st gemm
+    float alpha = 0.25; // scaling after 1st gemm
 
-    std::size_t group_count = 7;
+    std::size_t group_count = 8;
 
     // Problem descs
     std::vector<DeviceGemmInstance::ProblemDesc> problem_descs;
@@ -79,12 +79,23 @@ int run(int argc, char* argv[])
     std::cout << "group count " << group_count << ". printing first 4 groups\n";
     for(std::size_t i = 0; i < group_count; i++)
     {
-        int M  = 128 * (rand() % 8 + 1);
-        int N  = 128 * (rand() % 8 + 1);
+
+        int M  = 512;
+        int N  = 512;
         int K  = 40;
-        int O  = 40 * (rand() % 2 + 1);
+        int O  = 40;
         int G0 = rand() % 3 + 1;
         int G1 = rand() % 5 + 1;
+
+        // int M  = 128 * (rand() % 8 + 1);
+        // int N  = 128 * (rand() % 8 + 1);
+        // int K  = 40;
+        // int O  = 40 * (rand() % 2 + 1);
+        // int G0 = rand() % 3 + 1;
+        // int G1 = rand() % 5 + 1;
+
+        std::cout << "group id" << i << " M, N, K, O, G0, G1 is " << M << "," << N << "," << K
+                  << "," << O << "," << G0 << "," << G1 << std::endl;
 
         g0_g1_m_n_k_o.push_back({G0, G1, M, N, K, O});
 
@@ -229,25 +240,26 @@ int run(int argc, char* argv[])
     auto c_element_op    = CElementOp{};
 
     // do GEMM
-    auto gemm     = DeviceGemmInstance{};
-    auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(p_a,
-                                      p_b0,
-                                      p_b1,
-                                      p_c,
-                                      p_z,
-                                      p_lse,
-                                      {}, // p_acc0_biases
-                                      {}, // p_acc1_biases
-                                      problem_descs,
-                                      a_element_op,
-                                      b0_element_op,
-                                      acc0_element_op,
-                                      b1_element_op,
-                                      c_element_op,
-                                      p_drop,    // dropout ratio
-                                      {0, 448}); // dropout random seed and offset, offset should be
-                                                 // at least the number of elements on a thread
+    auto gemm    = DeviceGemmInstance{};
+    auto invoker = gemm.MakeInvoker();
+    auto argument =
+        gemm.MakeArgument(p_a,
+                          p_b0,
+                          p_b1,
+                          p_c,
+                          p_z,
+                          p_lse,
+                          {}, // p_acc0_biases
+                          {}, // p_acc1_biases
+                          problem_descs,
+                          a_element_op,
+                          b0_element_op,
+                          acc0_element_op,
+                          b1_element_op,
+                          c_element_op,
+                          p_drop,          // dropout ratio
+                          {seed, offset}); // dropout random seed and offset, offset should be
+                                           // at least the number of elements on a thread
 
     // specify workspace for problem_desc
     DeviceMem problem_desc_workspace(gemm.GetWorkSpaceSize(&argument));
@@ -291,11 +303,14 @@ int run(int argc, char* argv[])
             const auto& b0_gs_ns_ks        = b0_tensors[i];
             const auto& b1_gs_os_ns        = b1_tensors[i];
             auto& c_gs_ms_os_device_result = c_tensors[i];
+            auto& z_gs_ms_ns_device_result = z_tensors[i];
             auto& lse_gs_ms_device_result  = lse_tensors[i];
             auto& c_gs_ms_os_device_buf    = *c_tensors_device[i];
+            auto& z_gs_ms_ns_device_buf    = *z_tensors_device[i];
             auto& lse_gs_ms_device_buf     = *lse_tensors_device[i];
 
             c_gs_ms_os_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
+            z_gs_ms_ns_device_buf.FromDevice(z_gs_ms_ns_device_result.mData.data());
             lse_gs_ms_device_buf.FromDevice(lse_gs_ms_device_result.mData.data());
 
             Tensor<ADataType> a_g_m_k({G0 * G1, M, K});
@@ -303,8 +318,11 @@ int run(int argc, char* argv[])
             Tensor<B1DataType> b1_g_n_o({G0 * G1, N, O});
             Tensor<AccDataType> acc0_g_m_n({G0 * G1, M, N});        // scratch object after gemm0
             Tensor<ADataType> a1_g_m_n({G0 * G1, M, N});            // scratch object after softmax
+            Tensor<ADataType> a1_g_m_n_drop({G0 * G1, M, N});       // scratch object after softmax
             Tensor<CDataType> c_g_m_o_host_result({G0 * G1, M, O}); // scratch object after gemm1
             Tensor<CDataType> c_gs_ms_os_host_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
+            Tensor<ZDataType> z_g_m_n({G0 * G1, M, N});
+            // Tensor<CDataType> z_gs_ms_ns_host_result(z_gs_ms_os_lengths, z_gs_ms_os_strides);
             Tensor<LSEDataType> lse_g_m_host_result({G0 * G1, M}); // scratch object after gemm1
             Tensor<LSEDataType> lse_gs_ms_host_result(lse_gs_ms_lengths, lse_gs_ms_strides);
 
@@ -317,6 +335,10 @@ int run(int argc, char* argv[])
             });
             b1_gs_os_ns.ForEach([&](auto& self, auto idx) {
                 b1_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+            });
+
+            z_gs_ms_ns_device_result.ForEach([&](auto& self, auto idx) {
+                z_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
             });
 
             // gemm 0
@@ -342,10 +364,20 @@ int run(int argc, char* argv[])
 
             ref_softmax_invoker.Run(ref_softmax_argument);
 
+            // printf("print z_g_m_n \n");
+            // z_g_m_n.ForEach([&](auto& self, auto idx) {printf("%u ", self(idx));});
+
+            // dropout after softmax
+            auto ref_dropout         = ReferenceDropoutInstance{};
+            auto ref_dropout_invoker = ref_dropout.MakeInvoker();
+            auto ref_dropout_argment = ref_dropout.MakeArgument(
+                z_g_m_n, a1_g_m_n, a1_g_m_n_drop, p_dropout_in_16bits, rp_dropout);
+            ref_dropout_invoker.Run(ref_dropout_argment);
+
             // gemm 1
             auto ref_gemm1          = ReferenceGemm1Instance{};
             auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
-            auto ref_gemm1_argument = ref_gemm1.MakeArgument(a1_g_m_n,
+            auto ref_gemm1_argument = ref_gemm1.MakeArgument(a1_g_m_n_drop,
                                                              b1_g_n_o,
                                                              c_g_m_o_host_result,
                                                              PassThrough{},
@@ -384,9 +416,11 @@ int run(int argc, char* argv[])
                 atol = 1e-2;
             }
 
+            printf("group id is %lu \n", i);
+
             // bool pass_ =
-            //     ck::utils::check_err(c_gs_ms_os_device_result.mData,
-            //     c_gs_ms_os_host_result.mData);
+            //    ck::utils::check_err(c_gs_ms_os_device_result.mData,
+            //    c_gs_ms_os_host_result.mData);
             bool pass_ = ck::utils::check_err(c_gs_ms_os_device_result.mData,
                                               c_gs_ms_os_host_result.mData,
                                               "Error: Incorrect results c!",

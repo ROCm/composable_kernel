@@ -27,6 +27,7 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_dropout.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -160,6 +161,10 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 AElementOp,
                                                                                 B1ElementOp,
                                                                                 CElementOp>;
+
+// Ref dropout
+using ReferenceDropoutInstance =
+    ck::tensor_operation::host::ReferenceDropout<ZDataType, ADataType, ADataType>;
 
 #include "run_grouped_multihead_attention_forward.inc"
 
