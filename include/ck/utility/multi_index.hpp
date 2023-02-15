@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include "common_header.hpp"
-
 #if CK_EXPERIMENTAL_USE_DYNAMICALLY_INDEXED_MULTI_INDEX
 #include "array_multi_index.hpp"
 #else

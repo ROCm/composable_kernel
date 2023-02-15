@@ -4,8 +4,6 @@
 #ifndef CK_STATICALLY_INDEXED_ARRAY_MULTI_INDEX_HPP
 #define CK_STATICALLY_INDEXED_ARRAY_MULTI_INDEX_HPP
 
-#include "common_header.hpp"
-
 namespace ck {
 
 template <index_t N>
