@@ -83,6 +83,7 @@ __global__ void
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
             const C0MatrixMask c0_matrix_mask,
             const float p_dropout,
+            const bool is_dropout,
             const unsigned long long seed,
             const unsigned long long offset)
 {
@@ -138,6 +139,7 @@ __global__ void
                                                   block_2_ctile_map,
                                                   c0_matrix_mask,
                                                   p_dropout,
+                                                  is_dropout,
                                                   ph);
 #else
     ignore = p_a_grid;
@@ -157,6 +159,10 @@ __global__ void
     ignore = batch_count;
     ignore = compute_base_ptr_of_batch;
     ignore = c0_matrix_mask;
+    ignore = p_dropout;
+    ignore = is_dropout;
+    ignore = seed;
+    ignore = offset;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -778,6 +784,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
             }
 
             p_dropout_        = 1.f - p_drop;
+            is_dropout_       = p_drop > 0.0f;
             float rp_dropout_ = 1.f / p_dropout_;
             acc_element_op_.Append(rp_dropout_);
 
@@ -872,6 +879,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
 
         float p_dropout_;
+        bool is_dropout_;
         unsigned long long seed_;
         unsigned long long offset_;
     };
@@ -954,6 +962,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
                                               arg.compute_base_ptr_of_batch_,
                                               arg.c0_matrix_mask_,
                                               arg.p_dropout_,
+                                              arg.is_dropout_,
                                               arg.seed_,
                                               arg.offset_);
             };

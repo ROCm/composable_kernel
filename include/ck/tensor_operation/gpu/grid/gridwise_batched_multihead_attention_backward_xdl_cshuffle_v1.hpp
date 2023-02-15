@@ -1170,6 +1170,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                const Block2CTileMap& block_2_ctile_map,
                                const C0MatrixMask& c0_matrix_mask,
                                FloatGemmAcc p_dropout,
+                               const bool is_dropout,
                                ck::philox& ph)
     {
         const ushort p_dropout_in_16bits = uint16_t(std::floor(p_dropout * 65535.0));
@@ -1492,7 +1493,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                      n3, // NInputNum
                      n4>,
             Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
-            9,  // DstVectorDim
+            9, // DstVectorDim
             1, // DstScalarPerVector
             InMemoryDataOperationEnum::Set,
             1, // DstScalarStrideInVector
@@ -1847,25 +1848,29 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             blockwise_softmax.RunWithPreCalcStats(s_slash_p_thread_buf, lse_thread_buf);
 
             // save z to global
-            if(p_z_grid)
+            if(is_dropout)
             {
-                // P_dropped
-                blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf),
-                                                        decltype(z_tenor_buffer),
-                                                        true>(
-                    s_slash_p_thread_buf, ph, z_tenor_buffer);
+                if(p_z_grid)
+                {
+                    // P_dropped
+                    blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf),
+                                                            decltype(z_tenor_buffer),
+                                                            true>(
+                        s_slash_p_thread_buf, ph, z_tenor_buffer);
 
-                z_thread_copy_vgpr_to_global.Run(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                                 make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                                                 z_tenor_buffer,
-                                                 z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                                 z_grid_buf);
-            }
-            else
-            {
-                // P_dropped
-                blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf), true>(
-                    s_slash_p_thread_buf, ph);
+                    z_thread_copy_vgpr_to_global.Run(
+                        z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                        make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                        z_tenor_buffer,
+                        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                        z_grid_buf);
+                }
+                else
+                {
+                    // P_dropped
+                    blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf), true>(
+                        s_slash_p_thread_buf, ph);
+                }
             }
 
             block_sync_lds(); // wait for gemm1 LDS read
