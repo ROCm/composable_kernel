@@ -280,6 +280,7 @@ struct AddHardswish
     };
 };
 
+#if 0
 // C = A * B
 // E = FastGelu(C + D)
 struct AddFastGelu
@@ -319,6 +320,32 @@ struct AddFastGelu
         e = GetFastGeLU(c + type_convert<float>(d));
     }
 };
+#else
+// E = FastGelu(C + D)
+struct AddFastGelu
+{
+    template <typename E, typename C, typename D>
+    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<float, float, float>(float& e, const float& c, const float& d) const
+    {
+        const float x = c + d;
+
+        FastGelu{}.template operator()<float, float>(e, x);
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t, half_t, half_t>(half_t& e, const half_t& c, const half_t& d) const
+    {
+        const half_t x = c + d;
+
+        ck::tensor_operation::element_wise::FastGelu{}.template operator()<half_t, half_t>(e, x);
+    }
+};
+#endif
 
 } // namespace element_wise
 } // namespace tensor_operation

@@ -16,7 +16,7 @@ namespace element_wise {
 // Need to ensure compiler will fail if there is no matching candidate, instead of compiler
 // siliently do implicit type conversion
 //
-// Method 1:
+// Example:
 //
 // struct ExampleElementwiseOp
 // {
@@ -27,19 +27,6 @@ namespace element_wise {
 //     template<>
 //     __host__ __device__ constexpr void
 //     operator()<half_t, half_t>(half_t& y, const half_t& x) const
-//     {
-//     }
-// };
-//
-// Method 2:
-//
-// template <typename Y, typename X>
-// struct ExampleElementwiseOp;
-//
-// template <>
-// struct ExampleElementwiseOp<float, ck::bhalf_t>
-// {
-//     __host__ __device__ void operator()(float& y, ck::bhalf_t& x) const
 //     {
 //     }
 // };
@@ -208,6 +195,7 @@ struct AddMultiply
     }
 };
 
+#if 0
 // C = A * B
 // E = FastGelu(C + D0 + D1)
 struct AddAddFastGelu
@@ -245,6 +233,35 @@ struct AddAddFastGelu
         e = type_convert<E>(y);
     }
 };
+#else
+// E = FastGelu(C + D0 + D1)
+struct AddAddFastGelu
+{
+    template <typename E, typename C, typename D0, typename D1>
+    __host__ __device__ constexpr void
+    operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<float, float, float, float>(float& e,
+                                                                              const float& c,
+                                                                              const float& d0,
+                                                                              const float& d1) const
+    {
+        const float x = c + d0 + d1;
+
+        FastGelu{}.template operator()<float, float>(e, x);
+    }
+
+    template <>
+    __host__ __device__ constexpr void operator()<half_t, half_t, half_t, half_t>(
+        half_t& e, const half_t& c, const half_t& d0, const half_t& d1) const
+    {
+        const half_t x = c + d0 + d1;
+
+        ck::tensor_operation::element_wise::FastGelu{}.template operator()<half_t, half_t>(e, x);
+    }
+};
+#endif
 
 struct Normalize
 {
