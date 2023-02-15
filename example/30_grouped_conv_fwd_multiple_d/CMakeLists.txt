@@ -16,6 +16,9 @@ if(USE_BITINT_EXTENSION_INT4)
   add_dependencies(example_grouped_conv_fwd_multiple_d example_grouped_conv_fwd_bias_relu_add_xdl_int4)
 endif() # USE_BITINT_EXTENSION_INT4
 
+if(GPU_TARGETS MATCHES "gfx1100")
+  add_example_executable(example_grouped_conv_fwd_bias_relu_add_wmma_fp16 grouped_conv_fwd_bias_relu_add_wmma_fp16.cpp)
+endif()
 
 add_example_executable(example_grouped_conv_fwd_xdl_fp16 grouped_conv_fwd_xdl_fp16.cpp)
 
