@@ -1175,6 +1175,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
     {
         const ushort p_dropout_in_16bits = uint16_t(std::floor(p_dropout * 65535.0));
         const FloatGemmAcc rp_dropout    = 1.0f / p_dropout;
+        const tensor_operation::element_wise::Scale scale_rp_dropout(s_element_op.Value() *
+                                                                     rp_dropout);
 
         const auto q_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_q_grid, q_grid_desc_k0_m_k1.GetElementSpaceSize());
@@ -1604,9 +1606,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
         auto kgrad_thread_copy_vgpr_to_global = typename Gemm2::template CBlockwiseCopy<
             decltype(kgrad_grid_desc_n0_o0_n1_o1_n2_o2_o3_o4),
-            decltype(s_element_op)>(kgrad_grid_desc_n0_o0_n1_o1_n2_o2_o3_o4,
-                                    kgrad_thread_origin_on_grid_n0_o0_n1_o1_n2_o2_o3_o4,
-                                    s_element_op);
+            decltype(scale_rp_dropout)>(kgrad_grid_desc_n0_o0_n1_o1_n2_o2_o3_o4,
+                                        kgrad_thread_origin_on_grid_n0_o0_n1_o1_n2_o2_o3_o4,
+                                        scale_rp_dropout);
 
         //
         // set up Y dot dY
@@ -1749,8 +1751,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
         const index_t num_gemm1_k_block_outer_loop = k_grid_desc_k0_n_k1.GetLength(I1) / NPerBlock;
         constexpr index_t num_gemm1_k_block_inner_loop = NPerBlock / Gemm1KPerBlock;
 
-        const index_t K    = k_grid_desc_k0_n_k1.GetLength(I0) * k_grid_desc_k0_n_k1.GetLength(I2);
-        const float scalar = 1.0f / std::sqrt(K);
         // Initialize dQ
         qgrad_thread_buf.Clear();
 
@@ -1831,14 +1831,15 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                     }
                     else
                     {
-                        s_slash_p_thread_buf(i) = scalar * s_slash_p_thread_buf[i];
+                        s_element_op(s_slash_p_thread_buf(i), s_slash_p_thread_buf[i]);
                     }
                 });
             }
             else
             {
-                static_for<0, s_slash_p_thread_buf.Size(), 1>{}(
-                    [&](auto i) { s_slash_p_thread_buf(i) = scalar * s_slash_p_thread_buf[i]; });
+                static_for<0, s_slash_p_thread_buf.Size(), 1>{}([&](auto i) {
+                    s_element_op(s_slash_p_thread_buf(i), s_slash_p_thread_buf[i]);
+                });
             }
 
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
@@ -2230,7 +2231,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                      n_thread_data_on_block_idx[I2],
                                      n_thread_data_on_block_idx[I3],
                                      n_thread_data_on_block_idx[I4]),
-                    s_element_op};
+                    scale_rp_dropout};
 
             // shuffle: blockwise copy C from LDS to global
             auto c_shuffle_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
