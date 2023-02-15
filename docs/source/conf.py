@@ -148,6 +148,13 @@ html_theme_options = {
 #     ]
 # }
 
+mathjax3_config = {
+'tex': {
+    'macros': {
+        'diag': '\\operatorname{diag}',
+        }
+    }
+}
 
 # -- Options for HTMLHelp output ------------------------------------------
 
@@ -168,7 +175,10 @@ latex_elements = {
 
     # Additional stuff for the LaTeX preamble.
     #
-    'preamble': '\setcounter{tocdepth}{5}',
+    'preamble': r'''
+\setcounter{tocdepth}{5}
+\newcommand{\diag}{\operatorname{diag}}
+''',
 
     # Latex figure (float) alignment
     #
