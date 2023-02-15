@@ -53,7 +53,6 @@ bool run_gemm_add_multiply(const ProblemSize& problem_size, const ExecutionConfi
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
 
-
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
     d0_device_buf.ToDevice(d0_m_n.mData.data());
@@ -84,8 +83,8 @@ bool run_gemm_add_multiply(const ProblemSize& problem_size, const ExecutionConfi
 
     if(!device_op.IsSupportedArgument(argument))
     {
-	    std::cout << "wrong! this device_op instance does not support this problem" << std::endl;
-	    return true;
+        std::cout << "wrong! this device_op instance does not support this problem" << std::endl;
+        return true;
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
