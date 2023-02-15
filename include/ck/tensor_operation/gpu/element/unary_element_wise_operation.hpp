@@ -11,7 +11,7 @@ namespace ck {
 namespace tensor_operation {
 namespace element_wise {
 
-#if CK_WORKAROUND_SWDEV_XXXXXX_FRCP_RN
+#if CK_WORKAROUND_SWDEV_383542
 extern "C" __device__ float __ocml_native_recip_f32(float);
 #endif
 
@@ -204,40 +204,6 @@ struct Relu
     }
 };
 
-#if 0
-// Y = FastGelu(X)
-struct FastGelu
-{
-    // Fast GeLU
-    // https://paperswithcode.com/method/gelu
-    // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
-    __host__ __device__ static constexpr float GetFastGeLU(float x)
-    {
-        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-        const float emu = exp(-u);
-        const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
-        return x * cdf;
-    }
-
-    template <typename T>
-    static inline constexpr bool is_valid_param_type_v =
-        std::is_same_v<T, float> || std::is_same_v<T, half_t> || std::is_same_v<T, bhalf_t> ||
-        std::is_same_v<T, int32_t> || std::is_same_v<T, int8_t>
-#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-        || std::is_same_v<T, ck::int4_t>
-#endif
-        ;
-
-    template <typename Y, typename X>
-    __host__ __device__ void operator()(Y& y, const X& x) const
-    {
-        static_assert(is_valid_param_type_v<Y> && is_valid_param_type_v<X>);
-
-        const float tmp_y = GetFastGeLU(type_convert<float>(x));
-        y                 = type_convert<Y>(tmp_y);
-    }
-};
-#else
 // Fast GeLU
 // https://paperswithcode.com/method/gelu
 // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
@@ -275,24 +241,16 @@ struct FastGelu
     template <>
     __device__ void operator()<float, float>(float& y, const float& x) const
     {
-#if 0
-        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-        const float emu = exp(-u);
-        const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
-
-        y = x * cdf;
-#else
         const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
         const float emu = __expf(-u);
 
-#if !CK_WORKAROUND_SWDEV_XXXXXX_FRCP_RN
+#if !CK_WORKAROUND_SWDEV_383542
         const float cdf = 0.5f + 0.5f * (2.f * __frcp_rn(1.f + emu) - 1.f);
 #else
         const float cdf = 0.5f + 0.5f * (2.f * __ocml_native_recip_f32(1.f + emu) - 1.f);
 #endif
 
         y = x * cdf;
-#endif
     }
 
     // device code, use lower precision "__expf" and "rcp"
@@ -306,7 +264,6 @@ struct FastGelu
         y = type_convert<half_t>(y_f);
     }
 };
-#endif
 
 // https://paperswithcode.com/method/gelu
 // y = 0.5*x*(1+erf(x/sqrt(2)))
