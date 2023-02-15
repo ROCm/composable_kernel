@@ -20,12 +20,12 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
-using XDataType     = ck::half_t;
-using GammaDataType = ck::half_t;
-using BetaDataType  = ck::half_t;
-using YDataType     = ck::half_t;
-using AccDataType   = float;
-using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
+using XDataType       = ck::half_t;
+using GammaDataType   = ck::half_t;
+using BetaDataType    = ck::half_t;
+using YDataType       = ck::half_t;
+using ComputeDataType = float;
+using PassThrough     = ck::tensor_operation::element_wise::PassThrough;
 
 constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
@@ -34,7 +34,7 @@ using DeviceInstance =
     ck::tensor_operation::device::DeviceNormalizationImpl<XDataType,
                                                           GammaDataType,
                                                           BetaDataType,
-                                                          AccDataType,
+                                                          ComputeDataType,
                                                           YDataType,
                                                           PassThrough,
                                                           Rank,
@@ -121,7 +121,7 @@ int main()
                                                                                  GammaDataType,
                                                                                  BetaDataType,
                                                                                  YDataType,
-                                                                                 AccDataType,
+                                                                                 ComputeDataType,
                                                                                  PassThrough,
                                                                                  Rank,
                                                                                  NumReduceDim>;
