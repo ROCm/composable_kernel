@@ -9,7 +9,7 @@ Full documentation for Composable Kernel is not yet available.
 - Fixed grouped ConvBwdWeight test case failure (#524).
 
 ### Optimizations
-- Optimized ...
+- Improve proformance of normalization kernel
 
 ### Added
 - Added user tutorial (#563).
