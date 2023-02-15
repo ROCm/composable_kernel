@@ -1169,12 +1169,13 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                const YGradGridDesc_M0_O_M1& ygrad_grid_desc_m0_o_m1,
                                const Block2CTileMap& block_2_ctile_map,
                                const C0MatrixMask& c0_matrix_mask,
-                               FloatGemmAcc p_dropout,
-                               const bool is_dropout,
+                               const float p_drop,
                                ck::philox& ph)
     {
+        const FloatGemmAcc p_dropout     = type_convert<FloatGemmAcc>(1.0f - p_drop);
+        const FloatGemmAcc rp_dropout    = type_convert<FloatGemmAcc>(1.0f / p_dropout);
         const ushort p_dropout_in_16bits = uint16_t(std::floor(p_dropout * 65535.0));
-        const FloatGemmAcc rp_dropout    = 1.0f / p_dropout;
+        const bool is_dropout            = p_drop > 0.0f;
         const tensor_operation::element_wise::Scale scale_rp_dropout(s_element_op.Value() *
                                                                      rp_dropout);
 

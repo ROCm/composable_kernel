@@ -81,8 +81,7 @@ __global__ void
             const index_t batch_count,
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
             const C0MatrixMask c0_matrix_mask,
-            const float p_dropout,
-            const bool is_dropout,
+            const float p_drop,
             const unsigned long long seed,
             const unsigned long long offset)
 {
@@ -137,8 +136,7 @@ __global__ void
                                                   ygrad_grid_desc_m0_o_m1,
                                                   block_2_ctile_map,
                                                   c0_matrix_mask,
-                                                  p_dropout,
-                                                  is_dropout,
+                                                  p_drop,
                                                   ph);
 #else
     ignore = p_a_grid;
@@ -158,8 +156,7 @@ __global__ void
     ignore = batch_count;
     ignore = compute_base_ptr_of_batch;
     ignore = c0_matrix_mask;
-    ignore = p_dropout;
-    ignore = is_dropout;
+    ignore = p_drop;
     ignore = seed;
     ignore = offset;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
@@ -761,7 +758,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
                   z_grid_desc_g_m_n_,
                   b1_grid_desc_g_n_k_,
                   c_grid_desc_g_m_n_,
-                  type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize())}
+                  type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize())},
+              p_drop_{p_drop}
         {
             // TODO: implement bias addition
             ignore = p_acc0_biases;
@@ -781,9 +779,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         y_grid_desc_m_o_);
             }
-
-            p_dropout_  = 1.f - p_drop;
-            is_dropout_ = p_drop > 0.0f;
 
             seed_   = std::get<0>(seeds);
             offset_ = std::get<1>(seeds);
@@ -875,8 +870,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
         index_t batch_count_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
 
-        float p_dropout_;
-        bool is_dropout_;
+        float p_drop_;
         unsigned long long seed_;
         unsigned long long offset_;
     };
@@ -958,8 +952,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
                                               arg.batch_count_,
                                               arg.compute_base_ptr_of_batch_,
                                               arg.c0_matrix_mask_,
-                                              arg.p_dropout_,
-                                              arg.is_dropout_,
+                                              arg.p_drop_,
                                               arg.seed_,
                                               arg.offset_);
             };
