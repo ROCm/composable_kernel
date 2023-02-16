@@ -103,8 +103,8 @@ using DeviceGemmInstance =
         128,         // MPerBlock
         128,         // NPerBlock
         32,          // KPerBlock
-        64,          // Gemm1NPerBlock
-        32,          // Gemm1KPerBlock
+        128,         // Gemm1NPerBlock
+        64,          // Gemm1KPerBlock
         8,           // AK1
         8,           // BK1
         2,           // B1K1
@@ -112,7 +112,7 @@ using DeviceGemmInstance =
         32,          // NPerXDL
         1,           // MXdlPerWave
         4,           // NXdlPerWave
-        2,           // Gemm1NXdlPerWave
+        4,           // Gemm1NXdlPerWave
         S<4, 64, 1>, // ABlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
