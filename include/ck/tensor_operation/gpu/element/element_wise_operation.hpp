@@ -221,6 +221,20 @@ struct AddAddFastGelu
 
         ck::tensor_operation::element_wise::FastGelu{}.template operator()<half_t, half_t>(e, x);
     }
+
+    template <>
+    __host__ __device__ constexpr void operator()<half_t, float, half_t, half_t>(
+        half_t& e, const float& c, const half_t& d0, const half_t& d1) const
+    {
+        const float x0_f = c + d0 + d1;
+
+        float x1_f;
+
+        ck::tensor_operation::element_wise::FastGelu{}.template operator()<float, float>(x1_f,
+                                                                                         x0_f);
+
+        e = type_convert<half_t>(x1_f);
+    }
 };
 
 struct Normalize

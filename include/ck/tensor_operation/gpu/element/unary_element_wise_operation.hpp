@@ -253,7 +253,6 @@ struct FastGelu
         y = x * cdf;
     }
 
-    // device code, use lower precision "__expf" and "rcp"
     template <>
     __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
     {
