@@ -311,7 +311,7 @@ struct AddFastGelu
     {
         const float x0_f = c + d;
 
-        float x1_f;
+        float x1_f = 0;
 
         ck::tensor_operation::element_wise::FastGelu{}.template operator()<float, float>(x1_f,
                                                                                          x0_f);
