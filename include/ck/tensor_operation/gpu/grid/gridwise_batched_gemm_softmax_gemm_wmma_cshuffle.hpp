@@ -352,6 +352,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
         const auto K = a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2);
         const auto N = b1_grid_desc_l0_n_l1.GetLength(I1);
 
+        printf("M = %d, L = %d, K = %d, N = %d\n", M, L, K, N);
+
         const auto KPerBlock = K0PerBlock * K1Value;
         if(!(M == c_grid_desc_m_n.GetLength(I0) && N == c_grid_desc_m_n.GetLength(I1)))
         {
@@ -730,7 +732,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
         //  dst Rowlane
         //  0x76543210  0xfedcba98
         //  src Rowlane
-            0x76543210, 0xfedcba98>{tensor_operation::element_wise::PassThrough{}};
+            0x76543210, 0xfedcba98,
+            false>{tensor_operation::element_wise::PassThrough{}};
         
         // B1 matrix blockwise copy
         auto b1_blockwise_copy =

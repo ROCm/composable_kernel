@@ -972,7 +972,6 @@ inline __host__ __device__ constexpr int type_convert<int, float>(float x)
         float fp32;
         int int32;
     } u = {x};
-    // u.fp32 = x;
 
     return u.int32;
 }
@@ -985,7 +984,6 @@ inline __host__ __device__ constexpr float type_convert<float, int>(int x)
         int int32;
         float fp32;
     } u = {x};
-    // u.fp32 = x;
 
     return u.fp32;
 }

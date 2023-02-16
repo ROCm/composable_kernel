@@ -1311,10 +1311,11 @@ template <typename SrcData,
           typename ElementwiseOperation,
           typename SliceLengths,
           typename DimAccessOrder,
-          index_t DstVectorDim,
-          index_t DstScalarPerVector,
+          index_t  DstVectorDim,
+          index_t  DstScalarPerVector,
           uint32_t LowEightRowlaneIdx,
           uint32_t HighEightRowLaneIdx,
+          bool     IntraRowSwizzlePerm,
           typename enable_if<SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                              bool>::type = false>
 struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
@@ -1389,29 +1390,33 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
                 constexpr index_t dst_offset = dst_desc.CalculateOffset(
                     dst_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
 
-                SrcData v;
+                SrcData v_this_row, v_theother_row;
+                // int type temp value due to intrinsic requirement
+                int temp = 0;
 
                 // apply element-wise operation
-                element_op_(v, src_buf[Number<src_offset>{}]);
+                element_op_(v_this_row, src_buf[Number<src_offset>{}]);
+
+                // apply intra-row swizzle permute
+                if constexpr(IntraRowSwizzlePerm){
+                    //                                                              origin: 0xfedcba98, 0x76543210
+                    temp = __builtin_amdgcn_permlane16(temp, type_convert<int>(v_this_row), 0xeca86420, 0xfdb97531, 1, 0);
+                    v_this_row = type_convert<float>(temp);
+                }
+
+                // apply inter-row permute.
+                temp = __builtin_amdgcn_permlanex16(temp, type_convert<int>(v_this_row), LowEightRowlaneIdx, HighEightRowLaneIdx, 1, 0);
+                v_theother_row = type_convert<float>(temp);
 
                 if(get_thread_local_1d_id() % 32 < 16){
                     // apply type convert
-                    dst_buf(Number<dst_offset>{}) = type_convert<DstData>(v);
+                    dst_buf(Number<dst_offset>{}) = type_convert<DstData>(v_this_row);
+                    dst_buf(Number<dst_offset + DstScalarPerVector>{}) = type_convert<DstData>(v_theother_row);
                 }
                 else{
                     // apply type convert
-                    dst_buf(Number<dst_offset + DstScalarPerVector>{}) = type_convert<DstData>(v);
-                }
-                SrcData d = 0;
-                int temp = 0;
-                temp = __builtin_amdgcn_permlanex16(temp, type_convert<int>(v), 
-                                                    LowEightRowlaneIdx, HighEightRowLaneIdx, 1, 0);
-                d = type_convert<float>(temp);
-                if(get_thread_local_1d_id() % 32 < 16){
-                    dst_buf(Number<dst_offset + DstScalarPerVector>{}) = type_convert<DstData>(d);
-                }
-                else{
-                    dst_buf(Number<dst_offset>{}) = type_convert<DstData>(d);
+                    dst_buf(Number<dst_offset + DstScalarPerVector>{}) = type_convert<DstData>(v_this_row);
+                    dst_buf(Number<dst_offset>{}) = type_convert<DstData>(v_theother_row);
                 }
             });
         });

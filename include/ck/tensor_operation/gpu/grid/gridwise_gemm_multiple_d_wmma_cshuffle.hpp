@@ -148,14 +148,12 @@ __global__ void
             const Block2CTileMap block_2_etile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__))
-    //printf("entry kernel launch");
     __shared__ char p_shared[GridwiseOp::GetSharedMemoryNumberOfByte()];
 
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
-    //printf("before compute_ptr_offset call");
     const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
     const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
@@ -170,12 +168,8 @@ __global__ void
     
     DsPointer p_ds_grid_grp;
 
-    //printf("before allocate pointer d");
-
     static_for<0, NumDTensor, 1>{}(
         [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_batch_offset[i]; });
-
-    //printf("before entry");
 
     GridwiseOp::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
                                                 p_b_grid + b_batch_offset,
@@ -469,16 +463,23 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
 
         if(!valid)
         {
+            printf("GridwiseOp: D descriptor dimension check failure\n");
             return false;
         }
 
         if(!(M == e_grid_desc_m_n.GetLength(I0) && N == e_grid_desc_m_n.GetLength(I1) &&
              K0 == b_grid_desc_k0_n_k1.GetLength(I0) && K1 == a_grid_desc_k0_m_k1.GetLength(I2) &&
              K1 == b_grid_desc_k0_n_k1.GetLength(I2)))
+        {
+            printf("GridwiseOp: ABE descriptor dimension cross check failure\n");
             return false;
+        }
 
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % K0PerBlock == 0))
+        {
+            printf("GridwiseOp: Problemsize descriptor dimension check failure\n");
             return false;
+        }
 
         // check gridwise gemm pipeline
         const auto num_k_loop = K0 / K0PerBlock;
@@ -570,7 +571,6 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
                                const CDEElementwiseOperation& cde_element_op,
                                const Block2CTileMap& block_2_ctile_map)
     {
-        //printf("safe entry");
         // clang-format off
 /*******************************************************************************/
 // Memory buffer zone.
@@ -716,7 +716,6 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
                                                           c_thread_buf,
                                                           K0BlockMainLoop);
 /*******************************************************************************/
-        //printf("safe 1");
         // write out to C, implement shuffle
         {
             constexpr auto c_thread_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs =  

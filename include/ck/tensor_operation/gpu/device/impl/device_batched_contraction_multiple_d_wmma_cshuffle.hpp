@@ -771,6 +771,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {
+                printf("DeviceOp: Arch check failure\n");
                 return false;
             }
         }
@@ -785,6 +786,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
                                       arg.e_grid_desc_m_n_,
                                       arg.block_2_ctile_map_))
         {
+            printf("GridwiseOp: Validity check failure\n");
             return false;
         }
 
@@ -799,6 +801,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
             if(!(arg.a_mz_stride_ == 1 &&
                  arg.a_grid_desc_k0_m_k1_.GetLength(I1) % ABlockTransferSrcScalarPerVector == 0))
             {
+                printf("DeviceOp: Vector Access A-m check failure\n");
                 return false;
             }
         }
@@ -807,6 +810,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
             if(!(arg.a_kz_stride_ == 1 &&
                  arg.a_grid_desc_k0_m_k1_.GetLength(I2) % ABlockTransferSrcScalarPerVector == 0))
             {
+                printf("DeviceOp: Vector Access A-k check failure\n");
                 return false;
             }
         }
@@ -817,6 +821,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
             if(!(arg.b_nz_stride_ == 1 &&
                  arg.b_grid_desc_k0_n_k1_.GetLength(I1) % BBlockTransferSrcScalarPerVector == 0))
             {
+                printf("DeviceOp: Vector Access B-n check failure\n");
                 return false;
             }
         }
@@ -825,6 +830,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
             if(!(arg.b_kz_stride_ == 1 &&
                  arg.b_grid_desc_k0_n_k1_.GetLength(I2) % BBlockTransferSrcScalarPerVector == 0))
             {
+                printf("DeviceOp: Vector Access B-k check failure\n");
                 return false;
             }
         }
@@ -838,6 +844,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
                          CDEShuffleBlockTransferScalarPerVector_NPerBlock ==
                      0))
             {
+                printf("DeviceOp: Vector Access D-n check failure\n");
                 valid_d_access = false;
             }
         });
@@ -854,6 +861,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
                   0) ||
              CDEShuffleBlockTransferScalarPerVector_NPerBlock == 1))
         {
+            printf("DeviceOp: Vector Access E-n check failure\n");
             return false;
         }
 
