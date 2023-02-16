@@ -473,9 +473,9 @@ def Build_CK(Map conf=[:]){
                         stash "ckProfiler.tar.gz"
                         if (params.RUN_FULL_QA){
                            // build deb packages
-                           make -j package
-                           archiveArtifacts 'composablekernel-ckprofiler_*.deb'
-                           archiveArtifacts 'composablekernel-tests_*.deb'
+                           sh 'make -j package'
+                           archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
+                           archiveArtifacts artifacts: 'composablekernel-tests_*.deb'
                         }
                     }
                 }
