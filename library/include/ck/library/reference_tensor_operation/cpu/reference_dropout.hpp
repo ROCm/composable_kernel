@@ -31,14 +31,14 @@ struct ReferenceDropout : public device::BaseOperator
               in_(in),
               out_(out),
               p_dropout_in_16bits_(p_dropout_in_16bits),
-              rp_dropout_(ck::type_convert<OutDataType>(rp_dropout))
+              rp_dropout_(rp_dropout)
         {
         }
         const Tensor<RefDataType>& ref_;
         const Tensor<InDataType>& in_;
         Tensor<OutDataType>& out_;
         RefDataType p_dropout_in_16bits_;
-        OutDataType rp_dropout_;
+        float rp_dropout_;
     };
 
     // Invoker
@@ -48,7 +48,10 @@ struct ReferenceDropout : public device::BaseOperator
         {
             arg.out_.ForEach([&](auto& self, auto idx) {
                 self(idx) =
-                    arg.ref_(idx) < arg.p_dropout_in_16bits_ ? arg.in_(idx) * arg.rp_dropout_ : 0;
+                    arg.ref_(idx) < arg.p_dropout_in_16bits_
+                        ? ck::type_convert<OutDataType>(ck::type_convert<float>(arg.in_(idx)) *
+                                                        ck::type_convert<float>(arg.rp_dropout_))
+                        : 0;
             });
             return 0;
         }
