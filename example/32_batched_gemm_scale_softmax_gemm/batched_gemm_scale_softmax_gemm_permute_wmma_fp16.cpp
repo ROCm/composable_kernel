@@ -108,26 +108,26 @@ using DeviceGemmInstance =
         1,           // MRepeat
         8,           // LRepeat
         4,           // NRepeat
-        S<4, 64, 1>, // ABlockTransfer
+        S<4, 64, 1>, // ABlockTransfer MK -> K0 M K1
         S<1, 0, 2>,
         S<1, 0, 2>,
         2,
         8,
         8,
         true,
-        S<4, 64, 1>, // B0BlockTransfer
+        S<4, 64, 1>, // B0BlockTransfer LK -> K0 L K1
         S<1, 0, 2>,
         S<1, 0, 2>,
         2,
         8,
         8,
         true,
-        S<4, 64, 1>, // B1BlockTransfer
-        S<1, 0, 2>,
-        S<1, 0, 2>,
-        2,
+        S<4, 8, 8>, // B1BlockTransfer LN -> L0 N L1
+        S<0, 2, 1>,
+        S<0, 2, 1>,
+        1,
         8,
-        8,
+        1,
         false,
         1,              // CShuffleMWmmaPerWavePerShuffle
         2,              // CShuffleNWmmaPerWavePerShuffle

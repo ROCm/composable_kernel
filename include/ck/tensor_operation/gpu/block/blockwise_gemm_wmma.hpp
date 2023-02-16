@@ -171,8 +171,6 @@ struct BlockwiseGemmWMMA
 
         static_assert(MPerBlock % (MPerWMMA * MRepeat) == 0 && NPerBlock % (NPerWMMA * NRepeat) == 0,
                       "wrong!");
-
-        // printf("tid %03d, Mat-B offset %d\n", get_thread_local_1d_id()%32, CalculateBThreadOriginDataIndex().At(Number<3>{}));
     }
 
     // transposed WMMA output C' = B' * A'
@@ -301,9 +299,6 @@ struct BlockwiseGemmWMMA
                                    a_thread_desc_,
                                    make_tuple(I0, m0, I0, I0, I0),
                                    a_thread_buf);
-                // static_for<0, a_thread_buf.size(), 1>{}([&](auto i) {
-                    // a_thread_buf(i) = 1;
-                // });
 
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     // read B
@@ -323,9 +318,6 @@ struct BlockwiseGemmWMMA
                         b_thread_vec.template AsType<FloatB>()(i) =
                             b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                 make_tuple(i / B_K1, n0, 0, 0, i % B_K1))>{}];
-                        
-                        // a_thread_vec.template AsType<FloatA>()(i) = 1;
-                        // b_thread_vec.template AsType<FloatB>()(i) = 1;
                     });
 
                     using wmma_input_type_a = typename vector_type<FloatA, WmmaK>::type;
@@ -333,12 +325,6 @@ struct BlockwiseGemmWMMA
 
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
-                    
-
-                    // printf("GPU Gemm0 input, Tid %03d, A%2d = %04x, B%2d = %0x4\n", 
-                            // get_thread_local_1d_id(), 
-                            // i.value, *(reinterpret_cast<uint16_t*>(&a_thread_vec.template AsType<FloatA>()(i))), 
-                            // i.value, *(reinterpret_cast<uint16_t*>(&b_thread_vec.template AsType<FloatB>()(i)))); 
 
                     wmma_gemm.template Run(
                         a_thread_vec.template AsType<wmma_input_type_a>()(Number<0>{}),

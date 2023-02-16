@@ -1394,19 +1394,24 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
                 // apply element-wise operation
                 element_op_(v, src_buf[Number<src_offset>{}]);
 
-                if(get_thread_local_1d_id() % 32 > 16){
+                if(get_thread_local_1d_id() % 32 < 16){
                     // apply type convert
                     dst_buf(Number<dst_offset>{}) = type_convert<DstData>(v);
-                    dst_buf(Number<dst_offset + DstScalarPerVector>{}) = __builtin_amdgcn_permlanex16(type_convert<DstData>(dst_buf(Number<dst_offset + DstScalarPerVector>{})), 
-                                                                                                    type_convert<DstData>(v), 
-                                                                                                    LowEightRowlaneIdx, HighEightRowLaneIdx, 1, 0);
                 }
                 else{
                     // apply type convert
                     dst_buf(Number<dst_offset + DstScalarPerVector>{}) = type_convert<DstData>(v);
-                    dst_buf(Number<dst_offset>{}) = __builtin_amdgcn_permlanex16(type_convert<DstData>(dst_buf(Number<dst_offset>{})), 
-                                                                                 type_convert<DstData>(v), 
-                                                                                 LowEightRowlaneIdx, HighEightRowLaneIdx, 1, 0);
+                }
+                SrcData d = 0;
+                int temp = 0;
+                temp = __builtin_amdgcn_permlanex16(temp, type_convert<int>(v), 
+                                                    LowEightRowlaneIdx, HighEightRowLaneIdx, 1, 0);
+                d = type_convert<float>(temp);
+                if(get_thread_local_1d_id() % 32 < 16){
+                    dst_buf(Number<dst_offset + DstScalarPerVector>{}) = type_convert<DstData>(d);
+                }
+                else{
+                    dst_buf(Number<dst_offset>{}) = type_convert<DstData>(d);
                 }
             });
         });

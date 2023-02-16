@@ -964,6 +964,32 @@ inline __host__ __device__ constexpr float type_convert<float, bhalf_t>(bhalf_t 
     return u.fp32;
 }
 
+template <>
+inline __host__ __device__ constexpr int type_convert<int, float>(float x)
+{
+    union
+    {
+        float fp32;
+        int int32;
+    } u = {x};
+    // u.fp32 = x;
+
+    return u.int32;
+}
+
+template <>
+inline __host__ __device__ constexpr float type_convert<float, int>(int x)
+{
+    union
+    {
+        int int32;
+        float fp32;
+    } u = {x};
+    // u.fp32 = x;
+
+    return u.fp32;
+}
+
 // convert fp32 to bfp16
 template <>
 inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float x)
