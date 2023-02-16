@@ -471,6 +471,12 @@ def Build_CK(Map conf=[:]){
                         //we only need the ckProfiler to run the performance tests, so we pack and stash it
                         sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
                         stash "ckProfiler.tar.gz"
+                        if (params.RUN_FULL_QA){
+                           // build deb packages
+                           sh 'make -j package'
+                           archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
+                           archiveArtifacts artifacts: 'composablekernel-tests_*.deb'
+                        }
                     }
                 }
             }
