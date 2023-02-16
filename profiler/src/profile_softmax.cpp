@@ -99,8 +99,8 @@ int profile_softmax(int argc, char* argv[])
                                                                                  length,
                                                                                  stride,
                                                                                  reduce,
-                                                                                 float(alpha),
-                                                                                 float(beta));
+                                                                                 double(alpha),
+                                                                                 double(beta));
         }
         else if(data_type == SoftmaxDataType::F32_F32)
         {
@@ -111,8 +111,8 @@ int profile_softmax(int argc, char* argv[])
                                                                        length,
                                                                        stride,
                                                                        reduce,
-                                                                       float(alpha),
-                                                                       float(beta));
+                                                                       double(alpha),
+                                                                       double(beta));
         }
         else
         {
@@ -131,8 +131,8 @@ int profile_softmax(int argc, char* argv[])
                                                                                  length,
                                                                                  stride,
                                                                                  reduce,
-                                                                                 float(alpha),
-                                                                                 float(beta));
+                                                                                 double(alpha),
+                                                                                 double(beta));
         }
         else if(data_type == SoftmaxDataType::F32_F32)
         {
@@ -143,8 +143,8 @@ int profile_softmax(int argc, char* argv[])
                                                                        length,
                                                                        stride,
                                                                        reduce,
-                                                                       float(alpha),
-                                                                       float(beta));
+                                                                       double(alpha),
+                                                                       double(beta));
         }
         else
         {

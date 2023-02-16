@@ -19,7 +19,7 @@ namespace profiler {
 template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
-          typename AccDataType,
+          typename ComputeDataType,
           typename YDataType,
           index_t Rank>
 bool profile_layernorm_impl(int do_verification,
@@ -86,7 +86,7 @@ bool profile_layernorm_impl(int do_verification,
     using DeviceOp = ck::tensor_operation::device::DeviceNormalization<XDataType,
                                                                        GammaDataType,
                                                                        BetaDataType,
-                                                                       AccDataType,
+                                                                       ComputeDataType,
                                                                        YDataType,
                                                                        PassThrough,
                                                                        Rank,
@@ -109,7 +109,7 @@ bool profile_layernorm_impl(int do_verification,
                                                                                  GammaDataType,
                                                                                  BetaDataType,
                                                                                  YDataType,
-                                                                                 AccDataType,
+                                                                                 ComputeDataType,
                                                                                  PassThrough,
                                                                                  Rank,
                                                                                  NumReduceDim>;
@@ -181,8 +181,8 @@ bool profile_layernorm_impl(int do_verification,
         {
             y_dev.FromDevice(y.mData.data());
 
-            bool pass = ck::utils::check_err(
-                y.mData, host_y.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
+            bool pass =
+                ck::utils::check_err(y.mData, host_y.mData, "Error: Incorrect results", 1e-3, 1e-3);
 
             if(do_log)
             {

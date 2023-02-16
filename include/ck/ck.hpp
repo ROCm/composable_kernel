@@ -18,8 +18,13 @@
 #define CK_USE_LAUNCH_BOUNDS 1
 
 #ifdef CK_USE_LAUNCH_BOUNDS
+// for most kernels
 #define CK_MAX_THREAD_PER_BLOCK 256
 #define CK_MIN_BLOCK_PER_CU 2
+
+// for wavelet GEMM kernel
+#define CK_WAVELET_MAX_THREAD_PER_BLOCK 512
+#define CK_WAVELET_MIN_BLOCK_PER_CU 2
 #endif
 
 // check GPU target
@@ -162,13 +167,6 @@
 // workaround: verifaction failure, due to compiler regression, for conv bwd-data fp16 using some
 // tuning parameter
 #define CK_WORKAROUND_SWDEV_325164 0
-
-// workaround: a BF16 attention kernel for gfx908 is likely affected by a compiler issue
-#ifdef __gfx908__
-#define CK_WORKAROUND_SWDEV_XXXXXX_BF16_ATTEN_FWD_GFX908_ISSUE 1
-#else // __gfx90a__, ...
-#define CK_WORKAROUND_SWDEV_XXXXXX_BF16_ATTEN_FWD_GFX908_ISSUE 0
-#endif // __gfx908__
 
 // flag to enable (1) or disable (0) the debugging output in some kernels
 #define DEBUG_LOG 0

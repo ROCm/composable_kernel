@@ -270,18 +270,18 @@ struct DeviceElementwiseNormalizationImpl
                  const std::vector<index_t> reduceDims,
                  XElementwiseOperation x_elementwise_op,
                  YElementwiseOperation y_elementwise_op,
-                 AccDataType epsilon,
+                 double epsilon,
                  const std::array<const void*, NumInput> in_dev_buffers,
                  const GammaDataType* p_gamma,
                  const BetaDataType* p_beta,
                  YDataType* p_y)
-            : epsilon_(epsilon),
-              p_gamma_(p_gamma),
+            : p_gamma_(p_gamma),
               p_beta_(p_beta),
               p_y_(p_y),
               x_elementwise_op_(x_elementwise_op),
               y_elementwise_op_(y_elementwise_op)
         {
+            epsilon_ = static_cast<AccDataType>(epsilon);
 
             Lengths_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(lengths, reduceDims);
             for(int i = 0; i < NumInput; i++)
@@ -533,6 +533,11 @@ struct DeviceElementwiseNormalizationImpl
                 return (false);
         }
 
+        if(p_arg_->x_lds_size_ >= 65536)
+        {
+            return (false);
+        }
+
         return true;
     };
 
@@ -543,7 +548,7 @@ struct DeviceElementwiseNormalizationImpl
                         const std::vector<index_t> betaStrides,
                         const std::vector<index_t> yStrides,
                         const std::vector<index_t> reduceDims,
-                        AccDataType epsilon,
+                        double epsilon,
                         const std::array<const void*, NumInput> in_dev_buffers,
                         const void* p_gamma,
                         const void* p_beta,

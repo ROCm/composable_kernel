@@ -3,7 +3,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/device_elementwise_2d.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_2d_impl.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -17,15 +17,15 @@ using BDataType = F16;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using DeviceElementwisePermuteInstance =
-    ck::tensor_operation::device::DeviceElementwise<ck::Tuple<ADataType>,
-                                                    ck::Tuple<BDataType>,
-                                                    PassThrough,
-                                                    3, // NumDim_M
-                                                    1, // NumDim_N
-                                                    8,
-                                                    8,
-                                                    ck::Sequence<8>,
-                                                    ck::Sequence<8>>;
+    ck::tensor_operation::device::DeviceElementwise2dImpl<ck::Tuple<ADataType>,
+                                                          ck::Tuple<BDataType>,
+                                                          PassThrough,
+                                                          3, // NumDim_M
+                                                          1, // NumDim_N
+                                                          8,
+                                                          8,
+                                                          ck::Sequence<8>,
+                                                          ck::Sequence<8>>;
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
 void host_elementwise4D(HostTensorB& B_nhwc,

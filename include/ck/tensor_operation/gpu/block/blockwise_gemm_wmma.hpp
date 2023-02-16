@@ -490,25 +490,6 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
         return make_tuple(c_thread_m, c_thread_n);
     }
 
-    template <index_t m0, index_t n0>
-    __device__ static auto CalculateCThreadOriginDataIndex7D(Number<m0>, Number<n0>)
-    {
-        const auto wave_idx = GetWaveIdx();
-
-        const auto waveId_m = wave_idx[I0];
-        const auto waveId_n = wave_idx[I1];
-
-        const auto blk_idx = wmma_gemm.GetBeginOfThreadBlk3D();
-
-        return make_tuple(Number<m0>{},
-                          blk_idx[I0],
-                          waveId_m,
-                          Number<n0>{},
-                          waveId_n,
-                          blk_idx[I1],
-                          blk_idx[I2]);
-    }
-
     __host__ __device__ BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO()
     {
         static_assert(AK0MK1BlockDesc::IsKnownAtCompileTime() &&
@@ -522,30 +503,6 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
                           NPerBlock % (NPerWMMA * NRepeat) == 0,
                       "wrong!");
     }
-
-    // transposed WMMA output C' = B' * A'
-    __host__ __device__ static constexpr auto
-    GetCThreadDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs()
-    {
-        constexpr auto c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens =
-            wmma_gemm.GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths();
-
-        // constexpr auto NSubGroup          = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I0];
-        // constexpr auto MThreadPerSubGroup = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I1];
-        constexpr auto NAccVgprs          = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
-
-        return make_naive_tensor_descriptor_packed(
-            //        |MRepeat            |MWave |MSubGroup |NRepeat           |NWave
-            //        |NThreadPerSubGroup |MAccVgprs
-            make_tuple(Number<MRepeat>{},
-                       I1,
-                       I1,
-                       Number<NRepeat>{},
-                       I1,
-                       I1,
-                       NAccVgprs));
-    }
-
     // Thread level, register decriptor. Vector-write
     __host__ __device__ static constexpr auto
     GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs()
@@ -589,23 +546,6 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
         return wmma_gemm
             .MakeCDesc_MBlockxRepeat_MWave_MSubGroup_NBlockxRepeat_NWave_NThreadPerSubGroup_MAccVgprs(
                 c_grid_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma);
-    }
-
-    // transposed WMMA output C' = B' * A'
-    __host__ __device__ static constexpr auto
-    GetCBlockDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs()
-    {
-        constexpr auto c_block_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma =
-            make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{},
-                                                           Number<MWaves>{},
-                                                           Number<MPerWMMA>{},
-                                                           Number<NRepeat>{},
-                                                           Number<NWaves>{},
-                                                           Number<NPerWMMA>{}));
-
-        return wmma_gemm
-            .MakeCDesc_MBlockxRepeat_MWave_MThreadPerSubGroup_NBlockxRepeat_NWave_NSubGroup_NAccVgprs(
-                c_block_desc_mrepeat_mwave_mperwmma_nrepeat_nwave_nperwmma);
     }
 
     // Provide dimension size

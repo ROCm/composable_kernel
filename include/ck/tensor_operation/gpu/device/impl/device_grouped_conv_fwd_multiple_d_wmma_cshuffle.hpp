@@ -136,8 +136,8 @@ template <index_t NDimSpatial,
           index_t CShuffleNRepeatPerShuffle,
           typename CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEShuffleBlockTransferScalarPerVector_NPerBlock,
-          index_t NumGemmKPrefetchStage = 1,
-          LoopScheduler LoopSched = make_default_loop_scheduler(),
+          index_t NumGemmKPrefetchStage   = 1,
+          LoopScheduler LoopSched         = make_default_loop_scheduler(),
           ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
 struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
     : public DeviceGroupedConvFwdMultipleD<NDimSpatial,
@@ -157,10 +157,10 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
 
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-    static constexpr auto I0 = Number<0>{};
-    static constexpr auto I1 = Number<1>{};
-    static constexpr auto I2 = Number<2>{};
-    static constexpr auto I3 = Number<3>{};
+    static constexpr auto I0           = Number<0>{};
+    static constexpr auto I1           = Number<1>{};
+    static constexpr auto I2           = Number<2>{};
+    static constexpr auto I3           = Number<3>{};
     static constexpr index_t KPerBlock = K0PerBlock * K1;
 
     static constexpr auto conv_to_gemm_transformer =
@@ -262,11 +262,11 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         const auto AK1 = K1;
         const auto AK0 = K / AK1;
 
-        return transform_tensor_descriptor(
-            a_grid_desc_m_k,
-            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)), make_pass_through_transform(M)),
-            make_tuple(Sequence<1>{}, Sequence<0>{}),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        return transform_tensor_descriptor(a_grid_desc_m_k,
+                                           make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
+                                                      make_pass_through_transform(M)),
+                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
     // B desc for source in blockwise copy
@@ -280,11 +280,11 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         const auto BK1 = K1;
         const auto BK0 = K / BK1;
 
-        return transform_tensor_descriptor(
-            b_grid_desc_n_k,
-            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)), make_pass_through_transform(N)),
-            make_tuple(Sequence<1>{}, Sequence<0>{}),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        return transform_tensor_descriptor(b_grid_desc_n_k,
+                                           make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
+                                                      make_pass_through_transform(N)),
+                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
     using AGridDesc_AK0_M_AK1 = decltype(DeviceOp::MakeAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}));
@@ -390,10 +390,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
               ds_grid_desc_m_n_{},
               e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N<ELayout>(e_g_n_k_wos_lengths,
                                                                           e_g_n_k_wos_strides)},
-              a_grid_desc_ak0_m_ak1_{
-                  DeviceOp::MakeAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
-              b_grid_desc_bk0_n_bk1_{
-                  DeviceOp::MakeBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
+              a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
+              b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
               ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
               block_2_etile_map_{GridwiseOp::MakeDefaultBlock2CTileMap(e_grid_desc_m_n_, M01, N01)},
@@ -432,12 +430,12 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             });
 
             // D desc
-            ds_grid_desc_m_n_ = DeviceOp::MakeDsGridDescriptor_M_N(ds_g_n_k_wos_lengths, ds_g_n_k_wos_strides);
+            ds_grid_desc_m_n_ =
+                DeviceOp::MakeDsGridDescriptor_M_N(ds_g_n_k_wos_lengths, ds_g_n_k_wos_strides);
 
             // populate desc for Ds/E
             e_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                GridwiseOp::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                    e_grid_desc_m_n_);
+                GridwiseOp::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n_);
             ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
                 GridwiseOp::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     ds_grid_desc_m_n_);
@@ -471,7 +469,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         typename GridwiseOp::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             ds_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseOp::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock 
+        typename GridwiseOp::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             e_grid_desc_mblock_mperblock_nblock_nperblock_;
 
         // block-to-e-tile map
@@ -722,10 +720,10 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
 
         // check Gridwise GEMM
         return GridwiseOp::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
-                                        arg.b_grid_desc_bk0_n_bk1_,
-                                        arg.ds_grid_desc_m_n_,
-                                        arg.e_grid_desc_m_n_,
-                                        arg.block_2_etile_map_);
+                                         arg.b_grid_desc_bk0_n_bk1_,
+                                         arg.ds_grid_desc_m_n_,
+                                         arg.e_grid_desc_m_n_,
+                                         arg.block_2_etile_map_);
     }
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override

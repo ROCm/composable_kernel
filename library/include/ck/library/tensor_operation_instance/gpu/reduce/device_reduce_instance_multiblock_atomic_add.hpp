@@ -76,8 +76,16 @@ template <typename InDataType,
           bool PropagateNan,
           bool OutputIndex>
 void add_device_reduce_instance_multiblock_atomic_add(
-    std::vector<DeviceReducePtr<Rank, NumReduceDim, InElementwiseOp, AccElementwiseOp>>&
-        device_op_instances)
+    std::vector<DeviceReducePtr<InDataType,
+                                AccDataType,
+                                OutDataType,
+                                Rank,
+                                NumReduceDim,
+                                ReduceOperation,
+                                InElementwiseOp,
+                                AccElementwiseOp,
+                                PropagateNan,
+                                OutputIndex>>& device_op_instances)
 {
     static_for<0,
                std::tuple_size<reduce_configuration_1_instances_multiblock_atomic_add>::value,
