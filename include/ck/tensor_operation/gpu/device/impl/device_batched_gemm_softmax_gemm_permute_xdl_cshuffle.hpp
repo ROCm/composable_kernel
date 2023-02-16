@@ -111,6 +111,7 @@ __global__ void
     ignore = p_b_grid;
     ignore = p_b1_grid;
     ignore = p_c_grid;
+    ignore = p_d0s_grid;
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c0de_element_op;
