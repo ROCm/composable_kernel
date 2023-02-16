@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/utility/data_type.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
 namespace ck {
 namespace tensor_operation {
