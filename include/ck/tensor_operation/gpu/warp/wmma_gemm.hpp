@@ -103,12 +103,12 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f16,
         m_per_wmma * n_per_wmma * acc_data_size / wave_size / 4;
     static constexpr index_t num_subgroups = wave_size / num_thread_per_subgroups;
 
-    template <index_t MPerWmma, index_t NPerWmma, class FloatA, class FloatB, class FloatC>
+    template <index_t MPerWmma, index_t NPerWmma, bool AssemblyBackend, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
         if constexpr(wave_size == 32)
         {
-            intrin_wmma_f32_16x16x16_f16_w32<MPerWmma, NPerWmma>::Run(a, b, reg_c);
+            intrin_wmma_f32_16x16x16_f16_w32<MPerWmma, NPerWmma, AssemblyBackend>::Run(a, b, reg_c);
         }
         else if constexpr(wave_size == 64)
         {
@@ -358,7 +358,8 @@ template <typename src_type_a,
           index_t MPerWmma,
           index_t NPerWmma,
           index_t KPack,
-          bool TransposeC = false>
+          bool TransposeC = false,
+          bool AssemblyBackend = false>
 struct WmmaGemm
 {
     static constexpr auto I0 = Number<0>{};
@@ -491,11 +492,11 @@ struct WmmaGemm
             "(int8, int32) or (int4, int32)!");
         if constexpr(!TransposeC)
         {
-            wmma_instr.template run<MPerWmma, NPerWmma>(p_a_wave, p_b_wave, p_c_thread);
+            wmma_instr.template run<MPerWmma, NPerWmma, AssemblyBackend>(p_a_wave, p_b_wave, p_c_thread);
         }
         else
         {
-            wmma_instr.template run<MPerWmma, NPerWmma>(p_b_wave, p_a_wave, p_c_thread);
+            wmma_instr.template run<MPerWmma, NPerWmma, AssemblyBackend>(p_b_wave, p_a_wave, p_c_thread);
         }
     }
 

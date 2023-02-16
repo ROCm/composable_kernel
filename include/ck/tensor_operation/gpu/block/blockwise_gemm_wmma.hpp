@@ -375,7 +375,9 @@ template <index_t BlockSize,
           index_t NPerWMMA,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack>
+          index_t KPack,
+          bool TransposeC = false,
+          bool AssemblyBackend = true>
 /* A: K0PerBlock x MPerBlock x K1
  * B: K0PerBlock x NPerBlock x K1
  * C: MRepeat x MWave x MSubGroup x NRepeat x NWave x NThreadPerSubGroup x MAccVgprs
@@ -406,7 +408,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO
     static constexpr index_t B_K1 = BK0NK1BlockDesc{}.GetLength(I2);
 
     static constexpr auto wmma_gemm =
-        WmmaGemm<FloatA, FloatB, FloatAcc, MPerWMMA, NPerWMMA, KPack>{};
+        WmmaGemm<FloatA, FloatB, FloatAcc, MPerWMMA, NPerWMMA, KPack, TransposeC, AssemblyBackend>{};
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerWMMA);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerWMMA);
