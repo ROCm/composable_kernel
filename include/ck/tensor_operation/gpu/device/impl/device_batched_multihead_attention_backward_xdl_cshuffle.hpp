@@ -10,13 +10,12 @@
 #include "ck/utility/philox_rand.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
-// #include "ck/tensor_operation/gpu/device/device_batched_multihead_attention_backward.hpp" // TODO
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_multihead_attention_backward_xdl_cshuffle_v1.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_multihead_attention_backward_xdl_cshuffle_v2.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -52,7 +51,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_softmax_gemm_xdl_cshuffle_v2(
+        kernel_batched_multihead_attention_backward_xdl_cshuffle_v2(
             const DataType* __restrict__ p_a_grid,
             const DataType* __restrict__ p_b_grid,
             ZDataType* __restrict__ p_z_grid,
@@ -82,7 +81,7 @@ __global__ void
             const index_t batch_count,
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
             const C0MatrixMask c0_matrix_mask,
-            const float p_dropout,
+            const float p_drop,
             const unsigned long long seed,
             const unsigned long long offset)
 {
@@ -137,7 +136,7 @@ __global__ void
                                                   ygrad_grid_desc_m0_o_m1,
                                                   block_2_ctile_map,
                                                   c0_matrix_mask,
-                                                  p_dropout,
+                                                  p_drop,
                                                   ph);
 #else
     ignore = p_a_grid;
@@ -157,6 +156,9 @@ __global__ void
     ignore = batch_count;
     ignore = compute_base_ptr_of_batch;
     ignore = c0_matrix_mask;
+    ignore = p_drop;
+    ignore = seed;
+    ignore = offset;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -756,7 +758,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
                   z_grid_desc_g_m_n_,
                   b1_grid_desc_g_n_k_,
                   c_grid_desc_g_m_n_,
-                  type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize())}
+                  type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize())},
+              p_drop_{p_drop}
         {
             // TODO: implement bias addition
             ignore = p_acc0_biases;
@@ -776,10 +779,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         y_grid_desc_m_o_);
             }
-
-            p_dropout_        = 1.f - p_drop;
-            float rp_dropout_ = 1.f / p_dropout_;
-            acc_element_op_.Append(rp_dropout_);
 
             seed_   = std::get<0>(seeds);
             offset_ = std::get<1>(seeds);
@@ -871,7 +870,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
         index_t batch_count_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
 
-        float p_dropout_;
+        float p_drop_;
         unsigned long long seed_;
         unsigned long long offset_;
     };
@@ -898,7 +897,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
             float ave_time = 0;
 
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
-                const auto kernel = kernel_batched_gemm_softmax_gemm_xdl_cshuffle_v2<
+                const auto kernel = kernel_batched_multihead_attention_backward_xdl_cshuffle_v2<
                     GridwiseGemm,
                     DataType,
                     ZDataType,
@@ -953,7 +952,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
                                               arg.batch_count_,
                                               arg.compute_base_ptr_of_batch_,
                                               arg.c0_matrix_mask_,
-                                              arg.p_dropout_,
+                                              arg.p_drop_,
                                               arg.seed_,
                                               arg.offset_);
             };
