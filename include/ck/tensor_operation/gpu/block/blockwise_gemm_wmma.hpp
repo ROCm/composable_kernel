@@ -33,10 +33,10 @@ template <index_t BlockSize,
  * B: K0PerBlock x NPerBlock x K1
  * Destination
  * C, non-transpose
- * thread level: MRepeat x NRepeat x MAccVgprs  
+ * thread level: MRepeat x NRepeat x MAccVgprs
  * block  level: MRepeat x MWave x MSubGroup x NRepeat x NWave x NThreadPerSubGroup x MAccVgprs
  * KPACK == WMMA_K = 16
- * 
+ *
  * Option: Read from VMEM, small buffer hold each thread own required data (Skip LDS)
  * Source:
  * A(if skip LDS): MRepeat x KPack
@@ -62,7 +62,8 @@ struct BlockwiseGemmWMMA
     static constexpr index_t A_K1 = ABlockDesc{}.GetLength(I4);
     static constexpr index_t B_K1 = BBlockDesc{}.GetLength(I4);
 
-    static constexpr auto wmma_gemm = WmmaGemm<FloatA, FloatB, FloatAcc, MPerWMMA, NPerWMMA, KPack, TransposeC>{};
+    static constexpr auto wmma_gemm =
+        WmmaGemm<FloatA, FloatB, FloatAcc, MPerWMMA, NPerWMMA, KPack, TransposeC>{};
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerWMMA);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerWMMA);
@@ -149,13 +150,8 @@ struct BlockwiseGemmWMMA
 
         const auto blk_idx = wmma_gemm.GetBeginOfThreadBlk3D();
 
-        return make_tuple(Number<m0>{},
-                          blk_idx[I0],
-                          waveId_m,
-                          Number<n0>{},
-                          waveId_n,
-                          blk_idx[I1],
-                          blk_idx[I2]);
+        return make_tuple(
+            Number<m0>{}, blk_idx[I0], waveId_m, Number<n0>{}, waveId_n, blk_idx[I1], blk_idx[I2]);
     }
 
     using Tuple5 = decltype(CalculateAThreadOriginDataIndex());
@@ -169,7 +165,8 @@ struct BlockwiseGemmWMMA
         static_assert(ThisThreadBlock::GetNumOfThread() == MWaves * NWaves * WaveSize,
                       "ThisThreadBlock::GetNumOfThread() != MWaves * NWaves * WaveSize\n");
 
-        static_assert(MPerBlock % (MPerWMMA * MRepeat) == 0 && NPerBlock % (NPerWMMA * NRepeat) == 0,
+        static_assert(MPerBlock % (MPerWMMA * MRepeat) == 0 &&
+                          NPerBlock % (NPerWMMA * NRepeat) == 0,
                       "wrong!");
     }
 
@@ -180,20 +177,15 @@ struct BlockwiseGemmWMMA
         constexpr auto c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens =
             wmma_gemm.GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths();
 
-        // constexpr auto NSubGroup          = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I0];
-        // constexpr auto MThreadPerSubGroup = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I1];
-        constexpr auto NAccVgprs          = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
+        // constexpr auto NSubGroup          =
+        // c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I0]; constexpr auto MThreadPerSubGroup
+        // = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I1];
+        constexpr auto NAccVgprs = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
 
         return make_naive_tensor_descriptor_packed(
             //        |MRepeat            |MWave |MSubGroup |NRepeat           |NWave
             //        |NThreadPerSubGroup |MAccVgprs
-            make_tuple(Number<MRepeat>{},
-                       I1,
-                       I1,
-                       Number<NRepeat>{},
-                       I1,
-                       I1,
-                       NAccVgprs));
+            make_tuple(Number<MRepeat>{}, I1, I1, Number<NRepeat>{}, I1, I1, NAccVgprs));
     }
 
     // Thread level, register decriptor. Vector-write

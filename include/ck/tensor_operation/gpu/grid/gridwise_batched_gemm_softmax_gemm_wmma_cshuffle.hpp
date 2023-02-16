@@ -135,10 +135,10 @@ template <typename FloatA,
           index_t MPerBlock,
           index_t LPerBlock,
           index_t K0PerBlock, // K0 * K1Value = Gemm0 GEMM_K Dim
-          index_t K1Value,    
+          index_t K1Value,
           index_t NPerBlock,
           index_t L0PerBlock,
-          index_t L1Value,   
+          index_t L1Value,
           index_t MPerWmma,
           index_t LPerWmma,
           index_t NPerWmma,
@@ -209,8 +209,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
     __host__ __device__ static constexpr auto
     MakeA0BlockDescriptor_K0_M0_M1_M2_K1(const A0BlockDesc_AK0_M_AK1&)
     {
-        constexpr index_t A_K0 = A0BlockDesc_AK0_M_AK1{}.GetLength(I0);
-        constexpr index_t A_K1 = A0BlockDesc_AK0_M_AK1{}.GetLength(I2);
+        constexpr index_t A_K0   = A0BlockDesc_AK0_M_AK1{}.GetLength(I0);
+        constexpr index_t A_K1   = A0BlockDesc_AK0_M_AK1{}.GetLength(I2);
         constexpr index_t MWaves = MPerBlock / (MRepeat * MPerWmma);
 
         return transform_tensor_descriptor(
@@ -227,8 +227,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
     __host__ __device__ static constexpr auto
     MakeB0BlockDescriptor_K0_L0_L1_L2_K1(const B0BlockDesc_BK0_L_BK1&)
     {
-        constexpr index_t B_K0 = B0BlockDesc_BK0_L_BK1{}.GetLength(I0);
-        constexpr index_t B_K1 = B0BlockDesc_BK0_L_BK1{}.GetLength(I2);
+        constexpr index_t B_K0   = B0BlockDesc_BK0_L_BK1{}.GetLength(I0);
+        constexpr index_t B_K1   = B0BlockDesc_BK0_L_BK1{}.GetLength(I2);
         constexpr index_t LWaves = LPerBlock / (LRepeat * LPerWmma);
         return transform_tensor_descriptor(
             B0BlockDesc_BK0_L_BK1{},
@@ -250,18 +250,18 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
         return transform_tensor_descriptor(
             A1BlockDesc_AL0_M_AL1{},
             make_tuple(make_pass_through_transform(Number<A_L0>{}),
-                       make_unmerge_transform(
-                           make_tuple(Number<MRepeat>{}, I1, I1)),
+                       make_unmerge_transform(make_tuple(Number<MRepeat>{}, I1, I1)),
                        make_pass_through_transform(Number<A_L1>{})),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
             make_tuple(Sequence<0>{}, Sequence<1, 2, 3>{}, Sequence<4>{}));
     }
 
     template <typename B1BlockDesc_BL0_N_BL1>
-    __host__ __device__ static constexpr auto MakeB1BlockDescriptor_L0_N0_N1_N2_L1(const B1BlockDesc_BL0_N_BL1&)
+    __host__ __device__ static constexpr auto
+    MakeB1BlockDescriptor_L0_N0_N1_N2_L1(const B1BlockDesc_BL0_N_BL1&)
     {
-        constexpr index_t B_K0 = B1BlockDesc_BL0_N_BL1{}.GetLength(I0);
-        constexpr index_t B_K1 = B1BlockDesc_BL0_N_BL1{}.GetLength(I2);
+        constexpr index_t B_K0   = B1BlockDesc_BL0_N_BL1{}.GetLength(I0);
+        constexpr index_t B_K1   = B1BlockDesc_BL0_N_BL1{}.GetLength(I2);
         constexpr index_t NWaves = NPerBlock / (NRepeat * NPerWmma);
         return transform_tensor_descriptor(
             B1BlockDesc_BL0_N_BL1{},
@@ -317,17 +317,18 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
         // LDS allocation for A and B: be careful of alignment
-        const index_t gemm0_bytes_end = (SharedMemTrait::a_block_space_size_aligned * sizeof(FloatA) +
-                                         SharedMemTrait::b0_block_space_size_aligned * sizeof(FloatB0));
+        const index_t gemm0_bytes_end =
+            (SharedMemTrait::a_block_space_size_aligned * sizeof(FloatA) +
+             SharedMemTrait::b0_block_space_size_aligned * sizeof(FloatB0));
 
         const index_t gemm1_bytes_end =
-                    (SharedMemTrait::b1_block_space_offset + SharedMemTrait::b1_block_space_size_aligned) *
-                    sizeof(FloatB1);
-        
+            (SharedMemTrait::b1_block_space_offset + SharedMemTrait::b1_block_space_size_aligned) *
+            sizeof(FloatB1);
+
         const index_t softmax_bytes_end = (SharedMemTrait::reduction_space_offset +
                                            SharedMemTrait::reduction_space_size_aligned) *
                                           sizeof(FloatAcc0);
-        
+
         const index_t c_block_bytes_end =
             SharedMemTrait::c_block_space_size * sizeof(FloatCShuffle);
 
@@ -360,8 +361,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
             return false;
         }
 
-        if(!(M % MPerBlock == 0 && L % LPerBlock == 0 && K % KPerBlock == 0 &&
-             N % NPerBlock == 0))
+        if(!(M % MPerBlock == 0 && L % LPerBlock == 0 && K % KPerBlock == 0 && N % NPerBlock == 0))
         {
             return false;
         }
@@ -432,7 +432,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
         MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}))>;
     using DefaultBlock2CTileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1))>;
-    
+
     struct SharedMemTrait
     {
         // LDS allocation for A and B: be careful of alignment
@@ -453,7 +453,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
             b1_block_desc_bl0_n_bl1.GetElementSpaceSize(), max_lds_align);
 
         static constexpr auto a_block_space_offset  = 0;
-        static constexpr auto b0_block_space_offset  = a_block_space_size_aligned.value;
+        static constexpr auto b0_block_space_offset = a_block_space_size_aligned.value;
         static constexpr auto b1_block_space_offset = 0;
 
         // LDS allocation for reduction
@@ -466,10 +466,13 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
         static constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
             GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat();
         static constexpr auto c_block_space_size =
-            c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat.GetElementSpaceSize();
+            c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat
+                .GetElementSpaceSize();
     };
 
-    template <bool HasMainKBlockLoop, typename C0MatrixMask, typename Block2CTileMap = DefaultBlock2CTileMap>
+    template <bool HasMainKBlockLoop,
+              typename C0MatrixMask,
+              typename Block2CTileMap = DefaultBlock2CTileMap>
     __device__ static void Run(const FloatA* __restrict__ p_a_grid,
                                const FloatB0* __restrict__ p_b0_grid,
                                const FloatB1* __restrict__ p_b1_grid,

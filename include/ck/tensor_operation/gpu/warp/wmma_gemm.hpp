@@ -444,7 +444,7 @@ struct WmmaGemm
                 make_pass_through_transform(MWave),
                 make_pass_through_transform(Number<wmma_instr.num_thread_per_subgroups>{}),
                 make_pass_through_transform(NBlockxRepeat),
-                make_pass_through_transform(NWave),                
+                make_pass_through_transform(NWave),
                 make_unmerge_transform(make_tuple(Number<wmma_instr.num_subgroups>{},
                                                   Number<wmma_instr.num_acc_vgprs_per_wave>{}))),
             make_tuple(Sequence<0>{},

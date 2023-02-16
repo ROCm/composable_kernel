@@ -393,10 +393,10 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
     }
 
     // Gridwise descriptor, mapping to whole given provblem.
-    using AGridDesc_M_K    = decltype(MakeAGridDescriptor_M_K({}, {}));
-    using BGridDesc_N_K    = decltype(MakeBGridDescriptor_N_K({}, {}));
-    using DsGridDesc_M_N   = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}))>;
-    using EGridDesc_M_N    = decltype(MakeEGridDescriptor_M_N({}, {}));
+    using AGridDesc_M_K  = decltype(MakeAGridDescriptor_M_K({}, {}));
+    using BGridDesc_N_K  = decltype(MakeBGridDescriptor_N_K({}, {}));
+    using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}))>;
+    using EGridDesc_M_N  = decltype(MakeEGridDescriptor_M_N({}, {}));
 
     using DsGridDesc_G_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_G_M_N({}, {}))>;
     using EGridDesc_G_M_N  = decltype(MakeEGridDescriptor_G_M_N({}, {}));
@@ -604,10 +604,12 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
                 DeviceOp::MakeAGridDescriptor_M_K(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
             b_grid_desc_n_k_ =
                 DeviceOp::MakeBGridDescriptor_N_K(b_gs_ns_ks_lengths, b_gs_ns_ks_strides);
-            
-            ds_grid_desc_m_n_ = DeviceOp::MakeDsGridDescriptor_M_N(ds_gs_ms_ns_lengths, ds_gs_ms_ns_strides);
-            
-            e_grid_desc_m_n_ = DeviceOp::MakeEGridDescriptor_M_N(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
+
+            ds_grid_desc_m_n_ =
+                DeviceOp::MakeDsGridDescriptor_M_N(ds_gs_ms_ns_lengths, ds_gs_ms_ns_strides);
+
+            e_grid_desc_m_n_ =
+                DeviceOp::MakeEGridDescriptor_M_N(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
 
             a_grid_desc_k0_m_k1_ = DeviceOp::MakeAGridDescriptor_K0_M_K1(a_grid_desc_m_k_);
             b_grid_desc_k0_n_k1_ = DeviceOp::MakeBGridDescriptor_K0_N_K1(b_grid_desc_n_k_);
@@ -619,8 +621,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
                     ds_grid_desc_m_n_);
 
             e_grid_desc_mblock_mperblock_nblock_nperblock =
-                GridwiseOp::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                    e_grid_desc_m_n_);
+                GridwiseOp::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n_);
 
             // for sanity check of vector memory access
             a_mz_stride_ = a_gs_ms_ks_strides[NumDimG + NumDimM - 1];
@@ -696,9 +697,11 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         {
             const index_t G = arg.e_grid_desc_g_m_n_.GetLength(I0);
 
-            const index_t grid_size = arg.block_2_ctile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * G;
+            const index_t grid_size =
+                arg.block_2_ctile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * G;
 
-            const auto K = arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
+            const auto K =
+                arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
 
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;

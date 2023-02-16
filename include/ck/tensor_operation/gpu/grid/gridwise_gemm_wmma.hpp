@@ -141,10 +141,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
         GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
     template <typename ABlockDesc_AK0_M_AK1>
-    __host__ __device__ static constexpr auto MakeABlockDescriptor_K0_M0_M1_M2_K1(const ABlockDesc_AK0_M_AK1&)
+    __host__ __device__ static constexpr auto
+    MakeABlockDescriptor_K0_M0_M1_M2_K1(const ABlockDesc_AK0_M_AK1&)
     {
-        constexpr index_t A_K0 = ABlockDesc_AK0_M_AK1{}.GetLength(I0);
-        constexpr index_t A_K1 = ABlockDesc_AK0_M_AK1{}.GetLength(I2);
+        constexpr index_t A_K0   = ABlockDesc_AK0_M_AK1{}.GetLength(I0);
+        constexpr index_t A_K1   = ABlockDesc_AK0_M_AK1{}.GetLength(I2);
         constexpr index_t MWaves = MPerBlock / (MRepeat * MPerWmma);
 
         return transform_tensor_descriptor(
@@ -157,11 +158,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
             make_tuple(Sequence<0>{}, Sequence<1, 2, 3>{}, Sequence<4>{}));
     }
 
-     template <typename BBlockDesc_BK0_N_BK1>
-    __host__ __device__ static constexpr auto MakeBBlockDescriptor_K0_N0_N1_N2_K1(const BBlockDesc_BK0_N_BK1&)
+    template <typename BBlockDesc_BK0_N_BK1>
+    __host__ __device__ static constexpr auto
+    MakeBBlockDescriptor_K0_N0_N1_N2_K1(const BBlockDesc_BK0_N_BK1&)
     {
-        constexpr index_t B_K0 = BBlockDesc_BK0_N_BK1{}.GetLength(I0);
-        constexpr index_t B_K1 = BBlockDesc_BK0_N_BK1{}.GetLength(I2);
+        constexpr index_t B_K0   = BBlockDesc_BK0_N_BK1{}.GetLength(I0);
+        constexpr index_t B_K1   = BBlockDesc_BK0_N_BK1{}.GetLength(I2);
         constexpr index_t NWaves = NPerBlock / (NRepeat * NPerWmma);
         return transform_tensor_descriptor(
             BBlockDesc_BK0_N_BK1{},

@@ -94,17 +94,17 @@ using DeviceGemmInstance =
         TensorSpecB1,
         TensorSpecC,
         256,
-        128,         // MPerBlock
-        128,         // LPerBlock
-        4,           // K0PerBlock
-        8,           // K1
-        64,          // NPerBlock
-        4,           // L0PerBlock
-        8,           // L1
-        16,          // MPerWMMA
-        16,          // LPerWMMA
-        16,          // NPerWMMA
-        //Per repeat = wave_m = wave_num, wave_n = 1
+        128, // MPerBlock
+        128, // LPerBlock
+        4,   // K0PerBlock
+        8,   // K1
+        64,  // NPerBlock
+        4,   // L0PerBlock
+        8,   // L1
+        16,  // MPerWMMA
+        16,  // LPerWMMA
+        16,  // NPerWMMA
+        // Per repeat = wave_m = wave_num, wave_n = 1
         1,           // MRepeat
         8,           // LRepeat
         4,           // NRepeat

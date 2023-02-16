@@ -165,7 +165,7 @@ __global__ void
 
     static constexpr index_t NumDTensor =
         DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock::Size();
-    
+
     DsPointer p_ds_grid_grp;
 
     static_for<0, NumDTensor, 1>{}(
@@ -530,7 +530,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
     template <typename DsGridDesc_M_N_>
     __host__ __device__ static constexpr auto
     MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const DsGridDesc_M_N_& ds_grid_desc_m_n)
-    {   
+    {
         return generate_tuple(
             [&](auto i) {
                 return MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(ds_grid_desc_m_n[i]);

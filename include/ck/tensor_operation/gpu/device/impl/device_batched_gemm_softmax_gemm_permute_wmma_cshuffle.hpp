@@ -54,10 +54,10 @@ template <index_t NumDimG,
           ck::index_t MPerBlock,
           ck::index_t LPerBlock,
           ck::index_t K0PerBlock, // K0 * K1 = Gemm0 GEMM_K Dim
-          ck::index_t K1,         //      
+          ck::index_t K1,         //
           ck::index_t NPerBlock,
           ck::index_t L0PerBlock,
-          ck::index_t L1,   
+          ck::index_t L1,
           ck::index_t MPerWMMA,
           ck::index_t LPerWMMA,
           ck::index_t NPerWMMA,
@@ -136,7 +136,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
-    
+
     using Transform = TransformBatchedContractionContractionToBatchedGemmGemm<
         Sequence<NumDimG, NumDimM, NumDimL, NumDimK, NumDimN>,
         Sequence<MPerBlock, LPerBlock, KPerBlock, NPerBlock>,
@@ -261,7 +261,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
         K1,         //
         NPerBlock,
         L0PerBlock,
-        L1,        
+        L1,
         MPerWMMA,
         LPerWMMA,
         NPerWMMA,
@@ -339,10 +339,10 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
               p_c_grid_{p_c_grid},
               a_grid_desc_ak0_m_ak1_{
                   DeviceOp::MakeAGridDescriptor_AK0_M_AK1(a_gs_ms_ks_lengths, a_gs_ms_ks_strides)},
-              b0_grid_desc_bk0_l_bk1_{
-                  DeviceOp::MakeB0GridDescriptor_BK0_L_BK1(b0_gs_ls_ks_lengths, b0_gs_ls_ks_strides)},
-              b1_grid_desc_bl0_n_bl1_{
-                  DeviceOp::MakeB1GridDescriptor_BL0_N_BL1(b1_gs_ns_ls_lengths, b1_gs_ns_ls_strides)},
+              b0_grid_desc_bk0_l_bk1_{DeviceOp::MakeB0GridDescriptor_BK0_L_BK1(
+                  b0_gs_ls_ks_lengths, b0_gs_ls_ks_strides)},
+              b1_grid_desc_bl0_n_bl1_{DeviceOp::MakeB1GridDescriptor_BL0_N_BL1(
+                  b1_gs_ns_ls_lengths, b1_gs_ns_ls_strides)},
               c_grid_desc_m_n_{
                   Transform::MakeCGridDescriptor_M_N(c_gs_ms_ns_lengths, c_gs_ms_ns_strides)},
               a_grid_desc_g_m_k_{
@@ -408,7 +408,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
         B0GridDesc_BK0_L_BK1 b0_grid_desc_bk0_l_bk1_;
         B1GridDesc_BL0_N_BL1 b1_grid_desc_bl0_n_bl1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        
+
         AGridDesc_G_M_K a_grid_desc_g_m_k_;
         B0GridDesc_G_L_K b0_grid_desc_g_l_k_;
         B1GridDesc_G_N_L b1_grid_desc_g_n_l_;
@@ -450,9 +450,11 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const index_t grid_size = arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.batch_count_;
+            const index_t grid_size =
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.batch_count_;
 
-            const auto K = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
+            const auto K =
+                arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
 
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 const auto kernel = kernel_batched_gemm_softmax_gemm_wmma_cshuffle<
@@ -552,11 +554,11 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
         }
 
         // Check if C permute dimension matches GEMM + GEMM shape
-        const index_t c_g   = arg.c_grid_desc_g_m_n_.GetLength(I0); // unpadded
-        const index_t c_m   = arg.c_grid_desc_m_n_.GetLength(I0);
-        const index_t c_n   = arg.c_grid_desc_m_n_.GetLength(I1);
-        const index_t a_m   = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
-        const index_t b1_n  = arg.b1_grid_desc_bl0_n_bl1_.GetLength(I1);
+        const index_t c_g  = arg.c_grid_desc_g_m_n_.GetLength(I0); // unpadded
+        const index_t c_m  = arg.c_grid_desc_m_n_.GetLength(I0);
+        const index_t c_n  = arg.c_grid_desc_m_n_.GetLength(I1);
+        const index_t a_m  = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
+        const index_t b1_n = arg.b1_grid_desc_bl0_n_bl1_.GetLength(I1);
 
         if(!(c_g == arg.batch_count_ && c_m == a_m && c_n == b1_n))
         {
@@ -592,8 +594,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
             B0BlockTransferSrcVectorDim == 2 ? arg.b0_lz_kz_strides_[1] : arg.b0_lz_kz_strides_[0];
         const auto b1_stride_lowest =
             B1BlockTransferSrcVectorDim == 2 ? arg.b1_nz_lz_strides_[1] : arg.b1_nz_lz_strides_[0];
-        const auto c_stride_lowest = 
-            arg.c_mz_nz_strides_[1];
+        const auto c_stride_lowest = arg.c_mz_nz_strides_[1];
 
         if(!(a_stride_lowest == 1 || b0_stride_lowest == 1 || b1_stride_lowest == 1 ||
              c_stride_lowest == 1))
@@ -610,8 +611,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto
-    MakeArgument(
+    static auto MakeArgument(
         const ADataType* p_a,
         const B0DataType* p_b0,
         const B1DataType* p_b1,
@@ -634,7 +634,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
         B0ElementwiseOperation b0_element_op,
         AccElementwiseOperation acc_element_op,
         B1ElementwiseOperation b1_element_op,
-        CElementwiseOperation  c_element_op)
+        CElementwiseOperation c_element_op)
     {
         return Argument{p_a,
                         p_b0,
@@ -664,8 +664,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
     }
 
     // polymorphic
-    std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(
+    std::unique_ptr<BaseArgument> MakeArgumentPointer(
         const void* p_a,
         const void* p_b0,
         const void* p_b1,
