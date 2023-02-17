@@ -653,12 +653,23 @@ pipeline {
         {
             parallel
             {
-                stage("Build CK and run Tests")
+                stage("Build CK and run Tests on MI*00")
                 {
                     agent{ label rocmnode("gfx908 || gfx90a") }
                     environment{
-                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a;gfx1030" -DCMAKE_CXX_FLAGS="-O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" """ : """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a;gfx1030" -DCMAKE_CXX_FLAGS="-O3 " """ }"
-                        execute_args = "${params.COMPILER_VERSION == "ck-9110" ? """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908;gfx90a;gfx1030" -DCMAKE_CXX_FLAGS="-O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ : """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908,gfx90a;gfx1030" -DCMAKE_CXX_FLAGS="-O3" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ }"
+                        setup_args = """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a" """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908,gfx90a" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ 
+                    }
+                    steps{
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                    }
+                }
+                stage("Build CK and run Tests on Navi")
+                {
+                    agent{ label rocmnode("gfx1030") }
+                    environment{
+                        setup_args = """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1030;gfx1100" """ 
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1030;gfx1100" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
@@ -671,7 +682,7 @@ pipeline {
         {
             parallel
             {
-                stage("Run ckProfiler: gfx908 or gfx90a")
+                stage("Run ckProfiler: gfx90*")
                 {
                     when {
                         beforeAgent true
@@ -680,7 +691,22 @@ pipeline {
                     options { retry(2) }
                     agent{ label rocmnode("gfx908 || gfx90a")}
                     environment{
-                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -DGPU_TARGETS="gfx908;gfx90a;gfx1030" -DCMAKE_CXX_FLAGS=" -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """ : """ -DGPU_TARGETS="gfx908;gfx90a;gfx1030" -DCMAKE_CXX_FLAGS=" -O3 " -DBUILD_DEV=On """}"
+                        setup_args = """ -DGPU_TARGETS="gfx908;gfx90a" -DBUILD_DEV=On """
+                   }
+                    steps{
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
+                    }
+                }
+                stage("Run ckProfiler: gfx1030")
+                {
+                    when {
+                        beforeAgent true
+                        expression { !params.RUN_FULL_QA.toBoolean() }
+                    }
+                    options { retry(2) }
+                    agent{ label rocmnode("gfx1030")}
+                    environment{
+                        setup_args = """ -DGPU_TARGETS="gfx1030" -DBUILD_DEV=On """
                    }
                     steps{
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
@@ -695,7 +721,7 @@ pipeline {
                     options { retry(2) }
                     agent{ label rocmnode("gfx90a")}
                     environment{
-                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -DGPU_TARGETS="gfx90a" -DCMAKE_CXX_FLAGS=" -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """ : """ -DGPU_TARGETS="gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " -DBUILD_DEV=On """}"
+                        setup_args = """ -DGPU_TARGETS="gfx90a" -DBUILD_DEV=On """
                     }
                     steps{
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
