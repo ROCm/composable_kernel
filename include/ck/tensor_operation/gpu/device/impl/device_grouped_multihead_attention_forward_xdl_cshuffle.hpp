@@ -119,7 +119,7 @@ __global__ void
         arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
         arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
         arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
-        arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_, ////////
+        arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
         arg_ptr[group_id].lse_grid_desc_m_,
         arg_ptr[group_id].block_2_ctile_map_,
         arg_ptr[group_id].c0_matrix_mask_,
@@ -417,6 +417,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
         B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
         CGridDesc_G_M_N c_grid_desc_g_m_n_;
         ZGridDesc_G_M_N z_grid_desc_g_m_n_;
+
         index_t BatchStrideLSE_;
     };
 
@@ -621,7 +622,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
                 // typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
                 //    z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
 
-                auto z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+                const auto z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+
                     GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
                         z_grid_desc_m_n);
 

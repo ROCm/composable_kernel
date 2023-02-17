@@ -75,6 +75,7 @@ template <index_t NumDimG,
           typename B0DataType,
           typename B1DataType,
           typename CDataType,
+          typename ZDataType,
           typename LSEDataType,
           typename Acc0BiasDataType,
           typename Acc1BiasDataType,
@@ -94,6 +95,7 @@ struct DeviceBatchedMultiheadAttentionForward : public BaseOperator
         const void* p_b0,
         const void* p_b1,
         void* p_c,
+        void* p_z,
         void* p_lse,
         const std::array<void*, NumAcc0Bias> p_acc0_biases,
         const std::array<void*, NumAcc1Bias> p_acc1_biases,
@@ -105,6 +107,8 @@ struct DeviceBatchedMultiheadAttentionForward : public BaseOperator
         const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
         const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
         const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+        const std::vector<index_t>& z_gs_ms_ns_lengths,            // z_gs_ms_os_lengths
+        const std::vector<index_t>& z_gs_ms_ns_strides,            // z_gs_ms_os_strides
         const std::vector<index_t>& lse_gs_ms_lengths,             // lse_gs_ms_lengths
         const std::array<std::vector<index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
         const std::array<std::vector<index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,

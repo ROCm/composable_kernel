@@ -139,23 +139,6 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2, 4, 6>{}, Sequence<1, 3, 5, 7, 8, 9>{}));
     }
-    __host__ __device__ static constexpr auto
-    MakeZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const index_t M,
-                                                      const index_t N) ////=> for z use
-    {
-        constexpr auto mfma = MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma;
-        constexpr auto N3   = mfma.num_groups_per_blk;
-        constexpr auto N4   = mfma.num_input_blks;
-        constexpr auto N5   = mfma.group_size;
-        return transform_tensor_descriptor(
-            make_naive_tensor_descriptor_packed(make_tuple(M, N)),
-            make_tuple(make_unmerge_transform(
-                           make_tuple(M / MPerBlock, MXdlPerWave, Gemm0MWaves, MPerXdl)),
-                       make_unmerge_transform(
-                           make_tuple(N / NPerBlock, NXdlPerWave, Gemm0NWaves, N3, N4, N5))),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0, 2, 4, 6>{}, Sequence<1, 3, 5, 7, 8, 9>{}));
-    }
 
     __device__ static auto GetGemm0WaveIdx()
     {
@@ -289,6 +272,12 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         const auto N = b_grid_desc_bk0_n_bk1.GetLength(I1);
         const auto K = a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2);
         const auto Gemm1N = b1_grid_desc_bk0_n_bk1.GetLength(I1);
+
+        if(Gemm1N != K)
+        {
+            std::cout << "SizeK must be equal to SizeO (equal attention head size)" << '\n';
+            return false;
+        }
 
         if(!(M == c_grid_desc_m_n.GetLength(I0) && Gemm1N == c_grid_desc_m_n.GetLength(I1)))
         {
@@ -851,8 +840,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         // gemm1 K loop
         index_t gemm1_k_block_outer_index = 0;
 
-        ///////////////////=>z for dropout
-
+        // z is random number matrix for dropout verify
         //
         // z vgpr copy to global
         //
@@ -876,11 +864,6 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             z_tenor_buffer;
         z_tenor_buffer.Clear();
         // z matrix global desc
-        /*const auto M = q_grid_desc_k0_m_k1.GetLength(I1);
-        const auto N = k_grid_desc_k0_n_k1.GetLength(I1);
-
-        auto z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
-            MakeZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(M, N);*/
 
         auto z_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_z_grid, z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize());
@@ -921,8 +904,6 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                    wave_m_n_id[I0],    // NInputIndex
                                    0),
                   tensor_operation::element_wise::PassThrough{}};
-
-        ///////////////////=>z for dropout
 
         do
         {
@@ -1025,7 +1006,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                     // P_dropped
                     blockwise_dropout.template ApplyDropout<decltype(acc_thread_buf),
                                                             decltype(z_tenor_buffer),
-                                                            true>(
+                                                            false>(
                         acc_thread_buf, ph, z_tenor_buffer);
 
                     z_thread_copy_vgpr_to_global.Run(
@@ -1034,19 +1015,19 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                         z_tenor_buffer,
                         z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                         z_grid_buf);
+
+                    z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+                        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                        make_multi_index(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
+
                 }
                 else
                 {
                     // P_dropped
-                    blockwise_dropout.template ApplyDropout<decltype(acc_thread_buf), true>(
+                    blockwise_dropout.template ApplyDropout<decltype(acc_thread_buf), false>(
                         acc_thread_buf, ph);
                 }
             }
-
-            // if constexpr(IsDropout) // dropout
-            //{
-            //    blockwise_dropout.ApplyDropout(acc_thread_buf, ph);
-            //}
 
             // TODO: may convert to log domain
             running_max_new = mathext::max(max, running_max);
