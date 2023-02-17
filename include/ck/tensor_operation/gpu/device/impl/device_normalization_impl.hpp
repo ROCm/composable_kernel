@@ -10,7 +10,7 @@
 #include "ck/tensor_operation/gpu/device/device_normalization.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_normalization_selector.hpp"
+#include "ck/tensor_operation/gpu/grid/normalization/gridwise_normalization_selector.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_set_buffer_value.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
