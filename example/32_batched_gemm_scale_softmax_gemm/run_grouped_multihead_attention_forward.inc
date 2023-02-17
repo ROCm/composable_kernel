@@ -10,7 +10,8 @@ int run(int argc, char* argv[])
     bool input_permute  = false;
     bool output_permute = true;
 
-    float p_drop                    = 0.1;
+
+    float p_drop                    = 0.2;
     float p_dropout                 = 1 - p_drop;
     uint16_t p_dropout_in_16bits    = uint16_t(std::floor(p_dropout * 65535.0));
     float rp_dropout                = 1.0 / p_dropout;
@@ -250,6 +251,7 @@ int run(int argc, char* argv[])
                           p_drop,          // dropout ratio
                           {seed, offset}); // dropout random seed and offset, offset should be
                                            // at least the number of elements on a thread
+
 
     // specify workspace for problem_desc
     DeviceMem problem_desc_workspace(gemm.GetWorkSpaceSize(&argument));

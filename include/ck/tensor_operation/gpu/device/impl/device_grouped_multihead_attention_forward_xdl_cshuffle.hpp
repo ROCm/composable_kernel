@@ -623,6 +623,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
                 //    z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
 
                 const auto z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+
                     GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
                         z_grid_desc_m_n);
 

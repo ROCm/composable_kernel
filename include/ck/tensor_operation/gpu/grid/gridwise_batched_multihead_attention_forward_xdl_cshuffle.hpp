@@ -1019,6 +1019,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                     z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
                         z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                         make_multi_index(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
+
                 }
                 else
                 {
