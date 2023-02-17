@@ -27,12 +27,14 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_dropout.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using BF16 = ck::bhalf_t;
 using F32  = float;
+using U16  = unsigned short;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -42,6 +44,7 @@ using B1DataType       = BF16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using CDataType        = BF16;
+using ZDataType        = U16;
 using LSEDataType      = F32;
 using Acc0BiasDataType = ck::Tuple<>;
 using Acc1BiasDataType = ck::Tuple<>;
@@ -78,6 +81,7 @@ using DeviceGemmInstance =
         B0DataType,
         B1DataType,
         CDataType,
+        ZDataType,
         LSEDataType,
         Acc0BiasDataType,
         Acc1BiasDataType,
@@ -156,6 +160,10 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 AElementOp,
                                                                                 B1ElementOp,
                                                                                 CElementOp>;
+
+// Ref dropout
+using ReferenceDropoutInstance =
+    ck::tensor_operation::host::ReferenceDropout<ZDataType, ADataType, ADataType>;
 
 #include "run_batched_multihead_attention_forward.inc"
 
