@@ -53,7 +53,7 @@ __global__ void
     // __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, 1)
 #endif
-        kernel_batched_multiheadattention_backward_xdl_cshuffle_pt1(
+        kernel_batched_multihead_attention_backward_xdl_cshuffle_pt1(
             const DataType* __restrict__ p_a_grid,
             const DataType* __restrict__ p_b_grid,
             ZDataType* __restrict__ p_z_grid,
@@ -83,7 +83,7 @@ __global__ void
             const index_t batch_count,
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
             const C0MatrixMask c0_matrix_mask,
-            const float p_dropout,
+            const float p_drop,
             const unsigned long long seed,
             const unsigned long long offset)
 {
@@ -138,7 +138,7 @@ __global__ void
                                                   ygrad_grid_desc_o0_m_o1,
                                                   block_2_ctile_map,
                                                   c0_matrix_mask,
-                                                  p_dropout,
+                                                  p_drop,
                                                   ph);
 #else
     ignore = p_a_grid;
@@ -158,6 +158,9 @@ __global__ void
     ignore = batch_count;
     ignore = compute_base_ptr_of_batch;
     ignore = c0_matrix_mask;
+    ignore = p_drop;
+    ignore = seed;
+    ignore = offset;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -758,7 +761,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1
                   z_grid_desc_g_m_n_,
                   b1_grid_desc_g_n_k_,
                   c_grid_desc_g_m_n_,
-                  type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize())}
+                  type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize())},
+              p_drop_{p_drop}
         {
             // TODO: implement bias addition
             ignore = p_acc0_biases;
@@ -778,10 +782,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         y_grid_desc_m_o_);
             }
-
-            p_dropout_        = 1.f - p_drop;
-            float rp_dropout_ = 1.f / p_dropout_;
-            acc_element_op_.Append(rp_dropout_);
 
             seed_   = std::get<0>(seeds);
             offset_ = std::get<1>(seeds);
@@ -873,7 +873,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1
         index_t batch_count_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
 
-        float p_dropout_;
+        float p_drop_;
         unsigned long long seed_;
         unsigned long long offset_;
     };
@@ -896,7 +896,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1
             float ave_time = 0;
 
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
-                const auto kernel = kernel_batched_multiheadattention_backward_xdl_cshuffle_pt1<
+                const auto kernel = kernel_batched_multihead_attention_backward_xdl_cshuffle_pt1<
                     GridwiseGemm,
                     DataType,
                     ZDataType,
@@ -951,7 +951,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1
                                               arg.batch_count_,
                                               arg.compute_base_ptr_of_batch_,
                                               arg.c0_matrix_mask_,
-                                              arg.p_dropout_,
+                                              arg.p_drop_,
                                               arg.seed_,
                                               arg.offset_);
             };
