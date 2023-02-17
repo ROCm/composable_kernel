@@ -840,7 +840,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         // gemm1 K loop
         index_t gemm1_k_block_outer_index = 0;
 
-        ///////////////////=>z for dropout
+        // z is random number matrix for dropout verify
         //
         // z vgpr copy to global
         //
@@ -904,8 +904,6 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                    wave_m_n_id[I0],    // NInputIndex
                                    0),
                   tensor_operation::element_wise::PassThrough{}};
-
-        ///////////////////=>z for dropout
 
         do
         {

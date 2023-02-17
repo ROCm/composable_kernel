@@ -97,18 +97,17 @@ __global__ void
     const long_index_t lse_batch_offset = __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(
         arg_ptr[group_id].compute_base_ptr_of_batch_.GetLSEBasePtr(g_idx)));
 
-    unsigned short* p_z_grid_in = //
-        (arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
-                                                : arg_ptr[group_id].p_z_grid_ + z_batch_offset);
+    // unsigned short* p_z_grid_in = //
+    //    (arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
+    //                                            : arg_ptr[group_id].p_z_grid_ + z_batch_offset);
 
     GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
         arg_ptr[group_id].p_a_grid_ + a_batch_offset,
         arg_ptr[group_id].p_b_grid_ + b_batch_offset,
         arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
         arg_ptr[group_id].p_c_grid_ + c_batch_offset,
-        p_z_grid_in,
-        // arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
-        //                                       : arg_ptr[group_id].p_z_grid_ + z_batch_offset,
+        arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
+                                               : arg_ptr[group_id].p_z_grid_ + z_batch_offset,
         arg_ptr[group_id].p_lse_grid_ + lse_batch_offset,
         p_shared,
         a_element_op,
@@ -120,7 +119,7 @@ __global__ void
         arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
         arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
         arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
-        arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_, ////////
+        arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
         arg_ptr[group_id].lse_grid_desc_m_,
         arg_ptr[group_id].block_2_ctile_map_,
         arg_ptr[group_id].c0_matrix_mask_,

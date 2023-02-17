@@ -100,15 +100,12 @@ __global__ void
     const index_t global_thread_id = get_thread_global_1d_id();
     ck::philox ph(seed, global_thread_id, offset);
 
-    unsigned short* p_z_grid_in = //
-        p_z_grid == nullptr ? nullptr : p_z_grid + z_batch_offset;
-
     GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
         p_a_grid + a_batch_offset,
         p_b_grid + b_batch_offset,
         p_b1_grid + b1_batch_offset,
         p_c_grid + c_batch_offset,
-        p_z_grid_in,
+        nullptr ? nullptr : p_z_grid + z_batch_offset,
         p_lse_grid + lse_batch_offset,
         p_shared,
         a_element_op,
