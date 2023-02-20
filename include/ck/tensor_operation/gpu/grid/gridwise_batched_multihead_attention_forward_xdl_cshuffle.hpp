@@ -83,7 +83,7 @@ template <typename FloatAB,
           bool PadN,
           bool MaskOutUpperTriangle,
           PipelineVersion PipelineVer = PipelineVersion::v1>
-struct GridwiseBatchedGemmSoftmaxGemmTrain_Xdl_CShuffle
+struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
 {
     static_assert(LoopSched == LoopScheduler::Default,
                   "Non-default loop scheduler is currently not supported");

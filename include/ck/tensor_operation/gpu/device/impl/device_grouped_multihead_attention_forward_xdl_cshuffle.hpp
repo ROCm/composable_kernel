@@ -14,7 +14,7 @@
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_softmax_gemm_permute.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_softmax_gemm_xdl_cshuffle_v2.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_multihead_attention_forward_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -37,7 +37,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v2(
+        kernel_grouped_multiheadattention_forward_xdl_cshuffle(
             const void CK_CONSTANT_ADDRESS_SPACE* group_kernel_args,
             const index_t group_count,
             const AElementwiseOperation a_element_op,
@@ -197,25 +197,25 @@ template <index_t NumDimG,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           MaskingSpecialization MaskingSpec,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
-    : public DeviceGroupedGemmSoftmaxGemmPermuteTrain<NumDimG,
-                                                      NumDimM,
-                                                      NumDimN,
-                                                      NumDimK,
-                                                      NumDimO,
-                                                      ADataType,
-                                                      BDataType,
-                                                      B1DataType,
-                                                      CDataType,
-                                                      LSEDataType,
-                                                      Acc0BiasDataType,
-                                                      Acc1BiasDataType,
-                                                      AElementwiseOperation,
-                                                      BElementwiseOperation,
-                                                      AccElementwiseOperation,
-                                                      B1ElementwiseOperation,
-                                                      CElementwiseOperation,
-                                                      MaskingSpec>
+struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
+    : public DeviceGroupedMultiheadAttentionForward<NumDimG,
+                                                    NumDimM,
+                                                    NumDimN,
+                                                    NumDimK,
+                                                    NumDimO,
+                                                    ADataType,
+                                                    BDataType,
+                                                    B1DataType,
+                                                    CDataType,
+                                                    LSEDataType,
+                                                    Acc0BiasDataType,
+                                                    Acc1BiasDataType,
+                                                    AElementwiseOperation,
+                                                    BElementwiseOperation,
+                                                    AccElementwiseOperation,
+                                                    B1ElementwiseOperation,
+                                                    CElementwiseOperation,
+                                                    MaskingSpec>
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
@@ -236,25 +236,25 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
     static constexpr index_t NumDimGemm1K = NumDimN;
 #endif
 
-    using DeviceOp    = DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle;
-    using ProblemDesc = typename DeviceGroupedGemmSoftmaxGemmPermuteTrain<NumDimG,
-                                                                          NumDimM,
-                                                                          NumDimN,
-                                                                          NumDimK,
-                                                                          NumDimO,
-                                                                          ADataType,
-                                                                          BDataType,
-                                                                          B1DataType,
-                                                                          CDataType,
-                                                                          LSEDataType,
-                                                                          Acc0BiasDataType,
-                                                                          Acc1BiasDataType,
-                                                                          AElementwiseOperation,
-                                                                          BElementwiseOperation,
-                                                                          AccElementwiseOperation,
-                                                                          B1ElementwiseOperation,
-                                                                          CElementwiseOperation,
-                                                                          MaskingSpec>::ProblemDesc;
+    using DeviceOp    = DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle;
+    using ProblemDesc = typename DeviceGroupedMultiheadAttentionForward<NumDimG,
+                                                                        NumDimM,
+                                                                        NumDimN,
+                                                                        NumDimK,
+                                                                        NumDimO,
+                                                                        ADataType,
+                                                                        BDataType,
+                                                                        B1DataType,
+                                                                        CDataType,
+                                                                        LSEDataType,
+                                                                        Acc0BiasDataType,
+                                                                        Acc1BiasDataType,
+                                                                        AElementwiseOperation,
+                                                                        BElementwiseOperation,
+                                                                        AccElementwiseOperation,
+                                                                        B1ElementwiseOperation,
+                                                                        CElementwiseOperation,
+                                                                        MaskingSpec>::ProblemDesc;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -392,7 +392,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
     };
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseBatchedGemmSoftmaxGemmTrain_Xdl_CShuffle<
+    using GridwiseGemm = GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle<
         ADataType, // TODO: distinguish A/B datatype
         GemmAccDataType,
         CShuffleDataType,
@@ -705,16 +705,16 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
 
             auto launch_kernel = [&](auto has_main_k_block_loop_, auto is_dropout_) {
                 const auto kernel =
-                    kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v2<GridwiseGemm,
-                                                                     GemmAccDataType,
-                                                                     GroupKernelArg,
-                                                                     AElementwiseOperation,
-                                                                     BElementwiseOperation,
-                                                                     AccElementwiseOperation,
-                                                                     B1ElementwiseOperation,
-                                                                     CElementwiseOperation,
-                                                                     has_main_k_block_loop_,
-                                                                     is_dropout_>;
+                    kernel_grouped_multiheadattention_forward_xdl_cshuffle<GridwiseGemm,
+                                                                           GemmAccDataType,
+                                                                           GroupKernelArg,
+                                                                           AElementwiseOperation,
+                                                                           BElementwiseOperation,
+                                                                           AccElementwiseOperation,
+                                                                           B1ElementwiseOperation,
+                                                                           CElementwiseOperation,
+                                                                           has_main_k_block_loop_,
+                                                                           is_dropout_>;
 
                 return launch_and_time_kernel(
                     stream_config,
@@ -969,7 +969,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedGemmSoftmaxGemmPermute_Train_Xdl_CShuffle"
+        str << "DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
