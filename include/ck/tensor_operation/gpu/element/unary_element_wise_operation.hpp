@@ -95,7 +95,7 @@ struct Scale
         y = scale_ * x;
     };
 
-    __host__ __device__ void Append(float scale) { scale_ = scale_ * scale; }
+    __host__ __device__ auto Value() const { return scale_; }
 
     float scale_;
 };

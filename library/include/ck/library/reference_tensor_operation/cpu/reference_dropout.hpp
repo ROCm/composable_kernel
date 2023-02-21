@@ -48,10 +48,14 @@ struct ReferenceDropout : public device::BaseOperator
         {
             arg.out_.ForEach([&](auto& self, auto idx) {
                 self(idx) =
+<<<<<<< HEAD
                     arg.ref_(idx) < arg.p_dropout_in_16bits_
                         ? ck::type_convert<OutDataType>(ck::type_convert<float>(arg.in_(idx)) *
                                                         ck::type_convert<float>(arg.rp_dropout_))
                         : 0;
+=======
+                    arg.ref_(idx) <= arg.p_dropout_in_16bits_ ? arg.in_(idx) * arg.rp_dropout_ : 0;
+>>>>>>> attn-bwd-develop
             });
             return 0;
         }
