@@ -10,6 +10,14 @@ int run(int argc, char* argv[])
     bool input_permute  = false;
     bool output_permute = true;
 
+
+    float p_drop                    = 0.2;
+    float p_dropout                 = 1 - p_drop;
+    uint16_t p_dropout_in_16bits    = uint16_t(std::floor(p_dropout * 65535.0));
+    float rp_dropout                = 1.0 / p_dropout;
+    const unsigned long long seed   = 1;
+    const unsigned long long offset = 0;
+
     if(argc == 1)
     {
         // use default case
@@ -40,7 +48,7 @@ int run(int argc, char* argv[])
 
     float alpha = 1; // scaling after 1st gemm
 
-    std::size_t group_count = 7;
+    std::size_t group_count = 8;
 
     // Problem descs
     std::vector<DeviceGemmInstance::ProblemDesc> problem_descs;
@@ -48,6 +56,7 @@ int run(int argc, char* argv[])
     std::vector<const void*> p_b0;
     std::vector<const void*> p_b1;
     std::vector<void*> p_c;
+    std::vector<void*> p_z;
     std::vector<void*> p_lse;
     std::vector<std::vector<int>> g0_g1_m_n_k_o;
 
@@ -55,6 +64,7 @@ int run(int argc, char* argv[])
     std::vector<Tensor<B0DataType>> b0_tensors;
     std::vector<Tensor<B1DataType>> b1_tensors;
     std::vector<Tensor<CDataType>> c_tensors;
+    std::vector<Tensor<ZDataType>> z_tensors;
     std::vector<Tensor<LSEDataType>> lse_tensors;
 
     using DeviceMemPtr = std::unique_ptr<DeviceMem>;
@@ -62,17 +72,19 @@ int run(int argc, char* argv[])
     std::vector<DeviceMemPtr> b0_tensors_device;
     std::vector<DeviceMemPtr> b1_tensors_device;
     std::vector<DeviceMemPtr> c_tensors_device;
+    std::vector<DeviceMemPtr> z_tensors_device;
     std::vector<DeviceMemPtr> lse_tensors_device;
 
     std::size_t flop = 0, num_byte = 0;
 
-    std::cout << "group count " << group_count << ". printing first 4 groups\n";
+    // std::cout << "group count " << group_count << ". printing first 4 groups\n";
     for(std::size_t i = 0; i < group_count; i++)
     {
+
         int M  = 128 * (rand() % 8 + 1);
         int N  = 128 * (rand() % 8 + 1);
-        int K  = 40;
-        int O  = 40 * (rand() % 2 + 1);
+        int K  = 128;
+        int O  = 128;
         int G0 = rand() % 3 + 1;
         int G1 = rand() % 5 + 1;
 
@@ -102,6 +114,12 @@ int run(int argc, char* argv[])
                 ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // C layout [G0, M, G1, O]
                 : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
 
+        std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
+        std::vector<ck::index_t> z_gs_ms_ns_strides =
+            output_permute
+                ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // Z layout [G0, M, G1, N]
+                : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // Z layout [G0, G1, M, N]
+
         std::vector<ck::index_t> lse_gs_ms_lengths{G0, G1, M};
         std::vector<ck::index_t> lse_gs_ms_strides =
             std::vector<ck::index_t>{G1 * M, M, 1}; // LSE layout [G0, G1, M]
@@ -114,6 +132,8 @@ int run(int argc, char* argv[])
                                  b1_gs_os_ns_strides,
                                  c_gs_ms_os_lengths,
                                  c_gs_ms_os_strides,
+                                 z_gs_ms_ns_lengths,
+                                 z_gs_ms_ns_strides,
                                  lse_gs_ms_lengths,
                                  lse_gs_ms_strides,
                                  {},   // acc0_biases_gs_ms_ns_lengths
@@ -126,6 +146,7 @@ int run(int argc, char* argv[])
         Tensor<B0DataType> b0_gs_ns_ks(b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides);
         Tensor<B1DataType> b1_gs_os_ns(b1_gs_os_ns_lengths, b1_gs_os_ns_strides);
         Tensor<CDataType> c_gs_ms_os_device_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
+        Tensor<ZDataType> z_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
         Tensor<LSEDataType> lse_gs_ms_device_result(lse_gs_ms_lengths, lse_gs_ms_strides);
 
         int Batch = G0 * G1;
@@ -140,9 +161,12 @@ int run(int argc, char* argv[])
                       << "b0_gs_ns_ks[" << i << "]: " << b0_gs_ns_ks.mDesc << ", "
                       << "b1_gs_os_ns[" << i << "]: " << b1_gs_os_ns.mDesc << ", "
                       << "c_gs_ms_os[" << i << "]: " << c_gs_ms_os_device_result.mDesc << ", "
+                      << "z_gs_ms_ns[" << i << "]: " << z_gs_ms_ns.mDesc << ", "
                       << "lse_gs_ms_os[" << i << "]: " << lse_gs_ms_device_result.mDesc
                       << std::endl;
         }
+
+        z_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<ZDataType>{0});
 
         switch(init_method)
         {
@@ -172,6 +196,7 @@ int run(int argc, char* argv[])
         b0_tensors.push_back(b0_gs_ns_ks);
         b1_tensors.push_back(b1_gs_os_ns);
         c_tensors.push_back(c_gs_ms_os_device_result);
+        z_tensors.push_back(z_gs_ms_ns);
         lse_tensors.push_back(lse_gs_ms_device_result);
 
         a_tensors_device.emplace_back(std::make_unique<DeviceMem>(
@@ -182,6 +207,8 @@ int run(int argc, char* argv[])
             sizeof(B1DataType) * b1_gs_os_ns.mDesc.GetElementSpaceSize()));
         c_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(CDataType) * c_gs_ms_os_device_result.mDesc.GetElementSpaceSize()));
+        z_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(ZDataType) * z_gs_ms_ns.mDesc.GetElementSpaceSize()));
         lse_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(LSEDataType) * lse_gs_ms_device_result.mDesc.GetElementSpaceSize()));
 
@@ -193,6 +220,7 @@ int run(int argc, char* argv[])
         p_b0.push_back(b0_tensors_device[i]->GetDeviceBuffer());
         p_b1.push_back(b1_tensors_device[i]->GetDeviceBuffer());
         p_c.push_back(c_tensors_device[i]->GetDeviceBuffer());
+        p_z.push_back(z_tensors_device[i]->GetDeviceBuffer());
         p_lse.push_back(lse_tensors_device[i]->GetDeviceBuffer());
     }
 
@@ -203,24 +231,27 @@ int run(int argc, char* argv[])
     auto c_element_op    = CElementOp{};
 
     // do GEMM
-    auto gemm     = DeviceGemmInstance{};
-    auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(p_a,
-                                      p_b0,
-                                      p_b1,
-                                      p_c,
-                                      p_lse,
-                                      {}, // p_acc0_biases
-                                      {}, // p_acc1_biases
-                                      problem_descs,
-                                      a_element_op,
-                                      b0_element_op,
-                                      acc0_element_op,
-                                      b1_element_op,
-                                      c_element_op,
-                                      0,         // dropout ratio
-                                      {0, 448}); // dropout random seed and offset, offset should be
-                                                 // at least the number of elements on a thread
+    auto gemm    = DeviceGemmInstance{};
+    auto invoker = gemm.MakeInvoker();
+    auto argument =
+        gemm.MakeArgument(p_a,
+                          p_b0,
+                          p_b1,
+                          p_c,
+                          p_z,
+                          p_lse,
+                          {}, // p_acc0_biases
+                          {}, // p_acc1_biases
+                          problem_descs,
+                          a_element_op,
+                          b0_element_op,
+                          acc0_element_op,
+                          b1_element_op,
+                          c_element_op,
+                          p_drop,          // dropout ratio
+                          {seed, offset}); // dropout random seed and offset, offset should be
+                                           // at least the number of elements on a thread
+
 
     // specify workspace for problem_desc
     DeviceMem problem_desc_workspace(gemm.GetWorkSpaceSize(&argument));
@@ -264,11 +295,14 @@ int run(int argc, char* argv[])
             const auto& b0_gs_ns_ks        = b0_tensors[i];
             const auto& b1_gs_os_ns        = b1_tensors[i];
             auto& c_gs_ms_os_device_result = c_tensors[i];
+            auto& z_gs_ms_ns_device_result = z_tensors[i];
             auto& lse_gs_ms_device_result  = lse_tensors[i];
             auto& c_gs_ms_os_device_buf    = *c_tensors_device[i];
+            auto& z_gs_ms_ns_device_buf    = *z_tensors_device[i];
             auto& lse_gs_ms_device_buf     = *lse_tensors_device[i];
 
             c_gs_ms_os_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
+            z_gs_ms_ns_device_buf.FromDevice(z_gs_ms_ns_device_result.mData.data());
             lse_gs_ms_device_buf.FromDevice(lse_gs_ms_device_result.mData.data());
 
             Tensor<ADataType> a_g_m_k({G0 * G1, M, K});
@@ -276,8 +310,10 @@ int run(int argc, char* argv[])
             Tensor<B1DataType> b1_g_n_o({G0 * G1, N, O});
             Tensor<AccDataType> acc0_g_m_n({G0 * G1, M, N});        // scratch object after gemm0
             Tensor<ADataType> a1_g_m_n({G0 * G1, M, N});            // scratch object after softmax
+            Tensor<ADataType> a1_g_m_n_drop({G0 * G1, M, N});       // scratch object after softmax
             Tensor<CDataType> c_g_m_o_host_result({G0 * G1, M, O}); // scratch object after gemm1
             Tensor<CDataType> c_gs_ms_os_host_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
+            Tensor<ZDataType> z_g_m_n({G0 * G1, M, N});
             Tensor<LSEDataType> lse_g_m_host_result({G0 * G1, M}); // scratch object after gemm1
             Tensor<LSEDataType> lse_gs_ms_host_result(lse_gs_ms_lengths, lse_gs_ms_strides);
 
@@ -290,6 +326,10 @@ int run(int argc, char* argv[])
             });
             b1_gs_os_ns.ForEach([&](auto& self, auto idx) {
                 b1_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+            });
+
+            z_gs_ms_ns_device_result.ForEach([&](auto& self, auto idx) {
+                z_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
             });
 
             // gemm 0
@@ -315,10 +355,20 @@ int run(int argc, char* argv[])
 
             ref_softmax_invoker.Run(ref_softmax_argument);
 
+            // printf("print z_g_m_n \n");
+            // z_g_m_n.ForEach([&](auto& self, auto idx) {printf("%u ", self(idx));});
+
+            // dropout after softmax
+            auto ref_dropout         = ReferenceDropoutInstance{};
+            auto ref_dropout_invoker = ref_dropout.MakeInvoker();
+            auto ref_dropout_argment = ref_dropout.MakeArgument(
+                z_g_m_n, a1_g_m_n, a1_g_m_n_drop, p_dropout_in_16bits, rp_dropout);
+            ref_dropout_invoker.Run(ref_dropout_argment);
+
             // gemm 1
             auto ref_gemm1          = ReferenceGemm1Instance{};
             auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
-            auto ref_gemm1_argument = ref_gemm1.MakeArgument(a1_g_m_n,
+            auto ref_gemm1_argument = ref_gemm1.MakeArgument(a1_g_m_n_drop,
                                                              b1_g_n_o,
                                                              c_g_m_o_host_result,
                                                              PassThrough{},
@@ -358,8 +408,9 @@ int run(int argc, char* argv[])
             }
 
             // bool pass_ =
-            //     ck::utils::check_err(c_gs_ms_os_device_result.mData,
-            //     c_gs_ms_os_host_result.mData);
+            //    ck::utils::check_err(c_gs_ms_os_device_result.mData,
+            //    c_gs_ms_os_host_result.mData);
+
             bool pass_ = ck::utils::check_err(c_gs_ms_os_device_result.mData,
                                               c_gs_ms_os_host_result.mData,
                                               "Error: Incorrect results c!",
@@ -371,6 +422,10 @@ int run(int argc, char* argv[])
                                               rtol,
                                               atol);
             pass &= pass_;
+        }
+        if(pass)
+        {
+            std::cout << "Verification passed." << std::endl;
         }
     }
 
