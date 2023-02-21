@@ -14,6 +14,10 @@ __global__ void set_buffer_value(T* p, T x, uint64_t buffer_element_size)
     }
 }
 
+/**
+ * @brief Container for storing data in GPU device memory
+ *
+ */
 struct DeviceMem
 {
     DeviceMem() = delete;
