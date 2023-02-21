@@ -152,6 +152,13 @@ struct Bilinear
 
     template <>
     __host__ __device__ constexpr void
+    operator()<double, double, double>(double& y, const double& x0, const double& x1) const
+    {
+        y = alpha_ * x0 + beta_ * x1;
+    };
+
+    template <>
+    __host__ __device__ constexpr void
     operator()<float, float, float>(float& y, const float& x0, const float& x1) const
     {
         y = alpha_ * x0 + beta_ * x1;

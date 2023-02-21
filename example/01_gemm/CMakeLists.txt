@@ -38,7 +38,9 @@ add_example_executable_no_testing(example_gemm_xdl_fp64 gemm_xdl_fp64.cpp)
 add_dependencies(example_gemm_xdl example_gemm_xdl_skip_b_lds_fp16)
 add_dependencies(example_gemm_xdl example_gemm_xdl_fp64)
 
-add_custom_target(example_gemm_wmma)
-add_example_executable(example_gemm_wmma_fp16 gemm_wmma_fp16.cpp)
-add_dependencies(example_gemm_wmma example_gemm_wmma_fp16)
+if(GPU_TARGETS MATCHES "gfx1100")
+  add_custom_target(example_gemm_wmma)
+  add_example_executable(example_gemm_wmma_fp16 gemm_wmma_fp16.cpp)
+  add_dependencies(example_gemm_wmma example_gemm_wmma_fp16)
+endif()
 
