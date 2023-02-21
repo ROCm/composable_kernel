@@ -1,0 +1,2 @@
+add_example_executable(simplified_karg_gemm simplified_karg_gemm.cpp)
+target_include_directories(simplified_karg_gemm PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
