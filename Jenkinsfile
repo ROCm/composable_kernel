@@ -427,6 +427,7 @@ def Build_CK(Map conf=[:]){
 
         def variant = env.STAGE_NAME
         def retimage
+        def navi_node = 0
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             try {
@@ -439,6 +440,9 @@ def Build_CK(Map conf=[:]){
                         }
                         else{
                             echo "GPU is OK"
+                        }
+                        if ( runShell('grep -n "gfx1030" clinfo.log') ){
+                            navi_node = 1
                         }
                     }
                 }
@@ -458,6 +462,9 @@ def Build_CK(Map conf=[:]){
                         else{
                             echo "GPU is OK"
                         }
+                        if ( runShell('grep -n "gfx1030" clinfo.log') ){
+                            navi_node = 1
+                        }
                     }
                 }
             }
@@ -469,13 +476,16 @@ def Build_CK(Map conf=[:]){
                         //run tests and examples
                         sh 'make -j check'
                         //we only need the ckProfiler to run the performance tests, so we pack and stash it
-                        sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
-                        stash "ckProfiler.tar.gz"
+                        if (navi_node ==0){
+                           sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
+                           stash "ckProfiler.tar.gz"
+                        }
                         if (params.RUN_FULL_QA){
                            // build deb packages
                            sh 'make -j package'
                            archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
                            archiveArtifacts artifacts: 'composablekernel-tests_*.deb'
+                           sh 'scp -i ~/.ssh/id_rsa composablekernel-ckprofiler_*.deb jenkins@ginger.amd.com:/composable_kernel/'
                         }
                     }
                 }
