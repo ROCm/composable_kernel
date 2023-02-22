@@ -670,7 +670,7 @@ pipeline {
                         beforeAgent true
                         expression { !params.RUN_FULL_QA.toBoolean() }
                     }
-                    agent{ label rocmnode("gfx1030") }
+                    agent{ label rocmnode("navi21") }
                     environment{
                         setup_args = """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1030" """ 
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1030" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
