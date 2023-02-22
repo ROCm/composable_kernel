@@ -26,6 +26,7 @@ namespace device {
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
+          typename ZDataType,
           typename FloatLSE,
           typename GemmAccDataType,
           typename AElementwiseOperation,
@@ -37,6 +38,7 @@ template <typename GridwiseGemm,
           typename BGridDesc_BK0_N_BK1,
           typename B1GridDesc_BK0_N_BK1,
           typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
           typename LSEGridDescriptor_M,
           typename Block2CTileMap,
           typename ComputeBasePtrOfStridedBatch,
@@ -52,6 +54,7 @@ __global__ void
             const FloatAB* __restrict__ p_b_grid,
             const FloatAB* __restrict__ p_b1_grid,
             FloatC* __restrict__ p_c_grid,
+            ZDataType* __restrict__ p_z_grid,
             FloatLSE* __restrict__ p_lse_grid,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
@@ -63,6 +66,8 @@ __global__ void
             const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
             const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
+            const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
+                z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
             const LSEGridDescriptor_M lse_grid_desc_m,
             const Block2CTileMap block_2_ctile_map,
             const index_t batch_count,
@@ -87,6 +92,8 @@ __global__ void
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetB1BasePtr(g_idx)));
     const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetCBasePtr(g_idx)));
+    const long_index_t z_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(compute_base_ptr_of_batch.GetZBasePtr(g_idx)));
     const long_index_t lse_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetLSEBasePtr(g_idx)));
 
@@ -98,6 +105,7 @@ __global__ void
         p_b_grid + b_batch_offset,
         p_b1_grid + b1_batch_offset,
         p_c_grid + c_batch_offset,
+        nullptr ? nullptr : p_z_grid + z_batch_offset,
         p_lse_grid + lse_batch_offset,
         p_shared,
         a_element_op,
@@ -109,6 +117,7 @@ __global__ void
         b_grid_desc_bk0_n_bk1,
         b1_grid_desc_bk0_n_bk1,
         c_grid_desc_mblock_mperblock_nblock_nperblock,
+        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
         lse_grid_desc_m,
         block_2_ctile_map,
         c0_matrix_mask,
@@ -148,6 +157,7 @@ template <index_t NumDimG,
           typename BDataType,
           typename B1DataType,
           typename CDataType,
+          typename ZDataType,
           typename LSEDataType,
           typename Acc0BiasDataType,
           typename Acc1BiasDataType,
@@ -215,6 +225,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                                                     BDataType,
                                                     B1DataType,
                                                     CDataType,
+                                                    ZDataType,
                                                     LSEDataType,
                                                     Acc0BiasDataType,
                                                     Acc1BiasDataType,
@@ -285,6 +296,12 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
             Number<B1K1>{});
     }
 
+    static auto MakeZGridDescriptor_M_N(const std::vector<index_t>& z_gs_ms_ns_lengths_vec,
+                                        const std::vector<index_t>& z_gs_ms_ns_strides_vec)
+    {
+        return Transform::MakeCGridDescriptor_M_N(z_gs_ms_ns_lengths_vec, z_gs_ms_ns_strides_vec);
+    }
+
     static auto MakeLSEGridDescriptor_M(index_t MRaw)
     {
         const auto lse_grid_desc_mraw = make_naive_tensor_descriptor_packed(make_tuple(MRaw));
@@ -314,11 +331,13 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
     using BGridDesc_BK0_N_BK1  = decltype(MakeBGridDescriptor_BK0_N_BK1({}, {}));
     using B1GridDesc_BK0_N_BK1 = decltype(MakeB1GridDescriptor_BK0_N_BK1({}, {}));
     using CGridDesc_M_N        = decltype(Transform::MakeCGridDescriptor_M_N({}, {}));
+    using ZGridDesc_M_N        = decltype(MakeZGridDescriptor_M_N({}, {}));
     using LSEGridDesc_M        = decltype(MakeLSEGridDescriptor_M(1));
     using AGridDesc_G_M_K      = decltype(Transform::MakeAGridDescriptor_G_M_K({}, {}));
     using BGridDesc_G_N_K      = decltype(Transform::MakeB0GridDescriptor_G_N_K({}, {}));
     using B1GridDesc_G_N_K     = decltype(Transform::MakeB1GridDescriptor_G_N_K({}, {}));
     using CGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
+    using ZGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
 
     constexpr static auto make_MaskOutPredicate()
     {
@@ -339,11 +358,13 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                                      const BGridDesc_G_N_K& b_grid_desc_g_n_k,
                                      const B1GridDesc_G_N_K& b1_grid_desc_g_n_k,
                                      const CGridDesc_G_M_N& c_grid_desc_g_m_n,
+                                     const ZGridDesc_G_M_N& z_grid_desc_g_m_n,
                                      index_t BatchStrideLSE)
             : a_grid_desc_g_m_k_(a_grid_desc_g_m_k),
               b_grid_desc_g_n_k_(b_grid_desc_g_n_k),
               b1_grid_desc_g_n_k_(b1_grid_desc_g_n_k),
               c_grid_desc_g_m_n_(c_grid_desc_g_m_n),
+              z_grid_desc_g_m_n_(z_grid_desc_g_m_n),
               BatchStrideLSE_(BatchStrideLSE)
         {
         }
@@ -368,6 +389,11 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
             return c_grid_desc_g_m_n_.CalculateOffset(make_multi_index(g_idx, 0, 0));
         }
 
+        __host__ __device__ constexpr long_index_t GetZBasePtr(index_t g_idx) const
+        {
+            return z_grid_desc_g_m_n_.CalculateOffset(make_multi_index(g_idx, 0, 0));
+        }
+
         __host__ __device__ constexpr long_index_t GetLSEBasePtr(index_t g_idx) const
         {
             return g_idx * static_cast<long_index_t>(BatchStrideLSE_);
@@ -378,6 +404,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
         BGridDesc_G_N_K b_grid_desc_g_n_k_;
         B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
         CGridDesc_G_M_N c_grid_desc_g_m_n_;
+        ZGridDesc_G_M_N z_grid_desc_g_m_n_;
         index_t BatchStrideLSE_;
     };
 
@@ -398,6 +425,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
         BGridDesc_BK0_N_BK1,
         B1GridDesc_BK0_N_BK1,
         CGridDesc_M_N,
+        ZGridDesc_M_N,
         LSEGridDesc_M,
         NumGemmKPrefetchStage,
         BlockSize,
@@ -455,6 +483,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
             const BDataType* p_b_grid,
             const B1DataType* p_b1_grid,
             CDataType* p_c_grid,
+            ZDataType* p_z_grid,
             LSEDataType* p_lse_grid,
             const std::array<void*, NumAcc0Bias> p_acc0_biases,
             const std::array<void*, NumAcc1Bias> p_acc1_biases,
@@ -466,6 +495,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
             const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
             const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
             const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+            const std::vector<index_t>& z_gs_ms_ns_lengths,
+            const std::vector<index_t>& z_gs_ms_ns_strides,
             const std::vector<index_t>& lse_gs_ms_lengths,
             const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
             const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
@@ -484,6 +515,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
               p_b_grid_{p_b_grid},
               p_b1_grid_{p_b1_grid},
               p_c_grid_{p_c_grid},
+              p_z_grid_{p_z_grid},
               p_lse_grid_{p_lse_grid},
               a_grid_desc_ak0_m_ak1_{
                   DeviceOp::MakeAGridDescriptor_AK0_M_AK1(a_gs_ms_ks_lengths, a_gs_ms_ks_strides)},
@@ -493,6 +525,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
               c_grid_desc_m_n_{Transform::MakeCGridDescriptor_M_N(c_gs_ms_gemm1ns_lengths,
                                                                   c_gs_ms_gemm1ns_strides)},
+              z_grid_desc_m_n_{MakeZGridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
               lse_grid_desc_m_{DeviceOp::MakeLSEGridDescriptor_M(lse_gs_ms_lengths[NumDimG])},
               a_grid_desc_g_m_k_{
                   Transform::MakeAGridDescriptor_G_M_K(a_gs_ms_ks_lengths, a_gs_ms_ks_strides)},
@@ -502,6 +535,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
               c_grid_desc_g_m_n_{Transform::MakeCGridDescriptor_G_M_N(c_gs_ms_gemm1ns_lengths,
                                                                       c_gs_ms_gemm1ns_strides)},
+              z_grid_desc_g_m_n_{
+                  Transform::MakeCGridDescriptor_G_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
               c_grid_desc_mblock_mperblock_nblock_nperblock_{},
               block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
               a_element_op_{a_element_op},
@@ -528,6 +563,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                   b_grid_desc_g_n_k_,
                   b1_grid_desc_g_n_k_,
                   c_grid_desc_g_m_n_,
+                  z_grid_desc_g_m_n_,
                   type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize())}
         {
             // TODO ANT: implement bias addition
@@ -557,6 +593,9 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
 
             seed_   = std::get<0>(seeds);
             offset_ = std::get<1>(seeds);
+
+            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
+                GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(z_grid_desc_m_n_);
         }
 
         void Print() const
@@ -580,6 +619,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
         const BDataType* p_b_grid_;
         const B1DataType* p_b1_grid_;
         CDataType* p_c_grid_;
+        ZDataType* p_z_grid_;
         LSEDataType* p_lse_grid_;
 
         // tensor descriptor
@@ -587,13 +627,18 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
+        ZGridDesc_M_N z_grid_desc_m_n_;
         LSEGridDesc_M lse_grid_desc_m_;
+
         AGridDesc_G_M_K a_grid_desc_g_m_k_;
         BGridDesc_G_N_K b_grid_desc_g_n_k_;
         B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
         CGridDesc_G_M_N c_grid_desc_g_m_n_;
+        ZGridDesc_G_M_N z_grid_desc_g_m_n_;
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
+        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
+            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
 
         // block-to-c-tile map
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
@@ -652,6 +697,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
+                    ZDataType,
                     LSEDataType,
                     GemmAccDataType,
                     AElementwiseOperation,
@@ -663,6 +709,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     DeviceOp::B1GridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                    typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
                     DeviceOp::LSEGridDesc_M,
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     ComputeBasePtrOfStridedBatch,
@@ -679,6 +726,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                                               arg.p_b_grid_,
                                               arg.p_b1_grid_,
                                               arg.p_c_grid_,
+                                              arg.p_z_grid_,
                                               arg.p_lse_grid_,
                                               arg.a_element_op_,
                                               arg.b_element_op_,
@@ -689,6 +737,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                                               arg.b_grid_desc_bk0_n_bk1_,
                                               arg.b1_grid_desc_bk0_n_bk1_,
                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                              arg.z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
                                               arg.lse_grid_desc_m_,
                                               arg.block_2_ctile_map_,
                                               arg.batch_count_,
@@ -827,6 +876,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
         const BDataType* p_b,
         const B1DataType* p_b1,
         CDataType* p_c,
+        ZDataType* p_z,
         LSEDataType* p_lse,
         const std::array<void*, NumAcc0Bias> p_acc0_biases,
         const std::array<void*, NumAcc1Bias> p_acc1_biases,
@@ -838,6 +888,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
         const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
         const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
         const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+        const std::vector<index_t>& z_gs_ms_ns_lengths,
+        const std::vector<index_t>& z_gs_ms_ns_strides,
         const std::vector<index_t>& lse_gs_ms_lengths,
         const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
         const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
@@ -857,6 +909,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                         p_b,
                         p_b1,
                         p_c,
+                        p_z,
                         p_lse,
                         p_acc0_biases,
                         p_acc1_biases,
@@ -868,6 +921,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                         b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
                         c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
                         c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+                        z_gs_ms_ns_lengths,
+                        z_gs_ms_ns_strides,
                         lse_gs_ms_lengths,
                         acc0_biases_gs_ms_ns_lengths,
                         acc0_biases_gs_ms_ns_strides,
@@ -891,6 +946,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
         const void* p_b,
         const void* p_b1,
         void* p_c,
+        void* p_z,
         void* p_lse,
         const std::array<void*, NumAcc0Bias> p_acc0_biases,
         const std::array<void*, NumAcc1Bias> p_acc1_biases,
@@ -902,6 +958,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
         const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
         const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
         const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+        const std::vector<index_t>& z_gs_ms_ns_lengths,
+        const std::vector<index_t>& z_gs_ms_ns_strides,
         const std::vector<index_t>& lse_gs_ms_lengths,
         const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
         const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
@@ -921,6 +979,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<const B1DataType*>(p_b1),
                                           static_cast<CDataType*>(p_c),
+                                          static_cast<ZDataType*>(p_z),
                                           static_cast<LSEDataType*>(p_lse),
                                           p_acc0_biases, // cast in struct Argument
                                           p_acc1_biases, // cast in struct Argument
@@ -932,6 +991,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                                           b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
                                           c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
                                           c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+                                          z_gs_ms_ns_lengths,
+                                          z_gs_ms_ns_strides,
                                           lse_gs_ms_lengths,
                                           acc0_biases_gs_ms_ns_lengths,
                                           acc0_biases_gs_ms_ns_strides,

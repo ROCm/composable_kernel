@@ -32,7 +32,8 @@ template <typename GridwiseGemm,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
           bool HasMainKBlockLoop,
-          bool IsDropout>
+          bool IsDropout,
+          bool IsLseStoring>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -97,18 +98,16 @@ __global__ void
     const long_index_t lse_batch_offset = __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(
         arg_ptr[group_id].compute_base_ptr_of_batch_.GetLSEBasePtr(g_idx)));
 
-    // unsigned short* p_z_grid_in = //
-    //    (arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
-    //                                            : arg_ptr[group_id].p_z_grid_ + z_batch_offset);
-
-    GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
+    GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout, IsLseStoring>(
         arg_ptr[group_id].p_a_grid_ + a_batch_offset,
         arg_ptr[group_id].p_b_grid_ + b_batch_offset,
         arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
         arg_ptr[group_id].p_c_grid_ + c_batch_offset,
         arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
                                                : arg_ptr[group_id].p_z_grid_ + z_batch_offset,
-        arg_ptr[group_id].p_lse_grid_ + lse_batch_offset,
+        arg_ptr[group_id].p_lse_grid_ == nullptr ? nullptr
+                                                 : arg_ptr[group_id].p_lse_grid_ + lse_batch_offset,
+        // arg_ptr[group_id].p_lse_grid_ + lse_batch_offset,
         p_shared,
         a_element_op,
         b_element_op,
@@ -119,7 +118,7 @@ __global__ void
         arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
         arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
         arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
-        arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_, ////////
+        arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
         arg_ptr[group_id].lse_grid_desc_m_,
         arg_ptr[group_id].block_2_ctile_map_,
         arg_ptr[group_id].c0_matrix_mask_,
@@ -417,6 +416,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
         B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
         CGridDesc_G_M_N c_grid_desc_g_m_n_;
         ZGridDesc_G_M_N z_grid_desc_g_m_n_;
+
         index_t BatchStrideLSE_;
     };
 
@@ -588,6 +588,11 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
                 const auto p_z_grid   = static_cast<ZDataType*>(p_z_vec[i]);
                 const auto p_lse_grid = static_cast<LSEDataType*>(p_lse_vec[i]);
 
+                if(p_lse_grid == nullptr)
+                {
+                    is_lse_storing_ = false;
+                }
+
                 const auto& problem_desc = problem_desc_vec[i];
 
                 const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
@@ -621,7 +626,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
                 // typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
                 //    z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
 
-                auto z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+                const auto z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+
                     GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
                         z_grid_desc_m_n);
 
@@ -722,6 +728,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
         unsigned long long offset_;
         GemmAccDataType p_dropout_rescale_;
         bool is_dropout_;
+
+        bool is_lse_storing_ = true;
     };
 
     // Invoker
@@ -754,37 +762,39 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
 
             float ave_time = 0;
 
-            auto launch_kernel = [&](auto has_main_k_block_loop_, auto is_dropout_) {
-                const auto kernel =
-                    kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v2<GridwiseGemm,
-                                                                     GemmAccDataType,
-                                                                     GroupKernelArg,
-                                                                     AElementwiseOperation,
-                                                                     BElementwiseOperation,
-                                                                     AccElementwiseOperation,
-                                                                     B1ElementwiseOperation,
-                                                                     CElementwiseOperation,
-                                                                     has_main_k_block_loop_,
-                                                                     is_dropout_>;
+            auto launch_kernel =
+                [&](auto has_main_k_block_loop_, auto is_dropout_, auto is_lse_storing_) {
+                    const auto kernel =
+                        kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v2<GridwiseGemm,
+                                                                         GemmAccDataType,
+                                                                         GroupKernelArg,
+                                                                         AElementwiseOperation,
+                                                                         BElementwiseOperation,
+                                                                         AccElementwiseOperation,
+                                                                         B1ElementwiseOperation,
+                                                                         CElementwiseOperation,
+                                                                         has_main_k_block_loop_,
+                                                                         is_dropout_,
+                                                                         is_lse_storing_>;
 
-                return launch_and_time_kernel(
-                    stream_config,
-                    kernel,
-                    dim3(arg.grid_size_),
-                    dim3(BlockSize),
-                    0,
-                    cast_pointer_to_constant_address_space(arg.p_workspace_),
-                    arg.group_count_,
-                    arg.a_element_op_,
-                    arg.b_element_op_,
-                    arg.acc_element_op_,
-                    arg.b1_element_op_,
-                    arg.c_element_op_,
-                    arg.p_dropout_in_16bits_,
-                    arg.p_dropout_rescale_,
-                    arg.seed_,
-                    arg.offset_);
-            };
+                    return launch_and_time_kernel(
+                        stream_config,
+                        kernel,
+                        dim3(arg.grid_size_),
+                        dim3(BlockSize),
+                        0,
+                        cast_pointer_to_constant_address_space(arg.p_workspace_),
+                        arg.group_count_,
+                        arg.a_element_op_,
+                        arg.b_element_op_,
+                        arg.acc_element_op_,
+                        arg.b1_element_op_,
+                        arg.c_element_op_,
+                        arg.p_dropout_in_16bits_,
+                        arg.p_dropout_rescale_,
+                        arg.seed_,
+                        arg.offset_);
+                };
 
             // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need
             // to concern Gemm0's loop
@@ -792,26 +802,66 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
             {
                 if(arg.is_dropout_)
                 {
-                    ave_time = launch_kernel(integral_constant<bool, true>{},
-                                             integral_constant<bool, true>{});
+                    if(arg.is_lse_storing_)
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, true>{},
+                                                 integral_constant<bool, true>{},
+                                                 integral_constant<bool, true>{});
+                    }
+                    else
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, true>{},
+                                                 integral_constant<bool, true>{},
+                                                 integral_constant<bool, false>{});
+                    }
                 }
                 else
                 {
-                    ave_time = launch_kernel(integral_constant<bool, true>{},
-                                             integral_constant<bool, false>{});
+                    if(arg.is_lse_storing_)
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, true>{},
+                                                 integral_constant<bool, false>{},
+                                                 integral_constant<bool, true>{});
+                    }
+                    else
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, true>{},
+                                                 integral_constant<bool, false>{},
+                                                 integral_constant<bool, false>{});
+                    }
                 }
             }
             else if(!some_has_main_k_block_loop)
             {
                 if(arg.is_dropout_)
                 {
-                    ave_time = launch_kernel(integral_constant<bool, false>{},
-                                             integral_constant<bool, true>{});
+                    if(arg.is_lse_storing_)
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, false>{},
+                                                 integral_constant<bool, true>{},
+                                                 integral_constant<bool, true>{});
+                    }
+                    else
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, false>{},
+                                                 integral_constant<bool, true>{},
+                                                 integral_constant<bool, false>{});
+                    }
                 }
                 else
                 {
-                    ave_time = launch_kernel(integral_constant<bool, false>{},
-                                             integral_constant<bool, false>{});
+                    if(arg.is_lse_storing_)
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, false>{},
+                                                 integral_constant<bool, false>{},
+                                                 integral_constant<bool, true>{});
+                    }
+                    else
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, false>{},
+                                                 integral_constant<bool, false>{},
+                                                 integral_constant<bool, false>{});
+                    }
                 }
             }
             else

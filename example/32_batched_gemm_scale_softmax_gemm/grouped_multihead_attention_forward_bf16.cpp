@@ -27,12 +27,14 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_dropout.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using BF16 = ck::bhalf_t;
 using F32  = float;
+using U16  = unsigned short;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -42,6 +44,7 @@ using B1DataType       = BF16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using CDataType        = BF16;
+using ZDataType        = U16;
 using LSEDataType      = F32;
 using Acc0BiasDataType = ck::Tuple<>;
 using Acc1BiasDataType = ck::Tuple<>;
@@ -78,6 +81,7 @@ using DeviceGemmInstance =
         B0DataType,
         B1DataType,
         CDataType,
+        ZDataType,
         LSEDataType,
         Acc0BiasDataType,
         Acc1BiasDataType,
@@ -98,8 +102,8 @@ using DeviceGemmInstance =
         128,         // MPerBlock
         128,         // NPerBlock
         32,          // KPerBlock
-        64,          // Gemm1NPerBlock
-        32,          // Gemm1KPerBlock
+        128,         // Gemm1NPerBlock
+        64,          // Gemm1KPerBlock
         8,           // AK1
         8,           // BK1
         2,           // B1K1
@@ -107,7 +111,7 @@ using DeviceGemmInstance =
         32,          // NPerXDL
         1,           // MXdlPerWave
         4,           // NXdlPerWave
-        2,           // Gemm1NXdlPerWave
+        4,           // Gemm1NXdlPerWave
         S<4, 64, 1>, // ABlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
@@ -156,6 +160,10 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 AElementOp,
                                                                                 B1ElementOp,
                                                                                 CElementOp>;
+
+// Ref dropout
+using ReferenceDropoutInstance =
+    ck::tensor_operation::host::ReferenceDropout<ZDataType, ADataType, ADataType>;
 
 #include "run_grouped_multihead_attention_forward.inc"
 

@@ -12,7 +12,7 @@ int run(int argc, char* argv[])
     ck::index_t M = 1000; // 120
     ck::index_t N = 1000; // 1000
     ck::index_t K = 64;
-    ck::index_t O = 128;
+    ck::index_t O = 64;
 
     // Output shape C[G0, M, G1, O]. Batch dim, outer dim, inner dim must match GEMM shape
     // C_g0_g1_m_o = reshape(C_g_m_o, [g0, g1, m, o])
@@ -24,6 +24,13 @@ int run(int argc, char* argv[])
 
     bool input_permute  = false;
     bool output_permute = true;
+
+    float p_drop                    = 0.1;
+    float p_dropout                 = 1 - p_drop;
+    uint16_t p_dropout_in_16bits    = uint16_t(std::floor(p_dropout * 65535.0));
+    float rp_dropout                = 1.0 / p_dropout;
+    const unsigned long long seed   = 1;
+    const unsigned long long offset = 0;
 
     if(argc == 1)
     {
@@ -88,6 +95,12 @@ int run(int argc, char* argv[])
             ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // C layout [G0, M, G1, O]
             : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
 
+    std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
+    std::vector<ck::index_t> z_gs_ms_ns_strides =
+        output_permute
+            ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // Z layout [G0, M, G1, N]
+            : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // Z layout [G0, G1, M, N]
+
     std::vector<ck::index_t> lse_gs_ms_lengths{G0, G1, M};
     std::vector<ck::index_t> lse_gs_ms_strides =
         std::vector<ck::index_t>{G1 * M, M, 1}; // LSE layout [G0, G1, M]
@@ -97,6 +110,7 @@ int run(int argc, char* argv[])
     Tensor<B1DataType> b1_gs_os_ns(b1_gs_os_ns_lengths, b1_gs_os_ns_strides);
     Tensor<CDataType> c_gs_ms_os_host_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
     Tensor<CDataType> c_gs_ms_os_device_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
+    Tensor<ZDataType> z_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
     Tensor<LSEDataType> lse_gs_ms_host_result(lse_gs_ms_lengths, lse_gs_ms_strides);
     Tensor<LSEDataType> lse_gs_ms_device_result(lse_gs_ms_lengths, lse_gs_ms_strides);
 
@@ -104,7 +118,10 @@ int run(int argc, char* argv[])
     std::cout << "b0_gs_ns_ks: " << b0_gs_ns_ks.mDesc << std::endl;
     std::cout << "b1_gs_os_ns: " << b1_gs_os_ns.mDesc << std::endl;
     std::cout << "c_gs_ms_os: " << c_gs_ms_os_host_result.mDesc << std::endl;
+    std::cout << "z_gs_ms_ns: " << z_gs_ms_ns.mDesc << std::endl;
     std::cout << "lse_gs_ms_os: " << lse_gs_ms_host_result.mDesc << std::endl;
+
+    z_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<ZDataType>{0});
 
     switch(init_method)
     {
@@ -135,6 +152,7 @@ int run(int argc, char* argv[])
     DeviceMem b1_device_buf(sizeof(B1DataType) * b1_gs_os_ns.mDesc.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(CDataType) *
                            c_gs_ms_os_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem z_device_buf(sizeof(ZDataType) * z_gs_ms_ns.mDesc.GetElementSpaceSize());
     DeviceMem lse_device_buf(sizeof(LSEDataType) *
                              lse_gs_ms_device_result.mDesc.GetElementSpaceSize());
 
@@ -157,6 +175,7 @@ int run(int argc, char* argv[])
         static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
         static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
         static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+        static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
         static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
         {}, // std::array<void*, 1> p_acc0_biases;
         {}, // std::array<void*, 1> p_acc1_biases;
@@ -168,6 +187,8 @@ int run(int argc, char* argv[])
         b1_gs_os_ns_strides,
         c_gs_ms_os_lengths,
         c_gs_ms_os_strides,
+        z_gs_ms_ns_lengths,
+        z_gs_ms_ns_strides,
         lse_gs_ms_lengths,
         {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
         {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
@@ -178,9 +199,9 @@ int run(int argc, char* argv[])
         acc0_element_op,
         b1_element_op,
         c_element_op,
-        0,        // dropout ratio
-        {0, 64}); // dropout random seed and offset, offset should be at least the number of
-                  // elements on a thread
+        p_drop,          // dropout ratio
+        {seed, offset}); // dropout random seed and offset, offset should be at least the number of
+                         // elements on a thread
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -208,6 +229,7 @@ int run(int argc, char* argv[])
     if(do_verification)
     {
         c_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
+        z_device_buf.FromDevice(z_gs_ms_ns.mData.data());
         lse_device_buf.FromDevice(lse_gs_ms_device_result.mData.data());
 
         Tensor<ADataType> a_g_m_k({BatchCount, M, K});
@@ -215,8 +237,10 @@ int run(int argc, char* argv[])
         Tensor<B1DataType> b1_g_n_o({BatchCount, N, O});
         Tensor<AccDataType> acc0_g_m_n({BatchCount, M, N}); // scratch object after gemm0
         Tensor<ADataType> a1_g_m_n({BatchCount, M, N});     // scratch object after softmax
+        Tensor<ADataType> a1_g_m_n_drop({G0 * G1, M, N});
         Tensor<LSEDataType> lse_g_m_host_result(
             {BatchCount, M}); // scratch object after max + ln(sum)
+        Tensor<ZDataType> z_g_m_n({G0 * G1, M, N});
         Tensor<CDataType> c_g_m_o_host_result({BatchCount, M, O}); // scratch object after gemm1
 
         // permute
@@ -228,6 +252,9 @@ int run(int argc, char* argv[])
         });
         b1_gs_os_ns.ForEach([&](auto& self, auto idx) {
             b1_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+        });
+        z_gs_ms_ns.ForEach([&](auto& self, auto idx) {
+            z_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
         });
 
         // gemm 0
@@ -253,11 +280,22 @@ int run(int argc, char* argv[])
 
         ref_softmax_invoker.Run(ref_softmax_argument);
 
+        // dropout after softmax
+        auto ref_dropout         = ReferenceDropoutInstance{};
+        auto ref_dropout_invoker = ref_dropout.MakeInvoker();
+        auto ref_dropout_argment = ref_dropout.MakeArgument(
+            z_g_m_n, a1_g_m_n, a1_g_m_n_drop, p_dropout_in_16bits, rp_dropout);
+        ref_dropout_invoker.Run(ref_dropout_argment);
+
         // gemm1
         auto ref_gemm1          = ReferenceGemm1Instance{};
         auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
-        auto ref_gemm1_argument = ref_gemm1.MakeArgument(
-            a1_g_m_n, b1_g_n_o, c_g_m_o_host_result, PassThrough{}, b1_element_op, c_element_op);
+        auto ref_gemm1_argument = ref_gemm1.MakeArgument(a1_g_m_n_drop,
+                                                         b1_g_n_o,
+                                                         c_g_m_o_host_result,
+                                                         PassThrough{},
+                                                         b1_element_op,
+                                                         c_element_op);
 
         ref_gemm1_invoker.Run(ref_gemm1_argument);
 
