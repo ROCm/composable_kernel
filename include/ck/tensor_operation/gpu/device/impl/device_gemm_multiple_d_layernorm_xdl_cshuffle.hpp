@@ -806,7 +806,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
         // workspace for welford intermediate mean
         workspace_size += gemm_welford_size * sizeof(EMeanVarDataType) + 64;
 
-        // workspace for welford intermediate mean
+        // workspace for welford intermediate variance
         workspace_size += gemm_welford_size * sizeof(EMeanVarDataType) + 64;
 
         // workspace for welford intermediate count
