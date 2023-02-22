@@ -12,7 +12,6 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_splitk.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-//#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r4r2.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "grid/gridwise_gemm_xdlops_v2r4r2_simplified.hpp"
@@ -74,15 +73,6 @@ struct DeviceGemmXdlSplitKCShuffleSimplified : public DeviceGemmSplitK<ALayout,
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-    // template<bool USE_ATOMIC = true>
-    // struct DataOperationSelector{
-    //     static constexpr InMemoryDataOperationEnum value = InMemoryDataOperationEnum::AtomicAdd;
-    // };
-    // template<>
-    // struct DataOperationSelector<false>{
-    //     static constexpr InMemoryDataOperationEnum value = InMemoryDataOperationEnum::Set;
-    // };
-
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_simplified<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
@@ -91,9 +81,6 @@ struct DeviceGemmXdlSplitKCShuffleSimplified : public DeviceGemmSplitK<ALayout,
         ALayout,
         BLayout,
         CLayout,
-        // AGridDesc_K0_M_K1,
-        // BGridDesc_K0_N_K1,
-        // CGridDesc_M_N,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
@@ -133,28 +120,27 @@ struct DeviceGemmXdlSplitKCShuffleSimplified : public DeviceGemmSplitK<ALayout,
     struct Invoker : public BaseInvoker
     {
 
-        void Print(const Argument& arg) { arg.Print(); }
+        void Print(const Argument& karg) { karg.Print(); }
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        float Run(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
-                Print(arg);
+                Print(karg);
             }
 
-            const auto kbatch = arg.k_batch;
+            const auto kbatch = karg.k_batch;
 
-            if(!GridwiseGemm::CheckValidity(arg))
+            if(!GridwiseGemm::CheckValidity(karg))
             {
                 throw std::runtime_error(
                     "wrong! GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_simplified has invalid "
                     "setting");
             }
 
-            const index_t grid_size = math::integer_divide_ceil(arg.M, MPerBlock) *
-                                      math::integer_divide_ceil(arg.N, NPerBlock) * arg.k_batch;
-
-            const auto K0 = arg.K0;
+            index_t gdx, gdy, gdz;
+            std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(karg);
+            const auto K0           = karg.K0;
 
             const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
 
@@ -163,10 +149,10 @@ struct DeviceGemmXdlSplitKCShuffleSimplified : public DeviceGemmSplitK<ALayout,
             const auto Run = [&](const auto& kernel) {
                 if(kbatch > 1)
                     hipGetErrorString(
-                        hipMemset(arg.p_c_grid, 0, arg.M * arg.N * sizeof(CDataType)));
+                        hipMemset(karg.p_c_grid, 0, karg.M * karg.N * sizeof(CDataType)));
 
                 ave_time = launch_and_time_kernel(
-                    stream_config, kernel, dim3(grid_size), dim3(BlockSize), 0, arg);
+                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg);
             };
 
             if(has_main_k0_block_loop)
@@ -175,12 +161,6 @@ struct DeviceGemmXdlSplitKCShuffleSimplified : public DeviceGemmSplitK<ALayout,
                 {
                     const auto kernel =
                         kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
-                                                             ADataType, // TODO: distiguish A/B
-                                                                        // datatype
-                                                             CDataType,
-                                                             AElementwiseOperation,
-                                                             BElementwiseOperation,
-                                                             CElementwiseOperation,
                                                              true,
                                                              InMemoryDataOperationEnum::Set>;
 
@@ -190,12 +170,6 @@ struct DeviceGemmXdlSplitKCShuffleSimplified : public DeviceGemmSplitK<ALayout,
                 {
                     const auto kernel =
                         kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
-                                                             ADataType, // TODO: distiguish A/B
-                                                                        // datatype
-                                                             CDataType,
-                                                             AElementwiseOperation,
-                                                             BElementwiseOperation,
-                                                             CElementwiseOperation,
                                                              true,
                                                              InMemoryDataOperationEnum::AtomicAdd>;
 
@@ -208,12 +182,6 @@ struct DeviceGemmXdlSplitKCShuffleSimplified : public DeviceGemmSplitK<ALayout,
                 {
                     const auto kernel =
                         kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
-                                                             ADataType, // TODO: distiguish A/B
-                                                                        // datatype
-                                                             CDataType,
-                                                             AElementwiseOperation,
-                                                             BElementwiseOperation,
-                                                             CElementwiseOperation,
                                                              false,
                                                              InMemoryDataOperationEnum::Set>;
 
@@ -223,12 +191,6 @@ struct DeviceGemmXdlSplitKCShuffleSimplified : public DeviceGemmSplitK<ALayout,
                 {
                     const auto kernel =
                         kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
-                                                             ADataType, // TODO: distiguish A/B
-                                                                        // datatype
-                                                             CDataType,
-                                                             AElementwiseOperation,
-                                                             BElementwiseOperation,
-                                                             CElementwiseOperation,
                                                              false,
                                                              InMemoryDataOperationEnum::AtomicAdd>;
 
@@ -253,9 +215,9 @@ struct DeviceGemmXdlSplitKCShuffleSimplified : public DeviceGemmSplitK<ALayout,
         return true;
     }
 
-    static bool IsSupportedArgument(const Argument& arg)
+    static bool IsSupportedArgument(const Argument& karg)
     {
-        return GridwiseGemm::CheckValidity(arg);
+        return GridwiseGemm::CheckValidity(karg);
     }
 
     // polymorphic
@@ -273,9 +235,6 @@ struct DeviceGemmXdlSplitKCShuffleSimplified : public DeviceGemmSplitK<ALayout,
                              index_t StrideA,
                              index_t StrideB,
                              index_t StrideC,
-                             // AElementwiseOperation a_element_op,
-                             // BElementwiseOperation b_element_op,
-                             // CElementwiseOperation c_element_op,
                              index_t KBatch)
     {
         return Argument{p_a,
@@ -333,45 +292,8 @@ struct DeviceGemmXdlSplitKCShuffleSimplified : public DeviceGemmSplitK<ALayout,
         return std::make_unique<Invoker>(Invoker{});
     }
 
-    template <typename Layout>
-    struct LStr
-    {
-        static std::string Get() { return ""; }
-    };
-
-    template <>
-    struct LStr<ck::tensor_layout::gemm::RowMajor>
-    {
-        static std::string Get() { return "R"; }
-    };
-
-    template <>
-    struct LStr<ck::tensor_layout::gemm::ColumnMajor>
-    {
-        static std::string Get() { return "C"; }
-    };
-
     // polymorphic
-    std::string GetTypeString() const override
-    {
-        auto str = std::stringstream();
-
-        // clang-format off
-        str << "DeviceGemmXdlSplitKCShuffleSimplified_"
-            << getGemmSpecializationString(GemmSpec) << "_"
-            << LStr<ALayout>::Get() << LStr<BLayout>::Get() << LStr<CLayout>::Get() << "_"
-            << "B" << BlockSize << "_"
-            << "Vec" << ABlockTransferSrcScalarPerVector << "x"
-            << BBlockTransferSrcScalarPerVector << "x"
-            << CBlockTransferScalarPerVector_NWaveNPerXDL << "_"
-            << MPerBlock << "x"
-            << NPerBlock << "x"
-            << K0PerBlock << "x"
-            << K1 ;
-        // clang-format on
-
-        return str.str();
-    }
+    std::string GetTypeString() const override { return GridwiseGemm::GetTypeString(); }
 };
 
 } // namespace device

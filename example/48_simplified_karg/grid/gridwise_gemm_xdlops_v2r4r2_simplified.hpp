@@ -18,11 +18,6 @@
 namespace ck {
 
 template <typename GridwiseGemm,
-          typename FloatAB,
-          typename FloatC,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation>
 __global__ void
@@ -32,9 +27,9 @@ __global__ void
         kernel_gemm_xdlops_v2r4r2_simplified(typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
-    constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
+    constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
 
-    __shared__ FloatAB p_shared[shared_size];
+    __shared__ uint8_t p_shared[shared_size];
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation>(
         karg, static_cast<void*>(p_shared));
@@ -50,9 +45,6 @@ template <index_t BlockSize,
           typename ALayout,
           typename BLayout,
           typename CLayout,
-          // typename AGridDesc_B_K0_M_K1,
-          // typename BGridDesc_B_K0_N_K1,
-          // typename CGridDesc,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -114,8 +106,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_simplified
         index_t StrideA;
         index_t StrideB;
         index_t StrideC;
-        // index_t M01;
-        // index_t N01;
         index_t MPadded;
         index_t NPadded;
         index_t KPadded;
@@ -171,6 +161,13 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_simplified
                       << "KB:" << k_batch << "}" << std::endl;
         }
     };
+
+    __host__ __device__ static auto CalculateGridSize(const Argument& karg)
+    {
+        return std::make_tuple(math::integer_divide_ceil(karg.N, NPerBlock),
+                               math::integer_divide_ceil(karg.M, MPerBlock),
+                               karg.k_batch);
+    }
 
     // prefer this to be called on host
     __host__ __device__ static auto CalculateMPadded(index_t M)
@@ -326,10 +323,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_simplified
         }
     }
 
-    using AGridDesc = decltype(MakeAGridDescriptor_KBatch_K0_M_K1(1, 1, 1, 1, 1, 1, 1));
-    using BGridDesc = decltype(MakeBGridDescriptor_KBatch_K0_N_K1(1, 1, 1, 1, 1, 1, 1));
-    using CGridDesc = decltype(MakeCGridDescriptor_M_N(1, 1, 1, 1, 1));
-
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
         constexpr auto max_lds_align = K1;
@@ -378,47 +371,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_simplified
                          c_block_size * sizeof(FloatC));
     }
 
-#if 0
-    // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
-    template <typename Block2CTileMap>
-    __host__ __device__ static constexpr bool
-    CheckValidity(const AGridDesc& a_b_k0_m_k1_grid_desc,
-                  const BGridDesc& b_b_k0_n_k1_grid_desc,
-                  const CGridDesc& c_m_n_grid_desc,
-                  const Block2CTileMap& block_2_ctile_map)
-    {
-        static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
-                      "wrong! K1 need to be known at compile-time");
-
-        static_assert((MPerBlock % (MPerXDL * MRepeat) == 0) &&
-                          (NPerBlock % (NRepeat * NPerXDL)) == 0,
-                      "Invalid tuning param!");
-
-        const auto M      = a_b_k0_m_k1_grid_desc.GetLength(I2);
-        const auto N      = b_b_k0_n_k1_grid_desc.GetLength(I2);
-        const auto K0     = a_b_k0_m_k1_grid_desc.GetLength(I1);
-        const auto KBatch = a_b_k0_m_k1_grid_desc.GetLength(I0);
-
-        if(!(M == c_m_n_grid_desc.GetLength(I0) && N == c_m_n_grid_desc.GetLength(I1) &&
-             K0 == b_b_k0_n_k1_grid_desc.GetLength(I1) &&
-             K1 == a_b_k0_m_k1_grid_desc.GetLength(I3) &&
-             K1 == b_b_k0_n_k1_grid_desc.GetLength(I3) &&
-             KBatch == b_b_k0_n_k1_grid_desc.GetLength(I0)))
-            return false;
-
-        if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % K0PerBlock == 0))
-            return false;
-
-        if(!block_2_ctile_map.CheckValidity(c_m_n_grid_desc))
-        {
-            return false;
-        }
-        if constexpr()
-
-        // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
-        return true;
-    }
-#endif
     __host__ __device__ static constexpr bool CheckValidity(const Argument& karg)
     {
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
@@ -488,6 +440,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_simplified
         return has_main_k0_block_loop;
     }
 
+    template <typename CGridDesc>
     __host__ __device__ static constexpr auto
     MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(const CGridDesc& c_m_n_grid_desc)
     {
@@ -506,6 +459,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_simplified
     }
 
     // return block_id to C matrix tile idx (m0, n0) mapping
+    template <typename CGridDesc>
     __host__ __device__ static constexpr auto MakeCBlockClusterAdaptor(
         const CGridDesc& c_m_n_grid_desc, index_t /* M01 */, index_t /* N01 */, index_t KBatch)
     {
@@ -526,28 +480,21 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_simplified
                        Number<CShuffleNRepeatPerShuffle * NWave * NPerXDL>{}));
     }
 
-    using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
-        decltype(MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc{}));
-    using CBlockClusterAdaptor = decltype(MakeCBlockClusterAdaptor(CGridDesc{}, 1, 1, 1));
-
     template <bool HasMainKBlockLoop, InMemoryDataOperationEnum CGlobalMemoryDataOperation>
     __device__ static void Run(const Argument& karg, void* __restrict__ p_shared_block)
     {
-        const FloatAB* p_a_grid               = karg.p_a_grid;
-        const FloatAB* p_b_grid               = karg.p_b_grid;
-        FloatC* p_c_grid                      = karg.p_c_grid;
-        const AGridDesc a_b_k0_m_k1_grid_desc = MakeAGridDescriptor_KBatch_K0_M_K1(
+        const FloatAB* p_a_grid          = karg.p_a_grid;
+        const FloatAB* p_b_grid          = karg.p_b_grid;
+        FloatC* p_c_grid                 = karg.p_c_grid;
+        const auto a_b_k0_m_k1_grid_desc = MakeAGridDescriptor_KBatch_K0_M_K1(
             karg.M, karg.MPadded, karg.K, karg.StrideA, karg.k_batch, karg.K0, karg.KPadded);
-        const BGridDesc b_b_k0_n_k1_grid_desc = MakeBGridDescriptor_KBatch_K0_N_K1(
+        const auto b_b_k0_n_k1_grid_desc = MakeBGridDescriptor_KBatch_K0_N_K1(
             karg.K, karg.NPadded, karg.N, karg.StrideB, karg.k_batch, karg.K0, karg.KPadded);
-        const CGridDesc c_grid_desc_m_n =
+        const auto c_grid_desc_m_n =
             MakeCGridDescriptor_M_N(karg.M, karg.N, karg.MPadded, karg.NPadded, karg.StrideC);
 
-        const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-            c_grid_desc_mblock_mperblock_nblock_nperblock =
-                MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
-        const CBlockClusterAdaptor c_block_cluster_adaptor =
-            MakeCBlockClusterAdaptor(c_grid_desc_m_n, M01, N01, karg.k_batch);
+        const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
+            MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
         const AElementwiseOperation a_element_op = AElementwiseOperation{};
         const BElementwiseOperation b_element_op = BElementwiseOperation{};
         const CElementwiseOperation c_element_op = CElementwiseOperation{};
@@ -561,26 +508,16 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_simplified
 
         const auto K0 = a_b_k0_m_k1_grid_desc.GetLength(I1);
 
-        // divide block work by [M, N]
-        const auto block_work_idx =
-            c_block_cluster_adaptor.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
-
-        if(!c_block_cluster_adaptor.ValidCTileIndex(
-               make_tuple(block_work_idx[I1], block_work_idx[I2]),
-               make_tuple(c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
-                          c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
-        {
-            return;
-        }
-
-        const index_t k_batch_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
+        const index_t block_m_id = __builtin_amdgcn_readfirstlane(blockIdx.y);
+        const index_t block_n_id = __builtin_amdgcn_readfirstlane(blockIdx.x);
+        const index_t k_batch_id = __builtin_amdgcn_readfirstlane(blockIdx.z);
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I1] * MPerBlock);
+            __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
 
         const index_t n_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I2] * NPerBlock);
+            __builtin_amdgcn_readfirstlane(block_n_id * NPerBlock);
 
         // if(threadIdx.x == 0){
         //     printf("bdx:%d, %d, %d, %d, A:%dx%dx%dx%d(%d), B:%dx%dx%dx%d(%d),
@@ -739,7 +676,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_simplified
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
-
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
@@ -942,7 +878,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_simplified
                 {c_block_desc_mblock_mperblock_nblock_nperblock,
                  make_multi_index(0, 0, 0, 0),
                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                 make_multi_index(block_work_idx[I1], 0, block_work_idx[I2], 0),
+                 make_multi_index(block_m_id, 0, block_n_id, 0),
                  c_element_op};
 
             constexpr auto mxdlperwave_forward_step =
@@ -1010,6 +946,45 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_simplified
                 }
             });
         }
+    }
+
+    template <typename Layout>
+    struct LStr
+    {
+        static std::string Get() { return ""; }
+    };
+
+    template <>
+    struct LStr<ck::tensor_layout::gemm::RowMajor>
+    {
+        static std::string Get() { return "R"; }
+    };
+
+    template <>
+    struct LStr<ck::tensor_layout::gemm::ColumnMajor>
+    {
+        static std::string Get() { return "C"; }
+    };
+
+    static std::string GetTypeString()
+    {
+        auto str = std::stringstream();
+
+        // clang-format off
+        str << "GemmXdlSplitKCShuffleSimplified_"
+            << getGemmSpecializationString(GemmSpec) << "_"
+            << LStr<ALayout>::Get() << LStr<BLayout>::Get() << LStr<CLayout>::Get() << "_"
+            << "B" << BlockSize << "_"
+            << "Vec" << ABlockTransferSrcScalarPerVector << "x"
+            << BBlockTransferSrcScalarPerVector << "x"
+            << CBlockTransferScalarPerVector_NWaveNPerXDL << "_"
+            << MPerBlock << "x"
+            << NPerBlock << "x"
+            << K0PerBlock << "x"
+            << K1 ;
+        // clang-format on
+
+        return str.str();
     }
 };
 
