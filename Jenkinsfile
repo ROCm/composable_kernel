@@ -471,7 +471,7 @@ def Build_CK(Map conf=[:]){
                         //we only need the ckProfiler to run the performance tests, so we pack and stash it
                         sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
                         stash "ckProfiler.tar.gz"
-                        if (params.RUN_FULL_QA && label rocmnode("gfx908 || gfx90a")){
+                        if (params.RUN_FULL_QA)){
                            // build deb packages
                            sh 'make -j package'
                            archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
@@ -564,7 +564,7 @@ def process_results(Map conf=[:]){
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true
-                                              0 21 * * * % RUN_FULL_QA=false;COMPILER_VERSION=release;COMPILER_COMMIT=
+                                              0 21 * * * % COMPILER_VERSION=release;COMPILER_COMMIT=
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=''' : ""
 
 pipeline {
@@ -666,6 +666,10 @@ pipeline {
                 }
                 stage("Build CK and run Tests on Navi")
                 {
+                    when {
+                        beforeAgent true
+                        expression { !params.RUN_FULL_QA.toBoolean() }
+                    }
                     agent{ label rocmnode("gfx1030") }
                     environment{
                         setup_args = """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1030" """ 
