@@ -471,7 +471,7 @@ def Build_CK(Map conf=[:]){
                         //we only need the ckProfiler to run the performance tests, so we pack and stash it
                         sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
                         stash "ckProfiler.tar.gz"
-                        if (params.RUN_FULL_QA){
+                        if (params.RUN_FULL_QA && label rocmnode("gfx908 || gfx90a")){
                            // build deb packages
                            sh 'make -j package'
                            archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
@@ -668,8 +668,8 @@ pipeline {
                 {
                     agent{ label rocmnode("gfx1030") }
                     environment{
-                        setup_args = """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1030;gfx1100" """ 
-                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1030;gfx1100" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
+                        setup_args = """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1030" """ 
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1030" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
@@ -692,21 +692,6 @@ pipeline {
                     agent{ label rocmnode("gfx908 || gfx90a")}
                     environment{
                         setup_args = """ -DGPU_TARGETS="gfx908;gfx90a" -DBUILD_DEV=On """
-                   }
-                    steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
-                    }
-                }
-                stage("Run ckProfiler: gfx1030")
-                {
-                    when {
-                        beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() }
-                    }
-                    options { retry(2) }
-                    agent{ label rocmnode("gfx1030")}
-                    environment{
-                        setup_args = """ -DGPU_TARGETS="gfx1030" -DBUILD_DEV=On """
                    }
                     steps{
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
