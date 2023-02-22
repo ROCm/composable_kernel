@@ -105,7 +105,7 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
 #endif
         }();
 
-        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
+        if constexpr(GemmSpec == GemmSpecialization::MNKPadding)
         {
             const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
 
@@ -144,7 +144,7 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
             }
         }();
 
-        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
+        if constexpr(GemmSpec == GemmSpecialization::MNKPadding)
         {
             const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
 
@@ -180,7 +180,7 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
             }
         }();
 
-        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
+        if constexpr(GemmSpec == GemmSpecialization::MNKPadding)
         {
             const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
             const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
