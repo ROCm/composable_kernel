@@ -37,6 +37,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python-dev \
     python3-dev \
     python3-pip \
+    sshpass \
     software-properties-common \
     rocm-dev \
     rocm-device-libs \

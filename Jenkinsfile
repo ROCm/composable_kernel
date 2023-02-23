@@ -485,7 +485,7 @@ def Build_CK(Map conf=[:]){
                            sh 'make -j package'
                            archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
                            archiveArtifacts artifacts: 'composablekernel-tests_*.deb'
-                           sh 'scp -i ~/.ssh/id_rsa composablekernel-ckprofiler_*.deb jenkins@ginger.amd.com:/composable_kernel/'
+                           sh 'sshpass -p "$env.ck_deb_pw" scp composablekernel-ckprofiler_*.deb "$ck_deb_user"@"$ck_deb_ip":/var/www/html/composable_kernel/ckprofiler_0.2.0_amd64.deb'
                         }
                     }
                 }
