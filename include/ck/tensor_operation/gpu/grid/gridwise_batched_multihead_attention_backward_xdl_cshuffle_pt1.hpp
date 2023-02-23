@@ -1563,8 +1563,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1
                      n3, // NInputNum
                      n4>,
             Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
-            9,  // DstVectorDim
-            1,  // DstScalarPerVector
+            9, // DstVectorDim
+            1, // DstScalarPerVector
             InMemoryDataOperationEnum::Set,
             1, // DstScalarStrideInVector
             true>{z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
@@ -1937,7 +1937,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1
                     else
                     {
                         s_element_op(s_slash_p_thread_buf(i), s_slash_p_thread_buf[i]);
-
                     }
                 });
             }
