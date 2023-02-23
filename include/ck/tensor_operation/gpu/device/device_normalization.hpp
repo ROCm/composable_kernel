@@ -14,9 +14,9 @@ namespace device {
 template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
-          typename AccDataType,
+          typename ComputeDataType,
           typename YDataType,
-          typename AccElementwiseOperation,
+          typename YElementwiseOperation,
           index_t Rank,
           index_t NumReduceDim>
 struct DeviceNormalization : public BaseOperator
@@ -28,12 +28,14 @@ struct DeviceNormalization : public BaseOperator
                         const std::vector<index_t> betaStrides,
                         const std::vector<index_t> yStrides,
                         const std::vector<index_t> reduceDims,
-                        AccDataType epsilon,
+                        double epsilon,
                         const void* p_x,
                         const void* p_gamma,
                         const void* p_beta,
                         void* p_y,
-                        AccElementwiseOperation acc_elementwise_op) = 0;
+                        void* p_savedMean,
+                        void* p_savedInvVar,
+                        YElementwiseOperation y_elementwise_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
@@ -41,17 +43,17 @@ struct DeviceNormalization : public BaseOperator
 template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
-          typename AccDataType,
+          typename ComputeDataType,
           typename YDataType,
-          typename AccElementwiseOperation,
+          typename YElementwiseOperation,
           index_t Rank,
           index_t NumReduceDim>
 using DeviceNormalizationPtr = std::unique_ptr<DeviceNormalization<XDataType,
                                                                    GammaDataType,
                                                                    BetaDataType,
-                                                                   AccDataType,
+                                                                   ComputeDataType,
                                                                    YDataType,
-                                                                   AccElementwiseOperation,
+                                                                   YElementwiseOperation,
                                                                    Rank,
                                                                    NumReduceDim>>;
 

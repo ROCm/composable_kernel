@@ -3,7 +3,9 @@
 
 #pragma once
 
+#ifndef __HIP_DEVICE_COMPILE__
 #include <cmath>
+#endif
 
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type.hpp"
@@ -81,6 +83,11 @@ static inline __host__ bool isnan(int4_t x)
 };
 #endif
 
+static inline __host__ half_t sqrt(half_t x)
+{
+    return static_cast<half_t>(std::sqrt(static_cast<float>(x)));
+};
+
 static inline __host__ float sqrt(float x) { return std::sqrt(x); };
 
 static inline __host__ double sqrt(double x) { return std::sqrt(x); };
@@ -114,7 +121,16 @@ static inline __device__ int4_t abs(int4_t x)
 };
 #endif
 
-static inline __device__ half_t abs(half_t x) { return ::__habs(x); };
+static inline __device__ half_t abs(half_t x)
+{
+    uint16_t xx = ck::bit_cast<uint16_t>(x);
+
+    uint16_t abs_xx = xx & 0x7fff;
+
+    half_t abs_x = ck::bit_cast<half_t>(abs_xx);
+
+    return abs_x;
+};
 
 static inline __device__ bool isnan(float x) { return ::isnan(x); };
 
@@ -140,11 +156,21 @@ static inline __device__ bool isnan(int4_t x)
 };
 #endif
 
-static inline __device__ bool isnan(half_t x) { return ::__hisnan(x); };
+static inline __device__ bool isnan(half_t x)
+{
+    uint16_t xx = ck::bit_cast<uint16_t>(x);
 
-static inline __device__ float sqrt(float x) { return ::sqrtf(x); };
+    return (xx & 0x7FFF) > 0x7C00;
+};
 
-static inline __device__ double sqrt(double x) { return ::sqrt(x); };
+static inline __device__ half_t sqrt(half_t x)
+{
+    return static_cast<half_t>(__builtin_amdgcn_sqrtf(static_cast<float>(x)));
+};
+
+static inline __device__ float sqrt(float x) { return __builtin_amdgcn_sqrtf(x); };
+
+static inline __device__ double sqrt(double x) { return __builtin_amdgcn_sqrt(x); };
 
 } // namespace math
 } // namespace ck

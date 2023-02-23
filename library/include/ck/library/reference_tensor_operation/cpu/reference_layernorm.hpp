@@ -90,11 +90,15 @@ struct ReferenceLayernorm : public device::BaseOperator
 
             for(int m = 0; m < M; ++m)
             {
+                AccDataType divisor =
+                    static_cast<AccDataType>(1) / ck::math::sqrt(var(m) + arg.epsilon_);
+
                 for(int n = 0; n < N; ++n)
                 {
-                    auto x_val       = ck::type_convert<AccDataType>(arg.x_m_n_(m, n));
-                    auto y_val       = (x_val - mean(m)) / sqrt(var(m) + arg.epsilon_);
-                    y_val            = (y_val * arg.gamma_n_(n)) + arg.beta_n_(n);
+                    auto x_val = ck::type_convert<AccDataType>(arg.x_m_n_(m, n));
+                    auto y_val = (x_val - mean(m)) * divisor;
+                    y_val      = (y_val * arg.gamma_n_(n)) + arg.beta_n_(n);
+                    arg.acc_elementwise_op_(y_val, y_val);
                     arg.y_m_n_(m, n) = ck::type_convert<YDataType>(y_val);
                 }
             }

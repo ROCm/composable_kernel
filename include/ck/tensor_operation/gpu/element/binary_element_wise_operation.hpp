@@ -51,6 +51,14 @@ struct Add
 
     template <>
     __host__ __device__ constexpr void
+    operator()<float>(float& y, const float& x0, const bhalf_t& x1) const
+    {
+        const float x1_tmp = ck::type_convert<float>(x1);
+        y                  = x0 + x1_tmp;
+    }
+
+    template <>
+    __host__ __device__ constexpr void
     operator()<bhalf_t>(bhalf_t& y, const bhalf_t& x0, const bhalf_t& x1) const
     {
         const float x1_tmp = ck::type_convert<float>(x0);
@@ -65,6 +73,30 @@ struct Add
     {
         y = x0 + x1;
     };
+};
+
+struct ScaleAdd
+{
+    __host__ __device__ ScaleAdd(float scale) : scale_(scale) {}
+
+    template <typename Y, typename X0, typename X1>
+    __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
+
+    template <>
+    __host__ __device__ void
+    operator()<float, float, half_t>(float& y, const float& x0, const half_t& x1) const
+    {
+        y = scale_ * x0 + ck::type_convert<float>(x1);
+    };
+
+    template <>
+    __host__ __device__ void
+    operator()<float, float, bhalf_t>(float& y, const float& x0, const bhalf_t& x1) const
+    {
+        y = scale_ * x0 + ck::type_convert<float>(x1);
+    };
+
+    float scale_;
 };
 
 struct Subtract
@@ -117,6 +149,13 @@ struct Bilinear
 
     template <typename Y, typename X0, typename X1>
     __host__ __device__ constexpr void operator()(Y&, const X0&, const X1&) const;
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<double, double, double>(double& y, const double& x0, const double& x1) const
+    {
+        y = alpha_ * x0 + beta_ * x1;
+    };
 
     template <>
     __host__ __device__ constexpr void
@@ -186,6 +225,22 @@ struct AddRelu
     {
         const float a = x0 + type_convert<float>(x1);
         y             = a > 0.0f ? a : 0.0f;
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<int, int, int8_t>(int& y, const int& x0, const int8_t& x1) const
+    {
+        const int8_t a = x0 + x1;
+        y              = a > 0 ? a : 0;
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<int8_t, int8_t, int8_t>(int8_t& y, const int8_t& x0, const int8_t& x1) const
+    {
+        const int8_t a = x0 + x1;
+        y              = a > 0 ? a : 0;
     };
 };
 

@@ -10,12 +10,16 @@
 #include "ck/utility/sequence.hpp"
 #include "ck/utility/tuple.hpp"
 #include "ck/utility/reduction_operator.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl.hpp"
 
 #include "batchnorm_common.hpp"
 
-template <typename InOutDataType,
+template <typename XDataType,
+          typename YDataType,
           typename AccDataType,
+          typename ScaleDataType,
+          typename BiasDataType,
+          typename MeanVarDataType,
           ck::index_t Rank,
           ck::index_t NumBatchNormReduceDim,
           bool fastest_dim_is_reduced = false>
@@ -26,7 +30,9 @@ int bnorm_infer(
     const std::array<ck::index_t, Rank> xStrides,
     const std::array<ck::index_t, Rank> yStrides,
     const std::array<ck::index_t, Rank - NumBatchNormReduceDim> bnScaleBiasMeanVarLengths,
-    const std::array<ck::index_t, Rank - NumBatchNormReduceDim> bnScaleBiasMeanVarStrides,
+    const std::array<ck::index_t, Rank - NumBatchNormReduceDim> bnScaleStrides,
+    const std::array<ck::index_t, Rank - NumBatchNormReduceDim> bnBiasStrides,
+    const std::array<ck::index_t, Rank - NumBatchNormReduceDim> bnMeanVarStrides,
     const void* p_x,
     const void* p_scale,
     const void* p_bias,
@@ -40,12 +46,12 @@ int bnorm_infer(
     static_assert(NumBatchNormReduceDim < Rank,
                   "Invalid number of reduced dimensions for batchnorm!");
 
-    using DeviceNormalizeInstance = ck::tensor_operation::device::DeviceElementwise<
-        ck::Tuple<InOutDataType, AccDataType, AccDataType, AccDataType, AccDataType>, // x, mean,
-                                                                                      // variance,
-                                                                                      // scale,
-                                                                                      // bias,
-        ck::Tuple<InOutDataType>,                                                     // y
+    using DeviceNormalizeInstance = ck::tensor_operation::device::DeviceElementwiseImpl<
+        ck::Tuple<XDataType, AccDataType, AccDataType, AccDataType, AccDataType>, // x, mean,
+                                                                                  // variance,
+                                                                                  // scale,
+                                                                                  // bias,
+        ck::Tuple<YDataType>,                                                     // y
         NormalizeInInfer,
         Rank,
         2,                           // MPerthread
@@ -53,14 +59,18 @@ int bnorm_infer(
         ck::Sequence<1>>;            // scalarPerVector: y
 
     auto invariantDims = get_invariant_dims<Rank, NumBatchNormReduceDim>(reduceDims);
-    std::array<ck::index_t, Rank> aligned_scaleBiasMeanVarStrides{0};
+    std::array<ck::index_t, Rank> aligned_bnScaleStrides{0};
+    std::array<ck::index_t, Rank> aligned_bnBiasStrides{0};
+    std::array<ck::index_t, Rank> aligned_bnMeanVarStrides{0};
 
     int i = 0;
     for(auto dim : invariantDims)
     {
         assert(xyLengths[dim] == bnScaleBiasMeanVarLengths[i]);
 
-        aligned_scaleBiasMeanVarStrides[dim] = bnScaleBiasMeanVarStrides[i];
+        aligned_bnScaleStrides[dim]   = bnScaleStrides[i];
+        aligned_bnBiasStrides[dim]    = bnBiasStrides[i];
+        aligned_bnMeanVarStrides[dim] = bnMeanVarStrides[i];
         i++;
     };
 
@@ -84,10 +94,10 @@ int bnorm_infer(
     auto argument_ptr1 = dev_normalize.MakeArgumentPointer(
         xyLengths,
         {xStrides,
-         aligned_scaleBiasMeanVarStrides,
-         aligned_scaleBiasMeanVarStrides,
-         aligned_scaleBiasMeanVarStrides,
-         aligned_scaleBiasMeanVarStrides},
+         aligned_bnMeanVarStrides,
+         aligned_bnMeanVarStrides,
+         aligned_bnScaleStrides,
+         aligned_bnBiasStrides},
         {yStrides},
         {p_x, p_estimatedMean, p_estimatedVariance, p_scale, p_bias},
         {p_y},
@@ -105,8 +115,10 @@ int bnorm_infer(
 
     avg_time += invoker_ptr1->Run(argument_ptr1.get(), StreamConfig{nullptr, time_kernel});
 
-    num_bytes += (total_length * (1 * sizeof(InOutDataType) + 4 * sizeof(AccDataType)) +
-                  total_length * sizeof(InOutDataType));
+    num_bytes += total_length * sizeof(XDataType) +
+                 invariantLength *
+                     (sizeof(ScaleDataType) + sizeof(BiasDataType) + 2 * sizeof(MeanVarDataType)) +
+                 total_length * sizeof(YDataType);
 
     if(time_kernel)
     {

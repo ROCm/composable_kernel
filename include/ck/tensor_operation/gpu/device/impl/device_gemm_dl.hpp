@@ -214,6 +214,7 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
                                      MPerBlock,
                                      NPerBlock,
                                      K0PerBlock,
+                                     K1,
                                      M1PerThread,
                                      N1PerThread,
                                      KPerThread,
@@ -326,6 +327,7 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+#if DEBUG_LOG
             {
                 std::cout << "arg.a_grid_desc_k0_m0_m1_k1_{"
                           << arg.a_grid_desc_k0_m_k1_.GetLength(I0) << ", "
@@ -340,6 +342,7 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
                 std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
             }
+#endif
 
             if(!GridwiseGemm::CheckValidity(
                    arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.c_grid_desc_m_n_))

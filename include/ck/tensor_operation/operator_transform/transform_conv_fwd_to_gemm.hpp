@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "ck/library/utility/numeric.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -47,10 +48,9 @@ struct TransformConvFwdToGemm
         if constexpr(ConvForwardSpecialization ==
                      device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
-            const index_t NWo = N * std::accumulate(c_g_n_k_wos_lengths.begin() + 3,
-                                                    c_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                                    index_t{1},
-                                                    std::multiplies<index_t>());
+            const index_t NWo =
+                N * ck::accumulate_n<index_t>(
+                        c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>());
 
             const auto in_gemmm_gemmk_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(NWo, C));
@@ -146,10 +146,9 @@ struct TransformConvFwdToGemm
         if constexpr(ConvForwardSpecialization ==
                      device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
-            const index_t NHoWo = N * std::accumulate(c_g_n_k_wos_lengths.begin() + 3,
-                                                      c_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                                      index_t{1},
-                                                      std::multiplies<index_t>());
+            const index_t NHoWo =
+                N * ck::accumulate_n<index_t>(
+                        c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>());
 
             const auto in_gemmm_gemmk_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(NHoWo, C));
@@ -262,10 +261,8 @@ struct TransformConvFwdToGemm
                      device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             const index_t NDoHoWo =
-                N * std::accumulate(c_g_n_k_wos_lengths.begin() + 3,
-                                    c_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                    index_t{1},
-                                    std::multiplies<index_t>());
+                N * ck::accumulate_n<index_t>(
+                        c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>());
 
             const auto in_gemmm_gemmk_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(NDoHoWo, C));
@@ -390,10 +387,9 @@ struct TransformConvFwdToGemm
         if constexpr(ConvForwardSpecialization ==
                      device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
-            const index_t NHoWo = N * std::accumulate(c_g_n_k_wos_lengths.begin() + 3,
-                                                      c_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                                      index_t{1},
-                                                      std::multiplies<index_t>());
+            const index_t NHoWo =
+                N * ck::accumulate_n<index_t>(
+                        c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>());
 
             // This is different
             const index_t WiStride = a_g_n_c_wis_strides[2 + NDimSpatial];
@@ -506,10 +502,9 @@ struct TransformConvFwdToGemm
         if constexpr(ConvForwardSpecialization ==
                      device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
-            const index_t NHoWo = N * std::accumulate(c_g_n_k_wos_lengths.begin() + 3,
-                                                      c_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                                      index_t{1},
-                                                      std::multiplies<index_t>());
+            const index_t NHoWo =
+                N * ck::accumulate_n<index_t>(
+                        c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>());
 
             // This is different
             const index_t WiStride = a_g_n_c_wis_strides[2 + NDimSpatial];
@@ -639,10 +634,8 @@ struct TransformConvFwdToGemm
                      device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             const index_t NDoHoWo =
-                N * std::accumulate(c_g_n_k_wos_lengths.begin() + 3,
-                                    c_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                    index_t{1},
-                                    std::multiplies<index_t>());
+                N * ck::accumulate_n<index_t>(
+                        c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>());
 
             // This is different
             const index_t WiStride = a_g_n_c_wis_strides[2 + NDimSpatial];
@@ -768,10 +761,8 @@ struct TransformConvFwdToGemm
         const index_t K = b_g_k_c_xs_lengths[1];
         const index_t C = b_g_k_c_xs_lengths[2];
 
-        const index_t YX = std::accumulate(b_g_k_c_xs_lengths.begin() + 3,
-                                           b_g_k_c_xs_lengths.begin() + 3 + NDimSpatial,
-                                           index_t{1},
-                                           std::multiplies<index_t>());
+        const index_t YX = ck::accumulate_n<index_t>(
+            b_g_k_c_xs_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>());
 
         const auto wei_gemmn_gemmk_desc =
             make_naive_tensor_descriptor_packed(make_tuple(K, YX * C));
@@ -794,10 +785,8 @@ struct TransformConvFwdToGemm
         const index_t K = b_g_k_c_xs_lengths[1];
         const index_t C = b_g_k_c_xs_lengths[2];
 
-        const index_t YX = std::accumulate(b_g_k_c_xs_lengths.begin() + 3,
-                                           b_g_k_c_xs_lengths.begin() + 3 + NDimSpatial,
-                                           index_t{1},
-                                           std::multiplies<index_t>());
+        const index_t YX = ck::accumulate_n<index_t>(
+            b_g_k_c_xs_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>());
 
         const index_t KStride = b_g_k_c_xs_strides[1];
         const index_t XStride = b_g_k_c_xs_strides[2 + NDimSpatial];
@@ -827,10 +816,9 @@ struct TransformConvFwdToGemm
         const index_t N = c_g_n_k_wos_lengths[1];
         const index_t K = c_g_n_k_wos_lengths[2];
 
-        const index_t NHoWo = N * std::accumulate(c_g_n_k_wos_lengths.begin() + 3,
-                                                  c_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                                  index_t{1},
-                                                  std::multiplies<index_t>());
+        const index_t NHoWo =
+            N * ck::accumulate_n<index_t>(
+                    c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>());
 
         const auto out_gemmm_gemmn_desc = make_naive_tensor_descriptor_packed(make_tuple(NHoWo, K));
 
@@ -855,10 +843,9 @@ struct TransformConvFwdToGemm
         const auto KStride     = I1;
         const index_t WoStride = c_g_n_k_wos_strides[NDimSpatial + 2];
 
-        const index_t NHoWo = N * std::accumulate(c_g_n_k_wos_lengths.begin() + 3,
-                                                  c_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                                  index_t{1},
-                                                  std::multiplies<index_t>());
+        const index_t NHoWo =
+            N * ck::accumulate_n<index_t>(
+                    c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>());
 
         const auto out_gemmm_gemmn_desc =
             make_naive_tensor_descriptor(make_tuple(NHoWo, K), make_tuple(WoStride, KStride));
@@ -878,10 +865,9 @@ struct TransformConvFwdToGemm
         const index_t N = c_g_n_k_wos_lengths[1];
         const index_t K = c_g_n_k_wos_lengths[2];
 
-        const index_t NHoWo = N * std::accumulate(c_g_n_k_wos_lengths.begin() + 3,
-                                                  c_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                                  index_t{1},
-                                                  std::multiplies<index_t>());
+        const index_t NHoWo =
+            N * ck::accumulate_n<index_t>(
+                    c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>());
 
         const auto out_gemmm_gemmn_desc =
             make_naive_tensor_descriptor(make_tuple(NHoWo, K), make_tuple(I0, I1));

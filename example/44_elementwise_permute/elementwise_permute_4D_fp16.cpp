@@ -3,8 +3,9 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -18,13 +19,13 @@ using BDataType = F16;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using DeviceElementwisePermuteInstance =
-    ck::tensor_operation::device::DeviceElementwise<ck::Tuple<ADataType>,
-                                                    ck::Tuple<BDataType>,
-                                                    PassThrough,
-                                                    4,
-                                                    8,
-                                                    ck::Sequence<8>,
-                                                    ck::Sequence<1>>;
+    ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ADataType>,
+                                                        ck::Tuple<BDataType>,
+                                                        PassThrough,
+                                                        4,
+                                                        8,
+                                                        ck::Sequence<8>,
+                                                        ck::Sequence<1>>;
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
 void host_elementwise4D(HostTensorB& B_nhwc, const HostTensorA& A_nchw, Functor functor)
@@ -69,7 +70,7 @@ int main()
                                             static_cast<int>(nhwc[2] * nhwc[3]),
                                             static_cast<int>(nhwc[3])};
 
-    std::copy(nchw.begin(), nchw.end(), ab_lengths.begin());
+    ck::ranges::copy(nchw, ab_lengths.begin());
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
     auto argument         = broadcastPermute.MakeArgumentPointer(

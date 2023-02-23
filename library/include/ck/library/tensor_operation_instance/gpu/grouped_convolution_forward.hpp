@@ -3,11 +3,11 @@
 
 #pragma once
 
-#include <cstdlib>
+#include <vector>
 
 #include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_conv_fwd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
@@ -131,6 +131,47 @@ void add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_int8_instances(
                                                               PassThrough,
                                                               PassThrough>>>& instances);
 
+void add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              GNHWC,
+                                                              GKYXC,
+                                                              Empty_Tuple,
+                                                              GNHWK,
+                                                              F16,
+                                                              F16,
+                                                              Empty_Tuple,
+                                                              F16,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              GNHWC,
+                                                              GKYXC,
+                                                              Empty_Tuple,
+                                                              GNHWK,
+                                                              F32,
+                                                              F32,
+                                                              Empty_Tuple,
+                                                              F32,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_int8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              GNHWC,
+                                                              GKYXC,
+                                                              Empty_Tuple,
+                                                              GNHWK,
+                                                              int8_t,
+                                                              int8_t,
+                                                              Empty_Tuple,
+                                                              int8_t,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
 // grouped conv2d forward, NHWGC/GKYXC/NHWGK
 void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
@@ -195,6 +236,63 @@ void add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_int8_instances(
                                                               GKZYXC,
                                                               Empty_Tuple,
                                                               GNDHWK,
+                                                              int8_t,
+                                                              int8_t,
+                                                              Empty_Tuple,
+                                                              int8_t,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
+
+// grouped conv3d forward, NDHWGC/KZYXGC/NDHWGK
+void add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
+                                                              NDHWGC,
+                                                              KZYXGC,
+                                                              Empty_Tuple,
+                                                              NDHWGK,
+                                                              BF16,
+                                                              BF16,
+                                                              Empty_Tuple,
+                                                              BF16,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
+                                                              NDHWGC,
+                                                              KZYXGC,
+                                                              Empty_Tuple,
+                                                              NDHWGK,
+                                                              F16,
+                                                              F16,
+                                                              Empty_Tuple,
+                                                              F16,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_f32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
+                                                              NDHWGC,
+                                                              KZYXGC,
+                                                              Empty_Tuple,
+                                                              NDHWGK,
+                                                              F32,
+                                                              F32,
+                                                              Empty_Tuple,
+                                                              F32,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_int8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
+                                                              NDHWGC,
+                                                              KZYXGC,
+                                                              Empty_Tuple,
+                                                              NDHWGK,
                                                               int8_t,
                                                               int8_t,
                                                               Empty_Tuple,
@@ -273,11 +371,13 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, float>)
             {
                 add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f32_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f32_instances(op_ptrs);
             }
             else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
                               is_same_v<OutDataType, half_t>)
             {
                 add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f16_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f16_instances(op_ptrs);
             }
             else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
                               is_same_v<WeiDataType, ck::bhalf_t> &&
@@ -289,6 +389,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                               is_same_v<OutDataType, int8_t>)
             {
                 add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_int8_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_int8_instances(op_ptrs);
             }
         }
         else if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NHWGC> &&
@@ -339,6 +440,31 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                               is_same_v<OutDataType, int8_t>)
             {
                 add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_int8_instances(op_ptrs);
+            }
+        }
+        else if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NDHWGC> &&
+                          is_same_v<WeiLayout, KZYXGC> && is_same_v<OutLayout, NDHWGK>)
+        {
+            if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
+                         is_same_v<OutDataType, float>)
+            {
+                add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_f32_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                              is_same_v<OutDataType, half_t>)
+            {
+                add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_f16_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                              is_same_v<WeiDataType, ck::bhalf_t> &&
+                              is_same_v<OutDataType, ck::bhalf_t>)
+            {
+                add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_bf16_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
+                              is_same_v<OutDataType, int8_t>)
+            {
+                add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_int8_instances(op_ptrs);
             }
         }
 

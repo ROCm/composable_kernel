@@ -6,8 +6,9 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -22,13 +23,13 @@ using CDataType  = F16;
 using Add = ck::tensor_operation::element_wise::Add;
 
 using DeviceElementwiseAddInstance =
-    ck::tensor_operation::device::DeviceElementwise<ck::Tuple<ABDataType, ABDataType>,
-                                                    ck::Tuple<CDataType>,
-                                                    Add,
-                                                    3,
-                                                    8,
-                                                    ck::Sequence<1, 8>,
-                                                    ck::Sequence<8>>;
+    ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ABDataType, ABDataType>,
+                                                        ck::Tuple<CDataType>,
+                                                        Add,
+                                                        3,
+                                                        8,
+                                                        ck::Sequence<1, 8>,
+                                                        ck::Sequence<8>>;
 
 template <typename HostTensorA, typename HostTensorB, typename HostTensorC, typename Functor>
 void host_broadcast3D_am_bmnk(HostTensorC& C,
@@ -82,11 +83,9 @@ int main()
     std::array<ck::index_t, 3> b_strides;
     std::array<ck::index_t, 3> c_strides;
 
-    std::copy(mnk.begin(), mnk.end(), abc_lengths.begin());
-    std::copy(
-        b_m_n_k.mDesc.GetStrides().begin(), b_m_n_k.mDesc.GetStrides().end(), b_strides.begin());
-    std::copy(
-        c_m_n_k.mDesc.GetStrides().begin(), c_m_n_k.mDesc.GetStrides().end(), c_strides.begin());
+    ck::ranges::copy(mnk, abc_lengths.begin());
+    ck::ranges::copy(b_m_n_k.mDesc.GetStrides(), b_strides.begin());
+    ck::ranges::copy(c_m_n_k.mDesc.GetStrides(), c_strides.begin());
 
     auto broadcastAdd = DeviceElementwiseAddInstance{};
     auto argument     = broadcastAdd.MakeArgumentPointer(
@@ -113,8 +112,8 @@ int main()
         host_broadcast3D_am_bmnk<Tensor<ABDataType>, Tensor<ABDataType>, Tensor<CDataType>, Add>(
             host_c_m_n_k, a_m, b_m_n_k, mnk, Add{});
 
-        pass &= ck::utils::check_err(
-            c_m_n_k.mData, host_c_m_n_k.mData, "Error: Incorrect results c", 1e-3, 1e-3);
+        pass &=
+            ck::utils::check_err(c_m_n_k, host_c_m_n_k, "Error: Incorrect results c", 1e-3, 1e-3);
     }
 
     return pass ? 0 : 1;

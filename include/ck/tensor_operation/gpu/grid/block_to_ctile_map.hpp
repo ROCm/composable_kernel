@@ -154,6 +154,50 @@ struct BlockToCTileMap_M00_N0_M01Adapt
         index_t idx_M01          = idx_M0 % M01_;
         index_t idx_N0_M01_local = idx_N0 + idx_M01 * N0;
 
+        /**
+         *                        idxN0
+         *
+         *           |<               mtx   N                 >|
+         *
+         *             NPerBlock   NPerBlock   NPerBlock   NPerBlock
+         *                N_0         N_1        N_2         N_3
+         *       -   |-----------|-----------|-----------|-----|-----|-
+         *       ^   | -   -  0  |/---->  2  |           |     |     |
+         *           | |   |     /     |     |           |     |     |  M_0  MPerBlock
+         *           | M   |    /|     |     |           |     |     |
+         *           |-0---|---/-|-----|-----|-----------|-----|-----|-
+         *           | 1   |  /  |     |     |  blockid  |     |     |
+         * idxM0     | |   | /   |     V     |     5     |     |     |  M_1  MPerBlock
+         *           | -   V   1 |     -  3  |           |     |     |
+         *           |-----------|-----------|-----------|-----|-----|-
+         *    mtx M  |           |           |           |     |     |
+         *           |           |           |           |     |     |  M_2  MPerBlock
+         *           |           |           |           |     |     |
+         *           |-----------|-----------|-----------|-----|-----|-
+         *           |           |           |           |     |     |
+         *           |           |           |           |     |     |  M_3  MPerBlock
+         *           |           |           |           |     |     |
+         *           |-----------|-----------|-----------|-----|-----|-
+         *       V   |           |           |           |     |     |
+         *       -   |-----------|-----------|-----------|-----|-----|- M_4  MPerBlock
+         *           |           |           |           |     |     |
+         *           |-----------|-----------|-----------|-----|-----|-
+         *  Example:
+         *   assume:
+         *      M0 = 5
+         *      N0 = 4
+         *      block_1d_id = 5
+         *      M01 = 2
+         *
+         *   idx_N0 = 1
+         *   idx_M0 = 1
+         *   M01_adapt = 2
+         *   idx_M00 = 0
+         *   idx_M01 = 1
+         *   idx_N0_M01_local = 5
+         *   output {1, 2}
+         */
+
         return make_tuple(idx_N0_M01_local % M01_adapt + idx_M00 * M01_,
                           idx_N0_M01_local / M01_adapt);
     }
@@ -364,14 +408,16 @@ struct BlockToCTileMap_KSplit_M00_N00_M01_N01
                                                     index_t M01    = 1,
                                                     index_t N01    = 1,
                                                     index_t KSplit = 1)
-        : M01_(M01),
+        : c_grid_desc_m_n_(c_grid_desc_m_n),
+          M01_(M01),
           N01_(N01),
           KSplit_(KSplit),
           underlying_map_(GetBlockToCTileMap(c_grid_desc_m_n, M01, N01, KSplit))
     {
     }
 
-    __host__ constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
+    __host__ __device__ constexpr index_t
+    CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
     {
         const auto M0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I0), MPerBlock);
         const auto N0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I1), NPerBlock);
@@ -387,7 +433,10 @@ struct BlockToCTileMap_KSplit_M00_N00_M01_N01
     template <typename TopIdx>
     __host__ __device__ constexpr auto CalculateBottomIndex(const TopIdx& idx_top) const
     {
-        return underlying_map_.CalculateBottomIndex(idx_top);
+        static_assert(TopIdx::Size() == 1);
+
+        return underlying_map_.CalculateBottomIndex(
+            make_multi_index(idx_top[I0] % CalculateGridSize()));
     }
 
     template <typename CTileIdx, typename CTileDim>
@@ -418,6 +467,11 @@ struct BlockToCTileMap_KSplit_M00_N00_M01_N01
     }
 
     private:
+    __device__ constexpr index_t CalculateGridSize() const
+    {
+        return CalculateGridSize(c_grid_desc_m_n_);
+    }
+
     __host__ static constexpr auto GetBlockToCTileMap(const CGridDesc_M_N& c_grid_desc_m_n,
                                                       index_t M01,
                                                       index_t N01,
@@ -450,6 +504,7 @@ struct BlockToCTileMap_KSplit_M00_N00_M01_N01
         return c_blockid_to_ksplit_m0_n0_block_cluster_adaptor;
     }
 
+    CGridDesc_M_N c_grid_desc_m_n_;
     index_t M01_, N01_, KSplit_;
     using UnderlyingMap = decltype(GetBlockToCTileMap(CGridDesc_M_N{}, 1, 1, 1));
     UnderlyingMap underlying_map_;

@@ -12,12 +12,12 @@
 
 #include "ck/library/tensor_operation_instance/gpu/normalization.hpp"
 
-using XDataType     = ck::half_t;
-using GammaDataType = ck::half_t;
-using BetaDataType  = ck::half_t;
-using YDataType     = ck::half_t;
-using AccDataType   = float;
-using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
+using XDataType       = ck::half_t;
+using GammaDataType   = ck::half_t;
+using BetaDataType    = ck::half_t;
+using YDataType       = ck::half_t;
+using ComputeDataType = float;
+using PassThrough     = ck::tensor_operation::element_wise::PassThrough;
 
 constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
     using DeviceOp = ck::tensor_operation::device::DeviceNormalization<XDataType,
                                                                        GammaDataType,
                                                                        BetaDataType,
-                                                                       AccDataType,
+                                                                       ComputeDataType,
                                                                        YDataType,
                                                                        PassThrough,
                                                                        Rank,
@@ -90,6 +90,8 @@ int main(int argc, char* argv[])
                                                         gamma_device_buf.GetDeviceBuffer(),
                                                         beta_device_buf.GetDeviceBuffer(),
                                                         y_device_buf.GetDeviceBuffer(),
+                                                        nullptr,
+                                                        nullptr,
                                                         PassThrough{});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
@@ -143,6 +145,8 @@ int main(int argc, char* argv[])
                                                         gamma_device_buf.GetDeviceBuffer(),
                                                         beta_device_buf.GetDeviceBuffer(),
                                                         y_device_buf.GetDeviceBuffer(),
+                                                        nullptr,
+                                                        nullptr,
                                                         PassThrough{});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
