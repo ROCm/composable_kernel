@@ -160,7 +160,7 @@ using DeviceGemmInstance =
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
 #else
-//2nd template
+// 2nd template
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
         NumDimG,
