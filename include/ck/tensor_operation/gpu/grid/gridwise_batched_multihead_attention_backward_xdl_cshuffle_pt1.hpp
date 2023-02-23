@@ -51,6 +51,7 @@ template <typename DataType,
           index_t MXdlPerWave,
           index_t NXdlPerWave,
           index_t Gemm1NXdlPerWave,
+          index_t Gemm2NXdlPerWave,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -726,9 +727,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1
 
         static_assert(Sum_M % MPerXdl == 0, "");
 
-        static constexpr index_t GemmNWave   = 2;
+        static constexpr index_t GemmNWave   = Free0_N / Gemm2NXdlPerWave / MPerXdl;
         static constexpr index_t GemmOWave   = BlockSize / get_warp_size() / GemmNWave;
-        static constexpr index_t GemmNRepeat = Free0_N / GemmNWave / MPerXdl;
+        static constexpr index_t GemmNRepeat = Gemm2NXdlPerWave;
         static constexpr index_t GemmORepeat = Free1_O / GemmOWave / NPerXdl;
         static constexpr index_t GemmMLoop   = Free1_M / Sum_M;
         static constexpr index_t GemmMPack =
@@ -1563,8 +1564,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1
                      n3, // NInputNum
                      n4>,
             Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
-            9, // DstVectorDim
-            1, // DstScalarPerVector
+            9,  // DstVectorDim
+            1,  // DstScalarPerVector
             InMemoryDataOperationEnum::Set,
             1, // DstScalarStrideInVector
             true>{z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
@@ -1937,6 +1938,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1
                     else
                     {
                         s_element_op(s_slash_p_thread_buf(i), s_slash_p_thread_buf[i]);
+
                     }
                 });
             }

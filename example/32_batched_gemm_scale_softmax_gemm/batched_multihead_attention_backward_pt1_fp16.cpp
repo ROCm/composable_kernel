@@ -25,6 +25,7 @@ Kernel outputs:
 
 #define PRINT_HOST 0
 #define USING_MASK 0
+#define USING_HD32 0
 
 #include <iostream>
 #include <numeric>
@@ -86,6 +87,80 @@ static constexpr auto TensorSpecK = ck::tensor_operation::device::TensorSpeciali
 static constexpr auto TensorSpecV = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecY = ck::tensor_operation::device::TensorSpecialization::Default;
 
+// Headdim/K/O should be a multiple of 8, and it's only supported up to 64 in prototype1.
+// If Headdim/K/O <= 32, ues 1st template.
+// If 32 < Headdim/K/O <= 64, ues 2nd template.
+
+#if USING_HD32
+// 1st template
+using DeviceGemmInstance =
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
+        NumDimG,
+        NumDimM,
+        NumDimN,
+        NumDimK,
+        NumDimO,
+        DataType,
+        ZDataType,
+        LSEDataType,
+        Acc0BiasDataType,
+        Acc1BiasDataType,
+        AccDataType,
+        ShuffleDataType,
+        QKVElementOp,
+        QKVElementOp,
+        Scale,
+        QKVElementOp,
+        YElementOp,
+        GemmSpec,
+        TensorSpecQ,
+        TensorSpecK,
+        TensorSpecV,
+        TensorSpecY,
+        1,
+        256,
+        128,         // MPerBlock
+        128,         // NPerBlock
+        32,          // KPerBlock
+        32,          // Gemm1NPerBlock
+        32,          // Gemm1KPerBlock
+        8,           // AK1
+        8,           // BK1
+        2,           // B1K1
+        32,          // MPerXDL
+        32,          // NPerXDL
+        1,           // MXdlPerWave
+        4,           // NXdlPerWave
+        1,           // Gemm1NXdlPerWave
+        1,           // Gemm2NXdlPerWave
+        S<4, 64, 1>, // ABlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<4, 64, 1>, // BBlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<8, 32, 1>, // B1BlockTransfer
+        S<0, 2, 1>,
+        S<0, 2, 1>,
+        1,
+        4,
+        2,
+        false,
+        1,              // CShuffleMXdlPerWavePerShuffle
+        1,              // CShuffleNXdlPerWavePerShuffle
+        S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        MaskingSpec>;   // MaskingSpecialization
+#else
+//2nd template
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
         NumDimG,
@@ -125,6 +200,7 @@ using DeviceGemmInstance =
         1,           // MXdlPerWave
         4,           // NXdlPerWave
         2,           // Gemm1NXdlPerWave
+        2,           // Gemm2NXdlPerWave
         S<4, 64, 1>, // ABlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
@@ -151,6 +227,7 @@ using DeviceGemmInstance =
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
+#endif
 
 // Ref Gemm0: S = alpha * Q * K^T
 // fp16 in, fp32 out
