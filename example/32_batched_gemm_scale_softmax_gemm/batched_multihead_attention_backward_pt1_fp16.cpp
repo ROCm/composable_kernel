@@ -24,7 +24,8 @@ Kernel outputs:
 */
 
 #define PRINT_HOST 0
-#define USING_MASK 1
+#define USING_MASK 0
+#define USING_HD32 0
 
 #include <iostream>
 #include <numeric>
@@ -34,7 +35,7 @@ Kernel outputs:
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle_pt1.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -57,7 +58,6 @@ using Scale       = ck::tensor_operation::element_wise::Scale;
 
 using QKVElementOp = PassThrough;
 using YElementOp   = PassThrough;
-using VElementOp   = Scale;
 
 using DataType         = F16;
 using AccDataType      = F32;
@@ -87,8 +87,14 @@ static constexpr auto TensorSpecK = ck::tensor_operation::device::TensorSpeciali
 static constexpr auto TensorSpecV = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecY = ck::tensor_operation::device::TensorSpecialization::Default;
 
+// Headdim/K/O should be a multiple of 8, and it's only supported up to 64 in prototype1.
+// If Headdim/K/O <= 32, ues 1st template.
+// If 32 < Headdim/K/O <= 64, ues 2nd template.
+
+#if USING_HD32
+// 1st template
 using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -116,8 +122,8 @@ using DeviceGemmInstance =
         128,         // MPerBlock
         128,         // NPerBlock
         32,          // KPerBlock
-        128,         // Gemm1NPerBlock
-        64,          // Gemm1KPerBlock
+        32,          // Gemm1NPerBlock
+        32,          // Gemm1KPerBlock
         8,           // AK1
         8,           // BK1
         2,           // B1K1
@@ -125,7 +131,8 @@ using DeviceGemmInstance =
         32,          // NPerXDL
         1,           // MXdlPerWave
         4,           // NXdlPerWave
-        4,           // Gemm1NXdlPerWave
+        1,           // Gemm1NXdlPerWave
+        1,           // Gemm2NXdlPerWave
         S<4, 64, 1>, // ABlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
@@ -148,10 +155,79 @@ using DeviceGemmInstance =
         2,
         false,
         1,              // CShuffleMXdlPerWavePerShuffle
-        4,              // CShuffleNXdlPerWavePerShuffle
+        1,              // CShuffleNXdlPerWavePerShuffle
+        S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        MaskingSpec>;   // MaskingSpecialization
+#else
+// 2nd template
+using DeviceGemmInstance =
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
+        NumDimG,
+        NumDimM,
+        NumDimN,
+        NumDimK,
+        NumDimO,
+        DataType,
+        ZDataType,
+        LSEDataType,
+        Acc0BiasDataType,
+        Acc1BiasDataType,
+        AccDataType,
+        ShuffleDataType,
+        QKVElementOp,
+        QKVElementOp,
+        Scale,
+        QKVElementOp,
+        YElementOp,
+        GemmSpec,
+        TensorSpecQ,
+        TensorSpecK,
+        TensorSpecV,
+        TensorSpecY,
+        1,
+        256,
+        128,         // MPerBlock
+        128,         // NPerBlock
+        64,          // KPerBlock
+        64,          // Gemm1NPerBlock
+        32,          // Gemm1KPerBlock
+        8,           // AK1
+        8,           // BK1
+        2,           // B1K1
+        32,          // MPerXDL
+        32,          // NPerXDL
+        1,           // MXdlPerWave
+        4,           // NXdlPerWave
+        2,           // Gemm1NXdlPerWave
+        2,           // Gemm2NXdlPerWave
+        S<4, 64, 1>, // ABlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<4, 64, 1>, // BBlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<8, 32, 1>, // B1BlockTransfer
+        S<0, 2, 1>,
+        S<0, 2, 1>,
+        1,
+        4,
+        2,
+        false,
+        1,              // CShuffleMXdlPerWavePerShuffle
+        2,              // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
+#endif
 
 // Ref Gemm0: S = alpha * Q * K^T
 // fp16 in, fp32 out
@@ -264,12 +340,12 @@ int run(int argc, char* argv[])
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
     // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
     // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t M  = 512;
-    ck::index_t N  = 512;
-    ck::index_t K  = 128;
-    ck::index_t O  = 128;
-    ck::index_t G0 = 3;
-    ck::index_t G1 = 2;
+    ck::index_t M  = 512; // 512
+    ck::index_t N  = 512; // 512
+    ck::index_t K  = 64;
+    ck::index_t O  = 64;
+    ck::index_t G0 = 4; // 54
+    ck::index_t G1 = 6; // 16
 
     float alpha = 1.f / std::sqrt(K);
 
@@ -616,7 +692,7 @@ int run(int argc, char* argv[])
     bool pass = true;
     if(do_verification)
     {
-        // run fowad again for y, cause z_g_m_n update
+        // run fwd again for y, cause z_g_m_n update
         run_attention_fwd_host(q_g_m_k,
                                k_g_n_k,
                                v_g_n_o,
@@ -673,7 +749,7 @@ int run(int argc, char* argv[])
 #if PRINT_HOST
         {
             std::cout << "===== dP = dY * V^T\n";
-            std::cout << "ygrad_drop_g_m_o ref:\n" << ygrad_drop_g_m_n;
+            std::cout << "ygrad_g_m_o ref:\n" << ygrad_g_m_o;
             std::cout << "v_g_o_n ref:\n" << v_g_o_n;
             std::cout << "pgrad_drop_g_m_n ref:\n" << pgrad_drop_g_m_n;
         }
@@ -685,7 +761,7 @@ int run(int argc, char* argv[])
             z_g_m_n, pgrad_drop_g_m_n, pgrad_g_m_n, p_dropout_in_16bits, rp_dropout);
         ref_dropout_invoker.Run(ref_dropout_argment);
 
-        // dS_i_j = P_i_j .* (dP_i_j -  dY_i dot Y_i)
+        // dS_i_j = P_i_j .* (dP_i_j - dY_i dot Y_i)
         sgrad_g_m_n.ForEach([&](auto& self, auto idx_gmn) {
             float ygrad_dot_y = 0;
             for(int o = 0; o < O; o++)

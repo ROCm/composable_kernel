@@ -17,7 +17,7 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_gemm_softmax_gemm_permute_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_forward_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -27,12 +27,14 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_dropout.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using F16 = ck::half_t;
 using F32 = float;
+using U16 = unsigned short;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -42,6 +44,8 @@ using B1DataType       = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using CDataType        = F16;
+using ZDataType        = U16;
+using LSEDataType      = F32;
 using Acc0BiasDataType = ck::Tuple<>;
 using Acc1BiasDataType = ck::Tuple<>;
 
@@ -67,7 +71,7 @@ static constexpr auto TensorSpecB1 = ck::tensor_operation::device::TensorSpecial
 static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecialization::Default;
 
 using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -77,6 +81,8 @@ using DeviceGemmInstance =
         B0DataType,
         B1DataType,
         CDataType,
+        ZDataType,
+        LSEDataType,
         Acc0BiasDataType,
         Acc1BiasDataType,
         AccDataType,
@@ -93,7 +99,7 @@ using DeviceGemmInstance =
         TensorSpecC,
         1,
         256,
-        128,         // MPerBlock
+        256,         // MPerBlock
         128,         // NPerBlock
         32,          // KPerBlock
         64,          // Gemm1NPerBlock
@@ -103,7 +109,7 @@ using DeviceGemmInstance =
         2,           // B1K1
         32,          // MPerXDL
         32,          // NPerXDL
-        1,           // MXdlPerWave
+        2,           // MXdlPerWave
         4,           // NXdlPerWave
         2,           // Gemm1NXdlPerWave
         S<4, 64, 1>, // ABlockTransfer
@@ -155,6 +161,10 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 B1ElementOp,
                                                                                 CElementOp>;
 
-#include "run_grouped_gemm_scale_softmax_gemm_permute.inc"
+// Ref dropout
+using ReferenceDropoutInstance =
+    ck::tensor_operation::host::ReferenceDropout<ZDataType, ADataType, ADataType>;
+
+#include "run_batched_multihead_attention_forward.inc"
 
 int main(int argc, char* argv[]) { return run(argc, argv); }

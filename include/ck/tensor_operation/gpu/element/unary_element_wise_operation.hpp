@@ -95,6 +95,8 @@ struct Scale
         y = scale_ * x;
     };
 
+    __host__ __device__ auto Value() const { return scale_; }
+
     float scale_;
 };
 
