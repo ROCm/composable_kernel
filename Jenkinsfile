@@ -14,7 +14,6 @@ def show_node_info() {
 def runShell(String command){
     def responseCode = sh returnStatus: true, script: "${command} > tmp.txt"
     def output = readFile(file: "tmp.txt")
-    echo "tmp.txt contents: $output"
     return (output != "")
 }
 
@@ -473,10 +472,10 @@ def Build_CK(Map conf=[:]){
                 {
                     cmake_build(conf)
                     dir("build"){
-                        //run tests and examples
-                        sh 'make -j check'
-                        //we only need the ckProfiler to run the performance tests, so we pack and stash it
-                        if (navi_node ==0){
+                        if (navi_node == 0 ){
+                           //run tests and examples on all nodes except Navi
+                           sh 'make -j check'
+                           //we only need the ckProfiler to run the performance tests, so we pack and stash it
                            sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
                            stash "ckProfiler.tar.gz"
                         }
