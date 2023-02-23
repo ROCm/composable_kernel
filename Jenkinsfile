@@ -478,6 +478,7 @@ def Build_CK(Map conf=[:]){
                            //we only need the ckProfiler to run the performance tests, so we pack and stash it
                            sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
                            stash "ckProfiler.tar.gz"
+                           sh 'scp -i ~/.ssh/id_rsa ckProfiler.tar.gz jenkins@ginger.amd.com:/var/www/html/composable_kernel/'
                         }
                         if (params.RUN_FULL_QA){
                            // build deb packages
