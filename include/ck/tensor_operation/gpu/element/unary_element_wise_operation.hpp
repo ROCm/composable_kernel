@@ -212,10 +212,7 @@ struct Relu
 struct FastGelu
 {
     template <typename Y, typename X>
-    __host__ void operator()(Y& y, const X& x) const;
-
-    template <typename Y, typename X>
-    __device__ void operator()(Y& y, const X& x) const;
+    __host__ __device__ void operator()(Y& y, const X& x) const;
 
     template <>
     __host__ void operator()<float, float>(float& y, const float& x) const
@@ -225,16 +222,6 @@ struct FastGelu
         const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
 
         y = x * cdf;
-    }
-
-    template <>
-    __host__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
-    {
-        float y_f;
-
-        this->operator()<float, float>(y_f, type_convert<float>(x));
-
-        y = type_convert<half_t>(y_f);
     }
 
     // device code, use lower precision "__expf" and "rcp"
@@ -254,7 +241,7 @@ struct FastGelu
     }
 
     template <>
-    __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
+    __host__ __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
     {
         float y_f;
 
@@ -264,7 +251,7 @@ struct FastGelu
     }
 
     template <>
-    __device__ void operator()<half_t, float>(half_t& y, const float& x) const
+    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
     {
         float y_f;
 
