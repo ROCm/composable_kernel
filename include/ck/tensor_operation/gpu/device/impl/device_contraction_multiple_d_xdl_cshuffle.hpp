@@ -586,6 +586,11 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
             return false;
         }
 
+        if(ck::get_device_name() != "gfx90a" && std::is_same<ADataType, double>::value)
+        {
+            return false;
+        }
+
         if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                         arg.b_grid_desc_n_k_,
                                         arg.ds_grid_desc_m_n_,
