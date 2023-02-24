@@ -21,13 +21,16 @@ struct intrin_wmma_f32_16x16x16_f16_w32<16, 16, AssemblyBackend>
     template <class FloatC>
     __device__ static void Run(const half16_t& reg_a, const half16_t& reg_b, FloatC& reg_c)
     {
-        if constexpr(AssemblyBackend){
+        if constexpr(AssemblyBackend)
+        {
             amd_assembly_wmma_f32_16x16x16_f16_w32(
-            reg_a, reg_b, reg_c.template AsType<float8_t>()(Number<0>{}));
+                reg_a, reg_b, reg_c.template AsType<float8_t>()(Number<0>{}));
         }
-        else{
-            reg_c.template AsType<float8_t>()(Number<0>{}) = __builtin_amdgcn_wmma_f32_16x16x16_f16_w32(
-                reg_a, reg_b, reg_c.template AsType<float8_t>()[Number<0>{}]);
+        else
+        {
+            reg_c.template AsType<float8_t>()(Number<0>{}) =
+                __builtin_amdgcn_wmma_f32_16x16x16_f16_w32(
+                    reg_a, reg_b, reg_c.template AsType<float8_t>()[Number<0>{}]);
         }
     }
 };

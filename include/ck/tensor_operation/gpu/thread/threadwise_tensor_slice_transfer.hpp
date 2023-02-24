@@ -1324,15 +1324,14 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
 
     using Index = MultiIndex<nDim>;
 
-    __device__ constexpr ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow(
-        const ElementwiseOperation& element_op)
-        : element_op_{element_op}
+    __device__ constexpr ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow(const Index& src_idx)
     {
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! Desc need to known at compile-time");
 
         static_assert(SliceLengths::At(Number<DstVectorDim>{}) % DstScalarPerVector == 0,
                       "wrong! Not divisible");
+        ignore = src_idx;
     }
 
     template <typename SrcSliceOriginIdx,
@@ -1344,7 +1343,7 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
                         const SrcBuffer& src_buf,
                         const DstDesc&,
                         const DstSliceOriginIdx&,
-                        DstBuffer& dst_buf)
+                        DstBuffer& dst_buf) const
     {
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! Desc need to known at compile-time");
@@ -1383,7 +1382,7 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
 
             // copy data from src_buf into dst_vector
             static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
-                // idx_md err. as dst access 2 strided elements while src visit 1 per loop
+                // src_desc error, non constexpr?
                 constexpr index_t src_offset = src_desc.CalculateOffset(
                     src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
 
@@ -1396,16 +1395,22 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
 
                 // apply element-wise operation
                 element_op_(v_this_row, src_buf[Number<src_offset>{}]);
-
-                // apply intra-row swizzle permute
+                // if (get_thread_local_1d_id() < 16)
+                // printf("tid: %03d, RawData: %04x\n", get_thread_local_1d_id(),
+                // *(reinterpret_cast<uint16_t*>(&v_this_row)) ); apply intra-row swizzle permute
                 if constexpr(IntraRowSwizzlePerm)
                 {
-                    //                                                              origin:
-                    //                                                              0xfedcba98,
-                    //                                                              0x76543210
-                    temp = __builtin_amdgcn_permlane16(
-                        temp, type_convert<int>(v_this_row), 0xeca86420, 0xfdb97531, 1, 0);
-                    v_this_row = type_convert<float>(temp);
+                    temp       = __builtin_amdgcn_permlane16( // 0x76543210, 0xfedcba98
+                        temp,
+                        type_convert<int>(v_this_row),
+                        0xb3a29180,
+                        0xf7e6d5c4,
+                        1,
+                        0);
+                    v_this_row = type_convert<SrcData>(temp);
+                    // if (get_thread_local_1d_id() < 16)
+                    // printf("tid: %03d, SwiData: %04x\n", get_thread_local_1d_id(),
+                    // *(reinterpret_cast<uint16_t*>(&v_this_row)) );
                 }
 
                 // apply inter-row permute.
@@ -1415,8 +1420,9 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
                                                     HighEightRowLaneIdx,
                                                     1,
                                                     0);
-                v_theother_row = type_convert<float>(temp);
-
+                v_theother_row = type_convert<SrcData>(temp);
+                // printf("tid: %03d, PermData: %04x\n", get_thread_local_1d_id(),
+                // *(reinterpret_cast<uint16_t*>(&v_theother_row)) );
                 if(get_thread_local_1d_id() % 32 < 16)
                 {
                     // apply type convert
@@ -1434,8 +1440,7 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
             });
         });
     }
-
-    ElementwiseOperation element_op_;
+    ElementwiseOperation element_op_{};
 };
 
 } // namespace ck
