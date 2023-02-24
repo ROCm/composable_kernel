@@ -212,7 +212,10 @@ struct Relu
 struct FastGelu
 {
     template <typename Y, typename X>
-    __host__ __device__ void operator()(Y& y, const X& x) const;
+    __host__ void operator()(Y& y, const X& x) const;
+
+    template <typename Y, typename X>
+    __device__ void operator()(Y& y, const X& x) const;
 
     template <>
     __host__ void operator()<float, float>(float& y, const float& x) const
@@ -241,7 +244,7 @@ struct FastGelu
     }
 
     template <>
-    __host__ __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
+    __host__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
     {
         float y_f;
 
@@ -251,7 +254,27 @@ struct FastGelu
     }
 
     template <>
-    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
+    __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
+    {
+        float y_f;
+
+        this->operator()<float, float>(y_f, type_convert<float>(x));
+
+        y = type_convert<half_t>(y_f);
+    }
+
+    template <>
+    __host__ void operator()<half_t, float>(half_t& y, const float& x) const
+    {
+        float y_f;
+
+        this->operator()<float, float>(y_f, x);
+
+        y = type_convert<half_t>(y_f);
+    }
+
+    template <>
+    __device__ void operator()<half_t, float>(half_t& y, const float& x) const
     {
         float y_f;
 
