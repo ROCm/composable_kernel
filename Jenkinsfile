@@ -478,8 +478,8 @@ def Build_CK(Map conf=[:]){
                            //we only need the ckProfiler to run the performance tests, so we pack and stash it
                            sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
                            stash "ckProfiler.tar.gz"
-                           //sh "whoami"
-                           sh "sshpass -p ${env.ck_deb_pw} -v scp -o StrictHostKeyChecking=no ckProfiler.tar.gz ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
+                           sh "whoami"
+                           sh "sshpass -p ${env.ck_deb_pw} -v scp -v -o StrictHostKeyChecking=no ckProfiler.tar.gz ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                         }
                         if (params.RUN_FULL_QA){
                            // build deb packages
