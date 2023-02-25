@@ -135,9 +135,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
     // we convert fp16->fp32->bf16 and execute bf16 mfma instruction
     // when mfma if fixed, remove this section and update
     // FloatABAdjusted -> FloatAB throughout this file
-    using FloatABAdjusted = conditional_t<is_same_v<FloatAB, ck::half_t>,
-                        ck::bhalf_t,
-                        FloatAB>;
+    using FloatABAdjusted = conditional_t<is_same_v<FloatAB, ck::half_t>, ck::bhalf_t, FloatAB>;
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_K0PerBlock_MPerBlock_K1()
     {

@@ -265,9 +265,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
     // we convert fp16->fp32->bf16 and execute bf16 mfma instruction
     // when mfma if fixed, remove this section and update
     // FloatABAdjusted -> FloatAB throughout this file
-    using FloatABAdjusted = conditional_t<is_same_v<FloatAB, ck::half_t>,
-                        ck::bhalf_t,
-                        FloatAB>;
+    using FloatABAdjusted = conditional_t<is_same_v<FloatAB, ck::half_t>, ck::bhalf_t, FloatAB>;
 
     // M0/M1/M1Padding
     static constexpr auto M1PerBlock = Number<ABlockLdsM1PerBlock>{};
@@ -754,8 +752,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
         constexpr auto b_block_slice_copy_step = make_multi_index(0, K0PerBlock, 0, 0);
 
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatABAdjusted*>(p_shared),
-            a_k0_m_k1_block_desc.GetElementSpaceSize());
+            static_cast<FloatABAdjusted*>(p_shared), a_k0_m_k1_block_desc.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<FloatABAdjusted*>(p_shared) + a_block_space_size,

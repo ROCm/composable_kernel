@@ -96,9 +96,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
     // we convert fp16->fp32->bf16 and execute bf16 mfma instruction
     // when mfma if fixed, remove this section and update
     // ABDataTypeAdjusted -> ABDataType throughout this file
-    using ABDataTypeAdjusted = conditional_t<is_same_v<ABDataType, ck::half_t>,
-                        ck::bhalf_t,
-                        ABDataType>;
+    using ABDataTypeAdjusted = 
+        conditional_t<is_same_v<ABDataType, ck::half_t>, ck::bhalf_t, ABDataType>;
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
@@ -488,7 +487,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ABDataTypeAdjusted*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<ABDataTypeAdjusted*>(p_shared),
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<ABDataTypeAdjusted*>(p_shared) + a_block_space_size_aligned,
