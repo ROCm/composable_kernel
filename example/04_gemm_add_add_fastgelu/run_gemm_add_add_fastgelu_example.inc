@@ -124,7 +124,7 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
 
     if(config.do_verification)
     {
-        Tensor<AccDataType> c_m_n({M, N});
+        Tensor<CDataType> c_m_n({M, N});
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();

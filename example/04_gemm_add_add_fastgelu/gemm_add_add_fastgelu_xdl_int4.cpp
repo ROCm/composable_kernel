@@ -11,10 +11,11 @@ using ADataType        = I4;
 using BDataType        = I4;
 using AccDataType      = I32;
 using CShuffleDataType = I32;
-using D0DataType       = I4;
-using D1DataType       = I4;
-using DsDataType       = ck::Tuple<D0DataType, D1DataType>;
-using EDataType        = I4;
+using CDataType  = I32; // C matrix doesn't exsit in GPU memory, this is used for host verification
+using D0DataType = I4;
+using D1DataType = I4;
+using DsDataType = ck::Tuple<D0DataType, D1DataType>;
+using EDataType  = I4;
 
 using KernelADataType  = I8;
 using KernelBDataType  = I8;
@@ -47,7 +48,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_C
 
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                         BDataType,
-                                                                        AccDataType,
+                                                                        CDataType,
                                                                         AccDataType,
                                                                         AElementOp,
                                                                         BElementOp,

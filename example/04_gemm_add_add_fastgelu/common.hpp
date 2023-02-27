@@ -62,7 +62,7 @@ struct ExecutionConfig final
 };
 
 inline bool
-parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, ExecutionConfig config)
+parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, ExecutionConfig& config)
 {
     if(argc == 1)
     {
