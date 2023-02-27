@@ -228,6 +228,7 @@ int run(int argc, char* argv[])
 
     if(do_verification)
     {
+
         // run for storing z tensor
         argument = gemm.MakeArgument(
             static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
@@ -261,7 +262,8 @@ int run(int argc, char* argv[])
             p_drop,          // dropout ratio
             {seed, offset}); // dropout random seed and offset, offset should be at least the number
                              // of elements on a thread
-
+        c_device_buf.SetZero();
+        lse_device_buf.SetZero();
         invoker.Run(argument, StreamConfig{nullptr, false});
 
         c_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
