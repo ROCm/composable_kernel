@@ -10,6 +10,7 @@ int run(int argc, char* argv[])
     bool input_permute  = false;
     bool output_permute = true;
 
+
     float p_drop                    = 0.2;
     float p_dropout                 = 1 - p_drop;
     uint16_t p_dropout_in_16bits    = uint16_t(std::floor(p_dropout * 65535.0));

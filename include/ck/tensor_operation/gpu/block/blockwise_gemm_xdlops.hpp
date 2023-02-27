@@ -864,6 +864,16 @@ struct BlockwiseGemmXdlops_v2
     {
     }
 
+    __device__ void SetABlockStartWindow(Tuple4 a_origin = CalculateAThreadOriginDataIndex())
+    {
+        a_thread_copy_.SetSrcCoord(a_origin);
+    }
+
+    __device__ void SetBBlockStartWindow(Tuple4 b_origin = CalculateBThreadOriginDataIndex())
+    {
+        b_thread_copy_.SetSrcCoord(b_origin);
+    }
+
     // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'
     __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4()
     {
