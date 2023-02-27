@@ -44,7 +44,8 @@ template <typename GridwiseGemm,
           typename ComputeBasePtrOfStridedBatch,
           typename C0MatrixMask,
           bool HasMainKBlockLoop,
-          bool IsDropout>
+          bool IsDropout,
+          bool IsLseStoring>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -100,13 +101,13 @@ __global__ void
     const index_t global_thread_id = get_thread_global_1d_id();
     ck::philox ph(seed, global_thread_id, offset);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
+    GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout, IsLseStoring>(
         p_a_grid + a_batch_offset,
         p_b_grid + b_batch_offset,
         p_b1_grid + b1_batch_offset,
         p_c_grid + c_batch_offset,
         nullptr ? nullptr : p_z_grid + z_batch_offset,
-        p_lse_grid + lse_batch_offset,
+        nullptr ? nullptr : p_lse_grid + lse_batch_offset,
         p_shared,
         a_element_op,
         b_element_op,
@@ -596,6 +597,12 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
 
             z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
                 GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(z_grid_desc_m_n_);
+
+            if(p_lse_grid == nullptr)
+            {
+                is_lse_storing_ = false;
+            }
+
         }
 
         void Print() const
@@ -669,6 +676,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
         unsigned long long seed_;
         unsigned long long offset_;
         bool is_dropout_;
+
+        bool is_lse_storing_ = true;
     };
 
     // Invoker
@@ -692,7 +701,9 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
 
             float ave_time = 0;
 
-            auto launch_kernel = [&](auto has_main_k_block_loop_, auto is_dropout_) {
+            auto launch_kernel = [&](auto has_main_k_block_loop_,
+                                     auto is_dropout_,
+                                     auto is_lse_storing_) {
                 const auto kernel = kernel_batched_multiheadattention_forward_xdl_cshuffle<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
@@ -715,7 +726,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                     ComputeBasePtrOfStridedBatch,
                     C0MatrixMask,
                     has_main_k_block_loop_,
-                    is_dropout_>;
+                    is_dropout_,
+                    is_lse_storing_>;
 
                 return launch_and_time_kernel(stream_config,
                                               kernel,
@@ -755,26 +767,66 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
             {
                 if(arg.is_dropout_)
                 {
-                    ave_time = launch_kernel(integral_constant<bool, true>{},
-                                             integral_constant<bool, true>{});
+                    if(arg.is_lse_storing_)
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, true>{},
+                                                 integral_constant<bool, true>{},
+                                                 integral_constant<bool, true>{});
+                    }
+                    else
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, true>{},
+                                                 integral_constant<bool, true>{},
+                                                 integral_constant<bool, false>{});
+                    }
                 }
                 else
                 {
-                    ave_time = launch_kernel(integral_constant<bool, true>{},
-                                             integral_constant<bool, false>{});
+                    if(arg.is_lse_storing_)
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, true>{},
+                                                 integral_constant<bool, false>{},
+                                                 integral_constant<bool, true>{});
+                    }
+                    else
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, true>{},
+                                                 integral_constant<bool, false>{},
+                                                 integral_constant<bool, false>{});
+                    }
                 }
             }
             else
             {
                 if(arg.is_dropout_)
                 {
-                    ave_time = launch_kernel(integral_constant<bool, false>{},
-                                             integral_constant<bool, true>{});
+                    if(arg.is_lse_storing_)
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, false>{},
+                                                 integral_constant<bool, true>{},
+                                                 integral_constant<bool, true>{});
+                    }
+                    else
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, false>{},
+                                                 integral_constant<bool, true>{},
+                                                 integral_constant<bool, false>{});
+                    }
                 }
                 else
                 {
-                    ave_time = launch_kernel(integral_constant<bool, false>{},
-                                             integral_constant<bool, false>{});
+                    if(arg.is_lse_storing_)
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, false>{},
+                                                 integral_constant<bool, false>{},
+                                                 integral_constant<bool, true>{});
+                    }
+                    else
+                    {
+                        ave_time = launch_kernel(integral_constant<bool, false>{},
+                                                 integral_constant<bool, false>{},
+                                                 integral_constant<bool, false>{});
+                    }
                 }
             }
 
