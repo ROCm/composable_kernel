@@ -61,6 +61,7 @@ using YElementOp   = PassThrough;
 using VElementOp   = Scale;
 
 using DataType         = F16;
+using GemmDataType     = F16;
 using AccDataType      = F32;
 using ShuffleDataType  = F32;
 using LSEDataType      = F32;
@@ -97,6 +98,7 @@ using DeviceGemmInstance =
         NumDimK,
         NumDimO,
         DataType,
+        GemmDataType,
         ZDataType,
         LSEDataType,
         Acc0BiasDataType,
@@ -164,6 +166,7 @@ using DeviceGemmInstance =
         NumDimK,
         NumDimO,
         DataType,
+        GemmDataType,
         ZDataType,
         LSEDataType,
         Acc0BiasDataType,
@@ -220,7 +223,7 @@ using DeviceGemmInstance =
         2,              // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-        MaskingSpec>;   // MaskingSpecialization 
+        MaskingSpec>;   // MaskingSpecialization
 #endif
 // Ref Gemm0: S = alpha * Q * K^T
 // fp16 in, fp32 out
@@ -331,14 +334,14 @@ int run(int argc, char* argv[])
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
     // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
     // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t M  = 512;
-    ck::index_t N  = 512;
+    ck::index_t M = 512;
+    ck::index_t N = 512;
 #if USING_K128
-    ck::index_t K  = 128;
-    ck::index_t O  = 128;
+    ck::index_t K = 128;
+    ck::index_t O = 128;
 #else
-    ck::index_t K  = 64;
-    ck::index_t O  = 64;
+    ck::index_t K = 64;
+    ck::index_t O = 64;
 #endif
     ck::index_t G0 = 3;
     ck::index_t G1 = 2;

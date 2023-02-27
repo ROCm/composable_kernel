@@ -602,7 +602,6 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
             {
                 is_lse_storing_ = false;
             }
-
         }
 
         void Print() const
