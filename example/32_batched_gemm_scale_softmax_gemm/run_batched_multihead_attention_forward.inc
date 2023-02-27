@@ -5,7 +5,7 @@ int run(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = false;
+    bool time_kernel     = true;
 
     // GEMM shape for A/B0/B1/C
     // C_g_m_o = A_g_m_k * B0_g_k_n * B1_g_n_o
@@ -175,7 +175,7 @@ int run(int argc, char* argv[])
         static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
         static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
         static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-        static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
+        static_cast<ZDataType*>(nullptr),
         static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
         {}, // std::array<void*, 1> p_acc0_biases;
         {}, // std::array<void*, 1> p_acc1_biases;
@@ -228,6 +228,44 @@ int run(int argc, char* argv[])
 
     if(do_verification)
     {
+
+        // run for storing z tensor
+        argument = gemm.MakeArgument(
+            static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+            static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
+            static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
+            static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+            static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
+            static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
+            {}, // std::array<void*, 1> p_acc0_biases;
+            {}, // std::array<void*, 1> p_acc1_biases;
+            a_gs_ms_ks_lengths,
+            a_gs_ms_ks_strides,
+            b0_gs_ns_ks_lengths,
+            b0_gs_ns_ks_strides,
+            b1_gs_os_ns_lengths,
+            b1_gs_os_ns_strides,
+            c_gs_ms_os_lengths,
+            c_gs_ms_os_strides,
+            z_gs_ms_ns_lengths,
+            z_gs_ms_ns_strides,
+            lse_gs_ms_lengths,
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+            a_element_op,
+            b0_element_op,
+            acc0_element_op,
+            b1_element_op,
+            c_element_op,
+            p_drop,          // dropout ratio
+            {seed, offset}); // dropout random seed and offset, offset should be at least the number
+                             // of elements on a thread
+        c_device_buf.SetZero();
+        lse_device_buf.SetZero();
+        invoker.Run(argument, StreamConfig{nullptr, false});
+
         c_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
         z_device_buf.FromDevice(z_gs_ms_ns.mData.data());
         lse_device_buf.FromDevice(lse_gs_ms_device_result.mData.data());

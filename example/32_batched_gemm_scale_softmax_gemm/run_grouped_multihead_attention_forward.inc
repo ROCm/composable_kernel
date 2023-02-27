@@ -5,7 +5,7 @@ int run(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = false;
+    bool time_kernel     = true;
 
     bool input_permute  = false;
     bool output_permute = true;
@@ -56,7 +56,8 @@ int run(int argc, char* argv[])
     std::vector<const void*> p_b0;
     std::vector<const void*> p_b1;
     std::vector<void*> p_c;
-    std::vector<void*> p_z;
+    std::vector<void*> p_z;         // for result verification
+    std::vector<void*> p_z_nullptr; // for time test
     std::vector<void*> p_lse;
     std::vector<std::vector<int>> g0_g1_m_n_k_o;
 
@@ -221,6 +222,7 @@ int run(int argc, char* argv[])
         p_b1.push_back(b1_tensors_device[i]->GetDeviceBuffer());
         p_c.push_back(c_tensors_device[i]->GetDeviceBuffer());
         p_z.push_back(z_tensors_device[i]->GetDeviceBuffer());
+        p_z_nullptr.push_back(nullptr);
         p_lse.push_back(lse_tensors_device[i]->GetDeviceBuffer());
     }
 
@@ -233,12 +235,13 @@ int run(int argc, char* argv[])
     // do GEMM
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
+
     auto argument =
         gemm.MakeArgument(p_a,
                           p_b0,
                           p_b1,
                           p_c,
-                          p_z,
+                          p_z_nullptr,
                           p_lse,
                           {}, // p_acc0_biases
                           {}, // p_acc1_biases
@@ -251,7 +254,6 @@ int run(int argc, char* argv[])
                           p_drop,          // dropout ratio
                           {seed, offset}); // dropout random seed and offset, offset should be
                                            // at least the number of elements on a thread
-
 
     // specify workspace for problem_desc
     DeviceMem problem_desc_workspace(gemm.GetWorkSpaceSize(&argument));
@@ -277,6 +279,31 @@ int run(int argc, char* argv[])
     bool pass = true;
     if(do_verification)
     {
+        argument =
+            gemm.MakeArgument(p_a,
+                              p_b0,
+                              p_b1,
+                              p_c,
+                              p_z,
+                              p_lse,
+                              {}, // p_acc0_biases
+                              {}, // p_acc1_biases
+                              problem_descs,
+                              a_element_op,
+                              b0_element_op,
+                              acc0_element_op,
+                              b1_element_op,
+                              c_element_op,
+                              p_drop,          // dropout ratio
+                              {seed, offset}); // dropout random seed and offset, offset should be
+                                               // at least the number of elements on a thread
+        // specify workspace for problem_desc
+        DeviceMem problem_desc_workspace_verify(gemm.GetWorkSpaceSize(&argument));
+
+        gemm.SetWorkSpacePointer(&argument, problem_desc_workspace_verify.GetDeviceBuffer());
+
+        invoker.Run(argument, StreamConfig{nullptr, false});
+
         for(std::size_t i = 0; i < group_count; i++)
         {
             const int& G0 = g0_g1_m_n_k_o[i][0];
