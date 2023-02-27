@@ -25,7 +25,7 @@ Kernel outputs:
 
 #define PRINT_HOST 0
 #define USING_MASK 1
-#define USING_K128 1
+#define USING_K128 0
 
 #include <iostream>
 #include <numeric>
@@ -213,7 +213,7 @@ using DeviceGemmInstance =
         S<0, 2, 1>,
         S<0, 2, 1>,
         1,
-        4,
+        2,
         2,
         false,
         1,              // CShuffleMXdlPerWavePerShuffle
@@ -340,8 +340,8 @@ int run(int argc, char* argv[])
     ck::index_t K  = 64;
     ck::index_t O  = 64;
 #endif
-    ck::index_t G0 = 54;
-    ck::index_t G1 = 16;
+    ck::index_t G0 = 3;
+    ck::index_t G1 = 2;
 
     float alpha = 1.f / std::sqrt(K);
 

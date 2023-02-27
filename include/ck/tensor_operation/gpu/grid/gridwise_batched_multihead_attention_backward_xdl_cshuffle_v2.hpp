@@ -90,7 +90,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
     {
         using type = T;
     };
-#if defined(__gfx90a__)
+#if defined(__gfx90a_masking__)
     template <>
     struct TypeMap<ck::half_t>
     {
