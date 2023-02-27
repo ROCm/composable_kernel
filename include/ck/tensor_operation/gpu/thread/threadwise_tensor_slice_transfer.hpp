@@ -1398,23 +1398,23 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
 
                 if constexpr(IntraRowSwizzlePerm)
                 {
-                    // temp       = __builtin_amdgcn_permlane16(
-                        // temp,
-                        // type_convert<int>(v_this_row),
-                        // 0xb3a29180,
-                        // 0xf7e6d5c4,
-                        // 1,
-                        // 0);
+                    temp       = __builtin_amdgcn_permlane16(
+                        temp,
+                        type_convert<int>(v_this_row),
+                        0xb3a29180,
+                        0xf7e6d5c4,
+                        1,
+                        0);
                     v_this_row = type_convert<SrcData>(temp);
                 }
 
                 // apply inter-row permute.
-                // temp           = __builtin_amdgcn_permlanex16(temp,
-                                                    // type_convert<int>(v_this_row),
-                                                    // LowEightRowlaneIdx,
-                                                    // HighEightRowLaneIdx,
-                                                    // 1,
-                                                    // 0);
+                temp           = __builtin_amdgcn_permlanex16(temp,
+                                                    type_convert<int>(v_this_row),
+                                                    LowEightRowlaneIdx,
+                                                    HighEightRowLaneIdx,
+                                                    1,
+                                                    0);
                 v_theother_row = type_convert<SrcData>(temp);
 
                 if(get_thread_local_1d_id() % 32 < 16)

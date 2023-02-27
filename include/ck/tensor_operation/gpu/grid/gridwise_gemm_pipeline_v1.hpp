@@ -343,7 +343,7 @@ struct GridwiseGemmPipeline_v1<1, false, true>
 
                 b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
 
-                // a_block_buf = a_block_buf_switch;
+                a_block_buf = a_block_buf_switch;
                 ++i;
             } while(i < (num_loop - 1));
         }
