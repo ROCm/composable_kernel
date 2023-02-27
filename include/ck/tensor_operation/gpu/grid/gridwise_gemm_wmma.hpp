@@ -130,8 +130,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
-    static constexpr auto B_K0 = BGridDesc_K0_N_K1{}.GetLength(I0);
-    static constexpr auto B_K1 = BGridDesc_K0_N_K1{}.GetLength(I2);
     // FIX ME: To be deprecated
     static constexpr auto K1 = Number<K1Value>{};
 
@@ -273,6 +271,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
     __host__ __device__ static constexpr auto
     MakeBBlockDescriptor_K0_N0_N1_N2_K1(const BBlockDesc_BK0_N_BK1&)
     {
+        constexpr auto B_K0 = BBlockDesc_BK0_N_BK1{}.GetLength(I0);
+        constexpr auto B_K1 = BBlockDesc_BK0_N_BK1{}.GetLength(I2);
+
         return transform_tensor_descriptor(
             BBlockDesc_BK0_N_BK1{},
             make_tuple(make_pass_through_transform(Number<B_K0>{}),
@@ -528,8 +529,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
             }
         }();
 
-        // printf("---------------K = %d\n", K);
-
         constexpr auto a_block_desc = MakeABlockDescriptor();
         constexpr auto b_block_desc = GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
         
@@ -703,7 +702,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
 /*******************************************************************************/        
         // Shift Per SUB_K
         constexpr auto a_block_slice_copy_step = MakeABlockSliceCopyStep();
-        // printf("a_block_slice_copy_step FirstKdim = %d\n", a_block_slice_copy_step[I0]);
         constexpr auto b_block_slice_copy_step = MakeBBlockSliceCopyStep();
 
         // gridwise GEMM pipeline

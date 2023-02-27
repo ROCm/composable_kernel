@@ -94,12 +94,14 @@ using DeviceGemmInstance =
         TensorSpecB1,
         TensorSpecC,
         256,
+        //      Gemm 0
         128, // MPerBlock
         128, // LPerBlock
-        4,   // K0PerBlock
+        32,  // KPerBlock
         8,   // K1
+        //      Gemm 1
         64,  // NPerBlock
-        4,   // L0PerBlock
+        32,  // LPerBlock
         8,   // L1
         16,  // MPerWMMA
         16,  // LPerWMMA

@@ -179,6 +179,26 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm
                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
+    template <typename AGridDesc_M_K, typename Number>
+    __host__ __device__ static constexpr auto
+    MakeAGridDescriptor_AKWmma_MBlockRepeat_MWaves_AKRow_MPerWmma_AK1(
+        const AGridDesc_M_K& a_grid_desc_m_k, const Number& WmmaK, const Number& MRepeat, 
+        const Number& MWaves, const Number& MPerWmma, const Number& AK1)
+    {
+        const auto M0        = a_grid_desc_m_k.GetLength(I0) / MPerBlcok;
+        const auto K         = a_grid_desc_m_k.GetLength(I1);
+        const auto AKWmma    = K / WmmaK;
+        constexpr auto AKRow = WmmaK / K1;
+
+        return transform_tensor_descriptor(
+                a_grid_desc_m_k,
+                make_tuple(make_unmerge_transform(make_tuple(AKWmma, Number<AKRow>{}, AK1)),
+                           make_unmerge_transform(
+                               make_tuple(M0 * MRepeat, MWaves, MPerWmma))),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 3, 5>{}, Sequence<1, 2, 4>{}));
+    }
+
     //
     // B (alias of B0)
     //
