@@ -52,6 +52,7 @@ template <typename DataType,
           index_t MXdlPerWave,
           index_t NXdlPerWave,
           index_t Gemm1NXdlPerWave,
+          index_t Gemm2NXdlPerWave,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -662,9 +663,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
         static constexpr index_t BSrcVectorDim       = 1; // Free1_O dimension
         static constexpr index_t BSrcScalarPerVector = 4;
 
-        static constexpr index_t GemmNWave   = 2;
+        static constexpr index_t GemmNWave   = Free0_N / Gemm2NXdlPerWave / MPerXdl;
         static constexpr index_t GemmOWave   = BlockSize / get_warp_size() / GemmNWave;
-        static constexpr index_t GemmNRepeat = Free0_N / GemmNWave / MPerXdl;
+        static constexpr index_t GemmNRepeat = Gemm2NXdlPerWave;
         static constexpr index_t GemmORepeat = Free1_O / GemmOWave / NPerXdl;
         static constexpr index_t GemmMPack =
             math::max(math::lcm(A_M1, B_M1),
