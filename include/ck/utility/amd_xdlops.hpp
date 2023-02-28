@@ -259,7 +259,6 @@ struct intrin_mfma_f32_16x16x8bf16<16, 16>
     }
 };
 
-#if (defined(__gfx908__) || defined(__gfx90a__))
 template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_i32_32x32x8i8;
 
@@ -278,26 +277,6 @@ struct intrin_mfma_i32_32x32x8i8<32, 32>
                                                 0);
     }
 };
-#elif (defined(__gfx940__))
-template <index_t MPerWave, index_t NPerWave>
-struct intrin_mfma_i32_32x32x16i8;
-
-template <>
-struct intrin_mfma_i32_32x32x16i8<32, 32>
-{
-    template <class FloatC>
-    __device__ static void Run(const int8x4_t& reg_a, const int8x4_t& reg_b, FloatC& reg_c)
-    {
-        reg_c.template AsType<int32x16_t>()(Number<0>{}) =
-            __builtin_amdgcn_mfma_i32_32x32x16_i8(bit_cast<int32_t>(reg_a),
-                                                bit_cast<int32_t>(reg_b),
-                                                reg_c.template AsType<int32x16_t>()[Number<0>{}],
-                                                0,
-                                                0,
-                                                0);
-    }
-};
-#endif
 
 template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_i32_16x16x16i8;
@@ -311,6 +290,44 @@ struct intrin_mfma_i32_16x16x16i8<16, 16>
         reg_c.template AsType<int32x4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_i32_16x16x16i8(bit_cast<int32_t>(reg_a),
                                                  bit_cast<int32_t>(reg_b),
+                                                 reg_c.template AsType<int32x4_t>()[Number<0>{}],
+                                                 0,
+                                                 0,
+                                                 0);
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_i32_32x32x16i8;
+
+template <>
+struct intrin_mfma_i32_32x32x16i8<32, 32>
+{
+    template <class FloatC>
+    __device__ static void Run(const int8x8_t& reg_a, const int8x8_t& reg_b, FloatC& reg_c)
+    {
+        reg_c.template AsType<int32x16_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_i32_32x32x16_i8(bit_cast<int64_t>(reg_a),
+                                                  bit_cast<int64_t>(reg_b),
+                                                  reg_c.template AsType<int32x16_t>()[Number<0>{}],
+                                                  0,
+                                                  0,
+                                                  0);
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_i32_16x16x32i8;
+
+template <>
+struct intrin_mfma_i32_16x16x32i8<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const int8x8_t& reg_a, const int8x8_t& reg_b, FloatC& reg_c)
+    {
+        reg_c.template AsType<int32x4_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_i32_16x16x32i8(bit_cast<int64_t>(reg_a),
+                                                 bit_cast<int64_t>(reg_b),
                                                  reg_c.template AsType<int32x4_t>()[Number<0>{}],
                                                  0,
                                                  0,

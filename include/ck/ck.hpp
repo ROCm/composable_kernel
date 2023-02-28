@@ -51,8 +51,8 @@
 #ifndef __HIP_DEVICE_COMPILE__                   // for host code, define nothing
 #elif defined(__gfx803__) || defined(__gfx900__) // for GPU code
 #define CK_USE_AMD_V_MAC_F32
-#elif defined(__gfx906__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx1030__) || defined(__gfx940__) // for GPU code
+#elif defined(__gfx906__) || defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx1030__) || \
+    defined(__gfx940__) // for GPU code
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8
@@ -65,8 +65,12 @@
 #define CK_USE_AMD_MFMA
 #endif
 
-#if (defined(__gfx90a__) || defined(__gfx940__))
+#if(defined(__gfx90a__) || defined(__gfx940__))
 #define CK_USE_AMD_MFMA_BF16_1K_OP
+#endif
+
+#if defined(__gfx940__)
+#define CK_USE_AMD_MFMA_GFX940
 #endif
 
 // WMMA instruction
@@ -94,7 +98,7 @@
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
 #endif
 
-#if (defined(__gfx90a__) || defined(__gfx940__)) // for GPU code
+#if(defined(__gfx90a__) || defined(__gfx940__)) // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64 1
 #else
 #define CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64 0
