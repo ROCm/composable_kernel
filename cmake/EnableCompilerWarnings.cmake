@@ -65,7 +65,7 @@ else()
             -Wuninitialized
             -Wunreachable-code
             -Wunused
-
+            -Wno-reserved-identifier
             -Wsign-compare
             -Wno-extra-semi-stmt
         )
