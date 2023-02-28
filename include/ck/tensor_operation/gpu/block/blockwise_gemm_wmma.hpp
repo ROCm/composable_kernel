@@ -7,6 +7,7 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/warp/wmma_gemm.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
 #define CK_MNK_LOOP
 
@@ -340,6 +341,7 @@ struct BlockwiseGemmWMMA
                         b_thread_desc_,
                         make_tuple(I0, n0, I0, I0, I0),
                         b_thread_buf);
+
                     vector_type<FloatA, WmmaK> a_thread_vec;
                     vector_type<FloatB, WmmaK> b_thread_vec;
 
@@ -413,7 +415,7 @@ struct BlockwiseGemmWMMA
             A_K1,
             0x76543210,
             0xfedcba98,
-            true>;
+            TransposeC ? false : true>;
     };
 
     template <bool EnableLds>
@@ -448,7 +450,7 @@ struct BlockwiseGemmWMMA
             B_K1,
             0x76543210,
             0xfedcba98,
-            false>;
+            TransposeC ? true : false>;
     };
 
     typename AThreadCopySelector<AEnableLds>::type a_thread_copy_;

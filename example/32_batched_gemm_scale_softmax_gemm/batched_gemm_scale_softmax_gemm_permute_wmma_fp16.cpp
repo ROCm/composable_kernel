@@ -100,12 +100,12 @@ using DeviceGemmInstance =
         32,  // KPerBlock
         8,   // K1
         //      Gemm 1
-        64,  // NPerBlock
-        32,  // LPerBlock
-        8,   // L1
-        16,  // MPerWMMA
-        16,  // LPerWMMA
-        16,  // NPerWMMA
+        64, // NPerBlock
+        32, // LTilePerBlock
+        8,  // L1
+        16, // MPerWMMA
+        16, // LPerWMMA
+        16, // NPerWMMA
         // Per repeat = wave_m = wave_num, wave_n = 1
         1,           // MRepeat
         8,           // LRepeat
@@ -124,7 +124,7 @@ using DeviceGemmInstance =
         8,
         8,
         true,
-        S<4, 8, 8>, // B1BlockTransfer LN -> L0 N L1
+        S<4, 8, 8>, // B1BlockTransfer NL -> L0 N L1
         S<0, 2, 1>,
         S<0, 2, 1>,
         1,

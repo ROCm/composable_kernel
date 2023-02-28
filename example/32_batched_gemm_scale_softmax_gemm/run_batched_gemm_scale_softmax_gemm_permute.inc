@@ -122,20 +122,20 @@ int run(int argc, char* argv[])
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         break;
-    case 5: // Rand: b1 ; unit: a b0	 fail
+    case 5: // Rand: b1 b0; unit: a
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
         break;
-    case 6: // Rand: b0 ; unit: a b1	 pass
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
+    case 6: // Rand: a b0 ; unit: b1	 pass
+        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         break;
-    case 7: // Rand: a  ; unit: b0 b1    pass
+    case 7: // Rand: a b1 ; unit: b0    pass
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
         break;
     default:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_Sequential<2>{});
