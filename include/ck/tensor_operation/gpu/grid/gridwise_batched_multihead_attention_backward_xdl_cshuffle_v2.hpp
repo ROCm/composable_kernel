@@ -1175,9 +1175,10 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                const float p_drop,
                                ck::philox& ph)
     {
-        const FloatGemmAcc p_dropout     = type_convert<FloatGemmAcc>(1.0f - p_drop);
-        const FloatGemmAcc rp_dropout    = type_convert<FloatGemmAcc>(1.0f / p_dropout);
-        const ushort p_dropout_in_16bits = uint16_t(std::floor(p_dropout * 65535.0));
+        const FloatGemmAcc p_dropout  = type_convert<FloatGemmAcc>(1.0f - p_drop);
+        const FloatGemmAcc rp_dropout = type_convert<FloatGemmAcc>(1.0f / p_dropout);
+        const ushort p_dropout_in_16bits =
+            __builtin_amdgcn_readfirstlane(std::floor(p_dropout * 65535.0));
         const tensor_operation::element_wise::Scale scale_rp_dropout(s_element_op.Value() *
                                                                      rp_dropout);
 

@@ -25,7 +25,7 @@ Kernel outputs:
 
 #define PRINT_HOST 0
 #define USING_MASK 1
-#define USING_K128 0
+#define USING_K128 1
 
 #include <iostream>
 #include <numeric>
@@ -119,9 +119,9 @@ using DeviceGemmInstance =
         256,
         128,         // MPerBlock
         128,         // NPerBlock
-        32,          // KPerBlock
+        64,          // KPerBlock
         128,         // Gemm1NPerBlock
-        64,          // Gemm1KPerBlock
+        32,          // Gemm1KPerBlock
         8,           // AK1
         8,           // BK1
         2,           // B1K1
@@ -188,9 +188,9 @@ using DeviceGemmInstance =
         256,
         128,         // MPerBlock
         128,         // NPerBlock
-        32,          // KPerBlock
+        64,          // KPerBlock
         64,          // Gemm1NPerBlock
-        32,          // Gemm1KPerBlock
+        64,          // Gemm1KPerBlock
         8,           // AK1
         8,           // BK1
         2,           // B1K1
