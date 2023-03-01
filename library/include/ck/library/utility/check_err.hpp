@@ -214,5 +214,48 @@ check_err(const Range& out,
     return res;
 }
 
+template <typename Range, typename RefRange>
+typename std::enable_if<
+    std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
+        std::is_same_v<ranges::range_value_t<Range>, unsigned short>,
+    bool>::type
+check_err(const Range& out, const RefRange& ref, unsigned short atol = 1)
+{
+    const std::string& msg = "Error: Incorrect U16 results!";
+    if(out.size() != ref.size())
+    {
+        std::cerr << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+                  << std::endl;
+        return false;
+    }
+
+    bool res{true};
+    int err_count          = 0;
+    unsigned short err     = 0;
+    unsigned short max_err = std::numeric_limits<unsigned short>::min();
+    for(std::size_t i = 0; i < ref.size(); ++i)
+    {
+        const unsigned short o = *std::next(std::begin(out), i);
+        const unsigned short r = *std::next(std::begin(ref), i);
+        err                    = (o > r) ? o - r : r - o;
+        if(err > atol)
+        {
+            max_err = err > max_err ? err : max_err;
+            err_count++;
+            if(err_count < 5)
+            {
+                std::cerr << msg << std::setw(12) << " out[" << i << "] != ref[" << i << "]: " << o
+                          << " != " << r << std::endl;
+            }
+            res = false;
+        }
+    }
+    if(!res)
+    {
+        std::cerr << std::setw(12) << "max err: " << max_err << std::endl;
+    }
+    return res;
+}
+
 } // namespace utils
 } // namespace ck
