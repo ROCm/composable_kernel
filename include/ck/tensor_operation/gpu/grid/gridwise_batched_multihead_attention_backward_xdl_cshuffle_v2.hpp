@@ -1455,7 +1455,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             make_naive_tensor_descriptor_packed(make_tuple(I1,   // MBlockId
                                                            I1,   // NBlockID
                                                            m0,   // MRepeat
-                                                           n0,   // NRepeat
+                                                           I1,   // NRepeat
                                                            m1,   // MWaveId
                                                            n1,   // NWaveId
                                                            m2,   // MPerXdl
@@ -1491,7 +1491,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             Sequence<I1, // MBlockId
                      I1, // NBlockID
                      m0, // MRepeat
-                     n0, // NRepeat
+                     I1, // NRepeat
                      m1, // MWaveId
                      n1, // NWaveId
                      m2, // MPerXdl
@@ -1856,19 +1856,31 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             if(p_z_grid)
             {
                 // P_dropped
-                blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf),
-                                                        decltype(z_tenor_buffer),
-                                                        true>(
-                    s_slash_p_thread_buf, ph, z_tenor_buffer);
+                static_for<0, n0, 1>{}([&](auto i) {
+                    blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf),
+                                                            decltype(z_tenor_buffer),
+                                                            true,
+                                                            decltype(n0),
+                                                            decltype(i)>(
+                        s_slash_p_thread_buf, ph, z_tenor_buffer);
 
-                z_thread_copy_vgpr_to_global.Run(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                                 make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                                                 z_tenor_buffer,
-                                                 z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                                 z_grid_buf);
+                    z_thread_copy_vgpr_to_global.Run(
+                        z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                        make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                        z_tenor_buffer,
+                        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                        z_grid_buf);
+                    z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+                        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                        make_multi_index(0, 0, 0, 1, 0, 0, 0, 0, 0, 0));
+                });
+                z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+                    z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                    make_multi_index(0, 0, 0, -n0.value, 0, 0, 0, 0, 0, 0));
             }
             else
             {
+                ignore = z_grid_buf;
                 // P_dropped
                 blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf), true>(
                     s_slash_p_thread_buf, ph);

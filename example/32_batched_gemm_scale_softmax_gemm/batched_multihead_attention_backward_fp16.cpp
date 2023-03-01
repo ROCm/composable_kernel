@@ -31,6 +31,7 @@ Kernel outputs:
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
+#include <fstream>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"

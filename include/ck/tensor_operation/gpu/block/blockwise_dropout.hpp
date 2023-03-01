@@ -17,7 +17,7 @@ struct BlockwiseDropout
     static constexpr index_t KRepeat = ThreadSliceDesc_M_K{}.GetLength(I1);
 
     template <typename CThreadBuffer, bool using_sign_bit = false>
-    __host__ __device__ void ApplyDropout(CThreadBuffer& in_thread_buf, ck::philox ph)
+    __host__ __device__ void ApplyDropout(CThreadBuffer& in_thread_buf, ck::philox& ph)
     {
 
         auto execute_dropout = [&](bool keep, DataType val) {
@@ -52,7 +52,7 @@ struct BlockwiseDropout
 
     template <typename CThreadBuffer, typename ZThreadBuffer, bool using_sign_bit = false>
     __host__ __device__ void
-    ApplyDropout(CThreadBuffer& in_thread_buf, ck::philox ph, ZThreadBuffer& z_thread_buf)
+    ApplyDropout(CThreadBuffer& in_thread_buf, ck::philox& ph, ZThreadBuffer& z_thread_buf)
     {
 
         auto execute_dropout = [&](bool keep, DataType val) {
@@ -83,6 +83,42 @@ struct BlockwiseDropout
                 z_thread_buf(offset) = tmp[tmp_index];
                 tmp_index            = tmp_index + 1;
             });
+        });
+    }
+
+    template <typename CThreadBuffer,
+              typename ZThreadBuffer,
+              bool using_sign_bit,
+              typename N0,
+              typename Offset>
+    __host__ __device__ void
+    ApplyDropout(CThreadBuffer& in_thread_buf, ck::philox& ph, ZThreadBuffer& z_thread_buf)
+    {
+
+        auto execute_dropout = [&](bool keep, DataType val) {
+            if constexpr(using_sign_bit)
+                return keep ? val : -val;
+            else
+                return keep ? val * p_dropout_rescale : float(0);
+        };
+
+        constexpr int tmp_size = MRepeat * KRepeat / N0{}.value;
+
+        int philox_calls = tmp_size / 8;
+
+        ushort tmp[tmp_size];
+        for(int i = 0; i < philox_calls; i++)
+        {
+            ph.get_random_8x16((tmp + i * 8));
+        }
+
+        block_sync_lds();
+
+        constexpr auto iOffset = Number<tmp_size>{} * Offset{};
+        static_for<0, tmp_size, 1>{}([&](auto i) {
+            in_thread_buf(i + iOffset) =
+                execute_dropout(tmp[i.value] <= p_dropout_16bits, in_thread_buf(i + iOffset));
+            z_thread_buf(i) = tmp[i.value];
         });
     }
 
