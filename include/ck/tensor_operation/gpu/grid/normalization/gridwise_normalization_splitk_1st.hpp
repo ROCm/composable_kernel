@@ -203,7 +203,7 @@ struct GridwiseNormalizationSplitK1st
             var_thread_buf(I)  = type_convert<ComputeDataType>(0.0f);
         });
 
-        for(index_t reducedTiles = 0; reducedTiles < num_k_block_tile_iteration; ++reducedTiles)
+        for(index_t k = 0; k < num_k_block_tile_iteration; ++k)
         {
             static_for<0, ThreadBufferNumber, 1>{}([&](auto i) {
                 threadwise_x_load.Run(x_grid_desc_m_k,
