@@ -478,14 +478,14 @@ def Build_CK(Map conf=[:]){
                            //we only need the ckProfiler to run the performance tests, so we pack and stash it
                            sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
                            stash "ckProfiler.tar.gz"
-                           //sh "sshpass -p ${env.ck_deb_pw} -v scp -v -o StrictHostKeyChecking=no ckProfiler.tar.gz ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                         }
                         if (params.RUN_FULL_QA){
                            // build deb packages
                            sh 'make -j package'
                            archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
                            archiveArtifacts artifacts: 'composablekernel-tests_*.deb'
-                           sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-ckprofiler_*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/ckprofiler_0.2.0_amd64.deb"
+                           sh 'mv composablekernel-ckprofiler_*.deb ckprofiler_0.2.0_amd64.deb'
+                           stash "ckprofiler_0.2.0_amd64.deb"
                         }
                     }
                 }
@@ -553,6 +553,8 @@ def process_results(Map conf=[:]){
                         unstash "perf_splitK_gemm.log"
                         unstash "perf_onnx_gemm.log"
                         sh "./process_qa_data.sh"
+                        unstash "ckprofiler_0.2.0_amd64.deb"
+                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                     }
                     else{
                         // unstash perf files to master
@@ -560,8 +562,6 @@ def process_results(Map conf=[:]){
                         unstash "perf_resnet50_N256.log"
                         unstash "perf_resnet50_N4.log"
                         sh "./process_perf_data.sh"
-                        unstash "ckProfiler.tar.gz"
-                        sh "sshpass -p ${env.ck_deb_pw} -v scp -v -o StrictHostKeyChecking=no ckProfiler.tar.gz ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                     }
                 }
             }
