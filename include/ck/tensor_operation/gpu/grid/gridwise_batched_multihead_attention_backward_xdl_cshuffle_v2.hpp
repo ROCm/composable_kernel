@@ -21,6 +21,7 @@
 namespace ck {
 
 template <typename DataType,
+          typename GemmDataType,
           typename FloatGemmAcc,
           typename FloatCShuffle,
           typename FloatLSE,
@@ -51,6 +52,7 @@ template <typename DataType,
           index_t MXdlPerWave,
           index_t NXdlPerWave,
           index_t Gemm1NXdlPerWave,
+          index_t Gemm2NXdlPerWave,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -85,21 +87,6 @@ template <typename DataType,
           PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 {
-    template <typename T>
-    struct TypeMap
-    {
-        using type = T;
-    };
-#if defined(__gfx90a__)
-    template <>
-    struct TypeMap<ck::half_t>
-    {
-        using type = ck::bhalf_t;
-    };
-#endif
-
-    using LDSDataType = typename TypeMap<DataType>::type;
-
     static_assert(LoopSched == LoopScheduler::Default,
                   "Non-default loop scheduler is currently not supported");
 
@@ -141,7 +128,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
         const auto M = z_grid_desc_m_n.GetLength(I0);
         const auto N = z_grid_desc_m_n.GetLength(I1);
 
-        constexpr auto mfma = MfmaSelector<LDSDataType, MPerXdl, NPerXdl>::selected_mfma;
+        constexpr auto mfma = MfmaSelector<GemmDataType, MPerXdl, NPerXdl>::selected_mfma;
         constexpr auto N3   = mfma.num_groups_per_blk;
         constexpr auto N4   = mfma.num_input_blks;
         constexpr auto N5   = mfma.group_size;
@@ -157,7 +144,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
     __host__ __device__ static constexpr auto
     MakeZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const index_t M, const index_t N)
     {
-        constexpr auto mfma = MfmaSelector<LDSDataType, MPerXdl, NPerXdl>::selected_mfma;
+        constexpr auto mfma = MfmaSelector<GemmDataType, MPerXdl, NPerXdl>::selected_mfma;
         constexpr auto N3   = mfma.num_groups_per_blk;
         constexpr auto N4   = mfma.num_input_blks;
         constexpr auto N5   = mfma.group_size;
@@ -471,7 +458,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
                                                 DataType,
-                                                LDSDataType,
+                                                GemmDataType,
                                                 GridDesc_K0_M_K1,
                                                 decltype(a_block_desc_ak0_m_ak1),
                                                 ABlockTransferSrcAccessOrder,
@@ -496,7 +483,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                                 BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 BBlockTransferThreadClusterArrangeOrder,
                                                 DataType,
-                                                LDSDataType,
+                                                GemmDataType,
                                                 GridDesc_K0_N_K1,
                                                 decltype(b_block_desc_bk0_n_bk1),
                                                 BBlockTransferSrcAccessOrder,
@@ -513,12 +500,12 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
         static constexpr index_t KPack =
             math::max(math::lcm(AK1, BK1),
-                      MfmaSelector<LDSDataType, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+                      MfmaSelector<GemmDataType, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         // Blockwise gemm with transposed XDL output
         using BlockwiseGemm = BlockwiseGemmXdlops_v2<
             BlockSize,
-            LDSDataType,
+            GemmDataType,
             FloatGemmAcc,
             decltype(a_block_desc_ak0_m_ak1),
             decltype(b_block_desc_bk0_n_bk1),
@@ -580,7 +567,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
         using ABlockwiseCopy = ThreadwiseTensorSliceTransfer_StaticToStatic<
             FloatGemmAcc,
-            LDSDataType,
+            GemmDataType,
             decltype(a_src_thread_desc_k0_m_k1),
             decltype(a_thread_desc_k0_m_k1),
             tensor_operation::element_wise::PassThrough,
@@ -599,7 +586,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                                 B1BlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 B1BlockTransferThreadClusterArrangeOrder,
                                                 DataType,
-                                                LDSDataType,
+                                                GemmDataType,
                                                 GridDesc_K0_N_K1,
                                                 decltype(b_block_desc_bk0_n_bk1),
                                                 B1BlockTransferSrcAccessOrder,
@@ -630,11 +617,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
         // cause mismatch in summation index for example c[0:7] = a1[[0:3, 8:11]] * b1[0:7].
         // therefore we may just as well assign Gemm1KPack = group_size
         static constexpr index_t GemmKPack =
-            MfmaSelector<LDSDataType, MPerXdl, NPerXdl>::selected_mfma.group_size;
+            MfmaSelector<GemmDataType, MPerXdl, NPerXdl>::selected_mfma.group_size;
 
         using BlockwiseGemm = BlockwiseGemmXdlops_v2<
             BlockSize,
-            LDSDataType,
+            GemmDataType,
             FloatGemmAcc,
             decltype(a_thread_desc_k0_m_k1),
             decltype(b_block_desc_bk0_n_bk1),
@@ -650,7 +637,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             GemmKPack,
             true,      // TransposeC
             GemmKPack, // AMmaKStride
-            GemmKPack * XdlopsGemm<LDSDataType, MPerXdl, NPerXdl, GemmKPack, false>{}
+            GemmKPack * XdlopsGemm<GemmDataType, MPerXdl, NPerXdl, GemmKPack, false>{}
                             .K0PerXdlops /* BMmaKStride */>;
     };
 
@@ -676,13 +663,13 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
         static constexpr index_t BSrcVectorDim       = 1; // Free1_O dimension
         static constexpr index_t BSrcScalarPerVector = 4;
 
-        static constexpr index_t GemmNWave   = 2;
+        static constexpr index_t GemmNWave   = Free0_N / Gemm2NXdlPerWave / MPerXdl;
         static constexpr index_t GemmOWave   = BlockSize / get_warp_size() / GemmNWave;
-        static constexpr index_t GemmNRepeat = Free0_N / GemmNWave / MPerXdl;
+        static constexpr index_t GemmNRepeat = Gemm2NXdlPerWave;
         static constexpr index_t GemmORepeat = Free1_O / GemmOWave / NPerXdl;
         static constexpr index_t GemmMPack =
             math::max(math::lcm(A_M1, B_M1),
-                      MfmaSelector<LDSDataType, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+                      MfmaSelector<GemmDataType, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         using BBlockSliceLengths = Sequence<B_M0, Free1_O, B_M1>;
         using BThreadClusterLengths =
@@ -807,7 +794,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
         template <typename ElementwiseOp = tensor_operation::element_wise::PassThrough>
         using ABlockwiseCopy = ThreadwiseTensorSliceTransfer_v1r3<
             FloatGemmAcc,
-            LDSDataType,
+            GemmDataType,
             decltype(a_src_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4),
             decltype(a_block_desc_m0_n0_m1_n1_m2_n2_n3_n4),
             ElementwiseOp,
@@ -837,7 +824,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             typename Gemm2Params_N_O_M::BThreadClusterLengths,
             typename Gemm2Params_N_O_M::BThreadClusterArrangeOrder,
             DataType,
-            LDSDataType,
+            GemmDataType,
             GridDesc_M0_O_M1,
             decltype(b_block_desc_m0_o_m1),
             typename Gemm2Params_N_O_M::BThreadClusterArrangeOrder, // access order == thread order
@@ -854,7 +841,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
         using BlockwiseGemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                LDSDataType,
+                                                                GemmDataType,
                                                                 FloatGemmAcc,
                                                                 decltype(a_block_desc_m0_n_m1),
                                                                 decltype(b_block_desc_m0_o_m1),
@@ -1095,7 +1082,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
         static constexpr auto b2_block_desc_m0_o_m1 =
             GetB2BlockDescriptor_M0_O_M1<Gemm2Params_N_O_M>();
 
-        static constexpr auto max_lds_align = Number<16 / sizeof(LDSDataType)>{};
+        static constexpr auto max_lds_align = Number<16 / sizeof(GemmDataType)>{};
 
         static constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
@@ -1131,13 +1118,13 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
     {
         const index_t gemm0_bytes_end = (SharedMemTrait::a_block_space_size_aligned +
                                          SharedMemTrait::b_block_space_size_aligned) *
-                                        sizeof(LDSDataType);
+                                        sizeof(GemmDataType);
         const index_t gemm1_bytes_end =
             (SharedMemTrait::b1_block_space_offset + SharedMemTrait::b1_block_space_size_aligned) *
-            sizeof(LDSDataType);
+            sizeof(GemmDataType);
         const index_t vgrad_gemm_bytes_end = (SharedMemTrait::p_block_space_size_aligned +
                                               SharedMemTrait::ygrad_block_space_size_aligned) *
-                                             sizeof(LDSDataType);
+                                             sizeof(GemmDataType);
 
         const index_t softmax_bytes_end = (SharedMemTrait::reduction_space_offset +
                                            SharedMemTrait::reduction_space_size_aligned) *
@@ -1188,9 +1175,10 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                const float p_drop,
                                ck::philox& ph)
     {
-        const FloatGemmAcc p_dropout     = type_convert<FloatGemmAcc>(1.0f - p_drop);
-        const FloatGemmAcc rp_dropout    = type_convert<FloatGemmAcc>(1.0f / p_dropout);
-        const ushort p_dropout_in_16bits = uint16_t(std::floor(p_dropout * 65535.0));
+        const FloatGemmAcc p_dropout  = type_convert<FloatGemmAcc>(1.0f - p_drop);
+        const FloatGemmAcc rp_dropout = type_convert<FloatGemmAcc>(1.0f / p_dropout);
+        const ushort p_dropout_in_16bits =
+            __builtin_amdgcn_readfirstlane(std::floor(p_dropout * 65535.0));
         const tensor_operation::element_wise::Scale scale_rp_dropout(s_element_op.Value() *
                                                                      rp_dropout);
 
@@ -1243,11 +1231,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
         // Gemm0: LDS allocation for A and B: be careful of alignment
         auto gemm0_a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<LDSDataType*>(p_shared) + SharedMemTrait::a_block_space_offset,
+            static_cast<GemmDataType*>(p_shared) + SharedMemTrait::a_block_space_offset,
             Gemm0::a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto gemm0_b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<LDSDataType*>(p_shared) + SharedMemTrait::b_block_space_offset,
+            static_cast<GemmDataType*>(p_shared) + SharedMemTrait::b_block_space_offset,
             Gemm0::b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         // Gemm0: gridwise GEMM pipeline
@@ -1339,11 +1327,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                   decltype(s_blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4())>;
 
         // Gemm1: VGPR allocation for A and LDS allocation for B
-        auto gemm1_a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, LDSDataType>(
+        auto gemm1_a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, GemmDataType>(
             Gemm1::a_thread_desc_k0_m_k1.GetElementSpaceSize());
 
         auto gemm1_b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<LDSDataType*>(p_shared) + SharedMemTrait::b1_block_space_offset,
+            static_cast<GemmDataType*>(p_shared) + SharedMemTrait::b1_block_space_offset,
             Gemm1::b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         // dQ: transform input and output tensor descriptors
@@ -1467,7 +1455,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             make_naive_tensor_descriptor_packed(make_tuple(I1,   // MBlockId
                                                            I1,   // NBlockID
                                                            m0,   // MRepeat
-                                                           n0,   // NRepeat
+                                                           I1,   // NRepeat
                                                            m1,   // MWaveId
                                                            n1,   // NWaveId
                                                            m2,   // MPerXdl
@@ -1503,7 +1491,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             Sequence<I1, // MBlockId
                      I1, // NBlockID
                      m0, // MRepeat
-                     n0, // NRepeat
+                     I1, // NRepeat
                      m1, // MWaveId
                      n1, // NWaveId
                      m2, // MPerXdl
@@ -1535,11 +1523,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
         // Gemm2: LDS allocation for A and B: be careful of alignment
         auto gemm2_a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<LDSDataType*>(p_shared) + SharedMemTrait::a2_block_space_offset,
+            static_cast<GemmDataType*>(p_shared) + SharedMemTrait::a2_block_space_offset,
             Gemm2::a_block_desc_m0_n_m1.GetElementSpaceSize());
 
         auto gemm2_b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<LDSDataType*>(p_shared) + SharedMemTrait::b2_block_space_offset,
+            static_cast<GemmDataType*>(p_shared) + SharedMemTrait::b2_block_space_offset,
             Gemm2::b_block_desc_m0_o_m1.GetElementSpaceSize());
 
         // dV: transform input and output tensor descriptors
@@ -1868,19 +1856,31 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             if(p_z_grid)
             {
                 // P_dropped
-                blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf),
-                                                        decltype(z_tenor_buffer),
-                                                        true>(
-                    s_slash_p_thread_buf, ph, z_tenor_buffer);
+                static_for<0, n0, 1>{}([&](auto i) {
+                    blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf),
+                                                            decltype(z_tenor_buffer),
+                                                            true,
+                                                            decltype(n0),
+                                                            decltype(i)>(
+                        s_slash_p_thread_buf, ph, z_tenor_buffer);
 
-                z_thread_copy_vgpr_to_global.Run(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                                 make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                                                 z_tenor_buffer,
-                                                 z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                                 z_grid_buf);
+                    z_thread_copy_vgpr_to_global.Run(
+                        z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                        make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                        z_tenor_buffer,
+                        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                        z_grid_buf);
+                    z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+                        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                        make_multi_index(0, 0, 0, 1, 0, 0, 0, 0, 0, 0));
+                });
+                z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+                    z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                    make_multi_index(0, 0, 0, -n0.value, 0, 0, 0, 0, 0, 0));
             }
             else
             {
+                ignore = z_grid_buf;
                 // P_dropped
                 blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf), true>(
                     s_slash_p_thread_buf, ph);

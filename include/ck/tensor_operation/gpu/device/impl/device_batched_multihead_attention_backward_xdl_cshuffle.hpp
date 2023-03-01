@@ -49,7 +49,7 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, /*CK_MIN_BLOCK_PER_CU*/ 1)
 #endif
         kernel_batched_multihead_attention_backward_xdl_cshuffle_v2(
             const DataType* __restrict__ p_a_grid,
@@ -171,6 +171,7 @@ template <index_t NumDimG,
           index_t NumDimK,
           index_t NumDimO, // NumDimGemm1N
           typename DataType,
+          typename GemmDataType,
           typename ZDataType,
           typename LSEDataType,
           typename Acc0BiasDataType,
@@ -202,6 +203,7 @@ template <index_t NumDimG,
           index_t MXdlPerWave,
           index_t NXdlPerWave,
           index_t Gemm1NXdlPerWave,
+          index_t Gemm2NXdlPerWave,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -595,9 +597,10 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
     // GridwiseGemm
     using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2<
         DataType, // TODO: distinguish A/B datatype
-        LSEDataType,
+        GemmDataType,
         GemmAccDataType,
         CShuffleDataType,
+        LSEDataType,
         AElementwiseOperation,
         BElementwiseOperation,
         AccElementwiseOperation,
@@ -625,6 +628,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle
         MXdlPerWave,
         NXdlPerWave,
         Gemm1NXdlPerWave,
+        Gemm2NXdlPerWave,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
