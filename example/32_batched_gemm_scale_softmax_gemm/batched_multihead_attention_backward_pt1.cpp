@@ -49,9 +49,10 @@ Kernel outputs:
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16 = ck::half_t;
-using F32 = float;
-using U16 = unsigned short;
+using F16  = ck::half_t;
+using BF16 = ck::bhalf_t;
+using F32  = float;
+using U16  = unsigned short;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Scale       = ck::tensor_operation::element_wise::Scale;
@@ -59,7 +60,8 @@ using Scale       = ck::tensor_operation::element_wise::Scale;
 using QKVElementOp = PassThrough;
 using YElementOp   = PassThrough;
 
-using DataType         = F16;
+using DataType         = BF16;
+using GemmDataType     = BF16;
 using AccDataType      = F32;
 using ShuffleDataType  = F32;
 using LSEDataType      = F32;
@@ -101,6 +103,7 @@ using DeviceGemmInstance =
         NumDimK,
         NumDimO,
         DataType,
+        GemmDataType,
         ZDataType,
         LSEDataType,
         Acc0BiasDataType,
@@ -169,6 +172,7 @@ using DeviceGemmInstance =
         NumDimK,
         NumDimO,
         DataType,
+        GemmDataType,
         ZDataType,
         LSEDataType,
         Acc0BiasDataType,
@@ -340,16 +344,21 @@ int run(int argc, char* argv[])
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
     // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
     // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t M  = 512; // 512
-    ck::index_t N  = 512; // 512
-    ck::index_t K  = 64;
-    ck::index_t O  = 64;
+    ck::index_t M = 512; // 512
+    ck::index_t N = 512; // 512
+#if USING_HD32
+    ck::index_t K = 32; // K/O<=32
+    ck::index_t O = 32;
+#else
+    ck::index_t K = 64; // 32<K/O<=64
+    ck::index_t O = 64;
+#endif
     ck::index_t G0 = 4; // 54
     ck::index_t G1 = 6; // 16
 
     float alpha = 1.f / std::sqrt(K);
 
-    bool input_permute  = true; // false;
+    bool input_permute  = false;
     bool output_permute = false;
 
     float p_drop                    = 0.2;
@@ -747,9 +756,12 @@ int run(int argc, char* argv[])
             {
                 auto idx_gmo = idx_gmn;
                 idx_gmo[2]   = o;
-                ygrad_dot_y += ygrad_g_m_o(idx_gmo) * y_g_m_o(idx_gmo);
+                ygrad_dot_y += ck::type_convert<AccDataType>(ygrad_g_m_o(idx_gmo)) *
+                               ck::type_convert<AccDataType>(y_g_m_o(idx_gmo));
             }
-            self(idx_gmn) = p_g_m_n(idx_gmn) * (pgrad_g_m_n(idx_gmn) - ygrad_dot_y);
+            self(idx_gmn) = ck::type_convert<DataType>(
+                ck::type_convert<AccDataType>(p_g_m_n(idx_gmn)) *
+                (ck::type_convert<AccDataType>(pgrad_g_m_n(idx_gmn)) - ygrad_dot_y));
         });
 #if PRINT_HOST
         {

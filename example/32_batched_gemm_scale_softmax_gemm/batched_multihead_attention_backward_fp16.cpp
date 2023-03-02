@@ -50,9 +50,10 @@ Kernel outputs:
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16 = ck::half_t;
-using F32 = float;
-using U16 = unsigned short;
+using F16  = ck::half_t;
+using BF16 = ck::bhalf_t;
+using F32  = float;
+using U16  = unsigned short;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Scale       = ck::tensor_operation::element_wise::Scale;
@@ -748,9 +749,12 @@ int run(int argc, char* argv[])
             {
                 auto idx_gmo = idx_gmn;
                 idx_gmo[2]   = o;
-                ygrad_dot_y += ygrad_g_m_o(idx_gmo) * y_g_m_o(idx_gmo);
+                ygrad_dot_y += ck::type_convert<AccDataType>(ygrad_g_m_o(idx_gmo)) *
+                               ck::type_convert<AccDataType>(y_g_m_o(idx_gmo));
             }
-            self(idx_gmn) = p_g_m_n(idx_gmn) * (pgrad_g_m_n(idx_gmn) - ygrad_dot_y);
+            self(idx_gmn) = ck::type_convert<DataType>(
+                ck::type_convert<AccDataType>(p_g_m_n(idx_gmn)) *
+                (ck::type_convert<AccDataType>(pgrad_g_m_n(idx_gmn)) - ygrad_dot_y));
         });
 #if PRINT_HOST
         {
