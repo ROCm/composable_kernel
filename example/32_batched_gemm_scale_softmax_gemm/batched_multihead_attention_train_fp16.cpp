@@ -379,7 +379,7 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
     // masking
 #if USING_MASK
     auto N          = s_g_m_n.GetLengths()[2];
-    const auto mask = DeviceGemmInstance::C0MatrixMask(N);
+    const auto mask = DeviceGemmInstanceFWD::C0MatrixMask(N);
     s_g_m_n.ForEach([&](auto& self, auto idx) {
         if(mask.IsMaskedElement(idx[1], idx[2]))
             self(idx) = -ck::NumericLimits<float>::Infinity();
@@ -419,19 +419,19 @@ int run(int argc, char* argv[])
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
     // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
     // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t M  = 129; // 512
-    ck::index_t N  = 128; // 512
+    ck::index_t M  = 200; // 512
+    ck::index_t N  = 200; // 512
     ck::index_t K  = 64;
     ck::index_t O  = 64;
-    ck::index_t G0 = 1; // 54
-    ck::index_t G1 = 1; // 16
+    ck::index_t G0 = 4; // 54
+    ck::index_t G1 = 6; // 16
 
     float alpha = 1.f / std::sqrt(K);
 
     bool input_permute  = false;
     bool output_permute = false;
 
-    float p_drop                    = 0.2;
+    float p_drop                    = 0.0;
     float p_dropout                 = 1 - p_drop;
     uint16_t p_dropout_in_16bits    = uint16_t(std::floor(p_dropout * 65535.0));
     float rp_dropout                = 1.0 / p_dropout;
