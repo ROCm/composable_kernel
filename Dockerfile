@@ -7,6 +7,8 @@ ARG compiler_commit=""
 RUN set -xe
 
 ARG DEB_ROCM_REPO=http://repo.radeon.com/rocm/apt/.apt_$ROCMVERSION/
+RUN useradd -rm -d /home/jenkins -s /bin/bash -u 1004 jenkins
+RUN useradd -rm -d /home/manitera -s /bin/bash -u 1002 manitera
 # Add rocm repository
 RUN apt-get update
 RUN apt-get install -y wget gnupg
@@ -37,6 +39,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python-dev \
     python3-dev \
     python3-pip \
+    sshpass \
     software-properties-common \
     rocm-dev \
     rocm-device-libs \
