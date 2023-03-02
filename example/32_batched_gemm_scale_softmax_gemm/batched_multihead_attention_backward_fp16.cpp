@@ -59,7 +59,6 @@ using Scale       = ck::tensor_operation::element_wise::Scale;
 
 using QKVElementOp = PassThrough;
 using YElementOp   = PassThrough;
-using VElementOp   = Scale;
 
 using DataType         = F16;
 using GemmDataType     = F16;
@@ -533,30 +532,8 @@ int run(int argc, char* argv[])
         [&](auto& self, auto idx) { q_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
     k_gs_ns_ks.ForEach(
         [&](auto& self, auto idx) { k_g_n_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
-    z_gs_ms_ns.ForEach(
-        [&](auto& self, auto idx) { z_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
     v_gs_os_ns.ForEach(
         [&](auto& self, auto idx) { v_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx); });
-    lse_gs_ms.ForEach(
-        [&](auto& self, auto idx) { lse_g_m(idx[0] * G1 + idx[1], idx[2]) = self(idx); });
-
-    run_attention_fwd_host(q_g_m_k,
-                           k_g_n_k,
-                           v_g_n_o,
-                           alpha,
-                           s_g_m_n,
-                           p_g_m_n,
-                           y_g_m_o,
-                           lse_g_m,
-                           p_drop_g_m_n,
-                           z_g_m_n,
-                           p_dropout_in_16bits,
-                           rp_dropout);
-
-    y_gs_ms_os.ForEach(
-        [&](auto& self, auto idx) { self(idx) = y_g_m_o(idx[0] * G1 + idx[1], idx[2], idx[3]); });
-    lse_gs_ms.ForEach(
-        [&](auto& self, auto idx) { self(idx) = lse_g_m(idx[0] * G1 + idx[1], idx[2]); });
 
     // qkv gradients have the same descriptor as with qkv
     DeviceMem q_device_buf(sizeof(DataType) * q_gs_ms_ks.mDesc.GetElementSpaceSize());
@@ -574,11 +551,7 @@ int run(int argc, char* argv[])
     k_device_buf.ToDevice(k_gs_ns_ks.mData.data());
     z_device_buf.ToDevice(z_gs_ms_ns.mData.data());
     v_device_buf.ToDevice(v_gs_os_ns.mData.data());
-    y_device_buf.ToDevice(y_gs_ms_os.mData.data());
-    lse_device_buf.ToDevice(lse_gs_ms.mData.data());
     ygrad_device_buf.ToDevice(ygrad_gs_ms_os.mData.data());
-    kgrad_device_buf.SetZero();
-    vgrad_device_buf.SetZero();
 
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
@@ -688,13 +661,15 @@ int run(int argc, char* argv[])
               << gemm.GetTypeString() << std::endl;
 
     // copy z matirx data form device
-    z_device_buf.FromDevice(z_g_m_n.mData.data());
+    z_device_buf.FromDevice(z_gs_ms_ns.mData.data());
+    z_gs_ms_ns.ForEach(
+        [&](auto& self, auto idx) { z_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
 
     //       std::cout << "z_g_m_n ref:\n" << z_g_m_n;
     bool pass = true;
     if(do_verification)
     {
-        // run fowad again for y, cause z_g_m_n update
+        // run fwd again for y, cause z_g_m_n update
         run_attention_fwd_host(q_g_m_k,
                                k_g_n_k,
                                v_g_n_o,
@@ -710,7 +685,10 @@ int run(int argc, char* argv[])
         y_gs_ms_os.ForEach([&](auto& self, auto idx) {
             self(idx) = y_g_m_o(idx[0] * G1 + idx[1], idx[2], idx[3]);
         });
+        lse_gs_ms.ForEach(
+            [&](auto& self, auto idx) { self(idx) = lse_g_m(idx[0] * G1 + idx[1], idx[2]); });
         y_device_buf.ToDevice(y_gs_ms_os.mData.data());
+        lse_device_buf.ToDevice(lse_gs_ms.mData.data());
 
         // call kernel again
         kgrad_device_buf.SetZero(); // reset global accum buffer and rerun
@@ -751,7 +729,7 @@ int run(int argc, char* argv[])
 #if PRINT_HOST
         {
             std::cout << "===== dP = dY * V^T\n";
-            std::cout << "ygrad_drop_g_m_o ref:\n" << ygrad_drop_g_m_n;
+            std::cout << "ygrad_g_m_o ref:\n" << ygrad_g_m_o;
             std::cout << "v_g_o_n ref:\n" << v_g_o_n;
             std::cout << "pgrad_drop_g_m_n ref:\n" << pgrad_drop_g_m_n;
         }
@@ -763,7 +741,7 @@ int run(int argc, char* argv[])
             z_g_m_n, pgrad_drop_g_m_n, pgrad_g_m_n, p_dropout_in_16bits, rp_dropout);
         ref_dropout_invoker.Run(ref_dropout_argment);
 
-        // dS_i_j = P_i_j .* (dP_i_j -  dY_i dot Y_i)
+        // dS_i_j = P_i_j .* (dP_i_j - dY_i dot Y_i)
         sgrad_g_m_n.ForEach([&](auto& self, auto idx_gmn) {
             float ygrad_dot_y = 0;
             for(int o = 0; o < O; o++)

@@ -38,6 +38,7 @@ Kernel outputs:
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
+#include <fstream>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
@@ -418,12 +419,12 @@ int run(int argc, char* argv[])
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
     // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
     // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t M  = 487; // 512
-    ck::index_t N  = 335; // 512
+    ck::index_t M  = 129; // 512
+    ck::index_t N  = 128; // 512
     ck::index_t K  = 64;
     ck::index_t O  = 64;
-    ck::index_t G0 = 4; // 54
-    ck::index_t G1 = 6; // 16
+    ck::index_t G0 = 1; // 54
+    ck::index_t G1 = 1; // 16
 
     float alpha = 1.f / std::sqrt(K);
 
@@ -822,6 +823,10 @@ int run(int argc, char* argv[])
             y_device_buf.FromDevice(y_gs_ms_os_device_result.mData.data());
             lse_device_buf.FromDevice(lse_gs_ms_device_result.mData.data());
 
+            // std::cout << "z_fwd_gs_ms_ns ref:\n" << z_fwd_gs_ms_ns;
+            std::ofstream fwd_file("./z_fwd_matrix_txt");
+            fwd_file << z_fwd_gs_ms_ns << std::endl;
+
             kgrad_device_buf.SetZero();
             vgrad_device_buf.SetZero();
 
@@ -875,6 +880,10 @@ int run(int argc, char* argv[])
             qgrad_device_buf.FromDevice(qgrad_gs_ms_ks_device_result.mData.data());
             kgrad_device_buf.FromDevice(kgrad_gs_ns_ks_device_result.mData.data());
             vgrad_device_buf.FromDevice(vgrad_gs_os_ns_device_result.mData.data());
+
+            // std::cout << "z_bwd_gs_ms_ns ref:\n" << z_bwd_gs_ms_ns;
+            std::ofstream bwd_file("./z_bwd_matrix_txt");
+            bwd_file << z_bwd_gs_ms_ns << std::endl;
         }
 
         q_gs_ms_ks.ForEach([&](auto& self, auto idx) {
