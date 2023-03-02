@@ -716,7 +716,6 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
                                                           c_thread_buf,
                                                           K0BlockMainLoop);
 /*******************************************************************************/
-        //printf("safe 1");
         // write out to C, implement shuffle
         {
             constexpr auto c_thread_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs =  
