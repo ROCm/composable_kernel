@@ -599,7 +599,27 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
             return false;
         }
 
-        return true;
+        bool supported = true;
+
+        // If we use padding we do not support vector loads for dimensions not divisible by vector
+        // load size.
+        if constexpr(GemmSpec != GemmSpecialization::Default)
+        {
+            for(const auto& gemm_desc : arg.gemm_desc_kernel_arg_)
+            {
+                const auto a_raw_vector_dim =
+                    gemm_desc.a_grid_desc_m_k_.GetTransforms()[Number<ABlockTransferSrcVectorDim>{}]
+                        .low_length_;
+                const auto b_raw_vector_dim =
+                    gemm_desc.b_grid_desc_n_k_.GetTransforms()[Number<BBlockTransferSrcVectorDim>{}]
+                        .low_length_;
+
+                supported = supported & (a_raw_vector_dim % ABlockTransferSrcScalarPerVector == 0);
+                supported = supported & (b_raw_vector_dim % BBlockTransferSrcScalarPerVector == 0);
+            }
+        }
+
+        return supported;
     }
 
     // polymorphic
@@ -661,7 +681,8 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
             << MPerXDL << ", "
             << NPerXDL << ", "
             << MXdlPerWave << ", "
-            << NXdlPerWave
+            << NXdlPerWave << ", "
+            << getGemmSpecializationString(GemmSpec)
             << ">";
         // clang-format on
 
