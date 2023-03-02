@@ -908,7 +908,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
     template <index_t BlockSize_, index_t BlockSliceLength_M_, index_t BlockSliceLength_O_>
     struct YDotYGrad_M_O_
     {
-        static constexpr index_t SrcScalarPerVector = 16 / sizeof(FloatGemmAcc);
+        static constexpr index_t SrcScalarPerVector = 16 / sizeof(DataType);
         static constexpr auto ThreadClusterLength_O =
             Number<BlockSliceLength_O_ / SrcScalarPerVector>{};
         static constexpr auto ThreadClusterLength_M = Number<BlockSize_ / ThreadClusterLength_O>{};
