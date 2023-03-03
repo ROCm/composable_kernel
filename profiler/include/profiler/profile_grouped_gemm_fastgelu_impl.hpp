@@ -6,7 +6,7 @@
 #include <iomanip>
 
 #include "ck/ck.hpp"
-#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_gelu.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_fastgelu.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -27,16 +27,16 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-bool profile_grouped_gemm_gelu_impl(int do_verification,
-                                    int init_method,
-                                    bool do_log,
-                                    bool time_kernel,
-                                    const std::vector<int>& Ms,
-                                    const std::vector<int>& Ns,
-                                    const std::vector<int>& Ks,
-                                    const std::vector<int>& StrideAs,
-                                    const std::vector<int>& StrideBs,
-                                    const std::vector<int>& StrideCs)
+bool profile_grouped_gemm_fastgelu_impl(int do_verification,
+                                        int init_method,
+                                        bool do_log,
+                                        bool time_kernel,
+                                        const std::vector<int>& Ms,
+                                        const std::vector<int>& Ns,
+                                        const std::vector<int>& Ks,
+                                        const std::vector<int>& StrideAs,
+                                        const std::vector<int>& StrideBs,
+                                        const std::vector<int>& StrideCs)
 {
 
     bool pass = true;
@@ -98,7 +98,7 @@ bool profile_grouped_gemm_gelu_impl(int do_verification,
 
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
     using BElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using CElementOp = ck::tensor_operation::element_wise::Gelu;
+    using CElementOp = ck::tensor_operation::element_wise::FastGelu;
 
     const auto a_element_op = AElementOp{};
     const auto b_element_op = BElementOp{};

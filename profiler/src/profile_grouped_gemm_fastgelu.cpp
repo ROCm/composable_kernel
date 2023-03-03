@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/profile_grouped_gemm_gelu_impl.hpp"
+#include "profiler/profile_grouped_gemm_fastgelu_impl.hpp"
 #include "profiler_operation_registry.hpp"
 
 enum struct GemmMatrixLayout
@@ -29,8 +29,8 @@ enum struct GemmDataType
     INT8_INT8_INT8, // 3
 };
 
-#define OP_NAME "grouped_gemm_gelu"
-#define OP_DESC "Grouped GEMM+Gelu"
+#define OP_NAME "grouped_gemm_fastgelu"
+#define OP_DESC "Grouped GEMM+FastGelu"
 
 namespace {
 
@@ -50,7 +50,7 @@ std::vector<int> argToIntArray(char* input)
     return out;
 }
 
-int profile_grouped_gemm_gelu(int argc, char* argv[])
+int profile_grouped_gemm_fastgelu(int argc, char* argv[])
 {
     if(!(argc == 14))
     {
@@ -86,13 +86,13 @@ int profile_grouped_gemm_gelu(int argc, char* argv[])
 
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        ck::profiler::profile_grouped_gemm_gelu_impl<ck::half_t,
-                                                     ck::half_t,
-                                                     ck::half_t,
-                                                     float,
-                                                     ck::tensor_layout::gemm::RowMajor,
-                                                     ck::tensor_layout::gemm::RowMajor,
-                                                     ck::tensor_layout::gemm::RowMajor>(
+        ck::profiler::profile_grouped_gemm_fastgelu_impl<ck::half_t,
+                                                         ck::half_t,
+                                                         ck::half_t,
+                                                         float,
+                                                         ck::tensor_layout::gemm::RowMajor,
+                                                         ck::tensor_layout::gemm::RowMajor,
+                                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -106,13 +106,13 @@ int profile_grouped_gemm_gelu(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        ck::profiler::profile_grouped_gemm_gelu_impl<ck::half_t,
-                                                     ck::half_t,
-                                                     ck::half_t,
-                                                     float,
-                                                     ck::tensor_layout::gemm::RowMajor,
-                                                     ck::tensor_layout::gemm::ColumnMajor,
-                                                     ck::tensor_layout::gemm::RowMajor>(
+        ck::profiler::profile_grouped_gemm_fastgelu_impl<ck::half_t,
+                                                         ck::half_t,
+                                                         ck::half_t,
+                                                         float,
+                                                         ck::tensor_layout::gemm::RowMajor,
+                                                         ck::tensor_layout::gemm::ColumnMajor,
+                                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -126,13 +126,13 @@ int profile_grouped_gemm_gelu(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        ck::profiler::profile_grouped_gemm_gelu_impl<ck::half_t,
-                                                     ck::half_t,
-                                                     ck::half_t,
-                                                     float,
-                                                     ck::tensor_layout::gemm::ColumnMajor,
-                                                     ck::tensor_layout::gemm::RowMajor,
-                                                     ck::tensor_layout::gemm::RowMajor>(
+        ck::profiler::profile_grouped_gemm_fastgelu_impl<ck::half_t,
+                                                         ck::half_t,
+                                                         ck::half_t,
+                                                         float,
+                                                         ck::tensor_layout::gemm::ColumnMajor,
+                                                         ck::tensor_layout::gemm::RowMajor,
+                                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -146,13 +146,13 @@ int profile_grouped_gemm_gelu(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        ck::profiler::profile_grouped_gemm_gelu_impl<ck::half_t,
-                                                     ck::half_t,
-                                                     ck::half_t,
-                                                     float,
-                                                     ck::tensor_layout::gemm::ColumnMajor,
-                                                     ck::tensor_layout::gemm::ColumnMajor,
-                                                     ck::tensor_layout::gemm::RowMajor>(
+        ck::profiler::profile_grouped_gemm_fastgelu_impl<ck::half_t,
+                                                         ck::half_t,
+                                                         ck::half_t,
+                                                         float,
+                                                         ck::tensor_layout::gemm::ColumnMajor,
+                                                         ck::tensor_layout::gemm::ColumnMajor,
+                                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -174,4 +174,4 @@ int profile_grouped_gemm_gelu(int argc, char* argv[])
 
 } // anonymous namespace
 
-REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_grouped_gemm_gelu);
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_grouped_gemm_fastgelu);
