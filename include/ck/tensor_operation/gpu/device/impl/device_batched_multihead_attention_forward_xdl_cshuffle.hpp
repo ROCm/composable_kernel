@@ -158,6 +158,7 @@ template <index_t NumDimG,
           typename BDataType,
           typename B1DataType,
           typename CDataType,
+          typename GemmDataType,
           typename ZDataType,
           typename LSEDataType,
           typename Acc0BiasDataType,
@@ -412,6 +413,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
     // GridwiseGemm
     using GridwiseGemm = GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle<
         ADataType, // TODO: distinguish A/B datatype
+        GemmDataType,
         GemmAccDataType,
         CShuffleDataType,
         CDataType,
