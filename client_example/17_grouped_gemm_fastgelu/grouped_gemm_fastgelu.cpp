@@ -11,7 +11,7 @@
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_gelu.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_fastgelu.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -20,7 +20,7 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Gelu        = ck::tensor_operation::element_wise::Gelu;
+using FastGelu    = ck::tensor_operation::element_wise::FastGelu;
 
 using ADataType  = F16;
 using BDataType  = F16;
@@ -34,7 +34,7 @@ using ELayout  = Row;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
-using CDEElementOp = Gelu;
+using CDEElementOp = FastGelu;
 
 struct SimpleDeviceMem
 {
