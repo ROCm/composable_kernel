@@ -381,6 +381,9 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 const index_t N = gemm_descs[i].N_;
                 const index_t K = gemm_descs[i].K_;
 
+                a_mtx_mraw_kraw_.emplace_back(M, K);
+                b_mtx_nraw_kraw_.emplace_back(N, K);
+
                 if(M == 0)
                 {
                     skipped_group_count_++;
@@ -485,6 +488,8 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         CDEElementwiseOperation c_element_op_;
 
         std::vector<GemmBiasTransKernelArg> gemm_desc_kernel_arg_;
+        std::vector<Tuple<index_t, index_t>> a_mtx_mraw_kraw_;
+        std::vector<Tuple<index_t, index_t>> b_mtx_nraw_kraw_;
 
         index_t grid_size_;
     };
@@ -605,17 +610,18 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         // load size.
         if constexpr(GemmSpec != GemmSpecialization::Default)
         {
-            for(const auto& gemm_desc : arg.gemm_desc_kernel_arg_)
-            {
-                const auto a_raw_vector_dim =
-                    gemm_desc.a_grid_desc_m_k_.GetTransforms()[Number<ABlockTransferSrcVectorDim>{}]
-                        .low_length_;
-                const auto b_raw_vector_dim =
-                    gemm_desc.b_grid_desc_n_k_.GetTransforms()[Number<BBlockTransferSrcVectorDim>{}]
-                        .low_length_;
+            // [A|B]BlockTransferSrcVectorDim value define dimension in the block {K0,M,K1} layout,
+            // thus we have to adapt it to the {M,K} or {N,K} layout.
+            const auto a_raw_vector_dim = ABlockTransferSrcVectorDim != 1 ? 1 : 0;
+            const auto b_raw_vector_dim = BBlockTransferSrcVectorDim != 1 ? 1 : 0;
 
-                supported = supported & (a_raw_vector_dim % ABlockTransferSrcScalarPerVector == 0);
-                supported = supported & (b_raw_vector_dim % BBlockTransferSrcScalarPerVector == 0);
+            for(index_t i = 0; i < arg.group_count_; ++i)
+            {
+                const auto a_vector_dim = arg.a_mtx_mraw_kraw_[i].At(Number<a_raw_vector_dim>{});
+                const auto b_vector_dim = arg.b_mtx_nraw_kraw_[i].At(Number<b_raw_vector_dim>{});
+
+                supported = supported & (a_vector_dim % ABlockTransferSrcScalarPerVector == 0);
+                supported = supported & (b_vector_dim % BBlockTransferSrcScalarPerVector == 0);
             }
         }
 
