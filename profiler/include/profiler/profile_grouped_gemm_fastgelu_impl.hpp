@@ -240,12 +240,9 @@ bool profile_grouped_gemm_fastgelu_impl(int do_verification,
                         c_element_op(t(idx), t(idx));
                     });
 
-                    bool group_pass = ck::utils::check_err(c_m_n_device_results[i],
-                                                           c_m_n_host_result,
-                                                           "Error! Incorrect results!",
-                                                           1e-3f,
-                                                           0.2f);
-                    pass            = pass && group_pass;
+                    bool group_pass =
+                        ck::utils::check_err(c_m_n_device_results[i], c_m_n_host_result);
+                    pass = pass && group_pass;
 
                     std::cout << "group: " << i << " verification result: " << std::boolalpha
                               << group_pass << std::endl;
