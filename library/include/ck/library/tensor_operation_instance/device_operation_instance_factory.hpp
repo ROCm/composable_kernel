@@ -89,8 +89,10 @@ using Scale          = ck::tensor_operation::element_wise::Scale;
 using Bilinear       = ck::tensor_operation::element_wise::Bilinear;
 using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
 using AddFastGelu    = ck::tensor_operation::element_wise::AddFastGelu;
+using AddReluAdd     = ck::tensor_operation::element_wise::AddReluAdd;
 using FastGelu       = ck::tensor_operation::element_wise::FastGelu;
 using AddMultiply    = ck::tensor_operation::element_wise::AddMultiply;
+using ScaleAdd       = ck::tensor_operation::element_wise::ScaleAdd;
 
 template <typename Activation>
 using Activation_Mul_Clamp = ck::tensor_operation::element_wise::Activation_Mul_Clamp<Activation>;

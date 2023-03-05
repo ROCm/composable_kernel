@@ -83,6 +83,11 @@ static inline __host__ bool isnan(int4_t x)
 };
 #endif
 
+static inline __host__ half_t sqrt(half_t x)
+{
+    return static_cast<half_t>(std::sqrt(static_cast<float>(x)));
+};
+
 static inline __host__ float sqrt(float x) { return std::sqrt(x); };
 
 static inline __host__ double sqrt(double x) { return std::sqrt(x); };
@@ -158,9 +163,14 @@ static inline __device__ bool isnan(half_t x)
     return (xx & 0x7FFF) > 0x7C00;
 };
 
-static inline __device__ float sqrt(float x) { return ::sqrtf(x); };
+static inline __device__ half_t sqrt(half_t x)
+{
+    return static_cast<half_t>(__builtin_amdgcn_sqrtf(static_cast<float>(x)));
+};
 
-static inline __device__ double sqrt(double x) { return ::sqrt(x); };
+static inline __device__ float sqrt(float x) { return __builtin_amdgcn_sqrtf(x); };
+
+static inline __device__ double sqrt(double x) { return __builtin_amdgcn_sqrt(x); };
 
 } // namespace math
 } // namespace ck
