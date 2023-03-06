@@ -579,7 +579,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         namespace ctc = tensor_layout::convolution;
 
         // check device
-        if(get_device_name() == "gfx1100")
+        if(get_device_name() == "gfx1100" || get_device_name() == "gfx1101")
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {
