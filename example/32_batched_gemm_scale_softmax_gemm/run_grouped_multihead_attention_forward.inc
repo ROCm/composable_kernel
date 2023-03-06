@@ -426,8 +426,7 @@ int run(int argc, char* argv[])
             double atol = 1e-3;
 
             // when BF16 is taken, set absolute error and relative error to 0.01
-            if(std::is_same_v<ADataType, ck::bhalf_t> && std::is_same_v<B0DataType, ck::bhalf_t> &&
-               std::is_same_v<B1DataType, ck::bhalf_t> && std::is_same_v<CDataType, ck::bhalf_t>)
+            if(std::is_same_v<DataType, ck::bhalf_t> || std::is_same_v<GemmDataType, ck::bhalf_t>)
             {
                 rtol = 1e-2;
                 atol = 1e-2;

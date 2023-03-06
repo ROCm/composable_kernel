@@ -9,8 +9,8 @@ int run(int argc, char* argv[])
 
     // GEMM shape for A/B0/B1/C
     // C_g_m_o = A_g_m_k * B0_g_k_n * B1_g_n_o
-    ck::index_t M = 512; // 120
-    ck::index_t N = 512; // 1000
+    ck::index_t M = 1000; // 120
+    ck::index_t N = 1000; // 1000
     ck::index_t K = 64;
     ck::index_t O = 64;
 
@@ -360,8 +360,7 @@ int run(int argc, char* argv[])
         double atol = 1e-3;
 
         // when BF16 is taken, set absolute error and relative error to 0.01
-        if(std::is_same_v<ADataType, ck::bhalf_t> && std::is_same_v<B0DataType, ck::bhalf_t> &&
-           std::is_same_v<B1DataType, ck::bhalf_t> && std::is_same_v<CDataType, ck::bhalf_t>)
+        if(std::is_same_v<DataType, ck::bhalf_t> || std::is_same_v<GemmDataType, ck::bhalf_t>)
         {
             rtol = 1e-2;
             atol = 1e-2;

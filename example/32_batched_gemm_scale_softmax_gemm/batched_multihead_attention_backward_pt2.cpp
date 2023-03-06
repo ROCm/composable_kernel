@@ -388,6 +388,8 @@ int run(int argc, char* argv[])
 
         input_permute  = std::stoi(argv[11]);
         output_permute = std::stoi(argv[12]);
+
+        p_drop = std::stoi(argv[13]);
     }
     else
     {
@@ -399,6 +401,20 @@ int run(int argc, char* argv[])
         printf("arg11 to 12: input / output permute\n");
         exit(0);
     }
+
+    std::cout << "do_verification: " << do_verification << std::endl;
+    std::cout << "init_method: " << init_method << std::endl;
+    std::cout << "time_kernel: " << time_kernel << std::endl;
+    std::cout << "M: " << M << std::endl;
+    std::cout << "N: " << N << std::endl;
+    std::cout << "K: " << K << std::endl;
+    std::cout << "O: " << O << std::endl;
+    std::cout << "G0: " << G0 << std::endl;
+    std::cout << "G1: " << G1 << std::endl;
+    std::cout << "alpha: " << alpha << std::endl;
+    std::cout << "input_permute: " << input_permute << std::endl;
+    std::cout << "output_permute: " << output_permute << std::endl;
+    std::cout << "p_drop: " << p_drop << std::endl;
 
     const ck::index_t BatchCount = G0 * G1;
 
