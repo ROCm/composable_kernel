@@ -415,6 +415,8 @@ int run(int argc, char* argv[])
     std::cout << "input_permute: " << input_permute << std::endl;
     std::cout << "output_permute: " << output_permute << std::endl;
     std::cout << "p_drop: " << p_drop << std::endl;
+    std::cout << "seed: " << seed << std::endl;
+    std::cout << "offset: " << offset << std::endl;
 
     const ck::index_t BatchCount = G0 * G1;
 
