@@ -34,8 +34,8 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
-static constexpr auto MNPadding   = ck::tensor_operation::device::GemmSpecialization::MNPadding;
+// static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto MNPadding = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
 using PT = ck::tensor_operation::element_wise::PassThrough;
 
@@ -147,7 +147,7 @@ struct GetStride;
 
 template<>
 struct GetStride<Row>{
-    static ck::index_t Get(ck::index_t Rows_, ck::index_t Cols_, ck::index_t Stride_)
+    static ck::index_t Get(ck::index_t /*Rows_*/, ck::index_t Cols_, ck::index_t Stride_)
     {
         if(Stride_ <= 0){
             return Cols_;
@@ -159,7 +159,7 @@ struct GetStride<Row>{
 
 template<>
 struct GetStride<Col>{
-    static ck::index_t Get(ck::index_t Rows_, ck::index_t Cols_, ck::index_t Stride_)
+    static ck::index_t Get(ck::index_t Rows_, ck::index_t /*Cols_*/, ck::index_t Stride_)
     {
         if(Stride_ <= 0){
             return Rows_;
@@ -266,10 +266,10 @@ bool run_gemm(const std::vector<std::unique_ptr<BasePtr>> & op_ptrs, const Probl
 
     float fastest_time = std::numeric_limits<float>::max();
     float fastest_gb_per_sec = 0;
-    float fastest_tflops;
+    float fastest_tflops = 0;
     int fastest_id = -1;
 
-    for(int i = 0; i < op_ptrs.size(); i++) {
+    for(int i = 0; i < static_cast<int>(op_ptrs.size()); i++) {
         auto& op_ptr = op_ptrs[i];
 
         // do GEMM

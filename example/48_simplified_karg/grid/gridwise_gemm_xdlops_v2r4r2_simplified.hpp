@@ -143,8 +143,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_simplified
         {
         }
 
-        virtual ~Argument() {}
-
         void Print() const
         {
             std::cout << "arg {"
