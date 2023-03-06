@@ -37,7 +37,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle
            GemmDefault,   
            256,         // BlockSize
            128,         // MPerBlock
-           128,          // NPerBlock
+           128,         // NPerBlock
            32,          // KPerBlock
            8,           // K1
            16,          // MPerWmma

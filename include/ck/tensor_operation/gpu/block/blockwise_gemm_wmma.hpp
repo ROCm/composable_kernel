@@ -65,20 +65,6 @@ struct BlockwiseGemmWMMA
     static constexpr index_t A_K1 = ABlockDesc{}.GetLength(I4);
     static constexpr index_t B_K1 = BBlockDesc{}.GetLength(I4);
 
-    static constexpr auto A_temp0 = Number<ABlockDesc{}.GetLength(I0)>{};
-    static constexpr auto A_temp1 = Number<ABlockDesc{}.GetLength(I1)>{};
-    static constexpr auto A_temp2 = Number<ABlockDesc{}.GetLength(I2)>{};
-    static constexpr auto A_temp3 = Number<ABlockDesc{}.GetLength(I3)>{};
-    static constexpr auto A_temp4 = Number<ABlockDesc{}.GetLength(I4)>{};
-
-    // FIX it, workaround
-    using ABlockDesc_temp = decltype(
-        make_naive_tensor_descriptor(make_tuple(A_temp0, A_temp1, A_temp2, A_temp3, A_temp4),
-                                     make_tuple(A_temp1* A_temp2* A_temp3* A_temp4,
-                                                A_temp2* A_temp3* A_temp4,
-                                                A_temp3* A_temp4,
-                                                A_temp4,
-                                                I1)));
     static constexpr auto wmma_gemm =
         WmmaGemm<FloatA, FloatB, FloatAcc, MPerWMMA, NPerWMMA, KPack, TransposeC>{};
 
@@ -210,9 +196,6 @@ struct BlockwiseGemmWMMA
         constexpr auto c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens =
             wmma_gemm.GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths();
 
-        // constexpr auto NSubGroup          =
-        // c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I0]; constexpr auto MThreadPerSubGroup
-        // = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I1];
         constexpr auto NAccVgprs = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
 
         return make_naive_tensor_descriptor_packed(
@@ -302,7 +285,7 @@ struct BlockwiseGemmWMMA
 
     // Describe how data allocated in thread copy src buffer
     // M0_M1_M2 = MRepeat_MWave_MPerWmma, N0_N1_N2 = NRepeat_NWave_NPerWmma
-    static constexpr ABlockDesc_temp a_block_desc_k0_m0_m1_m2_k1;
+    static constexpr ABlockDesc a_block_desc_k0_m0_m1_m2_k1;
     static constexpr BBlockDesc b_block_desc_k0_n0_n1_n2_k1;
 
     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>

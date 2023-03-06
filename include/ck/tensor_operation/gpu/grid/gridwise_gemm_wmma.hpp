@@ -247,20 +247,45 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
                 constexpr auto KWmma = ABlockDesc_{}.GetLength(I0);
                 constexpr auto A_K1  = ABlockDesc_{}.GetLength(I5);
 
+                // Err: merge transform cause non-constexpr issue
+
+                // return transform_tensor_descriptor(
+                //     ABlockDesc_{},
+                //     make_tuple(make_merge_transform(make_tuple(Number<KWmma>{}, I1)),
+                //                make_pass_through_transform(Number<MRepeat>{}),
+                //                make_pass_through_transform(I1),
+                //                make_pass_through_transform(I1),
+                //                make_pass_through_transform(Number<A_K1>{})),
+                //     make_tuple(Sequence<0, 3>{},
+                //                Sequence<1>{},
+                //                Sequence<2>{},
+                //                Sequence<4>{},
+                //                Sequence<5>{}),
+                //     make_tuple(
+                //         Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{},
+                //         Sequence<4>{}));
+
+                // Workaround, Freeze transform
                 return transform_tensor_descriptor(
                     ABlockDesc_{},
-                    make_tuple(make_merge_transform(make_tuple(Number<KWmma>{}, I1)),
+                    make_tuple(make_freeze_transform(I0),
+                               make_pass_through_transform(Number<KWmma>{}),
                                make_pass_through_transform(Number<MRepeat>{}),
                                make_pass_through_transform(I1),
                                make_pass_through_transform(I1),
                                make_pass_through_transform(Number<A_K1>{})),
-                    make_tuple(Sequence<0, 3>{},
+                    make_tuple(Sequence<3>{},
+                               Sequence<0>{},
                                Sequence<1>{},
                                Sequence<2>{},
                                Sequence<4>{},
                                Sequence<5>{}),
-                    make_tuple(
-                        Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
+                    make_tuple(Sequence<>{},
+                               Sequence<0>{},
+                               Sequence<1>{},
+                               Sequence<2>{},
+                               Sequence<3>{},
+                               Sequence<4>{}));
             }
         }();
 
@@ -456,14 +481,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
 
         static constexpr auto a_block_space_size_aligned =
             AEnableLds ? math::integer_least_multiple(MakeABlockDescriptor().GetElementSpaceSize(),
-                                                      max_lds_align) *
-                             sizeof(FloatA)
+                                                      max_lds_align)
                        : 0;
         static constexpr auto b_block_space_size_aligned =
             BEnableLds ? math::integer_least_multiple(
                              GetBBlockDescriptor_K0PerBlock_NPerBlock_K1().GetElementSpaceSize(),
-                             max_lds_align) *
-                             sizeof(FloatB)
+                             max_lds_align)
                        : 0;
 
         static constexpr auto a_block_space_offset = 0;
@@ -472,13 +495,14 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
         // LDS allocation for C shuffle in LDS
         static constexpr auto c_shuffle_block_space_size =
             GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat()
-                .GetElementSpaceSize() *
-            sizeof(FloatCShuffle);
+                .GetElementSpaceSize();
 
         static constexpr auto c_shuffle_block_space_offset = 0;
 
-        static constexpr auto lds_size = math::max(
-            c_shuffle_block_space_size, (a_block_space_size_aligned + b_block_space_size_aligned));
+        static constexpr auto lds_size =
+            math::max(c_shuffle_block_space_size * sizeof(FloatCShuffle),
+                      a_block_space_size_aligned * sizeof(FloatA) +
+                          b_block_space_size_aligned * sizeof(FloatB));
     };
 
     template <bool HasMainKBlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
@@ -539,7 +563,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
                 constexpr auto K0PerBlock = KPerBlock/ K1;
                 auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
                     static_cast<FloatA*>(p_shared), 
-                    a_block_desc.GetElementSpaceSize());        
+                    SharedMemTrait::a_block_space_size_aligned);        
 
                 auto a_blockwise_copy =
                     ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
@@ -614,8 +638,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
             {
                 constexpr auto K0PerBlock = KPerBlock/ K1;
                 auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                    static_cast<FloatB*>(p_shared) + SharedMemTrait::a_block_space_size_aligned, 
-                    b_block_desc.GetElementSpaceSize());
+                    static_cast<FloatB*>(p_shared) + SharedMemTrait::b_block_space_offset, 
+                    SharedMemTrait::b_block_space_size_aligned);
 
                 auto b_blockwise_copy =
                     ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
@@ -726,13 +750,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
 /*******************************************************************************/
         // write out to C, implement shuffle
         {
-#if 0
-            static_for<0, c_thread_buf.Size(), 1>{}([&](auto i) {
-                printf("tid: %03d, c_thread_buf[%02d] val: %08x\n", get_thread_local_1d_id(), i.value, 
-                *(reinterpret_cast<const uint32_t*>(&(c_thread_buf[i]))));
-                // c_thread_buf(i) = 32;
-            });
-#endif
             constexpr auto c_thread_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs =  
             blockwise_gemm.GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs();
 
@@ -751,7 +768,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
                 GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat();
 
             auto c_shuffle_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                static_cast<FloatCShuffle*>(p_shared), SharedMemTrait::c_shuffle_block_space_size);
+                static_cast<FloatCShuffle*>(p_shared) + SharedMemTrait::c_shuffle_block_space_offset, 
+                SharedMemTrait::c_shuffle_block_space_size);
 
             constexpr auto c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs = transform_tensor_descriptor(
                 c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat,
