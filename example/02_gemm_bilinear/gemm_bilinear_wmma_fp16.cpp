@@ -87,8 +87,8 @@ using DeviceOpInstance =
                                                                     8,
                                                                     16,
                                                                     16,
-                                                                    1,
                                                                     8,
+                                                                    1,
                                                                     S<4, 64, 1>,
                                                                     S<1, 0, 2>,
                                                                     S<1, 0, 2>,
@@ -105,7 +105,7 @@ using DeviceOpInstance =
                                                                     true,
                                                                     1,
                                                                     1,
-                                                                    S<1, 128, 1, 2>,
+                                                                    S<1, 16, 1, 16>,
                                                                     8>;
 
 int main(int argc, char* argv[])

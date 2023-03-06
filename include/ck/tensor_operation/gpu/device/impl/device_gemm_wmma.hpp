@@ -344,22 +344,6 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-#if 0
-            {
-                std::cout << "arg.a_grid_desc_{" << arg.a_grid_desc_.GetLength(I0)
-                          << ", " << arg.a_grid_desc_.GetLength(I1) << ", "
-                          << arg.a_grid_desc_.GetLength(I2) << "}" << std::endl;
-
-                std::cout << "arg.b_grid_desc_k0_n_k1_{" << arg.b_grid_desc_k0_n_k1_.GetLength(I0)
-                          << ", " << arg.b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
-                          << arg.b_grid_desc_k0_n_k1_.GetLength(I2) << "}" << std::endl;
-
-                std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) 
-                          << ", " << arg.c_grid_desc_m_n_.GetLength(I1) << ", "
-                          << arg.c_grid_desc_m_n_.GetLength(I2) << "}" << std::endl;
-            }
-#endif
-
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_,
                                             arg.b_grid_desc_k0_n_k1_,
                                             arg.c_grid_desc_m_n_,
@@ -372,7 +356,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
             const index_t grid_size =
                 arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
 
-            const auto GetK = [&]() {
+            const auto K = [&]() {
                 if constexpr(AEnableLds)
                 {
                     return arg.a_grid_desc_.GetLength(I0) * arg.a_grid_desc_.GetLength(I2);
@@ -382,8 +366,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
                     return arg.a_grid_desc_.GetLength(I0) * arg.a_grid_desc_.GetLength(I3) *
                            arg.a_grid_desc_.GetLength(I5);
                 }
-            };
-            const auto K = GetK();
+            }();
 
             float ave_time = 0;
 
