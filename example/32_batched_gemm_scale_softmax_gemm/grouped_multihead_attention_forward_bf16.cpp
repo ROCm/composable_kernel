@@ -101,9 +101,9 @@ using DeviceGemmInstance =
         256,
         128,         // MPerBlock
         128,         // NPerBlock
-        64,          // KPerBlock
+        32,          // KPerBlock
         64,          // Gemm1NPerBlock
-        64,          // Gemm1KPerBlock
+        32,          // Gemm1KPerBlock
         8,           // AK1
         8,           // BK1
         2,           // B1K1
@@ -130,7 +130,7 @@ using DeviceGemmInstance =
         S<0, 2, 1>,
         S<0, 2, 1>,
         1,
-        2,
+        4,
         2,
         false,
         1,              // CShuffleMXdlPerWavePerShuffle
