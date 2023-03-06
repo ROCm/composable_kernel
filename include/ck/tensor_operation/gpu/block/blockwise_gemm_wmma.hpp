@@ -27,6 +27,8 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
+          bool AEnableLds = true,
+          bool BEnableLds = true,
           bool TransposeC = false>
 /* Option: Read from LDS, big buffer hold all threads required data
  * Source
@@ -82,9 +84,6 @@ struct BlockwiseGemmWMMA
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerWMMA);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerWMMA);
-
-    static constexpr bool AEnableLds = NWaves == 1 ? false : true;
-    static constexpr bool BEnableLds = MWaves == 1 ? false : true;
 
     // Read from Lds, duplicate Twice, Read from VGPR, no duplication.
     static constexpr index_t A_Data_Duplicated_Rate = AEnableLds ? 2 : 1;

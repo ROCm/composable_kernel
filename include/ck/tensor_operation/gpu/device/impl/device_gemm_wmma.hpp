@@ -89,6 +89,9 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
     static constexpr auto AEnableLds = NWaves == 1 ? false : true;
     static constexpr auto BEnableLds = MWaves == 1 ? false : true;
 
+    // static constexpr auto AEnableLds = true;
+    // static constexpr auto BEnableLds = true;
+
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
     // Describe how data read from Global memory

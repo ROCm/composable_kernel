@@ -56,6 +56,8 @@ struct GridwiseGemmPipeline_v1<1, true, true>
                                CThreadBuffer& c_thread_buf,
                                index_t num_loop)
     {
+        if(get_thread_local_1d_id()<32);
+        printf("Mat-A Lds Enabled, Mat-B Lds Enabled\n");
         // preload data into LDS
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
         b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
@@ -304,6 +306,9 @@ struct GridwiseGemmPipeline_v1<1, false, true>
             },
             Number<a_block_desc.GetLengths().GetSize()>{});
 #endif
+        if(get_thread_local_1d_id()<32);
+            printf("Mat-A Lds Disabled, Mat-B Lds Enabled\n");
+
         constexpr auto a_block_origin_idx = make_tuple(I0, I0, I0, I0, I0, I0);
         auto a_block_buf_switch           = a_block_buf;
 

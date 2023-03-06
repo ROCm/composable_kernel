@@ -129,7 +129,7 @@ using DeviceGemmInstance =
         S<0, 2, 1>,
         1,
         8,
-        1,
+        1, // be eight?
         false,
         1,              // CShuffleMWmmaPerWavePerShuffle
         2,              // CShuffleNWmmaPerWavePerShuffle

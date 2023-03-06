@@ -694,7 +694,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
                               NPerWmma,
                               MRepeat,
                               NRepeat,
-                              KPack>{};
+                              KPack,
+                              AEnableLds,
+                              BEnableLds>{};
 
         // Prepare Register for C matrix
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
