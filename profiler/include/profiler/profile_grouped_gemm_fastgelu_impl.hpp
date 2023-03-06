@@ -236,9 +236,6 @@ bool profile_grouped_gemm_fastgelu_impl(int do_verification,
                                                               c_element_op);
 
                     ref_invoker.Run(ref_argument);
-                    c_m_n_host_result.ForEach([&c_element_op](auto& t, const auto& idx) {
-                        c_element_op(t(idx), t(idx));
-                    });
 
                     bool group_pass =
                         ck::utils::check_err(c_m_n_device_results[i], c_m_n_host_result);
