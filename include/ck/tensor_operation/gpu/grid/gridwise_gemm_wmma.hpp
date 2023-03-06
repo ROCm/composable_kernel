@@ -731,7 +731,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
         constexpr auto b_block_slice_copy_step = MakeBBlockSliceCopyStep();
 
         // gridwise GEMM pipeline
-        const index_t K0BlockMainLoop = __builtin_amdgcn_readfirstlane(K / KPerBlock);
+        const index_t KBlockMainLoop = __builtin_amdgcn_readfirstlane(K / KPerBlock);
         GridwiseGemmPipe::template Run<HasMainKBlockLoop>(a_grid_desc,
                                                           a_block_desc,
                                                           a_blockwise_copy,
@@ -746,7 +746,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
                                                           b_block_slice_copy_step,
                                                           blockwise_gemm,
                                                           c_thread_buf,
-                                                          K0BlockMainLoop);
+                                                          KBlockMainLoop);
 /*******************************************************************************/
         // write out to C, implement shuffle
         {

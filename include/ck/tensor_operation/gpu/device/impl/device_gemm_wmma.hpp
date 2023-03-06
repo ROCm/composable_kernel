@@ -89,8 +89,9 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
     static constexpr auto AEnableLds = NWaves == 1 ? false : true;
     static constexpr auto BEnableLds = MWaves == 1 ? false : true;
 
-    // static constexpr auto AEnableLds = true;
-    // static constexpr auto BEnableLds = true;
+    // Force enable LDS if uncommented following
+    // AEnableLds = true;
+    // BEnableLds = true;
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
@@ -124,7 +125,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
             return transform_tensor_descriptor(
                 a_grid_desc_m_k,
                 make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                           make_pass_through_transform(a_grid_desc_m_k.GetLength(I0))),
+                           make_pass_through_transform(M)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
         }

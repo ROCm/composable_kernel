@@ -296,20 +296,27 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
                 constexpr auto KWmma = ABlockDesc_{}.GetLength(I0);
                 constexpr auto A_K1  = ABlockDesc_{}.GetLength(I5);
 
+                // Workaround, Freeze transform
                 return transform_tensor_descriptor(
                     ABlockDesc_{},
-                    make_tuple(make_merge_transform(make_tuple(Number<KWmma>{}, I1)),
+                    make_tuple(make_freeze_transform(I0),
+                               make_pass_through_transform(Number<KWmma>{}),
                                make_pass_through_transform(Number<MRepeat>{}),
                                make_pass_through_transform(I1),
                                make_pass_through_transform(I1),
                                make_pass_through_transform(Number<A_K1>{})),
-                    make_tuple(Sequence<0, 3>{},
+                    make_tuple(Sequence<3>{},
+                               Sequence<0>{},
                                Sequence<1>{},
                                Sequence<2>{},
                                Sequence<4>{},
                                Sequence<5>{}),
-                    make_tuple(
-                        Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
+                    make_tuple(Sequence<>{},
+                               Sequence<0>{},
+                               Sequence<1>{},
+                               Sequence<2>{},
+                               Sequence<3>{},
+                               Sequence<4>{}));
             }
         }();
 
@@ -782,6 +789,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
             MRepeat,
             LRepeat,
             KPack,
+            AEnableLds,
+            B0EnableLds,
             true>{}; // C' = B' x A'
             
 
@@ -968,6 +977,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
                               MRepeat,
                               NRepeat,
                               KPack,
+                              false,
+                              B1EnableLds,
                               true>{make_tuple(0, 0, 0, 0, 0)};
 
         auto acc1_thread_buf = blockwise_gemm1.GetCThreadBuffer();

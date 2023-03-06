@@ -70,12 +70,12 @@ using DeviceOpInstanceKKNN =
                                                                                   256,
                                                                                   128,
                                                                                   128,
-                                                                                  4,
+                                                                                  32,
                                                                                   8,
                                                                                   16,
                                                                                   16,
-                                                                                  4,
-                                                                                  2,
+                                                                                  1,
+                                                                                  8,
                                                                                   S<4, 64, 1>,
                                                                                   S<1, 0, 2>,
                                                                                   S<1, 0, 2>,
@@ -92,7 +92,7 @@ using DeviceOpInstanceKKNN =
                                                                                   true,
                                                                                   1,
                                                                                   1,
-                                                                                  S<1, 32, 1, 8>,
+                                                                                  S<1, 128, 1, 2>,
                                                                                   8>;
 
 using DeviceOpInstance = DeviceOpInstanceKKNN;

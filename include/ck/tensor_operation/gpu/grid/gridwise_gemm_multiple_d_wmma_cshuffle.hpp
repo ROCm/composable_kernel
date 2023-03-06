@@ -69,7 +69,7 @@ __global__ void
 
     const auto ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
 
-    __shared__ char p_shared[GridwiseOp::GetSharedMemoryNumberOfByte()];
+    __shared__ char p_shared[GridwiseOp::SharedMemTrait::lds_size];
 
     DsPointer p_ds_grid_grp;
 
@@ -148,7 +148,7 @@ __global__ void
             const Block2CTileMap block_2_etile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__))
-    __shared__ char p_shared[GridwiseOp::GetSharedMemoryNumberOfByte()];
+    __shared__ char p_shared[GridwiseOp::SharedMemTrait::lds_size];
 
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -237,7 +237,7 @@ __global__ void
             const Block2CTileMap block_2_ctile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__))
-    __shared__ char p_shared[GridwiseOp::GetSharedMemoryNumberOfByte()];
+    __shared__ char p_shared[GridwiseOp::SharedMemTrait::lds_size];
 
     GridwiseOp::template Run<HasMainKBlockLoop>(p_a_grid,
                                                 p_b_grid,
@@ -451,20 +451,27 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
                 constexpr auto KWmma = ABlockDesc_{}.GetLength(I0);
                 constexpr auto A_K1  = ABlockDesc_{}.GetLength(I5);
 
+                // Workaround, Freeze transform
                 return transform_tensor_descriptor(
                     ABlockDesc_{},
-                    make_tuple(make_merge_transform(make_tuple(Number<KWmma>{}, I1)),
+                    make_tuple(make_freeze_transform(I0),
+                               make_pass_through_transform(Number<KWmma>{}),
                                make_pass_through_transform(Number<MRepeat>{}),
                                make_pass_through_transform(I1),
                                make_pass_through_transform(I1),
                                make_pass_through_transform(Number<A_K1>{})),
-                    make_tuple(Sequence<0, 3>{},
+                    make_tuple(Sequence<3>{},
+                               Sequence<0>{},
                                Sequence<1>{},
                                Sequence<2>{},
                                Sequence<4>{},
                                Sequence<5>{}),
-                    make_tuple(
-                        Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
+                    make_tuple(Sequence<>{},
+                               Sequence<0>{},
+                               Sequence<1>{},
+                               Sequence<2>{},
+                               Sequence<3>{},
+                               Sequence<4>{}));
             }
         }();
 
@@ -538,19 +545,6 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
                 return static_cast<const DDataType*>(nullptr);
             },
             Number<NumDTensor>{});
-    }
-
-    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
-    {
-        // LDS allocation for A and B: be careful of alignment
-        const index_t gemm_bytes_end =
-            SharedMemTrait::a_block_space_size_aligned * sizeof(ADataType)+
-            SharedMemTrait::b_block_space_size_aligned * sizeof(BDataType);
-        
-        const index_t c_block_bytes_end =
-            SharedMemTrait::c_shuffle_block_space_size * sizeof(CShuffleDataType);
-
-        return math::max(gemm_bytes_end, c_block_bytes_end);
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -650,7 +644,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
 
     __host__ __device__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)
     {
-        const index_t num_loop = K / (K0PerBlock * K1);
+        const index_t num_loop = K / KPerBlock;
 
         return GridwiseGemmPipe::CalculateHasMainLoop(num_loop);
     }
@@ -704,11 +698,13 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
 
         static constexpr auto a_block_space_size_aligned =
             AEnableLds ? math::integer_least_multiple(MakeABlockDescriptor().GetElementSpaceSize(),
-                                                      max_lds_align): 0;
+                                                      max_lds_align)
+                       : 0;
         static constexpr auto b_block_space_size_aligned =
             BEnableLds ? math::integer_least_multiple(
                              GetBBlockDescriptor_K0PerBlock_NPerBlock_K1().GetElementSpaceSize(),
-                             max_lds_align): 0;
+                             max_lds_align)
+                       : 0;
 
         static constexpr auto a_block_space_offset = 0;
         static constexpr auto b_block_space_offset = a_block_space_size_aligned;
@@ -719,6 +715,11 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
                 .GetElementSpaceSize();
 
         static constexpr auto c_shuffle_block_space_offset = 0;
+
+        static constexpr auto lds_size =
+            math::max(c_shuffle_block_space_size * sizeof(CShuffleDataType),
+                      a_block_space_size_aligned * sizeof(ADataType) +
+                          b_block_space_size_aligned * sizeof(BDataType));
     };
 
     using DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
@@ -796,7 +797,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
             {
                 constexpr auto K0PerBlock = KPerBlock/ K1;
                 auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                    static_cast<FloatA*>(p_shared), 
+                    static_cast<ADataType*>(p_shared), 
                     a_block_desc.GetElementSpaceSize());        
 
                 auto a_blockwise_copy =
@@ -807,8 +808,8 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
 /* typename BlockSliceLengths,                    */    Sequence<K0PerBlock, MPerBlock, K1>,
 /* typename ThreadClusterLengths,                 */    ABlockTransferThreadClusterLengths_K0_M_K1,
 /* typename ThreadClusterArrangeOrder,            */    ABlockTransferThreadClusterArrangeOrder,
-/* typename SrcData,                              */    FloatA,
-/* typename DstData,                              */    FloatA,
+/* typename SrcData,                              */    ADataType,
+/* typename DstData,                              */    ADataType,
 /* typename SrcDesc,                              */    decltype(a_grid_desc),
 /* typename DstDesc,                              */    decltype(a_block_desc),
 /* typename SrcDimAccessOrder,                    */    ABlockTransferSrcAccessOrder,
@@ -835,13 +836,13 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
                 // Thread-wise copy
                 // KPerBlock/WmmaK -> MRepeat -> MWaves -> WmmaK/K1 -> MPerWmma -> K1
                 constexpr auto KWmmaPerBlock = KPerBlock / WmmaK;
-                auto a_block_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatA>(
+                auto a_block_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ADataType>(
                     a_block_desc.GetElementSpaceSize());
                 
                 // Limitation: NumDim of Src and Dst descriptor should be identical
                 auto a_blockwise_copy =
-                    ThreadwiseTensorSliceTransfer_v2<FloatA,
-                                                     FloatA,
+                    ThreadwiseTensorSliceTransfer_v2<ADataType,
+                                                     ADataType,
                                                      decltype(a_grid_desc),
                                                      decltype(a_block_desc),
                                                      Sequence<Number<KWmmaPerBlock>{},
@@ -872,7 +873,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
             {
                 constexpr auto K0PerBlock = KPerBlock/ K1;
                 auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                    static_cast<FloatB*>(p_shared) + SharedMemTrait::a_block_space_size_aligned, 
+                    static_cast<BDataType*>(p_shared) + SharedMemTrait::a_block_space_size_aligned, 
                     b_block_desc.GetElementSpaceSize());
 
                 auto b_blockwise_copy =
@@ -883,8 +884,8 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
                                                         Sequence<K0PerBlock, NPerBlock, K1>,
                                                         BBlockTransferThreadClusterLengths_K0_N_K1,
                                                         BBlockTransferThreadClusterArrangeOrder,
-                                                        FloatB,
-                                                        FloatB,
+                                                        BDataType,
+                                                        BDataType,
                                                         decltype(b_grid_desc_k0_n_k1),
                                                         decltype(b_block_desc),
                                                         BBlockTransferSrcAccessOrder,
@@ -909,11 +910,11 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
             else
             {
                 constexpr auto K0PerBlock = KPerBlock/ K1;
-                auto b_block_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatB>(
+                auto b_block_buf = make_static_buffer<AddressSpaceEnum::Vgpr, BDataType>(
                     b_block_desc.GetElementSpaceSize());
                 auto b_blockwise_copy =
-                    ThreadwiseTensorSliceTransfer_v4<FloatB,
-                                                     FloatB,
+                    ThreadwiseTensorSliceTransfer_v4<BDataType,
+                                                     BDataType,
                                                      decltype(b_grid_desc_k0_n_k1),
                                                      decltype(b_block_desc),
                                                      Sequence<Number<K0PerBlock>{},
@@ -952,38 +953,35 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
                               NPerWmma,
                               MRepeat,
                               NRepeat,
-                              KPack>{};
+                              KPack,
+                              AEnableLds,
+                              BEnableLds>{};
 
         // Prepare Register for C matrix
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
-/*******************************************************************************/
-        constexpr auto a_block_space_size_aligned = math::integer_least_multiple(a_block_desc_k0perblock_mperblock_k1.GetElementSpaceSize(), max_lds_align);
-        // LDS allocation for A and B: be careful of alignment
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(static_cast<ADataType*>(p_shared), a_block_desc_k0perblock_mperblock_k1.GetElementSpaceSize());
-        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(static_cast<BDataType*>(p_shared) + a_block_space_size_aligned, b_block_desc_k0perblock_nperblock_k1.GetElementSpaceSize());
-        
+/*******************************************************************************/        
         // Shift Per SUB_K
-        constexpr auto a_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
+        constexpr auto a_block_slice_copy_step = MakeABlockSliceCopyStep();
+        constexpr auto b_block_slice_copy_step = MakeBBlockSliceCopyStep();
 
         // gridwise GEMM pipeline
-        const index_t K0BlockMainLoop = __builtin_amdgcn_readfirstlane(K0 / K0PerBlock);
+        const index_t KBlockMainLoop = __builtin_amdgcn_readfirstlane(K / KPerBlock);
         GridwiseGemmPipe::template Run<HasMainKBlockLoop>(a_grid_desc,
-                                                          a_block_desc_k0perblock_mperblock_k1,
+                                                          a_block_desc,
                                                           a_blockwise_copy,
                                                           a_grid_buf,
                                                           a_block_buf,
                                                           a_block_slice_copy_step,
                                                           b_grid_desc_k0_n_k1,
-                                                          b_block_desc_k0perblock_nperblock_k1,
+                                                          b_block_desc,
                                                           b_blockwise_copy,
                                                           b_grid_buf,
                                                           b_block_buf,
                                                           b_block_slice_copy_step,
                                                           blockwise_gemm,
                                                           c_thread_buf,
-                                                          K0BlockMainLoop);
+                                                          KBlockMainLoop);
 /*******************************************************************************/
         // write out to C, implement shuffle
         {
