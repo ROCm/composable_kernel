@@ -26,9 +26,9 @@ template <index_t NumDimG,
           typename Acc1BiasDataType,
           typename AElementwiseOperation,
           typename B0ElementwiseOperation,
-          typename Acc0ElementwiseOperation,
+          typename C0DEElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename CElementwiseOperation,
+          typename C1DEElementwiseOperation,
           MaskingSpecialization MaskingSpec>
 struct DeviceBatchedGemmSoftmaxGemmPermute : public BaseOperator
 {
@@ -58,9 +58,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute : public BaseOperator
             acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
         AElementwiseOperation a_element_op,
         B0ElementwiseOperation b0_element_op,
-        Acc0ElementwiseOperation acc0_element_op,
+        C0DEElementwiseOperation c0de_element_op,
         B1ElementwiseOperation b1_element_op,
-        CElementwiseOperation c_element_op) = 0;
+        C1DEElementwiseOperation c1de_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };

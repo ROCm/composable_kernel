@@ -12,11 +12,11 @@ template <typename Tuple>
 class TestGroupnorm : public ::testing::Test
 {
     protected:
-    using XDataType     = std::tuple_element_t<0, Tuple>;
-    using GammaDataType = std::tuple_element_t<1, Tuple>;
-    using BetaDataType  = std::tuple_element_t<2, Tuple>;
-    using AccDataType   = std::tuple_element_t<3, Tuple>;
-    using YDataType     = std::tuple_element_t<4, Tuple>;
+    using XDataType       = std::tuple_element_t<0, Tuple>;
+    using GammaDataType   = std::tuple_element_t<1, Tuple>;
+    using BetaDataType    = std::tuple_element_t<2, Tuple>;
+    using ComputeDataType = std::tuple_element_t<3, Tuple>;
+    using YDataType       = std::tuple_element_t<4, Tuple>;
 
     void Run()
     {
@@ -34,7 +34,7 @@ class TestGroupnorm : public ::testing::Test
                 ck::profiler::profile_groupnorm_impl<XDataType,
                                                      GammaDataType,
                                                      BetaDataType,
-                                                     AccDataType,
+                                                     ComputeDataType,
                                                      YDataType>(true, 2, false, false, length);
             EXPECT_TRUE(success);
         }
@@ -42,7 +42,7 @@ class TestGroupnorm : public ::testing::Test
 };
 
 using KernelTypes = ::testing::Types<
-    // XDataType, GammaDataType, BetaDataType, AccDataType, YDataType>
+    // XDataType, GammaDataType, BetaDataType, ComputeDataType, YDataType>
     std::tuple<F32, F32, F32, F32, F32>>;
 
 TYPED_TEST_SUITE(TestGroupnorm, KernelTypes);

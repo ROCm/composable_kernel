@@ -135,7 +135,7 @@ int main(int argc, char* argv[])
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             using namespace ck::literals;
 
-            if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+            if constexpr(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
                 return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }

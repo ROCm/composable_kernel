@@ -12,11 +12,11 @@ template <typename Tuple>
 class TestLayernorm2d : public ::testing::Test
 {
     protected:
-    using XDataType     = std::tuple_element_t<0, Tuple>;
-    using GammaDataType = std::tuple_element_t<1, Tuple>;
-    using BetaDataType  = std::tuple_element_t<2, Tuple>;
-    using AccDataType   = std::tuple_element_t<3, Tuple>;
-    using YDataType     = std::tuple_element_t<4, Tuple>;
+    using XDataType       = std::tuple_element_t<0, Tuple>;
+    using GammaDataType   = std::tuple_element_t<1, Tuple>;
+    using BetaDataType    = std::tuple_element_t<2, Tuple>;
+    using ComputeDataType = std::tuple_element_t<3, Tuple>;
+    using YDataType       = std::tuple_element_t<4, Tuple>;
 
     void Run()
     {
@@ -29,7 +29,7 @@ class TestLayernorm2d : public ::testing::Test
             bool success = ck::profiler::profile_layernorm_impl<XDataType,
                                                                 GammaDataType,
                                                                 BetaDataType,
-                                                                AccDataType,
+                                                                ComputeDataType,
                                                                 YDataType,
                                                                 2>(true, 2, false, false, length);
             EXPECT_TRUE(success);
@@ -38,7 +38,7 @@ class TestLayernorm2d : public ::testing::Test
 };
 
 using KernelTypes = ::testing::Types<
-    // XDataType, GammaDataType, BetaDataType, AccDataType, YDataType>
+    // XDataType, GammaDataType, BetaDataType, ComputeDataType, YDataType>
     std::tuple<F16, F16, F16, F32, F16>>;
 
 TYPED_TEST_SUITE(TestLayernorm2d, KernelTypes);

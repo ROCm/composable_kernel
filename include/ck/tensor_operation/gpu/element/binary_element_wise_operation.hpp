@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/utility/data_type.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -51,6 +52,14 @@ struct Add
 
     template <>
     __host__ __device__ constexpr void
+    operator()<float>(float& y, const float& x0, const bhalf_t& x1) const
+    {
+        const float x1_tmp = ck::type_convert<float>(x1);
+        y                  = x0 + x1_tmp;
+    }
+
+    template <>
+    __host__ __device__ constexpr void
     operator()<bhalf_t>(bhalf_t& y, const bhalf_t& x0, const bhalf_t& x1) const
     {
         const float x1_tmp = ck::type_convert<float>(x0);
@@ -65,6 +74,30 @@ struct Add
     {
         y = x0 + x1;
     };
+};
+
+struct ScaleAdd
+{
+    __host__ __device__ ScaleAdd(float scale) : scale_(scale) {}
+
+    template <typename Y, typename X0, typename X1>
+    __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
+
+    template <>
+    __host__ __device__ void
+    operator()<float, float, half_t>(float& y, const float& x0, const half_t& x1) const
+    {
+        y = scale_ * x0 + ck::type_convert<float>(x1);
+    };
+
+    template <>
+    __host__ __device__ void
+    operator()<float, float, bhalf_t>(float& y, const float& x0, const bhalf_t& x1) const
+    {
+        y = scale_ * x0 + ck::type_convert<float>(x1);
+    };
+
+    float scale_;
 };
 
 struct Subtract
@@ -117,6 +150,13 @@ struct Bilinear
 
     template <typename Y, typename X0, typename X1>
     __host__ __device__ constexpr void operator()(Y&, const X0&, const X1&) const;
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<double, double, double>(double& y, const double& x0, const double& x1) const
+    {
+        y = alpha_ * x0 + beta_ * x1;
+    };
 
     template <>
     __host__ __device__ constexpr void
@@ -241,43 +281,42 @@ struct AddHardswish
     };
 };
 
-// C = A * B
 // E = FastGelu(C + D)
 struct AddFastGelu
 {
-    // Fast GeLU
-    // https://paperswithcode.com/method/gelu
-    // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
-    __host__ __device__ static constexpr float GetFastGeLU(float x)
-    {
-        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-        const float emu = exp(-u);
-        const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
-        return x * cdf;
-    }
-
-    template <typename T>
-    static inline constexpr bool is_valid_param_type_v =
-        std::is_same_v<T, float> || std::is_same_v<T, half_t> || std::is_same_v<T, bhalf_t> ||
-        std::is_same_v<T, int32_t> || std::is_same_v<T, int8_t>;
-
     template <typename E, typename C, typename D>
-    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const
+    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<float, float, float>(float& e, const float& c, const float& d) const
     {
-        static_assert(is_valid_param_type_v<E> && is_valid_param_type_v<C> &&
-                      is_valid_param_type_v<D>);
+        const float x = c + d;
 
-        const float y = GetFastGeLU(type_convert<float>(c) + type_convert<float>(d));
-
-        e = type_convert<E>(y);
+        FastGelu{}.template operator()<float, float>(e, x);
     }
 
-    template <typename D>
-    __host__ __device__ constexpr void operator()(float& e, const float& c, const D& d) const
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t, half_t, half_t>(half_t& e, const half_t& c, const half_t& d) const
     {
-        static_assert(is_valid_param_type_v<D>);
+        const half_t x = c + d;
 
-        e = GetFastGeLU(c + type_convert<float>(d));
+        ck::tensor_operation::element_wise::FastGelu{}.template operator()<half_t, half_t>(e, x);
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t, float, half_t>(half_t& e, const float& c, const half_t& d) const
+    {
+        const float x0_f = c + d;
+
+        float x1_f = 0;
+
+        ck::tensor_operation::element_wise::FastGelu{}.template operator()<float, float>(x1_f,
+                                                                                         x0_f);
+
+        e = type_convert<half_t>(x1_f);
     }
 };
 
