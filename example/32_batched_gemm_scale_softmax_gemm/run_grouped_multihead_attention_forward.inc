@@ -10,8 +10,7 @@ int run(int argc, char* argv[])
     bool input_permute  = false;
     bool output_permute = true;
 
-
-    float p_drop                    = 0.2;
+    float p_drop                    = 0.1;
     float p_dropout                 = 1 - p_drop;
     uint16_t p_dropout_in_16bits    = uint16_t(std::floor(p_dropout * 65535.0));
     float rp_dropout                = 1.0 / p_dropout;
@@ -84,8 +83,8 @@ int run(int argc, char* argv[])
 
         int M  = 128 * (rand() % 8 + 1);
         int N  = 128 * (rand() % 8 + 1);
-        int K  = 128;
-        int O  = 128;
+        int K  = 64;
+        int O  = 64;
         int G0 = rand() % 3 + 1;
         int G1 = rand() % 5 + 1;
 
@@ -117,7 +116,7 @@ int run(int argc, char* argv[])
 
         std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
         std::vector<ck::index_t> z_gs_ms_ns_strides =
-            output_permute
+            input_permute
                 ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // Z layout [G0, M, G1, N]
                 : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // Z layout [G0, G1, M, N]
 

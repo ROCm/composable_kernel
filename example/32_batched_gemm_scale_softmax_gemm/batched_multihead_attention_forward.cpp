@@ -103,17 +103,17 @@ using DeviceGemmInstance =
         TensorSpecC,
         1,
         256,
-        256,         // MPerBlock
+        128,         // MPerBlock
         128,         // NPerBlock
-        32,          // KPerBlock
+        64,          // KPerBlock
         64,          // Gemm1NPerBlock
-        32,          // Gemm1KPerBlock
+        64,          // Gemm1KPerBlock
         8,           // AK1
         8,           // BK1
         2,           // B1K1
         32,          // MPerXDL
         32,          // NPerXDL
-        2,           // MXdlPerWave
+        1,           // MXdlPerWave
         4,           // NXdlPerWave
         2,           // Gemm1NXdlPerWave
         S<4, 64, 1>, // ABlockTransfer
@@ -130,11 +130,11 @@ using DeviceGemmInstance =
         8,
         8,
         true,
-        S<16, 16, 1>, // B1BlockTransfer
+        S<8, 32, 1>, // B1BlockTransfer
         S<0, 2, 1>,
         S<0, 2, 1>,
         1,
-        4,
+        2,
         2,
         false,
         1,              // CShuffleMXdlPerWavePerShuffle

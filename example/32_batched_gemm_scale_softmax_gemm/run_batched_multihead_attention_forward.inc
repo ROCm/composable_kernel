@@ -9,8 +9,8 @@ int run(int argc, char* argv[])
 
     // GEMM shape for A/B0/B1/C
     // C_g_m_o = A_g_m_k * B0_g_k_n * B1_g_n_o
-    ck::index_t M = 1000; // 120
-    ck::index_t N = 1000; // 1000
+    ck::index_t M = 512; // 120
+    ck::index_t N = 512; // 1000
     ck::index_t K = 64;
     ck::index_t O = 64;
 
@@ -97,7 +97,7 @@ int run(int argc, char* argv[])
 
     std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
     std::vector<ck::index_t> z_gs_ms_ns_strides =
-        output_permute
+        input_permute
             ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // Z layout [G0, M, G1, N]
             : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // Z layout [G0, G1, M, N]
 
