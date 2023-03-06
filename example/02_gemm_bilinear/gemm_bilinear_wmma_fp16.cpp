@@ -82,13 +82,13 @@ using DeviceOpInstance =
                                                                     GemmSpec,
                                                                     256,
                                                                     128,
-                                                                    256,
-                                                                    8,
+                                                                    128,
+                                                                    32,
                                                                     8,
                                                                     16,
                                                                     16,
-                                                                    4,
-                                                                    4,
+                                                                    1,
+                                                                    8,
                                                                     S<4, 64, 1>,
                                                                     S<1, 0, 2>,
                                                                     S<1, 0, 2>,
@@ -105,7 +105,7 @@ using DeviceOpInstance =
                                                                     true,
                                                                     1,
                                                                     1,
-                                                                    S<1, 32, 1, 8>,
+                                                                    S<1, 128, 1, 2>,
                                                                     8>;
 
 int main(int argc, char* argv[])

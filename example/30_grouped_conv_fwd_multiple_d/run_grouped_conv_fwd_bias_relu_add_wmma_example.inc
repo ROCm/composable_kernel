@@ -53,13 +53,13 @@ using DeviceConvFwdInstance =
         GemmSpec,    // GemmSpecialization
         256,         // BlockSize
         128,         // MPerBlock
-        256,         // NPerBlock
-        4,           // K0PerBlock
+        128,         // NPerBlock
+        32,           // KPerBlock
         8,           // K1
         16,          // MPerWMMA
         16,          // NPerWMMA
-        4,           // MRepeat
-        4,           // NRepeat
+        1,           // MRepeat
+        8,          // NRepeat
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -76,7 +76,7 @@ using DeviceConvFwdInstance =
         true,        // BBlockLdsExtraN
         1,
         1,
-        S<1, 32, 1, 8>,
+        S<1, 128, 1, 2>,
         8>;
 
 template <ck::index_t NDimSpatial>
