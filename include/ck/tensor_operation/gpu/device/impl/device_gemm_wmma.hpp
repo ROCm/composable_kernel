@@ -106,12 +106,13 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
 
                 return matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
             }
-#ifdef ENABLE_COLMAJOR
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(I1, StrideA));
+                const auto a_grid_desc_mraw_kraw =
+                    make_naive_tensor_descriptor(make_tuple(MRaw, KRaw), make_tuple(I1, StrideA));
+
+                return matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
             }
-#endif
         }();
 
         const auto M = a_grid_desc_m_k.GetLength(I0);
@@ -146,34 +147,57 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
         }
     }
 
-    static auto MakeBGridDescriptor_K0_N_K1(index_t KRaw, index_t NRaw, index_t StrideB)
+    static auto MakeBGridDescriptor(index_t KRaw, index_t NRaw, index_t StrideB)
     {
-        const auto b_grid_desc_nraw_kraw = [&]() {
+        const auto b_grid_desc_n_k = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
+                const auto b_grid_desc_nraw_kraw =
+                 make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
                                                     make_tuple(I1, StrideB));
+
+                return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
+                const auto b_grid_desc_nraw_kraw = 
+                make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
                                                     make_tuple(StrideB, I1));
+
+                return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
             }
         }();
-
-        const auto b_grid_desc_n_k = matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
 
         const auto N = b_grid_desc_n_k.GetLength(I0);
         const auto K = b_grid_desc_n_k.GetLength(I1);
         assert(K % K1 == 0);
-        const index_t K0 = K / K1;
 
-        return transform_tensor_descriptor(
-            b_grid_desc_n_k,
-            make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                       make_pass_through_transform(N)),
-            make_tuple(Sequence<1>{}, Sequence<0>{}),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        if constexpr(BEnableLds)
+        {
+            const index_t K0 = K / K1;
+
+            return transform_tensor_descriptor(
+                b_grid_desc_n_k,
+                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                           make_pass_through_transform(N)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+        else
+        {
+            constexpr auto B_KRow = WmmaK / K1;
+            const auto B_KWmma    = K / WmmaK;
+
+            const auto N0 = N / NPerBlock;
+
+            return transform_tensor_descriptor(
+                b_grid_desc_n_k,
+                make_tuple(make_unmerge_transform(make_tuple(B_KWmma, Number<B_KRow>{}, K1Number)),
+                           make_unmerge_transform(
+                               make_tuple(N0 * NRepeat, Number<NWaves>{}, Number<NPerWmma>{}))),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 3, 5>{}, Sequence<1, 2, 4>{}));
+        }
     }
 
     static auto MakeCGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideC)
@@ -196,7 +220,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
 
     // Gridwise descriptor, mapping to whole given provblem.
     using AGridDesc         = decltype(MakeAGridDescriptor(1, 1, 1));
-    using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
+    using BGridDesc         = decltype(MakeBGridDescriptor(1, 1, 1));
     using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
@@ -209,7 +233,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
         CDataType,
         InMemoryDataOperationEnum::Set,
         AGridDesc,
-        BGridDesc_K0_N_K1,
+        BGridDesc,
         CGridDesc_M_N,
         AElementwiseOperation,
         BElementwiseOperation,
@@ -281,7 +305,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
         {
             a_grid_desc_ = DeviceGemmWmma_CShuffle::MakeAGridDescriptor(M, K, StrideA);
             b_grid_desc_k0_n_k1_ =
-                DeviceGemmWmma_CShuffle::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
+                DeviceGemmWmma_CShuffle::MakeBGridDescriptor(K, N, StrideB);
             c_grid_desc_m_n_ = DeviceGemmWmma_CShuffle::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             block_2_ctile_map_ =
@@ -301,7 +325,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
         AGridDesc a_grid_desc_;
-        BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
+        BGridDesc b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock;
@@ -371,7 +395,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
                     BDataType,
                     CDataType,
                     remove_reference_t<DeviceGemmWmma_CShuffle::AGridDesc>,
-                    remove_reference_t<DeviceGemmWmma_CShuffle::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceGemmWmma_CShuffle::BGridDesc>,
                     remove_reference_t<
                         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
                     AElementwiseOperation,
@@ -404,7 +428,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
                     BDataType,
                     CDataType,
                     remove_reference_t<DeviceGemmWmma_CShuffle::AGridDesc>,
-                    remove_reference_t<DeviceGemmWmma_CShuffle::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceGemmWmma_CShuffle::BGridDesc>,
                     remove_reference_t<
                         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
                     AElementwiseOperation,
