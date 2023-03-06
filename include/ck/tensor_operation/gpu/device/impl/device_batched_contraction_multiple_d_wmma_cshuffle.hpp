@@ -228,7 +228,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
     }
 
     // Assume: B[G0, G1, ..., N0, N1, N2, ..., K0, K1, K2, ...]
-    static auto MakeBGridDescriptor_K0_N_K1(const std::vector<index_t>& b_gs_ns_ks_lengths_vec,
+    static auto MakeBGridDescriptor(const std::vector<index_t>& b_gs_ns_ks_lengths_vec,
                                             const std::vector<index_t>& b_gs_ns_ks_strides_vec)
     {
         assert(b_gs_ns_ks_lengths_vec.size() == NumDimG + NumDimN + NumDimK &&
@@ -287,14 +287,33 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         const auto N = b_grid_desc_n_k.GetLength(I0);
         const auto K = b_grid_desc_n_k.GetLength(I1);
         assert(K % K1 == 0);
-        const index_t K0 = K / K1;
 
-        return transform_tensor_descriptor(
-            b_grid_desc_n_k,
-            make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                       make_pass_through_transform(N)),
-            make_tuple(Sequence<1>{}, Sequence<0>{}),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        if constexpr(BEnableLds)
+        {
+            const index_t K0 = K / K1;
+
+            return transform_tensor_descriptor(
+                b_grid_desc_n_k,
+                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                           make_pass_through_transform(N)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+        else
+        {
+            constexpr auto B_KRow = WmmaK / K1;
+            const auto B_KWmma    = K / WmmaK;
+
+            const auto N0 = N / NPerBlock;
+
+            return transform_tensor_descriptor(
+                b_grid_desc_n_k,
+                make_tuple(make_unmerge_transform(make_tuple(B_KWmma, Number<B_KRow>{}, K1Number)),
+                           make_unmerge_transform(
+                               make_tuple(N0 * NRepeat, Number<NWaves>{}, Number<NPerWmma>{}))),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 3, 5>{}, Sequence<1, 2, 4>{}));
+        }
     }
 
     // assume E[G0, G1, ..., M0, M1, M2, ..., N0, N1, N2...]
@@ -504,7 +523,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
     };
 
     using AGridDesc = decltype(DeviceOp::MakeAGridDescriptor({},{}));
-    using BGridDesc_K0_N_K1 = decltype(DeviceOp::MakeBGridDescriptor_K0_N_K1({},{}));
+    using BGridDesc = decltype(DeviceOp::MakeBGridDescriptor({},{}));
 
     // GridwiseOp
     using GridwiseOp = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle<
@@ -517,7 +536,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         EDataType,
         // InMemory Data Descriptor
         AGridDesc,
-        BGridDesc_K0_N_K1,
+        BGridDesc,
         DsGridDesc_M_N,
         EGridDesc_M_N,
         // ElementwiseOp Family
@@ -586,8 +605,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
               p_b_grid_{static_cast<const BDataType*>(p_b_grid)},
               p_ds_grid_{},
               p_e_grid_{static_cast<EDataType*>(p_e_grid)},
-              a_grid_desc_k0_m_k1_{},
-              b_grid_desc_k0_n_k1_{},
+              a_grid_desc_{},
+              b_grid_desc_{},
               ds_grid_desc_m_n_{},
               e_grid_desc_m_n_{},
               ds_grid_desc_g_m_n_{
@@ -620,8 +639,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
                 p_ds_grid_(i) = static_cast<const DDataType*>(p_ds_grid[i]);
             });
 
-            a_grid_desc_k0_m_k1_ = DeviceOp::MakeAGridDescriptor(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
-            b_grid_desc_k0_n_k1_ = DeviceOp::MakeBGridDescriptor_K0_N_K1(b_gs_ns_ks_lengths, b_gs_ns_ks_strides);
+            a_grid_desc_ = DeviceOp::MakeAGridDescriptor(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
+            b_grid_desc_ = DeviceOp::MakeBGridDescriptor(b_gs_ns_ks_lengths, b_gs_ns_ks_strides);
 
             ds_grid_desc_m_n_ =
                 DeviceOp::MakeDsGridDescriptor_M_N(ds_gs_ms_ns_lengths, ds_gs_ms_ns_strides);
@@ -660,8 +679,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         EDataType* p_e_grid_;
 
         // Tensor Descriptors
-        AGridDesc a_grid_desc_k0_m_k1_;
-        BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
+        AGridDesc a_grid_desc_;
+        BGridDesc b_grid_desc_;
         DsGridDesc_M_N ds_grid_desc_m_n_;
         EGridDesc_M_N e_grid_desc_m_n_;
         DsGridDesc_G_M_N ds_grid_desc_g_m_n_;
@@ -714,8 +733,17 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
             const index_t grid_size =
                 arg.block_2_ctile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * G;
 
-            const auto K =
-                arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
+            const auto K = [&]() {
+                if constexpr(AEnableLds)
+                {
+                    return arg.a_grid_desc_.GetLength(I0) * arg.a_grid_desc_.GetLength(I2);
+                }
+                else
+                {
+                    return arg.a_grid_desc_.GetLength(I0) * arg.a_grid_desc_.GetLength(I3) *
+                           arg.a_grid_desc_.GetLength(I5);
+                }
+            }();
 
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;
@@ -727,7 +755,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
                     typename GridwiseOp::DsGridPointer,
                     EDataType,
                     DeviceOp::AGridDesc,
-                    DeviceOp::BGridDesc_K0_N_K1,
+                    DeviceOp::BGridDesc,
                     typename GridwiseOp::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseOp::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     AElementwiseOperation,
@@ -747,8 +775,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
                                               arg.p_ds_grid_,
                                               arg.p_e_grid_,
                                               G,
-                                              arg.a_grid_desc_k0_m_k1_,
-                                              arg.b_grid_desc_k0_n_k1_,
+                                              arg.a_grid_desc_,
+                                              arg.b_grid_desc_,
                                               arg.ds_grid_desc_mblock_mperblock_nblock_nperblock,
                                               arg.e_grid_desc_mblock_mperblock_nblock_nperblock,
                                               arg.a_element_op_,
@@ -797,8 +825,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
             return false;
         }
 
-        if(!GridwiseOp::CheckValidity(arg.a_grid_desc_k0_m_k1_,
-                                      arg.b_grid_desc_k0_n_k1_,
+        if(!GridwiseOp::CheckValidity(arg.a_grid_desc_,
+                                      arg.b_grid_desc_,
                                       arg.ds_grid_desc_m_n_,
                                       arg.e_grid_desc_m_n_,
                                       arg.block_2_ctile_map_))
@@ -816,7 +844,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         if constexpr(ABlockTransferSrcVectorDim == 1)
         {
             if(!(arg.a_mz_stride_ == 1 &&
-                 arg.a_grid_desc_k0_m_k1_.GetLength(I1) % ABlockTransferSrcScalarPerVector == 0))
+                 arg.a_grid_desc_.GetLength(I1) % ABlockTransferSrcScalarPerVector == 0))
             {
                 printf("DeviceOp: Vector Access A-m check failure\n");
                 return false;
@@ -825,7 +853,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         else
         {
             if(!(arg.a_kz_stride_ == 1 &&
-                 arg.a_grid_desc_k0_m_k1_.GetLength(I2) % ABlockTransferSrcScalarPerVector == 0))
+                 arg.a_grid_desc_.GetLength(I2) % ABlockTransferSrcScalarPerVector == 0))
             {
                 printf("DeviceOp: Vector Access A-k check failure\n");
                 return false;
@@ -836,7 +864,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         if constexpr(BBlockTransferSrcVectorDim == 1)
         {
             if(!(arg.b_nz_stride_ == 1 &&
-                 arg.b_grid_desc_k0_n_k1_.GetLength(I1) % BBlockTransferSrcScalarPerVector == 0))
+                 arg.b_grid_desc_.GetLength(I1) % BBlockTransferSrcScalarPerVector == 0))
             {
                 printf("DeviceOp: Vector Access B-n check failure\n");
                 return false;
@@ -845,7 +873,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         else
         {
             if(!(arg.b_kz_stride_ == 1 &&
-                 arg.b_grid_desc_k0_n_k1_.GetLength(I2) % BBlockTransferSrcScalarPerVector == 0))
+                 arg.b_grid_desc_.GetLength(I2) % BBlockTransferSrcScalarPerVector == 0))
             {
                 printf("DeviceOp: Vector Access B-k check failure\n");
                 return false;

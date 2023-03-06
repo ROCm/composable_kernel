@@ -58,8 +58,8 @@ using DeviceConvFwdInstance =
         8,           // K1
         16,          // MPerWMMA
         16,          // NPerWMMA
-        1,           // MRepeat
-        8,          // NRepeat
+        4,           // MRepeat
+        2,          // NRepeat
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -76,7 +76,7 @@ using DeviceConvFwdInstance =
         true,        // BBlockLdsExtraN
         1,
         1,
-        S<1, 128, 1, 2>,
+        S<1, 32, 1, 8>,
         8>;
 
 template <ck::index_t NDimSpatial>

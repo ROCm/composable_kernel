@@ -245,7 +245,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
 
     template <typename BLay>
     static auto
-    MakeBGridDescriptor_BK0_N_BK1(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+    MakeBGridDescriptor(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
                             const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides)
     {
         const auto wei_gemmnraw_gemmkraw_desc =
@@ -257,15 +257,34 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         
         const auto N = wei_gemmn_gemmk_desc.GetLength(I0);
         const auto K = wei_gemmn_gemmk_desc.GetLength(I1);
+        assert(K % K1 == 0);
 
-        const auto BK1 = K1;
-        const auto BK0 = K / BK1;
+        if constexpr(BEnableLds)
+        {
+            const index_t K0 = K / K1;
 
-        return transform_tensor_descriptor(wei_gemmn_gemmk_desc,
-                                           make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                      make_pass_through_transform(N)),
-                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+            return transform_tensor_descriptor(
+                wei_gemmn_gemmk_desc,
+                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                           make_pass_through_transform(N)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+        else
+        {
+            constexpr auto B_KRow = WmmaK / K1;
+            const auto B_KWmma    = K / WmmaK;
+
+            const auto N0 = N / NPerBlock;
+
+            return transform_tensor_descriptor(
+                wei_gemmn_gemmk_desc,
+                make_tuple(make_unmerge_transform(make_tuple(B_KWmma, Number<B_KRow>{}, K1Number)),
+                           make_unmerge_transform(
+                               make_tuple(N0 * NRepeat, Number<NWaves>{}, Number<NPerWmma>{}))),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 3, 5>{}, Sequence<1, 2, 4>{}));
+        }
     }
 
     template <typename ELay>
@@ -302,7 +321,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
     using EGridDesc_M_N  = remove_cvref_t<decltype(MakeEGridDescriptor_M_N<ELayout>({}, {}))>;
 
     using AGridDesc = decltype(DeviceOp::MakeAGridDescriptor<ALayout>({}, {}, {}, {}, {}, {}, {}, {}, {}, {}));
-    using BGridDesc_BK0_N_BK1 = decltype(DeviceOp::MakeBGridDescriptor_BK0_N_BK1<BLayout>({}, {}));
+    using BGridDesc = decltype(DeviceOp::MakeBGridDescriptor<BLayout>({}, {}));
 
     // GridwiseOp
     using GridwiseOp = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle<
@@ -315,7 +334,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         EDataType,
         // InMemory Data Descriptor
         AGridDesc,
-        BGridDesc_BK0_N_BK1,
+        BGridDesc,
         DsGridDesc_M_N,
         EGridDesc_M_N,
         // ElementwiseOp Family
@@ -394,7 +413,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
               ds_grid_desc_m_n_{},
               e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N<ELayout>(e_g_n_k_wos_lengths,
                                                                           e_g_n_k_wos_strides)},
-              a_grid_desc{DeviceOp::MakeAGridDescriptor<ALayout>(a_g_n_c_wis_lengths,
+              a_grid_desc_{DeviceOp::MakeAGridDescriptor<ALayout>(a_g_n_c_wis_lengths,
                                                                           a_g_n_c_wis_strides,
                                                                           b_g_k_c_xs_lengths,
                                                                           b_g_k_c_xs_strides,
@@ -404,7 +423,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                                                                           conv_filter_dilations,
                                                                           input_left_pads,
                                                                           input_right_pads)},
-              b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1<BLayout>(b_g_k_c_xs_lengths,
+              b_grid_desc_{DeviceOp::MakeBGridDescriptor<BLayout>(b_g_k_c_xs_lengths,
                                                                           b_g_k_c_xs_strides)},
               ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
@@ -457,8 +476,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
 
         void Print() const
         {
-            std::cout << "A[M, K]: " << a_grid_desc << std::endl;
-            std::cout << "B[N, K]: " << b_grid_desc_bk0_n_bk1_ << std::endl;
+            std::cout << "A[M, K]: " << a_grid_desc_ << std::endl;
+            std::cout << "B[N, K]: " << b_grid_desc_ << std::endl;
             static_for<0, NumDTensor, 1>{}(
                 [&](auto i) { std::cout << "Ds[M, N]: " << ds_grid_desc_m_n_[i] << std::endl; });
             std::cout << "E[M, N]: " << e_grid_desc_m_n_ << std::endl;
@@ -477,8 +496,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         EGridDesc_M_N e_grid_desc_m_n_;
 
         // tensor descriptors for block/thread-wise copy
-        AGridDesc a_grid_desc;
-        BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
+        AGridDesc a_grid_desc_;
+        BGridDesc b_grid_desc_;
         typename GridwiseOp::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             ds_grid_desc_mblock_mperblock_nblock_nperblock_;
         typename GridwiseOp::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -525,8 +544,17 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             const index_t grid_size =
                 arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
 
-            const auto K =
-                arg.a_grid_desc.GetLength(I0) * arg.a_grid_desc.GetLength(I2);
+            const auto K = [&]() {
+                if constexpr(AEnableLds)
+                {
+                    return arg.a_grid_desc_.GetLength(I0) * arg.a_grid_desc_.GetLength(I2);
+                }
+                else
+                {
+                    return arg.a_grid_desc_.GetLength(I0) * arg.a_grid_desc_.GetLength(I3) *
+                           arg.a_grid_desc_.GetLength(I5);
+                }
+            }();
 
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;
@@ -541,7 +569,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                     BElementwiseOperation,
                     CDEElementwiseOperation,
                     DeviceOp::AGridDesc,
-                    DeviceOp::BGridDesc_BK0_N_BK1,
+                    DeviceOp::BGridDesc,
                     typename GridwiseOp::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseOp::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     remove_reference_t<typename GridwiseOp::DefaultBlock2CTileMap>,
@@ -561,8 +589,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                                               arg.b_element_op_,
                                               arg.cde_element_op_,
                                               arg.a_g_n_c_wis_lengths_[0], // Group count
-                                              arg.a_grid_desc,
-                                              arg.b_grid_desc_bk0_n_bk1_,
+                                              arg.a_grid_desc_,
+                                              arg.b_grid_desc_,
                                               arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
                                               arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
                                               arg.block_2_etile_map_,
@@ -731,8 +759,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         }
 
         // check Gridwise GEMM
-        return GridwiseOp::CheckValidity(arg.a_grid_desc,
-                                         arg.b_grid_desc_bk0_n_bk1_,
+        return GridwiseOp::CheckValidity(arg.a_grid_desc_,
+                                         arg.b_grid_desc_,
                                          arg.ds_grid_desc_m_n_,
                                          arg.e_grid_desc_m_n_,
                                          arg.block_2_etile_map_);
