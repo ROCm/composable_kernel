@@ -622,11 +622,16 @@ constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
     }
 };
 
-// Blockwise gemm supporting
-// 1. regular XDL output M2_M3_M4_M2 and transposed XDL output M2_N2_N3_N4
-// 2. decoupled input tile descriptor and mma tile descriptor in order to support both vgpr and LDS
-// source buffer
-// 3. configurable k index starting position and step size after each FMA/XDL instruction
+/**
+ * @brief Blockwise gemm
+ *
+ * Supports
+ * 1. regular XDL output M2_M3_M4_M2 and transposed XDL output M2_N2_N3_N4
+ * 2. decoupled input tile descriptor and mma tile descriptor in order to support both vgpr and LDS
+ * source buffer
+ * 3. configurable k index starting position and step size after each FMA/XDL instruction
+ */
+
 template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
