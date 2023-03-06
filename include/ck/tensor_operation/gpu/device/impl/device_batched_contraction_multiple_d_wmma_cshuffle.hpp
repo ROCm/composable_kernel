@@ -140,7 +140,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
 
     // Assume: A[G0, G1, ..., M0, M1, M2, ..., K0, K1, K2, ...]
     static auto MakeAGridDescriptor(const std::vector<index_t>& a_gs_ms_ks_lengths_vec,
-                                        const std::vector<index_t>& a_gs_ms_ks_strides_vec)
+                                    const std::vector<index_t>& a_gs_ms_ks_strides_vec)
     {
         assert(a_gs_ms_ks_lengths_vec.size() == NumDimG + NumDimM + NumDimK &&
                a_gs_ms_ks_strides_vec.size() == NumDimG + NumDimM + NumDimK);
@@ -167,7 +167,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         // lengths for K0, K1, ...
         const auto kLengths = get_container_subset(a_ms_ks_lengths, kDimIds);
 
-        const auto a_grid_desc_m_k = [&](){
+        const auto a_grid_desc_m_k = [&]() {
             if constexpr(ASpec == TensorSpecialization::Packed)
             {
                 auto M = container_reduce(mLengths, math::multiplies{}, Number<1>{});
@@ -229,7 +229,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
 
     // Assume: B[G0, G1, ..., N0, N1, N2, ..., K0, K1, K2, ...]
     static auto MakeBGridDescriptor(const std::vector<index_t>& b_gs_ns_ks_lengths_vec,
-                                            const std::vector<index_t>& b_gs_ns_ks_strides_vec)
+                                    const std::vector<index_t>& b_gs_ns_ks_strides_vec)
     {
         assert(b_gs_ns_ks_lengths_vec.size() == NumDimG + NumDimN + NumDimK &&
                b_gs_ns_ks_strides_vec.size() == NumDimG + NumDimN + NumDimK);
@@ -256,7 +256,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         // lengths for N0, N1, ...
         const auto nLengths = get_container_subset(b_ns_ks_lengths, nDimIds);
 
-        const auto b_grid_desc_n_k = [&](){
+        const auto b_grid_desc_n_k = [&]() {
             if constexpr(BSpec == TensorSpecialization::Packed)
             {
                 auto N = container_reduce(nLengths, math::multiplies{}, Number<1>{});
@@ -522,8 +522,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         EGridDesc_G_M_N e_grid_desc_g_m_n_;
     };
 
-    using AGridDesc = decltype(DeviceOp::MakeAGridDescriptor({},{}));
-    using BGridDesc = decltype(DeviceOp::MakeBGridDescriptor({},{}));
+    using AGridDesc = decltype(DeviceOp::MakeAGridDescriptor({}, {}));
+    using BGridDesc = decltype(DeviceOp::MakeBGridDescriptor({}, {}));
 
     // GridwiseOp
     using GridwiseOp = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle<
@@ -648,7 +648,6 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
             e_grid_desc_m_n_ =
                 DeviceOp::MakeEGridDescriptor_M_N(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
 
-
             block_2_ctile_map_ = GridwiseOp::MakeDefaultBlock2CTileMap(e_grid_desc_m_n_, M01, N01);
 
             ds_grid_desc_mblock_mperblock_nblock_nperblock =
@@ -685,7 +684,6 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         EGridDesc_M_N e_grid_desc_m_n_;
         DsGridDesc_G_M_N ds_grid_desc_g_m_n_;
         EGridDesc_G_M_N e_grid_desc_g_m_n_;
-
 
         typename GridwiseOp::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             ds_grid_desc_mblock_mperblock_nblock_nperblock;

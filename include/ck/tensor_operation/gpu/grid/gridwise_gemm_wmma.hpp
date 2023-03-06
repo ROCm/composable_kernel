@@ -327,8 +327,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
     }
 
     template <typename BBlockDesc_>
-    __host__ __device__ static constexpr auto
-    MakeBWaveDescriptor(const BBlockDesc_&)
+    __host__ __device__ static constexpr auto MakeBWaveDescriptor(const BBlockDesc_&)
     {
         constexpr auto b_wave_desc = [&]() {
             if constexpr(BEnableLds)
@@ -394,11 +393,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2CTileMap>
-    __host__ __device__ static constexpr bool
-    CheckValidity(const AGridDesc& a_grid_desc,
-                  const BGridDesc& b_grid_desc,
-                  const CGridDesc_M_N& c_grid_desc_m_n,
-                  const Block2CTileMap& block_2_ctile_map)
+    __host__ __device__ static constexpr bool CheckValidity(const AGridDesc& a_grid_desc,
+                                                            const BGridDesc& b_grid_desc,
+                                                            const CGridDesc_M_N& c_grid_desc_m_n,
+                                                            const Block2CTileMap& block_2_ctile_map)
     {
         static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
                       "wrong! K1 need to be known at compile-time");
@@ -426,16 +424,14 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
             if constexpr(BEnableLds)
             {
                 return make_tuple(b_grid_desc.GetLength(I1),
-                                  b_grid_desc.GetLength(I0) *
-                                      b_grid_desc.GetLength(I2));
+                                  b_grid_desc.GetLength(I0) * b_grid_desc.GetLength(I2));
             }
             else
             {
-                return make_tuple(
-                    b_grid_desc.GetLength(I1) * b_grid_desc.GetLength(I2) *
-                        b_grid_desc.GetLength(I4),
-                    b_grid_desc.GetLength(I0) * b_grid_desc.GetLength(I3) *
-                        b_grid_desc.GetLength(I5));
+                return make_tuple(b_grid_desc.GetLength(I1) * b_grid_desc.GetLength(I2) *
+                                      b_grid_desc.GetLength(I4),
+                                  b_grid_desc.GetLength(I0) * b_grid_desc.GetLength(I3) *
+                                      b_grid_desc.GetLength(I5));
             }
         };
 

@@ -153,16 +153,14 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
             if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
             {
                 const auto b_grid_desc_nraw_kraw =
-                 make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
-                                                    make_tuple(I1, StrideB));
+                    make_naive_tensor_descriptor(make_tuple(NRaw, KRaw), make_tuple(I1, StrideB));
 
                 return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
             {
-                const auto b_grid_desc_nraw_kraw = 
-                make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
-                                                    make_tuple(StrideB, I1));
+                const auto b_grid_desc_nraw_kraw =
+                    make_naive_tensor_descriptor(make_tuple(NRaw, KRaw), make_tuple(StrideB, I1));
 
                 return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
             }
@@ -219,9 +217,9 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
     }
 
     // Gridwise descriptor, mapping to whole given provblem.
-    using AGridDesc         = decltype(MakeAGridDescriptor(1, 1, 1));
-    using BGridDesc         = decltype(MakeBGridDescriptor(1, 1, 1));
-    using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+    using AGridDesc     = decltype(MakeAGridDescriptor(1, 1, 1));
+    using BGridDesc     = decltype(MakeBGridDescriptor(1, 1, 1));
+    using CGridDesc_M_N = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_wmma<
@@ -303,10 +301,9 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
         {
-            a_grid_desc_ = DeviceGemmWmma_CShuffle::MakeAGridDescriptor(M, K, StrideA);
-            b_grid_desc_k0_n_k1_ =
-                DeviceGemmWmma_CShuffle::MakeBGridDescriptor(K, N, StrideB);
-            c_grid_desc_m_n_ = DeviceGemmWmma_CShuffle::MakeCGridDescriptor_M_N(M, N, StrideC);
+            a_grid_desc_         = DeviceGemmWmma_CShuffle::MakeAGridDescriptor(M, K, StrideA);
+            b_grid_desc_k0_n_k1_ = DeviceGemmWmma_CShuffle::MakeBGridDescriptor(K, N, StrideB);
+            c_grid_desc_m_n_     = DeviceGemmWmma_CShuffle::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             block_2_ctile_map_ =
                 GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);

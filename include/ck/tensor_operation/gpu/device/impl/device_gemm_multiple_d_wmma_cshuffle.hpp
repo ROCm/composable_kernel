@@ -18,7 +18,6 @@
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 
-
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -163,16 +162,14 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
             if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
             {
                 const auto b_grid_desc_nraw_kraw =
-                 make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
-                                                    make_tuple(I1, StrideB));
+                    make_naive_tensor_descriptor(make_tuple(NRaw, KRaw), make_tuple(I1, StrideB));
 
                 return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
             {
-                const auto b_grid_desc_nraw_kraw = 
-                make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
-                                                    make_tuple(StrideB, I1));
+                const auto b_grid_desc_nraw_kraw =
+                    make_naive_tensor_descriptor(make_tuple(NRaw, KRaw), make_tuple(StrideB, I1));
 
                 return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
             }
@@ -260,10 +257,10 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
     }
 
     // Gridwise descriptor, mapping to whole given provblem.
-    using AGridDesc = decltype(MakeAGridDescriptor(1, 1, 1));
-    using BGridDesc = decltype(MakeBGridDescriptor(1, 1, 1));
-    using DsGridDesc_M_N    = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}, {}))>;
-    using EGridDesc_M_N     = decltype(MakeEGridDescriptor_M_N<ELayout>(1, 1, 1));
+    using AGridDesc      = decltype(MakeAGridDescriptor(1, 1, 1));
+    using BGridDesc      = decltype(MakeBGridDescriptor(1, 1, 1));
+    using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}, {}))>;
+    using EGridDesc_M_N  = decltype(MakeEGridDescriptor_M_N<ELayout>(1, 1, 1));
 
     // GridwiseOp
     using GridwiseOp = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle<

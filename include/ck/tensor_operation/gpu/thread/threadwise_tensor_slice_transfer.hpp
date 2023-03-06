@@ -1398,13 +1398,8 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
 
                 if constexpr(IntraRowSwizzlePerm)
                 {
-                    temp       = __builtin_amdgcn_permlane16(
-                        temp,
-                        type_convert<int>(v_this_row),
-                        0xb3a29180,
-                        0xf7e6d5c4,
-                        1,
-                        0);
+                    temp = __builtin_amdgcn_permlane16(
+                        temp, type_convert<int>(v_this_row), 0xb3a29180, 0xf7e6d5c4, 1, 0);
                     v_this_row = type_convert<SrcData>(temp);
                 }
 
