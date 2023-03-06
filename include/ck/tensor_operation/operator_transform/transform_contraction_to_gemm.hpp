@@ -247,6 +247,34 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm
                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
+    template <typename BGridDesc_L_K,
+              typename WmmaK,
+              typename LRepeat,
+              typename LWaves,
+              typename LPerWmma,
+              typename BK1>
+    __host__ __device__ static constexpr auto
+    MakeB0GridDescriptor_BKWmma_LBlockRepeat_LWaves_BKRow_LPerWmma_BK1(
+        const BGridDesc_L_K& b_grid_desc_l_k,
+        const WmmaK&,
+        const LRepeat&,
+        const LWaves&,
+        const LPerWmma&,
+        const BK1&)
+    {
+        const auto L0        = b_grid_desc_l_k.GetLength(I0) / NPerBlock;
+        const auto K         = b_grid_desc_l_k.GetLength(I1);
+        const auto BKWmma    = K / WmmaK{};
+        constexpr auto BKRow = WmmaK{} / BK1{};
+
+        return transform_tensor_descriptor(
+            b_grid_desc_l_k,
+            make_tuple(make_unmerge_transform(make_tuple(BKWmma, BKRow, BK1{})),
+                       make_unmerge_transform(make_tuple(L0 * LRepeat{}, LWaves{}, LPerWmma{}))),
+            make_tuple(Sequence<1>{}, Sequence<0>{}),
+            make_tuple(Sequence<0, 3, 5>{}, Sequence<1, 2, 4>{}));
+    }
+
     //
     // B1
     //
@@ -286,6 +314,34 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm
                        make_pass_through_transform(N)),
             make_tuple(Sequence<1>{}, Sequence<0>{}),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+    }
+
+    template <typename BGridDesc_N_L,
+              typename WmmaL,
+              typename NRepeat,
+              typename NWaves,
+              typename NPerWmma,
+              typename BL1>
+    __host__ __device__ static constexpr auto
+    MakeB1GridDescriptor_BLWmma_NBlockRepeat_NWaves_BLRow_NPerWmma_BL1(
+        const BGridDesc_N_L& b_grid_desc_n_l,
+        const WmmaL&,
+        const NRepeat&,
+        const NWaves&,
+        const NPerWmma&,
+        const BL1&)
+    {
+        const auto N0        = b_grid_desc_n_l.GetLength(I0) / OPerBlock;
+        const auto L         = b_grid_desc_n_l.GetLength(I1);
+        const auto BLWmma    = L / WmmaL{};
+        constexpr auto BLRow = WmmaL{} / BL1{};
+
+        return transform_tensor_descriptor(
+            b_grid_desc_n_l,
+            make_tuple(make_unmerge_transform(make_tuple(BLWmma, BLRow, BL1{})),
+                       make_unmerge_transform(make_tuple(N0 * NRepeat{}, NWaves{}, NPerWmma{}))),
+            make_tuple(Sequence<1>{}, Sequence<0>{}),
+            make_tuple(Sequence<0, 3, 5>{}, Sequence<1, 2, 4>{}));
     }
 
     //

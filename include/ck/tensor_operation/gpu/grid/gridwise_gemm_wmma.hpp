@@ -719,7 +719,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
                 // Thread-wise copy
                 // KPerBlock/WmmaK -> NRepeat -> NWaves -> WmmaK/K1 -> NPerWmma -> K1
                 constexpr auto KWmmaPerBlock = KPerBlock / WmmaK;
-                auto b_block_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ADataType>(
+                auto b_block_buf = make_static_buffer<AddressSpaceEnum::Vgpr, BDataType>(
                     b_block_desc.GetElementSpaceSize());
                 
                 // Limitation: NumDim of Src and Dst descriptor should be identical
