@@ -182,7 +182,7 @@ template <typename ADataType,
           index_t NumGemmKPrefetchStage = 1,
           LoopScheduler LoopSched       = make_default_loop_scheduler(),
           PipelineVersion PipelineVer   = PipelineVersion::v1>
-struct GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle
+struct GridwiseBatchedGemmSoftmaxGemm_Wmma
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};

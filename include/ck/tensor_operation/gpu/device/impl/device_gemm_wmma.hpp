@@ -222,7 +222,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
     using CGridDesc_M_N = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_wmma<
+    using GridwiseGemm = GridwiseGemm_Wmma<
         BlockSize,
         ADataType,
         BDataType,

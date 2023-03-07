@@ -263,7 +263,7 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
     using EGridDesc_M_N  = decltype(MakeEGridDescriptor_M_N<ELayout>(1, 1, 1));
 
     // GridwiseOp
-    using GridwiseOp = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle<
+    using GridwiseOp = GridwiseGemmMultipleD_Wmma<
         // DataType Family
         ADataType,
         BDataType,

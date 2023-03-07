@@ -119,7 +119,7 @@ template <index_t BlockSize,
           index_t NumGemmKPrefetchStage = 1,
           LoopScheduler LoopSched       = make_default_loop_scheduler(),
           PipelineVersion PipelineVer   = PipelineVersion::v1>
-struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
+struct GridwiseGemm_Wmma
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};

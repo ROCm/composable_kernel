@@ -286,7 +286,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
     };
 
     // GridwiseOp
-    using GridwiseOp = GridwiseBatchedGemmSoftmaxGemm_Wmma_CShuffle<
+    using GridwiseOp = GridwiseBatchedGemmSoftmaxGemm_Wmma<
         // DataType Family
         ADataType,
         B0DataType,

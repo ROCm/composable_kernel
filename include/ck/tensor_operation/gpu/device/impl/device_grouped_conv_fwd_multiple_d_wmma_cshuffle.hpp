@@ -323,7 +323,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
     using BGridDesc = decltype(DeviceOp::MakeBGridDescriptor<BLayout>({}, {}));
 
     // GridwiseOp
-    using GridwiseOp = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle<
+    using GridwiseOp = GridwiseGemmMultipleD_Wmma<
         // DataType Family
         ADataType,
         BDataType,

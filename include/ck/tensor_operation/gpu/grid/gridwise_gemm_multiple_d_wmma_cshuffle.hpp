@@ -321,7 +321,7 @@ template < // DataType Family
     index_t NumGemmKPrefetchStage = 1,
     LoopScheduler LoopSched       = make_default_loop_scheduler(),
     PipelineVersion PipelineVer   = PipelineVersion::v1>
-struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
+struct GridwiseGemmMultipleD_Wmma
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
