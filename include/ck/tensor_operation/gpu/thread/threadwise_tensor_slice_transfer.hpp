@@ -1201,7 +1201,12 @@ struct ThreadwiseTensorSliceTransfer_v4
     SrcCoord src_ref_coord_;
 };
 
-// Do NOT involve any tensor coordinates with StaticBuffer
+/**
+ * @brief Threadwise data transfer
+ *
+ * Do NOT involve any tensor coordinates with StaticBuffer
+ *
+ */
 template <typename SrcData,
           typename DstData,
           typename SrcDesc,

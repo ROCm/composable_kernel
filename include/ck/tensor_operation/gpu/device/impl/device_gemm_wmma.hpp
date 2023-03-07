@@ -12,6 +12,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -157,7 +158,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
 
                 return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
             }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
+            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
                 const auto b_grid_desc_nraw_kraw =
                     make_naive_tensor_descriptor(make_tuple(NRaw, KRaw), make_tuple(StrideB, I1));

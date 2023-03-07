@@ -12,6 +12,16 @@
 
 namespace ck {
 
+/**
+ * @brief Blockwise softmax
+ *
+ * @tparam BlockSize Block size
+ * @tparam AccDataType Accumulator data type
+ * @tparam ThreadMap_M_K Thread id to m_k
+ * @tparam ThreadClusterDesc_M_K Threadwise cluster descriptor
+ * @tparam ThreadSliceDesc_M_K Threadwise slices descriptor
+ * @tparam IgnoreNaN Flag to ignore NaN, false by default
+ */
 template <index_t BlockSize,
           typename AccDataType,
           typename ThreadMap_M_K, // thread_id to m_k

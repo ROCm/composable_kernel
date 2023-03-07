@@ -166,7 +166,7 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
 
                 return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
             }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
+            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
                 const auto b_grid_desc_nraw_kraw =
                     make_naive_tensor_descriptor(make_tuple(NRaw, KRaw), make_tuple(StrideB, I1));
@@ -208,39 +208,22 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
     }
 
     template <typename ELayout_>
-    static auto MakeEGridDescriptor_M_N(index_t M, index_t N, index_t StrideE)
+    static auto MakeEGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideE)
     {
-        const auto e_grid_desc_m_n = [&]() {
+        const auto e_grid_desc_mraw_nraw = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, ELayout_>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideE, I1));
+                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
+                                                    make_tuple(StrideE, I1));
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ELayout_>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideE));
+                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
+                                                    make_tuple(I1, StrideE));
             }
         }();
 
-        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
-        {
-            const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
-            const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
-
-            return transform_tensor_descriptor(
-                e_grid_desc_m_n,
-                make_tuple(make_right_pad_transform(M, PadM), make_right_pad_transform(N, PadN)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
-        }
-        else
-        {
-
-            return transform_tensor_descriptor(
-                e_grid_desc_m_n,
-                make_tuple(make_pass_through_transform(M), make_pass_through_transform(N)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
-        }
+        return matrix_padder.PadCDescriptor_M_N(e_grid_desc_mraw_nraw);
     }
 
     static auto MakeDsGridDescriptor_M_N(const std::array<index_t, NumDTensor>& Ms,
