@@ -21,6 +21,7 @@
 namespace ck {
 
 template <typename FloatAB,
+          typename FloatGemm,
           typename FloatGemmAcc,
           typename FloatCShuffle,
           typename FloatC,
@@ -126,7 +127,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         const auto M = z_grid_desc_m_n.GetLength(I0);
         const auto N = z_grid_desc_m_n.GetLength(I1);
 
-        constexpr auto mfma = MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma;
+        constexpr auto mfma = MfmaSelector<FloatGemm, MPerXdl, NPerXdl>::selected_mfma;
         constexpr auto N3   = mfma.num_groups_per_blk;
         constexpr auto N4   = mfma.num_input_blks;
         constexpr auto N5   = mfma.group_size;
@@ -242,10 +243,10 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
     {
         const index_t gemm0_bytes_end = (SharedMemTrait::a_block_space_size_aligned +
                                          SharedMemTrait::b_block_space_size_aligned) *
-                                        sizeof(FloatAB);
+                                        sizeof(FloatGemm);
         const index_t gemm1_bytes_end =
             (SharedMemTrait::b1_block_space_offset + SharedMemTrait::b1_block_space_size_aligned) *
-            sizeof(FloatAB);
+            sizeof(FloatGemm);
         const index_t softmax_bytes_end = (SharedMemTrait::reduction_space_offset +
                                            SharedMemTrait::reduction_space_size_aligned) *
                                           sizeof(FloatGemmAcc);
@@ -273,11 +274,11 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         const auto K = a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2);
         const auto Gemm1N = b1_grid_desc_bk0_n_bk1.GetLength(I1);
 
-        // if(Gemm1N != K)
-        //{
-        //    std::cout << "SizeK must be equal to SizeO (equal attention head size)" << '\n';
-        //    return false;
-        //}
+        if(Gemm1N != K)
+        {
+            std::cout << "SizeK must be equal to SizeO (equal attention head size)" << '\n';
+            return false;
+        }
 
         if(!(M == c_grid_desc_m_n.GetLength(I0) && Gemm1N == c_grid_desc_m_n.GetLength(I1)))
         {
@@ -495,7 +496,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
                                                 FloatAB,
-                                                FloatAB,
+                                                FloatGemm,
                                                 decltype(a_grid_desc_ak0_m_ak1),
                                                 decltype(a_block_desc_ak0_m_ak1),
                                                 ABlockTransferSrcAccessOrder,
@@ -526,7 +527,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                                 BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 BBlockTransferThreadClusterArrangeOrder,
                                                 FloatAB,
-                                                FloatAB,
+                                                FloatGemm,
                                                 decltype(b_grid_desc_bk0_n_bk1),
                                                 decltype(b_block_desc_bk0_n_bk1),
                                                 BBlockTransferSrcAccessOrder,
@@ -554,12 +555,13 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         //   acc1[m][o] += acc[m][n] * B1[n][o]
 
         // sanity check
-        constexpr index_t KPack = math::max(
-            math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+        constexpr index_t KPack =
+            math::max(math::lcm(AK1, BK1),
+                      MfmaSelector<FloatGemm, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_v2<
             BlockSize,
-            FloatAB,
+            FloatGemm,
             FloatGemmAcc,
             decltype(a_block_desc_ak0_m_ak1),
             decltype(b_block_desc_bk0_n_bk1),
@@ -579,11 +581,11 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
 
         // LDS allocation for A and B: be careful of alignment
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatAB*>(p_shared) + SharedMemTrait::a_block_space_offset,
+            static_cast<FloatGemm*>(p_shared) + SharedMemTrait::a_block_space_offset,
             a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatAB*>(p_shared) + SharedMemTrait::b_block_space_offset,
+            static_cast<FloatGemm*>(p_shared) + SharedMemTrait::b_block_space_offset,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);
@@ -658,7 +660,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         // A1 matrix blockwise copy
         auto a1_blockwise_copy = ThreadwiseTensorSliceTransfer_StaticToStatic<
             FloatGemmAcc,
-            FloatAB,
+            FloatGemm,
             decltype(acc_thread_desc_k0_m_k1),
             decltype(a1_thread_desc_k0_m_k1),
             tensor_operation::element_wise::PassThrough,
@@ -677,7 +679,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                                 B1BlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 B1BlockTransferThreadClusterArrangeOrder,
                                                 FloatAB,
-                                                FloatAB,
+                                                FloatGemm,
                                                 decltype(b1_grid_desc_bk0_n_bk1),
                                                 decltype(b1_block_desc_bk0_n_bk1),
                                                 B1BlockTransferSrcAccessOrder,
@@ -698,12 +700,12 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 make_multi_index(0, 0, 0),
                 tensor_operation::element_wise::PassThrough{});
 
-        auto a1_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
+        auto a1_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatGemm>(
             a1_thread_desc_k0_m_k1.GetElementSpaceSize());
 
         // reuse LDS space for gemm0's b_block_buf
         auto b1_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatAB*>(p_shared) + SharedMemTrait::b1_block_space_offset,
+            static_cast<FloatGemm*>(p_shared) + SharedMemTrait::b1_block_space_offset,
             b1_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         // selected_mfma.group_size or B1K1 <= Gemm1KPack <= selected_mfma.group_size
@@ -716,11 +718,11 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         // cause mismatch in summation index for example c[0:7] = a1[[0:3, 8:11]] * b1[0:7].
         // therefore we may just as well assign Gemm1KPack = group_size
         constexpr index_t Gemm1KPack =
-            MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size;
+            MfmaSelector<FloatGemm, MPerXdl, NPerXdl>::selected_mfma.group_size;
 
         auto gemm1_blockwise_gemm = BlockwiseGemmXdlops_v2<
             BlockSize,
-            FloatAB,
+            FloatGemm,
             FloatGemmAcc,
             decltype(a1_thread_desc_k0_m_k1),
             decltype(b1_block_desc_bk0_n_bk1),
@@ -736,7 +738,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             Gemm1KPack,
             true,       // TransposeC
             Gemm1KPack, // AMmaKStride
-            Gemm1KPack * XdlopsGemm<FloatAB, MPerXdl, NPerXdl, Gemm1KPack, false>{}.K0PerXdlops>{
+            Gemm1KPack * XdlopsGemm<FloatGemm, MPerXdl, NPerXdl, Gemm1KPack, false>{}.K0PerXdlops>{
             // BMmaKStride
             make_tuple(0, 0, 0, 0)}; // A_origin
 
@@ -850,7 +852,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             make_naive_tensor_descriptor_packed(make_tuple(I1,   // MBlockId
                                                            I1,   // NBlockID
                                                            m0,   // MRepeat
-                                                           n0,   // NRepeat
+                                                           I1,   // NRepeat
                                                            m1,   // MWaveId
                                                            n1,   // NWaveId
                                                            m2,   // MPerXdl
@@ -881,7 +883,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             Sequence<I1, // MBlockId
                      I1, // NBlockID
                      m0, // MRepeat
-                     n0, // NRepeat
+                     I1, // NRepeat
                      m1, // MWaveId
                      n1, // NWaveId
                      m2, // MPerXdl
@@ -1004,25 +1006,34 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 // save z to global
                 if(p_z_grid)
                 {
-                    // P_dropped
-                    blockwise_dropout.template ApplyDropout<decltype(acc_thread_buf),
-                                                            decltype(z_tenor_buffer),
-                                                            false>(
-                        acc_thread_buf, ph, z_tenor_buffer);
+                    static_for<0, n0, 1>{}([&](auto i) {
+                        blockwise_dropout.template ApplyDropout<decltype(acc_thread_buf),
+                                                                decltype(z_tenor_buffer),
+                                                                false,
+                                                                decltype(n0),
+                                                                decltype(i)>(
+                            acc_thread_buf, ph, z_tenor_buffer);
 
-                    z_thread_copy_vgpr_to_global.Run(
-                        z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                        make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                        z_tenor_buffer,
+                        z_thread_copy_vgpr_to_global.Run(
+                            z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                            make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                            z_tenor_buffer,
+                            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                            z_grid_buf);
+                        z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+                            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                            make_multi_index(0, 0, 0, 1, 0, 0, 0, 0, 0, 0));
+                    });
+                    z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
                         z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                        z_grid_buf);
-
+                        make_multi_index(0, 0, 0, -(n0.value), 0, 0, 0, 0, 0, 0));
                     z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
                         z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                         make_multi_index(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
                 }
                 else
                 {
+                    // ignore = z_grid_buf;
                     // P_dropped
                     blockwise_dropout.template ApplyDropout<decltype(acc_thread_buf), false>(
                         acc_thread_buf, ph);
@@ -1100,7 +1111,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
 
             // workaround compiler issue; see ck/ck.hpp
             if constexpr(CK_WORKAROUND_SWDEV_XXXXXX_BF16_ATTEN_FWD_GFX908_ISSUE == 1 &&
-                         is_same_v<FloatAB, bhalf_t> && MPerBlock == 256 && NPerBlock == 128 &&
+                         (is_same_v<FloatGemm, bhalf_t>)&&MPerBlock == 256 && NPerBlock == 128 &&
                          Gemm1NPerBlock == 128)
             {
                 __builtin_amdgcn_sched_barrier(0);

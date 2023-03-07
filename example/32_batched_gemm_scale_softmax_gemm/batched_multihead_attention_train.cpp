@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 /*
+Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g_k_n) * B1_g_n_o
+                                                                  |-----------------|
+                                                                          Gemm0
+                                                          |-------------------------------------|
+                                                                          Gemm1
+
 Backprop for Gemm + Softmax + Gemm fused operation, where forward prop is defined as:
 
   Y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
@@ -31,10 +38,12 @@ Kernel outputs:
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
+#include <fstream>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_forward_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle_pt1.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -42,6 +51,7 @@ Kernel outputs:
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_dropout.hpp"
@@ -49,9 +59,10 @@ Kernel outputs:
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16 = ck::half_t;
-using F32 = float;
-using U16 = unsigned short;
+using F16  = ck::half_t;
+using BF16 = ck::bhalf_t;
+using F32  = float;
+using U16  = unsigned short;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Scale       = ck::tensor_operation::element_wise::Scale;
@@ -59,7 +70,8 @@ using Scale       = ck::tensor_operation::element_wise::Scale;
 using QKVElementOp = PassThrough;
 using YElementOp   = PassThrough;
 
-using DataType         = F16;
+using DataType         = BF16;
+using GemmDataType     = BF16;
 using AccDataType      = F32;
 using ShuffleDataType  = F32;
 using LSEDataType      = F32;
@@ -87,13 +99,83 @@ static constexpr auto TensorSpecK = ck::tensor_operation::device::TensorSpeciali
 static constexpr auto TensorSpecV = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecY = ck::tensor_operation::device::TensorSpecialization::Default;
 
+using DeviceGemmInstanceFWD =
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle<
+        NumDimG,
+        NumDimM,
+        NumDimN,
+        NumDimK,
+        NumDimO,
+        DataType,
+        DataType,
+        DataType,
+        DataType,
+        GemmDataType,
+        ZDataType,
+        LSEDataType,
+        Acc0BiasDataType,
+        Acc1BiasDataType,
+        AccDataType,
+        ShuffleDataType,
+        QKVElementOp,
+        QKVElementOp,
+        Scale,
+        QKVElementOp,
+        YElementOp,
+        GemmSpec,
+        TensorSpecQ,
+        TensorSpecK,
+        TensorSpecV,
+        TensorSpecY,
+        1,
+        256,
+        128,         // MPerBlock
+        128,         // NPerBlock
+        32,          // KPerBlock
+        64,          // Gemm1NPerBlock
+        32,          // Gemm1KPerBlock
+        8,           // AK1
+        8,           // BK1
+        2,           // B1K1
+        32,          // MPerXDL
+        32,          // NPerXDL
+        1,           // MXdlPerWave
+        4,           // NXdlPerWave
+        2,           // Gemm1NXdlPerWave
+        S<4, 64, 1>, // ABlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<4, 64, 1>, // BBlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<16, 16, 1>, // B1BlockTransfer
+        S<0, 2, 1>,
+        S<0, 2, 1>,
+        1,
+        4,
+        2,
+        false,
+        1,              // CShuffleMXdlPerWavePerShuffle
+        2,              // CShuffleNXdlPerWavePerShuffle
+        S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        MaskingSpec>;   // MaskingSpecialization
+
 // Headdim/K/O should be a multiple of 8, and it's only supported up to 64 in prototype1.
 // If Headdim/K/O <= 32, ues 1st template.
 // If 32 < Headdim/K/O <= 64, ues 2nd template.
 
 #if USING_HD32
 // 1st template
-using DeviceGemmInstance =
+using DeviceGemmInstanceBWD =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
         NumDimG,
         NumDimM,
@@ -101,6 +183,7 @@ using DeviceGemmInstance =
         NumDimK,
         NumDimO,
         DataType,
+        GemmDataType,
         ZDataType,
         LSEDataType,
         Acc0BiasDataType,
@@ -161,7 +244,7 @@ using DeviceGemmInstance =
         MaskingSpec>;   // MaskingSpecialization
 #else
 // 2nd template
-using DeviceGemmInstance =
+using DeviceGemmInstanceBWD =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
         NumDimG,
         NumDimM,
@@ -169,6 +252,7 @@ using DeviceGemmInstance =
         NumDimK,
         NumDimO,
         DataType,
+        GemmDataType,
         ZDataType,
         LSEDataType,
         Acc0BiasDataType,
@@ -300,7 +384,7 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
     // masking
 #if USING_MASK
     auto N          = s_g_m_n.GetLengths()[2];
-    const auto mask = DeviceGemmInstance::C0MatrixMask(N);
+    const auto mask = DeviceGemmInstanceFWD::C0MatrixMask(N);
     s_g_m_n.ForEach([&](auto& self, auto idx) {
         if(mask.IsMaskedElement(idx[1], idx[2]))
             self(idx) = -ck::NumericLimits<float>::Infinity();
@@ -340,8 +424,8 @@ int run(int argc, char* argv[])
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
     // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
     // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t M  = 512; // 512
-    ck::index_t N  = 512; // 512
+    ck::index_t M  = 129; // 512
+    ck::index_t N  = 129; // 512
     ck::index_t K  = 64;
     ck::index_t O  = 64;
     ck::index_t G0 = 4; // 54
@@ -349,10 +433,10 @@ int run(int argc, char* argv[])
 
     float alpha = 1.f / std::sqrt(K);
 
-    bool input_permute  = true; // false;
-    bool output_permute = false;
+    bool input_permute  = true;
+    bool output_permute = true;
 
-    float p_drop                    = 0.2;
+    float p_drop                    = 0.0;
     float p_dropout                 = 1 - p_drop;
     uint16_t p_dropout_in_16bits    = uint16_t(std::floor(p_dropout * 65535.0));
     float rp_dropout                = 1.0 / p_dropout;
@@ -386,6 +470,8 @@ int run(int argc, char* argv[])
 
         input_permute  = std::stoi(argv[11]);
         output_permute = std::stoi(argv[12]);
+
+        p_drop = std::stoi(argv[13]);
     }
     else
     {
@@ -397,6 +483,22 @@ int run(int argc, char* argv[])
         printf("arg11 to 12: input / output permute\n");
         exit(0);
     }
+
+    std::cout << "do_verification: " << do_verification << std::endl;
+    std::cout << "init_method: " << init_method << std::endl;
+    std::cout << "time_kernel: " << time_kernel << std::endl;
+    std::cout << "M: " << M << std::endl;
+    std::cout << "N: " << N << std::endl;
+    std::cout << "K: " << K << std::endl;
+    std::cout << "O: " << O << std::endl;
+    std::cout << "G0: " << G0 << std::endl;
+    std::cout << "G1: " << G1 << std::endl;
+    std::cout << "alpha: " << alpha << std::endl;
+    std::cout << "input_permute: " << input_permute << std::endl;
+    std::cout << "output_permute: " << output_permute << std::endl;
+    std::cout << "p_drop: " << p_drop << std::endl;
+    std::cout << "seed: " << seed << std::endl;
+    std::cout << "offset: " << offset << std::endl;
 
     const ck::index_t BatchCount = G0 * G1;
 
@@ -440,20 +542,25 @@ int run(int argc, char* argv[])
 
     Tensor<DataType> q_gs_ms_ks(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
     Tensor<DataType> k_gs_ns_ks(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
-    Tensor<ZDataType> z_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
+    Tensor<ZDataType> z_fwd_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
+    Tensor<ZDataType> z_bwd_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
     Tensor<DataType> v_gs_os_ns(v_gs_os_ns_lengths, v_gs_os_ns_strides);
-    Tensor<DataType> y_gs_ms_os(y_gs_ms_os_lengths, y_gs_ms_os_strides);
     Tensor<DataType> ygrad_gs_ms_os(y_gs_ms_os_lengths, y_gs_ms_os_strides);
-    Tensor<LSEDataType> lse_gs_ms(lse_gs_ms_lengths, lse_gs_ms_strides);
+    Tensor<DataType> y_gs_ms_os_device_result(y_gs_ms_os_lengths, y_gs_ms_os_strides);
+    Tensor<LSEDataType> lse_gs_ms_device_result(lse_gs_ms_lengths, lse_gs_ms_strides);
+    Tensor<DataType> qgrad_gs_ms_ks_device_result(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
+    Tensor<DataType> kgrad_gs_ns_ks_device_result(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
+    Tensor<DataType> vgrad_gs_os_ns_device_result(v_gs_os_ns_lengths, v_gs_os_ns_strides);
 
     std::cout << "q_gs_ms_ks: " << q_gs_ms_ks.mDesc << std::endl;
     std::cout << "k_gs_ns_ks: " << k_gs_ns_ks.mDesc << std::endl;
-    std::cout << "z_gs_ms_ns: " << z_gs_ms_ns.mDesc << std::endl;
+    std::cout << "z_gs_ms_ns: " << z_fwd_gs_ms_ns.mDesc << std::endl;
     std::cout << "v_gs_os_ns: " << v_gs_os_ns.mDesc << std::endl;
-    std::cout << "y_gs_ms_os: " << y_gs_ms_os.mDesc << std::endl;
-    std::cout << "lse_gs_ms_os: " << lse_gs_ms.mDesc << std::endl;
+    std::cout << "y_gs_ms_os: " << y_gs_ms_os_device_result.mDesc << std::endl;
+    std::cout << "lse_gs_ms_os: " << lse_gs_ms_device_result.mDesc << std::endl;
 
-    z_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DataType>{0});
+    z_fwd_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DataType>{0});
+    z_bwd_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DataType>{0});
     switch(init_method)
     {
     case 0: break;
@@ -516,50 +623,96 @@ int run(int argc, char* argv[])
         //    = 0
     }
 
-    // calculate y & log-sum-exp beforehand
-    Tensor<DataType> q_g_m_k({BatchCount, M, K});
-    Tensor<DataType> k_g_n_k({BatchCount, N, K});
-    Tensor<ZDataType> z_g_m_n({BatchCount, M, N});
-    Tensor<DataType> v_g_n_o({BatchCount, N, O});
-    Tensor<AccDataType> s_g_m_n({BatchCount, M, N});
-    Tensor<DataType> p_g_m_n({BatchCount, M, N});
-    Tensor<DataType> p_drop_g_m_n({BatchCount, M, N});
-    Tensor<DataType> y_g_m_o({BatchCount, M, O});
-    Tensor<LSEDataType> lse_g_m({BatchCount, M});
-
-    q_gs_ms_ks.ForEach(
-        [&](auto& self, auto idx) { q_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
-    k_gs_ns_ks.ForEach(
-        [&](auto& self, auto idx) { k_g_n_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
-    v_gs_os_ns.ForEach(
-        [&](auto& self, auto idx) { v_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx); });
-
     // qkv gradients have the same descriptor as with qkv
     DeviceMem q_device_buf(sizeof(DataType) * q_gs_ms_ks.mDesc.GetElementSpaceSize());
     DeviceMem k_device_buf(sizeof(DataType) * k_gs_ns_ks.mDesc.GetElementSpaceSize());
-    DeviceMem z_device_buf(sizeof(ZDataType) * z_gs_ms_ns.mDesc.GetElementSpaceSize());
+    DeviceMem z_fwd_device_buf(sizeof(ZDataType) * z_fwd_gs_ms_ns.mDesc.GetElementSpaceSize());
+    DeviceMem z_bwd_device_buf(sizeof(ZDataType) * z_bwd_gs_ms_ns.mDesc.GetElementSpaceSize());
     DeviceMem v_device_buf(sizeof(DataType) * v_gs_os_ns.mDesc.GetElementSpaceSize());
-    DeviceMem y_device_buf(sizeof(DataType) * y_gs_ms_os.mDesc.GetElementSpaceSize());
-    DeviceMem lse_device_buf(sizeof(LSEDataType) * lse_gs_ms.mDesc.GetElementSpaceSize());
-    DeviceMem qgrad_device_buf(sizeof(DataType) * q_gs_ms_ks.mDesc.GetElementSpaceSize());
-    DeviceMem kgrad_device_buf(sizeof(DataType) * k_gs_ns_ks.mDesc.GetElementSpaceSize());
-    DeviceMem vgrad_device_buf(sizeof(DataType) * v_gs_os_ns.mDesc.GetElementSpaceSize());
-    DeviceMem ygrad_device_buf(sizeof(DataType) * y_gs_ms_os.mDesc.GetElementSpaceSize());
+    DeviceMem y_device_buf(sizeof(DataType) * y_gs_ms_os_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem lse_device_buf(sizeof(LSEDataType) *
+                             lse_gs_ms_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem qgrad_device_buf(sizeof(DataType) *
+                               qgrad_gs_ms_ks_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem kgrad_device_buf(sizeof(DataType) *
+                               kgrad_gs_ns_ks_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem vgrad_device_buf(sizeof(DataType) *
+                               vgrad_gs_os_ns_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem ygrad_device_buf(sizeof(DataType) * ygrad_gs_ms_os.mDesc.GetElementSpaceSize());
 
     q_device_buf.ToDevice(q_gs_ms_ks.mData.data());
     k_device_buf.ToDevice(k_gs_ns_ks.mData.data());
-    z_device_buf.ToDevice(z_gs_ms_ns.mData.data());
+    z_fwd_device_buf.ToDevice(z_fwd_gs_ms_ns.mData.data());
+    z_bwd_device_buf.ToDevice(z_bwd_gs_ms_ns.mData.data());
     v_device_buf.ToDevice(v_gs_os_ns.mData.data());
     ygrad_device_buf.ToDevice(ygrad_gs_ms_os.mData.data());
 
-    auto gemm    = DeviceGemmInstance{};
-    auto invoker = gemm.MakeInvoker();
-    // get z matrix
+    auto gemm_fwd    = DeviceGemmInstanceFWD{};
+    auto invoker_fwd = gemm_fwd.MakeInvoker();
+    auto gemm_bwd    = DeviceGemmInstanceBWD{};
+    auto invoker_bwd = gemm_bwd.MakeInvoker();
+
+    if(time_kernel)
     {
-        auto argument = gemm.MakeArgument(
+        auto argument_fwd = gemm_fwd.MakeArgument(
             static_cast<DataType*>(q_device_buf.GetDeviceBuffer()),
             static_cast<DataType*>(k_device_buf.GetDeviceBuffer()),
-            static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(v_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(y_device_buf.GetDeviceBuffer()),
+            static_cast<ZDataType*>(nullptr),
+            static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
+            {}, // std::array<void*, 1> p_acc0_biases;
+            {}, // std::array<void*, 1> p_acc1_biases;
+            q_gs_ms_ks_lengths,
+            q_gs_ms_ks_strides,
+            k_gs_ns_ks_lengths,
+            k_gs_ns_ks_strides,
+            v_gs_os_ns_lengths,
+            v_gs_os_ns_strides,
+            y_gs_ms_os_lengths,
+            y_gs_ms_os_strides,
+            z_gs_ms_ns_lengths,
+            z_gs_ms_ns_strides,
+            lse_gs_ms_lengths,
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
+            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+            QKVElementOp{},
+            QKVElementOp{},
+            Scale{alpha},
+            QKVElementOp{},
+            YElementOp{},
+            p_drop,          // dropout ratio
+            {seed, offset}); // dropout random seed and offset, offset should be at least the number
+                             // of elements on a thread
+
+        if(!gemm_fwd.IsSupportedArgument(argument_fwd))
+        {
+            std::cout << gemm_fwd.GetTypeString() << " does not support this problem" << std::endl;
+
+            return 0;
+        }
+
+        float ave_time_fwd = invoker_fwd.Run(argument_fwd, StreamConfig{nullptr, true});
+
+        std::size_t flop_fwd      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
+        std::size_t num_btype_fwd = (sizeof(DataType) * M * K + sizeof(DataType) * K * N +
+                                     sizeof(DataType) * N * O + sizeof(DataType) * M * O) *
+                                    BatchCount;
+
+        float tflops_fwd = static_cast<float>(flop_fwd) / 1.E9 / ave_time_fwd;
+
+        float gb_per_sec_fwd = num_btype_fwd / 1.E6 / ave_time_fwd;
+
+        std::cout << "FWD Perf: " << ave_time_fwd << " ms, " << tflops_fwd << " TFlops, "
+                  << gb_per_sec_fwd << " GB/s, " << gemm_fwd.GetTypeString() << std::endl;
+
+        // not need output z matrix
+        auto argument_bwd = gemm_bwd.MakeArgument(
+            static_cast<DataType*>(q_device_buf.GetDeviceBuffer()),
+            static_cast<DataType*>(k_device_buf.GetDeviceBuffer()),
+            static_cast<ZDataType*>(nullptr), // set to nullptr
             static_cast<DataType*>(v_device_buf.GetDeviceBuffer()),
             static_cast<DataType*>(y_device_buf.GetDeviceBuffer()),
             static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
@@ -591,108 +744,49 @@ int run(int argc, char* argv[])
             YElementOp{},
             p_drop,
             std::tuple<unsigned long long, unsigned long long>(seed, offset));
+        kgrad_device_buf.SetZero(); // reset global accum buffer and rerun
+        vgrad_device_buf.SetZero();
+        float ave_time_bwd = invoker_bwd.Run(argument_bwd, StreamConfig{nullptr, true});
 
-        if(!gemm.IsSupportedArgument(argument))
-        {
-            std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+        // 5 GEMM ops in total:
+        // S_MNK / dP_MNO Gemm (Gemm0 rcr)
+        // dQ_MKN Gemm (Gemm1 rrr)
+        // dV_NOM / dK_NKM Gemm (Gemm2 crr)
+        // 3x MNK + 2x MNO
+        std::size_t flop_bwd = (size_t(3) * M * N * K + size_t(2) * M * N * O) * 2 * BatchCount;
+        // Q/K/V/Y, dQ/dK/dV/dY, LSE
+        std::size_t num_btype_bwd = (sizeof(DataType) * M * K + sizeof(DataType) * K * N +
+                                     sizeof(DataType) * N * O + sizeof(DataType) * M * O) *
+                                        size_t(2) * BatchCount +
+                                    sizeof(LSEDataType) * M * BatchCount;
 
-            return 0;
-        }
-        invoker.Run(argument, StreamConfig{nullptr, false});
+        float tflops_bwd = static_cast<float>(flop_bwd) / 1.E9 / ave_time_bwd;
+
+        float gb_per_sec_bwd = num_btype_bwd / 1.E6 / ave_time_bwd;
+
+        std::cout << "BWD Perf: " << ave_time_bwd << " ms, " << tflops_bwd << " TFlops, "
+                  << gb_per_sec_bwd << " GB/s, " << gemm_bwd.GetTypeString() << std::endl;
     }
-    // not need output z matrix
-    auto argument = gemm.MakeArgument(
-        static_cast<DataType*>(q_device_buf.GetDeviceBuffer()),
-        static_cast<DataType*>(k_device_buf.GetDeviceBuffer()),
-        static_cast<ZDataType*>(nullptr), // set to nullptr
-        static_cast<DataType*>(v_device_buf.GetDeviceBuffer()),
-        static_cast<DataType*>(y_device_buf.GetDeviceBuffer()),
-        static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-        static_cast<DataType*>(ygrad_device_buf.GetDeviceBuffer()),
-        static_cast<DataType*>(qgrad_device_buf.GetDeviceBuffer()),
-        static_cast<DataType*>(kgrad_device_buf.GetDeviceBuffer()),
-        static_cast<DataType*>(vgrad_device_buf.GetDeviceBuffer()),
-        {}, // std::array<void*, 1> p_acc0_biases;
-        {}, // std::array<void*, 1> p_acc1_biases;
-        q_gs_ms_ks_lengths,
-        q_gs_ms_ks_strides,
-        k_gs_ns_ks_lengths,
-        k_gs_ns_ks_strides,
-        z_gs_ms_ns_lengths,
-        z_gs_ms_ns_strides,
-        v_gs_os_ns_lengths,
-        v_gs_os_ns_strides,
-        y_gs_ms_os_lengths,
-        y_gs_ms_os_strides,
-        lse_gs_ms_lengths,
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
-        QKVElementOp{},
-        QKVElementOp{},
-        Scale{alpha},
-        QKVElementOp{},
-        YElementOp{},
-        p_drop,
-        std::tuple<unsigned long long, unsigned long long>(seed, offset));
-    kgrad_device_buf.SetZero(); // reset global accum buffer and rerun
-    vgrad_device_buf.SetZero();
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    // 5 GEMM ops in total:
-    // S_MNK / dP_MNO Gemm (Gemm0 rcr)
-    // dQ_MKN Gemm (Gemm1 rrr)
-    // dV_NOM / dK_NKM Gemm (Gemm2 crr)
-    // 3x MNK + 2x MNO
-    std::size_t flop = (size_t(3) * M * N * K + size_t(2) * M * N * O) * 2 * BatchCount;
-    // Q/K/V/Y, dQ/dK/dV/dY, LSE
-    std::size_t num_btype = (sizeof(DataType) * M * K + sizeof(DataType) * K * N +
-                             sizeof(DataType) * N * O + sizeof(DataType) * M * O) *
-                                size_t(2) * BatchCount +
-                            sizeof(LSEDataType) * M * BatchCount;
-
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << gemm.GetTypeString() << std::endl;
-
-    // copy z matirx data form device
-    z_device_buf.FromDevice(z_gs_ms_ns.mData.data());
-    z_gs_ms_ns.ForEach(
-        [&](auto& self, auto idx) { z_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
-
-    //       std::cout << "z_g_m_n ref:\n" << z_g_m_n;
     bool pass = true;
     if(do_verification)
     {
-        // run fwd again for y, cause z_g_m_n update
-        run_attention_fwd_host(q_g_m_k,
-                               k_g_n_k,
-                               v_g_n_o,
-                               alpha,
-                               s_g_m_n,
-                               p_g_m_n,
-                               y_g_m_o,
-                               lse_g_m,
-                               p_drop_g_m_n,
-                               z_g_m_n,
-                               p_dropout_in_16bits,
-                               rp_dropout);
-        y_gs_ms_os.ForEach([&](auto& self, auto idx) {
-            self(idx) = y_g_m_o(idx[0] * G1 + idx[1], idx[2], idx[3]);
-        });
-        lse_gs_ms.ForEach(
-            [&](auto& self, auto idx) { self(idx) = lse_g_m(idx[0] * G1 + idx[1], idx[2]); });
-        y_device_buf.ToDevice(y_gs_ms_os.mData.data());
-        lse_device_buf.ToDevice(lse_gs_ms.mData.data());
+        Tensor<DataType> y_gs_ms_os_host_result(y_gs_ms_os_lengths, y_gs_ms_os_strides);
+        Tensor<LSEDataType> lse_gs_ms_host_result(lse_gs_ms_lengths, lse_gs_ms_strides);
+        Tensor<DataType> qgrad_gs_ms_ks_host_result(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
+        Tensor<DataType> kgrad_gs_ns_ks_host_result(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
+        Tensor<DataType> vgrad_gs_os_ns_host_result(v_gs_os_ns_lengths, v_gs_os_ns_strides);
 
-        // call kernel again
-        kgrad_device_buf.SetZero(); // reset global accum buffer and rerun
-        vgrad_device_buf.SetZero();
-        invoker.Run(argument, StreamConfig{nullptr, false});
+        Tensor<DataType> q_g_m_k({BatchCount, M, K});
+        Tensor<DataType> k_g_n_k({BatchCount, N, K});
+        Tensor<ZDataType> z_fwd_g_m_n({BatchCount, M, N});
+        Tensor<ZDataType> z_bwd_g_m_n({BatchCount, M, N});
+        Tensor<DataType> v_g_n_o({BatchCount, N, O});
+        Tensor<AccDataType> s_g_m_n({BatchCount, M, N});
+        Tensor<DataType> p_g_m_n({BatchCount, M, N});
+        Tensor<DataType> p_drop_g_m_n({BatchCount, M, N});
+        Tensor<DataType> y_g_m_o({BatchCount, M, O});
+        Tensor<LSEDataType> lse_g_m({BatchCount, M});
 
         Tensor<DataType> qgrad_g_m_k({BatchCount, M, K});
         Tensor<DataType> kgrad_g_n_k({BatchCount, N, K});
@@ -703,8 +797,149 @@ int run(int argc, char* argv[])
         Tensor<DataType> ygrad_g_m_o({BatchCount, M, O});
         Tensor<DataType> ygrad_dot_y_g_m({BatchCount, M});
 
+        // get kernel output matrixes
+        {
+            auto argument_fwd = gemm_fwd.MakeArgument(
+                static_cast<DataType*>(q_device_buf.GetDeviceBuffer()),
+                static_cast<DataType*>(k_device_buf.GetDeviceBuffer()),
+                static_cast<DataType*>(v_device_buf.GetDeviceBuffer()),
+                static_cast<DataType*>(y_device_buf.GetDeviceBuffer()),
+                static_cast<ZDataType*>(z_fwd_device_buf.GetDeviceBuffer()),
+                static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
+                {}, // std::array<void*, 1> p_acc0_biases;
+                {}, // std::array<void*, 1> p_acc1_biases;
+                q_gs_ms_ks_lengths,
+                q_gs_ms_ks_strides,
+                k_gs_ns_ks_lengths,
+                k_gs_ns_ks_strides,
+                v_gs_os_ns_lengths,
+                v_gs_os_ns_strides,
+                y_gs_ms_os_lengths,
+                y_gs_ms_os_strides,
+                z_gs_ms_ns_lengths,
+                z_gs_ms_ns_strides,
+                lse_gs_ms_lengths,
+                {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
+                {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
+                {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
+                {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+                QKVElementOp{},
+                QKVElementOp{},
+                Scale{alpha},
+                QKVElementOp{},
+                YElementOp{},
+                p_drop,          // dropout ratio
+                {seed, offset}); // dropout random seed and offset, offset should be at least the
+                                 // number of elements on a thread
+
+            if(!gemm_fwd.IsSupportedArgument(argument_fwd))
+            {
+                std::cout << gemm_fwd.GetTypeString() << " does not support this problem"
+                          << std::endl;
+
+                return 0;
+            }
+            invoker_fwd.Run(argument_fwd, StreamConfig{nullptr, false});
+
+            // copy fwd matirx data form device
+            z_fwd_device_buf.FromDevice(z_fwd_gs_ms_ns.mData.data());
+            y_device_buf.FromDevice(y_gs_ms_os_device_result.mData.data());
+            lse_device_buf.FromDevice(lse_gs_ms_device_result.mData.data());
+
+            // std::cout << "z_fwd_gs_ms_ns ref:\n" << z_fwd_gs_ms_ns;
+            std::ofstream fwd_file("./z_fwd_matrix_txt");
+            fwd_file << z_fwd_gs_ms_ns << std::endl;
+
+            kgrad_device_buf.SetZero();
+            vgrad_device_buf.SetZero();
+
+            auto argument_bwd = gemm_bwd.MakeArgument(
+                static_cast<DataType*>(q_device_buf.GetDeviceBuffer()),
+                static_cast<DataType*>(k_device_buf.GetDeviceBuffer()),
+                static_cast<ZDataType*>(z_bwd_device_buf.GetDeviceBuffer()),
+                static_cast<DataType*>(v_device_buf.GetDeviceBuffer()),
+                static_cast<DataType*>(y_device_buf.GetDeviceBuffer()),
+                static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
+                static_cast<DataType*>(ygrad_device_buf.GetDeviceBuffer()),
+                static_cast<DataType*>(qgrad_device_buf.GetDeviceBuffer()),
+                static_cast<DataType*>(kgrad_device_buf.GetDeviceBuffer()),
+                static_cast<DataType*>(vgrad_device_buf.GetDeviceBuffer()),
+                {}, // std::array<void*, 1> p_acc0_biases;
+                {}, // std::array<void*, 1> p_acc1_biases;
+                q_gs_ms_ks_lengths,
+                q_gs_ms_ks_strides,
+                k_gs_ns_ks_lengths,
+                k_gs_ns_ks_strides,
+                z_gs_ms_ns_lengths,
+                z_gs_ms_ns_strides,
+                v_gs_os_ns_lengths,
+                v_gs_os_ns_strides,
+                y_gs_ms_os_lengths,
+                y_gs_ms_os_strides,
+                lse_gs_ms_lengths,
+                {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
+                {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
+                {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
+                {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+                QKVElementOp{},
+                QKVElementOp{},
+                Scale{alpha},
+                QKVElementOp{},
+                YElementOp{},
+                p_drop,
+                std::tuple<unsigned long long, unsigned long long>(seed, offset));
+
+            if(!gemm_bwd.IsSupportedArgument(argument_bwd))
+            {
+                std::cout << gemm_bwd.GetTypeString() << " does not support this problem"
+                          << std::endl;
+
+                return 0;
+            }
+            invoker_bwd.Run(argument_bwd, StreamConfig{nullptr, false});
+
+            // copy bwd matirx data form device
+            z_bwd_device_buf.FromDevice(z_bwd_gs_ms_ns.mData.data());
+            qgrad_device_buf.FromDevice(qgrad_gs_ms_ks_device_result.mData.data());
+            kgrad_device_buf.FromDevice(kgrad_gs_ns_ks_device_result.mData.data());
+            vgrad_device_buf.FromDevice(vgrad_gs_os_ns_device_result.mData.data());
+
+            // std::cout << "z_bwd_gs_ms_ns ref:\n" << z_bwd_gs_ms_ns;
+            std::ofstream bwd_file("./z_bwd_matrix_txt");
+            bwd_file << z_bwd_gs_ms_ns << std::endl;
+        }
+
+        q_gs_ms_ks.ForEach([&](auto& self, auto idx) {
+            q_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        });
+        k_gs_ns_ks.ForEach([&](auto& self, auto idx) {
+            k_g_n_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        });
+        v_gs_os_ns.ForEach([&](auto& self, auto idx) {
+            v_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+        });
+        z_fwd_gs_ms_ns.ForEach([&](auto& self, auto idx) {
+            z_fwd_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        });
+
+        run_attention_fwd_host(q_g_m_k,
+                               k_g_n_k,
+                               v_g_n_o,
+                               alpha,
+                               s_g_m_n,
+                               p_g_m_n,
+                               y_g_m_o,
+                               lse_g_m,
+                               p_drop_g_m_n,
+                               z_fwd_g_m_n,
+                               p_dropout_in_16bits,
+                               rp_dropout);
+
         ygrad_gs_ms_os.ForEach([&](auto& self, auto idx) {
             ygrad_g_m_o(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        });
+        z_bwd_gs_ms_ns.ForEach([&](auto& self, auto idx) {
+            z_bwd_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
         });
 
 #if PRINT_HOST
@@ -737,7 +972,7 @@ int run(int argc, char* argv[])
         auto ref_dropout         = ReferenceDropoutInstance{};
         auto ref_dropout_invoker = ref_dropout.MakeInvoker();
         auto ref_dropout_argment = ref_dropout.MakeArgument(
-            z_g_m_n, pgrad_drop_g_m_n, pgrad_g_m_n, p_dropout_in_16bits, rp_dropout);
+            z_bwd_g_m_n, pgrad_drop_g_m_n, pgrad_g_m_n, p_dropout_in_16bits, rp_dropout);
         ref_dropout_invoker.Run(ref_dropout_argment);
 
         // dS_i_j = P_i_j .* (dP_i_j - dY_i dot Y_i)
@@ -747,9 +982,12 @@ int run(int argc, char* argv[])
             {
                 auto idx_gmo = idx_gmn;
                 idx_gmo[2]   = o;
-                ygrad_dot_y += ygrad_g_m_o(idx_gmo) * y_g_m_o(idx_gmo);
+                ygrad_dot_y += ck::type_convert<AccDataType>(ygrad_g_m_o(idx_gmo)) *
+                               ck::type_convert<AccDataType>(y_g_m_o(idx_gmo));
             }
-            self(idx_gmn) = p_g_m_n(idx_gmn) * (pgrad_g_m_n(idx_gmn) - ygrad_dot_y);
+            self(idx_gmn) = ck::type_convert<DataType>(
+                ck::type_convert<AccDataType>(p_g_m_n(idx_gmn)) *
+                (ck::type_convert<AccDataType>(pgrad_g_m_n(idx_gmn)) - ygrad_dot_y));
         });
 #if PRINT_HOST
         {
@@ -799,19 +1037,23 @@ int run(int argc, char* argv[])
         }
 #endif
 
-        Tensor<DataType> qgrad_gs_ms_ks_host_result(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
-        Tensor<DataType> kgrad_gs_ns_ks_host_result(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
-        Tensor<DataType> vgrad_gs_os_ns_host_result(v_gs_os_ns_lengths, v_gs_os_ns_strides);
-
-        Tensor<DataType> qgrad_gs_ms_ks_device_result(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
-        Tensor<DataType> kgrad_gs_ns_ks_device_result(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
-        Tensor<DataType> vgrad_gs_os_ns_device_result(v_gs_os_ns_lengths, v_gs_os_ns_strides);
-
-        qgrad_device_buf.FromDevice(qgrad_gs_ms_ks_device_result.mData.data());
-        kgrad_device_buf.FromDevice(kgrad_gs_ns_ks_device_result.mData.data());
-        vgrad_device_buf.FromDevice(vgrad_gs_os_ns_device_result.mData.data());
-
         // permute
+        y_gs_ms_os_host_result.ForEach([&](auto& self, auto idx) {
+            const size_t& g0 = idx[0];
+            const size_t& g1 = idx[1];
+
+            const size_t g = g0 * G1 + g1;
+
+            self(idx) = y_g_m_o(g, idx[2], idx[3]);
+        });
+        lse_gs_ms_host_result.ForEach([&](auto& self, auto idx) {
+            const size_t& g0 = idx[0];
+            const size_t& g1 = idx[1];
+
+            const size_t g = g0 * G1 + g1;
+
+            self(idx) = lse_g_m(g, idx[2]);
+        });
         qgrad_gs_ms_ks_host_result.ForEach([&](auto& self, auto idx) {
             const size_t& g0 = idx[0];
             const size_t& g1 = idx[1];
@@ -836,6 +1078,28 @@ int run(int argc, char* argv[])
 
             self(idx) = vgrad_g_n_o(g, idx[3], idx[2]);
         });
+
+        // default absolute error and relative error is 0.001
+        double rtol = 1e-3;
+        double atol = 1e-3;
+
+        // when BF16 is taken, set absolute error and relative error to 0.01
+        if(std::is_same_v<DataType, ck::bhalf_t> || std::is_same_v<GemmDataType, ck::bhalf_t>)
+        {
+            rtol = 1e-2;
+            atol = 1e-2;
+        }
+
+        std::cout << "Checking z:\n";
+        pass &= ck::utils::check_err(z_fwd_gs_ms_ns.mData, z_bwd_gs_ms_ns.mData, 1);
+
+        std::cout << "Checking y:\n";
+        pass &= ck::utils::check_err(
+            y_gs_ms_os_device_result.mData, y_gs_ms_os_host_result.mData, "error", rtol, atol);
+
+        std::cout << "Checking lse:\n";
+        pass &= ck::utils::check_err(
+            lse_gs_ms_device_result.mData, lse_gs_ms_host_result.mData, "error", rtol, atol);
 
         std::cout << "Checking qgrad:\n";
         pass &= ck::utils::check_err(qgrad_gs_ms_ks_device_result.mData,

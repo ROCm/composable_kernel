@@ -97,7 +97,7 @@ int run(int argc, char* argv[])
 
     std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
     std::vector<ck::index_t> z_gs_ms_ns_strides =
-        output_permute
+        input_permute
             ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // Z layout [G0, M, G1, N]
             : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // Z layout [G0, G1, M, N]
 
@@ -360,8 +360,7 @@ int run(int argc, char* argv[])
         double atol = 1e-3;
 
         // when BF16 is taken, set absolute error and relative error to 0.01
-        if(std::is_same_v<ADataType, ck::bhalf_t> && std::is_same_v<B0DataType, ck::bhalf_t> &&
-           std::is_same_v<B1DataType, ck::bhalf_t> && std::is_same_v<CDataType, ck::bhalf_t>)
+        if(std::is_same_v<DataType, ck::bhalf_t> || std::is_same_v<GemmDataType, ck::bhalf_t>)
         {
             rtol = 1e-2;
             atol = 1e-2;
