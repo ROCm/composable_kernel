@@ -215,6 +215,13 @@ struct intrin_mfma_f32_32x32x8bf16_1k<32, 32>
         reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(
             reg_a, reg_b, reg_c.template AsType<float16_t>()[Number<0>{}], 0, 0, 0);
     }
+
+    template <class FloatC>
+    __device__ static void Run(const bfloat16x4_t& reg_a, const bfloat16x4_t& reg_b, FloatC& reg_c)
+    {
+        reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(
+            reg_a, reg_b, reg_c.template AsType<float16_t>()[Number<0>{}], 0, 0, 0);
+    }
 };
 
 template <index_t MPerWave, index_t NPerWave>
@@ -239,6 +246,12 @@ struct intrin_mfma_f32_32x32x4bf16<32, 32>
 {
     template <class FloatC>
     __device__ static void Run(const bhalf2_t& reg_a, const bhalf2_t& reg_b, FloatC& reg_c)
+    {
+        reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_32x32x4bf16(
+            reg_a, reg_b, reg_c.template AsType<float16_t>()[Number<0>{}], 0, 0, 0);
+    }
+    template <class FloatC>
+    __device__ static void Run(const bfloat16x2_t& reg_a, const bfloat16x2_t& reg_b, FloatC& reg_c)
     {
         reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_32x32x4bf16(
             reg_a, reg_b, reg_c.template AsType<float16_t>()[Number<0>{}], 0, 0, 0);

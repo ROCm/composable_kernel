@@ -62,7 +62,7 @@ using QKVElementOp = PassThrough;
 using YElementOp   = PassThrough;
 
 using DataType         = F16;
-using GemmDataType     = F16;
+using GemmDataType     = BF16;
 using AccDataType      = F32;
 using ShuffleDataType  = F32;
 using LSEDataType      = F32;

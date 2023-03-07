@@ -13,6 +13,8 @@ using half_t  = _Float16;
 using int4_t = _BitInt(4);
 #endif
 
+using bfloat16_t = int16_t;
+
 // vector_type
 template <typename T, index_t N>
 struct vector_type;
@@ -116,6 +118,13 @@ template <>
 struct scalar_type<bhalf_t>
 {
     using type                           = bhalf_t;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<bfloat16_t>
+{
+    using type                           = bfloat16_t;
     static constexpr index_t vector_size = 1;
 };
 
@@ -926,6 +935,13 @@ using bhalf16_t = typename vector_type<bhalf_t, 16>::type;
 using bhalf32_t = typename vector_type<bhalf_t, 32>::type;
 using bhalf64_t = typename vector_type<bhalf_t, 64>::type;
 
+// bfloat16_t
+using bfloat16x2_t  = typename vector_type<bfloat16_t, 2>::type;
+using bfloat16x4_t  = typename vector_type<bfloat16_t, 4>::type;
+using bfloat16x8_t  = typename vector_type<bfloat16_t, 8>::type;
+using bfloat16x16_t = typename vector_type<bfloat16_t, 16>::type;
+using bfloat16x32_t = typename vector_type<bfloat16_t, 32>::type;
+using bfloat16x64_t = typename vector_type<bfloat16_t, 64>::type;
 // i32
 using int32x2_t  = typename vector_type<int32_t, 2>::type;
 using int32x4_t  = typename vector_type<int32_t, 4>::type;
@@ -1013,6 +1029,45 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
 // convert fp16 to bf16
 template <>
 inline __host__ __device__ bhalf_t type_convert<bhalf_t, half_t>(half_t x)
+{
+    union
+    {
+        float fp32;
+        uint32_t int32;
+    } u = {static_cast<float>(x)};
+
+    return uint16_t(u.int32 >> 16);
+}
+
+// convert bfp16 to fp32
+template <>
+inline __host__ __device__ constexpr float type_convert<float, bfloat16_t>(bfloat16_t x)
+{
+    union
+    {
+        uint32_t int32;
+        float fp32;
+    } u = {uint32_t(x) << 16};
+
+    return u.fp32;
+}
+
+// convert fp32 to bfp16
+template <>
+inline __host__ __device__ constexpr bfloat16_t type_convert<bfloat16_t, float>(float x)
+{
+    union
+    {
+        float fp32;
+        uint32_t int32;
+    } u = {x};
+
+    return uint16_t(u.int32 >> 16);
+}
+
+// convert fp16 to bf16
+template <>
+inline __host__ __device__ bfloat16_t type_convert<bfloat16_t, half_t>(half_t x)
 {
     union
     {

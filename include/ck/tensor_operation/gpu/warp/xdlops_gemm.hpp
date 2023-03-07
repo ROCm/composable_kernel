@@ -525,6 +525,27 @@ struct MfmaSelector
     }
 
     template <>
+    static constexpr auto GetMfma<bfloat16_t, 32, 32>()
+    {
+#if defined(CK_USE_AMD_MFMA_BF16_1K_OP)
+        return MfmaInstr::mfma_f32_32x32x8bf16_1k;
+#else
+        return MfmaInstr::mfma_f32_32x32x4bf16;
+#endif
+    }
+
+    template <>
+    static constexpr auto GetMfma<bfloat16_t, 16, 16>()
+    {
+#if defined(CK_USE_AMD_MFMA_BF16_1K_OP)
+        return MfmaInstr::mfma_f32_16x16x16bf16_1k;
+#else
+        return MfmaInstr::mfma_f32_16x16x8bf16;
+#endif
+    }
+
+
+    template <>
     static constexpr auto GetMfma<int8_t, 32, 32>()
     {
         return MfmaInstr::mfma_i32_32x32x8i8;
@@ -735,7 +756,7 @@ struct XdlopsGemm
     __device__ void Run(const FloatA& p_a_wave, const FloatB& p_b_wave, FloatC& p_c_thread) const
     {
         static_assert(is_same<base_type, double>::value || is_same<base_type, float>::value ||
-                          is_same<base_type, half_t>::value || is_same<base_type, bhalf_t>::value ||
+                          is_same<base_type, half_t>::value || is_same<base_type, bhalf_t>::value|| is_same<base_type, bfloat16_t>::value ||
                           is_same<base_type, int8_t>::value,
                       "base base_type must be double, float, half, bfloat16, and int8_t!");
 
