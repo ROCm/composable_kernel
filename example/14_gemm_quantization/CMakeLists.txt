@@ -1,2 +1,6 @@
+# dlops
+add_example_executable(example_gemm_dl_quantization_int8 gemm_dl_quantization_int8.cpp)
+
+# xdlops
 add_example_executable(example_gemm_xdl_bias_relu_quantization_int8 gemm_xdl_bias_relu_quantization_int8.cpp)
 add_example_executable(example_gemm_xdl_quantization_int8 gemm_xdl_quantization_int8.cpp)
