@@ -25,17 +25,19 @@ Kernel outputs:
 
 #define PRINT_HOST 0
 #define USING_MASK 1
-#define USING_HD32 0
+#define RANGE_HDKO 2 // 0~2
 
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
+#include <fstream>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle_pt1.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -60,8 +62,8 @@ using Scale       = ck::tensor_operation::element_wise::Scale;
 using QKVElementOp = PassThrough;
 using YElementOp   = PassThrough;
 
-using DataType         = BF16;
-using GemmDataType     = BF16;
+using DataType         = F16;
+using GemmDataType     = F16;
 using AccDataType      = F32;
 using ShuffleDataType  = F32;
 using LSEDataType      = F32;
@@ -89,12 +91,11 @@ static constexpr auto TensorSpecK = ck::tensor_operation::device::TensorSpeciali
 static constexpr auto TensorSpecV = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecY = ck::tensor_operation::device::TensorSpecialization::Default;
 
-// Headdim/K/O should be a multiple of 8, and it's only supported up to 64 in prototype1.
-// If Headdim/K/O <= 32, ues 1st template.
-// If 32 < Headdim/K/O <= 64, ues 2nd template.
-
-#if USING_HD32
-// 1st template
+// Headdim/K/O should be a multiple of 8.
+// If      Headdim/K/O <= 32 , ues prototype1 1st template.
+// If 32 < Headdim/K/O <= 64 , ues prototype1 2nd template.
+// If 64 < Headdim/K/O <= 128, ues prototype2 2nd template.
+#if(RANGE_HDKO == 0)
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
         NumDimG,
@@ -162,8 +163,7 @@ using DeviceGemmInstance =
         S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
-#else
-// 2nd template
+#elif(RANGE_HDKO == 1)
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
         NumDimG,
@@ -228,6 +228,141 @@ using DeviceGemmInstance =
         false,
         1,              // CShuffleMXdlPerWavePerShuffle
         2,              // CShuffleNXdlPerWavePerShuffle
+        S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        MaskingSpec>;   // MaskingSpecialization
+                        // using DeviceGemmInstance =
+//     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle<
+//         NumDimG,
+//         NumDimM,
+//         NumDimN,
+//         NumDimK,
+//         NumDimO,
+//         DataType,
+//         GemmDataType,
+//         ZDataType,
+//         LSEDataType,
+//         Acc0BiasDataType,
+//         Acc1BiasDataType,
+//         AccDataType,
+//         ShuffleDataType,
+//         QKVElementOp,
+//         QKVElementOp,
+//         Scale,
+//         QKVElementOp,
+//         YElementOp,
+//         GemmSpec,
+//         TensorSpecQ,
+//         TensorSpecK,
+//         TensorSpecV,
+//         TensorSpecY,
+//         1,
+//         256,
+//         128,         // MPerBlock
+//         128,         // NPerBlock
+//         64,          // KPerBlock
+//         64,          // Gemm1NPerBlock
+//         64,          // Gemm1KPerBlock
+//         8,           // AK1
+//         8,           // BK1
+//         2,           // B1K1
+//         32,          // MPerXDL
+//         32,          // NPerXDL
+//         1,           // MXdlPerWave
+//         4,           // NXdlPerWave
+//         2,           // Gemm1NXdlPerWave
+//         2,           // Gemm2NXdlPerWave
+//         S<4, 64, 1>, // ABlockTransfer
+//         S<1, 0, 2>,
+//         S<1, 0, 2>,
+//         2,
+//         8,
+//         8,
+//         true,
+//         S<4, 64, 1>, // BBlockTransfer
+//         S<1, 0, 2>,
+//         S<1, 0, 2>,
+//         2,
+//         8,
+//         8,
+//         true,
+//         S<8, 32, 1>, // B1BlockTransfer
+//         S<0, 2, 1>,
+//         S<0, 2, 1>,
+//         1,
+//         2,
+//         2,
+//         false,
+//         1,              // CShuffleMXdlPerWavePerShuffle
+//         2,              // CShuffleNXdlPerWavePerShuffle
+//         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+//         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+//         MaskingSpec>;   // MaskingSpecialization
+#elif(RANGE_HDKO == 2)
+using DeviceGemmInstance =
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle<
+        NumDimG,
+        NumDimM,
+        NumDimN,
+        NumDimK,
+        NumDimO,
+        DataType,
+        GemmDataType,
+        ZDataType,
+        LSEDataType,
+        Acc0BiasDataType,
+        Acc1BiasDataType,
+        AccDataType,
+        ShuffleDataType,
+        QKVElementOp,
+        QKVElementOp,
+        Scale,
+        QKVElementOp,
+        YElementOp,
+        GemmSpec,
+        TensorSpecQ,
+        TensorSpecK,
+        TensorSpecV,
+        TensorSpecY,
+        1,
+        256,
+        128,         // MPerBlock
+        128,         // NPerBlock
+        64,          // KPerBlock
+        128,         // Gemm1NPerBlock
+        32,          // Gemm1KPerBlock
+        8,           // AK1
+        8,           // BK1
+        2,           // B1K1
+        32,          // MPerXDL
+        32,          // NPerXDL
+        1,           // MXdlPerWave
+        4,           // NXdlPerWave
+        4,           // Gemm1NXdlPerWave
+        2,           // Gemm2NXdlPerWave
+        S<4, 64, 1>, // ABlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<4, 64, 1>, // BBlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<8, 32, 1>, // B1BlockTransfer
+        S<0, 2, 1>,
+        S<0, 2, 1>,
+        1,
+        4,
+        2,
+        false,
+        1,              // CShuffleMXdlPerWavePerShuffle
+        4,              // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
@@ -302,14 +437,12 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
     ref_gemm0_invoker.Run(ref_gemm0_argument);
 
     // masking
-#if USING_MASK
     auto N          = s_g_m_n.GetLengths()[2];
     const auto mask = DeviceGemmInstance::C0MatrixMask(N);
     s_g_m_n.ForEach([&](auto& self, auto idx) {
         if(mask.IsMaskedElement(idx[1], idx[2]))
             self(idx) = -ck::NumericLimits<float>::Infinity();
     });
-#endif
 
     // P = Softmax(S)
     auto ref_softmax          = ReferenceSoftmaxInstance{};
@@ -344,17 +477,18 @@ int run(int argc, char* argv[])
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
     // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
     // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t M = 1536; // 512
-    ck::index_t N = 1536; // 512
-#if USING_HD32
+    ck::index_t M = 512;
+    ck::index_t N = 512;
+#if(RANGE_HDKO == 0)
     ck::index_t K = 32; // K/O<=32
-    ck::index_t O = 32;
-#else
+#elif(RANGE_HDKO == 1)
     ck::index_t K = 64; // 32<K/O<=64
-    ck::index_t O = 64;
+#elif(RANGE_HDKO == 2)
+    ck::index_t K = 80; // 64<K/O<=128
 #endif
-    ck::index_t G0 = 1; // 54
-    ck::index_t G1 = 1; // 16
+    ck::index_t O  = K;
+    ck::index_t G0 = 3;
+    ck::index_t G1 = 2;
 
     float alpha = 1.f / std::sqrt(K);
 
