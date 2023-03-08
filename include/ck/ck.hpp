@@ -35,7 +35,7 @@
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
 #elif defined(__gfx1030__) // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#elif defined(__gfx1100__) || defined(__gfx1101__) // for GPU code
+#elif defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x10020000
 #endif
 
@@ -64,7 +64,7 @@
 // WMMA instruction
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_WMMA
-#elif defined(__gfx1100__) || defined(__gfx1101__) // for GPU code
+#elif defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) // for GPU code
 #define CK_USE_AMD_WMMA
 #endif
 
