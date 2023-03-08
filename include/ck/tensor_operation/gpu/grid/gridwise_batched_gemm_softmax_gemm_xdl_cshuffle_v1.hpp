@@ -18,6 +18,10 @@
 
 namespace ck {
 
+/**
+ * @brief Gridwise gemm + softmax + gemm fusion
+ *
+ */
 template <typename FloatAB,
           typename FloatGemmAcc,
           typename FloatCShuffle,
