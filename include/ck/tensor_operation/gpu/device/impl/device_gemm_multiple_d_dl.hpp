@@ -34,21 +34,21 @@ template <typename GridwiseGemm,
           bool HasDoubleTailKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-    kernel_gemm_dl_multiple_d(
-        const ABDataType* __restrict__ p_a_grid,
-        const ABDataType* __restrict__ p_b_grid,
-        DsPointer p_ds_grid,
-        EDataType* __restrict__ p_e_grid,
-        const AElementwiseOperation a_element_op,
-        const BElementwiseOperation b_element_op,
-        const CDEElementwiseOperation cde_element_op,
-        const AGridDesc_K0_M0_M1_K1 a_grid_desc_k0_m0_m1_k1,
-        const BGridDesc_K0_N0_N1_K1 b_grid_desc_k0_n0_n1_k1,
-        const DsGridDesc_M0_M10_M11_N0_N10_N11 ds_grid_desc_m0_m10_m11_n0_n10_n11,
-        const CGridDesc_M0_M10_M11_N0_N10_N11 e_grid_desc_m0_m10_m11_n0_n10_n11,
-        const Block2CTileMap block_2_ctile_map)
+        kernel_gemm_dl_multiple_d(
+            const ABDataType* __restrict__ p_a_grid,
+            const ABDataType* __restrict__ p_b_grid,
+            DsPointer p_ds_grid,
+            EDataType* __restrict__ p_e_grid,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CDEElementwiseOperation cde_element_op,
+            const AGridDesc_K0_M0_M1_K1 a_grid_desc_k0_m0_m1_k1,
+            const BGridDesc_K0_N0_N1_K1 b_grid_desc_k0_n0_n1_k1,
+            const DsGridDesc_M0_M10_M11_N0_N10_N11 ds_grid_desc_m0_m10_m11_n0_n10_n11,
+            const CGridDesc_M0_M10_M11_N0_N10_N11 e_grid_desc_m0_m10_m11_n0_n10_n11,
+            const Block2CTileMap block_2_ctile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) || \
     defined(__gfx90a__) || defined(__gfx1030__))
