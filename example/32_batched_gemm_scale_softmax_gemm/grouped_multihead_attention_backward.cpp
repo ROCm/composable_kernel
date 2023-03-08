@@ -25,7 +25,7 @@ Kernel outputs:
 
 #define PRINT_HOST 0
 #define USING_MASK 0
-#define DIM 64
+#define DIM 128
 
 #include <iostream>
 #include <numeric>
@@ -226,7 +226,6 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedMultiheadA
         MaskingSpec>;   // MaskingSpecialization
 #else
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1<
-            ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,
