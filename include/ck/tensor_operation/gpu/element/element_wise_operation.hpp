@@ -423,7 +423,7 @@ struct ScaleBiasMask
 
     template <>
     __host__ __device__ constexpr void
-    operator()(float& y, const float& x, const F16& bias, const int32_t& mask) const
+    operator()(float& y, const float& x, const half_t& bias, const int32_t& mask) const
     {
         float filter_value = (mask == 1 ? 0.0f : mask_filter_value_);
         y                  = scale_ * x + ck::type_convert<float>(bias) + filter_value;
