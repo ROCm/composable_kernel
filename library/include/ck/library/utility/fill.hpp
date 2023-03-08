@@ -100,6 +100,15 @@ struct FillMonotonicSeq
             return tmp;
         });
     }
+
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range) const -> std::void_t<decltype(
+        std::declval<const FillMonotonicSeq&>()(std::begin(std::forward<ForwardRange>(range)),
+                                                std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
+    }
 };
 
 template <typename T>
@@ -111,6 +120,15 @@ struct FillConstant
     void operator()(ForwardIter first, ForwardIter last) const
     {
         std::fill(first, last, value_);
+    }
+
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range) const -> std::void_t<
+        decltype(std::declval<const FillConstant&>()(std::begin(std::forward<ForwardRange>(range)),
+                                                     std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
     }
 };
 
