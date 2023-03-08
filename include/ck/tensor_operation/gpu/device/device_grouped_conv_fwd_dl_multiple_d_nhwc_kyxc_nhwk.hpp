@@ -116,25 +116,26 @@ template <typename GridwiseGemm,
           bool HasDoubleTailKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_conv_fwd_dl_multiple_d(
-            const ABDataType* __restrict__ p_a_grid,
-            const ABDataType* __restrict__ p_b_grid,
-            DsPointer p_ds_grid,
-            EDataType* __restrict__ p_e_grid,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CDEElementwiseOperation cde_element_op,
-            const index_t batch_count,
-            const AGridDesc_K0_M0_M1_K1 a_grid_desc_k0_m0_m1_k1,
-            const BGridDesc_K0_N0_N1_K1 b_grid_desc_k0_n0_n1_k1,
-            const DsGridDesc_M0_M10_M11_N0_N10_N11 ds_grid_desc_m0_m10_m11_n0_n10_n11,
-            const CGridDesc_M0_M10_M11_N0_N10_N11 e_grid_desc_m0_m10_m11_n0_n10_n11,
-            const Block2CTileMap block_2_ctile_map,
-            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
+    kernel_grouped_conv_fwd_dl_multiple_d(
+        const ABDataType* __restrict__ p_a_grid,
+        const ABDataType* __restrict__ p_b_grid,
+        DsPointer p_ds_grid,
+        EDataType* __restrict__ p_e_grid,
+        const AElementwiseOperation a_element_op,
+        const BElementwiseOperation b_element_op,
+        const CDEElementwiseOperation cde_element_op,
+        const index_t batch_count,
+        const AGridDesc_K0_M0_M1_K1 a_grid_desc_k0_m0_m1_k1,
+        const BGridDesc_K0_N0_N1_K1 b_grid_desc_k0_n0_n1_k1,
+        const DsGridDesc_M0_M10_M11_N0_N10_N11 ds_grid_desc_m0_m10_m11_n0_n10_n11,
+        const CGridDesc_M0_M10_M11_N0_N10_N11 e_grid_desc_m0_m10_m11_n0_n10_n11,
+        const Block2CTileMap block_2_ctile_map,
+        const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx1030__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx1030__) || \
+    defined(__gfx90a__) || defined(__gfx908__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -314,9 +315,8 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
         const auto in_gemmm_gemmk_desc =
             matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_desc);
 
-        const auto M = in_gemmm_gemmk_desc.GetLength(I0);
-        const auto K = in_gemmm_gemmk_desc.GetLength(I1);
-
+        const auto M   = in_gemmm_gemmk_desc.GetLength(I0);
+        const auto K   = in_gemmm_gemmk_desc.GetLength(I1);
         const auto AK0 = K / K1;
 
         return transform_tensor_descriptor(
@@ -380,8 +380,8 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
     }
 
     // desc for problem definition
-    using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
-        MakeAGridDescriptor_AK0_M_AK1<ALayout>({}, {}, {}, {}, {}, {}, {}, {}, {}, {}))>;
+    using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(MakeAGridDescriptor_AK0_M_AK1<ALayout>(
+        {}, {}, {}, {}, {}, {}, {}, {}, {}, {}))>;
     using BGridDesc_BK0_N_BK1 =
         remove_cvref_t<decltype(MakeBGridDescriptor_BK0_N_BK1<BLayout>({}, {}))>;
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}))>;
@@ -709,7 +709,8 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
         namespace ctc = tensor_layout::convolution;
 
         // check device
-        if(!(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030"))
+        if(!(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030" ||
+             ck::get_device_name() == "gfx90a" || ck::get_device_name() == "gfx908"))
         {
             return false;
         }
@@ -834,6 +835,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
         {
             return false;
         }
+
         // check Gridwise GEMM
         return GridwiseGemm::CheckValidity(
             arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.e_grid_desc_m_n_);
