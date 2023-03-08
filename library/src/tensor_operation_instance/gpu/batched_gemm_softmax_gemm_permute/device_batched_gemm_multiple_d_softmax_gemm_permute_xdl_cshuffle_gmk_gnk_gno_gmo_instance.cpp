@@ -23,9 +23,9 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using ScaleAdd    = ck::tensor_operation::element_wise::ScaleAdd;
-using Scale       = ck::tensor_operation::element_wise::Scale;
+using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
+using ScaleMask     = ck::tensor_operation::element_wise::ScaleMask;
+using ScaleBiasMask = ck::tensor_operation::element_wise::ScaleBiasMask;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr auto GemmPadded  = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
@@ -68,8 +68,8 @@ using device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo
         // clang-format on
         >;
 
-// f16 PassThrough masking
-void add_device_batched_gemm_bias_masking_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+// f16 ScaleMask masking
+void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemmSoftmaxGemmPermute<2,
                                             1,
@@ -80,11 +80,11 @@ void add_device_batched_gemm_bias_masking_softmax_gemm_permute_xdl_cshuffle_gmk_
                                             F16,
                                             F16,
                                             F16,
+                                            ck::Tuple<int32_t>,
                                             ck::Tuple<>,
-                                            ck::Tuple<>,
                                             PassThrough,
                                             PassThrough,
-                                            PassThrough,
+                                            ScaleMask,
                                             PassThrough,
                                             PassThrough,
                                             MaskingSpecialization::MaskOutUpperTriangle>>>&
@@ -100,13 +100,13 @@ void add_device_batched_gemm_bias_masking_softmax_gemm_permute_xdl_cshuffle_gmk_
             1,
             F16,
             F32,
-            ck::Tuple<>,
-            PassThrough,
+            ck::Tuple<int32_t>,
+            ScaleMask,
             MaskingSpecialization::MaskOutUpperTriangle>{});
 }
 
-// f16 PassThrough disable masking
-void add_device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+// f16 ScaleMask disable masking
+void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<
         std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
                                                             1,
@@ -117,11 +117,11 @@ void add_device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_
                                                             F16,
                                                             F16,
                                                             F16,
+                                                            ck::Tuple<int32_t>,
                                                             ck::Tuple<>,
-                                                            ck::Tuple<>,
                                                             PassThrough,
                                                             PassThrough,
-                                                            PassThrough,
+                                                            ScaleMask,
                                                             PassThrough,
                                                             PassThrough,
                                                             MaskingSpecialization::MaskDisabled>>>&
@@ -137,13 +137,13 @@ void add_device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_
             1,
             F16,
             F32,
-            ck::Tuple<>,
-            PassThrough,
+            ck::Tuple<int32_t>,
+            ScaleMask,
             MaskingSpecialization::MaskDisabled>{});
 }
 
-// f16
-void add_device_batched_gemm_bias_masking_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+// f16 ScaleBiasMask masking
+void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemmSoftmaxGemmPermute<2,
                                             1,
@@ -154,11 +154,11 @@ void add_device_batched_gemm_bias_masking_softmax_gemm_permute_xdl_cshuffle_gmk_
                                             F16,
                                             F16,
                                             F16,
-                                            ck::Tuple<>,
+                                            ck::Tuple<F16, int32_t>,
                                             ck::Tuple<>,
                                             PassThrough,
                                             PassThrough,
-                                            Scale,
+                                            ScaleBiasMask,
                                             PassThrough,
                                             PassThrough,
                                             MaskingSpecialization::MaskOutUpperTriangle>>>&
@@ -174,12 +174,13 @@ void add_device_batched_gemm_bias_masking_softmax_gemm_permute_xdl_cshuffle_gmk_
             1,
             F16,
             F32,
-            ck::Tuple<>,
-            Scale,
+            ck::Tuple<F16, int32_t>,
+            ScaleBiasMask,
             MaskingSpecialization::MaskOutUpperTriangle>{});
 }
 
-void add_device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+// f16 ScaleBiasMask disable masking
+void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<
         std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
                                                             1,
@@ -190,11 +191,11 @@ void add_device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_
                                                             F16,
                                                             F16,
                                                             F16,
-                                                            ck::Tuple<>,
+                                                            ck::Tuple<F16, int32_t>,
                                                             ck::Tuple<>,
                                                             PassThrough,
                                                             PassThrough,
-                                                            Scale,
+                                                            ScaleBiasMask,
                                                             PassThrough,
                                                             PassThrough,
                                                             MaskingSpecialization::MaskDisabled>>>&
@@ -210,8 +211,8 @@ void add_device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_
             1,
             F16,
             F32,
-            ck::Tuple<>,
-            Scale,
+            ck::Tuple<F16, int32_t>,
+            ScaleBiasMask,
             MaskingSpecialization::MaskDisabled>{});
 }
 
