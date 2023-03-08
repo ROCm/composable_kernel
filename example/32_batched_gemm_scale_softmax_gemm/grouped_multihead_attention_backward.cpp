@@ -36,7 +36,7 @@ Kernel outputs:
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_multihead_attention_backward_xdl_cshuffle_v2.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_multihead_attention_backward_xdl_cshuffle_pt1.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_multihead_attention_backward_xdl_cshuffle_v1.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -90,7 +90,7 @@ static constexpr auto TensorSpecK = ck::tensor_operation::device::TensorSpeciali
 static constexpr auto TensorSpecV = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecY = ck::tensor_operation::device::TensorSpecialization::Default;
 
-#if DIM >=128
+#if DIM >64
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2<
         NumDimG,
         NumDimM,
@@ -157,75 +157,8 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedMultiheadA
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
-#elif DIM >64
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2<
-        NumDimG,
-        NumDimM,
-        NumDimN,
-        NumDimK,
-        NumDimO,
-        DataType,
-        GemmDataType,
-        ZDataType,
-        LSEDataType,
-        Acc0BiasDataType,
-        Acc1BiasDataType,
-        AccDataType,
-        ShuffleDataType,
-        QKVElementOp,
-        QKVElementOp,
-        Scale,
-        QKVElementOp,
-        YElementOp,
-        GemmSpec,
-        TensorSpecQ,
-        TensorSpecK,
-        TensorSpecV,
-        TensorSpecY,
-        1,
-        256,
-        128,         // MPerBlock
-        128,         // NPerBlock
-        64,          // KPerBlock
-        64,          // Gemm1NPerBlock
-        64,          // Gemm1KPerBlock
-        8,           // AK1
-        8,           // BK1
-        2,           // B1K1
-        32,          // MPerXDL
-        32,          // NPerXDL
-        1,           // MXdlPerWave
-        4,           // NXdlPerWave
-        2,           // Gemm1NXdlPerWave
-        2,           // Gemm2NXdlPerWave
-        S<4, 64, 1>, // ABlockTransfer
-        S<1, 0, 2>,
-        S<1, 0, 2>,
-        2,
-        8,
-        8,
-        true,
-        S<4, 64, 1>, // BBlockTransfer
-        S<1, 0, 2>,
-        S<1, 0, 2>,
-        2,
-        8,
-        8,
-        true,
-        S<8, 32, 1>, // B1BlockTransfer
-        S<0, 2, 1>,
-        S<0, 2, 1>,
-        1,
-        2,
-        2,
-        false,
-        1,              // CShuffleMXdlPerWavePerShuffle
-        2,              // CShuffleNXdlPerWavePerShuffle
-        S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-        MaskingSpec>;   // MaskingSpecialization
 #elif DIM >32
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -292,7 +225,8 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedMultiheadA
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
 #else
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1<
+            ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,
