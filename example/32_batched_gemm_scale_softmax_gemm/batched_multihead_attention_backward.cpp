@@ -36,8 +36,8 @@ Kernel outputs:
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle_pt1.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle_v1.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle_v2.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -97,7 +97,7 @@ static constexpr auto TensorSpecY = ck::tensor_operation::device::TensorSpeciali
 // If 64 < Headdim/K/O <= 128, ues prototype2 2nd template.
 #if(RANGE_HDKO == 0)
 using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -165,7 +165,7 @@ using DeviceGemmInstance =
         MaskingSpec>;   // MaskingSpecialization
 #elif(RANGE_HDKO == 1)
 using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -233,7 +233,7 @@ using DeviceGemmInstance =
         MaskingSpec>;   // MaskingSpecialization
 
 // using DeviceGemmInstance =
-//     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle<
+//     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2<
 //         NumDimG,
 //         NumDimM,
 //         NumDimN,
@@ -301,7 +301,7 @@ using DeviceGemmInstance =
 //         MaskingSpec>;   // MaskingSpecialization
 #elif(RANGE_HDKO == 2)
 using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2<
         NumDimG,
         NumDimM,
         NumDimN,

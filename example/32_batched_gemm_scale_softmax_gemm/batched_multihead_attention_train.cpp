@@ -43,8 +43,8 @@ Kernel outputs:
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle_pt1.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle_v1.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle_v2.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_forward_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -176,7 +176,7 @@ using DeviceGemmInstanceFWD =
         MaskingSpec>;   // MaskingSpecialization
 
 using DeviceGemmInstanceBWD =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -314,7 +314,7 @@ using DeviceGemmInstanceFWD =
         MaskingSpec>;   // MaskingSpecialization
 
 using DeviceGemmInstanceBWD =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -382,7 +382,7 @@ using DeviceGemmInstanceBWD =
         MaskingSpec>;   // MaskingSpecialization
 
 // using DeviceGemmInstanceBWD =
-//     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle<
+//     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2<
 //         NumDimG,
 //         NumDimM,
 //         NumDimN,
@@ -520,7 +520,7 @@ using DeviceGemmInstanceFWD =
         MaskingSpec>;   // MaskingSpecialization
 
 using DeviceGemmInstanceBWD =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2<
         NumDimG,
         NumDimM,
         NumDimN,
