@@ -11,10 +11,15 @@
 
 namespace ck {
 
-// this version does following things to avoid scratch memory issue
-// 1. Use StaticallyIndexedArray instead of C array for thread buffer
-// 2. ThreadwiseTensorSliceTransfer_v3 does not keep reference to tensor descriptor
-// 3. ThreadwiseTensorSliceTransfer_v3::Run() does not construct new tensor coordinate
+/**
+ * @brief Blockwise data transfer
+ *
+ * This version does following things to avoid scratch memory issue
+ * 1. Use StaticallyIndexedArray instead of C array for thread buffer
+ * 2. ThreadwiseTensorSliceTransfer_v3 does not keep reference to tensor descriptor
+ * 3. ThreadwiseTensorSliceTransfer_v3::Run() does not construct new tensor coordinate
+ *
+ */
 template <typename ThreadGroup,
           typename SrcElementwiseOperation,
           typename DstElementwiseOperation,
