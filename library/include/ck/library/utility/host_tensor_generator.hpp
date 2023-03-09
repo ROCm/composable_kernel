@@ -44,6 +44,19 @@ struct GeneratorTensor_1<ck::bhalf_t>
 };
 
 template <>
+struct GeneratorTensor_1<ck::bfloat16_t>
+{
+    float value = 1.0;
+
+    template <typename... Is>
+    ck::bfloat16_t operator()(Is...)
+    {
+        return ck::type_convert<ck::bfloat16_t>(value);
+    }
+};
+
+
+template <>
 struct GeneratorTensor_1<int8_t>
 {
     int8_t value = 1;
@@ -79,6 +92,20 @@ struct GeneratorTensor_2<ck::bhalf_t>
     {
         float tmp = (std::rand() % (max_value - min_value)) + min_value;
         return ck::type_convert<ck::bhalf_t>(tmp);
+    }
+};
+
+template <>
+struct GeneratorTensor_2<ck::bfloat16_t>
+{
+    int min_value = 0;
+    int max_value = 1;
+
+    template <typename... Is>
+    ck::bfloat16_t operator()(Is...)
+    {
+        float tmp = (std::rand() % (max_value - min_value)) + min_value;
+        return ck::type_convert<ck::bfloat16_t>(tmp);
     }
 };
 
@@ -124,6 +151,23 @@ struct GeneratorTensor_3<ck::bhalf_t>
         float fp32_tmp = min_value + tmp * (max_value - min_value);
 
         return ck::type_convert<ck::bhalf_t>(fp32_tmp);
+    }
+};
+
+template <>
+struct GeneratorTensor_3<ck::bfloat16_t>
+{
+    float min_value = 0;
+    float max_value = 1;
+
+    template <typename... Is>
+    ck::bfloat16_t operator()(Is...)
+    {
+        float tmp = float(std::rand()) / float(RAND_MAX);
+
+        float fp32_tmp = min_value + tmp * (max_value - min_value);
+
+        return ck::type_convert<ck::bfloat16_t>(fp32_tmp);
     }
 };
 
