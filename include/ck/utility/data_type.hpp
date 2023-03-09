@@ -1052,7 +1052,7 @@ inline __host__ __device__ constexpr float type_convert<float, bfloat16_t>(bfloa
     return u.fp32;
 }
 
-// convert fp32 to bfp16
+// convert fp32 to bfp16, rtz
 template <>
 inline __host__ __device__ constexpr bfloat16_t type_convert<bfloat16_t, float>(float x)
 {

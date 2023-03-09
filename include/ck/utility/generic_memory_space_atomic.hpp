@@ -189,6 +189,27 @@ __device__ bhalf2_t atomic_add<bhalf2_t>(bhalf2_t* p_dst, const bhalf2_t& x)
     return x;
 }
 
+template <>
+__device__ bfloat16x2_t atomic_add<bfloat16x2_t>(bfloat16x2_t* p_dst, const bfloat16x2_t& x)
+{
+    U32BF162_ADDR dword_addr;
+    U32BF162 cur_v;
+    U32BF162 new_;
+    uint32_t old_v, new_v;
+    dword_addr.bf162_a = reinterpret_cast<bhalf2_t*>(p_dst);
+    cur_v.u32          = *dword_addr.u32_a;
+
+    do
+    {
+        old_v      = cur_v.u32;
+        new_.bf162 = add_bf16x2_t(cur_v.bf162, reinterpret_cast<bhalf2_t>(x));
+        new_v      = new_.u32;
+        cur_v.u32  = atomicCAS(dword_addr.u32_a, old_v, new_v);
+    } while(cur_v.u32 != old_v);
+
+    return x;
+}
+
 // template <>
 // __device__ bhalf2_t atomic_add<bhalf2_t>(bhalf2_t* p_dst, const bhalf2_t& x)
 // {

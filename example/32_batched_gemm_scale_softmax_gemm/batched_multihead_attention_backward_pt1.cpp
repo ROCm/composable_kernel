@@ -50,7 +50,7 @@ template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using F16  = ck::half_t;
-using BF16 = ck::bhalf_t;
+using BF16 = ck::bfloat16_t;
 using F32  = float;
 using U16  = unsigned short;
 
