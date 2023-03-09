@@ -1030,7 +1030,7 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
 #if CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK
-    uint32_t src_addr_shift = src_thread_element_valid ? 0 : 0x7fffffff;
+    uint32_t src_addr_shift = src_thread_element_valid ? 0 : 0x80000000;
 
     return amd_buffer_load_impl<scalar_t, vector_size>(
         src_wave_buffer_resource, src_addr_shift + src_thread_addr_offset, 0);
@@ -1091,7 +1091,7 @@ __device__ void amd_buffer_store(const typename vector_type_maker<T, N>::type::t
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
 #if CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK
-    uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x7fffffff;
+    uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x80000000;
 
     amd_buffer_store_impl<scalar_t, vector_size>(
         src_thread_data, dst_wave_buffer_resource, dst_addr_shift + dst_thread_addr_offset, 0);
@@ -1126,7 +1126,7 @@ amd_buffer_atomic_add(const typename vector_type_maker<T, N>::type::type src_thr
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
 #if CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK
-    uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x7fffffff;
+    uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x80000000;
 
     amd_buffer_atomic_add_impl<scalar_t, vector_size>(
         src_thread_data, dst_wave_buffer_resource, dst_addr_shift + dst_thread_addr_offset, 0);
@@ -1161,7 +1161,7 @@ amd_buffer_atomic_max(const typename vector_type_maker<T, N>::type::type src_thr
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
 #if CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_MAX_OOB_CHECK_OFFSET_TRICK
-    uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x7fffffff;
+    uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x80000000;
 
     amd_buffer_atomic_max_impl<scalar_t, vector_size>(
         src_thread_data, dst_wave_buffer_resource, dst_addr_shift + dst_thread_addr_offset, 0);
