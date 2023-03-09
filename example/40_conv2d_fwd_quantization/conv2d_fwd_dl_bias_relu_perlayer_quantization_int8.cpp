@@ -4,12 +4,12 @@
 #include "common.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_dl_multiple_d_nhwc_kyxc_nhwk.hpp"
 
-using InDataType           = int8_t;
-using WeiDataType          = int8_t;
-using RequantScaleDataType = float;
-using AccDataType          = int32_t;
-using CShuffleDataType     = int32_t;
-using OutDataType          = int8_t;
+using InDataType       = int8_t;
+using WeiDataType      = int8_t;
+using BiasDataType     = int32_t;
+using AccDataType      = int32_t;
+using CShuffleDataType = int32_t;
+using OutDataType      = int8_t;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -18,7 +18,7 @@ using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
 using InElementOp  = PassThrough;
 using WeiElementOp = PassThrough;
 using ActivationOp = ck::tensor_operation::element_wise::Relu;
-using OutElementOp = ck::tensor_operation::element_wise::Activation_Mul2_Clamp<ActivationOp>;
+using OutElementOp = ck::tensor_operation::element_wise::Add_Activation_Mul_Clamp<ActivationOp>;
 
 static constexpr auto ConvSpec =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
@@ -28,19 +28,19 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
-          typename RequantScaleLayout,
+          typename BiasLayout,
           typename OutLayout>
 using DeviceGroupedConvNDFwdInstance =
     ck::tensor_operation::device::DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK<
         NDimSpatial,
         InDataType,
         WeiDataType,
-        ck::Tuple<RequantScaleDataType>,
+        ck::Tuple<BiasDataType>,
         OutDataType,
         AccDataType,
         InLayout,
         WeiLayout,
-        ck::Tuple<RequantScaleLayout>,
+        ck::Tuple<BiasLayout>,
         OutLayout,
         InElementOp,
         WeiElementOp,
@@ -75,6 +75,6 @@ using DeviceGroupedConvNDFwdInstance =
         5,                   // CThreadTransferSrcDstVectorDim
         4>;                  // CThreadTransferDstScalarPerVector
 
-#include "run_conv2d_fwd_perchannel_quantization_example.inc"
+#include "run_conv2d_fwd_bias_relu_perlayer_quantization_example.inc"
 
-int main() { run_conv2d_fwd_perchannel_quantization_example(); }
+int main() { run_conv2d_fwd_bias_relu_perlayer_quantization_example(); }
