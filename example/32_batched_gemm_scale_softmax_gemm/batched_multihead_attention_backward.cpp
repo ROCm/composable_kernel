@@ -25,7 +25,7 @@ Kernel outputs:
 
 #define PRINT_HOST 0
 #define USING_MASK 0
-#define RANGE_HDKO 2 // 0~2
+#define RANGE_HDKO 1 // 0~2
 
 #include <iostream>
 #include <numeric>
@@ -523,7 +523,7 @@ int run(int argc, char* argv[])
         G0 = std::stoi(argv[8]);
         G1 = std::stoi(argv[9]);
 
-        alpha = std::stof(argv[10]);
+        alpha  = std::stof(argv[10]);
         p_drop = std::stof(argv[11]);
 
         input_permute  = std::stoi(argv[12]);
@@ -540,9 +540,9 @@ int run(int argc, char* argv[])
         exit(0);
     }
 
-    float p_dropout                 = 1 - p_drop;
-    uint16_t p_dropout_in_16bits    = uint16_t(std::floor(p_dropout * 65535.0));
-    float rp_dropout                = 1.0 / p_dropout;
+    float p_dropout              = 1 - p_drop;
+    uint16_t p_dropout_in_16bits = uint16_t(std::floor(p_dropout * 65535.0));
+    float rp_dropout             = 1.0 / p_dropout;
 
     std::cout << "do_verification: " << do_verification << std::endl;
     std::cout << "init_method: " << init_method << std::endl;
@@ -678,7 +678,6 @@ int run(int argc, char* argv[])
         //    = 0
     }
 
-    // calculate y & log-sum-exp beforehand
     Tensor<DataType> q_g_m_k({BatchCount, M, K});
     Tensor<DataType> k_g_n_k({BatchCount, N, K});
     Tensor<ZDataType> z_g_m_n({BatchCount, M, N});

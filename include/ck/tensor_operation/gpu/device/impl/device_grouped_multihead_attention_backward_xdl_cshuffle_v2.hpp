@@ -16,7 +16,7 @@
 #include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_multihead_attention_backward_xdl_cshuffle_v2.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_multihead_attention_backward_xdl_cshuffle_pt2.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -98,7 +98,7 @@ __global__ void
     unsigned short* z_matrix_ptr =
         (arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
                                                 : arg_ptr[group_id].p_z_grid_ + z_batch_offset);
-    
+
     GridwiseGemm::template Run<HasMainKBlockLoop>(
         arg_ptr[group_id].p_a_grid_ + a_batch_offset,
         arg_ptr[group_id].p_b_grid_ + b_batch_offset,
@@ -703,7 +703,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
             }
 
             grid_size_ = 0;
-            for(std::size_t i = 0; i < group_count_; i++)
+            for(index_t i = 0; i < group_count_; i++)
             {
                 const auto p_a_grid     = static_cast<const DataType*>(p_As[i]);
                 const auto p_b_grid     = static_cast<const DataType*>(p_Bs[i]);
@@ -884,10 +884,10 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
             bool all_has_main_k_block_loop  = true;
             bool some_has_main_k_block_loop = false;
-            for(std::size_t i = 0; i < arg.group_count_; i++)
+            for(index_t i = 0; i < arg.group_count_; i++)
             {
-                const auto K =
-                    arg.group_kernel_args_[i].a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.group_kernel_args_[i].a_grid_desc_ak0_m_ak1_.GetLength(I2);
+                const auto K = arg.group_kernel_args_[i].a_grid_desc_ak0_m_ak1_.GetLength(I0) *
+                               arg.group_kernel_args_[i].a_grid_desc_ak0_m_ak1_.GetLength(I2);
                 const bool y = GridwiseGemm::CalculateHasMainKBlockLoop(K);
                 all_has_main_k_block_loop &= y;
                 some_has_main_k_block_loop |= y;
@@ -968,7 +968,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
             return false;
         }
 
-        for(std::size_t i = 0; i < arg.group_count_; i++)
+        for(index_t i = 0; i < arg.group_count_; i++)
         {
             // TODO: Check if tensor specialization & strides mismatch
             const auto& kernel_arg = arg.group_kernel_args_[i];
