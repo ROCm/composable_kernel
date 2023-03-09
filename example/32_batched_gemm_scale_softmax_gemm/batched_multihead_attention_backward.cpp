@@ -25,7 +25,7 @@ Kernel outputs:
 
 #define PRINT_HOST 0
 #define USING_MASK 0
-#define RANGE_HDKO 1 // 0~2
+#define DIM 64 // DIM should be a multiple of 8.
 
 #include <iostream>
 #include <numeric>
@@ -91,11 +91,11 @@ static constexpr auto TensorSpecK = ck::tensor_operation::device::TensorSpeciali
 static constexpr auto TensorSpecV = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecY = ck::tensor_operation::device::TensorSpecialization::Default;
 
-// Headdim/K/O should be a multiple of 8.
-// If      Headdim/K/O <= 32 , ues prototype1 1st template.
-// If 32 < Headdim/K/O <= 64 , ues prototype1 2nd template.
-// If 64 < Headdim/K/O <= 128, ues prototype2 2nd template.
-#if(RANGE_HDKO == 0)
+// DIM should be a multiple of 8.
+// If      DIM <= 32 , ues prototype1 1st template.
+// If 32 < DIM <= 64 , ues prototype1 2nd template.
+// If 64 < DIM <= 128, ues prototype2 2nd template.
+#if(DIM <= 32)
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1<
         NumDimG,
@@ -163,7 +163,7 @@ using DeviceGemmInstance =
         S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
-#elif(RANGE_HDKO == 1)
+#elif(DIM <= 64)
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1<
         NumDimG,
@@ -299,7 +299,7 @@ using DeviceGemmInstance =
 //         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
 //         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
 //         MaskingSpec>;   // MaskingSpecialization
-#elif(RANGE_HDKO == 2)
+#elif(DIM <= 128)
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2<
         NumDimG,
@@ -478,20 +478,12 @@ int run(int argc, char* argv[])
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
     // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
     // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t M = 512;
-    ck::index_t N = 512;
-#if(RANGE_HDKO == 0)
-    ck::index_t K = 32; // K/O<=32
-#elif(RANGE_HDKO == 1)
-    ck::index_t K = 64; // 32<K/O<=64
-#elif(RANGE_HDKO == 2)
-    ck::index_t K = 80; // 64<K/O<=128
-#endif
-    ck::index_t O  = K;
+    ck::index_t M  = 512;
+    ck::index_t N  = 512;
+    ck::index_t K  = DIM;
+    ck::index_t O  = DIM;
     ck::index_t G0 = 54;
     ck::index_t G1 = 16;
-
-    float alpha = 1.f / std::sqrt(K);
 
     bool input_permute  = false;
     bool output_permute = false;
@@ -510,7 +502,7 @@ int run(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 14)
+    else if(argc == 13)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -523,11 +515,10 @@ int run(int argc, char* argv[])
         G0 = std::stoi(argv[8]);
         G1 = std::stoi(argv[9]);
 
-        alpha  = std::stof(argv[10]);
-        p_drop = std::stof(argv[11]);
+        p_drop = std::stof(argv[10]);
 
-        input_permute  = std::stoi(argv[12]);
-        output_permute = std::stoi(argv[13]);
+        input_permute  = std::stoi(argv[11]);
+        output_permute = std::stoi(argv[12]);
     }
     else
     {
@@ -543,6 +534,7 @@ int run(int argc, char* argv[])
     float p_dropout              = 1 - p_drop;
     uint16_t p_dropout_in_16bits = uint16_t(std::floor(p_dropout * 65535.0));
     float rp_dropout             = 1.0 / p_dropout;
+    float alpha                  = 1.f / std::sqrt(K);
 
     std::cout << "do_verification: " << do_verification << std::endl;
     std::cout << "init_method: " << init_method << std::endl;

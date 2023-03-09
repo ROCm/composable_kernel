@@ -32,7 +32,7 @@ Kernel outputs:
 
 #define PRINT_HOST 0
 #define USING_MASK 0
-#define RANGE_HDKO 0 // 0~2
+#define DIM 64 // DIM should be a multiple of 8.
 
 #include <iostream>
 #include <numeric>
@@ -100,11 +100,11 @@ static constexpr auto TensorSpecK = ck::tensor_operation::device::TensorSpeciali
 static constexpr auto TensorSpecV = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecY = ck::tensor_operation::device::TensorSpecialization::Default;
 
-// Headdim/K/O should be a multiple of 8.
-// If      Headdim/K/O <= 32 , ues bwd prototype1 1st template.
-// If 32 < Headdim/K/O <= 64 , ues bwd prototype1 2nd template.
-// If 64 < Headdim/K/O <= 128, ues bwd prototype2 2nd template.
-#if(RANGE_HDKO == 0)
+// DIM should be a multiple of 8.
+// If      DIM <= 32 , ues prototype1 1st template.
+// If 32 < DIM <= 64 , ues prototype1 2nd template.
+// If 64 < DIM <= 128, ues prototype2 2nd template.
+#if(DIM <= 32)
 using DeviceGemmInstanceFWD =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle<
         NumDimG,
@@ -242,7 +242,7 @@ using DeviceGemmInstanceBWD =
         S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
-#elif(RANGE_HDKO == 1)
+#elif(DIM <= 64)
 using DeviceGemmInstanceFWD =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle<
         NumDimG,
@@ -448,7 +448,7 @@ using DeviceGemmInstanceBWD =
 //         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
 //         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
 //         MaskingSpec>;   // MaskingSpecialization
-#elif(RANGE_HDKO == 2)
+#elif(DIM <= 128)
 using DeviceGemmInstanceFWD =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle<
         NumDimG,
@@ -657,14 +657,12 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
     ref_gemm0_invoker.Run(ref_gemm0_argument);
 
     // masking
-#if USING_MASK
     auto N          = s_g_m_n.GetLengths()[2];
     const auto mask = DeviceGemmInstanceFWD::C0MatrixMask(N);
     s_g_m_n.ForEach([&](auto& self, auto idx) {
         if(mask.IsMaskedElement(idx[1], idx[2]))
             self(idx) = -ck::NumericLimits<float>::Infinity();
     });
-#endif
 
     // P = Softmax(S)
     auto ref_softmax          = ReferenceSoftmaxInstance{};
@@ -699,25 +697,17 @@ int run(int argc, char* argv[])
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
     // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
     // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t M = 512; // 512
-    ck::index_t N = 512; // 512
-#if(RANGE_HDKO == 0)
-    ck::index_t K = 32; // K/O<=32
-#elif(RANGE_HDKO == 1)
-    ck::index_t K = 64; // 32<K/O<=64
-#elif(RANGE_HDKO == 2)
-    ck::index_t K = 72; // 64<K/O<=128
-#endif
-    ck::index_t O  = K;
+    ck::index_t M  = 512; // 512
+    ck::index_t N  = 512; // 512
+    ck::index_t K  = DIM;
+    ck::index_t O  = DIM;
     ck::index_t G0 = 4; // 54
     ck::index_t G1 = 6; // 16
 
-    float alpha = 1.f / std::sqrt(K);
+    bool input_permute  = false;
+    bool output_permute = false;
 
-    bool input_permute  = true;
-    bool output_permute = true;
-
-    float p_drop                    = 0.3;
+    float p_drop                    = 0.2;
     const unsigned long long seed   = 1;
     const unsigned long long offset = 0;
 
@@ -731,7 +721,7 @@ int run(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 14)
+    else if(argc == 13)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -744,11 +734,10 @@ int run(int argc, char* argv[])
         G0 = std::stoi(argv[8]);
         G1 = std::stoi(argv[9]);
 
-        alpha = std::stof(argv[10]);
-        p_drop = std::stof(argv[11]);
+        p_drop = std::stof(argv[10]);
 
-        input_permute  = std::stoi(argv[12]);
-        output_permute = std::stoi(argv[13]);
+        input_permute  = std::stoi(argv[11]);
+        output_permute = std::stoi(argv[12]);
     }
     else
     {
@@ -761,9 +750,10 @@ int run(int argc, char* argv[])
         exit(0);
     }
 
-    float p_dropout                 = 1 - p_drop;
-    uint16_t p_dropout_in_16bits    = uint16_t(std::floor(p_dropout * 65535.0));
-    float rp_dropout                = 1.0 / p_dropout;
+    float p_dropout              = 1 - p_drop;
+    uint16_t p_dropout_in_16bits = uint16_t(std::floor(p_dropout * 65535.0));
+    float rp_dropout             = 1.0 / p_dropout;
+    float alpha                  = 1.f / std::sqrt(K);
 
     std::cout << "do_verification: " << do_verification << std::endl;
     std::cout << "init_method: " << init_method << std::endl;

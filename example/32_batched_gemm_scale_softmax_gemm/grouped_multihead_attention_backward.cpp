@@ -480,8 +480,8 @@ int run(int argc, char* argv[])
     float alpha  = 1.f / std::sqrt(DIM);
     float p_drop = 0.2;
 
-    bool input_permute  = false;
-    bool output_permute = false;
+    bool input_permute  = true;
+    bool output_permute = true;
 
     const unsigned long long seed   = 1;
     const unsigned long long offset = 0;
