@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "device_conv2d_int8_instance.hpp"
+#include "device_conv2d_xdl_int8_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-void add_device_conv2d_perchannel_quantization_int8_instances(
+void add_device_conv2d_xdl_bias_perlayer_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<NDimSpatial,
                                                               GNHWC,
                                                               GKYXC,
@@ -15,33 +15,33 @@ void add_device_conv2d_perchannel_quantization_int8_instances(
                                                               GNHWK,
                                                               int8_t,
                                                               int8_t,
-                                                              F32_Tuple,
+                                                              I32_Tuple,
                                                               int8_t,
                                                               PassThrough,
                                                               PassThrough,
-                                                              Mul2_Clamp>>>& instances)
+                                                              Add_Mul_Clamp>>>& instances)
 {
     add_device_operation_instances(instances,
                                    device_grouped_conv2d_xdl_int8_instances<GK_Tuple,
-                                                                            F32_Tuple,
-                                                                            Mul2_Clamp,
+                                                                            I32_Tuple,
+                                                                            Add_Mul_Clamp,
                                                                             ConvFwdDefault,
                                                                             8>{});
     add_device_operation_instances(instances,
                                    device_grouped_conv2d_xdl_int8_instances<GK_Tuple,
-                                                                            F32_Tuple,
-                                                                            Mul2_Clamp,
+                                                                            I32_Tuple,
+                                                                            Add_Mul_Clamp,
                                                                             ConvFwd1x1P0,
                                                                             8>{});
     add_device_operation_instances(instances,
                                    device_grouped_conv2d_xdl_int8_instances<GK_Tuple,
-                                                                            F32_Tuple,
-                                                                            Mul2_Clamp,
+                                                                            I32_Tuple,
+                                                                            Add_Mul_Clamp,
                                                                             ConvFwd1x1S1P0,
                                                                             8>{});
 }
 
-void add_device_conv2d_relu_perchannel_quantization_int8_instances(
+void add_device_conv2d_xdl_bias_relu_perlayer_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<NDimSpatial,
                                                               GNHWC,
                                                               GKYXC,
@@ -49,28 +49,30 @@ void add_device_conv2d_relu_perchannel_quantization_int8_instances(
                                                               GNHWK,
                                                               int8_t,
                                                               int8_t,
-                                                              F32_Tuple,
+                                                              I32_Tuple,
                                                               int8_t,
                                                               PassThrough,
                                                               PassThrough,
-                                                              Relu_Mul2_Clamp>>>& instances)
+                                                              Add_Relu_Mul_Clamp>>>& instances)
 {
     add_device_operation_instances(instances,
                                    device_grouped_conv2d_xdl_int8_instances<GK_Tuple,
-                                                                            F32_Tuple,
-                                                                            Relu_Mul2_Clamp,
+                                                                            I32_Tuple,
+                                                                            Add_Relu_Mul_Clamp,
                                                                             ConvFwdDefault,
                                                                             8>{});
+
     add_device_operation_instances(instances,
                                    device_grouped_conv2d_xdl_int8_instances<GK_Tuple,
-                                                                            F32_Tuple,
-                                                                            Relu_Mul2_Clamp,
+                                                                            I32_Tuple,
+                                                                            Add_Relu_Mul_Clamp,
                                                                             ConvFwd1x1P0,
                                                                             8>{});
+
     add_device_operation_instances(instances,
                                    device_grouped_conv2d_xdl_int8_instances<GK_Tuple,
-                                                                            F32_Tuple,
-                                                                            Relu_Mul2_Clamp,
+                                                                            I32_Tuple,
+                                                                            Add_Relu_Mul_Clamp,
                                                                             ConvFwd1x1S1P0,
                                                                             8>{});
 }
