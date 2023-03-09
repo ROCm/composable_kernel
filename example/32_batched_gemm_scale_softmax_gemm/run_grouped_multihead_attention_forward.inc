@@ -83,16 +83,10 @@ int run(int argc, char* argv[])
     for(std::size_t i = 0; i < group_count; i++)
     {
 
-        int M = 128 * (rand() % 8) + (rand() % 128);
-        int N = 128 * (rand() % 8) + (rand() % 128);
-#if(RANGE_HDKO == 0)
-        int K = 32; // K/O<=32
-#elif(RANGE_HDKO == 1)
-        int K = 56; // 32<K/O<=64
-#elif(RANGE_HDKO == 2)
-        int K = 80; // 64<K/O<=128
-#endif
-        int O  = K;
+        int M  = 128 * (rand() % 8) + (rand() % 128);
+        int N  = 128 * (rand() % 8) + (rand() % 128);
+        int K  = DIM;
+        int O  = DIM;
         int G0 = rand() % 3 + 1;
         int G1 = rand() % 5 + 1;
 

@@ -11,14 +11,8 @@ int run(int argc, char* argv[])
     // C_g_m_o = A_g_m_k * B0_g_k_n * B1_g_n_o
     ck::index_t M = 1000; // 120
     ck::index_t N = 1000; // 1000
-#if(RANGE_HDKO == 0)
-    ck::index_t K = 32; // K/O<=32
-#elif(RANGE_HDKO == 1)
-    ck::index_t K = 64; // 32<K/O<=64
-#elif(RANGE_HDKO == 2)
-    ck::index_t K = 72; // 64<K/O<=128
-#endif
-    ck::index_t O = K;
+    ck::index_t K = DIM;
+    ck::index_t O = DIM;
 
     // Output shape C[G0, M, G1, O]. Batch dim, outer dim, inner dim must match GEMM shape
     // C_g0_g1_m_o = reshape(C_g_m_o, [g0, g1, m, o])

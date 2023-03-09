@@ -9,7 +9,7 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
                                                                           Gemm1
 */
 
-#define RANGE_HDKO 0 // 0~2
+#define DIM 64 // DIM should be a multiple of 8.
 
 #include <iostream>
 #include <numeric>
@@ -75,7 +75,7 @@ static constexpr auto TensorSpecB0 = ck::tensor_operation::device::TensorSpecial
 static constexpr auto TensorSpecB1 = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecialization::Default;
 
-#if(RANGE_HDKO == 0)
+#if(DIM <= 32)
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle<
         NumDimG,
@@ -145,7 +145,7 @@ using DeviceGemmInstance =
         S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
-#elif(RANGE_HDKO == 1)
+#elif(DIM <= 64)
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle<
         NumDimG,
@@ -215,7 +215,7 @@ using DeviceGemmInstance =
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
-#elif(RANGE_HDKO == 2)
+#elif(DIM <= 128)
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle<
         NumDimG,
