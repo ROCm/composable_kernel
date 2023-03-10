@@ -544,7 +544,6 @@ struct MfmaSelector
 #endif
     }
 
-
     template <>
     static constexpr auto GetMfma<int8_t, 32, 32>()
     {
@@ -756,7 +755,8 @@ struct XdlopsGemm
     __device__ void Run(const FloatA& p_a_wave, const FloatB& p_b_wave, FloatC& p_c_thread) const
     {
         static_assert(is_same<base_type, double>::value || is_same<base_type, float>::value ||
-                          is_same<base_type, half_t>::value || is_same<base_type, bhalf_t>::value|| is_same<base_type, bfloat16_t>::value ||
+                          is_same<base_type, half_t>::value || is_same<base_type, bhalf_t>::value ||
+                          is_same<base_type, bfloat16_t>::value ||
                           is_same<base_type, int8_t>::value,
                       "base base_type must be double, float, half, bfloat16, and int8_t!");
 

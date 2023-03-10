@@ -424,18 +424,21 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
     {
         if constexpr(N == 1)
         {
-            return llvm_amdgcn_raw_buffer_load_i16(
+            auto tmp = llvm_amdgcn_raw_buffer_load_i16(
                 src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
+            return bit_cast<bfloat16_t>(tmp);
         }
         else if constexpr(N == 2)
         {
-            return llvm_amdgcn_raw_buffer_load_i16x2(
+            auto tmp = llvm_amdgcn_raw_buffer_load_i16x2(
                 src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
+            return bit_cast<bfloat16x2_t>(tmp);
         }
         else if constexpr(N == 4)
         {
-            return llvm_amdgcn_raw_buffer_load_i16x4(
+            auto tmp = llvm_amdgcn_raw_buffer_load_i16x4(
                 src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
+            return bit_cast<bfloat16x4_t>(tmp);
         }
         else if constexpr(N == 8)
         {
