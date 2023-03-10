@@ -21,6 +21,7 @@
 namespace ck {
 
 template <typename FloatAB,
+          typename ZDataType,
           typename FloatGemm,
           typename FloatGemmAcc,
           typename FloatCShuffle,
@@ -274,11 +275,11 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         const auto K = a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2);
         const auto Gemm1N = b1_grid_desc_bk0_n_bk1.GetLength(I1);
 
-        if(Gemm1N != K)
-        {
-            std::cout << "SizeK must be equal to SizeO (equal attention head size)" << '\n';
-            return false;
-        }
+        // if(Gemm1N != K)
+        // {
+        //     std::cout << "SizeK must be equal to SizeO (equal attention head size)" << '\n';
+        //     return false;
+        // }
 
         if(!(M == c_grid_desc_m_n.GetLength(I0) && Gemm1N == c_grid_desc_m_n.GetLength(I1)))
         {
@@ -424,7 +425,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                const FloatAB* __restrict__ p_b_grid,
                                const FloatAB* __restrict__ p_b1_grid,
                                FloatC* __restrict__ p_c_grid,
-                               unsigned short* __restrict__ p_z_grid,
+                               ZDataType* __restrict__ p_z_grid,
                                FloatLSE* __restrict__ p_lse_grid,
                                void* __restrict__ p_shared,
                                const AElementwiseOperation& a_element_op,
@@ -876,7 +877,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
 
         auto z_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
             ushort,
-            ushort,
+            ZDataType,
             decltype(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5),
             decltype(z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5),
             tensor_operation::element_wise::PassThrough,
@@ -891,8 +892,8 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                      n3, // NInputNum
                      n4>,
             Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
-            9,  // DstVectorDim
-            n4, // DstScalarPerVector
+            9, // DstVectorDim
+            1, // DstScalarPerVector
             InMemoryDataOperationEnum::Set,
             1, // DstScalarStrideInVector
             true>{z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,

@@ -50,10 +50,9 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    // __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, 1)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, /*CK_MIN_BLOCK_PER_CU*/ 1)
 #endif
-        kernel_batched_multihead_attention_backward_xdl_cshuffle_pt1(
+        kernel_batched_multihead_attention_backward_xdl_cshuffle_v1(
             const DataType* __restrict__ p_a_grid,
             const DataType* __restrict__ p_b_grid,
             ZDataType* __restrict__ p_z_grid,
@@ -233,7 +232,7 @@ template <index_t NumDimG,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           MaskingSpecialization MaskingSpec,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1
+struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
     : public BaseOperator // TODO inherit atten bwd op once API stablizes
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
@@ -255,7 +254,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1
     static constexpr index_t NumDimGemm1K = NumDimN;
 #endif
 
-    using DeviceOp = DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1;
+    using DeviceOp = DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -597,7 +596,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1
     };
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1<
+    using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1<
         DataType, // TODO: distinguish A/B datatype
         GemmDataType,
         GemmAccDataType,
@@ -900,7 +899,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1
             float ave_time = 0;
 
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
-                const auto kernel = kernel_batched_multihead_attention_backward_xdl_cshuffle_pt1<
+                const auto kernel = kernel_batched_multihead_attention_backward_xdl_cshuffle_v1<
                     GridwiseGemm,
                     DataType,
                     ZDataType,
@@ -1231,7 +1230,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_PT1"
+        str << "DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
