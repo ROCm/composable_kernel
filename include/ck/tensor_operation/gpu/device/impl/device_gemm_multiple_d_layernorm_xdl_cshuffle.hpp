@@ -670,6 +670,9 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
             {
                 throw std::runtime_error("wrong! GridwiseGemmWelford has invalid setting");
             }
+            if(arg.p_workspace_e_grid_ == nullptr || arg.p_workspace_mean_ == nullptr ||
+               arg.p_workspace_var_ == nullptr || arg.p_workspace_count_ == nullptr)
+                throw std::runtime_error("wrong! WorkSpace pointer has not been set");
 
             index_t grid_size = arg.block_2_etile_map_.CalculateGridSize(arg.gemm_e_grid_desc_m_n_);
 
@@ -941,7 +944,11 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
             }
         }
 
-        return true;
+        return GridwiseGemmWelford::CheckValidity(arg.a_grid_desc_m_k_,
+                                                  arg.b_grid_desc_n_k_,
+                                                  arg.ds_grid_desc_m_n_,
+                                                  arg.gemm_e_grid_desc_m_n_,
+                                                  arg.block_2_etile_map_);
     }
 
     // polymorphic
@@ -1057,7 +1064,12 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
             << GemmKPerBlock << ", "
             << AK1 << ", "
             << BK1 << ", "
-            << getGemmSpecializationString(GemmSpec)
+            << getGemmSpecializationString(GemmSpec) << ", "
+            << PostShuffleThreadClusterSize_M_N::At(I0) << ", "
+            << PostShuffleThreadClusterSize_M_N::At(I1) << ", "
+            << LayernormThreadClusterSize_M_N::At(I0) << ", "
+            << LayernormThreadClusterSize_M_N::At(I1) << ", "
+            << LayernormThreadSliceSize_M
             << ">"
             << " LoopScheduler: "
             << LoopSchedToString[LoopSched] << ", "
