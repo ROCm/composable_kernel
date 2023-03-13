@@ -823,18 +823,14 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceOperatio
             << KPerBlock << ", "
             << AK1 << ", "
             << BK1 << ", "
-            << K1 << ", "
             << MPerXDL << ", "
             << NPerXDL << ", "
             << MXdlPerWave << ", "
             << NXdlPerWave << ", "
             << ABlockTransferSrcScalarPerVector << ", "
-            << ABlockTransferDstScalarPerVector_K1 << ", "
             << BBlockTransferSrcScalarPerVector << ", "
-            << BBlockTransferDstScalarPerVector_K1 << ", "
             << CShuffleMXdlPerWavePerShuffle << ", "
-            << CShuffleNXdlPerWavePerShuffle << ", "
-            << CBlockTransferScalarPerVector_NWaveNPerXdl
+            << CShuffleNXdlPerWavePerShuffle 
             << ">";
         // clang-format on
 

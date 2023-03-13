@@ -551,10 +551,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             << ABlockTransferSrcScalarPerVector << ", "
             << ABlockTransferDstScalarPerVector_K1 << ", "
             << BBlockTransferSrcScalarPerVector << ", "
-            << BBlockTransferDstScalarPerVector_K1 << ", "
-            << CShuffleMXdlPerWavePerShuffle << ", "
-            << CShuffleNXdlPerWavePerShuffle << ", "
-            << CBlockTransferScalarPerVector_NWaveNPerXdl
+            << BBlockTransferDstScalarPerVector_K1
             << ">"
             << " NumPrefetch: "
             << NumPrefetch << ", "

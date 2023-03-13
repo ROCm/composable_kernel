@@ -649,10 +649,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
             << ABlockTransferSrcScalarPerVector << ", "
             << ABlockTransferDstScalarPerVector_K1 << ", "
             << BBlockTransferSrcScalarPerVector << ", "
-            << BBlockTransferDstScalarPerVector_K1 << ", "
-            << CShuffleMXdlPerWavePerShuffle << ", "
-            << CShuffleNXdlPerWavePerShuffle << ", "
-            << CBlockTransferScalarPerVector_NWaveNPerXdl
+            << BBlockTransferDstScalarPerVector_K1
             << ">";
         // clang-format on
 

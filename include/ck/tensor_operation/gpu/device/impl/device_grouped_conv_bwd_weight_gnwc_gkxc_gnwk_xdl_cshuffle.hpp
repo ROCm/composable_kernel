@@ -1233,8 +1233,6 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Xdl_CShuffle
             << K0PerBlock << ", "
             << getConvBackwardWeightSpecializationString(ConvBackwardWeightSpecialization) << ", "
             << K1 << ", "
-            << MPerXDL << ", "
-            << NPerXDL << ", "
             << MXdlPerWave << ", "
             << NXdlPerWave << ", "
             << ABlockTransferSrcScalarPerVector << ", "

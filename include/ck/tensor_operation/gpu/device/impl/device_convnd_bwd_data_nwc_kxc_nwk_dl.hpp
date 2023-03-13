@@ -1568,18 +1568,7 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Dl
             << MPerBlock << ", "
             << NPerBlock << ", "
             << K0PerBlock << ", "
-            << K1 << ", "
-            << MPerXDL << ", "
-            << NPerXDL << ", "
-            << MXdlPerWave << ", "
-            << NXdlPerWave << ", "
-            << ABlockTransferSrcScalarPerVector << ", "
-            << ABlockTransferDstScalarPerVector_K1 << ", "
-            << BBlockTransferSrcScalarPerVector << ", "
-            << BBlockTransferDstScalarPerVector_K1 << ", "
-            << CShuffleMXdlPerWavePerShuffle << ", "
-            << CShuffleNXdlPerWavePerShuffle << ", "
-            << CBlockTransferScalarPerVector_NWaveNPerXdl
+            << K1
             << ">";
         if constexpr(ConvBackwardDataSpecialization ==
                      ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0){
