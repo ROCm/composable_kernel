@@ -864,7 +864,20 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
             << "B0Spec" << getTensorSpecializationString(BSpec) << ", "
             << "B1Spec" << getTensorSpecializationString(B1Spec) << ", "
             << "CSpec" << getTensorSpecializationString(CSpec) << ", "
-            << getMaskingSpecializationString(MaskingSpec) << ">";
+            << getMaskingSpecializationString(MaskingSpec) << ", "
+            << K1 << ", "
+            << MPerXDL << ", "
+            << NPerXDL << ", "
+            << MXdlPerWave << ", "
+            << NXdlPerWave << ", "
+            << ABlockTransferSrcScalarPerVector << ", "
+            << ABlockTransferDstScalarPerVector_K1 << ", "
+            << BBlockTransferSrcScalarPerVector << ", "
+            << BBlockTransferDstScalarPerVector_K1 << ", "
+            << CShuffleMXdlPerWavePerShuffle << ", "
+            << CShuffleNXdlPerWavePerShuffle << ", "
+            << CBlockTransferScalarPerVector_NWaveNPerXdl
+            << ">";
         // clang-format on
 
         return str.str();

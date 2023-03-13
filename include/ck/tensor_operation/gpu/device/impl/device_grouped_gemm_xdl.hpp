@@ -688,6 +688,13 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
             << NPerXDL << ", "
             << MXdlPerWave << ", "
             << NXdlPerWave << ", "
+            << ABlockTransferSrcScalarPerVector << ", "
+            << ABlockTransferDstScalarPerVector_K1 << ", "
+            << BBlockTransferSrcScalarPerVector << ", "
+            << BBlockTransferDstScalarPerVector_K1 << ", "
+            << CShuffleMXdlPerWavePerShuffle << ", "
+            << CShuffleNXdlPerWavePerShuffle << ", "
+            << CBlockTransferScalarPerVector_NWaveNPerXdl << ", "
             << getGemmSpecializationString(GemmSpec)
             << ">";
         // clang-format on
