@@ -668,7 +668,8 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
         const std::string device_name = ck::get_device_name();
 
         //  TODO add newer Navi arch
-        if(device_name != "gfx906" and device_name != "gfx908" and device_name != "gfx1030")
+        if(device_name != "gfx906" and device_name != "gfx908" and device_name != "gfx90a" and
+           device_name != "gfx1030")
         {
             return false;
         }
