@@ -947,18 +947,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
             << NPerBlock << ", "
             << K0PerBlock << ", "
             << getConvForwardSpecializationString(ConvForwardSpecialization) << ", "
-            << K1 << ", "
-            << MPerXDL << ", "
-            << NPerXDL << ", "
-            << MXdlPerWave << ", "
-            << NXdlPerWave << ", "
-            << ABlockTransferSrcScalarPerVector << ", "
-            << ABlockTransferDstScalarPerVector_K1 << ", "
-            << BBlockTransferSrcScalarPerVector << ", "
-            << BBlockTransferDstScalarPerVector_K1 << ", "
-            << CShuffleMXdlPerWavePerShuffle << ", "
-            << CShuffleNXdlPerWavePerShuffle << ", "
-            << CBlockTransferScalarPerVector_NWaveNPerXdl
+            << K1
             << ">";
         // clang-format on
 
