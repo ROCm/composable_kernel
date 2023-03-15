@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ck/utility/data_type.hpp"
+// #include "ck/utility/get_id.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -17,18 +18,27 @@ struct Activation_Mul_Clamp
 
     __host__ __device__ constexpr void operator()(int8_t& y, const int32_t& x) const
     {
-        float x_fp32 = ck::type_convert<float>(x);
-        activationOp_(x_fp32, x_fp32);
-        float y_fp32 = math::clamp(requantScale_ * x_fp32, -128.f, 127.f);
-        y            = ck::type_convert<int8_t>(y_fp32);
+        float y_fp32 = ck::type_convert<float>(x);
+        activationOp_(y_fp32, y_fp32);
+        y_fp32 = math::clamp(requantScale_ * y_fp32, -128.f, 127.f);
+        y      = ck::type_convert<int8_t>(y_fp32);
     }
 
-    __host__ __device__ constexpr void operator()(float& y, const int32_t& x) const
+    __device__ constexpr void operator()(int32_t& y, const int32_t& x) const
     {
-        // We might type_convert to int8 after lambda in someplace
-        float x_fp32 = ck::type_convert<float>(x);
-        activationOp_(x_fp32, x_fp32);
-        y = math::clamp(requantScale_ * x_fp32, -128.f, 127.f);
+        // CAUSION - We might type_convert to int8 in threadwise copy
+        // eg. GridwiseGemmDlMultipleD_km_kn_mn
+        float y_fp32 = ck::type_convert<float>(x);
+        activationOp_(y_fp32, y_fp32);
+        y_fp32 = math::clamp(requantScale_ * y_fp32, -128.f, 127.f);
+        y      = ck::type_convert<int32_t>(y_fp32);
+    }
+
+    __host__ constexpr void operator()(float& y, const float& x) const
+    {
+        // CAUSION - We might float in & float out in reference code
+        activationOp_(y, x);
+        y = math::clamp(requantScale_ * y, -128.f, 127.f);
     }
 
     float requantScale_;
@@ -49,6 +59,17 @@ struct Activation_Mul2_Clamp
         activationOp_(y_fp32, y_fp32);
         y_fp32 = math::clamp(requantScale * y_fp32, -128.f, 127.f);
         y      = ck::type_convert<int8_t>(y_fp32);
+    }
+
+    __device__ constexpr void
+    operator()(int32_t& y, const int32_t& x, const float& requantScale) const
+    {
+        // CAUSION - We might type_convert to int8 in threadwise copy
+        // eg. GridwiseGemmDlMultipleD_km_kn_mn
+        float y_fp32 = ck::type_convert<float>(x);
+        activationOp_(y_fp32, y_fp32);
+        y_fp32 = math::clamp(requantScale * y_fp32, -128.f, 127.f);
+        y      = ck::type_convert<int32_t>(y_fp32);
     }
 
     Activation activationOp_;
@@ -72,6 +93,17 @@ struct Add_Activation_Mul_Clamp
         y      = ck::type_convert<int8_t>(y_fp32);
     }
 
+    __host__ __device__ constexpr void
+    operator()(int32_t& y, const int32_t& x, const int32_t& bias) const
+    {
+        // CAUSION - We might type_convert to int8 in threadwise copy
+        // eg. GridwiseGemmDlMultipleD_km_kn_mn
+        float y_fp32 = ck::type_convert<float>(x + bias);
+        activationOp_(y_fp32, y_fp32);
+        y_fp32 = math::clamp(requantScale_ * y_fp32, -128.f, 127.f);
+        y      = ck::type_convert<int32_t>(y_fp32);
+    }
+
     float requantScale_;
     Activation activationOp_;
 };
@@ -90,6 +122,17 @@ struct Add_Activation_Mul2_Clamp
         activationOp_(y_fp32, y_fp32);
         y_fp32 = math::clamp(requantScale * y_fp32, -128.f, 127.f);
         y      = ck::type_convert<int8_t>(y_fp32);
+    }
+
+    __host__ __device__ constexpr void
+    operator()(int32_t& y, const int32_t& x, const int32_t& bias, const float& requantScale) const
+    {
+        // CAUSION - We might type_convert to int8 in threadwise copy
+        // eg. GridwiseGemmDlMultipleD_km_kn_mn
+        float y_fp32 = ck::type_convert<float>(x + bias);
+        activationOp_(y_fp32, y_fp32);
+        y_fp32 = math::clamp(requantScale * y_fp32, -128.f, 127.f);
+        y      = ck::type_convert<int32_t>(y_fp32);
     }
 
     Activation activationOp_;
