@@ -4,11 +4,12 @@
 #include "common.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_dl_multiple_d_nhwc_kyxc_nhwk.hpp"
 
-using InDataType   = int8_t;
-using WeiDataType  = int8_t;
-using BiasDataType = int32_t;
-using AccDataType  = int32_t;
-using OutDataType  = int8_t;
+using InDataType       = int8_t;
+using WeiDataType      = int8_t;
+using BiasDataType     = int32_t;
+using AccDataType      = int32_t;
+using CShuffleDataType = int32_t;
+using OutDataType      = int8_t;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
