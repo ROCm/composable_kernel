@@ -135,10 +135,11 @@ int main(int argc, char* argv[])
         {
             float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
-            std::size_t flop      = G * 2 * N * K * C * Ho * Wo * Y * X;
-            std::size_t num_bytes = G * sizeof(InDataType) * N * Hi * Wi * C +
-                                    G * sizeof(WeiDataType) * K * Y * X * C +
-                                    G * sizeof(OutDataType) * N * Ho * Wo * K;
+            std::size_t flop = G * 2 * N * K * C * Ho * Wo * Y * X;
+            std::size_t num_bytes =
+                G * sizeof(InDataType) * N * Hi * Wi * C + G * sizeof(WeiDataType) * K * Y * X * C +
+                G * sizeof(BiasDataType) * K + G * sizeof(RequantScaleDataType) * K +
+                G * sizeof(OutDataType) * N * Ho * Wo * K;
 
             float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
             float gb_per_sec = num_bytes / 1.E6 / avg_time;
