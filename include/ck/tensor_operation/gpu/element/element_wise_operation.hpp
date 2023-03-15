@@ -399,10 +399,19 @@ struct ScaleMask
     template <typename Y, typename X0, typename X1>
     __host__ __device__ constexpr void operator()(Y& y, const X0& x, const X1& mask) const;
 
+    template <>
     __host__ __device__ constexpr void
-    operator()(float& y, const float& x, const int32_t& mask) const
+    operator()(float& y, const float& x, const int16_t& mask) const
     {
         float filter_value = (mask == 1 ? 0.0f : mask_filter_value_);
+        y                  = scale_ * x + filter_value;
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()(float& y, const float& x, const half_t& mask) const
+    {
+        float filter_value = (mask < 1.0f ? mask_filter_value_ : 0.0f);
         y                  = scale_ * x + filter_value;
     }
     const float scale_;
@@ -423,9 +432,17 @@ struct ScaleBiasMask
 
     template <>
     __host__ __device__ constexpr void
-    operator()(float& y, const float& x, const half_t& bias, const int32_t& mask) const
+    operator()(float& y, const float& x, const half_t& bias, const int16_t& mask) const
     {
         float filter_value = (mask == 1 ? 0.0f : mask_filter_value_);
+        y                  = scale_ * x + ck::type_convert<float>(bias) + filter_value;
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()(float& y, const float& x, const half_t& bias, const half_t& mask) const
+    {
+        float filter_value = (mask < 1.0f ? mask_filter_value_ : 0.0f);
         y                  = scale_ * x + ck::type_convert<float>(bias) + filter_value;
     }
 

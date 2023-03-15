@@ -24,7 +24,7 @@ using B0DataType  = ck::half_t;
 using B1DataType  = ck::half_t;
 using CDataType   = ck::half_t;
 using D00DataType = ck::half_t;
-using D01DataType = int32_t;
+using D01DataType = ck::half_t;
 using AccDataType = float;
 
 struct SimpleDeviceMem
