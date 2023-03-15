@@ -77,8 +77,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
 
     static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
     {
-        assert(K % K1 == 0);
-
         const index_t K0 = K / K1;
 
         const auto a_grid_desc_m_k = [&]() {
@@ -116,8 +114,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
 
     static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
     {
-        assert(K % K1 == 0);
-
         const index_t K0 = K / K1;
 
         const auto b_grid_desc_k_n = [&]() {
@@ -551,7 +547,11 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             << MPerXDL << ", "
             << NPerXDL << ", "
             << MXdlPerWave << ", "
-            << NXdlPerWave
+            << NXdlPerWave << ", "
+            << ABlockTransferSrcScalarPerVector << ", "
+            << ABlockTransferDstScalarPerVector_K1 << ", "
+            << BBlockTransferSrcScalarPerVector << ", "
+            << BBlockTransferDstScalarPerVector_K1
             << ">"
             << " NumPrefetch: "
             << NumPrefetch << ", "
