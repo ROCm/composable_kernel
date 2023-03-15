@@ -26,15 +26,15 @@ using OutElementOp       = ck::tensor_operation::element_wise::Activation_Mul2_C
 
 static constexpr ck::index_t NumDimSpatial = 2;
 static constexpr ck::index_t G             = 1;
-static constexpr ck::index_t N             = 4;
-static constexpr ck::index_t K             = 64;
-static constexpr ck::index_t C             = 32;
-static constexpr ck::index_t Y             = 3;
-static constexpr ck::index_t X             = 3;
-static constexpr ck::index_t Hi            = 71;
-static constexpr ck::index_t Wi            = 71;
-static constexpr ck::index_t Ho            = 36;
-static constexpr ck::index_t Wo            = 36;
+static constexpr ck::index_t N             = 4;   // batch size
+static constexpr ck::index_t K             = 64;  // output channel
+static constexpr ck::index_t C             = 192; // input channel
+static constexpr ck::index_t Y             = 3;   // filter H
+static constexpr ck::index_t X             = 3;   // filter W
+static constexpr ck::index_t Hi            = 71;  // input H
+static constexpr ck::index_t Wi            = 71;  // input W
+static constexpr ck::index_t Ho            = 36;  // output H
+static constexpr ck::index_t Wo            = 36;  // output W
 
 struct SimpleDeviceMem
 {
@@ -60,8 +60,8 @@ int main(int argc, char* argv[])
     std::array<ck::index_t, 5> weight_strides{K * Y * X * C, Y * X * C, 1, X * C, C};
     std::array<ck::index_t, 5> requant_scale_lengths{G, N, K, Ho, Wo};
     std::array<ck::index_t, 5> requant_scale_strides{K, 0, 1, 0, 0};
-    std::array<ck::index_t, 5> out_lengths{G, N, C, Ho, Wo};
-    std::array<ck::index_t, 5> out_strides{N * Ho * Wo * C, Ho * Wo * C, 1, Wo * C, C};
+    std::array<ck::index_t, 5> out_lengths{G, N, K, Ho, Wo};
+    std::array<ck::index_t, 5> out_strides{N * Ho * Wo * K, Ho * Wo * K, 1, Wo * K, K};
     std::array<ck::index_t, 2> in_left_pad{1, 1};
     std::array<ck::index_t, 2> in_right_pad{1, 1};
     std::array<ck::index_t, 2> conv_strides{2, 2};
@@ -130,10 +130,10 @@ int main(int argc, char* argv[])
         {
             float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
-            std::size_t flop      = G * 2 * N * K * C * Ho * Wo * Y * X;
-            std::size_t num_bytes = G * sizeof(InDataType) * N * Hi * Wi * C +
-                                    G * sizeof(WeiDataType) * K * Y * X * C +
-                                    G * sizeof(OutDataType) * N * Ho * Wo * K;
+            std::size_t flop = G * 2 * N * K * C * Ho * Wo * Y * X;
+            std::size_t num_bytes =
+                G * sizeof(InDataType) * N * Hi * Wi * C + G * sizeof(WeiDataType) * K * Y * X * C +
+                G * sizeof(RequantScaleDataType) * K + G * sizeof(OutDataType) * N * Ho * Wo * K;
 
             float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
             float gb_per_sec = num_bytes / 1.E6 / avg_time;
@@ -156,11 +156,12 @@ int main(int argc, char* argv[])
         }
     }
 
-    std::cout << "Best Perf: " << std::setw(10) << best_avg_time << " ms, " << best_tflops
-              << " TFlops, " << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
-
     // run the best intance
+    if(best_op_id != -1)
     {
+        std::cout << "Best Perf: " << std::setw(10) << best_avg_time << " ms, " << best_tflops
+                  << " TFlops, " << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
+
         auto& op_ptr = op_ptrs[best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
                   << std::endl;

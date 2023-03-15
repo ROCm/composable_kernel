@@ -185,8 +185,10 @@ struct GridwiseGemmDlMultipleD_km_kn_mn
         return b_grid_desc_k0_n0_n1_k1;
     }
 
+    // E desc for destination in blockwise copy
+    template <typename CGridDesc_M_N_>
     __host__ __device__ static constexpr auto
-    MakeCGridDescriptor_M0_M10_M11_N0_N10_N11(const CGridDesc_M_N& c_grid_desc_m_n)
+    MakeCGridDescriptor_M0_M10_M11_N0_N10_N11(const CGridDesc_M_N_& c_grid_desc_m_n)
     {
         const auto M = c_grid_desc_m_n.GetLength(I0);
         const auto N = c_grid_desc_m_n.GetLength(I1);

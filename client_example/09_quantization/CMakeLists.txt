@@ -9,3 +9,6 @@ target_link_libraries(client_conv2d_fwd_perchannel_quantization PRIVATE composab
 
 add_executable(client_conv2d_fwd_perlayer_quantization conv2d_fwd_perlayer_quantization.cpp)
 target_link_libraries(client_conv2d_fwd_perlayer_quantization PRIVATE composable_kernel::device_operations)
+
+add_executable(client_gemm_quantization gemm_quantization.cpp)
+target_link_libraries(client_gemm_quantization PRIVATE composable_kernel::device_operations)
