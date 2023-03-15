@@ -948,7 +948,8 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
             << MPerBlock << ", "
             << NPerBlock << ", "
             << K0PerBlock << ", "
-            << getConvForwardSpecializationString(ConvForwardSpecialization)
+            << getConvForwardSpecializationString(ConvForwardSpecialization) << ", "
+            << K1
             << ">";
         // clang-format on
 
