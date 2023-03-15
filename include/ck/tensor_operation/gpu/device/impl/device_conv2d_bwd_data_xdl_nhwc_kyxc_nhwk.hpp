@@ -822,7 +822,14 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock
+            << K0PerBlock << ", "
+            << K1 << ", "
+            << MXdlPerWave << ", "
+            << NXdlPerWave << ", "
+            << ABlockTransferSrcScalarPerVector << ", "
+            << ABlockTransferDstScalarPerVector_K1 << ", "
+            << BBlockTransferSrcScalarPerVector << ", "
+            << BBlockTransferDstScalarPerVector_K1
             << ">";
         // clang-format on
 

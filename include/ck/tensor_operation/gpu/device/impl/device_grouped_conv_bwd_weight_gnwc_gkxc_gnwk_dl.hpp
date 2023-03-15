@@ -1203,7 +1203,8 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Dl
             << MPerBlock << ", "
             << NPerBlock << ", "
             << K0PerBlock << ", "
-            << getConvBackwardWeightSpecializationString(ConvBackwardWeightSpecialization)
+            << getConvBackwardWeightSpecializationString(ConvBackwardWeightSpecialization) << ", "
+            << K1
             << ">";
         // clang-format on
 

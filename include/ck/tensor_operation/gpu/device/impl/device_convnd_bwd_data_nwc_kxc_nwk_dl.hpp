@@ -1567,7 +1567,8 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Dl
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock
+            << K0PerBlock << ", "
+            << K1
             << ">";
         if constexpr(ConvBackwardDataSpecialization ==
                      ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0){

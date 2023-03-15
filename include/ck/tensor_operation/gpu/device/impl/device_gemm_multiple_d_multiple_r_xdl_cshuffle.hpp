@@ -669,7 +669,15 @@ struct DeviceGemmMultipleDMultipleR_Xdl_CShuffle
             << KPerBlock << ", "
             << AK1 << ", "
             << BK1 << ", "
-            << getGemmSpecializationString(GemmSpec)
+            << getGemmSpecializationString(GemmSpec) << ", "
+            << MPerXDL << ", "
+            << NPerXDL << ", "
+            << MXdlPerWave << ", "
+            << NXdlPerWave << ", "
+            << ABlockTransferSrcScalarPerVector << ", "
+            << BBlockTransferSrcScalarPerVector << ", "
+            << CShuffleMXdlPerWavePerShuffle << ", "
+            << CShuffleNXdlPerWavePerShuffle
             << ">";
         // clang-format on
 
