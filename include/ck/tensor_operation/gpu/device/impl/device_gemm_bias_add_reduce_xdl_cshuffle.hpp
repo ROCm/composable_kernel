@@ -862,7 +862,15 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle : public DeviceGemmReduce<1, ReduceO
             << NPerBlock << ", "
             << KPerBlock << ", "
             << AK1 << ", "
-            << BK1
+            << BK1 << ", "
+            << MPerXDL << ", "
+            << NPerXDL << ", "
+            << MXdlPerWave << ", "
+            << NXdlPerWave << ", "
+            << ABlockTransferSrcScalarPerVector << ", "
+            << BBlockTransferSrcScalarPerVector << ", "
+            << CShuffleMXdlPerWavePerShuffle << ", "
+            << CShuffleNXdlPerWavePerShuffle
             << ">";
         // clang-format on
 
