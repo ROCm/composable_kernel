@@ -19,8 +19,14 @@ set(CONV2D_BIAS_PERCHANNEL_QUANT_SRC
 )
 
 set(GEMM_QUANT_SRC
-    gemm/device_gemm_quantization_dl_c_shuffle_i8_i8_i8_instance.cpp
-    gemm/device_gemm_quantization_xdl_c_shuffle_i8_i8_i8_instance.cpp
+    gemm/device_gemm_quantization_dl_c_shuffle_i8_i8_i8_km_kn_mn_instance.cpp
+    gemm/device_gemm_quantization_dl_c_shuffle_i8_i8_i8_km_nk_mn_instance.cpp
+    gemm/device_gemm_quantization_dl_c_shuffle_i8_i8_i8_mk_kn_mn_instance.cpp
+    gemm/device_gemm_quantization_dl_c_shuffle_i8_i8_i8_mk_nk_mn_instance.cpp
+    gemm/device_gemm_quantization_xdl_c_shuffle_i8_i8_i8_km_kn_mn_instance.cpp
+    gemm/device_gemm_quantization_xdl_c_shuffle_i8_i8_i8_km_nk_mn_instance.cpp
+    gemm/device_gemm_quantization_xdl_c_shuffle_i8_i8_i8_mk_kn_mn_instance.cpp
+    gemm/device_gemm_quantization_xdl_c_shuffle_i8_i8_i8_mk_nk_mn_instance.cpp
 )
 
 add_instance_library(device_quantization_instance
