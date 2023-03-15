@@ -121,15 +121,15 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
     static auto MakeBGridDescriptor_K0_N_K1(index_t KRaw, index_t NRaw, index_t StrideB)
     {
         const auto b_grid_desc_nraw_kraw = [&]() {
-            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
-            {
-                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
-                                                    make_tuple(StrideB, I1));
-            }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
+            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             {
                 return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
                                                     make_tuple(I1, StrideB));
+            }
+            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
+            {
+                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
+                                                    make_tuple(StrideB, I1));
             }
         }();
 
