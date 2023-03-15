@@ -27,8 +27,21 @@ void add_device_gemm_quantization_xdl_c_shuffle_i8_i8_i8_mk_nk_mn_instances(
         device_gemm_quantization_xdl_c_shuffle_i8_i8_i8_mk_nk_mn_instances<Mul_Clamp,
                                                                            LoopScheduler::Default,
                                                                            PipelineVersion::v1>{});
+#if CK_EXPERIMENTAL_INTER_WAVE_INSTANCES
+    add_device_operation_instances(
+        instances,
+        device_gemm_quantization_xdl_c_shuffle_i8_i8_i8_mk_nk_mn_instances<Mul_Clamp,
+                                                                           LoopScheduler::Interwave,
+                                                                           PipelineVersion::v1>{});
+#endif
+#if CK_EXPERIMENTAL_PIPELINE_V2_INSTANCES
+    add_device_operation_instances(
+        instances,
+        device_gemm_quantization_xdl_c_shuffle_i8_i8_i8_mk_nk_mn_instances<Mul_Clamp,
+                                                                           LoopScheduler::Default,
+                                                                           PipelineVersion::v2>{});
+#endif
 }
-
 
 } // namespace instance
 } // namespace device
