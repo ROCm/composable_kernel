@@ -129,12 +129,12 @@ bool run_grouped_conv_fwd(bool do_verification,
 
     if(do_verification)
     {
-        Tensor<CShuffleDataType> c_host(out_g_n_k_wos_desc);
+        Tensor<AccDataType> c_host(out_g_n_k_wos_desc);
 
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                      InDataType,
                                                                      WeiDataType,
-                                                                     CShuffleDataType,
+                                                                     AccDataType,
                                                                      InElementOp,
                                                                      WeiElementOp,
                                                                      PassThrough>();

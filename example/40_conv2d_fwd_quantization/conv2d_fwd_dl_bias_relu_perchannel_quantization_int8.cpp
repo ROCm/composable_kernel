@@ -9,7 +9,6 @@ using WeiDataType          = int8_t;
 using BiasDataType         = int32_t;
 using RequantScaleDataType = float;
 using AccDataType          = int32_t;
-using CShuffleDataType     = int32_t;
 using OutDataType          = int8_t;
 
 template <ck::index_t... Is>

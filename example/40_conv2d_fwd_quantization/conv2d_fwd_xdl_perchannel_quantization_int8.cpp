@@ -8,7 +8,7 @@ using InDataType           = int8_t;
 using WeiDataType          = int8_t;
 using RequantScaleDataType = float;
 using AccDataType          = int32_t;
-using CShuffleDataType     = int32_t;
+using CShuffleDataType     = AccDataType;
 using OutDataType          = int8_t;
 
 template <ck::index_t... Is>
