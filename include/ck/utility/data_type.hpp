@@ -1003,7 +1003,7 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
     bool flag1 = u.int32 & 0xffff;
 
     u.int32 += flag0 ? 0x7fff + ((u.int32 >> 16) & 1) : 0; // Round to nearest, round to even
-    u.int32 |= flag1 ? 0x10000 : 0x0;                      // Preserve signaling NaN
+    u.int32 |= (!flag0 && flag1) ? 0x10000 : 0x0;                      // Preserve signaling NaN
 
     return uint16_t(u.int32 >> 16);
 }
