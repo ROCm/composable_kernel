@@ -96,8 +96,12 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
     // we convert fp16->fp32->bf16 and execute bf16 mfma instruction
     // when mfma if fixed, remove this section and update
     // ABDataTypeAdjusted -> ABDataType throughout this file
+#if defined(__gfx90a__)
     using ABDataTypeAdjusted =
         conditional_t<is_same_v<ABDataType, ck::half_t>, ck::bhalf_t, ABDataType>;
+#else
+    using ABDataTypeAdjusted = ABDataType;
+#endif
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
