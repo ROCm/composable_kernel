@@ -1,0 +1,53 @@
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+*.ipch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# vim tags
+tags
+.tags
+.*.swp
+
+# Editors
+.vscode
+
+# build-in-source directory
+build*
+
+# emacs temporary/backup files
+.\#*
+\#*\#
+*~
+
+# GDB temporary files
+.gdb_history
+install.dir*
+
+# directories containing generated documentation
+docs/source/_build/
+docs/docBin/
