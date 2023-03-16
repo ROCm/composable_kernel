@@ -44,7 +44,7 @@ struct BlockwiseDropout
             static_for<0, KRepeat, 1>{}([&](auto iK) {
                 auto offset = Number<ThreadSliceDesc_M_K{}.CalculateOffset(make_tuple(iM, iK))>{};
                 in_thread_buf(offset) =
-                    execute_dropout(tmp[tmp_index] <= p_dropout_16bits, in_thread_buf(offset));
+                    execute_dropout(tmp[tmp_index] < p_dropout_16bits, in_thread_buf(offset));
                 tmp_index = tmp_index + 1;
             });
         });
@@ -79,7 +79,7 @@ struct BlockwiseDropout
             static_for<0, KRepeat, 1>{}([&](auto iK) {
                 auto offset = Number<ThreadSliceDesc_M_K{}.CalculateOffset(make_tuple(iM, iK))>{};
                 in_thread_buf(offset) =
-                    execute_dropout(tmp[tmp_index] <= p_dropout_16bits, in_thread_buf(offset));
+                    execute_dropout(tmp[tmp_index] < p_dropout_16bits, in_thread_buf(offset));
                 z_thread_buf(offset) = tmp[tmp_index];
                 tmp_index            = tmp_index + 1;
             });
@@ -117,7 +117,7 @@ struct BlockwiseDropout
         constexpr auto iOffset = Number<tmp_size>{} * Offset{};
         static_for<0, tmp_size, 1>{}([&](auto i) {
             in_thread_buf(i + iOffset) =
-                execute_dropout(tmp[i.value] <= p_dropout_16bits, in_thread_buf(i + iOffset));
+                execute_dropout(tmp[i.value] < p_dropout_16bits, in_thread_buf(i + iOffset));
             z_thread_buf(i) = tmp[i.value];
         });
     }

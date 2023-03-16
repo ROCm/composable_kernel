@@ -46,13 +46,22 @@ struct ReferenceDropout : public device::BaseOperator
     {
         float Run(const Argument& arg)
         {
-            arg.out_.ForEach([&](auto& self, auto idx) {
-                self(idx) =
-                    arg.ref_(idx) <= arg.p_dropout_in_16bits_
-                        ? ck::type_convert<OutDataType>(ck::type_convert<float>(arg.in_(idx)) *
-                                                        ck::type_convert<float>(arg.rp_dropout_))
-                        : 0;
-            });
+            if(arg.p_dropout_in_16bits_ < 65535)
+            {
+                arg.out_.ForEach([&](auto& self, auto idx) {
+                    self(idx) = arg.ref_(idx) < arg.p_dropout_in_16bits_
+                                    ? ck::type_convert<OutDataType>(
+                                          ck::type_convert<float>(arg.in_(idx)) *
+                                          ck::type_convert<float>(arg.rp_dropout_))
+                                    : 0;
+                });
+            }
+            else
+            {
+                arg.out_.ForEach([&](auto& self, auto idx) {
+                    self(idx) = ck::type_convert<OutDataType>(arg.in_(idx));
+                });
+            }
             return 0;
         }
 
