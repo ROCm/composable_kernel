@@ -34,7 +34,8 @@ template <typename GridwiseGemm,
           typename AccElementwiseOperation,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
-          bool HasMainKBlockLoop>
+          bool HasMainKBlockLoop,
+          bool IsDropout>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, /*CK_MIN_BLOCK_PER_CU*/ 1)
@@ -99,7 +100,7 @@ __global__ void
         (arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
                                                 : arg_ptr[group_id].p_z_grid_ + z_batch_offset);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(
+    GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
         arg_ptr[group_id].p_a_grid_ + a_batch_offset,
         arg_ptr[group_id].p_b_grid_ + b_batch_offset,
         z_matrix_ptr,
@@ -678,8 +679,9 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
               c_element_op_{c_element_op},
               p_dropout_{p_drop}
         {
-            seed_   = std::get<0>(seeds);
-            offset_ = std::get<1>(seeds);
+            is_dropout_ = p_drop > 0.0;
+            seed_       = std::get<0>(seeds);
+            offset_     = std::get<1>(seeds);
 
             group_count_ = ck::type_convert<ck::index_t>(problem_desc_vec.size());
 
@@ -860,6 +862,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
         CElementwiseOperation c_element_op_;
 
         float p_dropout_;
+        bool is_dropout_;
         unsigned long long seed_;
         unsigned long long offset_;
 
@@ -900,7 +903,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
             float ave_time = 0;
 
-            auto launch_kernel = [&](auto has_main_k_block_loop_) {
+            auto launch_kernel = [&](auto has_main_k_block_loop_, auto is_dropout_) {
                 const auto kernel = kernel_grouped_multihead_attention_backward_xdl_cshuffle_v2<
                     GridwiseGemm,
                     GroupKernelArg,
@@ -909,7 +912,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
                     AccElementwiseOperation,
                     B1ElementwiseOperation,
                     CElementwiseOperation,
-                    has_main_k_block_loop_>;
+                    has_main_k_block_loop_,
+                    is_dropout_>;
 
                 return launch_and_time_kernel(
                     stream_config,
@@ -933,11 +937,29 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
             // to concern Gemm0's loop
             if(all_has_main_k_block_loop)
             {
-                ave_time = launch_kernel(integral_constant<bool, true>{});
+                if(arg.is_dropout_)
+                {
+                    ave_time = launch_kernel(integral_constant<bool, true>{},
+                                             integral_constant<bool, true>{});
+                }
+                else
+                {
+                    ave_time = launch_kernel(integral_constant<bool, true>{},
+                                             integral_constant<bool, false>{});
+                }
             }
             else if(!some_has_main_k_block_loop)
             {
-                ave_time = launch_kernel(integral_constant<bool, false>{});
+                if(arg.is_dropout_)
+                {
+                    ave_time = launch_kernel(integral_constant<bool, false>{},
+                                             integral_constant<bool, true>{});
+                }
+                else
+                {
+                    ave_time = launch_kernel(integral_constant<bool, false>{},
+                                             integral_constant<bool, false>{});
+                }
             }
             else
             {

@@ -47,7 +47,8 @@ template <typename GridwiseGemm,
           typename Block2CTileMap,
           typename ComputeBasePtrOfStridedBatch,
           typename C0MatrixMask,
-          bool HasMainKBlockLoop>
+          bool HasMainKBlockLoop,
+          bool IsDropout>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, /*CK_MIN_BLOCK_PER_CU*/ 1)
@@ -111,34 +112,35 @@ __global__ void
     ck::philox ph(seed, global_thread_id, offset);
     ZDataType* z_matrix_ptr = (p_z_grid == nullptr ? nullptr : p_z_grid + z_batch_offset);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
-                                                  p_b_grid + b_batch_offset,
-                                                  z_matrix_ptr,
-                                                  p_b1_grid + b1_batch_offset,
-                                                  p_c_grid + c_batch_offset,
-                                                  p_lse_grid + lse_batch_offset,
-                                                  p_ygrad_grid + c_batch_offset,
-                                                  p_qgrad_grid + a_batch_offset,
-                                                  p_kgrad_grid + b_batch_offset,
-                                                  p_vgrad_grid + b1_batch_offset,
-                                                  p_shared,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  acc_element_op,
-                                                  b1_element_op,
-                                                  c_element_op,
-                                                  a_grid_desc_ak0_m_ak1,
-                                                  b_grid_desc_bk0_n_bk1,
-                                                  c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                                  b1_grid_desc_bk0_n_bk1,
-                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  lse_grid_desc_m,
-                                                  vgrad_grid_desc_n_o,
-                                                  ygrad_grid_desc_o0_m_o1,
-                                                  block_2_ctile_map,
-                                                  c0_matrix_mask,
-                                                  p_drop,
-                                                  ph);
+    GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
+        p_a_grid + a_batch_offset,
+        p_b_grid + b_batch_offset,
+        z_matrix_ptr,
+        p_b1_grid + b1_batch_offset,
+        p_c_grid + c_batch_offset,
+        p_lse_grid + lse_batch_offset,
+        p_ygrad_grid + c_batch_offset,
+        p_qgrad_grid + a_batch_offset,
+        p_kgrad_grid + b_batch_offset,
+        p_vgrad_grid + b1_batch_offset,
+        p_shared,
+        a_element_op,
+        b_element_op,
+        acc_element_op,
+        b1_element_op,
+        c_element_op,
+        a_grid_desc_ak0_m_ak1,
+        b_grid_desc_bk0_n_bk1,
+        c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+        b1_grid_desc_bk0_n_bk1,
+        c_grid_desc_mblock_mperblock_nblock_nperblock,
+        lse_grid_desc_m,
+        vgrad_grid_desc_n_o,
+        ygrad_grid_desc_o0_m_o1,
+        block_2_ctile_map,
+        c0_matrix_mask,
+        p_drop,
+        ph);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -786,8 +788,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                         y_grid_desc_m_o_);
             }
 
-            seed_   = std::get<0>(seeds);
-            offset_ = std::get<1>(seeds);
+            is_dropout_ = p_drop_ > 0.0;
+            seed_       = std::get<0>(seeds);
+            offset_     = std::get<1>(seeds);
 
             c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
                 GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(z_grid_desc_m_n_);
@@ -877,6 +880,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
 
         float p_drop_;
+        bool is_dropout_;
         unsigned long long seed_;
         unsigned long long offset_;
     };
@@ -898,7 +902,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
 
             float ave_time = 0;
 
-            auto launch_kernel = [&](auto has_main_k_block_loop_) {
+            auto launch_kernel = [&](auto has_main_k_block_loop_, auto is_dropout_) {
                 const auto kernel = kernel_batched_multihead_attention_backward_xdl_cshuffle_v1<
                     GridwiseGemm,
                     DataType,
@@ -920,7 +924,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     ComputeBasePtrOfStridedBatch,
                     C0MatrixMask,
-                    has_main_k_block_loop_>;
+                    has_main_k_block_loop_,
+                    is_dropout_>;
 
                 return launch_and_time_kernel(stream_config,
                                               kernel,
@@ -970,7 +975,17 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             // {
             //     ave_time = launch_kernel(integral_constant<bool, false>{});
             // }
-            ave_time = launch_kernel(integral_constant<bool, false>{});
+            if(arg.is_dropout_)
+            {
+                ave_time = launch_kernel(integral_constant<bool, false>{},
+                                         integral_constant<bool, true>{});
+            }
+            else
+            {
+                ave_time = launch_kernel(integral_constant<bool, false>{},
+                                         integral_constant<bool, false>{});
+            }
+            // ave_time = launch_kernel(integral_constant<bool, false>{});
 #endif
             return ave_time;
         }

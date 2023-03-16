@@ -1230,6 +1230,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
     }
 
     template <bool HasMainKBlockLoop,
+              bool IsDropout,
               typename Block2CTileMap,
               typename C0MatrixMask,
               typename VGradGridDescriptor_N_O,
@@ -1957,38 +1958,44 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             // scaling is already performed in the preceding statements with s_element_op
             blockwise_softmax.RunWithPreCalcStats(s_slash_p_thread_buf, lse_thread_buf);
 
-            // save z to global
-            if(p_z_grid)
+            if constexpr(IsDropout)
             {
-                // P_dropped
-                static_for<0, n0, 1>{}([&](auto i) {
-                    blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf),
-                                                            decltype(z_tenor_buffer),
-                                                            true,
-                                                            decltype(n0),
-                                                            decltype(i)>(
-                        s_slash_p_thread_buf, ph, z_tenor_buffer);
+                // save z to global
+                if(p_z_grid)
+                {
+                    // P_dropped
+                    static_for<0, n0, 1>{}([&](auto i) {
+                        blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf),
+                                                                decltype(z_tenor_buffer),
+                                                                true,
+                                                                decltype(n0),
+                                                                decltype(i)>(
+                            s_slash_p_thread_buf, ph, z_tenor_buffer);
 
-                    z_thread_copy_vgpr_to_global.Run(
-                        z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                        make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                        z_tenor_buffer,
-                        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                        z_grid_buf);
+                        z_thread_copy_vgpr_to_global.Run(
+                            z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                            make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                            z_tenor_buffer,
+                            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                            z_grid_buf);
+                        z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+                            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                            make_multi_index(0, 0, 0, 1, 0, 0, 0, 0, 0, 0));
+                    });
                     z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
                         z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                        make_multi_index(0, 0, 0, 1, 0, 0, 0, 0, 0, 0));
-                });
-                z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
-                    z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                    make_multi_index(0, 0, 0, -n0.value, 0, 0, 0, 0, 0, 0));
-            }
-            else
-            {
-                ignore = z_grid_buf;
-                // P_dropped
-                blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf), true>(
-                    s_slash_p_thread_buf, ph);
+                        make_multi_index(0, 0, 0, -n0.value, 0, 0, 0, 0, 0, 0));
+                    z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+                        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                        make_multi_index(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
+                }
+                else
+                {
+                    ignore = z_grid_buf;
+                    // P_dropped
+                    blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf), true>(
+                        s_slash_p_thread_buf, ph);
+                }
             }
 
             block_sync_lds(); // wait for gemm1 LDS read
@@ -2176,9 +2183,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                 Gemm2::b_block_reset_copy_step); // rewind M
             kgrad_thread_copy_vgpr_to_global.MoveDstSliceWindow(
                 kgrad_grid_desc_n0_o0_n1_o1_n2_o2_o3_o4, Gemm2::c_block_slice_copy_step); // step N
-            z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
-                z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                make_multi_index(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
+            // z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+            //    z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+            //    make_multi_index(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
 
         } while(++gemm1_k_block_outer_index < num_gemm1_k_block_outer_loop); // end j loop
 
