@@ -58,16 +58,16 @@ __global__ void
                                                   c_element_op,
                                                   block_2_ctile_map);
 #else
-    ignore = p_a_grid;
-    ignore = p_b_grid;
-    ignore = p_c_grid;
-    ignore = a_grid_desc_k0_m_k1;
-    ignore = b_grid_desc_k0_n_k1;
-    ignore = c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2;
-    ignore = a_element_op;
-    ignore = b_element_op;
-    ignore = c_element_op;
-    ignore = block_2_ctile_map;
+    ignore                = p_a_grid;
+    ignore                = p_b_grid;
+    ignore                = p_c_grid;
+    ignore                = a_grid_desc_k0_m_k1;
+    ignore                = b_grid_desc_k0_n_k1;
+    ignore                = c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2;
+    ignore                = a_element_op;
+    ignore                = b_element_op;
+    ignore                = c_element_op;
+    ignore                = block_2_ctile_map;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
