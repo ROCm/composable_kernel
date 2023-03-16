@@ -9,7 +9,7 @@ template <ck::index_t NDimSpatial,
           typename OutDataType,
           typename InElementOp,
           typename WeiElementOp,
-          typename OutElementOp,
+        typename OutElementOp,
           typename DeviceConvNDFwdInstance>
 bool run_grouped_conv_fwd(bool do_verification,
                           bool time_kernel,

@@ -74,6 +74,6 @@ using DeviceGroupedConvNDFwdInstance =
         5,                   // CThreadTransferSrcDstVectorDim
         4>;                  // CThreadTransferDstScalarPerVector
 
-#include "run_conv2d_fwd_bias_relu_perlayer_quantization_example.inc"
+#include "run_conv2d_fwd_bias_perlayer_quantization_example.inc"
 
-int main() { run_conv2d_fwd_bias_relu_perlayer_quantization_example(); }
+int main() { run_conv2d_fwd_bias_perlayer_quantization_example(); }

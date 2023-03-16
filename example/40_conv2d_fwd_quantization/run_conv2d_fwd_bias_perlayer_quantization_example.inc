@@ -155,7 +155,7 @@ bool run_grouped_conv_fwd(bool do_verification,
     return (pass ? 0 : 1);
 }
 
-int run_conv2d_fwd_bias_relu_perlayer_quantization_example()
+int run_conv2d_fwd_bias_perlayer_quantization_example()
 {
     bool do_verification           = true;
     bool time_kernel               = true;
