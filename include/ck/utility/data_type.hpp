@@ -985,7 +985,7 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
     // has the value 0x7f, then incrementing it causes it to become 0x00 and
     // the exponent is incremented by one, which is the next higher FP value
     // to the unrounded bfloat16 value. When the bfloat16 value is subnormal
-    // with an exponent of 0x00 and a mantissa of 0x7F, it may be rounded up
+    // with an exponent of 0x00 and a mantissa of 0x7f, it may be rounded up
     // to a normal value with an exponent of 0x01 and a mantissa of 0x00.
     // When the bfloat16 value has an exponent of 0xFE and a mantissa of 0x7F,
     // incrementing it causes it to become an exponent of 0xFF and a mantissa
@@ -999,7 +999,7 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
     // mantissa bit being 0 but some other bit(s) being 1. If any of the
     // lower 16 bits of the mantissa are 1, we set the least significant bit
     // of the bfloat16 mantissa, in order to preserve signaling NaN in case
-    // the bloat16's mantissa bits are all 0.
+    // the bfloat16's mantissa bits are all 0.
     bool flag1 = !flag0 && (u.int32 & 0xffff);
 
     u.int32 += flag0 ? 0x7fff + ((u.int32 >> 16) & 1) : 0; // Round to nearest, round to even
