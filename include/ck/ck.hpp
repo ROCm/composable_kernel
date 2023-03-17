@@ -164,7 +164,7 @@
 #define CK_WORKAROUND_SWDEV_383542 1
 
 // workaround: compiler issue on gfx908
-#define CK_WORKAROUND_GITHUB_CK_ISSUE_637 1
+#define CK_WORKAROUND_SWDEV_388832 1
 // flag to enable (1) or disable (0) the debugging output in some kernels
 #define DEBUG_LOG 0
 
