@@ -222,6 +222,18 @@ struct Add_Mul_Activation_Mul_Clamp
         y      = ck::type_convert<int8_t>(y_fp32);
     }
 
+    __host__ __device__ constexpr void
+    operator()(int32_t& y, const int32_t& x, const int32_t& bias) const
+    {
+        // CAUSION - We might type_convert to int8 in threadwise copy
+        // eg. GridwiseGemmDlMultipleD_km_kn_mn
+        float y_fp32 = ck::type_convert<float>(x + bias);
+        y_fp32       = scaleAcc_ * y_fp32;
+        activationOp_(y_fp32, y_fp32);
+        y_fp32 = math::clamp(scale_z_inv_ * y_fp32, -128.f, 127.f);
+        y      = ck::type_convert<int32_t>(y_fp32);
+    }
+
     float scale_z_inv_;
     float scaleAcc_;
     Activation activationOp_;
