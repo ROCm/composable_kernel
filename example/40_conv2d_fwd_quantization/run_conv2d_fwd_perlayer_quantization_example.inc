@@ -9,7 +9,7 @@ template <ck::index_t NDimSpatial,
           typename OutDataType,
           typename InElementOp,
           typename WeiElementOp,
-        typename OutElementOp,
+          typename OutElementOp,
           typename DeviceConvNDFwdInstance>
 bool run_grouped_conv_fwd(bool do_verification,
                           bool time_kernel,
@@ -139,7 +139,7 @@ bool run_grouped_conv_fwd(bool do_verification,
     return (pass ? 0 : 1);
 }
 
-int run_conv2d_fwd_perlayer_quantization_example()
+int run_conv2d_fwd_perlayer_quantization_example(const OutElementOp& out_element_op)
 {
     bool do_verification           = true;
     bool time_kernel               = false;
@@ -161,7 +161,6 @@ int run_conv2d_fwd_perlayer_quantization_example()
 
     const auto in_element_op  = InElementOp{};
     const auto wei_element_op = WeiElementOp{};
-    const auto out_element_op = OutElementOp{0.5f, ActivationOp{}};
 
     using InLayout  = ck::tensor_layout::convolution::GNHWC;
     using WeiLayout = ck::tensor_layout::convolution::GKYXC;
