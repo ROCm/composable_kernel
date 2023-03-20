@@ -18,6 +18,18 @@ Current CK library are structured into 4 layers:
 
 ![ALT](/doc/image/ck_layer.png "CK Layers")
 
+## Documentation
+
+Run the steps below to build documentation locally.
+
+```
+cd docs
+
+pip3 install -r .sphinx/requirements.txt
+
+python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
+```
+
 ## Contributors
 The list of developers and contributors is here: [Contributors](/CONTRIBUTORS.md)
 
