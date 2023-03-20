@@ -246,7 +246,10 @@ struct Add_Mul_Activation_Mul_Clamp
 template <typename Activation>
 struct Add_Mul2_Activation_Mul_Clamp
 {
-    Add_Mul2_Activation_Mul_Clamp(Activation activationOp) : activationOp_(activationOp) {}
+    Add_Mul2_Activation_Mul_Clamp(float scale_z_inv, Activation activationOp)
+        : scale_z_inv_(scale_z_inv), activationOp_(activationOp)
+    {
+    }
 
     __host__ __device__ constexpr void
     operator()(int8_t& y, const int32_t& x, const int32_t& bias, const float& scaleAcc) const
