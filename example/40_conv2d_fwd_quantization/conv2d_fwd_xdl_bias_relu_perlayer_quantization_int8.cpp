@@ -82,6 +82,7 @@ using DeviceGroupedConvNDFwdInstance =
 
 int main()
 {
-    const auto out_element_op = OutElementOp{0.5f, ActivationOp{}};
+    float requant_scale       = 0.5f;
+    const auto out_element_op = OutElementOp{requant_scale, ActivationOp{}};
     run_conv2d_fwd_bias_perlayer_quantization_example(out_element_op);
 }
