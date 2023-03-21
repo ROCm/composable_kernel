@@ -841,9 +841,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             << getConvForwardSpecializationString(ConvForwardSpecialization) << ", "
             << K1 << ", "
             << ABlockTransferSrcScalarPerVector << ", "
-            << ABlockTransferDstScalarPerVector_K1 << ", "
-            << BBlockTransferSrcScalarPerVector << ", "
-            << BBlockTransferDstScalarPerVector_K1
+            << BBlockTransferSrcScalarPerVector
             << ">";
         // clang-format on
 
