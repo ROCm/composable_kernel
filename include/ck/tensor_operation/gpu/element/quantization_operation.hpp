@@ -28,9 +28,9 @@ struct Activation_Mul_Clamp
     // If an activation is piecewise linear function, then Activation(Sy * Qy) = Sy * Activation(Qy)
     // Z = Activation(Y) = Activation(W @ X)
     // Sz * Qz = Activation(Sy * Qy)
-    // Qz = Sy / Sz * Activation(Qy) = (Sw * Sx / Sz) * Activation(Qy)
+    // Qz = Sy / Sz * Activation(Qy) = (Sw * Sx / Sz) * Activation(Qw @ Qx)
 
-    // requantScale_ = Sw * Sx / Sy
+    // requantScale_ = Sw * Sx / Sz
     Activation_Mul_Clamp(float requantScale, Activation activationOp)
         : requantScale_(requantScale), activationOp_(activationOp)
     {
@@ -137,6 +137,10 @@ struct Add_Activation_Mul_Clamp
     // Y = W @ X + B
     // Sy * Qy = Sw * Qw @ Sx * Qx + Sw * Sx * Qb
     // Qy = [(Sw*Sx)/Sy] * (Qw @ Qx + Qb)
+
+    // For activation, Z = Activaiton(Y)
+    // Sz * Qz = Activation(Sy * Qy)
+    // Qz = Sy / Sz * Activation(Qy) = [(Sw*Sx)/Sz] * Activation(Qw @ Qx + Qb)
     Add_Activation_Mul_Clamp(float requantScale, Activation activationOp)
         : requantScale_(requantScale), activationOp_(activationOp)
     {
