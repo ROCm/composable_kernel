@@ -10,5 +10,15 @@ docs_core = ROCmDocs("Composable Kernel Documentation")
 docs_core.run_doxygen()
 docs_core.setup()
 
+mathjax3_config = {
+'tex': {
+    'macros': {
+        'diag': '\\operatorname{diag}',
+        }
+    }
+}
+
+bibtex_bibfiles = ['refs.bib']
+
 for sphinx_var in ROCmDocs.SPHINX_VARS:
     globals()[sphinx_var] = getattr(docs_core, sphinx_var)
