@@ -253,7 +253,12 @@ bool profile_grouped_gemm_impl(int do_verification,
                                                               c_element_op);
 
                     ref_invoker.Run(ref_argument);
-                    pass = pass && ck::utils::check_err(c_m_n_device_results[i], c_m_n_host_result);
+                    bool group_pass =
+                        ck::utils::check_err(c_m_n_device_results[i], c_m_n_host_result);
+                    pass = pass && group_pass;
+
+                    std::cout << "group: " << i << " verification result: " << std::boolalpha
+                              << group_pass << std::endl;
 
                     if(do_log)
                     {
@@ -274,6 +279,11 @@ bool profile_grouped_gemm_impl(int do_verification,
         {
             std::cout << "does not support this GEMM problem" << std::endl;
         }
+    }
+
+    if(do_verification)
+    {
+        std::cout << "Verification: " << (pass ? "SUCCESS" : "FAILURE") << std::endl;
     }
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "

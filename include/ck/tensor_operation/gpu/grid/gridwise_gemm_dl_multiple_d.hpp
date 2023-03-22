@@ -313,9 +313,9 @@ struct GridwiseGemmDlMultipleD_km_kn_mn
             make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
 
         static_assert(a_block_desc_k0_m0_m1_k1.GetElementSpaceSize() ==
-                          a_k0_m_k1_block_desc.GetElementSpaceSize() &&
-                      b_block_desc_k0_n0_n1_k1.GetElementSpaceSize() ==
-                          b_k0_n_k1_block_desc.GetElementSpaceSize() &&
+                              a_k0_m_k1_block_desc.GetElementSpaceSize() &&
+                          b_block_desc_k0_n0_n1_k1.GetElementSpaceSize() ==
+                              b_k0_n_k1_block_desc.GetElementSpaceSize(),
                       "wrong!");
 
         // A matrix blockwise copy

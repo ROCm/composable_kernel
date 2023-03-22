@@ -744,7 +744,7 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
             << K1 << ", "
             << M1PerThread << ", "
             << N1PerThread << ", "
-            << KPerThread
+            << KPerThread << ", "
             << getGemmSpecializationString(GemmSpec)
             << ">";
         // clang-format on
