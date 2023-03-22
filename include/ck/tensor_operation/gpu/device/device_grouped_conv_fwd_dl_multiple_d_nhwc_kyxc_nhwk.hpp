@@ -134,7 +134,8 @@ __global__ void
             const Block2CTileMap block_2_ctile_map,
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx1030__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx1030__) || \
+    defined(__gfx90a__) || defined(__gfx908__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -314,9 +315,8 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
         const auto in_gemmm_gemmk_desc =
             matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_desc);
 
-        const auto M = in_gemmm_gemmk_desc.GetLength(I0);
-        const auto K = in_gemmm_gemmk_desc.GetLength(I1);
-
+        const auto M   = in_gemmm_gemmk_desc.GetLength(I0);
+        const auto K   = in_gemmm_gemmk_desc.GetLength(I1);
         const auto AK0 = K / K1;
 
         return transform_tensor_descriptor(
@@ -709,7 +709,8 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
         namespace ctc = tensor_layout::convolution;
 
         // check device
-        if(!(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030"))
+        if(!(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030" ||
+             ck::get_device_name() == "gfx90a" || ck::get_device_name() == "gfx908"))
         {
             return false;
         }
@@ -834,6 +835,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
         {
             return false;
         }
+
         // check Gridwise GEMM
         return GridwiseGemm::CheckValidity(
             arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.e_grid_desc_m_n_);
@@ -946,7 +948,8 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
             << MPerBlock << ", "
             << NPerBlock << ", "
             << K0PerBlock << ", "
-            << getConvForwardSpecializationString(ConvForwardSpecialization)
+            << getConvForwardSpecializationString(ConvForwardSpecialization) << ", "
+            << K1
             << ">";
         // clang-format on
 
