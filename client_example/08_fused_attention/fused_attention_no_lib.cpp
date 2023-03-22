@@ -5,14 +5,14 @@
 #include <vector>
 
 #include "ck/ck.hpp"
-#include "ck/library/tensor_operation_instance/gpu/batched_gemm_softmax_gemm_permute_general.hpp"
+#include "ck/library/tensor_operation_instance/gpu/batched_gemm_softmax_gemm_permute/device_batched_gemm_multiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instance.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 using AElementOp    = ck::tensor_operation::element_wise::PassThrough;
 using B0ElementOp   = ck::tensor_operation::element_wise::PassThrough;
-using Acc0ElementOp = ck::tensor_operation::element_wise::ScaleMask;
+using Acc0ElementOp = ck::tensor_operation::element_wise::Scale;
 using B1ElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp    = ck::tensor_operation::element_wise::PassThrough;
 
@@ -23,7 +23,6 @@ using ADataType   = ck::half_t;
 using B0DataType  = ck::half_t;
 using B1DataType  = ck::half_t;
 using CDataType   = ck::half_t;
-using D0DataType  = int32_t;
 using AccDataType = float;
 
 struct SimpleDeviceMem
@@ -42,7 +41,7 @@ struct SimpleDeviceMem
     void* p_mem_;
 };
 
-int main(int argc, char* argv[])
+int main()
 {
     int G0 = 48;
     int G1 = 16;
@@ -50,7 +49,7 @@ int main(int argc, char* argv[])
     int N  = 1024;
     int K  = 64;
     int O  = 64;
-
+   
     // A layout [G0, M, G1, K]
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
     std::vector<ck::index_t> a_gs_ms_ks_strides{M * G1 * K, K, G1 * K, 1};
@@ -67,13 +66,8 @@ int main(int argc, char* argv[])
     std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1, M, O};
     std::vector<ck::index_t> c_gs_ms_os_strides{M * G1 * O, O, G1 * O, 1};
 
-    // D layout [G0, M, G1, N]
-    std::vector<ck::index_t> d0_gs_ms_ns_lengths{G0, G1, M, N};
-    std::vector<ck::index_t> d0_gs_ms_ns_strides{M * G1 * N, N, G1 * N, 1};
-
     SimpleDeviceMem a_device_buf(sizeof(ADataType) * G0 * G1 * M * K);
     SimpleDeviceMem b0_device_buf(sizeof(B0DataType) * G0 * G1 * N * K);
-    SimpleDeviceMem d0_device_buf(sizeof(D0DataType) * G0 * G1 * M * N);
     SimpleDeviceMem b1_device_buf(sizeof(B1DataType) * G0 * G1 * O * N);
     SimpleDeviceMem c_device_buf(sizeof(CDataType) * G0 * G1 * M * O);
 
@@ -87,7 +81,7 @@ int main(int argc, char* argv[])
                                                                           B0DataType,
                                                                           B1DataType,
                                                                           CDataType,
-                                                                          ck::Tuple<D0DataType>,
+                                                                          ck::Tuple<>,
                                                                           ck::Tuple<>,
                                                                           AElementOp,
                                                                           B0ElementOp,
@@ -95,10 +89,11 @@ int main(int argc, char* argv[])
                                                                           B1ElementOp,
                                                                           CElementOp,
                                                                           MaskingSpec>;
-
     // get device op instances
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
+    std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+    ck::tensor_operation::device::instance::
+        add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+            op_ptrs);
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
@@ -111,35 +106,32 @@ int main(int argc, char* argv[])
     // profile device op instances
     std::cout << "Run all instances and do timing" << std::endl;
 
-    for(int i = 0; i < op_ptrs.size(); ++i)
+    for(size_t i = 0; i < op_ptrs.size(); ++i)
     {
         auto& op_ptr      = op_ptrs[i];
-        auto argument_ptr = op_ptr->MakeArgumentPointer(
-            a_device_buf.GetDeviceBuffer(),
-            b0_device_buf.GetDeviceBuffer(),
-            b1_device_buf.GetDeviceBuffer(),
-            c_device_buf.GetDeviceBuffer(),
-            std::array<void*, 1>{d0_device_buf.GetDeviceBuffer()}, // p_acc0_biases
-            {},                                                    // p_acc1_biases
-            a_gs_ms_ks_lengths,
-            a_gs_ms_ks_strides,
-            b0_gs_ns_ks_lengths,
-            b0_gs_ns_ks_strides,
-            b1_gs_os_ns_lengths,
-            b1_gs_os_ns_strides,
-            c_gs_ms_os_lengths,
-            c_gs_ms_os_strides,
-            std::array<std::vector<ck::index_t>, 1>{
-                d0_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
-            std::array<std::vector<ck::index_t>, 1>{
-                d0_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
-            {},                       // acc1_biases_gs_ms_os_lengths
-            {},                       // acc1_biases_gs_ms_os_strides
-            AElementOp{},
-            B0ElementOp{},
-            Acc0ElementOp{1 / sqrtf(K), 0.1},
-            B1ElementOp{},
-            CElementOp{});
+        auto argument_ptr = op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
+                                                        b0_device_buf.GetDeviceBuffer(),
+                                                        b1_device_buf.GetDeviceBuffer(),
+                                                        c_device_buf.GetDeviceBuffer(),
+                                                        {}, // p_acc0_biases
+                                                        {}, // p_acc1_biases
+                                                        a_gs_ms_ks_lengths,
+                                                        a_gs_ms_ks_strides,
+                                                        b0_gs_ns_ks_lengths,
+                                                        b0_gs_ns_ks_strides,
+                                                        b1_gs_os_ns_lengths,
+                                                        b1_gs_os_ns_strides,
+                                                        c_gs_ms_os_lengths,
+                                                        c_gs_ms_os_strides,
+                                                        {}, // acc0_biases_gs_ms_ns_lengths
+                                                        {}, // acc0_biases_gs_ms_ns_strides
+                                                        {}, // acc1_biases_gs_ms_os_lengths
+                                                        {}, // acc1_biases_gs_ms_os_strides
+                                                        AElementOp{},
+                                                        B0ElementOp{},
+                                                        Acc0ElementOp{1 / sqrtf(K)},
+                                                        B1ElementOp{},
+                                                        CElementOp{});
 
         auto invoker_ptr    = op_ptr->MakeInvokerPointer();
         std::string op_name = op_ptr->GetTypeString();
@@ -151,8 +143,7 @@ int main(int argc, char* argv[])
 
             std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * G0 * G1;
             std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
-                                     sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O +
-                                     sizeof(D0DataType) * M * N) *
+                                     sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O) *
                                     G0 * G1;
 
             float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
@@ -185,32 +176,29 @@ int main(int argc, char* argv[])
         auto& op_ptr = op_ptrs[best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
                   << std::endl;
-        auto argument_ptr = op_ptr->MakeArgumentPointer(
-            a_device_buf.GetDeviceBuffer(),
-            b0_device_buf.GetDeviceBuffer(),
-            b1_device_buf.GetDeviceBuffer(),
-            c_device_buf.GetDeviceBuffer(),
-            std::array<void*, 1>{d0_device_buf.GetDeviceBuffer()}, // p_acc0_biases
-            {},                                                    // p_acc1_biases
-            a_gs_ms_ks_lengths,
-            a_gs_ms_ks_strides,
-            b0_gs_ns_ks_lengths,
-            b0_gs_ns_ks_strides,
-            b1_gs_os_ns_lengths,
-            b1_gs_os_ns_strides,
-            c_gs_ms_os_lengths,
-            c_gs_ms_os_strides,
-            std::array<std::vector<ck::index_t>, 1>{
-                d0_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
-            std::array<std::vector<ck::index_t>, 1>{
-                d0_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
-            {},                       // acc1_biases_gs_ms_os_lengths
-            {},                       // acc1_biases_gs_ms_os_strides
-            AElementOp{},
-            B0ElementOp{},
-            Acc0ElementOp{1 / sqrtf(K), 0.1},
-            B1ElementOp{},
-            CElementOp{});
+        auto argument_ptr = op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
+                                                        b0_device_buf.GetDeviceBuffer(),
+                                                        b1_device_buf.GetDeviceBuffer(),
+                                                        c_device_buf.GetDeviceBuffer(),
+                                                        {}, // p_acc0_biases
+                                                        {}, // p_acc1_biases
+                                                        a_gs_ms_ks_lengths,
+                                                        a_gs_ms_ks_strides,
+                                                        b0_gs_ns_ks_lengths,
+                                                        b0_gs_ns_ks_strides,
+                                                        b1_gs_os_ns_lengths,
+                                                        b1_gs_os_ns_strides,
+                                                        c_gs_ms_os_lengths,
+                                                        c_gs_ms_os_strides,
+                                                        {}, // acc0_biases_gs_ms_ns_lengths
+                                                        {}, // acc0_biases_gs_ms_ns_strides
+                                                        {}, // acc1_biases_gs_ms_os_lengths
+                                                        {}, // acc1_biases_gs_ms_os_strides
+                                                        AElementOp{},
+                                                        B0ElementOp{},
+                                                        Acc0ElementOp{1 / sqrtf(K)},
+                                                        B1ElementOp{},
+                                                        CElementOp{});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
