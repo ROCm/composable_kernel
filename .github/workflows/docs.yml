@@ -28,7 +28,7 @@ jobs:
     - name: Build docs
       run: cd docs
         && sh ./run_doc.sh
-        && cd _build/html
+        && cd ./source/_build/html
         && touch .nojekyll
     - name: Deploy
       uses: JamesIves/github-pages-deploy-action@releases/v3
