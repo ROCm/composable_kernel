@@ -18,5 +18,7 @@ mathjax3_config = {
     }
 }
 
+bibtex_bibfiles = ['refs.bib']
+
 for sphinx_var in ROCmDocs.SPHINX_VARS:
     globals()[sphinx_var] = getattr(docs_core, sphinx_var)
