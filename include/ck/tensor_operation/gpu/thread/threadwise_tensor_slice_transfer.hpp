@@ -1396,6 +1396,8 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
 
                 SrcData v_this_row, v_theother_row;
                 // int type temp value due to intrinsic requirement
+                // TODO: This temp value will generate the scratch memory if
+                // IntraRowSwizzlePerm is flase
                 int temp = 0;
 
                 // apply element-wise operation
