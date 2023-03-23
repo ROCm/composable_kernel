@@ -74,8 +74,8 @@ using DeviceConvFwdInstance =
         8,           // BBlockTransferSrcScalarPerVector
         8,           // BBlockTransferDstScalarPerVector_BK1
         true,        // BBlockLdsExtraN
-        1,
-        1,
+        4,
+        2,
         S<1, 32, 1, 8>,
         8>;
 
