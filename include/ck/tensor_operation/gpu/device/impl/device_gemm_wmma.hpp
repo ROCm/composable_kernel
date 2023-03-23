@@ -89,8 +89,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
 
     static constexpr auto AEnableLds = NWaves == 1 ? false : true;
     static constexpr auto BEnableLds = MWaves == 1 ? false : true;
-
-    // Force enable LDS if uncommented following
+    // Unconditional enable double side LDS if uncommented following
     // AEnableLds = true;
     // BEnableLds = true;
 
@@ -223,53 +222,53 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
     using CGridDesc_M_N = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_Wmma<
-        BlockSize,
-        ADataType,
-        BDataType,
-        AccDataType,
-        CShuffleDataType,
-        CDataType,
-        InMemoryDataOperationEnum::Set,
-        AGridDesc,
-        BGridDesc,
-        CGridDesc_M_N,
-        AElementwiseOperation,
-        BElementwiseOperation,
-        CElementwiseOperation,
-        MPerBlock,
-        NPerBlock,
-        KPerBlock,
-        MPerWmma,
-        NPerWmma,
-        K1,
-        MRepeat,
-        NRepeat,
-        ABlockTransferThreadClusterLengths_K0_M_K1,
-        ABlockTransferThreadClusterArrangeOrder,
-        ABlockTransferSrcAccessOrder,
-        ABlockTransferSrcVectorDim,
-        ABlockTransferSrcScalarPerVector,
-        ABlockTransferDstScalarPerVector_K1,
-        false, // AThreadTransferSrcResetCoordinateAfterRun,
-        AEnableLds,
-        ABlockLdsAddExtraM,
-        BBlockTransferThreadClusterLengths_K0_N_K1,
-        BBlockTransferThreadClusterArrangeOrder,
-        BBlockTransferSrcAccessOrder,
-        BBlockTransferSrcVectorDim,
-        BBlockTransferSrcScalarPerVector,
-        BBlockTransferDstScalarPerVector_K1,
-        false, // BThreadTransferSrcResetCoordinateAfterRun,
-        BEnableLds,
-        BBlockLdsAddExtraN,
-        CShuffleMRepeatPerShuffle,
-        CShuffleNRepeatPerShuffle,
-        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        CShuffleBlockTransferScalarPerVector_NPerBlock,
-        NumPrefetch,
-        LoopSched,
-        PipelineVer>;
+    using GridwiseGemm =
+        GridwiseGemm_Wmma<BlockSize,
+                          ADataType,
+                          BDataType,
+                          AccDataType,
+                          CShuffleDataType,
+                          CDataType,
+                          InMemoryDataOperationEnum::Set,
+                          AGridDesc,
+                          BGridDesc,
+                          CGridDesc_M_N,
+                          AElementwiseOperation,
+                          BElementwiseOperation,
+                          CElementwiseOperation,
+                          MPerBlock,
+                          NPerBlock,
+                          KPerBlock,
+                          MPerWmma,
+                          NPerWmma,
+                          K1,
+                          MRepeat,
+                          NRepeat,
+                          ABlockTransferThreadClusterLengths_K0_M_K1,
+                          ABlockTransferThreadClusterArrangeOrder,
+                          ABlockTransferSrcAccessOrder,
+                          ABlockTransferSrcVectorDim,
+                          ABlockTransferSrcScalarPerVector,
+                          ABlockTransferDstScalarPerVector_K1,
+                          false, // AThreadTransferSrcResetCoordinateAfterRun,
+                          AEnableLds,
+                          ABlockLdsAddExtraM,
+                          BBlockTransferThreadClusterLengths_K0_N_K1,
+                          BBlockTransferThreadClusterArrangeOrder,
+                          BBlockTransferSrcAccessOrder,
+                          BBlockTransferSrcVectorDim,
+                          BBlockTransferSrcScalarPerVector,
+                          BBlockTransferDstScalarPerVector_K1,
+                          false, // BThreadTransferSrcResetCoordinateAfterRun,
+                          BEnableLds,
+                          BBlockLdsAddExtraN,
+                          CShuffleMRepeatPerShuffle,
+                          CShuffleNRepeatPerShuffle,
+                          CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                          CShuffleBlockTransferScalarPerVector_NPerBlock,
+                          NumPrefetch,
+                          LoopSched,
+                          PipelineVer>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -572,7 +571,11 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
             << MRepeat << ", "
             << NRepeat
             << ">"
-            << " NumPrefetch: "
+            << " AEnableLds: "
+            << AEnableLds << ", "
+            << "BEnableLds: "
+            << BEnableLds << ", "
+            << "NumPrefetch: "
             << NumPrefetch << ", "
             << "LoopScheduler: "
             << LoopSchedToString[LoopSched] << ", "
