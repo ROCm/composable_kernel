@@ -1,0 +1,38 @@
+name: Docs
+
+on:
+  push:
+    #push:
+    #  branches-ignore:
+    #    - '**'  
+    branches: [ develop ]
+  pull_request:
+    branches: [ develop ]
+  
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Requirements
+      run: apt update
+        && apt install -y doxygen
+        && pip3 install sphinx-rtd-theme
+        && pip3 install breathe
+        && pip3 install sphinxcontrib.bibtex
+        && apt install -y latexmk
+        && apt install -y texlive-latex-extra
+    - name: Checkout repo
+      uses: actions/checkout@1.0.0
+    - name: Build docs
+      run: cd docs
+        && sh ./run_doc.sh
+        && cd _build/html
+        && touch .nojekyll
+    - name: Deploy
+      uses: JamesIves/github-pages-deploy-action@releases/v3
+      with:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        BRANCH: gh-pages # The branch the action should deploy to.
+        FOLDER: docs/_build/html # The folder the action should deploy
