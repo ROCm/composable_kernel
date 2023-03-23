@@ -29,6 +29,11 @@ enum struct GemmDataType
     INT8_INT8_INT8, // 3
 };
 
+#define OP_NAME "grouped_gemm"
+#define OP_DESC "Grouped GEMM"
+
+namespace {
+
 std::vector<int> argToIntArray(char* input)
 {
     std::vector<int> out;
@@ -44,9 +49,6 @@ std::vector<int> argToIntArray(char* input)
 
     return out;
 }
-
-#define OP_NAME "grouped_gemm"
-#define OP_DESC "Grouped GEMM"
 
 int profile_grouped_gemm(int argc, char* argv[])
 {
@@ -165,5 +167,7 @@ int profile_grouped_gemm(int argc, char* argv[])
 
     return 0;
 }
+
+} // anonymous namespace
 
 REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_grouped_gemm);

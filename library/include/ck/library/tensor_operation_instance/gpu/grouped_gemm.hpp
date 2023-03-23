@@ -74,18 +74,17 @@ template <typename ALayout,
           typename ADataType,
           typename BDataType,
           typename EDataType>
-struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupedGemm<
-    ALayout,
-    BLayout,
-    Empty_Tuple,
-    ELayout,
-    ADataType,
-    BDataType,
-    Empty_Tuple,
-    EDataType,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough>>
+struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupedGemm<ALayout,
+                                                                                      BLayout,
+                                                                                      Empty_Tuple,
+                                                                                      ELayout,
+                                                                                      ADataType,
+                                                                                      BDataType,
+                                                                                      Empty_Tuple,
+                                                                                      EDataType,
+                                                                                      PassThrough,
+                                                                                      PassThrough,
+                                                                                      PassThrough>>
 {
     using DeviceOp = DeviceGroupedGemm<ALayout,
                                        BLayout,
@@ -95,9 +94,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                                        BDataType,
                                        Empty_Tuple,
                                        EDataType,
-                                       ck::tensor_operation::element_wise::PassThrough,
-                                       ck::tensor_operation::element_wise::PassThrough,
-                                       ck::tensor_operation::element_wise::PassThrough>;
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>;
 
     static auto GetInstances()
     {
