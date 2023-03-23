@@ -166,7 +166,7 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
 
                 return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
             }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
+            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
                 const auto b_grid_desc_nraw_kraw =
                     make_naive_tensor_descriptor(make_tuple(NRaw, KRaw), make_tuple(StrideB, I1));
@@ -531,7 +531,8 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(ck::get_device_name() == "gfx1100")
+        if(ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
+           ck::get_device_name() == "gfx1102")
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {
