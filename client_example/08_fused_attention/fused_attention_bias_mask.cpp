@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
             std::array<std::vector<ck::index_t>, 2>{
                 d00_gs_ms_ns_lengths, d01_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
             std::array<std::vector<ck::index_t>, 2>{
-                d01_gs_ms_ns_strides, d01_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
+                d00_gs_ms_ns_strides, d01_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
             {},                                              // acc1_biases_gs_ms_os_lengths
             {},                                              // acc1_biases_gs_ms_os_strides
             AElementOp{},
@@ -210,7 +210,7 @@ int main(int argc, char* argv[])
             std::array<std::vector<ck::index_t>, 2>{
                 d00_gs_ms_ns_lengths, d01_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
             std::array<std::vector<ck::index_t>, 2>{
-                d01_gs_ms_ns_strides, d01_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
+                d00_gs_ms_ns_strides, d01_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
             {},                                              // acc1_biases_gs_ms_os_lengths
             {},                                              // acc1_biases_gs_ms_os_strides
             AElementOp{},

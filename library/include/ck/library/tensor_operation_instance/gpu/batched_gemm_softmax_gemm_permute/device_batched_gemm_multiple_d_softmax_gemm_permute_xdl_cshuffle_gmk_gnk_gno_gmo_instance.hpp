@@ -83,7 +83,10 @@ template <index_t NumDimG,
           typename C0DEElementwiseOperation,
           typename B1ElementwiseOperation,
           typename C1DEElementwiseOperation,
-          MaskingSpecialization MaskingSpec>
+          MaskingSpecialization MaskingSpec,
+          typename enable_if<is_same<remove_cvref_t<ADataType>, ck::half_t>::value ||
+                                 is_same<remove_cvref_t<ADataType>, ck::bhalf_t>::value,
+                             bool>::type = false>
 void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
                                                                     NumDimM,
