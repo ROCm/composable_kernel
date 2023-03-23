@@ -87,11 +87,15 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
     static constexpr auto WmmaK  = 16;
 
-    static constexpr auto AEnableLds = NWaves == 1 ? false : true;
-    static constexpr auto BEnableLds = MWaves == 1 ? false : true;
-    // Unconditional enable double side LDS if uncommented following
-    // AEnableLds = true;
-    // BEnableLds = true;
+    static constexpr auto AEnableLds_auto = NWaves == 1 ? false : true;
+    static constexpr auto BEnableLds_auto = MWaves == 1 ? false : true;
+
+    // If true, LDS is used unconditionally
+    static constexpr auto AEnableLds_manu = false;
+    static constexpr auto BEnableLds_manu = false;
+
+    static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu;
+    static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu;
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};

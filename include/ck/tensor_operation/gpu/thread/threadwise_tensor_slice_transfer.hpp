@@ -1401,6 +1401,7 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
                 // apply element-wise operation
                 element_op_(v_this_row, src_buf[Number<src_offset>{}]);
 
+                // apply intra-row permute.
                 if constexpr(IntraRowSwizzlePerm)
                 {
                     temp = __builtin_amdgcn_permlane16(

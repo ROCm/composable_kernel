@@ -60,7 +60,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle
            true,           
            4,           // C shuffle (M Repeat) Per store
            1,           // C shuffle (N Repeat) Per store
-           S<1, 32, 1,  8>,               
+           S<1, 16, 1,  16>,               
            8>;
 // clang-format on
 

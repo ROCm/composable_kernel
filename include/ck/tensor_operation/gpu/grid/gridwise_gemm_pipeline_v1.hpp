@@ -360,7 +360,6 @@ struct GridwiseGemmPipeline_v1<1, false, true>
     }
 };
 
-// placeholder
 template <>
 struct GridwiseGemmPipeline_v1<1, true, false>
 {
