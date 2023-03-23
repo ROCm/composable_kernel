@@ -7,7 +7,7 @@ CK utilizes two concepts to achieve performance portability and code maintainabi
 * A tile-based programming model
 * Algorithm complexity reduction for complex ML operators, using innovative technique we call "Tensor Coordinate Transformation".
 
-![ALT](/doc/image/ck_component.png "CK Components")
+![ALT](/docs/data/ck_component.png "CK Components")
 
 ## Code Structure
 Current CK library are structured into 4 layers:
@@ -16,7 +16,17 @@ Current CK library are structured into 4 layers:
 * "Instantiated Kernel and Invoker" layer
 * "Client API" layer
 
-![ALT](/doc/image/ck_layer.png "CK Layers")
+![ALT](/docs/data/ck_layer.png "CK Layers")
+
+## Documentation
+
+Run the steps below to build documentation locally.
+
+```
+cd docs
+pip3 install -r .sphinx/requirements.txt
+python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
+```
 
 ## Contributors
 The list of developers and contributors is here: [Contributors](/CONTRIBUTORS.md)
