@@ -18,60 +18,23 @@
 namespace ck {
 
 template <typename GridwiseGemm,
-          typename FloatAB,
-          typename FloatC,
-          typename AGridDesc_B_K0_M_K1,
-          typename BGridDesc_B_K0_N_K1,
-          typename CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation,
-          typename CBlockClusterAdaptor,
-          bool HasMainKBlockLoop>
+          bool HasMainKBlockLoop,
+          InMemoryDataOperationEnum CGlobalMemoryDataOperation>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_v2r4r2(const FloatAB* __restrict__ p_a_grid,
-                                  const FloatAB* __restrict__ p_b_grid,
-                                  FloatC* __restrict__ p_c_grid,
-                                  const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
-                                  const BGridDesc_B_K0_N_K1 b_b_k0_n_k1_grid_desc,
-                                  const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                                      c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                  const AElementwiseOperation a_element_op,
-                                  const BElementwiseOperation b_element_op,
-                                  const CElementwiseOperation c_element_op,
-                                  const CBlockClusterAdaptor c_block_cluster_adaptor)
+        kernel_gemm_xdlops_v2r4r2_simplified(typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
-    constexpr index_t shared_block_size =
-        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
+    constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
 
-    __shared__ FloatAB p_shared_block[shared_block_size];
+    __shared__ uint8_t p_shared[shared_size];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
-                                                  p_b_grid,
-                                                  p_c_grid,
-                                                  static_cast<void*>(p_shared_block),
-                                                  a_b_k0_m_k1_grid_desc,
-                                                  b_b_k0_n_k1_grid_desc,
-                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  c_element_op,
-                                                  c_block_cluster_adaptor);
+    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation>(
+        karg, static_cast<void*>(p_shared));
 #else
-    ignore = p_a_grid;
-    ignore = p_b_grid;
-    ignore = p_c_grid;
-    ignore = a_b_k0_m_k1_grid_desc;
-    ignore = b_b_k0_n_k1_grid_desc;
-    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore = a_element_op;
-    ignore = b_element_op;
-    ignore = c_element_op;
-    ignore = c_block_cluster_adaptor;
+    ignore = karg;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -79,13 +42,13 @@ template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
           typename FloatC,
-          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-          typename AGridDesc_B_K0_M_K1,
-          typename BGridDesc_B_K0_N_K1,
-          typename CMNGridDesc,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          tensor_operation::device::GemmSpecialization GemmSpec,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t K0PerBlock,
@@ -126,9 +89,237 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     static constexpr auto I7 = Number<7>{};
 
     // K1 should be Number<...>
-    static constexpr auto K1 = Number<K1Value>{};
+    static constexpr auto K1  = Number<K1Value>{};
+    static constexpr auto M01 = 1;
+    static constexpr auto N01 = 1;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
+
+    struct Argument : public ck::tensor_operation::device::BaseArgument
+    {
+        const FloatAB* p_a_grid;
+        const FloatAB* p_b_grid;
+        FloatC* p_c_grid;
+        index_t M;
+        index_t N;
+        index_t K;
+        index_t StrideA;
+        index_t StrideB;
+        index_t StrideC;
+        index_t MPadded;
+        index_t NPadded;
+        index_t KPadded;
+        index_t K0;
+        index_t k_batch;
+
+        Argument(const FloatAB* p_a_grid_,
+                 const FloatAB* p_b_grid_,
+                 FloatC* p_c_grid_,
+                 index_t M_,
+                 index_t N_,
+                 index_t K_,
+                 index_t StrideA_,
+                 index_t StrideB_,
+                 index_t StrideC_,
+                 index_t MPadded_,
+                 index_t NPadded_,
+                 index_t KPadded_,
+                 index_t K0_,
+                 index_t k_batch_)
+            : p_a_grid(p_a_grid_),
+              p_b_grid(p_b_grid_),
+              p_c_grid(p_c_grid_),
+              M(M_),
+              N(N_),
+              K(K_),
+              StrideA(StrideA_),
+              StrideB(StrideB_),
+              StrideC(StrideC_),
+              MPadded(MPadded_),
+              NPadded(NPadded_),
+              KPadded(KPadded_),
+              K0(K0_),
+              k_batch(k_batch_)
+        {
+        }
+
+        void Print() const
+        {
+            std::cout << "arg {"
+                      << "M:" << M << ", "
+                      << "N:" << N << ", "
+                      << "K:" << K << ", "
+                      << "SA:" << StrideA << ", "
+                      << "SB:" << StrideB << ", "
+                      << "SC:" << StrideC << ", "
+                      << "MP:" << MPadded << ", "
+                      << "NP:" << NPadded << ", "
+                      << "KP:" << KPadded << ", "
+                      << "K0:" << K0 << ", "
+                      << "KB:" << k_batch << "}" << std::endl;
+        }
+    };
+
+    __host__ __device__ static auto CalculateGridSize(const Argument& karg)
+    {
+        return std::make_tuple(math::integer_divide_ceil(karg.N, NPerBlock),
+                               math::integer_divide_ceil(karg.M, MPerBlock),
+                               karg.k_batch);
+    }
+
+    // prefer this to be called on host
+    __host__ __device__ static auto CalculateMPadded(index_t M)
+    {
+        return (M + MPerBlock - 1) / MPerBlock * MPerBlock;
+    }
+
+    __host__ __device__ static auto CalculateNPadded(index_t N)
+    {
+        return (N + NPerBlock - 1) / NPerBlock * NPerBlock;
+    }
+
+    __host__ __device__ static auto CalculateK0(index_t K, index_t K_Batch = 1)
+    {
+        // k_batch * k0 * k0_per_block * k1
+        auto K_t = K_Batch * K0PerBlock * K1;
+        return (K + K_t - 1) / K_t * K0PerBlock;
+    }
+
+    __host__ __device__ static auto CalculateKPadded(index_t K, index_t K_Batch = 1)
+    {
+        auto K0 = CalculateK0(K, K_Batch);
+        return K_Batch * K0 * K1;
+    }
+
+    __host__ __device__ static auto MakeAGridDescriptor_KBatch_K0_M_K1(index_t M,
+                                                                       index_t MPad,
+                                                                       index_t K,
+                                                                       index_t StrideA,
+                                                                       index_t KBatch,
+                                                                       index_t K0,
+                                                                       index_t KPad)
+    {
+        const auto a_grid_desc_m_k = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(StrideA, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(I1, StrideA));
+            }
+        }();
+
+        const auto a_grid_desc_m_kpad = transform_tensor_descriptor(
+            a_grid_desc_m_k,
+            make_tuple(make_pass_through_transform(M), make_right_pad_transform(K, KPad - K)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
+                     GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
+                     GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
+                     GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)
+        {
+            // const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
+            return transform_tensor_descriptor(
+                a_grid_desc_m_kpad,
+                make_tuple(make_unmerge_transform(make_tuple(KBatch, K0, K1)),
+                           make_right_pad_transform(M, MPad - M)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
+        }
+        else
+        {
+            return transform_tensor_descriptor(
+                a_grid_desc_m_kpad,
+                make_tuple(make_unmerge_transform(make_tuple(KBatch, K0, K1)),
+                           make_pass_through_transform(M)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
+        }
+    }
+
+    __host__ __device__ static auto MakeBGridDescriptor_KBatch_K0_N_K1(index_t K,
+                                                                       index_t NPad,
+                                                                       index_t N,
+                                                                       index_t StrideB,
+                                                                       index_t KBatch,
+                                                                       index_t K0,
+                                                                       index_t KPad)
+    {
+        const auto b_grid_desc_k_n = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(StrideB, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(I1, StrideB));
+            }
+        }();
+
+        const auto b_grid_desc_kpad_n = transform_tensor_descriptor(
+            b_grid_desc_k_n,
+            make_tuple(make_right_pad_transform(K, KPad - K), make_pass_through_transform(N)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
+                     GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
+                     GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
+                     GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)
+        {
+            // const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
+            return transform_tensor_descriptor(
+                b_grid_desc_kpad_n,
+                make_tuple(make_unmerge_transform(make_tuple(KBatch, K0, K1)),
+                           make_right_pad_transform(N, NPad - N)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
+        }
+        else
+        {
+            return transform_tensor_descriptor(
+                b_grid_desc_kpad_n,
+                make_tuple(make_unmerge_transform(make_tuple(KBatch, K0, K1)),
+                           make_pass_through_transform(N)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
+        }
+    }
+
+    __host__ __device__ static auto
+    MakeCGridDescriptor_M_N(index_t M, index_t N, index_t MPad, index_t NPad, index_t StrideC)
+    {
+        const auto c_grid_desc_m_n = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideC));
+            }
+        }();
+
+        if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding)
+        {
+            return transform_tensor_descriptor(c_grid_desc_m_n,
+                                               make_tuple(make_right_pad_transform(M, MPad - M),
+                                                          make_right_pad_transform(N, NPad - N)),
+                                               make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                               make_tuple(Sequence<0>{}, Sequence<1>{}));
+        }
+        else
+        {
+            return transform_tensor_descriptor(
+                c_grid_desc_m_n,
+                make_tuple(make_pass_through_transform(M), make_pass_through_transform(N)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+        }
+    }
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
@@ -178,43 +369,66 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                          c_block_size * sizeof(FloatC));
     }
 
-    // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
-    template <typename Block2CTileMap>
-    __host__ __device__ static constexpr bool
-    CheckValidity(const AGridDesc_B_K0_M_K1& a_b_k0_m_k1_grid_desc,
-                  const BGridDesc_B_K0_N_K1& b_b_k0_n_k1_grid_desc,
-                  const CMNGridDesc& c_m_n_grid_desc,
-                  const Block2CTileMap& block_2_ctile_map)
+    __host__ __device__ static constexpr bool CheckValidity(const Argument& karg)
     {
-        static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
-                      "wrong! K1 need to be known at compile-time");
-
-        static_assert((MPerBlock % (MPerXDL * MRepeat) == 0) &&
-                          (NPerBlock % (NRepeat * NPerXDL)) == 0,
-                      "Invalid tuning param!");
-
-        const auto M      = a_b_k0_m_k1_grid_desc.GetLength(I2);
-        const auto N      = b_b_k0_n_k1_grid_desc.GetLength(I2);
-        const auto K0     = a_b_k0_m_k1_grid_desc.GetLength(I1);
-        const auto KBatch = a_b_k0_m_k1_grid_desc.GetLength(I0);
-
-        if(!(M == c_m_n_grid_desc.GetLength(I0) && N == c_m_n_grid_desc.GetLength(I1) &&
-             K0 == b_b_k0_n_k1_grid_desc.GetLength(I1) &&
-             K1 == a_b_k0_m_k1_grid_desc.GetLength(I3) &&
-             K1 == b_b_k0_n_k1_grid_desc.GetLength(I3) &&
-             KBatch == b_b_k0_n_k1_grid_desc.GetLength(I0)))
-            return false;
-
-        if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % K0PerBlock == 0))
-            return false;
-
-        if(!block_2_ctile_map.CheckValidity(c_m_n_grid_desc))
+        if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
         {
-            return false;
+            if(!(karg.M % MPerBlock == 0))
+                return false;
+        }
+        if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
+        {
+            if(!(karg.N % NPerBlock == 0))
+                return false;
         }
 
-        // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
+        if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
+        {
+            if(karg.K % ABlockTransferSrcScalarPerVector != 0)
+                return false;
+        }
+        else
+        {
+            if(karg.M % ABlockTransferSrcScalarPerVector != 0)
+                return false;
+        }
+
+        if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
+        {
+            if(karg.N % BBlockTransferSrcScalarPerVector != 0)
+                return false;
+        }
+        else
+        {
+            if(karg.K % BBlockTransferSrcScalarPerVector != 0)
+                return false;
+        }
+
+        if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
+        {
+            if(karg.N % CBlockTransferScalarPerVector_NWaveNPerXDL != 0)
+                return false;
+        }
+        else
+        {
+            if(karg.M % CBlockTransferScalarPerVector_NWaveNPerXDL != 0)
+                return false;
+        }
+
         return true;
+    }
+
+    __host__ __device__ static auto GetKPad(index_t K, index_t KBatch)
+    {
+        const index_t K0   = math::integer_divide_ceil(K, K1 * K0PerBlock * KBatch) * K0PerBlock;
+        const index_t KPad = KBatch * K0 * K1;
+        return KPad;
     }
 
     __host__ __device__ static constexpr bool CalculateHasMainK0BlockLoop(index_t K0)
@@ -224,8 +438,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         return has_main_k0_block_loop;
     }
 
+    template <typename CGridDesc>
     __host__ __device__ static constexpr auto
-    MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(const CMNGridDesc& c_m_n_grid_desc)
+    MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(const CGridDesc& c_m_n_grid_desc)
     {
         const auto M = c_m_n_grid_desc.GetLength(I0);
         const auto N = c_m_n_grid_desc.GetLength(I1);
@@ -242,10 +457,11 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     }
 
     // return block_id to C matrix tile idx (m0, n0) mapping
+    template <typename CGridDesc>
     __host__ __device__ static constexpr auto MakeCBlockClusterAdaptor(
-        const CMNGridDesc& c_m_n_grid_desc, index_t /* M01 */, index_t /* N01 */, index_t KBatch)
+        const CGridDesc& c_m_n_grid_desc, index_t /* M01 */, index_t /* N01 */, index_t KBatch)
     {
-        return BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, CMNGridDesc>(
+        return BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc>(
             c_m_n_grid_desc, 8, KBatch);
     }
 
@@ -262,24 +478,25 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                        Number<CShuffleNRepeatPerShuffle * NWave * NPerXDL>{}));
     }
 
-    using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
-        decltype(MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(CMNGridDesc{}));
-    using CBlockClusterAdaptor = decltype(MakeCBlockClusterAdaptor(CMNGridDesc{}, 1, 1, 1));
-
-    template <bool HasMainKBlockLoop>
-    __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
-                               const FloatAB* __restrict__ p_b_grid,
-                               FloatC* __restrict__ p_c_grid,
-                               void* __restrict__ p_shared_block,
-                               const AGridDesc_B_K0_M_K1& a_b_k0_m_k1_grid_desc,
-                               const BGridDesc_B_K0_N_K1& b_b_k0_n_k1_grid_desc,
-                               const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
-                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
-                               const AElementwiseOperation& a_element_op,
-                               const BElementwiseOperation& b_element_op,
-                               const CElementwiseOperation& c_element_op,
-                               const CBlockClusterAdaptor& c_block_cluster_adaptor)
+    template <bool HasMainKBlockLoop, InMemoryDataOperationEnum CGlobalMemoryDataOperation>
+    __device__ static void Run(const Argument& karg, void* __restrict__ p_shared_block)
     {
+        const FloatAB* p_a_grid          = karg.p_a_grid;
+        const FloatAB* p_b_grid          = karg.p_b_grid;
+        FloatC* p_c_grid                 = karg.p_c_grid;
+        const auto a_b_k0_m_k1_grid_desc = MakeAGridDescriptor_KBatch_K0_M_K1(
+            karg.M, karg.MPadded, karg.K, karg.StrideA, karg.k_batch, karg.K0, karg.KPadded);
+        const auto b_b_k0_n_k1_grid_desc = MakeBGridDescriptor_KBatch_K0_N_K1(
+            karg.K, karg.NPadded, karg.N, karg.StrideB, karg.k_batch, karg.K0, karg.KPadded);
+        const auto c_grid_desc_m_n =
+            MakeCGridDescriptor_M_N(karg.M, karg.N, karg.MPadded, karg.NPadded, karg.StrideC);
+
+        const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
+            MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
+        const AElementwiseOperation a_element_op = AElementwiseOperation{};
+        const BElementwiseOperation b_element_op = BElementwiseOperation{};
+        const CElementwiseOperation c_element_op = CElementwiseOperation{};
+
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_b_k0_m_k1_grid_desc.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -289,26 +506,16 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
         const auto K0 = a_b_k0_m_k1_grid_desc.GetLength(I1);
 
-        // divide block work by [M, N]
-        const auto block_work_idx =
-            c_block_cluster_adaptor.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
-
-        if(!c_block_cluster_adaptor.ValidCTileIndex(
-               make_tuple(block_work_idx[I1], block_work_idx[I2]),
-               make_tuple(c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
-                          c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
-        {
-            return;
-        }
-
-        const index_t k_batch_id = block_work_idx[I0];
+        const index_t block_m_id = __builtin_amdgcn_readfirstlane(blockIdx.y);
+        const index_t block_n_id = __builtin_amdgcn_readfirstlane(blockIdx.x);
+        const index_t k_batch_id = __builtin_amdgcn_readfirstlane(blockIdx.z);
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I1] * MPerBlock);
+            __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
 
         const index_t n_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I2] * NPerBlock);
+            __builtin_amdgcn_readfirstlane(block_n_id * NPerBlock);
 
         // lds max alignment
         constexpr auto max_lds_align = K1;
@@ -444,7 +651,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
-
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
@@ -647,7 +853,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                 {c_block_desc_mblock_mperblock_nblock_nperblock,
                  make_multi_index(0, 0, 0, 0),
                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                 make_multi_index(block_work_idx[I1], 0, block_work_idx[I2], 0),
+                 make_multi_index(block_m_id, 0, block_n_id, 0),
                  c_element_op};
 
             constexpr auto mxdlperwave_forward_step =
@@ -715,6 +921,45 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                 }
             });
         }
+    }
+
+    template <typename Layout>
+    struct LStr
+    {
+        static std::string Get() { return ""; }
+    };
+
+    template <>
+    struct LStr<ck::tensor_layout::gemm::RowMajor>
+    {
+        static std::string Get() { return "R"; }
+    };
+
+    template <>
+    struct LStr<ck::tensor_layout::gemm::ColumnMajor>
+    {
+        static std::string Get() { return "C"; }
+    };
+
+    static std::string GetTypeString()
+    {
+        auto str = std::stringstream();
+
+        // clang-format off
+        str << "GemmXdlSplitKCShuffle_"
+            << getGemmSpecializationString(GemmSpec) << "_"
+            << LStr<ALayout>::Get() << LStr<BLayout>::Get() << LStr<CLayout>::Get() << "_"
+            << "B" << BlockSize << "_"
+            << "Vec" << ABlockTransferSrcScalarPerVector << "x"
+            << BBlockTransferSrcScalarPerVector << "x"
+            << CBlockTransferScalarPerVector_NWaveNPerXDL << "_"
+            << MPerBlock << "x"
+            << NPerBlock << "x"
+            << K0PerBlock << "x"
+            << K1 ;
+        // clang-format on
+
+        return str.str();
     }
 };
 
