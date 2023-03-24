@@ -48,6 +48,11 @@ build*
 .gdb_history
 install.dir*
 
-# directories containing generated documentation
-docs/source/_build/
-docs/docBin/
+# documentation artifacts
+build/
+_build/
+_images/
+_static/
+_templates/
+_toc.yml
+docBin/
