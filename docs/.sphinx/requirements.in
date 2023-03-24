@@ -1,2 +1,2 @@
-git+https://github.com/samjwu/rocm-docs-core.git@bibtex
+git+https://github.com/RadeonOpenCompute/rocm-docs-core.git
 sphinxcontrib-bibtex==2.5.0
