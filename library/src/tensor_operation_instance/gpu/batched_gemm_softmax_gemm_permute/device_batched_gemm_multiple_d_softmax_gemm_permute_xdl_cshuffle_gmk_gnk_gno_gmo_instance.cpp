@@ -18,7 +18,6 @@ using F16 = ck::half_t;
 using F32 = float;
 
 using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
-using ScaleMask     = ck::tensor_operation::element_wise::ScaleMask;
 using ScaleBiasMask = ck::tensor_operation::element_wise::ScaleBiasMask;
 
 // f16 ScaleBiasMask masking

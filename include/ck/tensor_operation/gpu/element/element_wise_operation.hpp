@@ -389,35 +389,6 @@ struct UnaryTypeConvert<ck::bhalf_t, float>
     }
 };
 
-struct ScaleMask
-{
-    ScaleMask(float scale, float mask_filter_value)
-        : scale_(scale), mask_filter_value_(mask_filter_value)
-    {
-    }
-    // scale, masked
-    template <typename Y, typename X0, typename X1>
-    __host__ __device__ constexpr void operator()(Y& y, const X0& x, const X1& mask) const;
-
-    template <>
-    __host__ __device__ constexpr void
-    operator()(float& y, const float& x, const int16_t& mask) const
-    {
-        float filter_value = (mask == 1 ? 0.0f : mask_filter_value_);
-        y                  = scale_ * x + filter_value;
-    }
-
-    template <>
-    __host__ __device__ constexpr void
-    operator()(float& y, const float& x, const half_t& mask) const
-    {
-        float filter_value = (mask < 1.0f ? mask_filter_value_ : 0.0f);
-        y                  = scale_ * x + filter_value;
-    }
-    const float scale_;
-    const float mask_filter_value_;
-};
-
 struct ScaleBiasMask
 {
     ScaleBiasMask(float scale, float mask_filter_value)

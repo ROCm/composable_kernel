@@ -10,9 +10,29 @@
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+struct ScaleMask
+{
+    ScaleMask(float scale, float mask_filter_value)
+        : scale_(scale), mask_filter_value_(mask_filter_value)
+    {
+    }
+    // scale, masked
+    template <typename Y, typename X0, typename X1>
+    __host__ __device__ constexpr void operator()(Y& y, const X0& x, const X1& mask) const;
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()(float& y, const float& x, const ck::half_t& mask) const
+    {
+        float filter_value = (mask < 1.0f ? mask_filter_value_ : 0.0f);
+        y                  = scale_ * x + filter_value;
+    }
+    const float scale_;
+    const float mask_filter_value_;
+};
 using AElementOp    = ck::tensor_operation::element_wise::PassThrough;
 using B0ElementOp   = ck::tensor_operation::element_wise::PassThrough;
-using Acc0ElementOp = ck::tensor_operation::element_wise::ScaleMask;
+using Acc0ElementOp = ScaleMask;
 using B1ElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp    = ck::tensor_operation::element_wise::PassThrough;
 
