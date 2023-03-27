@@ -948,7 +948,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         // clang-format off
         str << "GemmXdlSplitKCShuffle_"
             << getGemmSpecializationString(GemmSpec) << "_"
-            << LStr<ALayout>::Get() << LStr<BLayout>::Get() << LStr<CLayout>::Get() << "_"
+            << std::string(ALayout::name)[0]
+            << std::string(BLayout::name)[0]
+            << std::string(CLayout::name)[0]
+            << "_"
             << "B" << BlockSize << "_"
             << "Vec" << ABlockTransferSrcScalarPerVector << "x"
             << BBlockTransferSrcScalarPerVector << "x"
