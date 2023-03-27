@@ -151,7 +151,7 @@ __global__ void
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__) || defined(__gfx1101__) || \
     defined(__gfx1102__))
     // printf("entry kernel launch");
-    __shared__ char p_shared[GridwiseOp::GetSharedMemoryNumberOfByte()];
+    __shared__ char p_shared[GridwiseOp::SharedMemTrait::lds_size];
 
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -241,7 +241,7 @@ __global__ void
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__) || defined(__gfx1101__) || \
     defined(__gfx1102__))
-    __shared__ char p_shared[GridwiseOp::GetSharedMemoryNumberOfByte()];
+    __shared__ char p_shared[GridwiseOp::SharedMemTrait::lds_size];
 
     GridwiseOp::template Run<HasMainKBlockLoop>(p_a_grid,
                                                 p_b_grid,
