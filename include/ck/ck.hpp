@@ -68,11 +68,12 @@
 #define CK_USE_AMD_WMMA
 #endif
 
+// TODO: enable buffer load when found correct 3rd dword
 // buffer load
-#define CK_USE_AMD_BUFFER_LOAD 1
+#define CK_USE_AMD_BUFFER_LOAD 0
 
 // buffer store
-#define CK_USE_AMD_BUFFER_STORE 1
+#define CK_USE_AMD_BUFFER_STORE 0
 
 // buffer atomic add: integer
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER 1
