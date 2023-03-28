@@ -965,7 +965,7 @@ inline __host__ __device__ constexpr float type_convert<float, bhalf_t>(bhalf_t 
 }
 
 // convert fp32 to bfp16
-struct uint16_t_2{
+struct uint16x2_t{
     ushort x;
     ushort y;
 };
@@ -976,7 +976,7 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
     union
     {
         float fp32;
-        uint16_t_2 int32;
+        uint16x2_t int32;
     } u = {x};
 
     return u.int32.y + ((u.int32.x & 0x8000) >> 15);
