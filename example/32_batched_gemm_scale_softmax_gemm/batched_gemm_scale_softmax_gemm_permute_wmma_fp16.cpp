@@ -96,7 +96,7 @@ using DeviceGemmInstance =
         256,
         //      Gemm 0
         128, // MPerBlock
-        128, // LPerBlock
+        64, // LPerBlock
         32,  // KPerBlock
         8,   // K1
         //      Gemm 1
@@ -108,7 +108,7 @@ using DeviceGemmInstance =
         16, // NPerWMMA
         // Per repeat = wave_m = wave_num, wave_n = 1
         1,           // MRepeat
-        8,           // LRepeat
+        4,           // LRepeat
         4,           // NRepeat
         S<4, 64, 1>, // ABlockTransfer MK -> K0 M K1
         S<1, 0, 2>,
@@ -129,12 +129,12 @@ using DeviceGemmInstance =
         S<0, 2, 1>,
         1,
         8,
-        1, // be eight?
+        1,
         false,
         1,              // CShuffleMWmmaPerWavePerShuffle
         2,              // CShuffleNWmmaPerWavePerShuffle
-        S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        4,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
 
 // Ref Gemm0: fp16 in, fp32 out
