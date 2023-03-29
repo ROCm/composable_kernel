@@ -16,8 +16,8 @@ using S = ck::Sequence<Is...>;
 using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
 using InElementOp  = PassThrough;
 using WeiElementOp = PassThrough;
-using ActivationOp = ck::tensor_operation::element_wise::Relu;
-using OutElementOp = ck::tensor_operation::element_wise::Add_Activation_Mul_Clamp<ActivationOp>;
+using ActivationOp = ck::tensor_operation::element_wise::TanH;
+using OutElementOp = ck::tensor_operation::element_wise::Add_Mul_Activation_Mul_Clamp<ActivationOp>;
 
 static constexpr auto ConvSpec =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
@@ -78,7 +78,8 @@ using DeviceGroupedConvNDFwdInstance =
 
 int main()
 {
-    float requant_scale       = 0.5f;
-    const auto out_element_op = OutElementOp{requant_scale, ActivationOp{}};
+    float scale_acc           = 0.5f;
+    float scale_z_inv         = 0.5f;
+    const auto out_element_op = OutElementOp{scale_z_inv, scale_acc, ActivationOp{}};
     run_conv2d_fwd_bias_perlayer_quantization_example(out_element_op);
 }

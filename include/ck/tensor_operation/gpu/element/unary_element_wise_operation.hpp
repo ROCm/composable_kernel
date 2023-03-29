@@ -320,6 +320,19 @@ struct Sigmoid
     int32_t divider_ = 1;
 };
 
+struct TanH
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::tanh(x);
+    };
+};
+
 } // namespace element_wise
 } // namespace tensor_operation
 } // namespace ck
