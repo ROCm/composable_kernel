@@ -49,6 +49,21 @@ void add_device_conv2d_dl_bias_relu_perlayer_quantization_int8_instances(
                                                               Add_Activation_Mul_Clamp<Relu>>>>&
         instances);
 
+void add_device_conv2d_dl_bias_tanh_perlayer_quantization_int8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              GNHWC,
+                                                              GKYXC,
+                                                              GK_Tuple,
+                                                              GNHWK,
+                                                              int8_t,
+                                                              int8_t,
+                                                              I32_Tuple,
+                                                              int8_t,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              Add_Mul_Activation_Mul_Clamp<TanH>>>>&
+        instances);
+
 void add_device_conv2d_xdl_bias_perlayer_quantization_int8_instances(
     std::vector<
         std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
@@ -80,6 +95,22 @@ void add_device_conv2d_xdl_bias_relu_perlayer_quantization_int8_instances(
                                                               Add_Activation_Mul_Clamp<Relu>>>>&
         instances);
 
+void add_device_conv2d_xdl_bias_tanh_perlayer_quantization_int8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              GNHWC,
+                                                              GKYXC,
+                                                              GK_Tuple,
+                                                              GNHWK,
+                                                              int8_t,
+                                                              int8_t,
+                                                              I32_Tuple,
+                                                              int8_t,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              Add_Mul_Activation_Mul_Clamp<TanH>>>>&
+        instances);
+
+// piecewise activation function
 template <ck::index_t NumDimSpatial,
           typename InLayout,
           typename WeiLayout,
@@ -137,6 +168,67 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 {
                     add_device_conv2d_dl_bias_relu_perlayer_quantization_int8_instances(op_ptrs);
                     add_device_conv2d_xdl_bias_relu_perlayer_quantization_int8_instances(op_ptrs);
+                }
+            }
+        }
+
+        return op_ptrs;
+    }
+};
+
+// non-piecewise activation function
+template <ck::index_t NumDimSpatial,
+          typename InLayout,
+          typename WeiLayout,
+          typename DsLayout,
+          typename OutLayout,
+          typename InDataType,
+          typename WeiDataType,
+          typename DsDataType,
+          typename OutDataType,
+          typename Activation>
+struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<
+    NumDimSpatial,
+    InLayout,
+    WeiLayout,
+    DsLayout,
+    OutLayout,
+    InDataType,
+    WeiDataType,
+    DsDataType,
+    OutDataType,
+    ck::tensor_operation::element_wise::PassThrough,
+    ck::tensor_operation::element_wise::PassThrough,
+    Add_Mul_Activation_Mul_Clamp<Activation>>>
+{
+    using DeviceOp = DeviceGroupedConvFwdMultipleD<NumDimSpatial,
+                                                   InLayout,
+                                                   WeiLayout,
+                                                   DsLayout,
+                                                   OutLayout,
+                                                   InDataType,
+                                                   WeiDataType,
+                                                   DsDataType,
+                                                   OutDataType,
+                                                   ck::tensor_operation::element_wise::PassThrough,
+                                                   ck::tensor_operation::element_wise::PassThrough,
+                                                   Add_Mul_Activation_Mul_Clamp<Activation>>;
+
+    static auto GetInstances()
+    {
+        std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+        if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, GNHWC> &&
+                     is_same_v<WeiLayout, GKYXC> && is_same_v<DsLayout, GK_Tuple> &&
+                     is_same_v<OutLayout, GNHWK>)
+        {
+            if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
+                         is_same_v<DsDataType, I32_Tuple> && is_same_v<OutDataType, int8_t>)
+            {
+                if constexpr(is_same_v<Activation, TanH>)
+                {
+                    add_device_conv2d_dl_bias_tanh_perlayer_quantization_int8_instances(op_ptrs);
+                    add_device_conv2d_xdl_bias_tanh_perlayer_quantization_int8_instances(op_ptrs);
                 }
             }
         }

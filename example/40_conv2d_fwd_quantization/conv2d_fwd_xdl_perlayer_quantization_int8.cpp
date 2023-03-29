@@ -75,4 +75,9 @@ using DeviceGroupedConvNDFwdInstance =
 
 #include "run_conv2d_fwd_perlayer_quantization_example.inc"
 
-int main() { run_conv2d_fwd_perlayer_quantization_example(); }
+int main()
+{
+    float requant_scale       = 0.5f;
+    const auto out_element_op = OutElementOp{requant_scale, ActivationOp{}};
+    run_conv2d_fwd_perlayer_quantization_example(out_element_op);
+}

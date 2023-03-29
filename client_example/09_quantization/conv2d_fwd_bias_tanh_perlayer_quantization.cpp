@@ -21,8 +21,8 @@ using WeiLayout    = ck::tensor_layout::convolution::GKYXC;
 using BiasLayout   = ck::tensor_layout::convolution::G_K;
 using OutLayout    = ck::tensor_layout::convolution::GNHWK;
 using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
-using ActivationOp = ck::tensor_operation::element_wise::Relu;
-using OutElementOp = ck::tensor_operation::element_wise::Add_Activation_Mul_Clamp<ActivationOp>;
+using ActivationOp = ck::tensor_operation::element_wise::TanH;
+using OutElementOp = ck::tensor_operation::element_wise::Add_Mul_Activation_Mul_Clamp<ActivationOp>;
 
 static constexpr ck::index_t NumDimSpatial = 2;
 static constexpr ck::index_t G             = 1;
@@ -35,7 +35,8 @@ static constexpr ck::index_t Hi            = 71;   // input H
 static constexpr ck::index_t Wi            = 71;   // input W
 static constexpr ck::index_t Ho            = 36;   // output H
 static constexpr ck::index_t Wo            = 36;   // output W
-static constexpr float requant_scale       = 0.5f; // requantize qAcc to qz
+static constexpr float sacc                = 0.5f; //  scale of acc
+static constexpr float sz_inv              = 0.5f; // inverse of scale_z
 
 struct SimpleDeviceMem
 {
@@ -103,27 +104,26 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < op_ptrs.size(); ++i)
     {
-        auto& op_ptr = op_ptrs[i];
-        auto argument_ptr =
-            op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
-                                        wei.GetDeviceBuffer(),
-                                        {bias.GetDeviceBuffer()},
-                                        out.GetDeviceBuffer(),
-                                        in_lengths,
-                                        in_strides,
-                                        weight_lengths,
-                                        weight_strides,
-                                        {bias_lengths},
-                                        {bias_strides},
-                                        out_lengths,
-                                        out_strides,
-                                        conv_strides,
-                                        conv_dilations,
-                                        in_left_pad,
-                                        in_right_pad,
-                                        PassThrough{},
-                                        PassThrough{},
-                                        OutElementOp{requant_scale, ActivationOp{}});
+        auto& op_ptr      = op_ptrs[i];
+        auto argument_ptr = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
+                                                        wei.GetDeviceBuffer(),
+                                                        {bias.GetDeviceBuffer()},
+                                                        out.GetDeviceBuffer(),
+                                                        in_lengths,
+                                                        in_strides,
+                                                        weight_lengths,
+                                                        weight_strides,
+                                                        {bias_lengths},
+                                                        {bias_strides},
+                                                        out_lengths,
+                                                        out_strides,
+                                                        conv_strides,
+                                                        conv_dilations,
+                                                        in_left_pad,
+                                                        in_right_pad,
+                                                        PassThrough{},
+                                                        PassThrough{},
+                                                        OutElementOp{sacc, sz_inv, ActivationOp{}});
 
         auto invoker_ptr    = op_ptr->MakeInvokerPointer();
         std::string op_name = op_ptr->GetTypeString();
@@ -167,26 +167,25 @@ int main(int argc, char* argv[])
         auto& op_ptr = op_ptrs[best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
                   << std::endl;
-        auto argument_ptr =
-            op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
-                                        wei.GetDeviceBuffer(),
-                                        {bias.GetDeviceBuffer()},
-                                        out.GetDeviceBuffer(),
-                                        in_lengths,
-                                        in_strides,
-                                        weight_lengths,
-                                        weight_strides,
-                                        {bias_lengths},
-                                        {bias_strides},
-                                        out_lengths,
-                                        out_strides,
-                                        conv_strides,
-                                        conv_dilations,
-                                        in_left_pad,
-                                        in_right_pad,
-                                        PassThrough{},
-                                        PassThrough{},
-                                        OutElementOp{requant_scale, ActivationOp{}});
+        auto argument_ptr = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
+                                                        wei.GetDeviceBuffer(),
+                                                        {bias.GetDeviceBuffer()},
+                                                        out.GetDeviceBuffer(),
+                                                        in_lengths,
+                                                        in_strides,
+                                                        weight_lengths,
+                                                        weight_strides,
+                                                        {bias_lengths},
+                                                        {bias_strides},
+                                                        out_lengths,
+                                                        out_strides,
+                                                        conv_strides,
+                                                        conv_dilations,
+                                                        in_left_pad,
+                                                        in_right_pad,
+                                                        PassThrough{},
+                                                        PassThrough{},
+                                                        OutElementOp{sacc, sz_inv, ActivationOp{}});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
