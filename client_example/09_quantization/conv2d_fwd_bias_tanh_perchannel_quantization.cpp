@@ -6,23 +6,26 @@
 #include <vector>
 
 #include "ck/ck.hpp"
-#include "ck/library/tensor_operation_instance/gpu/quantization/grouped_convolution_bias_forward_perlayer_quantization.hpp"
+#include "ck/library/tensor_operation_instance/gpu/quantization/grouped_convolution_bias_forward_perchannel_quantization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_conv_fwd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-using InDataType   = int8_t;
-using WeiDataType  = int8_t;
-using BiasDataType = int32_t;
-using OutDataType  = int8_t;
+using InDataType           = int8_t;
+using WeiDataType          = int8_t;
+using BiasDataType         = int32_t;
+using RequantScaleDataType = float;
+using OutDataType          = int8_t;
 
-using InLayout     = ck::tensor_layout::convolution::GNHWC;
-using WeiLayout    = ck::tensor_layout::convolution::GKYXC;
-using BiasLayout   = ck::tensor_layout::convolution::G_K;
-using OutLayout    = ck::tensor_layout::convolution::GNHWK;
-using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
-using ActivationOp = ck::tensor_operation::element_wise::Relu;
-using OutElementOp = ck::tensor_operation::element_wise::Add_Activation_Mul_Clamp<ActivationOp>;
+using InLayout           = ck::tensor_layout::convolution::GNHWC;
+using WeiLayout          = ck::tensor_layout::convolution::GKYXC;
+using BiasLayout         = ck::tensor_layout::convolution::G_K;
+using RequantScaleLayout = ck::tensor_layout::convolution::G_K;
+using OutLayout          = ck::tensor_layout::convolution::GNHWK;
+using PassThrough        = ck::tensor_operation::element_wise::PassThrough;
+using ActivationOp       = ck::tensor_operation::element_wise::TanH;
+using OutElementOp =
+    ck::tensor_operation::element_wise::Add_Mul2_Activation_Mul_Clamp<ActivationOp>;
 
 static constexpr ck::index_t NumDimSpatial = 2;
 static constexpr ck::index_t G             = 1;
@@ -35,7 +38,7 @@ static constexpr ck::index_t Hi            = 71;   // input H
 static constexpr ck::index_t Wi            = 71;   // input W
 static constexpr ck::index_t Ho            = 36;   // output H
 static constexpr ck::index_t Wo            = 36;   // output W
-static constexpr float requant_scale       = 0.5f; // requantize qAcc to qz
+static constexpr float sz_inv              = 0.5f; // inverse of scale_z
 
 struct SimpleDeviceMem
 {
@@ -61,6 +64,8 @@ int main(int argc, char* argv[])
     std::array<ck::index_t, 5> weight_strides{K * Y * X * C, Y * X * C, 1, X * C, C};
     std::array<ck::index_t, 5> bias_lengths{G, N, K, Ho, Wo};
     std::array<ck::index_t, 5> bias_strides{K, 0, 1, 0, 0};
+    std::array<ck::index_t, 5> requant_scale_lengths{G, N, K, Ho, Wo};
+    std::array<ck::index_t, 5> requant_scale_strides{K, 0, 1, 0, 0};
     std::array<ck::index_t, 5> out_lengths{G, N, K, Ho, Wo};
     std::array<ck::index_t, 5> out_strides{N * Ho * Wo * K, Ho * Wo * K, 1, Wo * K, K};
     std::array<ck::index_t, 2> in_left_pad{1, 1};
@@ -71,21 +76,22 @@ int main(int argc, char* argv[])
     SimpleDeviceMem in(sizeof(InDataType) * N * Hi * Wi * C);
     SimpleDeviceMem wei(sizeof(WeiDataType) * K * Y * X * C);
     SimpleDeviceMem bias(sizeof(BiasDataType) * K * Y * X * C);
+    SimpleDeviceMem requant_scale(sizeof(RequantScaleDataType) * K * Y * X * C);
     SimpleDeviceMem out(sizeof(OutDataType) * N * Ho * Wo * K);
 
-    using DeviceOp =
-        ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<NumDimSpatial,
-                                                                    InLayout,
-                                                                    WeiLayout,
-                                                                    ck::Tuple<BiasLayout>,
-                                                                    OutLayout,
-                                                                    InDataType,
-                                                                    WeiDataType,
-                                                                    ck::Tuple<BiasDataType>,
-                                                                    OutDataType,
-                                                                    PassThrough,
-                                                                    PassThrough,
-                                                                    OutElementOp>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<
+        NumDimSpatial,
+        InLayout,
+        WeiLayout,
+        ck::Tuple<BiasLayout, RequantScaleLayout>,
+        OutLayout,
+        InDataType,
+        WeiDataType,
+        ck::Tuple<BiasDataType, RequantScaleDataType>,
+        OutDataType,
+        PassThrough,
+        PassThrough,
+        OutElementOp>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
@@ -107,14 +113,14 @@ int main(int argc, char* argv[])
         auto argument_ptr =
             op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
                                         wei.GetDeviceBuffer(),
-                                        {bias.GetDeviceBuffer()},
+                                        {bias.GetDeviceBuffer(), requant_scale.GetDeviceBuffer()},
                                         out.GetDeviceBuffer(),
                                         in_lengths,
                                         in_strides,
                                         weight_lengths,
                                         weight_strides,
-                                        {bias_lengths},
-                                        {bias_strides},
+                                        {bias_lengths, requant_scale_lengths},
+                                        {bias_strides, requant_scale_strides},
                                         out_lengths,
                                         out_strides,
                                         conv_strides,
@@ -123,7 +129,7 @@ int main(int argc, char* argv[])
                                         in_right_pad,
                                         PassThrough{},
                                         PassThrough{},
-                                        OutElementOp{requant_scale, ActivationOp{}});
+                                        OutElementOp{sz_inv, ActivationOp{}});
 
         auto invoker_ptr    = op_ptr->MakeInvokerPointer();
         std::string op_name = op_ptr->GetTypeString();
@@ -135,7 +141,8 @@ int main(int argc, char* argv[])
             std::size_t flop = G * 2 * N * K * C * Ho * Wo * Y * X;
             std::size_t num_bytes =
                 G * sizeof(InDataType) * N * Hi * Wi * C + G * sizeof(WeiDataType) * K * Y * X * C +
-                G * sizeof(BiasDataType) * K + G * sizeof(OutDataType) * N * Ho * Wo * K;
+                G * sizeof(BiasDataType) * K + G * sizeof(RequantScaleDataType) * K +
+                G * sizeof(OutDataType) * N * Ho * Wo * K;
 
             float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
             float gb_per_sec = num_bytes / 1.E6 / avg_time;
@@ -170,14 +177,14 @@ int main(int argc, char* argv[])
         auto argument_ptr =
             op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
                                         wei.GetDeviceBuffer(),
-                                        {bias.GetDeviceBuffer()},
+                                        {bias.GetDeviceBuffer(), requant_scale.GetDeviceBuffer()},
                                         out.GetDeviceBuffer(),
                                         in_lengths,
                                         in_strides,
                                         weight_lengths,
                                         weight_strides,
-                                        {bias_lengths},
-                                        {bias_strides},
+                                        {bias_lengths, requant_scale_lengths},
+                                        {bias_strides, requant_scale_strides},
                                         out_lengths,
                                         out_strides,
                                         conv_strides,
@@ -186,7 +193,7 @@ int main(int argc, char* argv[])
                                         in_right_pad,
                                         PassThrough{},
                                         PassThrough{},
-                                        OutElementOp{requant_scale, ActivationOp{}});
+                                        OutElementOp{sz_inv, ActivationOp{}});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

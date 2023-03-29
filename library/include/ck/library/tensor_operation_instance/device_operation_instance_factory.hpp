@@ -85,6 +85,7 @@ using GK_GK_Tuple = ck::Tuple<GK, GK>;
 // pointwise functor
 using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
 using Relu           = ck::tensor_operation::element_wise::Relu;
+using TanH           = ck::tensor_operation::element_wise::TanH;
 using Scale          = ck::tensor_operation::element_wise::Scale;
 using Bilinear       = ck::tensor_operation::element_wise::Bilinear;
 using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
@@ -103,11 +104,19 @@ using Add_Activation_Mul_Clamp =
     ck::tensor_operation::element_wise::Add_Activation_Mul_Clamp<Activation>;
 
 template <typename Activation>
+using Add_Mul_Activation_Mul_Clamp =
+    ck::tensor_operation::element_wise::Add_Mul_Activation_Mul_Clamp<Activation>;
+
+template <typename Activation>
 using Activation_Mul2_Clamp = ck::tensor_operation::element_wise::Activation_Mul2_Clamp<Activation>;
 
 template <typename Activation>
 using Add_Activation_Mul2_Clamp =
     ck::tensor_operation::element_wise::Add_Activation_Mul2_Clamp<Activation>;
+
+template <typename Activation>
+using Add_Mul2_Activation_Mul_Clamp =
+    ck::tensor_operation::element_wise::Add_Mul2_Activation_Mul_Clamp<Activation>;
 
 template <typename DeviceOp, typename Tag = void>
 struct DeviceOperationInstanceFactory;
