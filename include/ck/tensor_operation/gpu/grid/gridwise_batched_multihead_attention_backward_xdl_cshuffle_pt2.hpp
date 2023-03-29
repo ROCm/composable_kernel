@@ -21,6 +21,7 @@
 namespace ck {
 
 template <typename DataType,
+          typename ZDataType,
           typename GemmDataType,
           typename FloatGemmAcc,
           typename FloatCShuffle,
@@ -1146,7 +1147,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
               typename YGradGridDesc_M0_O_M1>
     __device__ static void Run(const DataType* __restrict__ p_q_grid,
                                const DataType* __restrict__ p_k_grid,
-                               unsigned short* __restrict__ p_z_grid,
+                               ZDataType* __restrict__ p_z_grid,
                                const DataType* __restrict__ p_v_grid,
                                const DataType* __restrict__ p_y_grid,
                                const FloatLSE* __restrict__ p_lse_grid,
@@ -1484,7 +1485,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
         auto z_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
             ushort,
-            ushort,
+            ZDataType,
             decltype(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5),
             decltype(z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5),
             tensor_operation::element_wise::PassThrough,
