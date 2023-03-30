@@ -979,7 +979,7 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
         uint16x2_t int32;
     } u = {x};
 
-    return u.int32.y + ((u.int32.x & 0x8000) >> 15);
+    return u.int32.y + (u.int32.x >> 15);
 }
 
 // convert fp16 to bf16
