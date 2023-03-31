@@ -11,13 +11,99 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
+#include "ck/library/tensor_operation_instance/gpu/batched_gemm_softmax_gemm_permute/device_batched_gemm_multiple_d_softmax_gemm_permute_xdl_cshuffle_half_gmk_gnk_gno_gmo_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
+
+void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+    std::vector<std::unique_ptr<
+        DeviceBatchedGemmSoftmaxGemmPermute<2,
+                                            1,
+                                            1,
+                                            1,
+                                            1,
+                                            F16,
+                                            F16,
+                                            F16,
+                                            F16,
+                                            ck::Tuple<F16>,
+                                            ck::Tuple<>,
+                                            PassThrough,
+                                            PassThrough,
+                                            ScaleAdd,
+                                            PassThrough,
+                                            PassThrough,
+                                            MaskingSpecialization::MaskOutUpperTriangle>>>&
+        instances);
+
+void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+    std::vector<
+        std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
+                                                            1,
+                                                            1,
+                                                            1,
+                                                            1,
+                                                            F16,
+                                                            F16,
+                                                            F16,
+                                                            F16,
+                                                            ck::Tuple<F16>,
+                                                            ck::Tuple<>,
+                                                            PassThrough,
+                                                            PassThrough,
+                                                            ScaleAdd,
+                                                            PassThrough,
+                                                            PassThrough,
+                                                            MaskingSpecialization::MaskDisabled>>>&
+        instances);
+
+void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+    std::vector<std::unique_ptr<
+        DeviceBatchedGemmSoftmaxGemmPermute<2,
+                                            1,
+                                            1,
+                                            1,
+                                            1,
+                                            BF16,
+                                            BF16,
+                                            BF16,
+                                            BF16,
+                                            ck::Tuple<BF16>,
+                                            ck::Tuple<>,
+                                            PassThrough,
+                                            PassThrough,
+                                            ScaleAdd,
+                                            PassThrough,
+                                            PassThrough,
+                                            MaskingSpecialization::MaskOutUpperTriangle>>>&
+        instances);
+
+void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+    std::vector<
+        std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
+                                                            1,
+                                                            1,
+                                                            1,
+                                                            1,
+                                                            BF16,
+                                                            BF16,
+                                                            BF16,
+                                                            BF16,
+                                                            ck::Tuple<BF16>,
+                                                            ck::Tuple<>,
+                                                            PassThrough,
+                                                            PassThrough,
+                                                            ScaleAdd,
+                                                            PassThrough,
+                                                            PassThrough,
+                                                            MaskingSpecialization::MaskDisabled>>>&
+        instances);
+
+void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemmSoftmaxGemmPermute<2,
                                             1,
@@ -38,7 +124,7 @@ void add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_f16_f16_f
                                             MaskingSpecialization::MaskOutUpperTriangle>>>&
         instances);
 
-void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
+void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<
         std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
                                                             1,
@@ -59,7 +145,7 @@ void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_g
                                                             MaskingSpecialization::MaskDisabled>>>&
         instances);
 
-void add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_bf16_bf16_bf16_bf16_gmk_gnk_gno_gmo_instances(
+void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemmSoftmaxGemmPermute<2,
                                             1,
@@ -80,7 +166,7 @@ void add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_bf16_bf16
                                             MaskingSpecialization::MaskOutUpperTriangle>>>&
         instances);
 
-void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_bf16_bf16_bf16_bf16_gmk_gnk_gno_gmo_instances(
+void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<
         std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
                                                             1,
@@ -100,85 +186,67 @@ void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_bf16_bf16_bf16_bf
                                                             PassThrough,
                                                             MaskingSpecialization::MaskDisabled>>>&
         instances);
-
-template <typename ADataType,
+template <index_t NumDimG,
+          index_t NumDimM,
+          index_t NumDimN,
+          index_t NumDimK,
+          index_t NumDimO,
+          typename ADataType,
           typename B0DataType,
           typename B1DataType,
           typename CDataType,
+          typename Acc0BiasDataType,
+          typename Acc1BiasDataType,
+          typename AElementwiseOperation,
+          typename B0ElementwiseOperation,
+          typename C0DEElementwiseOperation,
+          typename B1ElementwiseOperation,
+          typename C1DEElementwiseOperation,
           MaskingSpecialization MaskingSpec>
 struct DeviceOperationInstanceFactory<
-    ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute<2,
-                                                                      1,
-                                                                      1,
-                                                                      1,
-                                                                      1,
+    ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
+                                                                      NumDimM,
+                                                                      NumDimN,
+                                                                      NumDimK,
+                                                                      NumDimO,
                                                                       ADataType,
                                                                       B0DataType,
                                                                       B1DataType,
                                                                       CDataType,
-                                                                      ck::Tuple<>,
-                                                                      ck::Tuple<>,
-                                                                      PassThrough,
-                                                                      PassThrough,
-                                                                      Scale,
-                                                                      PassThrough,
-                                                                      PassThrough,
+                                                                      Acc0BiasDataType,
+                                                                      Acc1BiasDataType,
+                                                                      AElementwiseOperation,
+                                                                      B0ElementwiseOperation,
+                                                                      C0DEElementwiseOperation,
+                                                                      B1ElementwiseOperation,
+                                                                      C1DEElementwiseOperation,
                                                                       MaskingSpec>>
 {
-    using DeviceOp = DeviceBatchedGemmSoftmaxGemmPermute<2,
-                                                         1,
-                                                         1,
-                                                         1,
-                                                         1,
+    using DeviceOp = DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
+                                                         NumDimM,
+                                                         NumDimN,
+                                                         NumDimK,
+                                                         NumDimO,
                                                          ADataType,
                                                          B0DataType,
                                                          B1DataType,
                                                          CDataType,
-                                                         ck::Tuple<>,
-                                                         ck::Tuple<>,
-                                                         PassThrough,
-                                                         PassThrough,
-                                                         Scale,
-                                                         PassThrough,
-                                                         PassThrough,
+                                                         Acc0BiasDataType,
+                                                         Acc1BiasDataType,
+                                                         AElementwiseOperation,
+                                                         B0ElementwiseOperation,
+                                                         C0DEElementwiseOperation,
+                                                         B1ElementwiseOperation,
+                                                         C1DEElementwiseOperation,
                                                          MaskingSpec>;
-
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-
-        if constexpr(is_same_v<ADataType, half_t> && is_same_v<B0DataType, half_t> &&
-                     is_same_v<B1DataType, half_t> && is_same_v<CDataType, half_t>)
-        {
-            if constexpr(MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle)
-            {
-                add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
-                    op_ptrs);
-            }
-            else if(MaskingSpec == MaskingSpecialization::MaskDisabled)
-            {
-                add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
-                    op_ptrs);
-            }
-        }
-        else if constexpr(is_same_v<ADataType, BF16> && is_same_v<B0DataType, BF16> &&
-                          is_same_v<B1DataType, BF16> && is_same_v<CDataType, BF16>)
-        {
-            if constexpr(MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle)
-            {
-                add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_bf16_bf16_bf16_bf16_gmk_gnk_gno_gmo_instances(
-                    op_ptrs);
-            }
-            else if(MaskingSpec == MaskingSpecialization::MaskDisabled)
-            {
-                add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_bf16_bf16_bf16_bf16_gmk_gnk_gno_gmo_instances(
-                    op_ptrs);
-            }
-        }
+        add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+            op_ptrs);
         return op_ptrs;
     }
 };
-
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

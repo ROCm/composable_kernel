@@ -5,14 +5,46 @@
 #include <vector>
 
 #include "ck/ck.hpp"
-#include "ck/library/tensor_operation_instance/gpu/batched_gemm_softmax_gemm_permute_general.hpp"
+#include "ck/library/tensor_operation_instance/gpu/batched_gemm_softmax_gemm_permute.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+struct ScaleBiasMask
+{
+    ScaleBiasMask(float scale, float mask_filter_value)
+        : scale_(scale), mask_filter_value_(mask_filter_value)
+    {
+    }
+
+    // biased, masked
+    template <typename Y, typename X0, typename X1, typename X2>
+    __host__ __device__ constexpr void
+    operator()(Y& y, const X0& x, const X1& bias, const X2& mask) const;
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()(float& y, const float& x, const ck::half_t& bias, const int16_t& mask) const
+    {
+        float filter_value = (mask == 1 ? 0.0f : mask_filter_value_);
+        y                  = scale_ * x + ck::type_convert<float>(bias) + filter_value;
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()(float& y, const float& x, const ck::half_t& bias, const ck::half_t& mask) const
+    {
+        float filter_value = (mask < 1.0f ? mask_filter_value_ : 0.0f);
+        y                  = scale_ * x + ck::type_convert<float>(bias) + filter_value;
+    }
+
+    const float scale_;
+    const float mask_filter_value_;
+};
+
 using AElementOp    = ck::tensor_operation::element_wise::PassThrough;
 using B0ElementOp   = ck::tensor_operation::element_wise::PassThrough;
-using Acc0ElementOp = ck::tensor_operation::element_wise::ScaleBiasMask;
+using Acc0ElementOp = ScaleBiasMask;
 using B1ElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp    = ck::tensor_operation::element_wise::PassThrough;
 
