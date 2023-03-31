@@ -19,6 +19,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+// float
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_kknn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
                                                            2,
@@ -63,6 +64,55 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_mnnn
                                                            F32,
                                                            F32_Tuple,
                                                            F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Bilinear>>>& instances);
+
+// double
+void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_kknn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F64,
+                                                           F64,
+                                                           F64_Tuple,
+                                                           F64,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Bilinear>>>& instances);
+
+void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_knnn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F64,
+                                                           F64,
+                                                           F64_Tuple,
+                                                           F64,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Bilinear>>>& instances);
+
+void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_mknn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F64,
+                                                           F64,
+                                                           F64_Tuple,
+                                                           F64,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Bilinear>>>& instances);
+
+void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_mnnn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F64,
+                                                           F64,
+                                                           F64_Tuple,
+                                                           F64,
                                                            PassThrough,
                                                            PassThrough,
                                                            Bilinear>>>& instances);
@@ -114,6 +164,22 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceContra
                 add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_mnnn_instance(
                     op_ptrs);
                 add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_mknn_instance(
+                    op_ptrs);
+            }
+        }
+
+        if constexpr(is_same_v<ADataType, double> && is_same_v<BDataType, double> &&
+                     is_same_v<DDataType, double> && is_same_v<EDataType, double>)
+        {
+            if constexpr(NumDimM == 2 && NumDimN == 2 && NumDimK == 2)
+            {
+                add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_kknn_instance(
+                    op_ptrs);
+                add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_knnn_instance(
+                    op_ptrs);
+                add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_mnnn_instance(
+                    op_ptrs);
+                add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_mknn_instance(
                     op_ptrs);
             }
         }
