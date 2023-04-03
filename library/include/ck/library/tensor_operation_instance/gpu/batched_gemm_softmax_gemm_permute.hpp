@@ -18,7 +18,6 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-
 void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemmSoftmaxGemmPermute<2,
