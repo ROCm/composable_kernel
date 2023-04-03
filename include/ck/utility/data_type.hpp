@@ -965,14 +965,14 @@ inline __host__ __device__ constexpr float type_convert<float, bhalf_t>(bhalf_t 
 }
 
 // convert fp32 to bfp16
-struct uint16x2_t{
-    ushort x;
-    ushort y;
-};
-
 template <>
 inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float x)
 {
+    struct uint16x2_t{
+        ushort x;
+        ushort y;
+    };
+    
     union
     {
         float fp32;
