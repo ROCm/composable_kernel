@@ -923,24 +923,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         }
     }
 
-    template <typename Layout>
-    struct LStr
-    {
-        static std::string Get() { return ""; }
-    };
-
-    template <>
-    struct LStr<ck::tensor_layout::gemm::RowMajor>
-    {
-        static std::string Get() { return "R"; }
-    };
-
-    template <>
-    struct LStr<ck::tensor_layout::gemm::ColumnMajor>
-    {
-        static std::string Get() { return "C"; }
-    };
-
     static std::string GetTypeString()
     {
         auto str = std::stringstream();
