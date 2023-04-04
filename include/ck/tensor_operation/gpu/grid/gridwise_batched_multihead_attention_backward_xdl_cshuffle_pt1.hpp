@@ -2108,7 +2108,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                                  vgrad_grid_desc_n0_o0_n1_o1_n2_o2_o3_o4,
                                                  vgrad_grid_buf);
 
-            // dK = scalar * dS^T * dQ
+            // dK = scalar * dS^T * Q
             v_slash_k_grad_thread_buf.Clear();
             // gemm2_b_thread_buf.Clear();
             static_for<0, num_gemm2_loop, 1>{}([&](auto gemm2_loop_idx) { // gemm dK

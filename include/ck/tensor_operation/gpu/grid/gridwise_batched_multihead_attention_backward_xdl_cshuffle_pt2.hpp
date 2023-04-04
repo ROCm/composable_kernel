@@ -2053,7 +2053,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                 }
             } // end gemm dQ
 
-            // dK = scalar * dS^T * dQ
+            // dK = scalar * dS^T * Q
             v_slash_k_grad_thread_buf.Clear();
             static_for<0, num_gemm2_loop, 1>{}([&](auto gemm2_loop_idx) { // gemm dK
                 // load KGrad Gemm B
