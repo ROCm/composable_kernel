@@ -602,7 +602,7 @@ struct OffsettedBlockToCTileMap
 template <index_t MPerBlock, index_t NPerBlock>
 struct BlockToCTileMap_3DGrid_KSplit
 {
-
+    
     __host__ __device__ BlockToCTileMap_3DGrid_KSplit() = default;
 
     __host__ __device__ constexpr auto
