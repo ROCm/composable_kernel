@@ -8,6 +8,7 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_gemm_splitk.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_gemm.hpp"
@@ -39,7 +40,8 @@ bool profile_grouped_gemm_impl(int do_verification,
                                const std::vector<int>& Ks,
                                const std::vector<int>& StrideAs,
                                const std::vector<int>& StrideBs,
-                               const std::vector<int>& StrideCs)
+                               const std::vector<int>& StrideCs,
+                               int kbatch = 1)
 {
 
     bool pass = true;
@@ -196,6 +198,28 @@ bool profile_grouped_gemm_impl(int do_verification,
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             std::string gemm_name = gemm_ptr->GetTypeString();
+
+            if(kbatch > 1)
+            {
+                using DeviceOpSplitK =
+                    ck::tensor_operation::device::DeviceGroupedGemmSplitK<ALayout,
+                                                                          BLayout,
+                                                                          ck::Tuple<>,
+                                                                          CLayout,
+                                                                          ADataType,
+                                                                          BDataType,
+                                                                          ck::Tuple<>,
+                                                                          CDataType,
+                                                                          AElementOp,
+                                                                          BElementOp,
+                                                                          CElementOp>;
+
+                if(dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get()) != nullptr)
+                {
+                    dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get())
+                        ->SetKBatchSize(argument_ptr.get(), kbatch);
+                }
+            }
 
             float ave_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
