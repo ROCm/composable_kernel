@@ -15,7 +15,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_gemm_splitk.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r4r2.hpp"
 
@@ -118,17 +118,17 @@ template <typename ALayout,
           enable_if_t<AK1 == BK1 && is_same_v<DsLayout, ck::Tuple<>> &&
                           is_same_v<DsDataType, ck::Tuple<>>,
                       bool> = false>
-struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemm<ALayout,
-                                                                     BLayout,
-                                                                     DsLayout,
-                                                                     ELayout,
-                                                                     ADataType,
-                                                                     BDataType,
-                                                                     DsDataType,
-                                                                     EDataType,
-                                                                     AElementwiseOperation,
-                                                                     BElementwiseOperation,
-                                                                     CDEElementwiseOperation>
+struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayout,
+                                                                           BLayout,
+                                                                           DsLayout,
+                                                                           ELayout,
+                                                                           ADataType,
+                                                                           BDataType,
+                                                                           DsDataType,
+                                                                           EDataType,
+                                                                           AElementwiseOperation,
+                                                                           BElementwiseOperation,
+                                                                           CDEElementwiseOperation>
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
@@ -183,9 +183,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemm<ALayout,
     using CGridDesc_M_N = typename GridwiseGemm::CGridDesc_M_N;
     using Block2ETileMapKSplit =
         BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>;
-    using GroupedGemmBlock2ETileMap = OffsettedBlockToCTileMap<Block2ETileMapKSplit>;
-
-    using KernelArgument = typename GridwiseGemm::Argument;
+    using GroupedGemmBlock2ETileMap  = OffsettedBlockToCTileMap<Block2ETileMapKSplit>;
+    using KernelArgument             = typename GridwiseGemm::Argument;
 
     struct GemmTransKernelArg
     {
