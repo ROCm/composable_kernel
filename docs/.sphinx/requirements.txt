@@ -46,9 +46,11 @@ docutils==0.16
     # via
     #   breathe
     #   myst-parser
+    #   pybtex-docutils
     #   pydata-sphinx-theme
     #   rocm-docs-core
     #   sphinx
+    #   sphinxcontrib-bibtex
 executing==1.2.0
     # via stack-data
 fastjsonschema==2.16.3
@@ -92,6 +94,8 @@ jupyter-core==5.3.0
     #   ipykernel
     #   jupyter-client
     #   nbformat
+latexcodec==2.0.1
+    # via pybtex
 linkify-it-py==1.0.3
     # via myst-parser
 markdown-it-py==2.2.0
@@ -148,6 +152,12 @@ ptyprocess==0.7.0
     # via pexpect
 pure-eval==0.2.2
     # via stack-data
+pybtex==0.24.0
+    # via
+    #   pybtex-docutils
+    #   sphinxcontrib-bibtex
+pybtex-docutils==1.0.2
+    # via sphinxcontrib-bibtex
 pycparser==2.21
     # via cffi
 pydata-sphinx-theme==0.13.1
@@ -173,6 +183,7 @@ pyyaml==6.0
     #   jupyter-cache
     #   myst-nb
     #   myst-parser
+    #   pybtex
     #   sphinx-external-toc
 pyzmq==25.0.1
     # via
@@ -187,6 +198,8 @@ rocm-docs-core==0.2.0
 six==1.16.0
     # via
     #   asttokens
+    #   latexcodec
+    #   pybtex
     #   python-dateutil
 smmap==5.0.0
     # via gitdb
@@ -206,6 +219,7 @@ sphinx==4.3.1
     #   sphinx-design
     #   sphinx-external-toc
     #   sphinx-notfound-page
+    #   sphinxcontrib-bibtex
 sphinx-book-theme==1.0.0rc2
     # via rocm-docs-core
 sphinx-copybutton==0.5.1
@@ -218,6 +232,8 @@ sphinx-notfound-page==0.8.3
     # via rocm-docs-core
 sphinxcontrib-applehelp==1.0.4
     # via sphinx
+sphinxcontrib-bibtex==2.5.0
+    # via -r .sphinx/requirements.in
 sphinxcontrib-devhelp==1.0.2
     # via sphinx
 sphinxcontrib-htmlhelp==2.0.1
