@@ -15,7 +15,8 @@ namespace instance {
 using F16 = ck::half_t;
 using F32 = float;
 
-using Pass = ck::tensor_operation::element_wise::PassThrough;
+using Pass  = ck::tensor_operation::element_wise::PassThrough;
+using Swish = ck::tensor_operation::element_wise::Swish;
 
 template <typename OutElementwise, index_t Rank, index_t Reduce>
 // clang-format off
@@ -62,6 +63,13 @@ void add_device_normalization_rank_5_3_f16_instances(
         instances)
 {
     add_device_operation_instances(instances, device_normalization_f16_instances<Pass, 5, 3>{});
+}
+
+void add_device_normalization_rank_5_3_swish_f16_instances(
+    std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F32, F16, Swish, 5, 3>>>&
+        instances)
+{
+    add_device_operation_instances(instances, device_normalization_f16_instances<Swish, 5, 3>{});
 }
 
 } // namespace instance

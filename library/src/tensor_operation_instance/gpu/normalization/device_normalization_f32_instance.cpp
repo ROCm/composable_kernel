@@ -15,7 +15,7 @@ namespace instance {
 using F32 = float;
 
 using Pass = ck::tensor_operation::element_wise::PassThrough;
-
+using Swish = ck::tensor_operation::element_wise::Swish;
 template <typename OutElementwise, index_t Rank, index_t Reduce>
 using device_layernorm_f32_instances = std::tuple<
     // clang-format off
@@ -61,6 +61,13 @@ void add_device_normalization_rank_5_3_f32_instances(
         instances)
 {
     add_device_operation_instances(instances, device_layernorm_f32_instances<Pass, 5, 3>{});
+}
+
+void add_device_normalization_rank_5_3_swish_f32_instances(
+    std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, Swish, 5, 3>>>&
+        instances)
+{
+    add_device_operation_instances(instances, device_layernorm_f32_instances<Swish, 5, 3>{});
 }
 
 } // namespace instance
