@@ -1004,7 +1004,15 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             << KPerBlock << ", "
             << AK1 << ", "
             << BK1 << ", "
-            << getConvBackwardDataSpecializationString(ConvBackwardDataSpecialization)
+            << getConvBackwardDataSpecializationString(ConvBackwardDataSpecialization) << ", "
+            << MPerXDL << ", "
+            << NPerXDL << ", "
+            << MXdlPerWave << ", "
+            << NXdlPerWave << ", "
+            << ABlockTransferSrcScalarPerVector << ", "
+            << BBlockTransferSrcScalarPerVector << ", "
+            << CShuffleMXdlPerWavePerShuffle << ", "
+            << CShuffleNXdlPerWavePerShuffle
             << ">";
 
         return str.str();

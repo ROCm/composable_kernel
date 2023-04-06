@@ -683,7 +683,15 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
             << NPerBlock << ", "
             << KPerBlock << ", "
             << AK1 << ", "
-            << BK1
+            << BK1 << ", "
+            << MPerXDL << ", "
+            << NPerXDL << ", "
+            << MXdlPerWave << ", "
+            << NXdlPerWave << ", "
+            << ABlockTransferSrcScalarPerVector << ", "
+            << BBlockTransferSrcScalarPerVector << ", "
+            << CShuffleMXdlPerWavePerShuffle << ", "
+            << CShuffleNXdlPerWavePerShuffle
             << ">"
             << " LoopScheduler: "
             << LoopSchedToString[LoopSched] << ", "

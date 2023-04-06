@@ -1232,7 +1232,17 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Xdl_CShuffle
             << MPerBlock << ", "
             << NPerBlock << ", "
             << K0PerBlock << ", "
-            << getConvBackwardWeightSpecializationString(ConvBackwardWeightSpecialization)
+            << getConvBackwardWeightSpecializationString(ConvBackwardWeightSpecialization) << ", "
+            << K1 << ", "
+            << MXdlPerWave << ", "
+            << NXdlPerWave << ", "
+            << ABlockTransferSrcScalarPerVector << ", "
+            << ABlockTransferDstScalarPerVector_K1 << ", "
+            << BBlockTransferSrcScalarPerVector << ", "
+            << BBlockTransferDstScalarPerVector_K1 << ", "
+            << CShuffleMXdlPerWavePerShuffle << ", "
+            << CShuffleNXdlPerWavePerShuffle << ", "
+            << CBlockTransferScalarPerVector_NWaveNPerXdl
             << ">";
         // clang-format on
 
