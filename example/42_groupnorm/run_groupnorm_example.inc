@@ -5,11 +5,11 @@
 
 int run_groupnorm_example(int argc, char* argv[])
 {
-    ck::index_t N = 2;
-    ck::index_t H = 32;
-    ck::index_t W = 32;
-    ck::index_t G = 32;
-    ck::index_t C = 30;
+    ck::index_t N = 32;
+    ck::index_t H = 16;
+    ck::index_t W = 16;
+    ck::index_t G = 64;
+    ck::index_t C = 128;
 
     if(argc == 1)
     {

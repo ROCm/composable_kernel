@@ -40,11 +40,11 @@ struct SimpleDeviceMem
 
 int main(int argc, char* argv[])
 {
-    ck::index_t N = 2;
-    ck::index_t H = 32;
-    ck::index_t W = 32;
-    ck::index_t G = 32;
-    ck::index_t C = 30;
+    ck::index_t N = 32;
+    ck::index_t H = 16;
+    ck::index_t W = 16;
+    ck::index_t G = 64;
+    ck::index_t C = 128;
 
     std::size_t xy_size         = N * H * W * G * C;
     std::size_t gamma_beta_size = G * C;
