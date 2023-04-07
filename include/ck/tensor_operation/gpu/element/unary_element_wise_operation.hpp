@@ -342,7 +342,7 @@ struct Swish
                           is_same<T, ck::half_t>::value,
                       "Data type is not supported by this operation!");
 
-        y = x / (ck::type_convert<T>(1) + exp(-beta_ * x));
+        y = x / (ck::type_convert<T>(1) + ck::math::exp(-beta_ * x));
     };
 
     float beta_ = 1.0f;
