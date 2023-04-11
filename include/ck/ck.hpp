@@ -169,7 +169,9 @@
 #define DEBUG_LOG 0
 
 // denorm test fix, required to work around dissue
+#ifndef CK_WORKAROUND_DENORM_FIX
 #define CK_WORKAROUND_DENORM_FIX 0
+#endif
 
 namespace ck {
 
