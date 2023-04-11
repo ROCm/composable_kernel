@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
 
     SimpleDeviceMem in(sizeof(InDataType) * N * Hi * Wi * C);
     SimpleDeviceMem wei(sizeof(WeiDataType) * K * Y * X * C);
-    SimpleDeviceMem requant_scale(sizeof(RequantScaleDataType) * K * Y * X * C);
+    SimpleDeviceMem requant_scale(sizeof(RequantScaleDataType) * K);
     SimpleDeviceMem out(sizeof(OutDataType) * N * Ho * Wo * K);
 
     using DeviceOp =
