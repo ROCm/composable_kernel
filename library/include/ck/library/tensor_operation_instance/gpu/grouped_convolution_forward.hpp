@@ -146,6 +146,20 @@ void add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f32_instances(
                                                               PassThrough>>>& instances);
 
 // grouped conv2d forward, NHWGC/GKYXC/NHWGK
+void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              NHWGC,
+                                                              GKYXC,
+                                                              Empty_Tuple,
+                                                              NHWGK,
+                                                              BF16,
+                                                              BF16,
+                                                              Empty_Tuple,
+                                                              BF16,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
+
 void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
                                                               NHWGC,
@@ -156,6 +170,20 @@ void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
                                                               F16,
                                                               Empty_Tuple,
                                                               F16,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              NHWGC,
+                                                              GKYXC,
+                                                              Empty_Tuple,
+                                                              NHWGK,
+                                                              F32,
+                                                              F32,
+                                                              Empty_Tuple,
+                                                              F32,
                                                               PassThrough,
                                                               PassThrough,
                                                               PassThrough>>>& instances);
@@ -365,7 +393,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
-                // no instance
+                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f32_instances(op_ptrs);
             }
             else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
                               is_same_v<OutDataType, half_t>)
@@ -376,12 +404,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                               is_same_v<WeiDataType, ck::bhalf_t> &&
                               is_same_v<OutDataType, ck::bhalf_t>)
             {
-                // no instance
-            }
-            else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                              is_same_v<OutDataType, int8_t>)
-            {
-                // no instance
+                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(op_ptrs);
             }
         }
         else if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, GNDHWC> &&
