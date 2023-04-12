@@ -26,7 +26,8 @@ using S = ck::Sequence<Is...>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Scale       = ck::tensor_operation::element_wise::Scale;
 
-void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+template void
+add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemmSoftmaxGemmPermute<2,
                                             1,
@@ -45,24 +46,10 @@ void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk
                                             PassThrough,
                                             PassThrough,
                                             MaskingSpecialization::MaskOutUpperTriangle>>>&
-        instances)
-{
-    add_device_operation_instances(
-        instances,
-        device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances<
-            2,
-            1,
-            1,
-            1,
-            1,
-            F16,
-            F32,
-            ck::Tuple<>,
-            Scale,
-            MaskingSpecialization::MaskOutUpperTriangle>{});
-}
+        instances);
 
-void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+template void
+add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<
         std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
                                                             1,
@@ -81,22 +68,7 @@ void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk
                                                             PassThrough,
                                                             PassThrough,
                                                             MaskingSpecialization::MaskDisabled>>>&
-        instances)
-{
-    add_device_operation_instances(
-        instances,
-        device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances<
-            2,
-            1,
-            1,
-            1,
-            1,
-            F16,
-            F32,
-            ck::Tuple<>,
-            Scale,
-            MaskingSpecialization::MaskDisabled>{});
-}
+        instances);
 
 } // namespace instance
 } // namespace device

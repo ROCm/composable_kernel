@@ -18,7 +18,8 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+extern template void
+add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemmSoftmaxGemmPermute<2,
                                             1,
@@ -39,7 +40,8 @@ void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk
                                             MaskingSpecialization::MaskOutUpperTriangle>>>&
         instances);
 
-void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+extern template void
+add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<
         std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
                                                             1,
@@ -60,7 +62,8 @@ void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk
                                                             MaskingSpecialization::MaskDisabled>>>&
         instances);
 
-void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+extern template void
+add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemmSoftmaxGemmPermute<2,
                                             1,
@@ -81,7 +84,8 @@ void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk
                                             MaskingSpecialization::MaskOutUpperTriangle>>>&
         instances);
 
-void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+extern template void
+add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<
         std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
                                                             1,
@@ -102,7 +106,8 @@ void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk
                                                             MaskingSpecialization::MaskDisabled>>>&
         instances);
 
-void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+extern template void
+add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemmSoftmaxGemmPermute<2,
                                             1,
@@ -123,7 +128,8 @@ void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk
                                             MaskingSpecialization::MaskOutUpperTriangle>>>&
         instances);
 
-void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+extern template void
+add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<
         std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
                                                             1,
@@ -144,7 +150,8 @@ void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk
                                                             MaskingSpecialization::MaskDisabled>>>&
         instances);
 
-void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+extern template void
+add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemmSoftmaxGemmPermute<2,
                                             1,
@@ -165,7 +172,8 @@ void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk
                                             MaskingSpecialization::MaskOutUpperTriangle>>>&
         instances);
 
-void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+extern template void
+add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<
         std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
                                                             1,
