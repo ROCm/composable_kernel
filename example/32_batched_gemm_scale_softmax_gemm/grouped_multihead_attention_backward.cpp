@@ -61,8 +61,9 @@ using Scale       = ck::tensor_operation::element_wise::Scale;
 using QKVElementOp = PassThrough;
 using YElementOp   = PassThrough;
 
-using DataType         = F16;
-using GemmDataType     = F16;
+using InputDataType    = BF16;
+using OutputDataType   = F32;
+using GemmDataType     = BF16;
 using AccDataType      = F32;
 using ShuffleDataType  = F32;
 using LSEDataType      = F32;
@@ -102,7 +103,8 @@ using DeviceGemmInstance =
         NumDimN,
         NumDimK,
         NumDimO,
-        DataType,
+        InputDataType,
+        OutputDataType,
         GemmDataType,
         ZDataType,
         LSEDataType,
@@ -160,7 +162,7 @@ using DeviceGemmInstance =
         1,              // CShuffleMXdlPerWavePerShuffle
         1,              // CShuffleNXdlPerWavePerShuffle
         S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        4,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
 #elif(DIM <= 64)
 using DeviceGemmInstance =
@@ -170,7 +172,8 @@ using DeviceGemmInstance =
         NumDimN,
         NumDimK,
         NumDimO,
-        DataType,
+        InputDataType,
+        OutputDataType,
         GemmDataType,
         ZDataType,
         LSEDataType,
@@ -228,7 +231,7 @@ using DeviceGemmInstance =
         1,              // CShuffleMXdlPerWavePerShuffle
         2,              // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        4,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
 
 // using DeviceGemmInstance =
@@ -238,7 +241,8 @@ using DeviceGemmInstance =
 //         NumDimN,
 //         NumDimK,
 //         NumDimO,
-//         DataType,
+//         InputDataType,
+//         OutputDataType,
 //         GemmDataType,
 //         ZDataType,
 //         LSEDataType,
@@ -296,7 +300,7 @@ using DeviceGemmInstance =
 //         1,              // CShuffleMXdlPerWavePerShuffle
 //         2,              // CShuffleNXdlPerWavePerShuffle
 //         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-//         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+//         4,              // CShuffleBlockTransferScalarPerVector_NPerBlock
 //         MaskingSpec>;   // MaskingSpecialization
 #elif(DIM <= 128)
 using DeviceGemmInstance =
@@ -306,7 +310,8 @@ using DeviceGemmInstance =
         NumDimN,
         NumDimK,
         NumDimO,
-        DataType,
+        InputDataType,
+        OutputDataType,
         GemmDataType,
         ZDataType,
         LSEDataType,
@@ -364,14 +369,14 @@ using DeviceGemmInstance =
         1,              // CShuffleMXdlPerWavePerShuffle
         4,              // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        4,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         MaskingSpec>;   // MaskingSpecialization
 #endif
 
 // Ref Gemm0: S = alpha * Q * K^T
 // fp16 in, fp32 out
-using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<DataType,
-                                                                                DataType,
+using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<InputDataType,
+                                                                                InputDataType,
                                                                                 AccDataType,
                                                                                 AccDataType,
                                                                                 PassThrough,
@@ -381,13 +386,13 @@ using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
 // Ref Softmax: P = Softmax(S)
 // fp32 in, fp16 out
 using ReferenceSoftmaxInstance =
-    ck::tensor_operation::host::ReferenceSoftmax<AccDataType, DataType, AccDataType>;
+    ck::tensor_operation::host::ReferenceSoftmax<AccDataType, InputDataType, AccDataType>;
 
 // Ref Gemm1: Y = P * V
 // fp16 in, fp16 out
-using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<DataType,
-                                                                                DataType,
-                                                                                DataType,
+using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<InputDataType,
+                                                                                InputDataType,
+                                                                                InputDataType,
                                                                                 AccDataType,
                                                                                 PassThrough,
                                                                                 PassThrough,
@@ -395,16 +400,25 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
 
 // Ref Gemm for backward pass
 // fp16 in, fp16 out
-using ReferenceGemmGradInstance = ck::tensor_operation::host::ReferenceBatchedGemm<DataType,
-                                                                                   DataType,
-                                                                                   DataType,
-                                                                                   AccDataType,
-                                                                                   PassThrough,
-                                                                                   PassThrough,
-                                                                                   Scale>;
+using ReferenceGemm0GradInstance = ck::tensor_operation::host::ReferenceBatchedGemm<InputDataType,
+                                                                                    InputDataType,
+                                                                                    InputDataType,
+                                                                                    AccDataType,
+                                                                                    PassThrough,
+                                                                                    PassThrough,
+                                                                                    Scale>;
+
+using ReferenceGemm1GradInstance = ck::tensor_operation::host::ReferenceBatchedGemm<InputDataType,
+                                                                                    InputDataType,
+                                                                                    OutputDataType,
+                                                                                    AccDataType,
+                                                                                    PassThrough,
+                                                                                    PassThrough,
+                                                                                    Scale>;
+
 // Ref dropout
 using ReferenceDropoutInstance =
-    ck::tensor_operation::host::ReferenceDropout<ushort, DataType, DataType>;
+    ck::tensor_operation::host::ReferenceDropout<ushort, InputDataType, InputDataType>;
 
 template <typename TensorQ,
           typename TensorK,
@@ -539,26 +553,26 @@ int run(int argc, char* argv[])
     std::vector<void*> p_vgrad;
     std::vector<const void*> p_ygrad;
 
-    std::vector<Tensor<DataType>> q_g_m_ks;
-    std::vector<Tensor<DataType>> k_g_n_ks;
+    std::vector<Tensor<InputDataType>> q_g_m_ks;
+    std::vector<Tensor<InputDataType>> k_g_n_ks;
     std::vector<Tensor<ZDataType>> z_g_m_ns;
-    std::vector<Tensor<DataType>> v_g_n_os;
+    std::vector<Tensor<InputDataType>> v_g_n_os;
     std::vector<Tensor<AccDataType>> s_g_m_ns;
-    std::vector<Tensor<DataType>> p_g_m_ns;
-    std::vector<Tensor<DataType>> y_g_m_os;
+    std::vector<Tensor<InputDataType>> p_g_m_ns;
+    std::vector<Tensor<InputDataType>> y_g_m_os;
     std::vector<Tensor<LSEDataType>> lse_g_ms;
-    std::vector<Tensor<DataType>> p_drop_g_m_ns;
+    std::vector<Tensor<InputDataType>> p_drop_g_m_ns;
 
-    std::vector<Tensor<DataType>> q_tensors;
-    std::vector<Tensor<DataType>> k_tensors;
-    std::vector<Tensor<DataType>> v_tensors;
-    std::vector<Tensor<DataType>> y_tensors;
+    std::vector<Tensor<InputDataType>> q_tensors;
+    std::vector<Tensor<InputDataType>> k_tensors;
+    std::vector<Tensor<InputDataType>> v_tensors;
+    std::vector<Tensor<InputDataType>> y_tensors;
     std::vector<Tensor<ZDataType>> z_tensors;
     std::vector<Tensor<LSEDataType>> lse_tensors;
-    std::vector<Tensor<DataType>> qgrad_tensors;
-    std::vector<Tensor<DataType>> kgrad_tensors;
-    std::vector<Tensor<DataType>> vgrad_tensors;
-    std::vector<Tensor<DataType>> ygrad_tensors;
+    std::vector<Tensor<OutputDataType>> qgrad_tensors;
+    std::vector<Tensor<OutputDataType>> kgrad_tensors;
+    std::vector<Tensor<OutputDataType>> vgrad_tensors;
+    std::vector<Tensor<InputDataType>> ygrad_tensors;
 
     std::vector<DeviceMemPtr> q_tensors_device;
     std::vector<DeviceMemPtr> k_tensors_device;
@@ -639,17 +653,19 @@ int run(int argc, char* argv[])
         int BatchCount = G0 * G1;
         flop += (size_t(3) * M * N * K + size_t(2) * M * N * O) * 2 * BatchCount;
         // Q/K/V/Y, dQ/dK/dV/dY, LSE
-        num_byte += (sizeof(DataType) * M * K + sizeof(DataType) * K * N +
-                     sizeof(DataType) * N * O + sizeof(DataType) * M * O) *
-                        size_t(2) * BatchCount +
+        num_byte += (sizeof(InputDataType) * M * K + sizeof(InputDataType) * K * N +
+                     sizeof(InputDataType) * N * O + sizeof(InputDataType) * M * O * size_t(2) +
+                     sizeof(OutputDataType) * M * K + sizeof(OutputDataType) * K * N +
+                     sizeof(OutputDataType) * N * O) *
+                        BatchCount +
                     sizeof(LSEDataType) * M * BatchCount;
 
-        Tensor<DataType> q_gs_ms_ks(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
-        Tensor<DataType> k_gs_ns_ks(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
+        Tensor<InputDataType> q_gs_ms_ks(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
+        Tensor<InputDataType> k_gs_ns_ks(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
         Tensor<ZDataType> z_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
-        Tensor<DataType> v_gs_os_ns(v_gs_os_ns_lengths, v_gs_os_ns_strides);
-        Tensor<DataType> y_gs_ms_os(y_gs_ms_os_lengths, y_gs_ms_os_strides);
-        Tensor<DataType> ygrad_gs_ms_os(y_gs_ms_os_lengths, y_gs_ms_os_strides);
+        Tensor<InputDataType> v_gs_os_ns(v_gs_os_ns_lengths, v_gs_os_ns_strides);
+        Tensor<InputDataType> y_gs_ms_os(y_gs_ms_os_lengths, y_gs_ms_os_strides);
+        Tensor<InputDataType> ygrad_gs_ms_os(y_gs_ms_os_lengths, y_gs_ms_os_strides);
         Tensor<LSEDataType> lse_gs_ms(lse_gs_ms_lengths, lse_gs_ms_strides);
         if(i < 4)
         {
@@ -660,45 +676,45 @@ int run(int argc, char* argv[])
             std::cout << "y_gs_ms_os: " << y_gs_ms_os.mDesc << std::endl;
             std::cout << "lse_gs_ms_os: " << lse_gs_ms.mDesc << std::endl;
         }
-        z_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DataType>{0});
+        z_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<InputDataType>{0});
         switch(init_method)
         {
         case 0: break;
         case 1:
-            q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<DataType>{-2, 2});
-            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<DataType>{-2, 2});
-            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<DataType>{-2, 2});
-            ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_2<DataType>{-2, 2});
+            q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
+            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
+            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
+            ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
             break;
         case 2:
-            q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<DataType>{0.0, 1.0});
-            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_3<DataType>{0.0, 1.0});
-            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_3<DataType>{-0.5, 0.5});
-            ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_3<DataType>{-0.5, 0.5});
+            q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<InputDataType>{0.0, 1.0});
+            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_3<InputDataType>{0.0, 1.0});
+            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_3<InputDataType>{-0.5, 0.5});
+            ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_3<InputDataType>{-0.5, 0.5});
             break;
         case 3:
-            q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<DataType>{-5, 5});
-            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
-            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
-            ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
+            q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-5, 5});
+            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
+            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
+            ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
             break;
         case 4:
-            q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<DataType>{1});
-            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
-            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
-            ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<DataType>{2});
+            q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
+            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
+            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
+            ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<InputDataType>{2});
             break;
         case 5:
-            q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<DataType>{1});
-            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
-            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
+            q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
+            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
+            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
             ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<2>{}); // dy[g0, g1, m, o]
             // dO dot O = [0; 1; 2; ...]
             break;
         case 6:
-            q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<DataType>{1});
-            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
-            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
+            q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
+            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
+            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
             ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<3>{}); // dy[g0, g1, m, o]
             // assume mnko = 256
             // P = softmax(QK) = 0.0039 * ones
@@ -709,10 +725,11 @@ int run(int argc, char* argv[])
             //
             break;
         default:
-            q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<DataType>{1});
-            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
-            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<DataType>{});
-            ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<DataType>{1}); // dy[g0, g1, m, o]
+            q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
+            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
+            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
+            ygrad_gs_ms_os.GenerateTensorValue(
+                GeneratorTensor_1<InputDataType>{1}); // dy[g0, g1, m, o]
             // assume mnko = 256
             // P = softmax(QK) = 0.0039 * ones
             // O = P V = 0.0039 * ones
@@ -722,15 +739,15 @@ int run(int argc, char* argv[])
             //    = 0.0039 * ones * (ones - 1)
             //    = 0
         }
-        Tensor<DataType> q_g_m_k({BatchCount, M, K});
-        Tensor<DataType> k_g_n_k({BatchCount, N, K});
+        Tensor<InputDataType> q_g_m_k({BatchCount, M, K});
+        Tensor<InputDataType> k_g_n_k({BatchCount, N, K});
         Tensor<ZDataType> z_g_m_n({BatchCount, M, N});
-        Tensor<DataType> v_g_n_o({BatchCount, N, O});
+        Tensor<InputDataType> v_g_n_o({BatchCount, N, O});
         Tensor<AccDataType> s_g_m_n({BatchCount, M, N});
-        Tensor<DataType> p_g_m_n({BatchCount, M, N});
-        Tensor<DataType> y_g_m_o({BatchCount, M, O});
+        Tensor<InputDataType> p_g_m_n({BatchCount, M, N});
+        Tensor<InputDataType> y_g_m_o({BatchCount, M, O});
         Tensor<LSEDataType> lse_g_m({BatchCount, M});
-        Tensor<DataType> p_drop_g_m_n({BatchCount, M, N});
+        Tensor<InputDataType> p_drop_g_m_n({BatchCount, M, N});
 
         q_gs_ms_ks.ForEach([&](auto& self, auto idx) {
             q_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
@@ -759,25 +776,25 @@ int run(int argc, char* argv[])
         lse_tensors.push_back(lse_gs_ms);
         ygrad_tensors.push_back(ygrad_gs_ms_os);
         q_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(DataType) * q_gs_ms_ks.GetElementSpaceSize()));
+            std::make_unique<DeviceMem>(sizeof(InputDataType) * q_gs_ms_ks.GetElementSpaceSize()));
         k_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(DataType) * k_gs_ns_ks.GetElementSpaceSize()));
+            std::make_unique<DeviceMem>(sizeof(InputDataType) * k_gs_ns_ks.GetElementSpaceSize()));
         z_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(ZDataType) * z_gs_ms_ns.GetElementSpaceSize()));
         v_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(DataType) * v_gs_os_ns.GetElementSpaceSize()));
+            std::make_unique<DeviceMem>(sizeof(InputDataType) * v_gs_os_ns.GetElementSpaceSize()));
         y_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(DataType) * y_gs_ms_os.GetElementSpaceSize()));
+            std::make_unique<DeviceMem>(sizeof(InputDataType) * y_gs_ms_os.GetElementSpaceSize()));
         lse_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(LSEDataType) * lse_gs_ms.GetElementSpaceSize()));
         qgrad_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(DataType) * q_gs_ms_ks.GetElementSpaceSize()));
+            std::make_unique<DeviceMem>(sizeof(OutputDataType) * q_gs_ms_ks.GetElementSpaceSize()));
         kgrad_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(DataType) * k_gs_ns_ks.GetElementSpaceSize()));
+            std::make_unique<DeviceMem>(sizeof(OutputDataType) * k_gs_ns_ks.GetElementSpaceSize()));
         vgrad_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(DataType) * v_gs_os_ns.GetElementSpaceSize()));
+            std::make_unique<DeviceMem>(sizeof(OutputDataType) * v_gs_os_ns.GetElementSpaceSize()));
         ygrad_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(DataType) * y_gs_ms_os.GetElementSpaceSize()));
+            std::make_unique<DeviceMem>(sizeof(InputDataType) * y_gs_ms_os.GetElementSpaceSize()));
         q_tensors_device.back()->ToDevice(q_gs_ms_ks.data());
         k_tensors_device.back()->ToDevice(k_gs_ns_ks.data());
         z_tensors_device.back()->ToDevice(z_gs_ms_ns.data());
@@ -918,23 +935,26 @@ int run(int argc, char* argv[])
             int M          = q_tensors[i].GetLengths()[2];
             int K          = q_tensors[i].GetLengths()[3];
             int BatchCount = G0 * G1;
-            Tensor<DataType> qgrad_g_m_k({BatchCount, M, K});
-            Tensor<DataType> kgrad_g_n_k({BatchCount, N, K});
-            Tensor<DataType> vgrad_g_n_o({BatchCount, N, O});
-            Tensor<DataType> sgrad_g_m_n({BatchCount, M, N});
-            Tensor<DataType> pgrad_g_m_n({BatchCount, M, N});
-            Tensor<DataType> pgrad_drop_g_m_n({BatchCount, M, N});
-            Tensor<DataType> ygrad_g_m_o({BatchCount, M, O});
+            Tensor<OutputDataType> qgrad_g_m_k({BatchCount, M, K});
+            Tensor<OutputDataType> kgrad_g_n_k({BatchCount, N, K});
+            Tensor<OutputDataType> vgrad_g_n_o({BatchCount, N, O});
+            Tensor<InputDataType> sgrad_g_m_n({BatchCount, M, N});
+            Tensor<InputDataType> pgrad_g_m_n({BatchCount, M, N});
+            Tensor<InputDataType> pgrad_drop_g_m_n({BatchCount, M, N});
+            Tensor<InputDataType> ygrad_g_m_o({BatchCount, M, O});
 
             ygrad_tensors[i].ForEach([&](auto& self, auto idx) {
                 ygrad_g_m_o(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
             });
-            auto ref_gemm_grad         = ReferenceGemmGradInstance{};
-            auto ref_gemm_grad_invoker = ref_gemm_grad.MakeInvoker();
-            using RefGemmGradArg       = ReferenceGemmGradInstance::Argument;
+            auto ref_gemm0_grad         = ReferenceGemm0GradInstance{};
+            auto ref_gemm0_grad_invoker = ref_gemm0_grad.MakeInvoker();
+            using RefGemm0GradArg       = ReferenceGemm0GradInstance::Argument;
+            auto ref_gemm1_grad         = ReferenceGemm1GradInstance{};
+            auto ref_gemm1_grad_invoker = ref_gemm1_grad.MakeInvoker();
+            using RefGemm1GradArg       = ReferenceGemm1GradInstance::Argument;
             // dP = dY * V^T
             auto v_g_o_n = v_g_n_os[i].Transpose({0, 2, 1});
-            ref_gemm_grad_invoker.Run(RefGemmGradArg{
+            ref_gemm0_grad_invoker.Run(RefGemm0GradArg{
                 ygrad_g_m_o, v_g_o_n, pgrad_drop_g_m_n, PassThrough{}, PassThrough{}, Scale{1.f}});
             auto ref_dropout         = ReferenceDropoutInstance{};
             auto ref_dropout_invoker = ref_dropout.MakeInvoker();
@@ -951,33 +971,33 @@ int run(int argc, char* argv[])
                     ygrad_dot_y += ck::type_convert<AccDataType>(ygrad_g_m_o(idx_gmo)) *
                                    ck::type_convert<AccDataType>(y_g_m_os[i](idx_gmo));
                 }
-                self(idx_gmn) = ck::type_convert<DataType>(
+                self(idx_gmn) = ck::type_convert<InputDataType>(
                     ck::type_convert<AccDataType>(p_g_m_ns[i](idx_gmn)) *
                     (ck::type_convert<AccDataType>(pgrad_g_m_n(idx_gmn)) - ygrad_dot_y));
             });
 
             auto p_drop_g_n_m = p_drop_g_m_ns[i].Transpose({0, 2, 1});
-            ref_gemm_grad_invoker.Run(RefGemmGradArg{
+            ref_gemm1_grad_invoker.Run(RefGemm1GradArg{
                 p_drop_g_n_m, ygrad_g_m_o, vgrad_g_n_o, PassThrough{}, PassThrough{}, Scale{1.0f}});
-            ref_gemm_grad_invoker.Run(RefGemmGradArg{
+            ref_gemm1_grad_invoker.Run(RefGemm1GradArg{
                 sgrad_g_m_n, k_g_n_ks[i], qgrad_g_m_k, PassThrough{}, PassThrough{}, Scale{alpha}});
             auto sgrad_g_n_m = sgrad_g_m_n.Transpose({0, 2, 1});
-            ref_gemm_grad_invoker.Run(RefGemmGradArg{
+            ref_gemm1_grad_invoker.Run(RefGemm1GradArg{
                 sgrad_g_n_m, q_g_m_ks[i], kgrad_g_n_k, PassThrough{}, PassThrough{}, Scale{alpha}});
 
-            Tensor<DataType> qgrad_gs_ms_ks_host_result(q_tensors[i].GetLengths(),
-                                                        q_tensors[i].GetStrides());
-            Tensor<DataType> kgrad_gs_ns_ks_host_result(k_tensors[i].GetLengths(),
-                                                        k_tensors[i].GetStrides());
-            Tensor<DataType> vgrad_gs_os_ns_host_result(v_tensors[i].GetLengths(),
-                                                        v_tensors[i].GetStrides());
+            Tensor<OutputDataType> qgrad_gs_ms_ks_host_result(q_tensors[i].GetLengths(),
+                                                              q_tensors[i].GetStrides());
+            Tensor<OutputDataType> kgrad_gs_ns_ks_host_result(k_tensors[i].GetLengths(),
+                                                              k_tensors[i].GetStrides());
+            Tensor<OutputDataType> vgrad_gs_os_ns_host_result(v_tensors[i].GetLengths(),
+                                                              v_tensors[i].GetStrides());
 
-            Tensor<DataType> qgrad_gs_ms_ks_device_result(q_tensors[i].GetLengths(),
-                                                          q_tensors[i].GetStrides());
-            Tensor<DataType> kgrad_gs_ns_ks_device_result(k_tensors[i].GetLengths(),
-                                                          k_tensors[i].GetStrides());
-            Tensor<DataType> vgrad_gs_os_ns_device_result(v_tensors[i].GetLengths(),
-                                                          v_tensors[i].GetStrides());
+            Tensor<OutputDataType> qgrad_gs_ms_ks_device_result(q_tensors[i].GetLengths(),
+                                                                q_tensors[i].GetStrides());
+            Tensor<OutputDataType> kgrad_gs_ns_ks_device_result(k_tensors[i].GetLengths(),
+                                                                k_tensors[i].GetStrides());
+            Tensor<OutputDataType> vgrad_gs_os_ns_device_result(v_tensors[i].GetLengths(),
+                                                                v_tensors[i].GetStrides());
 
             qgrad_tensors_device[i]->FromDevice(qgrad_gs_ms_ks_device_result.data());
             kgrad_tensors_device[i]->FromDevice(kgrad_gs_ns_ks_device_result.data());

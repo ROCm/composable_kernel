@@ -20,7 +20,8 @@
 
 namespace ck {
 
-template <typename DataType,
+template <typename InputDataType,
+          typename OutputDataType,
           typename GemmDataType,
           typename FloatGemmAcc,
           typename FloatCShuffle,
@@ -381,7 +382,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                                 Sequence<AK0, MPerBlock, AK1>,
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
-                                                DataType,
+                                                InputDataType,
                                                 GemmDataType,
                                                 GridDesc_K0_M_K1,
                                                 decltype(q_block_desc_k0_m_k1),
@@ -406,7 +407,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                                 Sequence<BK0, NPerBlock, BK1>,
                                                 BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 BBlockTransferThreadClusterArrangeOrder,
-                                                DataType,
+                                                InputDataType,
                                                 GemmDataType,
                                                 GridDesc_K0_N_K1,
                                                 decltype(k_block_desc_k0_n_k1),
@@ -431,7 +432,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                                 Sequence<BK0, NPerBlock, BK1>,
                                                 BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 BBlockTransferThreadClusterArrangeOrder,
-                                                DataType,
+                                                InputDataType,
                                                 GemmDataType,
                                                 GridDesc_K0_N_K1,
                                                 decltype(v_block_desc_k0_n_k1),
@@ -456,7 +457,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                                 Sequence<AK0, MPerBlock, AK1>,
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
-                                                DataType,
+                                                InputDataType,
                                                 GemmDataType,
                                                 GridDesc_K0_M_K1,
                                                 decltype(ygrad_block_desc_k0_m_k1),
@@ -1043,7 +1044,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                   typename ElementwiseOp = tensor_operation::element_wise::PassThrough>
         using CBlockwiseCopy = ThreadwiseTensorSliceTransfer_v1r3<
             FloatGemmAcc,
-            DataType,
+            OutputDataType,
             decltype(c_thread_desc_n0_o0_n1_o1_n2_o2_o3_o4),
             CGridDesc_N0_O0_N1_O1_N2_O2_O3_O4,
             ElementwiseOp,                                                // CElementwiseOperation
@@ -1059,7 +1060,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
     template <index_t BlockSize_, index_t BlockSliceLength_M_, index_t BlockSliceLength_O_>
     struct YDotYGrad_M_O_
     {
-        static constexpr index_t SrcScalarPerVector = 16 / sizeof(DataType);
+        static constexpr index_t SrcScalarPerVector = 16 / sizeof(InputDataType);
         static constexpr auto ThreadClusterLength_O =
             Number<BlockSliceLength_O_ / SrcScalarPerVector>{};
         static constexpr auto ThreadClusterLength_M = Number<BlockSize_ / ThreadClusterLength_O>{};
@@ -1234,16 +1235,16 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
               typename C0MatrixMask,
               typename VGradGridDescriptor_N_O,
               typename YGradGridDesc_O0_M_O1>
-    __device__ static void Run(const DataType* __restrict__ p_q_grid,
-                               const DataType* __restrict__ p_k_grid,
+    __device__ static void Run(const InputDataType* __restrict__ p_q_grid,
+                               const InputDataType* __restrict__ p_k_grid,
                                unsigned short* __restrict__ p_z_grid,
-                               const DataType* __restrict__ p_v_grid,
-                               const DataType* __restrict__ p_y_grid,
+                               const InputDataType* __restrict__ p_v_grid,
+                               const InputDataType* __restrict__ p_y_grid,
                                const FloatLSE* __restrict__ p_lse_grid,
-                               const DataType* __restrict__ p_ygrad_grid,
-                               DataType* __restrict__ p_qgrad_grid,
-                               DataType* __restrict__ p_kgrad_grid,
-                               DataType* __restrict__ p_vgrad_grid,
+                               const InputDataType* __restrict__ p_ygrad_grid,
+                               OutputDataType* __restrict__ p_qgrad_grid,
+                               OutputDataType* __restrict__ p_kgrad_grid,
+                               OutputDataType* __restrict__ p_vgrad_grid,
                                void* __restrict__ p_shared,
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
@@ -1723,7 +1724,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
 
         // performs for y
         auto y_threadwise_copy = ThreadwiseTensorSliceTransfer_v2<
-            DataType,
+            InputDataType,
             FloatGemmAcc,
             YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock,
             decltype(y_thread_desc_m0_m1_o0_o1),
@@ -2307,7 +2308,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
                 Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
                 FloatCShuffle,        // typename SrcData,
-                DataType,             // typename DstData,
+                OutputDataType,       // typename DstData,
                 decltype(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
                 decltype(qgrad_grid_desc_mblock_mperblock_kblock_kperblock),
                 Sequence<0, 1, 2, 3>,                           // typename DimAccessOrder,

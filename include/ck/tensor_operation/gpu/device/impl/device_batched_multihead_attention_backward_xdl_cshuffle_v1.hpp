@@ -28,7 +28,8 @@ namespace tensor_operation {
 namespace device {
 
 template <typename GridwiseGemm,
-          typename DataType,
+          typename InputDataType,
+          typename OutputDataType,
           typename ZDataType,
           typename LSEDataType,
           typename AElementwiseOperation,
@@ -53,16 +54,16 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, /*CK_MIN_BLOCK_PER_CU*/ 1)
 #endif
         kernel_batched_multihead_attention_backward_xdl_cshuffle_v1(
-            const DataType* __restrict__ p_a_grid,
-            const DataType* __restrict__ p_b_grid,
+            const InputDataType* __restrict__ p_a_grid,
+            const InputDataType* __restrict__ p_b_grid,
             ZDataType* __restrict__ p_z_grid,
-            const DataType* __restrict__ p_b1_grid,
-            const DataType* __restrict__ p_c_grid,
+            const InputDataType* __restrict__ p_b1_grid,
+            const InputDataType* __restrict__ p_c_grid,
             const LSEDataType* __restrict__ p_lse_grid,
-            const DataType* __restrict__ p_ygrad_grid,
-            DataType* __restrict__ p_qgrad_grid,
-            DataType* __restrict__ p_kgrad_grid,
-            DataType* __restrict__ p_vgrad_grid,
+            const InputDataType* __restrict__ p_ygrad_grid,
+            OutputDataType* __restrict__ p_qgrad_grid,
+            OutputDataType* __restrict__ p_kgrad_grid,
+            OutputDataType* __restrict__ p_vgrad_grid,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const AccElementwiseOperation acc_element_op,
@@ -171,7 +172,8 @@ template <index_t NumDimG,
           index_t NumDimN,
           index_t NumDimK,
           index_t NumDimO, // NumDimGemm1N
-          typename DataType,
+          typename InputDataType,
+          typename OutputDataType,
           typename GemmDataType,
           typename ZDataType,
           typename LSEDataType,
@@ -597,7 +599,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1<
-        DataType, // TODO: distinguish A/B datatype
+        InputDataType, // TODO: distinguish A/B datatype
+        OutputDataType,
         GemmDataType,
         GemmAccDataType,
         CShuffleDataType,
@@ -666,16 +669,16 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
     struct Argument : public BaseArgument
     {
         Argument(
-            const DataType* p_a_grid,
-            const DataType* p_b_grid,
+            const InputDataType* p_a_grid,
+            const InputDataType* p_b_grid,
             ZDataType* p_z_grid,
-            const DataType* p_b1_grid,
-            const DataType* p_c_grid, // for dS
+            const InputDataType* p_b1_grid,
+            const InputDataType* p_c_grid, // for dS
             const LSEDataType* p_lse_grid,
-            const DataType* p_ygrad_grid,
-            DataType* p_qgrad_grid,
-            DataType* p_kgrad_grid,
-            DataType* p_vgrad_grid,
+            const InputDataType* p_ygrad_grid,
+            OutputDataType* p_qgrad_grid,
+            OutputDataType* p_kgrad_grid,
+            OutputDataType* p_vgrad_grid,
             const std::array<void*, NumAcc0Bias> p_acc0_biases,
             const std::array<void*, NumAcc1Bias> p_acc1_biases,
             const std::vector<index_t>& a_gs_ms_ks_lengths,
@@ -820,16 +823,16 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
         }
 
         // pointers
-        const DataType* p_a_grid_;
-        const DataType* p_b_grid_;
+        const InputDataType* p_a_grid_;
+        const InputDataType* p_b_grid_;
         ZDataType* p_z_grid_;
-        const DataType* p_b1_grid_;
-        const DataType* p_c_grid_;
+        const InputDataType* p_b1_grid_;
+        const InputDataType* p_c_grid_;
         const LSEDataType* p_lse_grid_;
-        const DataType* p_ygrad_grid_;
-        DataType* p_qgrad_grid_;
-        DataType* p_kgrad_grid_;
-        DataType* p_vgrad_grid_;
+        const InputDataType* p_ygrad_grid_;
+        OutputDataType* p_qgrad_grid_;
+        OutputDataType* p_kgrad_grid_;
+        OutputDataType* p_vgrad_grid_;
 
         // tensor descriptor
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
@@ -901,7 +904,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
                 const auto kernel = kernel_batched_multihead_attention_backward_xdl_cshuffle_v1<
                     GridwiseGemm,
-                    DataType,
+                    InputDataType,
+                    OutputDataType,
                     ZDataType,
                     LSEDataType,
                     AElementwiseOperation,
@@ -1067,16 +1071,16 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
     }
 
     static auto MakeArgument(
-        const DataType* p_a,
-        const DataType* p_b,
+        const InputDataType* p_a,
+        const InputDataType* p_b,
         ZDataType* p_z,
-        const DataType* p_b1,
-        const DataType* p_c,
+        const InputDataType* p_b1,
+        const InputDataType* p_c,
         const LSEDataType* p_lse,
-        const DataType* p_ygrad_grid,
-        DataType* p_qgrad_grid,
-        DataType* p_kgrad_grid,
-        DataType* p_vgrad_grid,
+        const InputDataType* p_ygrad_grid,
+        OutputDataType* p_qgrad_grid,
+        OutputDataType* p_kgrad_grid,
+        OutputDataType* p_vgrad_grid,
         const std::array<void*, NumAcc0Bias> p_acc0_biases,
         const std::array<void*, NumAcc1Bias> p_acc1_biases,
         const std::vector<index_t>& a_gs_ms_ks_lengths,
@@ -1182,16 +1186,16 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
         float p_drop,
         std::tuple<unsigned long long, unsigned long long> seeds) // override
     {
-        return std::make_unique<Argument>(static_cast<const DataType*>(p_a),
-                                          static_cast<const DataType*>(p_b),
+        return std::make_unique<Argument>(static_cast<const InputDataType*>(p_a),
+                                          static_cast<const InputDataType*>(p_b),
                                           static_cast<ZDataType*>(p_z),
-                                          static_cast<const DataType*>(p_b1),
-                                          static_cast<const DataType*>(p_c),
+                                          static_cast<const InputDataType*>(p_b1),
+                                          static_cast<const InputDataType*>(p_c),
                                           static_cast<const LSEDataType*>(p_lse),
-                                          static_cast<const DataType*>(p_ygrad_grid),
-                                          static_cast<DataType*>(p_qgrad_grid),
-                                          static_cast<DataType*>(p_kgrad_grid),
-                                          static_cast<DataType*>(p_vgrad_grid),
+                                          static_cast<const InputDataType*>(p_ygrad_grid),
+                                          static_cast<OutputDataType*>(p_qgrad_grid),
+                                          static_cast<OutputDataType*>(p_kgrad_grid),
+                                          static_cast<OutputDataType*>(p_vgrad_grid),
                                           p_acc0_biases, // cast in struct Argument
                                           p_acc1_biases, // cast in struct Argument
                                           a_gs_ms_ks_lengths,

@@ -150,7 +150,8 @@ template <index_t NumDimG,
           index_t NumDimN,
           index_t NumDimK,
           index_t NumDimO, // NumDimGemm1N
-          typename DataType,
+          typename InputDataType,
+          typename OutputDataType,
           typename GemmDataType,
           typename ZDataType,
           typename LSEDataType,
@@ -527,7 +528,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2<
-        DataType, // TODO: distinguish A/B datatype
+        InputDataType, // TODO: distinguish A/B datatype
+        OutputDataType,
         GemmDataType,
         GemmAccDataType,
         CShuffleDataType,
@@ -597,16 +599,16 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
     struct GroupKernelArg
     {
         // pointers
-        const DataType* p_a_grid_;
-        const DataType* p_b_grid_;
+        const InputDataType* p_a_grid_;
+        const InputDataType* p_b_grid_;
         ZDataType* p_z_grid_;
-        const DataType* p_b1_grid_;
-        const DataType* p_c_grid_;
+        const InputDataType* p_b1_grid_;
+        const InputDataType* p_c_grid_;
         const LSEDataType* p_lse_grid_;
-        const DataType* p_ygrad_grid_;
-        DataType* p_qgrad_grid_;
-        DataType* p_kgrad_grid_;
-        DataType* p_vgrad_grid_;
+        const InputDataType* p_ygrad_grid_;
+        OutputDataType* p_qgrad_grid_;
+        OutputDataType* p_kgrad_grid_;
+        OutputDataType* p_vgrad_grid_;
 
         // tensor descriptors for block/thread-wise copy
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
@@ -705,16 +707,16 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2
             grid_size_ = 0;
             for(index_t i = 0; i < group_count_; i++)
             {
-                const auto p_a_grid     = static_cast<const DataType*>(p_As[i]);
-                const auto p_b_grid     = static_cast<const DataType*>(p_Bs[i]);
+                const auto p_a_grid     = static_cast<const InputDataType*>(p_As[i]);
+                const auto p_b_grid     = static_cast<const InputDataType*>(p_Bs[i]);
                 auto p_z_grid           = static_cast<ZDataType*>(p_Zs[i]);
-                const auto p_b1_grid    = static_cast<const DataType*>(p_B1s[i]);
-                const auto p_c_grid     = static_cast<const DataType*>(p_Cs[i]);
+                const auto p_b1_grid    = static_cast<const InputDataType*>(p_B1s[i]);
+                const auto p_c_grid     = static_cast<const InputDataType*>(p_Cs[i]);
                 const auto p_lse_grid   = static_cast<const LSEDataType*>(p_LSEs[i]);
-                const auto p_ygrad_grid = static_cast<const DataType*>(p_Ygrads[i]);
-                auto p_qgrad_grid       = static_cast<DataType*>(p_Qgrads[i]);
-                auto p_kgrad_grid       = static_cast<DataType*>(p_Kgrads[i]);
-                auto p_vgrad_grid       = static_cast<DataType*>(p_Vgrads[i]);
+                const auto p_ygrad_grid = static_cast<const InputDataType*>(p_Ygrads[i]);
+                auto p_qgrad_grid       = static_cast<OutputDataType*>(p_Qgrads[i]);
+                auto p_kgrad_grid       = static_cast<OutputDataType*>(p_Kgrads[i]);
+                auto p_vgrad_grid       = static_cast<OutputDataType*>(p_Vgrads[i]);
 
                 const auto& problem_desc = problem_desc_vec[i];
 
