@@ -6,7 +6,7 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/library/tensor_operation_instance/gpu/batched_gemm_softmax_gemm_permute/device_batched_gemm_multiple_d_softmax_gemm_permute_xdl_cshuffle_half_gmk_gnk_gno_gmo_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/batched_gemm_softmax_gemm_permute/batched_gemm_softmax_gemm_permute.hpp"
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
@@ -26,30 +26,26 @@ using S = ck::Sequence<Is...>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using ScaleAdd    = ck::tensor_operation::element_wise::ScaleAdd;
 
-template void
-add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
-    std::vector<std::unique_ptr<
-        DeviceBatchedGemmSoftmaxGemmPermute<2,
-                                            1,
-                                            1,
-                                            1,
-                                            1,
-                                            F16,
-                                            F16,
-                                            F16,
-                                            F16,
-                                            ck::Tuple<F16>,
-                                            ck::Tuple<>,
-                                            PassThrough,
-                                            PassThrough,
-                                            ScaleAdd,
-                                            PassThrough,
-                                            PassThrough,
-                                            MaskingSpecialization::MaskOutUpperTriangle>>>&
-        instances);
+template void add_device_instances(std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<
+                                       2,
+                                       1,
+                                       1,
+                                       1,
+                                       1,
+                                       F16,
+                                       F16,
+                                       F16,
+                                       F16,
+                                       ck::Tuple<F16>,
+                                       ck::Tuple<>,
+                                       PassThrough,
+                                       PassThrough,
+                                       ScaleAdd,
+                                       PassThrough,
+                                       PassThrough,
+                                       MaskingSpecialization::MaskOutUpperTriangle>>>& instances);
 
-template void
-add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+template void add_device_instances(
     std::vector<
         std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
                                                             1,

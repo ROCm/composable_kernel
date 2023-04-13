@@ -134,8 +134,8 @@ int main()
         MaskingSpec>;
 
     // get device op instances
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
+    std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+    ck::tensor_operation::device::instance::add_device_instances(op_ptrs);
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 

@@ -35,50 +35,44 @@ template <index_t NumDimG,
           typename B1ElementwiseOperation,
           typename C1DEElementwiseOperation,
           MaskingSpecialization MaskingSpec>
-struct DeviceOperationInstanceFactory<
-    ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
-                                                                      NumDimM,
-                                                                      NumDimN,
-                                                                      NumDimK,
-                                                                      NumDimO,
-                                                                      ADataType,
-                                                                      B0DataType,
-                                                                      B1DataType,
-                                                                      CDataType,
-                                                                      Acc0BiasDataType,
-                                                                      Acc1BiasDataType,
-                                                                      AElementwiseOperation,
-                                                                      B0ElementwiseOperation,
-                                                                      C0DEElementwiseOperation,
-                                                                      B1ElementwiseOperation,
-                                                                      C1DEElementwiseOperation,
-                                                                      MaskingSpec>>
+void add_device_instances(
+    std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
+                                                                    NumDimM,
+                                                                    NumDimN,
+                                                                    NumDimK,
+                                                                    NumDimO,
+                                                                    ADataType,
+                                                                    B0DataType,
+                                                                    B1DataType,
+                                                                    CDataType,
+                                                                    Acc0BiasDataType,
+                                                                    Acc1BiasDataType,
+                                                                    AElementwiseOperation,
+                                                                    B0ElementwiseOperation,
+                                                                    C0DEElementwiseOperation,
+                                                                    B1ElementwiseOperation,
+                                                                    C1DEElementwiseOperation,
+                                                                    MaskingSpec>>>& instances)
 {
-    using DeviceOp = DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
-                                                         NumDimM,
-                                                         NumDimN,
-                                                         NumDimK,
-                                                         NumDimO,
-                                                         ADataType,
-                                                         B0DataType,
-                                                         B1DataType,
-                                                         CDataType,
-                                                         Acc0BiasDataType,
-                                                         Acc1BiasDataType,
-                                                         AElementwiseOperation,
-                                                         B0ElementwiseOperation,
-                                                         C0DEElementwiseOperation,
-                                                         B1ElementwiseOperation,
-                                                         C1DEElementwiseOperation,
-                                                         MaskingSpec>;
-    static auto GetInstances()
-    {
-        std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-        add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
-            op_ptrs);
-        return op_ptrs;
-    }
-};
+    add_device_operation_instances(instances,
+                                   create_device_instances<NumDimG,
+                                                           NumDimM,
+                                                           NumDimN,
+                                                           NumDimK,
+                                                           NumDimO,
+                                                           ADataType,
+                                                           B0DataType,
+                                                           B1DataType,
+                                                           CDataType,
+                                                           Acc0BiasDataType,
+                                                           Acc1BiasDataType,
+                                                           AElementwiseOperation,
+                                                           B0ElementwiseOperation,
+                                                           C0DEElementwiseOperation,
+                                                           B1ElementwiseOperation,
+                                                           C1DEElementwiseOperation,
+                                                           MaskingSpec>());
+}
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

@@ -85,38 +85,19 @@ template <index_t NumDimG,
           typename enable_if<is_same<remove_cvref_t<ADataType>, ck::half_t>::value ||
                                  is_same<remove_cvref_t<ADataType>, ck::bhalf_t>::value,
                              bool>::type = false>
-void add_device_batched_gemm_mutiple_d_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
-    std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
-                                                                    NumDimM,
-                                                                    NumDimN,
-                                                                    NumDimK,
-                                                                    NumDimO,
-                                                                    ADataType,
-                                                                    B0DataType,
-                                                                    B1DataType,
-                                                                    CDataType,
-                                                                    Acc0BiasDataType,
-                                                                    Acc1BiasDataType,
-                                                                    AElementwiseOperation,
-                                                                    B0ElementwiseOperation,
-                                                                    C0DEElementwiseOperation,
-                                                                    B1ElementwiseOperation,
-                                                                    C1DEElementwiseOperation,
-                                                                    MaskingSpec>>>& instances)
+auto create_device_instances()
 {
-    add_device_operation_instances(
-        instances,
-        device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances<
-            NumDimG,
-            NumDimM,
-            NumDimN,
-            NumDimK,
-            NumDimO,
-            ADataType,
-            F32,
-            Acc0BiasDataType,
-            C0DEElementwiseOperation,
-            MaskingSpec>{});
+    return device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances<
+        NumDimG,
+        NumDimM,
+        NumDimN,
+        NumDimK,
+        NumDimO,
+        ADataType,
+        F32,
+        Acc0BiasDataType,
+        C0DEElementwiseOperation,
+        MaskingSpec>{};
 }
 
 } // namespace instance
