@@ -17,16 +17,16 @@ using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;
 using OutDataType = ck::half_t;
 
-using InLayout    = ck::tensor_layout::convolution::GNHWC;
+using InLayout    = ck::tensor_layout::convolution::NHWGC;
 using WeiLayout   = ck::tensor_layout::convolution::GKYXC;
-using OutLayout   = ck::tensor_layout::convolution::GNHWK;
+using OutLayout   = ck::tensor_layout::convolution::NHWGK;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr ck::index_t NumDimSpatial = 2;
 static constexpr ck::index_t G             = 32;
 static constexpr ck::index_t N             = 256;
-static constexpr ck::index_t K             = 192;
-static constexpr ck::index_t C             = 192;
+static constexpr ck::index_t K             = 64;
+static constexpr ck::index_t C             = 32;
 static constexpr ck::index_t Y             = 3;
 static constexpr ck::index_t X             = 3;
 static constexpr ck::index_t Hi            = 28;
@@ -52,50 +52,24 @@ struct SimpleDeviceMem
 
 int main()
 {
-    std::array<ck::index_t, NumDimSpatial + 3> in_lengths{G, N, Hi, Wi, C};
-    std::array<ck::index_t, NumDimSpatial + 3> in_strides{0, 0, 0, 0, 1};
-
-    std::array<ck::index_t, NumDimSpatial + 3> wei_lengths{G, K, Y, X, C};
-    std::array<ck::index_t, NumDimSpatial + 3> wei_strides{0, 0, 0, 0, 1};
-
-    std::array<ck::index_t, NumDimSpatial + 3> out_lengths{G, N, Ho, Wo, K};
-    std::array<ck::index_t, NumDimSpatial + 3> out_strides{0, 0, 0, 0, 1};
-
-    std::partial_sum(rbegin(in_lengths),
-                     std::prev(rend(in_lengths)),
-                     std::next(rbegin(in_strides)),
-                     std::multiplies<>{});
-    std::partial_sum(rbegin(wei_lengths),
-                     std::prev(rend(wei_lengths)),
-                     std::next(rbegin(wei_strides)),
-                     std::multiplies<>{});
-    std::partial_sum(rbegin(out_lengths),
-                     std::prev(rend(out_lengths)),
-                     std::next(rbegin(out_strides)),
-                     std::multiplies<>{});
-
-    // transpose GNHWC/GKYXC/GNHWK to GNCHW/GKCYX/GNCHW
-    std::rotate(
-        rbegin(in_lengths), std::next(rbegin(in_lengths)), std::next(rbegin(in_lengths), 3));
-    std::rotate(
-        rbegin(in_strides), std::next(rbegin(in_strides)), std::next(rbegin(in_strides), 3));
-    std::rotate(
-        rbegin(wei_lengths), std::next(rbegin(wei_lengths)), std::next(rbegin(wei_lengths), 3));
-    std::rotate(
-        rbegin(wei_strides), std::next(rbegin(wei_strides)), std::next(rbegin(wei_strides), 3));
-    std::rotate(
-        rbegin(out_lengths), std::next(rbegin(out_lengths)), std::next(rbegin(out_lengths), 3));
-    std::rotate(
-        rbegin(out_strides), std::next(rbegin(out_strides)), std::next(rbegin(out_strides), 3));
+    // We have NHWGC/GKYXC/NHWGK in memory space
+    // However, CK's API only accept length and stride with order of GNCHW/GKCYX/GNCHW
+    // Hence, we need to adjust the order of stride
+    std::array<ck::index_t, 5> in_lengths{G, N, C, Hi, Wi};
+    std::array<ck::index_t, 5> in_strides{C, Hi * Wi * G * C, 1, Wi * G * C, G * C};
+    std::array<ck::index_t, 5> wei_lengths{G, K, C, Y, X};
+    std::array<ck::index_t, 5> wei_strides{K * Y * X * C, Y * X * C, 1, X * C, C};
+    std::array<ck::index_t, 5> out_lengths{G, N, K, Ho, Wo};
+    std::array<ck::index_t, 5> out_strides{C, Ho * Wo * G * C, 1, Wo * G * C, G * C};
 
     std::array<ck::index_t, NumDimSpatial> filter_strides{1, 1};
     std::array<ck::index_t, NumDimSpatial> filter_dilations{1, 1};
     std::array<ck::index_t, NumDimSpatial> input_left_pads{1, 1};
     std::array<ck::index_t, NumDimSpatial> input_right_pads{1, 1};
 
-    SimpleDeviceMem in(sizeof(InDataType) * G * N * Hi * Wi * C);
+    SimpleDeviceMem in(sizeof(InDataType) * N * Hi * Wi * G * C);
     SimpleDeviceMem wei(sizeof(WeiDataType) * G * K * Y * X * C);
-    SimpleDeviceMem out(sizeof(OutDataType) * G * N * Ho * Wo * K);
+    SimpleDeviceMem out(sizeof(OutDataType) * N * Ho * Wo * G * K);
 
     using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<NumDimSpatial,
                                                                                  InLayout,
@@ -155,9 +129,9 @@ int main()
             float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
             std::size_t flop      = std::size_t(2) * G * N * K * C * Ho * Wo * Y * X;
-            std::size_t num_bytes = sizeof(InDataType) * G * N * Hi * Wi * C +
+            std::size_t num_bytes = sizeof(InDataType) * N * Hi * Wi * G * C +
                                     sizeof(WeiDataType) * G * K * Y * X * C +
-                                    sizeof(OutDataType) * G * N * Ho * Wo * K;
+                                    sizeof(OutDataType) * N * Ho * Wo * G * K;
 
             float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
             float gb_per_sec = num_bytes / 1.E6 / avg_time;
