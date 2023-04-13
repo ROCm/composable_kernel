@@ -95,7 +95,7 @@ __global__ void
 
     const index_t global_thread_id = get_thread_global_1d_id();
     ck::philox ph(seed, global_thread_id, offset);
-    unsigned short* z_matrix_ptr =
+    auto z_matrix_ptr =
         (arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
                                                 : arg_ptr[group_id].p_z_grid_ + z_batch_offset);
 
@@ -537,6 +537,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1
     using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1<
         InputDataType, // TODO: distinguish A/B datatype
         OutputDataType,
+        ZDataType,
         GemmDataType,
         GemmAccDataType,
         CShuffleDataType,

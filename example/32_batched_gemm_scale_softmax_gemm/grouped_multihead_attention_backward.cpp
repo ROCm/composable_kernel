@@ -76,6 +76,9 @@ static constexpr ck::index_t NumDimM = 1;
 static constexpr ck::index_t NumDimN = 1;
 static constexpr ck::index_t NumDimK = 1;
 static constexpr ck::index_t NumDimO = 1;
+// When OutputDataType == F32,      CShuffleBlockTransferScalarPerVector_NPerBlock = 4
+// When OutputDataType == F16/BF16, CShuffleBlockTransferScalarPerVector_NPerBlock = 8
+static constexpr ck::index_t CShuffleBlockTransferScalarPerVector_NPerBlock = 4;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 #if USING_MASK
@@ -162,8 +165,8 @@ using DeviceGemmInstance =
         1,              // CShuffleMXdlPerWavePerShuffle
         1,              // CShuffleNXdlPerWavePerShuffle
         S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        4,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-        MaskingSpec>;   // MaskingSpecialization
+        CShuffleBlockTransferScalarPerVector_NPerBlock, // CShuffleBlockTransferScalarPerVector_NPerBlock
+        MaskingSpec>;                                   // MaskingSpecialization
 #elif(DIM <= 64)
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1<
@@ -231,8 +234,8 @@ using DeviceGemmInstance =
         1,              // CShuffleMXdlPerWavePerShuffle
         2,              // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        4,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-        MaskingSpec>;   // MaskingSpecialization
+        CShuffleBlockTransferScalarPerVector_NPerBlock, // CShuffleBlockTransferScalarPerVector_NPerBlock
+        MaskingSpec>;                                   // MaskingSpecialization
 
 // using DeviceGemmInstance =
 //     ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2<
@@ -300,8 +303,8 @@ using DeviceGemmInstance =
 //         1,              // CShuffleMXdlPerWavePerShuffle
 //         2,              // CShuffleNXdlPerWavePerShuffle
 //         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-//         4,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-//         MaskingSpec>;   // MaskingSpecialization
+//         CShuffleBlockTransferScalarPerVector_NPerBlock,
+//         MaskingSpec>;
 #elif(DIM <= 128)
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2<
@@ -369,8 +372,8 @@ using DeviceGemmInstance =
         1,              // CShuffleMXdlPerWavePerShuffle
         4,              // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        4,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-        MaskingSpec>;   // MaskingSpecialization
+        CShuffleBlockTransferScalarPerVector_NPerBlock, // CShuffleBlockTransferScalarPerVector_NPerBlock
+        MaskingSpec>;                                   // MaskingSpecialization
 #endif
 
 // Ref Gemm0: S = alpha * Q * K^T

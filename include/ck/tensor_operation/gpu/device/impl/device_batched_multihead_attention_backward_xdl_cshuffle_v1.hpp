@@ -601,6 +601,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
     using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1<
         InputDataType, // TODO: distinguish A/B datatype
         OutputDataType,
+        ZDataType,
         GemmDataType,
         GemmAccDataType,
         CShuffleDataType,
