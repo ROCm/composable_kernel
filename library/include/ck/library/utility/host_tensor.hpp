@@ -271,8 +271,7 @@ struct Tensor
         Tensor<OutT> ret(mDesc);
 
         ck::ranges::transform(mData, ret.mData.begin(), [](auto value) {
-            ck::TypeConvert type_convert = ck::TypeConvert();
-            return type_convert.convert<OutT>(value);
+            return ck::TypeConvert<OutT, ck::remove_cvref_t<decltype(value)>>{}(value);
         });
 
         return ret;
