@@ -34,10 +34,11 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16  = ck::half_t;
-using BF16 = ck::bhalf_t;
-using F32  = float;
-using U16  = unsigned short;
+using F16   = ck::half_t;
+using BF16  = ck::bhalf_t;
+using F32   = float;
+using U16   = unsigned short;
+using INT32 = int32_t;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -49,7 +50,7 @@ using B1DataType       = DataType;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using CDataType        = DataType;
-using ZDataType        = U16;
+using ZDataType        = U16; // INT32
 using LSEDataType      = F32;
 using Acc0BiasDataType = ck::Tuple<>;
 using Acc1BiasDataType = ck::Tuple<>;

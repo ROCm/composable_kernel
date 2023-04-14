@@ -60,10 +60,11 @@ Kernel outputs:
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16  = ck::half_t;
-using BF16 = ck::bhalf_t;
-using F32  = float;
-using U16  = unsigned short;
+using F16   = ck::half_t;
+using BF16  = ck::bhalf_t;
+using F32   = float;
+using U16   = unsigned short;
+using INT32 = int32_t;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Scale       = ck::tensor_operation::element_wise::Scale;
@@ -71,13 +72,13 @@ using Scale       = ck::tensor_operation::element_wise::Scale;
 using QKVElementOp = PassThrough;
 using YElementOp   = PassThrough;
 
-using InputDataType    = BF16;
-using OutputDataType   = F32;
-using GemmDataType     = BF16;
+using InputDataType    = F16;
+using OutputDataType   = F16;
+using GemmDataType     = F16;
 using AccDataType      = F32;
 using ShuffleDataType  = F32;
 using LSEDataType      = F32;
-using ZDataType        = U16;
+using ZDataType        = INT32; // INT32
 using Acc0BiasDataType = ck::Tuple<>;
 using Acc1BiasDataType = ck::Tuple<>;
 
@@ -641,7 +642,7 @@ using ReferenceGemm1GradInstance = ck::tensor_operation::host::ReferenceBatchedG
 
 // Ref dropout
 using ReferenceDropoutInstance =
-    ck::tensor_operation::host::ReferenceDropout<ushort, InputDataType, InputDataType>;
+    ck::tensor_operation::host::ReferenceDropout<ZDataType, InputDataType, InputDataType>;
 
 template <typename TensorQ,
           typename TensorK,
@@ -661,7 +662,7 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
                             TensorLSE& lse_g_m,
                             TensorP& p_drop_g_m_n,
                             TensorZ& z_g_m_n,
-                            ushort p_dropout_in_16bits,
+                            ZDataType p_dropout_in_16bits,
                             float rp_dropout)
 {
     // S = alpha * Q * K^T
@@ -767,10 +768,10 @@ int run(int argc, char* argv[])
         exit(0);
     }
 
-    float p_dropout              = 1 - p_drop;
-    uint16_t p_dropout_in_16bits = uint16_t(std::floor(p_dropout * 65535.0));
-    float rp_dropout             = 1.0 / p_dropout;
-    float alpha                  = 1.f / std::sqrt(K);
+    float p_dropout               = 1 - p_drop;
+    ZDataType p_dropout_in_16bits = ZDataType(std::floor(p_dropout * 65535.0));
+    float rp_dropout              = 1.0 / p_dropout;
+    float alpha                   = 1.f / std::sqrt(K);
 
     std::cout << "do_verification: " << do_verification << std::endl;
     std::cout << "init_method: " << init_method << std::endl;
