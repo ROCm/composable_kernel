@@ -60,7 +60,7 @@ __global__ void
             const C0MatrixMask c0_matrix_mask,
             const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__))
     __shared__ char p_shared[GridwiseOp::GetSharedMemoryNumberOfByte()];
 
     const index_t num_blocks_per_batch =
