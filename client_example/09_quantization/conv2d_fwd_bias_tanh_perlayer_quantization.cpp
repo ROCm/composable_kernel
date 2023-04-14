@@ -26,15 +26,15 @@ using OutElementOp = ck::tensor_operation::element_wise::Add_Mul_Activation_Mul_
 
 static constexpr ck::index_t NumDimSpatial = 2;
 static constexpr ck::index_t G             = 4;
-static constexpr ck::index_t N             = 4;  // batch size
-static constexpr ck::index_t K             = 32; // output channel
-static constexpr ck::index_t C             = 64; // input channel
-static constexpr ck::index_t Y             = 3;  // filter H
-static constexpr ck::index_t X             = 3;  // filter W
-static constexpr ck::index_t Hi            = 71; // input H
-static constexpr ck::index_t Wi            = 71; // input W
-static constexpr ck::index_t Ho            = 36; // output H
-static constexpr ck::index_t Wo            = 36; // output W
+static constexpr ck::index_t N             = 4;    // batch size
+static constexpr ck::index_t K             = 32;   // output channel
+static constexpr ck::index_t C             = 64;   // input channel
+static constexpr ck::index_t Y             = 3;    // filter H
+static constexpr ck::index_t X             = 3;    // filter W
+static constexpr ck::index_t Hi            = 71;   // input H
+static constexpr ck::index_t Wi            = 71;   // input W
+static constexpr ck::index_t Ho            = 36;   // output H
+static constexpr ck::index_t Wo            = 36;   // output W
 static constexpr float sacc                = 0.5f; //  scale of acc
 static constexpr float sz_inv              = 0.5f; // inverse of scale_z
 
