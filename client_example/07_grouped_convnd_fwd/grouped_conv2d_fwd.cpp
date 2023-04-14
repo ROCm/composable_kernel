@@ -52,7 +52,7 @@ struct SimpleDeviceMem
 
 int main()
 {
-    // We have NHWGC/GKYXC/NHWGK in memory space
+    // We have NHWGC/GKYXC/NHWGK (x, weight, y) in memory space
     // However, CK's API only accept length and stride with order of GNCHW/GKCYX/GNCHW
     // Hence, we need to adjust the order of stride
     std::array<ck::index_t, 5> in_lengths{G, N, C, Hi, Wi};
