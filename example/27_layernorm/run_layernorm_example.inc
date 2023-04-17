@@ -1,56 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <iostream>
-#include <numeric>
-#include <initializer_list>
-#include <cstdlib>
-#include <getopt.h>
+#pragma once
 
-#include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_normalization_splitk_impl.hpp"
-
-#include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/device_memory.hpp"
-#include "ck/library/utility/host_common_util.hpp"
-#include "ck/library/utility/host_tensor.hpp"
-#include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/utility/literals.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
-
-using XDataType       = ck::half_t;
-using GammaDataType   = ck::half_t;
-using BetaDataType    = ck::half_t;
-using YDataType       = ck::half_t;
-using ComputeDataType = float;
-using PassThrough     = ck::tensor_operation::element_wise::PassThrough;
-
-constexpr int Rank         = 2;
-constexpr int NumReduceDim = 1;
-
-using DeviceInstance =
-    ck::tensor_operation::device::DeviceNormalizationSplitKImpl<XDataType,
-                                                                GammaDataType,
-                                                                BetaDataType,
-                                                                ComputeDataType,
-                                                                YDataType,
-                                                                PassThrough,
-                                                                Rank,
-                                                                NumReduceDim,
-                                                                256, // BlockSize
-                                                                8,   // ClusterM
-                                                                32,  // ClusterK
-                                                                1,   // SliceM
-                                                                8,   // SliceK
-                                                                1,   // SrcVecDim (0=M, 1=K)
-                                                                8,   // XScalarPerVector
-                                                                1,   // GammaVecDim (0=M, 1=K)
-                                                                8,   // GammaScalarPerVector
-                                                                1,   // BetaVecDim (0=M, 1=K)
-                                                                8,   // BetaScalarPerVector
-                                                                8>;  // YScalarPerVector
-
-int main()
+template <typename DeviceInstance>
+int run_groupnorm_example()
 {
     bool time_kernel = false;
 
@@ -137,5 +91,6 @@ int main()
         y_dev.FromDevice(y.mData.data());
         pass &= ck::utils::check_err(y, host_y, "Error: Incorrect results", 1e-3, 1e-3);
     }
+
     return (pass ? 0 : 1);
 }
