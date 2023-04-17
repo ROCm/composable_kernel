@@ -13,7 +13,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-
+namespace half_data {
 using F16 = ck::half_t;
 using F32 = float;
 
@@ -64,7 +64,7 @@ using device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo
         DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, DataType,  DataType,  DataType,  DataType,  D0DataTypes,  ck::Tuple<>, AccDataType, DataType, PassThrough, PassThrough, AD0ElementwiseOp, PassThrough, PassThrough,     GemmPadded, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,    128,    64,    32,   128,    32,   8,   8,    2,   32,   32,     1,     2,     4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8, MaskingSpec>
         // clang-format on
         >;
-
+} // namespace half_data
 template <index_t NumDimG,
           index_t NumDimM,
           index_t NumDimN,
@@ -87,17 +87,18 @@ template <index_t NumDimG,
                              bool>::type = false>
 auto create_device_instances()
 {
-    return device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances<
-        NumDimG,
-        NumDimM,
-        NumDimN,
-        NumDimK,
-        NumDimO,
-        ADataType,
-        F32,
-        Acc0BiasDataType,
-        C0DEElementwiseOperation,
-        MaskingSpec>{};
+    return half_data::
+        device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances<
+            NumDimG,
+            NumDimM,
+            NumDimN,
+            NumDimK,
+            NumDimO,
+            ADataType,
+            F32,
+            Acc0BiasDataType,
+            C0DEElementwiseOperation,
+            MaskingSpec>{};
 }
 
 } // namespace instance
