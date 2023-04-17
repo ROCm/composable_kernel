@@ -10,7 +10,7 @@ ARG DEB_ROCM_REPO=http://repo.radeon.com/rocm/apt/.apt_$ROCMVERSION/
 RUN useradd -rm -d /home/jenkins -s /bin/bash -u 1004 jenkins
 # Add rocm repository
 RUN apt-get update
-RUN apt-get install -y wget gnupg
+RUN apt-get install -y wget gnupg curl
 RUN --mount=type=ssh if [ "$ROCMVERSION" != "5.5"]; then \
 	wget -qO - http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - ; \
     else sh -c "wget http://artifactory-cdn.amd.com/artifactory/list/amdgpu-deb/amd-nonfree-radeon_20.04-1_all.deb" && \
@@ -21,15 +21,14 @@ RUN --mount=type=ssh if [ "$ROCMVERSION" != "5.5"]; then \
 RUN sh -c "echo deb [arch=amd64] $DEB_ROCM_REPO ubuntu main > /etc/apt/sources.list.d/rocm.list"
 RUN wget --no-check-certificate -qO - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | apt-key add -
 RUN sh -c "echo deb http://mirrors.kernel.org/ubuntu focal main universe | tee -a /etc/apt/sources.list"
+RUN curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/trusted.gpg.d/rocm-keyring.gpg
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
     build-essential \
     ccache \
-    cmake-data \
     cmake \
-    curl \
     git \
     hip-rocclr \
     jq \
