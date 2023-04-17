@@ -1032,7 +1032,6 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int8_t>(int8_
 }
 
 // Convert fp32 to bf16 with RTN if higher precision is needed
-// template <typename Y, typename X>
 __host__ __device__ constexpr bhalf_t type_convert_bf16_rtn(float x)
 {
     union
