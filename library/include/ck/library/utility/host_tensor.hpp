@@ -270,9 +270,8 @@ struct Tensor
     {
         Tensor<OutT> ret(mDesc);
 
-        ck::ranges::transform(mData, ret.mData.begin(), [](auto value) {
-            return ck::type_convert<OutT>(value);
-        });
+        ck::ranges::transform(
+            mData, ret.mData.begin(), [](auto value) { return ck::type_convert<OutT>(value); });
 
         return ret;
     }
