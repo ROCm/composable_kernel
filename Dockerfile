@@ -15,8 +15,8 @@ RUN --mount=type=ssh if [ "$ROCMVERSION" != "5.5"]; then \
 	wget -qO - http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - ; \
     else sh -c "wget http://artifactory-cdn.amd.com/artifactory/list/amdgpu-deb/amd-nonfree-radeon_20.04-1_all.deb" && \
          apt update && apt-get install -y ./amd-nonfree-radeon_20.04-1_all.deb && \
-         sh -c 'echo deb [arch=amd64 trusted=yes] http://compute-artifactory.amd.com/artifactory/list/rocm-release-archive-20.04-deb/ 5.5 rel-32 > /etc/apt/sources.list.d/rocm-build.list' && \
-         amdgpu-repo --amdgpu-build=1558334 && DEBIAN_FRONTEND=noninteractive amdgpu-install -y --usecase=rocm ; \
+         sh -c 'echo deb [arch=amd64 trusted=yes] http://compute-artifactory.amd.com/artifactory/list/rocm-release-archive-20.04-deb/ 5.5 rel-50 > /etc/apt/sources.list.d/rocm-build.list' && \
+         amdgpu-repo --amdgpu-build=1558725 && DEBIAN_FRONTEND=noninteractive amdgpu-install -y --usecase=rocm ; \
     fi
 RUN sh -c "echo deb [arch=amd64] $DEB_ROCM_REPO ubuntu main > /etc/apt/sources.list.d/rocm.list"
 RUN wget --no-check-certificate -qO - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | apt-key add -
