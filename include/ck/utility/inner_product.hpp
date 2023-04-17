@@ -87,11 +87,10 @@ __device__ void inner_product<half2_t, half2_t, float>(const half2_t& a, const h
 #else
     const vector_type<half_t, 2> a_vector{a};
     const vector_type<half_t, 2> b_vector{b};
-    TypeConvert type_convert = TypeConvert();
 
     static_for<0, 2, 1>{}([&](auto i) {
-        c += type_convert.convert<int32_t>(a_vector.AsType<half_t>()[i]) *
-             type_convert.convert<int32_t>(b_vector.AsType<half_t>()[i]);
+        c += type_convert<int32_t>(a_vector.AsType<half_t>()[i]) *
+             type_convert<int32_t>(b_vector.AsType<half_t>()[i]);
     });
 #endif
 }
@@ -139,8 +138,7 @@ __device__ void inner_product<half8_t, half8_t, float>(const half8_t& a, const h
 template <>
 __device__ void inner_product<int8_t, int8_t, int32_t>(const int8_t& a, const int8_t& b, int32_t& c)
 {
-    TypeConvert type_convert = TypeConvert();
-    c += type_convert.convert<int32_t>(a) * type_convert.convert<int32_t>(b);
+    c += type_convert<int32_t>(a) * type_convert<int32_t>(b);
 }
 
 template <>
@@ -176,11 +174,10 @@ inner_product<int8x4_t, int8x4_t, int32_t>(const int8x4_t& a, const int8x4_t& b,
 #else
     const vector_type<int8_t, 4> a_vector{a};
     const vector_type<int8_t, 4> b_vector{b};
-    TypeConvert type_convert = TypeConvert();
 
     static_for<0, 4, 1>{}([&](auto i) {
-        c += type_convert.convert<int32_t>(a_vector.AsType<int8_t>()[i]) *
-             type_convert.convert<int32_t>(b_vector.AsType<int8_t>()[i]);
+        c += type_convert<int32_t>(a_vector.AsType<int8_t>()[i]) *
+             type_convert<int32_t>(b_vector.AsType<int8_t>()[i]);
     });
 #endif
 }
