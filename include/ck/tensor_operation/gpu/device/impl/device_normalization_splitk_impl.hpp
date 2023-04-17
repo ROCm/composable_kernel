@@ -635,7 +635,7 @@ struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceNormalizationImpl<" << BlockSize << ",";
+        str << "DeviceNormalizationSplitKImpl<" << BlockSize << ",";
         str << "Cluster_MK_" << MThreadClusterSize << "_" << KThreadClusterSize << ",";
         str << "Slice_MK_" << MThreadSliceSize << "_" << KThreadSliceSize << ",";
         str << "XYSrcVectorDim_" << XYVectorDim  << ",";
