@@ -34,7 +34,8 @@ template <typename GridwiseGemm,
           typename AccElementwiseOperation,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
-          bool HasMainKBlockLoop>
+          bool HasMainKBlockLoop,
+          bool Deterministic>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, /*CK_MIN_BLOCK_PER_CU*/ 1)
@@ -99,35 +100,76 @@ __global__ void
         (arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
                                                 : arg_ptr[group_id].p_z_grid_ + z_batch_offset);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(
-        arg_ptr[group_id].p_a_grid_ + a_batch_offset,
-        arg_ptr[group_id].p_b_grid_ + b_batch_offset,
-        z_matrix_ptr,
-        arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
-        arg_ptr[group_id].p_c_grid_ + c_batch_offset,
-        arg_ptr[group_id].p_lse_grid_ + lse_batch_offset,
-        arg_ptr[group_id].p_ygrad_grid_ + c_batch_offset,
-        arg_ptr[group_id].p_qgrad_grid_ + a_batch_offset,
-        arg_ptr[group_id].p_kgrad_grid_ + b_batch_offset,
-        arg_ptr[group_id].p_vgrad_grid_ + b1_batch_offset,
-        p_shared,
-        a_element_op,
-        b_element_op,
-        acc_element_op,
-        b1_element_op,
-        c_element_op,
-        arg_ptr[group_id].a_grid_desc_ak0_m_ak1_,
-        arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
-        arg_ptr[group_id].c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
-        arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
-        arg_ptr[group_id].y_grid_desc_mblock_mperblock_oblock_operblock_,
-        arg_ptr[group_id].lse_grid_desc_m_,
-        arg_ptr[group_id].vgrad_grid_desc_n_o_,
-        arg_ptr[group_id].ygrad_grid_desc_o0_m_o1_,
-        arg_ptr[group_id].block_2_ctile_map_,
-        arg_ptr[group_id].c0_matrix_mask_,
-        p_dropout,
-        ph);
+    if constexpr(Deterministic)
+    {
+        for(index_t i = 0; i < num_blocks_per_batch; i++)
+        {
+            if(((block_id - arg_ptr[group_id].block_start_) % num_blocks_per_batch) == i)
+            {
+                GridwiseGemm::template Run<HasMainKBlockLoop>(
+                    arg_ptr[group_id].p_a_grid_ + a_batch_offset,
+                    arg_ptr[group_id].p_b_grid_ + b_batch_offset,
+                    z_matrix_ptr,
+                    arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
+                    arg_ptr[group_id].p_c_grid_ + c_batch_offset,
+                    arg_ptr[group_id].p_lse_grid_ + lse_batch_offset,
+                    arg_ptr[group_id].p_ygrad_grid_ + c_batch_offset,
+                    arg_ptr[group_id].p_qgrad_grid_ + a_batch_offset,
+                    arg_ptr[group_id].p_kgrad_grid_ + b_batch_offset,
+                    arg_ptr[group_id].p_vgrad_grid_ + b1_batch_offset,
+                    p_shared,
+                    a_element_op,
+                    b_element_op,
+                    acc_element_op,
+                    b1_element_op,
+                    c_element_op,
+                    arg_ptr[group_id].a_grid_desc_ak0_m_ak1_,
+                    arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
+                    arg_ptr[group_id].c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
+                    arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
+                    arg_ptr[group_id].y_grid_desc_mblock_mperblock_oblock_operblock_,
+                    arg_ptr[group_id].lse_grid_desc_m_,
+                    arg_ptr[group_id].vgrad_grid_desc_n_o_,
+                    arg_ptr[group_id].ygrad_grid_desc_o0_m_o1_,
+                    arg_ptr[group_id].block_2_ctile_map_,
+                    arg_ptr[group_id].c0_matrix_mask_,
+                    p_dropout,
+                    ph);
+            }
+        }
+    }
+    else
+    {
+        GridwiseGemm::template Run<HasMainKBlockLoop>(
+            arg_ptr[group_id].p_a_grid_ + a_batch_offset,
+            arg_ptr[group_id].p_b_grid_ + b_batch_offset,
+            z_matrix_ptr,
+            arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
+            arg_ptr[group_id].p_c_grid_ + c_batch_offset,
+            arg_ptr[group_id].p_lse_grid_ + lse_batch_offset,
+            arg_ptr[group_id].p_ygrad_grid_ + c_batch_offset,
+            arg_ptr[group_id].p_qgrad_grid_ + a_batch_offset,
+            arg_ptr[group_id].p_kgrad_grid_ + b_batch_offset,
+            arg_ptr[group_id].p_vgrad_grid_ + b1_batch_offset,
+            p_shared,
+            a_element_op,
+            b_element_op,
+            acc_element_op,
+            b1_element_op,
+            c_element_op,
+            arg_ptr[group_id].a_grid_desc_ak0_m_ak1_,
+            arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
+            arg_ptr[group_id].c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
+            arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
+            arg_ptr[group_id].y_grid_desc_mblock_mperblock_oblock_operblock_,
+            arg_ptr[group_id].lse_grid_desc_m_,
+            arg_ptr[group_id].vgrad_grid_desc_n_o_,
+            arg_ptr[group_id].ygrad_grid_desc_o0_m_o1_,
+            arg_ptr[group_id].block_2_ctile_map_,
+            arg_ptr[group_id].c0_matrix_mask_,
+            p_dropout,
+            ph);
+    }
 #else
     ignore = group_kernel_args;
     ignore = group_count;
@@ -211,6 +253,7 @@ template <index_t NumDimG,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           MaskingSpecialization MaskingSpec,
+          bool Deterministic,
           LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1
     : public BaseOperator // TODO inherit atten bwd op once API stablizes
@@ -920,7 +963,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1
                     AccElementwiseOperation,
                     B1ElementwiseOperation,
                     CElementwiseOperation,
-                    has_main_k_block_loop_>;
+                    has_main_k_block_loop_,
+                    Deterministic>;
 
                 return launch_and_time_kernel(
                     stream_config,

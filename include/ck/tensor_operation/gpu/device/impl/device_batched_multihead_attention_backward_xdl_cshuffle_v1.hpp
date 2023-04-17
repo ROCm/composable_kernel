@@ -48,7 +48,8 @@ template <typename GridwiseGemm,
           typename Block2CTileMap,
           typename ComputeBasePtrOfStridedBatch,
           typename C0MatrixMask,
-          bool HasMainKBlockLoop>
+          bool HasMainKBlockLoop,
+          bool Deterministic>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, /*CK_MIN_BLOCK_PER_CU*/ 1)
@@ -112,34 +113,75 @@ __global__ void
     ck::philox ph(seed, global_thread_id, offset);
     ZDataType* z_matrix_ptr = (p_z_grid == nullptr ? nullptr : p_z_grid + z_batch_offset);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
-                                                  p_b_grid + b_batch_offset,
-                                                  z_matrix_ptr,
-                                                  p_b1_grid + b1_batch_offset,
-                                                  p_c_grid + c_batch_offset,
-                                                  p_lse_grid + lse_batch_offset,
-                                                  p_ygrad_grid + c_batch_offset,
-                                                  p_qgrad_grid + a_batch_offset,
-                                                  p_kgrad_grid + b_batch_offset,
-                                                  p_vgrad_grid + b1_batch_offset,
-                                                  p_shared,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  acc_element_op,
-                                                  b1_element_op,
-                                                  c_element_op,
-                                                  a_grid_desc_ak0_m_ak1,
-                                                  b_grid_desc_bk0_n_bk1,
-                                                  c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                                  b1_grid_desc_bk0_n_bk1,
-                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  lse_grid_desc_m,
-                                                  vgrad_grid_desc_n_o,
-                                                  ygrad_grid_desc_o0_m_o1,
-                                                  block_2_ctile_map,
-                                                  c0_matrix_mask,
-                                                  p_drop,
-                                                  ph);
+    if constexpr(Deterministic)
+    {
+        for(index_t i = 0; i < num_blocks_per_batch; i++)
+        {
+            if(get_block_1d_id() % num_blocks_per_batch == i)
+            {
+                GridwiseGemm::template Run<HasMainKBlockLoop>(
+                    p_a_grid + a_batch_offset,
+                    p_b_grid + b_batch_offset,
+                    z_matrix_ptr,
+                    p_b1_grid + b1_batch_offset,
+                    p_c_grid + c_batch_offset,
+                    p_lse_grid + lse_batch_offset,
+                    p_ygrad_grid + c_batch_offset,
+                    p_qgrad_grid + a_batch_offset,
+                    p_kgrad_grid + b_batch_offset,
+                    p_vgrad_grid + b1_batch_offset,
+                    p_shared,
+                    a_element_op,
+                    b_element_op,
+                    acc_element_op,
+                    b1_element_op,
+                    c_element_op,
+                    a_grid_desc_ak0_m_ak1,
+                    b_grid_desc_bk0_n_bk1,
+                    c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                    b1_grid_desc_bk0_n_bk1,
+                    c_grid_desc_mblock_mperblock_nblock_nperblock,
+                    lse_grid_desc_m,
+                    vgrad_grid_desc_n_o,
+                    ygrad_grid_desc_o0_m_o1,
+                    block_2_ctile_map,
+                    c0_matrix_mask,
+                    p_drop,
+                    ph);
+            }
+        }
+    }
+    else
+    {
+        GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
+                                                      p_b_grid + b_batch_offset,
+                                                      z_matrix_ptr,
+                                                      p_b1_grid + b1_batch_offset,
+                                                      p_c_grid + c_batch_offset,
+                                                      p_lse_grid + lse_batch_offset,
+                                                      p_ygrad_grid + c_batch_offset,
+                                                      p_qgrad_grid + a_batch_offset,
+                                                      p_kgrad_grid + b_batch_offset,
+                                                      p_vgrad_grid + b1_batch_offset,
+                                                      p_shared,
+                                                      a_element_op,
+                                                      b_element_op,
+                                                      acc_element_op,
+                                                      b1_element_op,
+                                                      c_element_op,
+                                                      a_grid_desc_ak0_m_ak1,
+                                                      b_grid_desc_bk0_n_bk1,
+                                                      c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                                      b1_grid_desc_bk0_n_bk1,
+                                                      c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                      lse_grid_desc_m,
+                                                      vgrad_grid_desc_n_o,
+                                                      ygrad_grid_desc_o0_m_o1,
+                                                      block_2_ctile_map,
+                                                      c0_matrix_mask,
+                                                      p_drop,
+                                                      ph);
+    }
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -233,6 +275,7 @@ template <index_t NumDimG,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           MaskingSpecialization MaskingSpec,
+          bool Deterministic,
           LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
     : public BaseOperator // TODO inherit atten bwd op once API stablizes
@@ -925,7 +968,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     ComputeBasePtrOfStridedBatch,
                     C0MatrixMask,
-                    has_main_k_block_loop_>;
+                    has_main_k_block_loop_,
+                    Deterministic>;
 
                 return launch_and_time_kernel(stream_config,
                                               kernel,
