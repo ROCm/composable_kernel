@@ -86,6 +86,18 @@ struct UnaryConvert
     }
 };
 
+struct UnaryConvertPrecision : UnaryConvert
+{
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const;
+
+    template <>
+    __host__ __device__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
+    {
+        y = type_convert_bf16_rtn(x);
+    }
+};
+
 struct Scale
 {
     __host__ __device__ Scale(float scale) : scale_(scale) {}
