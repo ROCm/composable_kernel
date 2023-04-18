@@ -27,6 +27,7 @@ def getDockerImageName(){
            def commit = "${params.COMPILER_COMMIT}"[0..6]
            img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
        }
+    }
     else{
        if (params.COMPILER_COMMIT == ""){
            img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
