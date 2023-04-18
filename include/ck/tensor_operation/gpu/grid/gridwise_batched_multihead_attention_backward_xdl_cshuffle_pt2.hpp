@@ -86,6 +86,7 @@ template <typename InputDataType,
           LoopScheduler LoopSched,
           bool PadN,
           bool MaskOutUpperTriangle,
+          bool Deterministic,
           PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 {
@@ -1175,7 +1176,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                const Block2CTileMap& block_2_ctile_map,
                                const C0MatrixMask& c0_matrix_mask,
                                const float p_drop,
-                               ck::philox& ph)
+                               ck::philox& ph,
+                               const index_t block_idx_m)
     {
         const FloatGemmAcc p_dropout  = type_convert<FloatGemmAcc>(1.0f - p_drop);
         const FloatGemmAcc rp_dropout = type_convert<FloatGemmAcc>(1.0f / p_dropout);
@@ -1215,9 +1217,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             return;
         }
 
+        const index_t block_work_idx_m = Deterministic ? block_idx_m : block_work_idx[I0];
+
         // HACK: this force m/o_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
+            __builtin_amdgcn_readfirstlane(block_work_idx_m * MPerBlock);
 
         const index_t o_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * Gemm1NPerBlock);
@@ -1444,7 +1448,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                              1,
                                              false>{
                 lse_grid_desc_mblock_mrepeat_mwave_mperxdl,
-                make_multi_index(block_work_idx[I0],       // mblock
+                make_multi_index(block_work_idx_m,       // mblock
                                  acc0_thread_origin[I0],   // mrepeat
                                  acc0_thread_origin[I2],   // mwave
                                  acc0_thread_origin[I4])}; // mperxdl
@@ -1506,7 +1510,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             InMemoryDataOperationEnum::Set,
             1, // DstScalarStrideInVector
             true>{z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                  make_multi_index(block_work_idx[I0], // MBlockId
+                  make_multi_index(block_work_idx_m, // MBlockId
                                    0,                  // NBlockId
                                    0,                  // mrepeat
                                    0,                  // nrepeat
@@ -1643,7 +1647,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             y_thread_cluster_idx * y_thread_desc_m0_m1_o0_o1.GetLengths();
         const auto y_thread_data_on_grid_idx =
             make_multi_index(
-                block_work_idx[I0], I0, I0 /* all WGs start from o_block_idx = 0 */, I0) +
+                block_work_idx_m, I0, I0 /* all WGs start from o_block_idx = 0 */, I0) +
             y_thread_data_on_block_idx;
 
         // performs double duty for both y and ygrad
@@ -2270,7 +2274,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                 {c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
                  make_multi_index(0, 0, 0, 0),
                  qgrad_grid_desc_mblock_mperblock_kblock_kperblock,
-                 make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
+                 make_multi_index(block_work_idx_m, 0, block_work_idx[I1], 0),
                  c_element_op};
 
             // space filling curve for threadwise C in VGPR

@@ -33,7 +33,8 @@ template <typename GridwiseGemm,
           typename CElementwiseOperation,
           bool HasMainKBlockLoop,
           bool IsDropout,
-          bool IsLseStoring>
+          bool IsLseStoring,
+          bool Deterministic>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -83,7 +84,7 @@ __global__ void
     // per-group batch offset
     const index_t num_blocks_per_batch = arg_ptr[group_id].num_blocks_per_batch_;
     const index_t g_idx                = __builtin_amdgcn_readfirstlane(
-        (block_id - arg_ptr[group_id].block_start_) / num_blocks_per_batch);
+        (block_id - arg_ptr[group_id].block_start_) / (Deterministic ? 1 : num_blocks_per_batch));
 
     const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetABasePtr(g_idx)));
@@ -98,33 +99,74 @@ __global__ void
     const long_index_t lse_batch_offset = __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(
         arg_ptr[group_id].compute_base_ptr_of_batch_.GetLSEBasePtr(g_idx)));
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout, IsLseStoring>(
-        arg_ptr[group_id].p_a_grid_ + a_batch_offset,
-        arg_ptr[group_id].p_b_grid_ + b_batch_offset,
-        arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
-        arg_ptr[group_id].p_c_grid_ + c_batch_offset,
-        arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
-                                               : arg_ptr[group_id].p_z_grid_ + z_batch_offset,
-        arg_ptr[group_id].p_lse_grid_ == nullptr ? nullptr
-                                                 : arg_ptr[group_id].p_lse_grid_ + lse_batch_offset,
-        // arg_ptr[group_id].p_lse_grid_ + lse_batch_offset,
-        p_shared,
-        a_element_op,
-        b_element_op,
-        acc_element_op,
-        b1_element_op,
-        c_element_op,
-        arg_ptr[group_id].a_grid_desc_ak0_m_ak1_,
-        arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
-        arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
-        arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
-        arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
-        arg_ptr[group_id].lse_grid_desc_m_,
-        arg_ptr[group_id].block_2_ctile_map_,
-        arg_ptr[group_id].c0_matrix_mask_,
-        p_dropout_in_16bits,
-        p_dropout_rescale,
-        ph);
+    if constexpr(Deterministic)
+    {
+        for(index_t i = 0; i < num_blocks_per_batch; i++)
+        {
+            GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout, IsLseStoring>(
+                arg_ptr[group_id].p_a_grid_ + a_batch_offset,
+                arg_ptr[group_id].p_b_grid_ + b_batch_offset,
+                arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
+                arg_ptr[group_id].p_c_grid_ + c_batch_offset,
+                arg_ptr[group_id].p_z_grid_ == nullptr
+                    ? nullptr
+                    : arg_ptr[group_id].p_z_grid_ + z_batch_offset,
+                arg_ptr[group_id].p_lse_grid_ == nullptr
+                    ? nullptr
+                    : arg_ptr[group_id].p_lse_grid_ + lse_batch_offset,
+                // arg_ptr[group_id].p_lse_grid_ + lse_batch_offset,
+                p_shared,
+                a_element_op,
+                b_element_op,
+                acc_element_op,
+                b1_element_op,
+                c_element_op,
+                arg_ptr[group_id].a_grid_desc_ak0_m_ak1_,
+                arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
+                arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
+                arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
+                arg_ptr[group_id].lse_grid_desc_m_,
+                arg_ptr[group_id].block_2_ctile_map_,
+                arg_ptr[group_id].c0_matrix_mask_,
+                p_dropout_in_16bits,
+                p_dropout_rescale,
+                ph,
+                i);
+        }
+    }
+    else
+    {
+        GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout, IsLseStoring>(
+            arg_ptr[group_id].p_a_grid_ + a_batch_offset,
+            arg_ptr[group_id].p_b_grid_ + b_batch_offset,
+            arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
+            arg_ptr[group_id].p_c_grid_ + c_batch_offset,
+            arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
+                                                   : arg_ptr[group_id].p_z_grid_ + z_batch_offset,
+            arg_ptr[group_id].p_lse_grid_ == nullptr
+                ? nullptr
+                : arg_ptr[group_id].p_lse_grid_ + lse_batch_offset,
+            // arg_ptr[group_id].p_lse_grid_ + lse_batch_offset,
+            p_shared,
+            a_element_op,
+            b_element_op,
+            acc_element_op,
+            b1_element_op,
+            c_element_op,
+            arg_ptr[group_id].a_grid_desc_ak0_m_ak1_,
+            arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
+            arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
+            arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
+            arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
+            arg_ptr[group_id].lse_grid_desc_m_,
+            arg_ptr[group_id].block_2_ctile_map_,
+            arg_ptr[group_id].c0_matrix_mask_,
+            p_dropout_in_16bits,
+            p_dropout_rescale,
+            ph,
+            0);
+    }
 #else
     ignore = group_kernel_args;
     ignore = group_count;
@@ -206,6 +248,7 @@ template <index_t NumDimG,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           MaskingSpecialization MaskingSpec,
+          bool Deterministic,
           LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
     : public DeviceGroupedMultiheadAttentionForward<NumDimG,
@@ -487,7 +530,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
         Transform::matrix_padder.PadN,
-        MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle>;
+        MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle,
+        Deterministic>;
 
     using Block2CTileMap = OffsettedBlockToCTileMap<typename GridwiseGemm::DefaultBlock2CTileMap>;
 
@@ -638,7 +682,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
                 const auto block_2_ctile_map = Block2CTileMap(c_grid_desc_m_n, BlockStart);
                 const index_t batch_count    = c_grid_desc_g_m_n.GetLength(I0);
                 const index_t grid_size_grp =
-                    block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n) * batch_count;
+                    (Deterministic ? 1 : block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n)) *
+                    batch_count;
                 const index_t BlockEnd = grid_size_ + grid_size_grp;
 
                 // batch stride
@@ -778,7 +823,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
                                                                          CElementwiseOperation,
                                                                          has_main_k_block_loop_,
                                                                          is_dropout_,
-                                                                         is_lse_storing_>;
+                                                                         is_lse_storing_,
+                                                                         Deterministic>;
 
                     return launch_and_time_kernel(
                         stream_config,

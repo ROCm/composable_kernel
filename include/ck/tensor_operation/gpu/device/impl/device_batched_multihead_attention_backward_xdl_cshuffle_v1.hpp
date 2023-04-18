@@ -82,6 +82,7 @@ __global__ void
             const YGradGridDesc_O0_M_O1 ygrad_grid_desc_o0_m_o1,
             const Block2CTileMap block_2_ctile_map,
             const index_t batch_count,
+            const index_t mblock,
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
             const C0MatrixMask c0_matrix_mask,
             const float p_drop,
@@ -115,40 +116,38 @@ __global__ void
 
     if constexpr(Deterministic)
     {
-        for(index_t i = 0; i < num_blocks_per_batch; i++)
+        for(index_t i = 0; i < mblock; i++)
         {
-            if(get_block_1d_id() % num_blocks_per_batch == i)
-            {
-                GridwiseGemm::template Run<HasMainKBlockLoop>(
-                    p_a_grid + a_batch_offset,
-                    p_b_grid + b_batch_offset,
-                    z_matrix_ptr,
-                    p_b1_grid + b1_batch_offset,
-                    p_c_grid + c_batch_offset,
-                    p_lse_grid + lse_batch_offset,
-                    p_ygrad_grid + c_batch_offset,
-                    p_qgrad_grid + a_batch_offset,
-                    p_kgrad_grid + b_batch_offset,
-                    p_vgrad_grid + b1_batch_offset,
-                    p_shared,
-                    a_element_op,
-                    b_element_op,
-                    acc_element_op,
-                    b1_element_op,
-                    c_element_op,
-                    a_grid_desc_ak0_m_ak1,
-                    b_grid_desc_bk0_n_bk1,
-                    c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                    b1_grid_desc_bk0_n_bk1,
-                    c_grid_desc_mblock_mperblock_nblock_nperblock,
-                    lse_grid_desc_m,
-                    vgrad_grid_desc_n_o,
-                    ygrad_grid_desc_o0_m_o1,
-                    block_2_ctile_map,
-                    c0_matrix_mask,
-                    p_drop,
-                    ph);
-            }
+            GridwiseGemm::template Run<HasMainKBlockLoop>(
+                p_a_grid + a_batch_offset,
+                p_b_grid + b_batch_offset,
+                z_matrix_ptr,
+                p_b1_grid + b1_batch_offset,
+                p_c_grid + c_batch_offset,
+                p_lse_grid + lse_batch_offset,
+                p_ygrad_grid + c_batch_offset,
+                p_qgrad_grid + a_batch_offset,
+                p_kgrad_grid + b_batch_offset,
+                p_vgrad_grid + b1_batch_offset,
+                p_shared,
+                a_element_op,
+                b_element_op,
+                acc_element_op,
+                b1_element_op,
+                c_element_op,
+                a_grid_desc_ak0_m_ak1,
+                b_grid_desc_bk0_n_bk1,
+                c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                b1_grid_desc_bk0_n_bk1,
+                c_grid_desc_mblock_mperblock_nblock_nperblock,
+                lse_grid_desc_m,
+                vgrad_grid_desc_n_o,
+                ygrad_grid_desc_o0_m_o1,
+                block_2_ctile_map,
+                c0_matrix_mask,
+                p_drop,
+                ph,
+                i);
         }
     }
     else
@@ -180,7 +179,8 @@ __global__ void
                                                       block_2_ctile_map,
                                                       c0_matrix_mask,
                                                       p_drop,
-                                                      ph);
+                                                      ph,
+                                                      0);
     }
 #else
     ignore = p_a_grid;
@@ -707,7 +707,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
         Transform::matrix_padder.PadN,
-        MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle>;
+        MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle,
+        Deterministic>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -941,7 +942,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             }
 
             const index_t grid_size =
-                arg.block_2_ctile_map_.CalculateGridSize(arg.y_grid_desc_m_o_) * arg.batch_count_;
+                (Deterministic ? 1
+                               : arg.block_2_ctile_map_.CalculateGridSize(arg.y_grid_desc_m_o_)) *
+                arg.batch_count_;
 
             float ave_time = 0;
 
@@ -971,41 +974,43 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                     has_main_k_block_loop_,
                     Deterministic>;
 
-                return launch_and_time_kernel(stream_config,
-                                              kernel,
-                                              dim3(grid_size),
-                                              dim3(BlockSize),
-                                              0,
-                                              arg.p_a_grid_,
-                                              arg.p_b_grid_,
-                                              arg.p_z_grid_,
-                                              arg.p_b1_grid_,
-                                              arg.p_c_grid_,
-                                              arg.p_lse_grid_,
-                                              arg.p_ygrad_grid_,
-                                              arg.p_qgrad_grid_,
-                                              arg.p_kgrad_grid_,
-                                              arg.p_vgrad_grid_,
-                                              arg.a_element_op_,
-                                              arg.b_element_op_,
-                                              arg.acc_element_op_,
-                                              arg.b1_element_op_,
-                                              arg.c_element_op_,
-                                              arg.a_grid_desc_ak0_m_ak1_,
-                                              arg.b_grid_desc_bk0_n_bk1_,
-                                              arg.c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
-                                              arg.b1_grid_desc_bk0_n_bk1_,
-                                              arg.y_grid_desc_mblock_mperblock_oblock_operblock_,
-                                              arg.lse_grid_desc_m_,
-                                              arg.vgrad_grid_desc_n_o_,
-                                              arg.ygrad_grid_desc_o0_m_o1_,
-                                              arg.block_2_ctile_map_,
-                                              arg.batch_count_,
-                                              arg.compute_base_ptr_of_batch_,
-                                              arg.c0_matrix_mask_,
-                                              arg.p_drop_,
-                                              arg.seed_,
-                                              arg.offset_);
+                return launch_and_time_kernel(
+                    stream_config,
+                    kernel,
+                    dim3(grid_size),
+                    dim3(BlockSize),
+                    0,
+                    arg.p_a_grid_,
+                    arg.p_b_grid_,
+                    arg.p_z_grid_,
+                    arg.p_b1_grid_,
+                    arg.p_c_grid_,
+                    arg.p_lse_grid_,
+                    arg.p_ygrad_grid_,
+                    arg.p_qgrad_grid_,
+                    arg.p_kgrad_grid_,
+                    arg.p_vgrad_grid_,
+                    arg.a_element_op_,
+                    arg.b_element_op_,
+                    arg.acc_element_op_,
+                    arg.b1_element_op_,
+                    arg.c_element_op_,
+                    arg.a_grid_desc_ak0_m_ak1_,
+                    arg.b_grid_desc_bk0_n_bk1_,
+                    arg.c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
+                    arg.b1_grid_desc_bk0_n_bk1_,
+                    arg.y_grid_desc_mblock_mperblock_oblock_operblock_,
+                    arg.lse_grid_desc_m_,
+                    arg.vgrad_grid_desc_n_o_,
+                    arg.ygrad_grid_desc_o0_m_o1_,
+                    arg.block_2_ctile_map_,
+                    arg.batch_count_,
+                    arg.block_2_ctile_map_.CalculateGridSize(arg.y_grid_desc_m_o_),
+                    arg.compute_base_ptr_of_batch_,
+                    arg.c0_matrix_mask_,
+                    arg.p_drop_,
+                    arg.seed_,
+                    arg.offset_);
             };
 
             // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need

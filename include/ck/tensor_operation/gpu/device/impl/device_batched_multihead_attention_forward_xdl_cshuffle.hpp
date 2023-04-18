@@ -45,7 +45,8 @@ template <typename GridwiseGemm,
           typename C0MatrixMask,
           bool HasMainKBlockLoop,
           bool IsDropout,
-          bool IsLseStoring>
+          bool IsLseStoring,
+          bool Deterministic>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -72,6 +73,7 @@ __global__ void
             const LSEGridDescriptor_M lse_grid_desc_m,
             const Block2CTileMap block_2_ctile_map,
             const index_t batch_count,
+            const index_t mblock,
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
             const C0MatrixMask c0_matrix_mask,
             const ushort p_dropout_in_16bits,
@@ -101,30 +103,65 @@ __global__ void
     const index_t global_thread_id = get_thread_global_1d_id();
     ck::philox ph(seed, global_thread_id, offset);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout, IsLseStoring>(
-        p_a_grid + a_batch_offset,
-        p_b_grid + b_batch_offset,
-        p_b1_grid + b1_batch_offset,
-        p_c_grid + c_batch_offset,
-        nullptr ? nullptr : p_z_grid + z_batch_offset,
-        nullptr ? nullptr : p_lse_grid + lse_batch_offset,
-        p_shared,
-        a_element_op,
-        b_element_op,
-        acc_element_op,
-        b1_element_op,
-        c_element_op,
-        a_grid_desc_ak0_m_ak1,
-        b_grid_desc_bk0_n_bk1,
-        b1_grid_desc_bk0_n_bk1,
-        c_grid_desc_mblock_mperblock_nblock_nperblock,
-        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-        lse_grid_desc_m,
-        block_2_ctile_map,
-        c0_matrix_mask,
-        p_dropout_in_16bits,
-        p_dropout_rescale,
-        ph);
+    if constexpr(Deterministic)
+    {
+        for(index_t i = 0; i < mblock; i++)
+        {
+            GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout, IsLseStoring>(
+                p_a_grid + a_batch_offset,
+                p_b_grid + b_batch_offset,
+                p_b1_grid + b1_batch_offset,
+                p_c_grid + c_batch_offset,
+                nullptr ? nullptr : p_z_grid + z_batch_offset,
+                nullptr ? nullptr : p_lse_grid + lse_batch_offset,
+                p_shared,
+                a_element_op,
+                b_element_op,
+                acc_element_op,
+                b1_element_op,
+                c_element_op,
+                a_grid_desc_ak0_m_ak1,
+                b_grid_desc_bk0_n_bk1,
+                b1_grid_desc_bk0_n_bk1,
+                c_grid_desc_mblock_mperblock_nblock_nperblock,
+                z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                lse_grid_desc_m,
+                block_2_ctile_map,
+                c0_matrix_mask,
+                p_dropout_in_16bits,
+                p_dropout_rescale,
+                ph,
+                i);
+        }
+    }
+    else
+    {
+        GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout, IsLseStoring>(
+            p_a_grid + a_batch_offset,
+            p_b_grid + b_batch_offset,
+            p_b1_grid + b1_batch_offset,
+            p_c_grid + c_batch_offset,
+            nullptr ? nullptr : p_z_grid + z_batch_offset,
+            nullptr ? nullptr : p_lse_grid + lse_batch_offset,
+            p_shared,
+            a_element_op,
+            b_element_op,
+            acc_element_op,
+            b1_element_op,
+            c_element_op,
+            a_grid_desc_ak0_m_ak1,
+            b_grid_desc_bk0_n_bk1,
+            b1_grid_desc_bk0_n_bk1,
+            c_grid_desc_mblock_mperblock_nblock_nperblock,
+            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+            lse_grid_desc_m,
+            block_2_ctile_map,
+            c0_matrix_mask,
+            p_dropout_in_16bits,
+            p_dropout_rescale,
+            ph,
+            0);
+    }
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -216,6 +253,7 @@ template <index_t NumDimG,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           MaskingSpecialization MaskingSpec,
+          bool Deterministic,
           LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
     : public DeviceBatchedMultiheadAttentionForward<NumDimG,
@@ -476,7 +514,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
         Transform::matrix_padder.PadN,
-        MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle>;
+        MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle,
+        Deterministic>;
 
     // Argument
     // FIXME: constness
@@ -695,7 +734,9 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
             }
 
             const index_t grid_size =
-                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.batch_count_;
+                (Deterministic ? 1
+                               : arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_)) *
+                arg.batch_count_;
 
             // Gemm0_K
             const auto K =
@@ -703,65 +744,67 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
 
             float ave_time = 0;
 
-            auto launch_kernel = [&](auto has_main_k_block_loop_,
-                                     auto is_dropout_,
-                                     auto is_lse_storing_) {
-                const auto kernel = kernel_batched_multiheadattention_forward_xdl_cshuffle<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    ZDataType,
-                    LSEDataType,
-                    GemmAccDataType,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    AccElementwiseOperation,
-                    B1ElementwiseOperation,
-                    CElementwiseOperation,
-                    DeviceOp::AGridDesc_AK0_M_AK1,
-                    DeviceOp::BGridDesc_BK0_N_BK1,
-                    DeviceOp::B1GridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
-                    DeviceOp::LSEGridDesc_M,
-                    typename GridwiseGemm::DefaultBlock2CTileMap,
-                    ComputeBasePtrOfStridedBatch,
-                    C0MatrixMask,
-                    has_main_k_block_loop_,
-                    is_dropout_,
-                    is_lse_storing_>;
+            auto launch_kernel =
+                [&](auto has_main_k_block_loop_, auto is_dropout_, auto is_lse_storing_) {
+                    const auto kernel = kernel_batched_multiheadattention_forward_xdl_cshuffle<
+                        GridwiseGemm,
+                        ADataType, // TODO: distiguish A/B datatype
+                        CDataType,
+                        ZDataType,
+                        LSEDataType,
+                        GemmAccDataType,
+                        AElementwiseOperation,
+                        BElementwiseOperation,
+                        AccElementwiseOperation,
+                        B1ElementwiseOperation,
+                        CElementwiseOperation,
+                        DeviceOp::AGridDesc_AK0_M_AK1,
+                        DeviceOp::BGridDesc_BK0_N_BK1,
+                        DeviceOp::B1GridDesc_BK0_N_BK1,
+                        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
+                        DeviceOp::LSEGridDesc_M,
+                        typename GridwiseGemm::DefaultBlock2CTileMap,
+                        ComputeBasePtrOfStridedBatch,
+                        C0MatrixMask,
+                        has_main_k_block_loop_,
+                        is_dropout_,
+                        is_lse_storing_,
+                        Deterministic>;
 
-                return launch_and_time_kernel(stream_config,
-                                              kernel,
-                                              dim3(grid_size),
-                                              dim3(BlockSize),
-                                              0,
-                                              arg.p_a_grid_,
-                                              arg.p_b_grid_,
-                                              arg.p_b1_grid_,
-                                              arg.p_c_grid_,
-                                              arg.p_z_grid_,
-                                              arg.p_lse_grid_,
-                                              arg.a_element_op_,
-                                              arg.b_element_op_,
-                                              arg.acc_element_op_,
-                                              arg.b1_element_op_,
-                                              arg.c_element_op_,
-                                              arg.a_grid_desc_ak0_m_ak1_,
-                                              arg.b_grid_desc_bk0_n_bk1_,
-                                              arg.b1_grid_desc_bk0_n_bk1_,
-                                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                              arg.z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
-                                              arg.lse_grid_desc_m_,
-                                              arg.block_2_ctile_map_,
-                                              arg.batch_count_,
-                                              arg.compute_base_ptr_of_batch_,
-                                              arg.c0_matrix_mask_,
-                                              arg.p_dropout_in_16bits_,
-                                              arg.p_dropout_rescale_,
-                                              arg.seed_,
-                                              arg.offset_);
-            };
+                    return launch_and_time_kernel(
+                        stream_config,
+                        kernel,
+                        dim3(grid_size),
+                        dim3(BlockSize),
+                        0,
+                        arg.p_a_grid_,
+                        arg.p_b_grid_,
+                        arg.p_b1_grid_,
+                        arg.p_c_grid_,
+                        arg.p_z_grid_,
+                        arg.p_lse_grid_,
+                        arg.a_element_op_,
+                        arg.b_element_op_,
+                        arg.acc_element_op_,
+                        arg.b1_element_op_,
+                        arg.c_element_op_,
+                        arg.a_grid_desc_ak0_m_ak1_,
+                        arg.b_grid_desc_bk0_n_bk1_,
+                        arg.b1_grid_desc_bk0_n_bk1_,
+                        arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                        arg.z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
+                        arg.lse_grid_desc_m_,
+                        arg.block_2_ctile_map_,
+                        arg.batch_count_,
+                        arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_),
+                        arg.compute_base_ptr_of_batch_,
+                        arg.c0_matrix_mask_,
+                        arg.p_dropout_in_16bits_,
+                        arg.p_dropout_rescale_,
+                        arg.seed_,
+                        arg.offset_);
+                };
 
             // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need
             // to concern Gemm0's loop

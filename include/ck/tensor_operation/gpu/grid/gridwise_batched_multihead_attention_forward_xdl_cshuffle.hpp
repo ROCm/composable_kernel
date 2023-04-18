@@ -85,6 +85,7 @@ template <typename FloatAB,
           LoopScheduler LoopSched,
           bool PadN,
           bool MaskOutUpperTriangle,
+          bool Deterministic,
           PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
 {
@@ -445,7 +446,8 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                const C0MatrixMask& c0_matrix_mask,
                                const ushort p_dropout_in_16bits,
                                FloatGemmAcc p_dropout_rescale,
-                               ck::philox ph)
+                               ck::philox& ph,
+                               const index_t block_idx_m)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -470,9 +472,11 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             return;
         }
 
+        const index_t block_work_idx_m = Deterministic ? block_idx_m : block_work_idx[I0];
+
         // HACK: this force m/gemm1_n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
+            __builtin_amdgcn_readfirstlane(block_work_idx_m * MPerBlock);
 
         const index_t gemm1_n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * Gemm1NPerBlock);
@@ -835,7 +839,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             InMemoryDataOperationEnum::Set,
             1,
             false>{lse_grid_desc_mblock_mrepeat_mwave_mperxdl,
-                   make_multi_index(block_work_idx[I0],      // mblock
+                   make_multi_index(block_work_idx_m,        // mblock
                                     0,                       // mrepeat
                                     acc0_thread_origin[I2],  // mwave
                                     acc0_thread_origin[I4]), // mperxdl
@@ -897,15 +901,15 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             InMemoryDataOperationEnum::Set,
             1, // DstScalarStrideInVector
             true>{z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                  make_multi_index(block_work_idx[I0], // MBlockId
-                                   0,                  // NBlockId
-                                   0,                  // mrepeat
-                                   0,                  // nrepeat
-                                   wave_id[I0],        // MWaveId
-                                   wave_id[I1],        // NWaveId
-                                   wave_m_n_id[I1],    // MPerXdl
-                                   0,                  // group
-                                   wave_m_n_id[I0],    // NInputIndex
+                  make_multi_index(block_work_idx_m, // MBlockId
+                                   0,                // NBlockId
+                                   0,                // mrepeat
+                                   0,                // nrepeat
+                                   wave_id[I0],      // MWaveId
+                                   wave_id[I1],      // NWaveId
+                                   wave_m_n_id[I1],  // MPerXdl
+                                   0,                // group
+                                   wave_m_n_id[I0],  // NInputIndex
                                    0),
                   tensor_operation::element_wise::PassThrough{}};
 
@@ -1319,7 +1323,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 {c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
                  make_multi_index(0, 0, 0, 0),
                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                 make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
+                 make_multi_index(block_work_idx_m, 0, block_work_idx[I1], 0),
                  c_element_op};
 
             // space filling curve for threadwise C in VGPR
