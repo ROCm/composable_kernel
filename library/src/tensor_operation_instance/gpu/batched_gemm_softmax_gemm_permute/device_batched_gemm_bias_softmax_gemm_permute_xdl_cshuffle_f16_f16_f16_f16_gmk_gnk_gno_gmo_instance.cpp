@@ -26,26 +26,31 @@ using S = ck::Sequence<Is...>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using ScaleAdd    = ck::tensor_operation::element_wise::ScaleAdd;
 
-template void add_device_instances(std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<
-                                       2,
-                                       1,
-                                       1,
-                                       1,
-                                       1,
-                                       F16,
-                                       F16,
-                                       F16,
-                                       F16,
-                                       ck::Tuple<F16>,
-                                       ck::Tuple<>,
-                                       PassThrough,
-                                       PassThrough,
-                                       ScaleAdd,
-                                       PassThrough,
-                                       PassThrough,
-                                       MaskingSpecialization::MaskOutUpperTriangle>>>& instances);
+void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
+    std::vector<std::unique_ptr<
+        DeviceBatchedGemmSoftmaxGemmPermute<2,
+                                            1,
+                                            1,
+                                            1,
+                                            1,
+                                            F16,
+                                            F16,
+                                            F16,
+                                            F16,
+                                            ck::Tuple<F16>,
+                                            ck::Tuple<>,
+                                            PassThrough,
+                                            PassThrough,
+                                            ScaleAdd,
+                                            PassThrough,
+                                            PassThrough,
+                                            MaskingSpecialization::MaskOutUpperTriangle>>>&
+        instances)
+{
+    add_device_instances(instances);
+}
 
-template void add_device_instances(
+void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
     std::vector<
         std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
                                                             1,
@@ -64,7 +69,10 @@ template void add_device_instances(
                                                             PassThrough,
                                                             PassThrough,
                                                             MaskingSpecialization::MaskDisabled>>>&
-        instances);
+        instances)
+{
+    add_device_instances(instances);
+}
 
 } // namespace instance
 } // namespace device
