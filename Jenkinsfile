@@ -19,12 +19,22 @@ def runShell(String command){
 
 def getDockerImageName(){
     def img
-    if (params.COMPILER_COMMIT == ""){
-        img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
-    }
+    if (params.ROCMVERSION != "5.5"){
+       if (params.COMPILER_COMMIT == ""){
+           img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
+       }
+       else{
+           def commit = "${params.COMPILER_COMMIT}"[0..6]
+           img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
+       }
     else{
-        def commit = "${params.COMPILER_COMMIT}"[0..6]
-        img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
+       if (params.COMPILER_COMMIT == ""){
+           img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
+       }
+       else{
+           def commit = "${params.COMPILER_COMMIT}"[0..6]
+           img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
+       }
     }
     return img
 }
