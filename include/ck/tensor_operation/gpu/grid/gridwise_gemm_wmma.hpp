@@ -475,6 +475,13 @@ struct GridwiseGemm_Wmma
         }
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
+        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+
+        if(!(a_grid_desc.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
+             b_grid_desc.GetElementSpaceSize() * sizeof(BDataType) <= TwoGB))
+        {
+            return false;
+        }
         return true;
     }
 

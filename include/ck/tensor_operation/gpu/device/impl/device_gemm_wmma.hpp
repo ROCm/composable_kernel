@@ -303,7 +303,10 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
               N01_{N01},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              c_element_op_{c_element_op}
+              c_element_op_{c_element_op},
+              MRaw_{M},
+              NRaw_{N},
+              KRaw_{K}
         {
             a_grid_desc_         = DeviceGemmWmma_CShuffle::MakeAGridDescriptor(M, K, StrideA);
             b_grid_desc_k0_n_k1_ = DeviceGemmWmma_CShuffle::MakeBGridDescriptor(K, N, StrideB);
@@ -336,6 +339,10 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
+        // for checking vector load/store
+        index_t MRaw_;
+        index_t NRaw_;
+        index_t KRaw_;
     };
 
     // Invoker
@@ -470,6 +477,68 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
         {
             printf("DeviceOp err: Arch");
             return false;
+        }
+
+        // check vector load/store
+        {
+            using Row = ck::tensor_layout::gemm::RowMajor;
+            using Col = ck::tensor_layout::gemm::ColumnMajor;
+
+            // check vector load of A
+            if constexpr(is_same_v<ALayout, Row> && ABlockTransferSrcVectorDim == 2)
+            {
+                if(arg.KRaw_ % ABlockTransferSrcScalarPerVector != 0)
+                {
+                    return false;
+                }
+            }
+            else if constexpr(is_same_v<ALayout, Col> && ABlockTransferSrcVectorDim == 1)
+            {
+                // FIXME: not rigorous
+                if(arg.MRaw_ % ABlockTransferSrcScalarPerVector != 0)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+
+            // check vector laod of B
+            if constexpr(is_same_v<BLayout, Col> && BBlockTransferSrcVectorDim == 2)
+            {
+                if(arg.KRaw_ % BBlockTransferSrcScalarPerVector != 0)
+                {
+                    return false;
+                }
+            }
+            else if constexpr(is_same_v<BLayout, Row> && BBlockTransferSrcVectorDim == 1)
+            {
+                // FIXME: not rigorous
+                if(arg.NRaw_ % BBlockTransferSrcScalarPerVector != 0)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+
+            // check vector store of C
+            // only support RowMajor for now
+            if constexpr(is_same_v<CLayout, Row>)
+            {
+                if(arg.NRaw_ % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
         }
 
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_,
