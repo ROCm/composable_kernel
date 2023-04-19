@@ -431,6 +431,9 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
         constexpr auto b_block_desc_k0perblock_nperblock_k1 =
             GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
 
+        constexpr auto cshuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
+            GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat();
+
         constexpr auto max_lds_align = K1;
 
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
@@ -439,8 +442,13 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
         constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
             b_block_desc_k0perblock_nperblock_k1.GetElementSpaceSize(), max_lds_align);
 
-        return (a_block_space_size_aligned * sizeof(ADataType) +
-                b_block_space_size_aligned * sizeof(BDataType));
+        constexpr auto c_block_space_size_aligned = math::integer_least_multiple(
+            cshuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat.GetElementSpaceSize(),
+            max_lds_align);
+
+        return math::max((a_block_space_size_aligned * sizeof(ADataType) +
+                          b_block_space_size_aligned * sizeof(BDataType)),
+                         c_block_space_size_aligned * sizeof(CShuffleDataType));
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -497,6 +505,15 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
         }
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
+        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+
+        if(!(a_grid_desc_k0_m_k1.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
+             b_grid_desc_k0_n_k1.GetElementSpaceSize() * sizeof(BDataType) <= TwoGB &&
+             e_grid_desc_m_n.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
+        {
+            return false;
+        }
+
         return true;
     }
 
