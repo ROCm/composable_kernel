@@ -26,7 +26,7 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
     {
         split_k = 1;
     }
-    
+
     const auto in_g_n_c_wis_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<
             InputLayout<NDimSpatial>>(conv_param);

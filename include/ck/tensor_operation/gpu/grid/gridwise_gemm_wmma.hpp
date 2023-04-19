@@ -49,7 +49,8 @@ __global__ void
             const CElementwiseOperation c_element_op,
             const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__) || defined(__gfx1101__) || \
+    defined(__gfx1102__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -414,7 +415,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
         constexpr auto KPack = math::integer_least_multiple(K1, WmmaK);
 
         auto blockwise_gemm =
-            BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO<BlockSize,
+            BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle<BlockSize,
                                                          FloatA,
                                                          FloatB,
                                                          FloatAcc,

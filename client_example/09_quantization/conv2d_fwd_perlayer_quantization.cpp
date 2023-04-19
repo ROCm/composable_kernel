@@ -24,15 +24,16 @@ using OutElementOp = ck::tensor_operation::element_wise::Activation_Mul_Clamp<Ac
 
 static constexpr ck::index_t NumDimSpatial = 2;
 static constexpr ck::index_t G             = 1;
-static constexpr ck::index_t N             = 4;
-static constexpr ck::index_t K             = 64;
-static constexpr ck::index_t C             = 32;
-static constexpr ck::index_t Y             = 3;
-static constexpr ck::index_t X             = 3;
-static constexpr ck::index_t Hi            = 71;
-static constexpr ck::index_t Wi            = 71;
-static constexpr ck::index_t Ho            = 36;
-static constexpr ck::index_t Wo            = 36;
+static constexpr ck::index_t N             = 4;    // batch size
+static constexpr ck::index_t K             = 64;   // output channel
+static constexpr ck::index_t C             = 192;  // input channel
+static constexpr ck::index_t Y             = 3;    // filter H
+static constexpr ck::index_t X             = 3;    // filter W
+static constexpr ck::index_t Hi            = 71;   // input H
+static constexpr ck::index_t Wi            = 71;   // input W
+static constexpr ck::index_t Ho            = 36;   // output H
+static constexpr ck::index_t Wo            = 36;   // output W
+static constexpr float requant_scale       = 0.5f; // requantize qAcc to qY
 
 struct SimpleDeviceMem
 {
@@ -56,8 +57,8 @@ int main(int argc, char* argv[])
     std::array<ck::index_t, 5> in_strides{N * Hi * Wi * C, Hi * Wi * C, 1, Wi * C, C};
     std::array<ck::index_t, 5> weight_lengths{G, K, C, Y, X};
     std::array<ck::index_t, 5> weight_strides{K * Y * X * C, Y * X * C, 1, X * C, C};
-    std::array<ck::index_t, 5> out_lengths{G, N, C, Ho, Wo};
-    std::array<ck::index_t, 5> out_strides{N * Ho * Wo * C, Ho * Wo * C, 1, Wo * C, C};
+    std::array<ck::index_t, 5> out_lengths{G, N, K, Ho, Wo};
+    std::array<ck::index_t, 5> out_strides{N * Ho * Wo * K, Ho * Wo * K, 1, Wo * K, K};
     std::array<ck::index_t, 2> in_left_pad{1, 1};
     std::array<ck::index_t, 2> in_right_pad{1, 1};
     std::array<ck::index_t, 2> conv_strides{2, 2};
@@ -96,26 +97,27 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < op_ptrs.size(); ++i)
     {
-        auto& op_ptr      = op_ptrs[i];
-        auto argument_ptr = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
-                                                        wei.GetDeviceBuffer(),
-                                                        {},
-                                                        out.GetDeviceBuffer(),
-                                                        in_lengths,
-                                                        in_strides,
-                                                        weight_lengths,
-                                                        weight_strides,
-                                                        {},
-                                                        {},
-                                                        out_lengths,
-                                                        out_strides,
-                                                        conv_strides,
-                                                        conv_dilations,
-                                                        in_left_pad,
-                                                        in_right_pad,
-                                                        PassThrough{},
-                                                        PassThrough{},
-                                                        OutElementOp{0.5f, ActivationOp{}});
+        auto& op_ptr = op_ptrs[i];
+        auto argument_ptr =
+            op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
+                                        wei.GetDeviceBuffer(),
+                                        {},
+                                        out.GetDeviceBuffer(),
+                                        in_lengths,
+                                        in_strides,
+                                        weight_lengths,
+                                        weight_strides,
+                                        {},
+                                        {},
+                                        out_lengths,
+                                        out_strides,
+                                        conv_strides,
+                                        conv_dilations,
+                                        in_left_pad,
+                                        in_right_pad,
+                                        PassThrough{},
+                                        PassThrough{},
+                                        OutElementOp{requant_scale, ActivationOp{}});
 
         auto invoker_ptr    = op_ptr->MakeInvokerPointer();
         std::string op_name = op_ptr->GetTypeString();
@@ -150,33 +152,34 @@ int main(int argc, char* argv[])
         }
     }
 
-    std::cout << "Best Perf: " << std::setw(10) << best_avg_time << " ms, " << best_tflops
-              << " TFlops, " << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
-
-    // run the best intance
+    if(best_op_id != -1)
     {
+        std::cout << "Best Perf: " << std::setw(10) << best_avg_time << " ms, " << best_tflops
+                  << " TFlops, " << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
+
         auto& op_ptr = op_ptrs[best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
                   << std::endl;
-        auto argument_ptr = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
-                                                        wei.GetDeviceBuffer(),
-                                                        {},
-                                                        out.GetDeviceBuffer(),
-                                                        in_lengths,
-                                                        in_strides,
-                                                        weight_lengths,
-                                                        weight_strides,
-                                                        {},
-                                                        {},
-                                                        out_lengths,
-                                                        out_strides,
-                                                        conv_strides,
-                                                        conv_dilations,
-                                                        in_left_pad,
-                                                        in_right_pad,
-                                                        PassThrough{},
-                                                        PassThrough{},
-                                                        OutElementOp{0.5f, ActivationOp{}});
+        auto argument_ptr =
+            op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
+                                        wei.GetDeviceBuffer(),
+                                        {},
+                                        out.GetDeviceBuffer(),
+                                        in_lengths,
+                                        in_strides,
+                                        weight_lengths,
+                                        weight_strides,
+                                        {},
+                                        {},
+                                        out_lengths,
+                                        out_strides,
+                                        conv_strides,
+                                        conv_dilations,
+                                        in_left_pad,
+                                        in_right_pad,
+                                        PassThrough{},
+                                        PassThrough{},
+                                        OutElementOp{requant_scale, ActivationOp{}});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

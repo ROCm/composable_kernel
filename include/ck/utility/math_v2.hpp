@@ -92,6 +92,15 @@ static inline __host__ float sqrt(float x) { return std::sqrt(x); };
 
 static inline __host__ double sqrt(double x) { return std::sqrt(x); };
 
+static inline __host__ half_t tanh(half_t x)
+{
+    return static_cast<half_t>(std::tanh(static_cast<float>(x)));
+};
+
+static inline __host__ float tanh(float x) { return std::tanh(x); };
+
+static inline __host__ double tanh(double x) { return std::tanh(x); };
+
 // math functions for the HIP kernel,  some are implemented by calling hip builtin functions
 
 static inline __device__ float abs(float x) { return ::abs(x); };
@@ -171,6 +180,15 @@ static inline __device__ half_t sqrt(half_t x)
 static inline __device__ float sqrt(float x) { return __builtin_amdgcn_sqrtf(x); };
 
 static inline __device__ double sqrt(double x) { return __builtin_amdgcn_sqrt(x); };
+
+static inline __device__ half_t tanh(half_t x)
+{
+    return static_cast<half_t>(::tanhf(static_cast<float>(x)));
+};
+
+static inline __device__ float tanh(float x) { return ::tanhf(x); };
+
+static inline __device__ double tanh(double x) { return ::tanh(x); };
 
 } // namespace math
 } // namespace ck

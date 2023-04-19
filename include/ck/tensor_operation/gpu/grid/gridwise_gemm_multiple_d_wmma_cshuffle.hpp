@@ -54,7 +54,8 @@ __global__ void
             const Block2CTileMap block_2_ctile_map,
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__) || defined(__gfx1101__) || \
+    defined(__gfx1102__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -147,7 +148,8 @@ __global__ void
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
             const Block2CTileMap block_2_etile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__) || defined(__gfx1101__) || \
+    defined(__gfx1102__))
     // printf("entry kernel launch");
     __shared__ char p_shared[GridwiseOp::GetSharedMemoryNumberOfByte()];
 
@@ -242,7 +244,8 @@ __global__ void
             const CDEElementwiseOperation cde_element_op,
             const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__) || defined(__gfx1101__) || \
+    defined(__gfx1102__))
     __shared__ char p_shared[GridwiseOp::GetSharedMemoryNumberOfByte()];
 
     GridwiseOp::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -271,7 +274,7 @@ __global__ void
     ignore = b_element_op;
     ignore = cde_element_op;
     ignore = block_2_ctile_map;
-#endif // end of if (defined(__gfx1100__))
+#endif // end of if (defined(__gfx1100__ ))
 }
 
 template < // DataType Family
@@ -428,6 +431,9 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
         constexpr auto b_block_desc_k0perblock_nperblock_k1 =
             GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
 
+        constexpr auto cshuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
+            GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat();
+
         constexpr auto max_lds_align = K1;
 
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
@@ -436,8 +442,13 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
         constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
             b_block_desc_k0perblock_nperblock_k1.GetElementSpaceSize(), max_lds_align);
 
-        return (a_block_space_size_aligned * sizeof(ADataType) +
-                b_block_space_size_aligned * sizeof(BDataType));
+        constexpr auto c_block_space_size_aligned = math::integer_least_multiple(
+            cshuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat.GetElementSpaceSize(),
+            max_lds_align);
+
+        return math::max((a_block_space_size_aligned * sizeof(ADataType) +
+                          b_block_space_size_aligned * sizeof(BDataType)),
+                         c_block_space_size_aligned * sizeof(CShuffleDataType));
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -673,7 +684,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
         constexpr auto KPack = math::integer_least_multiple(K1, WmmaK);
 
         auto blockwise_gemm =
-            BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle_FIFO<BlockSize,
+            BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle<BlockSize,
                                                          ADataType,
                                                          BDataType,
                                                          AccDataType,
@@ -716,7 +727,6 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
                                                           c_thread_buf,
                                                           K0BlockMainLoop);
 /*******************************************************************************/
-        //printf("safe 1");
         // write out to C, implement shuffle
         {
             constexpr auto c_thread_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs =  
