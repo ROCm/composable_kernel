@@ -349,7 +349,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         }
         static_ford<SliceLengths>{}([&](auto idx) {
             // convert from SrcData to DstData here
-            ck::tensor_operation::element_wise::UnaryConvert{}(dst_thread_scratch_(idx), src_thread_scratch_tuple_[thread_scratch_id][idx]);
+            ck::tensor_operation::element_wise::UnaryConvert{}(
+                dst_thread_scratch_(idx), src_thread_scratch_tuple_[thread_scratch_id][idx]);
         });
 #endif
     }
