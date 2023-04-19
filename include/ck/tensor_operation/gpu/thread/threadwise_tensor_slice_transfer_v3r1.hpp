@@ -9,6 +9,8 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor/static_tensor.hpp"
 
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
+
 namespace ck {
 
 namespace detail {
@@ -318,7 +320,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 constexpr auto data_idx_seq = generate_sequence_v2(
                     [&](auto i) { return Number<data_idx[i]>{}; }, Number<nDim>{});
 
-                // TODO type_convert is not used yet!!!!!
                 using src_vector_t = vector_type_maker_t<SrcData, SrcScalarPerVector>;
                 using dst_vector_t = vector_type_maker_t<DstData, DstScalarPerVector>;
 
@@ -342,19 +343,14 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                     Number<num_dst_vector>{});
 
                 // do data transpose
-                // TODO type_convert is not used yet!!!!!
                 transpose_vectors<SrcData, DstScalarPerVector, SrcScalarPerVector>{}(
                     src_vector_refs, dst_vector_refs);
             });
         }
-        else
-        {
-            static_ford<SliceLengths>{}([&](auto idx) {
-                // convert from SrcData to DstData here
-                dst_thread_scratch_(idx) =
-                    type_convert<DstData>(src_thread_scratch_tuple_[thread_scratch_id][idx]);
-            });
-        }
+        static_ford<SliceLengths>{}([&](auto idx) {
+            // convert from SrcData to DstData here
+            ck::tensor_operation::element_wise::UnaryConvert{}(dst_thread_scratch_(idx), src_thread_scratch_tuple_[thread_scratch_id][idx]);
+        });
 #endif
     }
 
