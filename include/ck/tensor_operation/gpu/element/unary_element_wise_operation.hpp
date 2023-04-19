@@ -89,15 +89,48 @@ struct UnaryConvert
 struct UnaryConvertPrecision
 {
     template <typename Y, typename X>
-    __host__ __device__ void operator()(Y& y, const X& x) const
+    __host__ __device__ void operator()(Y& y, const X& x) const;
+
+    template <>
+    __host__ __device__ void operator()<float, float>(float& y, const float& x) const
     {
-        y = type_convert<Y>(x);
+        y = type_convert_precision<float>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
+    {
+        y = type_convert_precision<half_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x) const
+    {
+        y = type_convert_precision<bhalf_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<double, double>(double& y, const double& x) const
+    {
+        y = type_convert_precision<double>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<int8_t, int8_t>(int8_t& y, const int8_t& x) const
+    {
+        y = type_convert_precision<int8_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<bhalf_t, half_t>(bhalf_t& y, const half_t& x) const
+    {
+        y = type_convert_precision<bhalf_t>(x);
     }
 
     template <>
     __host__ __device__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
     {
-        y = type_convert_bf16_rtn(x);
+        y = type_convert_precision<bhalf_t>(x);
     }
 };
 

@@ -6,10 +6,9 @@
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor/static_tensor.hpp"
-
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
 namespace ck {
 
@@ -348,9 +347,14 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             });
         }
         static_ford<SliceLengths>{}([&](auto idx) {
+            // pick the right conversion method
+#if CK_EXPERIMENTAL_CONVERT_PRECISION
+            using UnaryConvert = ck::tensor_operation::element_wise::UnaryConvertPrecision;
+#else
+            using UnaryConvert = ck::tensor_operation::element_wise::UnaryConvert;
+#endif
             // convert from SrcData to DstData here
-            ck::tensor_operation::element_wise::UnaryConvert{}(
-                dst_thread_scratch_(idx), src_thread_scratch_tuple_[thread_scratch_id][idx]);
+            UnaryConvert{}(dst_thread_scratch_(idx), src_thread_scratch_tuple_[thread_scratch_id][idx]);
         });
 #endif
     }

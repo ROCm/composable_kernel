@@ -173,6 +173,12 @@
 #define CK_WORKAROUND_DENORM_FIX 0
 #endif
 
+// flag to enable high precision data conversion
+// 0 - fast, 1 - high precision
+#ifndef CK_EXPERIMENTAL_CONVERT_PRECISION
+#define CK_EXPERIMENTAL_CONVERT_PRECISION 1
+#endif
+
 namespace ck {
 
 enum struct InMemoryDataOperationEnum
