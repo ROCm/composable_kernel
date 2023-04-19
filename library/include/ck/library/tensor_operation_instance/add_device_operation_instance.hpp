@@ -29,6 +29,8 @@ void add_device_operation_instances(std::vector<std::unique_ptr<BaseOp>>& op_ins
     });
 }
 
+template <typename DeviceOp, typename Tag = void>
+struct DeviceOperationInstanceCreator;
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

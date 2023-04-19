@@ -14,8 +14,6 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 namespace fp16_data {
-using F16 = ck::half_t;
-using F32 = float;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -65,40 +63,53 @@ using device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo
         // clang-format on
         >;
 } // namespace fp16_data
-template <
-    index_t NumDimG,
-    index_t NumDimM,
-    index_t NumDimN,
-    index_t NumDimK,
-    index_t NumDimO,
-    typename ADataType,
-    typename B0DataType,
-    typename B1DataType,
-    typename CDataType,
-    typename Acc0BiasDataType,
-    typename Acc1BiasDataType,
-    typename AElementwiseOperation,
-    typename B0ElementwiseOperation,
-    typename C0DEElementwiseOperation,
-    typename B1ElementwiseOperation,
-    typename C1DEElementwiseOperation,
-    MaskingSpecialization MaskingSpec,
-    typename enable_if<is_same<remove_cvref_t<ADataType>, ck::half_t>::value, bool>::type = false>
-auto create_device_instances()
+template <index_t NumDimG,
+          index_t NumDimM,
+          index_t NumDimN,
+          index_t NumDimK,
+          index_t NumDimO,
+          typename Acc0BiasDataType,
+          typename Acc1BiasDataType,
+          typename AElementwiseOperation,
+          typename B0ElementwiseOperation,
+          typename C0DEElementwiseOperation,
+          typename B1ElementwiseOperation,
+          typename C1DEElementwiseOperation,
+          MaskingSpecialization MaskingSpec>
+struct DeviceOperationInstanceCreator<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
+                                                                          NumDimM,
+                                                                          NumDimN,
+                                                                          NumDimK,
+                                                                          NumDimO,
+                                                                          ck::half_t,
+                                                                          ck::half_t,
+                                                                          ck::half_t,
+                                                                          ck::half_t,
+                                                                          Acc0BiasDataType,
+                                                                          Acc1BiasDataType,
+                                                                          AElementwiseOperation,
+                                                                          B0ElementwiseOperation,
+                                                                          C0DEElementwiseOperation,
+                                                                          B1ElementwiseOperation,
+                                                                          C1DEElementwiseOperation,
+                                                                          MaskingSpec>>
 {
-    return fp16_data::
-        device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances<
-            NumDimG,
-            NumDimM,
-            NumDimN,
-            NumDimK,
-            NumDimO,
-            ADataType,
-            F32,
-            Acc0BiasDataType,
-            C0DEElementwiseOperation,
-            MaskingSpec>{};
-}
+    static auto create_device_instances()
+    {
+        return fp16_data::
+            device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances<
+                NumDimG,
+                NumDimM,
+                NumDimN,
+                NumDimK,
+                NumDimO,
+                ck::half_t,
+                float,
+                Acc0BiasDataType,
+                C0DEElementwiseOperation,
+                MaskingSpec>{};
+    }
+};
 
 } // namespace instance
 } // namespace device

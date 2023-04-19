@@ -10,7 +10,6 @@
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 #include "ck/library/tensor_operation_instance/gpu/batched_gemm_softmax_gemm_permute/device_batched_gemm_multiple_d_softmax_gemm_permute_xdl_cshuffle_fp16_gmk_gnk_gno_gmo_instance.hpp"
 #include "ck/library/tensor_operation_instance/gpu/batched_gemm_softmax_gemm_permute/device_batched_gemm_multiple_d_softmax_gemm_permute_xdl_cshuffle_bf16_gmk_gnk_gno_gmo_instance.hpp"
 
@@ -55,24 +54,25 @@ void add_device_instances(
                                                                     C1DEElementwiseOperation,
                                                                     MaskingSpec>>>& instances)
 {
-    add_device_operation_instances(instances,
-                                   create_device_instances<NumDimG,
-                                                           NumDimM,
-                                                           NumDimN,
-                                                           NumDimK,
-                                                           NumDimO,
-                                                           ADataType,
-                                                           B0DataType,
-                                                           B1DataType,
-                                                           CDataType,
-                                                           Acc0BiasDataType,
-                                                           Acc1BiasDataType,
-                                                           AElementwiseOperation,
-                                                           B0ElementwiseOperation,
-                                                           C0DEElementwiseOperation,
-                                                           B1ElementwiseOperation,
-                                                           C1DEElementwiseOperation,
-                                                           MaskingSpec>());
+    using DeviceOp = DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
+                                                         NumDimM,
+                                                         NumDimN,
+                                                         NumDimK,
+                                                         NumDimO,
+                                                         ADataType,
+                                                         B0DataType,
+                                                         B1DataType,
+                                                         CDataType,
+                                                         Acc0BiasDataType,
+                                                         Acc1BiasDataType,
+                                                         AElementwiseOperation,
+                                                         B0ElementwiseOperation,
+                                                         C0DEElementwiseOperation,
+                                                         B1ElementwiseOperation,
+                                                         C1DEElementwiseOperation,
+                                                         MaskingSpec>;
+    add_device_operation_instances(
+        instances, DeviceOperationInstanceCreator<DeviceOp>::create_device_instances());
 }
 } // namespace instance
 } // namespace device
