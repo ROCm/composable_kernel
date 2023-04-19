@@ -1,0 +1,1 @@
+add_executable(src_example_gemm_bias_softmax_gemm_permute gemm_bias_softmax_gemm_permute.cpp)
