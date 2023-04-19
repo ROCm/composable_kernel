@@ -36,7 +36,7 @@
 #elif defined(__gfx1030__) // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
 #elif defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) // for GPU code
-#define CK_BUFFER_RESOURCE_3RD_DWORD 0x10020000
+#define CK_BUFFER_RESOURCE_3RD_DWORD 0x31004000
 #endif
 
 // FMA instruction
@@ -167,6 +167,11 @@
 #define CK_WORKAROUND_SWDEV_388832 1
 // flag to enable (1) or disable (0) the debugging output in some kernels
 #define DEBUG_LOG 0
+
+// denorm test fix, required to work around dissue
+#ifndef CK_WORKAROUND_DENORM_FIX
+#define CK_WORKAROUND_DENORM_FIX 0
+#endif
 
 namespace ck {
 
