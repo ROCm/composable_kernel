@@ -96,12 +96,12 @@ using DeviceGemmInstance =
         256,
         //      Gemm 0
         128, // MPerBlock
-        64, // LPerBlock
-        32,  // KPerBlock
+        64,  // LPerBlock
+        64,  // KPerBlock
         8,   // K1
         //      Gemm 1
         64, // NPerBlock
-        32, // LTilePerBlock
+        64, // LTilePerBlock
         8,  // L1
         16, // MPerWMMA
         16, // LPerWMMA
