@@ -86,10 +86,13 @@ struct UnaryConvert
     }
 };
 
-struct UnaryConvertPrecision : UnaryConvert
+struct UnaryConvertPrecision
 {
     template <typename Y, typename X>
-    __host__ __device__ void operator()(Y& y, const X& x) const;
+    __host__ __device__ void operator()(Y& y, const X& x) const
+    {
+        y = type_convert<Y>(x);
+    }
 
     template <>
     __host__ __device__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
