@@ -13,8 +13,8 @@
 #include "ck/library/tensor_operation_instance/gpu/normalization_swish.hpp"
 
 using XDataType       = ck::half_t;
-using GammaDataType   = ck::half_t;
-using BetaDataType    = ck::half_t;
+using GammaDataType   = float;
+using BetaDataType    = float;
 using YDataType       = ck::half_t;
 using ComputeDataType = float;
 using Swish           = ck::tensor_operation::element_wise::Swish;

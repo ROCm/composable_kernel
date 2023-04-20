@@ -7,4 +7,5 @@ add_instance_library(device_normalization_instance
     device_groupnorm_f32_instance.cpp
     device_groupnorm_swish_f16_instance.cpp
     device_groupnorm_swish_f32_instance.cpp
+    device_groupnorm_swish_f16_f32_f32_f16_instance.cpp
 )
