@@ -29,7 +29,12 @@ void add_device_operation_instances(std::vector<std::unique_ptr<BaseOp>>& op_ins
     });
 }
 
-template <typename DeviceOp, typename Tag = void>
+enum struct ArchitectureEnum
+{
+    Xdl,
+    Dl
+};
+template <typename DeviceOp, ArchitectureEnum Arch = ArchitectureEnum::Xdl>
 struct DeviceOperationInstanceCreator;
 } // namespace instance
 } // namespace device

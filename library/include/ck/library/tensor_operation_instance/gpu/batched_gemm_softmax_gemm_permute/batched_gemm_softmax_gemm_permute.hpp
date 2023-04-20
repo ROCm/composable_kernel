@@ -34,7 +34,8 @@ template <index_t NumDimG,
           typename C0DEElementwiseOperation,
           typename B1ElementwiseOperation,
           typename C1DEElementwiseOperation,
-          MaskingSpecialization MaskingSpec>
+          MaskingSpecialization MaskingSpec,
+          ArchitectureEnum Arch = ArchitectureEnum::Xdl>
 void add_device_instances(
     std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
                                                                     NumDimM,
@@ -72,7 +73,7 @@ void add_device_instances(
                                                          C1DEElementwiseOperation,
                                                          MaskingSpec>;
     add_device_operation_instances(
-        instances, DeviceOperationInstanceCreator<DeviceOp>::create_device_instances());
+        instances, DeviceOperationInstanceCreator<DeviceOp, Arch>::create_device_instances());
 }
 } // namespace instance
 } // namespace device

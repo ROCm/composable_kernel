@@ -92,7 +92,8 @@ struct DeviceOperationInstanceCreator<DeviceBatchedGemmSoftmaxGemmPermute<NumDim
                                                                           C0DEElementwiseOperation,
                                                                           B1ElementwiseOperation,
                                                                           C1DEElementwiseOperation,
-                                                                          MaskingSpec>>
+                                                                          MaskingSpec>,
+                                      ArchitectureEnum::Xdl>
 {
     static auto create_device_instances()
     {
