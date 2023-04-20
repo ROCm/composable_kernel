@@ -42,15 +42,16 @@ using DeviceConvFwdInstance =
         OutputLayout<NDimSpatial>,
         InKernelDataType,
         WeiKernelDataType,
-        ck::Tuple<BiasKernelDataType, ResidualKernelDataType>,
-        OutKernelDataType,
         AccDataType,
         CShuffleDataType,
+        ck::Tuple<BiasKernelDataType, ResidualKernelDataType>,
+        OutKernelDataType,
         InElementOp,
         WeiElementOp,
         OutElementOp,
         ConvSpec,    // ConvForwardSpecialization
         GemmSpec,    // GemmSpecialization
+        1,           // Prefetch stage
         256,         // BlockSize
         128,         // MPerBlock
         128,         // NPerBlock
@@ -60,19 +61,19 @@ using DeviceConvFwdInstance =
         16,          // NPerWMMA
         4,           // MRepeat
         2,           // NRepeat
-        S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
+        S<4, 8, 8>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
         2,           // ABlockTransferSrcVectorDim
-        8,           // ABlockTransferSrcScalarPerVector
-        8,           // ABlockTransferDstScalarPerVector_AK1
+        1,           // ABlockTransferSrcScalarPerVector
+        1,           // ABlockTransferDstScalarPerVector_AK1
         true,        // ABlockLdsExtraM
-        S<4, 64, 1>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
+        S<4, 8, 8>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
         S<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // BBlockTransferSrcAccessOrder
         2,           // BBlockTransferSrcVectorDim
-        8,           // BBlockTransferSrcScalarPerVector
-        8,           // BBlockTransferDstScalarPerVector_BK1
+        1,           // BBlockTransferSrcScalarPerVector
+        1,           // BBlockTransferDstScalarPerVector_BK1
         true,        // BBlockLdsExtraN
         4,
         2,

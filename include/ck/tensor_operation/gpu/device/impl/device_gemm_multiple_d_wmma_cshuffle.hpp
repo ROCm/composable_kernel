@@ -28,14 +28,15 @@ template <typename ALayout,
           typename ELayout,
           typename ADataType,
           typename BDataType,
-          typename DsDataType,
-          typename EDataType,
           typename AccDataType,
           typename CShuffleDataType,
+          typename DsDataType,
+          typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
           GemmSpecialization GemmSpec,
+          ck::index_t NumPrefetch,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -63,7 +64,6 @@ template <typename ALayout,
           index_t CShuffleNRepeatPerShuffle,
           typename CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEShuffleBlockTransferScalarPerVector_NPerBlock,
-          ck::index_t NumPrefetch         = 1,
           ck::LoopScheduler LoopSched     = make_default_loop_scheduler(),
           ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
 struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
@@ -94,12 +94,17 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
     static constexpr auto WmmaK  = 16;
 
-    static constexpr auto AEnableLds = NWaves == 1 ? false : true;
-    static constexpr auto BEnableLds = MWaves == 1 ? false : true;
+    static constexpr auto AEnableLds_auto = NWaves == 1 ? false : true;
+    static constexpr auto BEnableLds_auto = MWaves == 1 ? false : true;
 
-    // Force enable LDS if uncommented following
-    // AEnableLds = true;
-    // BEnableLds = true;
+    // If true, LDS is used unconditionally
+    static constexpr auto AEnableLds_manu = false;
+    // Bug: blocksize 128, Tile 128x128x64, Repeat 8x2 Failure
+    // Bug: gemm.TileDesc(64, 32, 64, 64, 8, 0, 16, 16, 2, 2), failed
+    static constexpr auto BEnableLds_manu = true;
+
+    static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu;
+    static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu;
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
@@ -744,7 +749,11 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
             << MRepeat << ", "
             << NRepeat
             << ">"
-            << " NumPrefetch: "
+            << " AEnableLds: "
+            << AEnableLds << ", "
+            << "BEnableLds: "
+            << BEnableLds << ", "
+            << "NumPrefetch: "
             << NumPrefetch << ", "
             << "LoopScheduler: "
             << LoopSchedToString[LoopSched] << ", "

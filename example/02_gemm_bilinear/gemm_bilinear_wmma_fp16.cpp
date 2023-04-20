@@ -72,41 +72,42 @@ using DeviceOpInstance =
                                                                     ELayout,
                                                                     ADataType,
                                                                     BDataType,
-                                                                    ck::Tuple<DDataType>,
-                                                                    EDataType,
                                                                     AccDataType,
                                                                     CShuffleDataType,
+                                                                    ck::Tuple<DDataType>,
+                                                                    EDataType,
                                                                     AElementOp,
                                                                     BElementOp,
                                                                     CDEElementOp,
                                                                     GemmSpec,
-                                                                    256,
-                                                                    128,
-                                                                    128,
+                                                                    1,
+                                                                    64,
                                                                     32,
+                                                                    64,
+                                                                    64,
                                                                     8,
                                                                     16,
                                                                     16,
+                                                                    2,
+                                                                    2,
+                                                                    S<4, 16, 1>,
+                                                                    S<1, 0, 2>,
+                                                                    S<1, 0, 2>,
+                                                                    2,
                                                                     4,
-                                                                    2,
-                                                                    S<4, 64, 1>,
-                                                                    S<1, 0, 2>,
-                                                                    S<1, 0, 2>,
-                                                                    2,
-                                                                    8,
-                                                                    8,
+                                                                    4,
                                                                     true,
-                                                                    S<4, 64, 1>,
+                                                                    S<4, 16, 1>,
                                                                     S<1, 0, 2>,
                                                                     S<1, 0, 2>,
                                                                     2,
-                                                                    8,
-                                                                    8,
+                                                                    4,
+                                                                    4,
                                                                     true,
                                                                     1,
                                                                     1,
-                                                                    S<1, 32, 1, 8>,
-                                                                    8>;
+                                                                    S<1, 2, 1, 32>,
+                                                                    1>;
 
 int main(int argc, char* argv[])
 {
@@ -264,7 +265,7 @@ int main(int argc, char* argv[])
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
-              << std::endl;
+              << device_op.GetTypeString() << std::endl;
 
     e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 

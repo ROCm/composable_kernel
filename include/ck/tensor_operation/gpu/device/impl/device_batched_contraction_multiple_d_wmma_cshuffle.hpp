@@ -62,10 +62,10 @@ template <index_t NumDimG,
           index_t NumDimK,
           typename ADataType,
           typename BDataType,
-          typename DsDataType,
-          typename EDataType,
           typename AccDataType,
           typename CShuffleDataType,
+          typename DsDataType,
+          typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
@@ -73,6 +73,7 @@ template <index_t NumDimG,
           TensorSpecialization ASpec,
           TensorSpecialization BSpec,
           TensorSpecialization DESpec,
+          ck::index_t NumPrefetch,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -100,7 +101,6 @@ template <index_t NumDimG,
           index_t CShuffleNRepeatPerShuffle,
           typename CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEShuffleBlockTransferScalarPerVector_NPerBlock,
-          ck::index_t NumPrefetch         = 1,
           ck::LoopScheduler LoopSched     = make_default_loop_scheduler(),
           ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
 struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
@@ -132,8 +132,16 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
     static constexpr auto WmmaK  = 16;
 
-    static constexpr auto AEnableLds = NWaves == 1 ? false : true;
-    static constexpr auto BEnableLds = MWaves == 1 ? false : true;
+    static constexpr auto AEnableLds_auto = NWaves == 1 ? false : true;
+    static constexpr auto BEnableLds_auto = MWaves == 1 ? false : true;
+
+    // If true, LDS is used unconditionally
+    static constexpr auto AEnableLds_manu = false;
+    // Bug: blocksize 128, Tile 128x128x64, Repeat 8x2 Failure
+    static constexpr auto BEnableLds_manu = true;
+
+    static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu;
+    static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu;
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};

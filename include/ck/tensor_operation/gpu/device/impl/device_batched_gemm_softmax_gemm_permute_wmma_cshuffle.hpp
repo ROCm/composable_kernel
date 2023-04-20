@@ -143,9 +143,17 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
     static constexpr auto LWaves = LPerBlock / (LRepeat * LPerWmma);
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
 
-    static constexpr auto AEnableLds  = LWaves == 1 ? false : true;
-    static constexpr auto B0EnableLds = MWaves == 1 ? false : true;
-    static constexpr auto B1EnableLds = MWaves == 1 ? false : true;
+    static constexpr auto AEnableLds_auto  = LWaves == 1 ? false : true;
+    static constexpr auto B0EnableLds_auto = MWaves == 1 ? false : true;
+    static constexpr auto B1EnableLds_auto = MWaves == 1 ? false : true;
+
+    static constexpr auto AEnableLds_manu  = true;
+    static constexpr auto B0EnableLds_manu = true;
+    static constexpr auto B1EnableLds_manu = true;
+
+    static constexpr auto AEnableLds  = AEnableLds_auto || AEnableLds_manu;
+    static constexpr auto B0EnableLds = B0EnableLds_auto || B0EnableLds_manu;
+    static constexpr auto B1EnableLds = B1EnableLds_auto || B1EnableLds_manu;
 
     using Transform = TransformBatchedContractionContractionToBatchedGemmGemm<
         Sequence<NumDimG, NumDimM, NumDimL, NumDimK, NumDimN>,

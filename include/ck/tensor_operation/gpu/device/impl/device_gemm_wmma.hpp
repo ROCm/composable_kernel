@@ -34,6 +34,7 @@ template <typename ALayout,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
+          ck::index_t NumPrefetch,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -61,7 +62,6 @@ template <typename ALayout,
           index_t CShuffleNRepeatPerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          ck::index_t NumPrefetch         = 1,
           ck::LoopScheduler LoopSched     = make_default_loop_scheduler(),
           ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
 struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
@@ -92,7 +92,8 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
 
     // If true, LDS is used unconditionally
     static constexpr auto AEnableLds_manu = false;
-    static constexpr auto BEnableLds_manu = false;
+    // Bug: blocksize 128, Tile 128x128x64, Repeat 8x2 Failure
+    static constexpr auto BEnableLds_manu = true;
 
     static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu;
     static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu;
