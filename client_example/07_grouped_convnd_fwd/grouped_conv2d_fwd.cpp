@@ -24,15 +24,15 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr ck::index_t NumDimSpatial = 2;
 static constexpr ck::index_t G             = 32;
-static constexpr ck::index_t N             = 256;
-static constexpr ck::index_t K             = 64;
-static constexpr ck::index_t C             = 32;
-static constexpr ck::index_t Y             = 3;
-static constexpr ck::index_t X             = 3;
-static constexpr ck::index_t Hi            = 28;
-static constexpr ck::index_t Wi            = 28;
-static constexpr ck::index_t Ho            = 28;
-static constexpr ck::index_t Wo            = 28;
+static constexpr ck::index_t N             = 256; // batch size
+static constexpr ck::index_t K             = 64;  // output channel
+static constexpr ck::index_t C             = 32;  // input channel (per group)
+static constexpr ck::index_t Y             = 3;   // filter H
+static constexpr ck::index_t X             = 3;   // filter W
+static constexpr ck::index_t Hi            = 28;  // input H
+static constexpr ck::index_t Wi            = 28;  // input W
+static constexpr ck::index_t Ho            = 28;  // output H
+static constexpr ck::index_t Wo            = 28;  // output W
 
 struct SimpleDeviceMem
 {
