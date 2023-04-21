@@ -266,7 +266,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
     // we convert fp16->fp32->bf16 and execute bf16 mfma instruction
     // when mfma if fixed, remove this section and update
     // FloatABAdjusted -> FloatAB throughout this file
-#if defined(__gfx90a__)
+#if CK_WORKAROUND_DENORM_FIX && defined(__gfx90a__)
     using FloatABAdjusted = conditional_t<is_same_v<FloatAB, ck::half_t>, ck::bhalf_t, FloatAB>;
 #else
     using FloatABAdjusted = FloatAB;

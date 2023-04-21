@@ -172,6 +172,11 @@
 // flag to enable (1) or disable (0) the debugging output in some kernels
 #define DEBUG_LOG 0
 
+// denorm test fix, required to work around dissue
+#ifndef CK_WORKAROUND_DENORM_FIX
+#define CK_WORKAROUND_DENORM_FIX 0
+#endif
+
 namespace ck {
 
 enum struct InMemoryDataOperationEnum
