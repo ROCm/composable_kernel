@@ -913,6 +913,11 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                    0),
                   tensor_operation::element_wise::PassThrough{}};
 
+        if constexpr(Deterministic)
+        {
+            block_sync_lds();
+        }
+        
         do
         {
             auto n_block_data_idx_on_grid =

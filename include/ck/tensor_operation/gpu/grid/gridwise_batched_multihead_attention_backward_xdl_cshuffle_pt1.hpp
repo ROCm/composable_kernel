@@ -1789,6 +1789,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
         auto y_dot_ygrad_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatGemmAcc>(
             y_dot_ygrad_thread_desc_mblock_mrepeat_mwave_mperxdl.GetElementSpaceSize());
 
+        if constexpr(Deterministic)
+        {
+            block_sync_lds();
+        }
+
         // load ygrad
         gemm_tile_ygrad_blockwise_copy.Run(ygrad_grid_desc_o0_m_o1,
                                            ygrad_grid_buf,

@@ -1698,6 +1698,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
         auto y_dot_ygrad_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatGemmAcc>(
             y_dot_ygrad_thread_desc_mblock_mrepeat_mwave_mperxdl.GetElementSpaceSize());
 
+        if constexpr(Deterministic)
+        {
+            block_sync_lds();
+        }
+
         //
         // calculate Y dot dY
         //
