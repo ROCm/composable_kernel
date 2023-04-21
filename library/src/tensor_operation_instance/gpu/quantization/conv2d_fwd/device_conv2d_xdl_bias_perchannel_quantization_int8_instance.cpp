@@ -74,6 +74,41 @@ void add_device_conv2d_xdl_bias_relu_perchannel_quantization_int8_instances(
                                                                             ConvFwd1x1S1P0,
                                                                             8>{});
 }
+
+void add_device_conv2d_xdl_bias_tanh_perchannel_quantization_int8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<NDimSpatial,
+                                                              GNHWC,
+                                                              GKYXC,
+                                                              GK_GK_Tuple,
+                                                              GNHWK,
+                                                              int8_t,
+                                                              int8_t,
+                                                              I32_F32_Tuple,
+                                                              int8_t,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              Add_Mul2_TanH_Mul_Clamp>>>& instances)
+{
+    add_device_operation_instances(instances,
+                                   device_grouped_conv2d_xdl_int8_instances<GK_GK_Tuple,
+                                                                            I32_F32_Tuple,
+                                                                            Add_Mul2_TanH_Mul_Clamp,
+                                                                            ConvFwdDefault,
+                                                                            8>{});
+    add_device_operation_instances(instances,
+                                   device_grouped_conv2d_xdl_int8_instances<GK_GK_Tuple,
+                                                                            I32_F32_Tuple,
+                                                                            Add_Mul2_TanH_Mul_Clamp,
+                                                                            ConvFwd1x1P0,
+                                                                            8>{});
+    add_device_operation_instances(instances,
+                                   device_grouped_conv2d_xdl_int8_instances<GK_GK_Tuple,
+                                                                            I32_F32_Tuple,
+                                                                            Add_Mul2_TanH_Mul_Clamp,
+                                                                            ConvFwd1x1S1P0,
+                                                                            8>{});
+}
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
