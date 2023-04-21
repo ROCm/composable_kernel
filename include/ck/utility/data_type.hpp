@@ -964,8 +964,17 @@ inline __host__ __device__ constexpr float type_convert<float, bhalf_t>(bhalf_t 
     return u.fp32;
 }
 
+// Convert X to Y
+template <typename Y, typename X>
+__host__ __device__ constexpr Y type_convert_sp(X x)
+{
+    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
+
+    return static_cast<Y>(x);
+}
+
 template <>
-inline __host__ __device__ constexpr int type_convert<int, float>(float x)
+inline __host__ __device__ constexpr int type_convert_sp<int, float>(float x)
 {
     union
     {
@@ -977,7 +986,7 @@ inline __host__ __device__ constexpr int type_convert<int, float>(float x)
 }
 
 template <>
-inline __host__ __device__ constexpr float type_convert<float, int>(int x)
+inline __host__ __device__ constexpr float type_convert_sp<float, int>(int x)
 {
     union
     {
@@ -989,7 +998,7 @@ inline __host__ __device__ constexpr float type_convert<float, int>(int x)
 }
 
 template <>
-inline __host__ __device__ constexpr int type_convert<int, half_t>(half_t x)
+inline __host__ __device__ constexpr int type_convert_sp<int, half_t>(half_t x)
 {
     union
     {
@@ -1001,7 +1010,7 @@ inline __host__ __device__ constexpr int type_convert<int, half_t>(half_t x)
 }
 
 template <>
-inline __host__ __device__ constexpr half_t type_convert<half_t, int>(int x)
+inline __host__ __device__ constexpr half_t type_convert_sp<half_t, int>(int x)
 {
     union
     {

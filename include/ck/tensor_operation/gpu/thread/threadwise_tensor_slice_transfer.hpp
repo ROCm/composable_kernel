@@ -1407,32 +1407,32 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
                 if constexpr(IntraRowSwizzlePerm)
                 {
                     temp = __builtin_amdgcn_permlane16(
-                        temp, type_convert<int>(v_this_row), 0xb3a29180, 0xf7e6d5c4, 1, 0);
-                    v_this_row = type_convert<SrcData>(temp);
+                        temp, type_convert_sp<int>(v_this_row), 0xb3a29180, 0xf7e6d5c4, 1, 0);
+                    v_this_row = type_convert_sp<SrcData>(temp);
                 }
 
                 // apply inter-row permute.
                 temp           = __builtin_amdgcn_permlanex16(temp,
-                                                    type_convert<int>(v_this_row),
+                                                    type_convert_sp<int>(v_this_row),
                                                     LowEightRowlaneIdx,
                                                     HighEightRowLaneIdx,
                                                     1,
                                                     0);
-                v_theother_row = type_convert<SrcData>(temp);
+                v_theother_row = type_convert_sp<SrcData>(temp);
 
                 if(get_thread_local_1d_id() % 32 < 16)
                 {
                     // apply type convert
-                    dst_buf(Number<dst_offset>{}) = type_convert<DstData>(v_this_row);
+                    dst_buf(Number<dst_offset>{}) = type_convert_sp<DstData>(v_this_row);
                     dst_buf(Number<dst_offset + DstScalarPerVector>{}) =
-                        type_convert<DstData>(v_theother_row);
+                        type_convert_sp<DstData>(v_theother_row);
                 }
                 else
                 {
                     // apply type convert
                     dst_buf(Number<dst_offset + DstScalarPerVector>{}) =
-                        type_convert<DstData>(v_this_row);
-                    dst_buf(Number<dst_offset>{}) = type_convert<DstData>(v_theother_row);
+                        type_convert_sp<DstData>(v_this_row);
+                    dst_buf(Number<dst_offset>{}) = type_convert_sp<DstData>(v_theother_row);
                 }
             });
         });

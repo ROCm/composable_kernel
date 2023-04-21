@@ -77,12 +77,12 @@ using DeviceGemmInstance =
         ADataType,
         B0DataType,
         B1DataType,
+        CDataType,
         Acc0BiasDataType,
         Acc0DataType,
         Acc1BiasDataType,
         Acc1DataType,
         CShuffleDataType,
-        CDataType,
         AElementOp,
         B0ElementOp,
         Acc0ElementOp,
@@ -93,6 +93,7 @@ using DeviceGemmInstance =
         TensorSpecB0,
         TensorSpecB1,
         TensorSpecC,
+        1,
         256,
         //      Gemm 0
         128, // MPerBlock

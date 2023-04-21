@@ -34,12 +34,12 @@ template <index_t NumDimG,
           typename ADataType,
           typename B0DataType,
           typename B1DataType,
+          typename CDataType,
           typename Acc0BiasDataType,
           typename Acc0DataType,
           typename Acc1BiasDataType,
           typename Acc1DataType,
           typename CShuffleDataType,
-          typename CDataType,
           typename AElementwiseOperation,
           typename B0ElementwiseOperation,
           typename AccElementwiseOperation,
@@ -50,6 +50,7 @@ template <index_t NumDimG,
           TensorSpecialization B0Spec,
           TensorSpecialization B1Spec,
           TensorSpecialization CSpec,
+          ck::index_t NumPrefetch,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t LPerBlock,
@@ -90,7 +91,6 @@ template <index_t NumDimG,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           MaskingSpecialization MaskingSpec,
-          ck::index_t NumPrefetch         = 1,
           ck::LoopScheduler LoopSched     = make_default_loop_scheduler(),
           ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
 struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
@@ -147,7 +147,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
     static constexpr auto B0EnableLds_auto = MWaves == 1 ? false : true;
     static constexpr auto B1EnableLds_auto = MWaves == 1 ? false : true;
 
-    static constexpr auto AEnableLds_manu  = true;
+    static constexpr auto AEnableLds_manu  = false;
     static constexpr auto B0EnableLds_manu = true;
     static constexpr auto B1EnableLds_manu = true;
 

@@ -714,13 +714,8 @@ struct GridwiseGemmMultipleD_Wmma
 
         const auto MBlock = M / MPerBlock;
         const auto NBlock = N / NPerBlock;
-
         const auto e_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
             e_grid_desc_m_n,
-            make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{})),
-                       make_unmerge_transform(make_tuple(NBlock, Number<NPerBlock>{}))),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
 
         return e_grid_desc_mblock_mperblock_nblock_nperblock;
     }
