@@ -35,25 +35,25 @@ template <index_t NumDimG,
           typename B1ElementwiseOperation,
           typename C1DEElementwiseOperation,
           MaskingSpecialization MaskingSpec,
-          ArchitectureEnum Arch = ArchitectureEnum::Xdl>
-void add_device_instances(
-    std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
-                                                                    NumDimM,
-                                                                    NumDimN,
-                                                                    NumDimK,
-                                                                    NumDimO,
-                                                                    ADataType,
-                                                                    B0DataType,
-                                                                    B1DataType,
-                                                                    CDataType,
-                                                                    Acc0BiasDataType,
-                                                                    Acc1BiasDataType,
-                                                                    AElementwiseOperation,
-                                                                    B0ElementwiseOperation,
-                                                                    C0DEElementwiseOperation,
-                                                                    B1ElementwiseOperation,
-                                                                    C1DEElementwiseOperation,
-                                                                    MaskingSpec>>>& instances)
+          ArchitectureEnum Arch>
+struct DeviceOperationInstanceBuilder<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
+                                                                          NumDimM,
+                                                                          NumDimN,
+                                                                          NumDimK,
+                                                                          NumDimO,
+                                                                          ADataType,
+                                                                          B0DataType,
+                                                                          B1DataType,
+                                                                          CDataType,
+                                                                          Acc0BiasDataType,
+                                                                          Acc1BiasDataType,
+                                                                          AElementwiseOperation,
+                                                                          B0ElementwiseOperation,
+                                                                          C0DEElementwiseOperation,
+                                                                          B1ElementwiseOperation,
+                                                                          C1DEElementwiseOperation,
+                                                                          MaskingSpec>,
+                                      Arch>
 {
     using DeviceOp = DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
                                                          NumDimM,
@@ -72,9 +72,13 @@ void add_device_instances(
                                                          B1ElementwiseOperation,
                                                          C1DEElementwiseOperation,
                                                          MaskingSpec>;
-    add_device_operation_instances(
-        instances, DeviceOperationInstanceCreator<DeviceOp, Arch>::create_device_instances());
-}
+    static void add_device_instances(std::vector<std::unique_ptr<DeviceOp>>& instances)
+    {
+        add_device_operation_instances(
+            instances, DeviceOperationInstanceCreator<DeviceOp, Arch>::create_device_instances());
+    }
+};
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

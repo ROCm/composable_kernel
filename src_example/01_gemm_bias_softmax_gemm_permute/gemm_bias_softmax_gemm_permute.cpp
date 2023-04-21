@@ -135,25 +135,10 @@ int main()
 
     // get device op instances
     std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-    ck::tensor_operation::device::instance::add_device_instances<
-        2,
-        1,
-        1,
-        1,
-        1,
-        ADataType,
-        B0DataType,
-        B1DataType,
-        CDataType,
-        ck::Tuple<D00DataType, D01DataType>,
-        ck::Tuple<>,
-        AElementOp,
-        B0ElementOp,
-        Acc0ElementOp,
-        B1ElementOp,
-        CElementOp,
-        MaskingSpec,
-        ck::tensor_operation::device::instance::ArchitectureEnum::Xdl>(op_ptrs);
+    ck::tensor_operation::device::instance::DeviceOperationInstanceBuilder<
+        DeviceOp,
+        ck::tensor_operation::device::instance::ArchitectureEnum::Xdl>::
+        add_device_instances(op_ptrs);
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 

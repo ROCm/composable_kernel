@@ -47,7 +47,26 @@ void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_i
                                             MaskingSpecialization::MaskOutUpperTriangle>>>&
         instances)
 {
-    add_device_instances(instances);
+    using DeviceOp =
+        DeviceBatchedGemmSoftmaxGemmPermute<2,
+                                            1,
+                                            1,
+                                            1,
+                                            1,
+                                            F16,
+                                            F16,
+                                            F16,
+                                            F16,
+                                            ck::Tuple<F16>,
+                                            ck::Tuple<>,
+                                            PassThrough,
+                                            PassThrough,
+                                            ScaleAdd,
+                                            PassThrough,
+                                            PassThrough,
+                                            MaskingSpecialization::MaskOutUpperTriangle>;
+    DeviceOperationInstanceBuilder<DeviceOp, ArchitectureEnum::Xdl>::add_device_instances(
+        instances);
 }
 
 void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
@@ -71,7 +90,25 @@ void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_i
                                                             MaskingSpecialization::MaskDisabled>>>&
         instances)
 {
-    add_device_instances(instances);
+    using DeviceOp = DeviceBatchedGemmSoftmaxGemmPermute<2,
+                                                         1,
+                                                         1,
+                                                         1,
+                                                         1,
+                                                         F16,
+                                                         F16,
+                                                         F16,
+                                                         F16,
+                                                         ck::Tuple<F16>,
+                                                         ck::Tuple<>,
+                                                         PassThrough,
+                                                         PassThrough,
+                                                         ScaleAdd,
+                                                         PassThrough,
+                                                         PassThrough,
+                                                         MaskingSpecialization::MaskDisabled>;
+    DeviceOperationInstanceBuilder<DeviceOp, ArchitectureEnum::Xdl>::add_device_instances(
+        instances);
 }
 
 } // namespace instance
