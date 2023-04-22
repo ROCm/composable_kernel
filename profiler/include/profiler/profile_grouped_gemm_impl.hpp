@@ -98,8 +98,6 @@ bool profile_grouped_gemm_impl(int do_verification,
             a_m_k[i].GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0}, num_thread);
             b_k_n[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
         }
-
-        c_m_n_device_results[i].GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
     }
 
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -134,13 +132,12 @@ bool profile_grouped_gemm_impl(int do_verification,
             std::make_unique<DeviceMem>(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpaceSize()));
         b_device_buf.emplace_back(
             std::make_unique<DeviceMem>(sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpaceSize()));
-
         c_device_buf.emplace_back(std::make_unique<DeviceMem>(
             sizeof(CDataType) * c_m_n_device_results[i].mDesc.GetElementSpaceSize()));
 
         a_device_buf[i]->ToDevice(a_m_k[i].mData.data());
         b_device_buf[i]->ToDevice(b_k_n[i].mData.data());
-        c_device_buf[i]->ToDevice(c_m_n_device_results[i].mData.data());
+        c_device_buf[i]->SetZero();
 
         gemm_descs.push_back({Ms[i], Ns[i], Ks[i], StrideAs[i], StrideBs[i], StrideCs[i], {}});
 

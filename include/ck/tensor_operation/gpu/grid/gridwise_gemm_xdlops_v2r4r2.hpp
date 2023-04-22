@@ -533,9 +533,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             return;
         }
 
-        const index_t block_m_id = __builtin_amdgcn_readfirstlane(blockIdx.y);
-        const index_t block_n_id = __builtin_amdgcn_readfirstlane(blockIdx.x);
-        const index_t k_batch_id = __builtin_amdgcn_readfirstlane(blockIdx.z);
+        const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
+        const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[I2]);
+        const index_t k_batch_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
