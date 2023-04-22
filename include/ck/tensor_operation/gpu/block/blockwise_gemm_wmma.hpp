@@ -170,7 +170,7 @@ struct BlockwiseGemmWMMA
         const auto blk_idx = wmma_gemm.GetBeginOfThreadBlk3D();
 
         return make_tuple(
-            Number<m0>{}, blk_idx[I0], waveId_m, Number<n0>{}, waveId_n, blk_idx[I1], blk_idx[I2]);
+            Number<m0>{}, waveId_m, blk_idx[I0], Number<n0>{}, waveId_n, blk_idx[I1], blk_idx[I2]);
     }
 
     using Tuple5 = decltype(CalculateAThreadOriginDataIndex());
