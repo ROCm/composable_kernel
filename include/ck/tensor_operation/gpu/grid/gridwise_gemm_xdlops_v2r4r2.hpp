@@ -458,6 +458,15 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
     }
 
+    // return block_id to C matrix tile idx (m0, n0) mapping
+    template <typename CGridDesc>
+    __host__ __device__ static constexpr auto MakeCBlockClusterAdaptor(
+        const CGridDesc& c_m_n_grid_desc, index_t /* M01 */, index_t /* N01 */, index_t KBatch)
+    {
+        return BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc>(
+            c_m_n_grid_desc, 8, KBatch);
+    }
+
     __host__ __device__ static constexpr auto
     GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock()
     {
@@ -524,9 +533,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             return;
         }
 
-        const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
-        const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[I2]);
-        const index_t k_batch_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
+        const index_t block_m_id = __builtin_amdgcn_readfirstlane(blockIdx.y);
+        const index_t block_n_id = __builtin_amdgcn_readfirstlane(blockIdx.x);
+        const index_t k_batch_id = __builtin_amdgcn_readfirstlane(blockIdx.z);
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
@@ -940,6 +949,24 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             });
         }
     }
+
+    template <typename Layout>
+    struct LStr
+    {
+        static std::string Get() { return ""; }
+    };
+
+    template <>
+    struct LStr<ck::tensor_layout::gemm::RowMajor>
+    {
+        static std::string Get() { return "R"; }
+    };
+
+    template <>
+    struct LStr<ck::tensor_layout::gemm::ColumnMajor>
+    {
+        static std::string Get() { return "C"; }
+    };
 
     static std::string GetTypeString()
     {
