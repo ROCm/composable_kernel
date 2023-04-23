@@ -98,9 +98,7 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
     static constexpr auto BEnableLds_auto = MWaves == 1 ? false : true;
 
     // If true, LDS is used unconditionally
-    static constexpr auto AEnableLds_manu = false;
-    // Bug: blocksize 128, Tile 128x128x64, Repeat 8x2 Failure
-    // Bug: gemm.TileDesc(64, 32, 64, 64, 8, 0, 16, 16, 2, 2), failed
+    static constexpr auto AEnableLds_manu = true;
     static constexpr auto BEnableLds_manu = true;
 
     static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu;
@@ -108,7 +106,7 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
-    // Describe how data read from Global memory
+
     // Describe how data read from Global memory
     static auto MakeAGridDescriptor(index_t MRaw, index_t KRaw, index_t StrideA)
     {

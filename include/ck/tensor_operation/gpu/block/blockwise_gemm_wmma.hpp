@@ -418,13 +418,14 @@ struct BlockwiseGemmWMMA
     }
 
     protected:
-    // A[K0, M0, M1, M2, K1]
-    static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<WmmaK / A_K1>{}, Number<MRepeat>{}, I1, I1, Number<A_K1>{}));
+        static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor(
+        make_tuple(Number<WmmaK / A_K1>{}, Number<MRepeat>{}, I1, I1, Number<A_K1>{}),
+        make_tuple(Number<A_K1>{}, Number<WmmaK>{}, Number<A_K1>{}, Number<A_K1>{}, Number<1>{}));
 
     // B[K0, N0, N1, N2, K1]
-    static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<WmmaK / B_K1>{}, Number<NRepeat>{}, I1, I1, Number<B_K1>{}));
+    static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor(
+        make_tuple(Number<WmmaK / B_K1>{}, Number<NRepeat>{}, I1, I1, Number<B_K1>{}),
+        make_tuple(Number<B_K1>{}, Number<WmmaK>{}, Number<B_K1>{}, Number<B_K1>{}, Number<1>{}));
 
     // C[M, N, NumRegWMMA]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(

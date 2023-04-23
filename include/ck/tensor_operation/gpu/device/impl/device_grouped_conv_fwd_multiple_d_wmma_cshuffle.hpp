@@ -170,12 +170,16 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
     static constexpr auto WmmaK  = 16;
 
-    static constexpr auto AEnableLds = NWaves == 1 ? false : true;
-    static constexpr auto BEnableLds = MWaves == 1 ? false : true;
+    static constexpr auto AEnableLds_auto = NWaves == 1 ? false : true;
+    static constexpr auto BEnableLds_auto = MWaves == 1 ? false : true;
 
-    // Force enable LDS if uncommented following
-    // AEnableLds = true;
-    // BEnableLds = true;
+    // If true, LDS is used unconditionally
+    static constexpr auto AEnableLds_manu = false;
+    static constexpr auto BEnableLds_manu = false;
+
+    static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu;
+    static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu;
+
 
     static constexpr auto conv_to_gemm_transformer =
         TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization>{};

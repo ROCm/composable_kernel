@@ -136,8 +136,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
     static constexpr auto BEnableLds_auto = MWaves == 1 ? false : true;
 
     // If true, LDS is used unconditionally
-    static constexpr auto AEnableLds_manu = false;
-    // Bug: blocksize 128, Tile 128x128x64, Repeat 8x2 Failure
+    // Bug, MNK vector load check not implemented correctly
+    static constexpr auto AEnableLds_manu = true;
     static constexpr auto BEnableLds_manu = true;
 
     static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu;
@@ -725,6 +725,11 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
 
         // Batch Offset
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch_;
+
+        // for checking vector load/store
+        // index_t MRaw_;
+        // index_t NRaw_;
+        // index_t KRaw_;
     };
 
     // Invoker

@@ -92,8 +92,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
 
     // If true, LDS is used unconditionally
     static constexpr auto AEnableLds_manu = false;
-    // Bug: blocksize 128, Tile 128x128x64, Repeat 8x2 Failure
-    static constexpr auto BEnableLds_manu = true;
+    static constexpr auto BEnableLds_manu = false;
 
     static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu;
     static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu;
