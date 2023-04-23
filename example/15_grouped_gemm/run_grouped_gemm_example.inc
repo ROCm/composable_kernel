@@ -20,7 +20,7 @@ struct ExecutionConfig final
     bool time_kernel     = false;
 };
 
-bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
+bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& config, ck::index_t kbatch = 1)
 {
 #if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
     static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
@@ -171,6 +171,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(&argument));
 
     gemm.SetWorkSpacePointer(&argument, gemm_desc_workspace.GetDeviceBuffer());
+
+    gemm.SetKBatchSize(argument, kbatch);
 
     if(!gemm.IsSupportedArgument(argument))
     {

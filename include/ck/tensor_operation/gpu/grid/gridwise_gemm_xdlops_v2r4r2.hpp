@@ -15,6 +15,8 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
+
 namespace ck {
 
 template <typename GridwiseGemm,
@@ -519,7 +521,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
-        const auto K0 = a_b_k0_m_k1_grid_desc.GetLength(I1);
+        // const auto K0 = a_b_k0_m_k1_grid_desc.GetLength(I1);
 
         // divide block work by [KBatch, M, N]
         const auto block_work_idx =
@@ -678,6 +680,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
+#if 1
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
@@ -689,6 +692,20 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                                                 MRepeat,
                                                                 NRepeat,
                                                                 K1>{};
+#else
+        auto blockwise_gemm = BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<
+            BlockSize,
+            FloatAB,
+            FloatAcc,
+            decltype(a_k0_m_k1_block_desc),
+            decltype(b_k0_n_k1_block_desc),
+            MPerXDL,
+            NPerXDL,
+            MRepeat,
+            NRepeat,
+            K1>{};
+
+#endif
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
@@ -707,6 +724,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             p_b_block, b_k0_n_k1_block_desc.GetElementSpaceSize());
 
+#if 0
         // preload data into LDS
         {
             a_blockwise_copy.RunRead(a_b_k0_m_k1_grid_desc, a_grid_buf);
@@ -752,6 +770,31 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
             blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
         }
+#else
+        // gridwise GEMM pipeline
+        const auto gridwise_gemm_pipeline =
+            GridwiseGemmPipeline_Selector<PipelineVersion::v1, 1, LoopScheduler::Default>();
+
+        const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
+            (a_b_k0_m_k1_grid_desc.GetLength(I1) * a_b_k0_m_k1_grid_desc.GetLength(I3)) /
+            (K0PerBlock * K1));
+
+        gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_b_k0_m_k1_grid_desc,
+                                                               a_b_k0_m_k1_block_desc,
+                                                               a_blockwise_copy,
+                                                               a_grid_buf,
+                                                               a_block_buf,
+                                                               a_block_slice_copy_step,
+                                                               b_b_k0_n_k1_grid_desc,
+                                                               b_b_k0_n_k1_block_desc,
+                                                               b_blockwise_copy,
+                                                               b_grid_buf,
+                                                               b_block_buf,
+                                                               b_block_slice_copy_step,
+                                                               blockwise_gemm,
+                                                               c_thread_buf,
+                                                               num_k_block_main_loop);
+#endif
 
         // output: register to global memory
         {

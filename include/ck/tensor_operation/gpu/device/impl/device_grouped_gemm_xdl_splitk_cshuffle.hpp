@@ -207,7 +207,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         }
     };
 
-    static constexpr index_t DefaultKBatch = 4;
+    static constexpr index_t DefaultKBatch = 1;
 
     // Argument
     struct Argument : public BaseArgument
@@ -336,6 +336,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
                 karg.KPadded                            = k_padded;
                 karg.K0                                 = k0;
+                karg.k_batch                            = K_BATCH;
                 gemm_kernel_args_[i].block_2_ctile_map_ = grouped_block_2_ctile_map;
                 gemm_kernel_args_[i].block_start_       = block_start;
                 gemm_kernel_args_[i].block_end_         = block_end;
@@ -362,7 +363,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
             for(std::size_t i = 0; i < arg.gemm_kernel_args_.size(); ++i)
             {
-
                 const auto& karg = arg.gemm_kernel_args_[i].karg_;
                 if(stream_config.log_level_ > 0)
                 {
