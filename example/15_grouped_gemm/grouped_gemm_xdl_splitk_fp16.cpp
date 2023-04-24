@@ -63,7 +63,6 @@ int main(int argc, char* argv[])
 {
     ProblemSize problem_size;
     ExecutionConfig config;
-    ck::index_t kbatch = 1;
 
     problem_size.group_count = 16;
 
@@ -80,21 +79,19 @@ int main(int argc, char* argv[])
         problem_size.stride_Cs.push_back(problem_size.Ns[i]);
     }
 
-    if(argc == 5)
+    if(argc == 4)
     {
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
         config.time_kernel     = std::stoi(argv[3]);
-        kbatch                 = std::stoi(argv[4]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=n0, 1=yes)\n");
-        printf("arg4: kbatch\n");
         exit(0);
     }
 
-    return !run_grouped_gemm(problem_size, config, kbatch);
+    return !run_grouped_gemm(problem_size, config);
 }
