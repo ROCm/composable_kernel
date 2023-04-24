@@ -51,26 +51,6 @@ struct DeviceGemmMultipleD : public BaseOperator
                         CDEElementwiseOperation cde_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
-
-    virtual std::unique_ptr<BaseParameters> MakeParametersPointer() 
-    {
-        return std::make_unique<BaseParameters>(BaseParameters{});
-    }
-
-    virtual index_t GetBlockSize() const
-    {
-        return 0;
-    }
-
-    virtual index_t GetMPerBlock() const
-    {
-        return 0;
-    }
-
-    virtual index_t GetNPerBlock() const
-    {
-        return 0;
-    }
 };
 
 } // namespace device

@@ -37,42 +37,6 @@ struct BaseInvoker
     virtual ~BaseInvoker() {}
 };
 
-struct BaseParameters
-{
-    BaseParameters()                   = default;
-    BaseParameters(const BaseParameters&) = default;
-    BaseParameters& operator=(const BaseParameters&) = default;
-
-    virtual void SetAElementOp(const std::string&) {}
-
-    virtual void SetBElementOp(const std::string&) {}
-
-    virtual void SetCDEElementOp(const std::string&) {}
-
-    virtual void SetDsLayout(const std::string&) {}
-
-    virtual void SetDsDataType(const std::string&) {}
-
-    virtual void SetGemmSpec(const index_t, const index_t, const index_t) {}
-
-    virtual index_t GetGridSize(const index_t, const index_t) 
-    {
-        return 0;
-    }
-
-    virtual index_t GetBlockSize()
-    {
-        return 0;
-    }
-
-    virtual std::string GetParametersString()
-    {
-        return "";
-    }
-
-    virtual ~BaseParameters() {}
-};
-
 struct BaseOperator
 {
     BaseOperator()                    = default;

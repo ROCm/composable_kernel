@@ -21,6 +21,7 @@ ENDFOREACH()
 add_library(device_operations STATIC ${CK_DEVICE_INSTANCES})
 add_library(composablekernels::device_operations ALIAS device_operations)
 
+
 set(DEV_OPS_INC_DIRS
     ${PROJECT_SOURCE_DIR}/include/ck/
     ${PROJECT_SOURCE_DIR}/library/include/ck/
@@ -55,7 +56,7 @@ target_compile_options(device_operations PRIVATE
 )
 
 # install(TARGETS device_operations LIBRARY DESTINATION lib)
-rocm_install(TARGETS device_operations 
+rocm_install(TARGETS device_operations
         EXPORT device_operationsTargets)
 
 rocm_install(DIRECTORY ${DEV_OPS_INC_DIRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck)
