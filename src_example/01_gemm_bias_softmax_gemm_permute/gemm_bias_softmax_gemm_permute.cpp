@@ -135,7 +135,7 @@ int main()
 
     // get device op instances
     std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-    ck::tensor_operation::device::instance::DeviceOperationInstanceBuilder<
+    ck::tensor_operation::device::instance::DeviceOperationInstanceCreator<
         DeviceOp,
         ck::tensor_operation::device::instance::ArchitectureEnum::Xdl>::
         add_device_instances(op_ptrs);
