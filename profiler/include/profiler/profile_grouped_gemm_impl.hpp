@@ -108,11 +108,6 @@ bool profile_grouped_gemm_impl(int do_verification,
     const auto b_element_op = BElementOp{};
     const auto c_element_op = CElementOp{};
 
-    // if(do_verification)
-    // {
-
-    // }
-
     using DeviceMemPtr = std::unique_ptr<DeviceMem>;
     std::vector<DeviceMemPtr> a_device_buf, b_device_buf, c_device_buf;
 
@@ -285,7 +280,7 @@ bool profile_grouped_gemm_impl(int do_verification,
               << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
 
     return pass;
-} // namespace profiler
+}
 
 } // namespace profiler
 } // namespace ck

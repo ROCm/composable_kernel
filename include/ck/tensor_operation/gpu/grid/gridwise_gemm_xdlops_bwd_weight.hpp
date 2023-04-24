@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -166,15 +166,12 @@ __global__ void
                                       const CBlockClusterAdaptor c_block_cluster_adaptor)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
-    constexpr index_t shared_block_size =
-        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
-
-    __shared__ FloatAB p_shared_block[shared_block_size];
+    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
                                                   p_b_grid,
                                                   p_c_grid,
-                                                  p_shared_block,
+                                                  p_shared,
                                                   a_b_k0_m_k1_grid_desc,
                                                   b_b_k0_n_k1_grid_desc,
                                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -183,16 +180,16 @@ __global__ void
                                                   c_element_op,
                                                   c_block_cluster_adaptor);
 #else
-    ignore = p_a_grid;
-    ignore = p_b_grid;
-    ignore = p_c_grid;
-    ignore = a_b_k0_m_k1_grid_desc;
-    ignore = b_b_k0_n_k1_grid_desc;
-    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore = a_element_op;
-    ignore = b_element_op;
-    ignore = c_element_op;
-    ignore = c_block_cluster_adaptor;
+    ignore                = p_a_grid;
+    ignore                = p_b_grid;
+    ignore                = p_c_grid;
+    ignore                = a_b_k0_m_k1_grid_desc;
+    ignore                = b_b_k0_n_k1_grid_desc;
+    ignore                = c_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore                = a_element_op;
+    ignore                = b_element_op;
+    ignore                = c_element_op;
+    ignore                = c_block_cluster_adaptor;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -263,6 +260,16 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
 
     using GridwiseGemmPipe = remove_cvref_t<decltype(
         GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage>())>;
+
+    // denorm test fix, required to work around fp16 mfma issue
+    // we convert fp16->fp32->bf16 and execute bf16 mfma instruction
+    // when mfma if fixed, remove this section and update
+    // FloatABAdjusted -> FloatAB throughout this file
+#if CK_WORKAROUND_DENORM_FIX && defined(__gfx90a__)
+    using FloatABAdjusted = conditional_t<is_same_v<FloatAB, ck::half_t>, ck::bhalf_t, FloatAB>;
+#else
+    using FloatABAdjusted = FloatAB;
+#endif
 
     // M0/M1/M1Padding
     static constexpr auto M1PerBlock = Number<ABlockLdsM1PerBlock>{};
@@ -605,7 +612,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
-                               FloatAB* __restrict__ p_shared_block,
+                               void* __restrict__ p_shared,
                                const AGridDesc_B_K0_M_K1& a_b_k0_m_k1_grid_desc,
                                const BGridDesc_B_K0_N_K1& b_b_k0_n_k1_grid_desc,
                                const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
@@ -666,7 +673,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
                                                 ABlockTransferThreadClusterLengths_K0_M_K1,
                                                 ABlockTransferThreadClusterArrangeOrder,
                                                 FloatAB,
-                                                FloatAB,
+                                                FloatABAdjusted,
                                                 decltype(a_b_k0_m_k1_grid_desc),
                                                 decltype(a_b_k0_m_k1_block_desc),
                                                 ABlockTransferSrcAccessOrder,
@@ -696,7 +703,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
                                                 BBlockTransferThreadClusterLengths_K0_N_K1,
                                                 BBlockTransferThreadClusterArrangeOrder,
                                                 FloatAB,
-                                                FloatAB,
+                                                FloatABAdjusted,
                                                 decltype(b_b_k0_n_k1_grid_desc),
                                                 decltype(b_b_k0_n_k1_block_desc),
                                                 BBlockTransferSrcAccessOrder,
@@ -725,11 +732,11 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
         // sanity check
 
         constexpr index_t KPack =
-            math::max(K1, MfmaSelector<FloatAB, MPerXDL, NPerXDL>::selected_mfma.k_per_blk);
+            math::max(K1, MfmaSelector<FloatABAdjusted, MPerXDL, NPerXDL>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                FloatAB,
+                                                                FloatABAdjusted,
                                                                 FloatAcc,
                                                                 decltype(a_k0_m_k1_block_desc),
                                                                 decltype(b_k0_n_k1_block_desc),
@@ -745,16 +752,15 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
         constexpr auto a_block_space_size =
             math::integer_least_multiple(a_k0_m_k1_block_desc.GetElementSpaceSize(), max_lds_align);
 
-        FloatAB* p_a_block = p_shared_block;
-        FloatAB* p_b_block = p_shared_block + a_block_space_size;
-
         constexpr auto a_block_slice_copy_step = make_multi_index(0, K0PerBlock, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(0, K0PerBlock, 0, 0);
 
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            p_a_block, a_k0_m_k1_block_desc.GetElementSpaceSize());
+            static_cast<FloatABAdjusted*>(p_shared), a_k0_m_k1_block_desc.GetElementSpaceSize());
+
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            p_b_block, b_k0_n_k1_block_desc.GetElementSpaceSize());
+            static_cast<FloatABAdjusted*>(p_shared) + a_block_space_size,
+            b_k0_n_k1_block_desc.GetElementSpaceSize());
 
         // gridwise GEMM pipeline
         const index_t K0BlockMainLoop = __builtin_amdgcn_readfirstlane(K0 / K0PerBlock);
@@ -797,8 +803,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
 
             constexpr auto c_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
-
-            void* p_shared = static_cast<void*>(p_shared_block);
 
             auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
                 static_cast<FloatC*>(p_shared),

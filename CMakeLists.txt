@@ -17,8 +17,6 @@ include(ROCMInstallSymlinks)
 include(ROCMCreatePackage)
 include(CheckCXXCompilerFlag)
 
-option(CK_BUILD_JIT_LIB, "Only build the CK JIT Helper Library" OFF)
-
 rocm_setup_version(VERSION 0.2.0)
 include(TargetFlags)
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip)
@@ -30,13 +28,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message("CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
 
+option(CK_BUILD_JIT_LIB, "Only build the CK JIT Helper Library" OFF)
 if (NOT CK_BUILD_JIT_LIB)
     option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
+    option(USE_OPT_NAVI3X, "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
 
     if(USE_BITINT_EXTENSION_INT4)
         add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
         add_compile_options(-Wno-bit-int-extension)
         message("CK compiled with USE_BITINT_EXTENSION_INT4 set to ${USE_BITINT_EXTENSION_INT4}")
+    endif()
+
+    if(USE_OPT_NAVI3X)
+        add_compile_options(-mcumode)
+        add_compile_options(-mno-wavefrontsize64)
+        message("CK compiled with USE_OPT_NAVI3X set to ${USE_OPT_NAVI3X}")
     endif()
 
     ## Threads

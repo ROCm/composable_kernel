@@ -54,3 +54,12 @@ docs/docBin/
 
 # Generated source
 library/src/jit_library/solution_instances/
+
+# documentation artifacts
+build/
+_build/
+_images/
+_static/
+_templates/
+_toc.yml
+docBin/
