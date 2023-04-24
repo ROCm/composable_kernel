@@ -36,7 +36,7 @@ template <index_t NumDimG,
           typename C1DEElementwiseOperation,
           MaskingSpecialization MaskingSpec,
           ArchitectureEnum Arch>
-struct DeviceOperationInstanceBuilder<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
+struct DeviceOperationInstanceCreator<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
                                                                           NumDimM,
                                                                           NumDimN,
                                                                           NumDimK,
@@ -75,7 +75,7 @@ struct DeviceOperationInstanceBuilder<DeviceBatchedGemmSoftmaxGemmPermute<NumDim
     static void add_device_instances(std::vector<std::unique_ptr<DeviceOp>>& instances)
     {
         add_device_operation_instances(
-            instances, DeviceOperationInstanceCreator<DeviceOp, Arch>::create_device_instances());
+            instances, DeviceOperationInstances<DeviceOp, Arch>::get_device_instances());
     }
 };
 

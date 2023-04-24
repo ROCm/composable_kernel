@@ -65,7 +65,7 @@ void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_i
                                             PassThrough,
                                             PassThrough,
                                             MaskingSpecialization::MaskOutUpperTriangle>;
-    DeviceOperationInstanceBuilder<DeviceOp, ArchitectureEnum::Xdl>::add_device_instances(
+    DeviceOperationInstanceCreator<DeviceOp, ArchitectureEnum::Xdl>::add_device_instances(
         instances);
 }
 void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
@@ -106,7 +106,7 @@ void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_i
                                                          PassThrough,
                                                          PassThrough,
                                                          MaskingSpecialization::MaskDisabled>;
-    DeviceOperationInstanceBuilder<DeviceOp, ArchitectureEnum::Xdl>::add_device_instances(
+    DeviceOperationInstanceCreator<DeviceOp, ArchitectureEnum::Xdl>::add_device_instances(
         instances);
 }
 

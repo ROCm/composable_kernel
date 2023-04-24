@@ -35,10 +35,10 @@ enum struct ArchitectureEnum
     Dl
 };
 template <typename DeviceOp, ArchitectureEnum Arch = ArchitectureEnum::Xdl>
-struct DeviceOperationInstanceCreator;
+struct DeviceOperationInstances;
 
 template <typename DeviceOp, ArchitectureEnum Arch>
-struct DeviceOperationInstanceBuilder;
+struct DeviceOperationInstanceCreator;
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

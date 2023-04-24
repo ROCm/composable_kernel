@@ -13,32 +13,57 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-namespace bf16_data {
 
-template <ck::index_t... Is>
-using S = ck::Sequence<Is...>;
-
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
-static constexpr auto GemmPadded  = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
-
-static constexpr auto TensorDefault = ck::tensor_operation::device::TensorSpecialization::Default;
-
-// c[g, m, n] = a[g, m, k] * b[g, n, k]
 template <index_t NumDimG,
           index_t NumDimM,
           index_t NumDimN,
           index_t NumDimK,
           index_t NumDimO,
-          typename DataType,
-          typename AccDataType,
-          typename D0DataTypes,
-          typename AD0ElementwiseOp,
+          typename Acc0BiasDataType,
+          typename Acc1BiasDataType,
+          typename AElementwiseOperation,
+          typename B0ElementwiseOperation,
+          typename C0DEElementwiseOperation,
+          typename B1ElementwiseOperation,
+          typename C1DEElementwiseOperation,
           MaskingSpecialization MaskingSpec>
-using device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances =
-    std::tuple<
-        // clang-format off
+struct DeviceOperationInstances<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
+                                                                    NumDimM,
+                                                                    NumDimN,
+                                                                    NumDimK,
+                                                                    NumDimO,
+                                                                    ck::bhalf_t,
+                                                                    ck::bhalf_t,
+                                                                    ck::bhalf_t,
+                                                                    ck::bhalf_t,
+                                                                    Acc0BiasDataType,
+                                                                    Acc1BiasDataType,
+                                                                    AElementwiseOperation,
+                                                                    B0ElementwiseOperation,
+                                                                    C0DEElementwiseOperation,
+                                                                    B1ElementwiseOperation,
+                                                                    C1DEElementwiseOperation,
+                                                                    MaskingSpec>,
+                                ArchitectureEnum::Xdl>
+{
+    template <ck::index_t... Is>
+    using S = ck::Sequence<Is...>;
+
+    using PassThrough      = ck::tensor_operation::element_wise::PassThrough;
+    using DataType         = ck::bhalf_t;
+    using AccDataType      = float;
+    using D0DataTypes      = Acc0BiasDataType;
+    using AD0ElementwiseOp = C0DEElementwiseOperation;
+
+    static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+    static constexpr auto GemmPadded =
+        ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
+
+    static constexpr auto TensorDefault =
+        ck::tensor_operation::device::TensorSpecialization::Default;
+    using device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances =
+        std::tuple<
+            // clang-format off
         // #############################################|  NumDimG| NumDimM| NumDimN| NumDimK| NumDimO|    AData|    B0Data|    B1Data|     CData| Acc0BiasData| Acc1BiasData|     AccData| CShuffle|           A|          B0|             Acc0|          B1|           C|           GEMM|   ATensorSpec|  B0TensorSpec|  B1TensorSpec|   CTensorSpec| NumGemmK| Block| Gemm01| Gemm0| Gemm0| Gemm1| Gemm1| AK1| BK1| B1K1| MPer| NPer| Gemm0| Gemm0| Gemm1|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  B0BlockTransfer| B0BlockTransfer| B0BlockTransfer| B0BlockTransfer| B0BlockTransfer| B0BlockTransfer| B0BlockLds|  B1BlockTransfer| B1BlockTransfer| B1BlockTransfer| B1BlockTransfer| B1BlockTransfer| B1BlockTransfer| B1BlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer| MaskingSpec|
         // #############################################|         |        |        |        |        |     Type|      Type|      Type|      Type|          ype|         Type|        Type| DataType| Elementwise| Elementwise|      Elementwise| Elementwise| Elementwise| Specialization|              |              |              |              | Prefetch|  Size|   MPer|  NPer|  KPer|  NPer|  KPer|    |    |     |  XDL|  XDL|  MXdl|  NXdl|  NXdl|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|    ThreadCluster|   ThreadCluster|  SrcAccessOrder|    SrcVectorDim|       SrcScalar|       DstScalar|  AddExtraN|    ThreadCluster|   ThreadCluster|  SrcAccessOrder|    SrcVectorDim|       SrcScalar|       DstScalar|  AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|            |
         // #############################################|         |        |        |        |        |         |          |          |          |             |             |            |         |   Operation|   Operation|        Operation|   Operation|   Operation|               |              |              |              |              |    Stage|      |  Block| Block| Block| Block| Block|    |    |     |     |     |   Per|   Per|   Per| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          |  Lengths_K0_N_K1|    ArrangeOrder|                |                |       PerVector|    PerVector_K1|           |  Lengths_K0_N_K1|    ArrangeOrder|                |                |       PerVector|    PerVector_K1|           |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|            |
@@ -60,55 +85,12 @@ using device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo
         // Padded fallback kernel
         DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, DataType,  DataType,  DataType,  DataType,  D0DataTypes,  ck::Tuple<>, AccDataType, DataType, PassThrough, PassThrough, AD0ElementwiseOp, PassThrough, PassThrough,     GemmPadded, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,    128,   128,    64,   128,    32,   8,   8,    2,   32,   32,     1,     4,     4,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,     false,      S<8, 32, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,      false,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8, MaskingSpec>,
         DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, DataType,  DataType,  DataType,  DataType,  D0DataTypes,  ck::Tuple<>, AccDataType, DataType, PassThrough, PassThrough, AD0ElementwiseOp, PassThrough, PassThrough,     GemmPadded, TensorDefault, TensorDefault, TensorDefault, TensorDefault,        1,   256,    128,    64,    32,   128,    32,   8,   8,    2,   32,   32,     1,     2,     4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8, MaskingSpec>
-        // clang-format on
-        >;
-} // namespace bf16_data
-template <index_t NumDimG,
-          index_t NumDimM,
-          index_t NumDimN,
-          index_t NumDimK,
-          index_t NumDimO,
-          typename Acc0BiasDataType,
-          typename Acc1BiasDataType,
-          typename AElementwiseOperation,
-          typename B0ElementwiseOperation,
-          typename C0DEElementwiseOperation,
-          typename B1ElementwiseOperation,
-          typename C1DEElementwiseOperation,
-          MaskingSpecialization MaskingSpec>
-struct DeviceOperationInstanceCreator<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
-                                                                          NumDimM,
-                                                                          NumDimN,
-                                                                          NumDimK,
-                                                                          NumDimO,
-                                                                          ck::bhalf_t,
-                                                                          ck::bhalf_t,
-                                                                          ck::bhalf_t,
-                                                                          ck::bhalf_t,
-                                                                          Acc0BiasDataType,
-                                                                          Acc1BiasDataType,
-                                                                          AElementwiseOperation,
-                                                                          B0ElementwiseOperation,
-                                                                          C0DEElementwiseOperation,
-                                                                          B1ElementwiseOperation,
-                                                                          C1DEElementwiseOperation,
-                                                                          MaskingSpec>,
-                                      ArchitectureEnum::Xdl>
-{
-    static auto create_device_instances()
+            // clang-format on
+            >;
+
+    static auto get_device_instances()
     {
-        return bf16_data::
-            device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances<
-                NumDimG,
-                NumDimM,
-                NumDimN,
-                NumDimK,
-                NumDimO,
-                ck::bhalf_t,
-                float,
-                Acc0BiasDataType,
-                C0DEElementwiseOperation,
-                MaskingSpec>{};
+        return device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances{};
     }
 };
 
