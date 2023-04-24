@@ -39,6 +39,7 @@ __global__ void
         karg, static_cast<void*>(p_shared), b2c_map);
 #else
     ignore = karg;
+    ignore = b2c_map;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
