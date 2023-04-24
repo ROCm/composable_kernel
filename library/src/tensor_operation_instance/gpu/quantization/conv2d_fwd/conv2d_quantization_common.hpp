@@ -19,9 +19,9 @@ using Empty_Tuple = ck::Tuple<>;
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using GNHWC       = ck::tensor_layout::convolution::GNHWC;
+using NHWGC       = ck::tensor_layout::convolution::NHWGC;
 using GKYXC       = ck::tensor_layout::convolution::GKYXC;
-using GNHWK       = ck::tensor_layout::convolution::GNHWK;
+using NHWGK       = ck::tensor_layout::convolution::NHWGK;
 using GK          = ck::tensor_layout::convolution::G_K;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Relu        = ck::tensor_operation::element_wise::Relu;

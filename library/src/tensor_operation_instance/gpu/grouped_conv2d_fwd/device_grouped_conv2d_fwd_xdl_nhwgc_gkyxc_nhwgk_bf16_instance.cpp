@@ -8,13 +8,13 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-// Compilation parameters for in[g, n, hi, wi, c] * wei[g, k, y, x, c] = out[g, n, ho, wo, k]
-void add_device_grouped_conv1d_fwd_xdl_gnhwc_gkyxc_gnhwk_bf16_instances(
+// Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
+void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
-                                                              GNHWC,
+                                                              NHWGC,
                                                               GKYXC,
                                                               Empty_Tuple,
-                                                              GNHWK,
+                                                              NHWGK,
                                                               BF16,
                                                               BF16,
                                                               Empty_Tuple,
@@ -24,37 +24,37 @@ void add_device_grouped_conv1d_fwd_xdl_gnhwc_gkyxc_gnhwk_bf16_instances(
                                                               PassThrough>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_fwd_xdl_bf16_instances<GNHWC,
+                                   device_grouped_conv2d_fwd_xdl_bf16_instances<NHWGC,
                                                                                 GKYXC,
                                                                                 Empty_Tuple,
-                                                                                GNHWK,
+                                                                                NHWGK,
                                                                                 Empty_Tuple,
                                                                                 PassThrough,
                                                                                 ConvFwdDefault>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_fwd_xdl_bf16_instances<GNHWC,
+                                   device_grouped_conv2d_fwd_xdl_bf16_instances<NHWGC,
                                                                                 GKYXC,
                                                                                 Empty_Tuple,
-                                                                                GNHWK,
+                                                                                NHWGK,
                                                                                 Empty_Tuple,
                                                                                 PassThrough,
                                                                                 ConvFwd1x1P0>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_fwd_xdl_bf16_instances<GNHWC,
+                                   device_grouped_conv2d_fwd_xdl_bf16_instances<NHWGC,
                                                                                 GKYXC,
                                                                                 Empty_Tuple,
-                                                                                GNHWK,
+                                                                                NHWGK,
                                                                                 Empty_Tuple,
                                                                                 PassThrough,
                                                                                 ConvFwd1x1S1P0>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_fwd_xdl_bf16_instances<GNHWC,
+                                   device_grouped_conv2d_fwd_xdl_bf16_instances<NHWGC,
                                                                                 GKYXC,
                                                                                 Empty_Tuple,
-                                                                                GNHWK,
+                                                                                NHWGK,
                                                                                 Empty_Tuple,
                                                                                 PassThrough,
                                                                                 ConvFwdOddC>{});

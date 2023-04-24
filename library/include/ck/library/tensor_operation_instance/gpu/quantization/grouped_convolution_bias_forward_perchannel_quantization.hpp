@@ -17,14 +17,14 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-// grouped conv2d forward, GNHWC/GKYXC/GNHWK
+// grouped conv2d forward, NHWGC/GKYXC/NHWGK
 void add_device_conv2d_dl_bias_perchannel_quantization_int8_instances(
     std::vector<
         std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
-                                                      GNHWC,
+                                                      NHWGC,
                                                       GKYXC,
                                                       GK_GK_Tuple,
-                                                      GNHWK,
+                                                      NHWGK,
                                                       int8_t,
                                                       int8_t,
                                                       I32_F32_Tuple,
@@ -36,10 +36,10 @@ void add_device_conv2d_dl_bias_perchannel_quantization_int8_instances(
 
 void add_device_conv2d_dl_bias_relu_perchannel_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
-                                                              GNHWC,
+                                                              NHWGC,
                                                               GKYXC,
                                                               GK_GK_Tuple,
-                                                              GNHWK,
+                                                              NHWGK,
                                                               int8_t,
                                                               int8_t,
                                                               I32_F32_Tuple,
@@ -52,10 +52,10 @@ void add_device_conv2d_dl_bias_relu_perchannel_quantization_int8_instances(
 void add_device_conv2d_dl_bias_tanh_perchannel_quantization_int8_instances(
     std::vector<
         std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
-                                                      GNHWC,
+                                                      NHWGC,
                                                       GKYXC,
                                                       GK_GK_Tuple,
-                                                      GNHWK,
+                                                      NHWGK,
                                                       int8_t,
                                                       int8_t,
                                                       I32_F32_Tuple,
@@ -68,10 +68,10 @@ void add_device_conv2d_dl_bias_tanh_perchannel_quantization_int8_instances(
 void add_device_conv2d_xdl_bias_perchannel_quantization_int8_instances(
     std::vector<
         std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
-                                                      GNHWC,
+                                                      NHWGC,
                                                       GKYXC,
                                                       GK_GK_Tuple,
-                                                      GNHWK,
+                                                      NHWGK,
                                                       int8_t,
                                                       int8_t,
                                                       I32_F32_Tuple,
@@ -83,10 +83,10 @@ void add_device_conv2d_xdl_bias_perchannel_quantization_int8_instances(
 
 void add_device_conv2d_xdl_bias_relu_perchannel_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
-                                                              GNHWC,
+                                                              NHWGC,
                                                               GKYXC,
                                                               GK_GK_Tuple,
-                                                              GNHWK,
+                                                              NHWGK,
                                                               int8_t,
                                                               int8_t,
                                                               I32_F32_Tuple,
@@ -99,10 +99,10 @@ void add_device_conv2d_xdl_bias_relu_perchannel_quantization_int8_instances(
 void add_device_conv2d_xdl_bias_tanh_perchannel_quantization_int8_instances(
     std::vector<
         std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
-                                                      GNHWC,
+                                                      NHWGC,
                                                       GKYXC,
                                                       GK_GK_Tuple,
-                                                      GNHWK,
+                                                      NHWGK,
                                                       int8_t,
                                                       int8_t,
                                                       I32_F32_Tuple,
@@ -154,9 +154,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
-        if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, GNHWC> &&
+        if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NHWGC> &&
                      is_same_v<WeiLayout, GKYXC> && is_same_v<DsLayout, GK_GK_Tuple> &&
-                     is_same_v<OutLayout, GNHWK>)
+                     is_same_v<OutLayout, NHWGK>)
         {
             if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
                          is_same_v<DsDataType, I32_F32_Tuple> && is_same_v<OutDataType, int8_t>)
@@ -220,9 +220,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
-        if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, GNHWC> &&
+        if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NHWGC> &&
                      is_same_v<WeiLayout, GKYXC> && is_same_v<DsLayout, GK_GK_Tuple> &&
-                     is_same_v<OutLayout, GNHWK>)
+                     is_same_v<OutLayout, NHWGK>)
         {
             if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
                          is_same_v<DsDataType, I32_F32_Tuple> && is_same_v<OutDataType, int8_t>)
