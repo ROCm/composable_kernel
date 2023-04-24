@@ -20,7 +20,7 @@ template <typename MeanVarDataType,
           typename ComputeDataType,
           typename YElementwiseOperation,
           typename MeanVarGridDesc_M_KBlock,
-          typename CountVarGridDesc_M_KBlock,
+          typename CountGridDesc_M_KBlock,
           typename XYGammaBetaGridDesc_M_K,
           index_t BlockSize,
           index_t MThreadClusterSize,
@@ -94,7 +94,7 @@ struct GridwiseNormalizationSplitK2nd
     static constexpr auto ThreadBufferNumber = Number<KThreadSliceSize / XSrcVectorSize>{};
 
     __device__ static void Run(const MeanVarGridDesc_M_KBlock& mean_var_grid_desc_m_kblock,
-                               const CountVarGridDesc_M_KBlock& count_grid_desc_m_kblock,
+                               const CountGridDesc_M_KBlock& count_grid_desc_m_kblock,
                                const XYGammaBetaGridDesc_M_K& x_grid_desc_m_k,
                                const XYGammaBetaGridDesc_M_K& gamma_grid_desc_m_k,
                                const XYGammaBetaGridDesc_M_K& beta_grid_desc_m_k,
@@ -200,7 +200,7 @@ struct GridwiseNormalizationSplitK2nd
         auto threadwise_count_load_m_kblock =
             ThreadwiseTensorSliceTransfer_v2<int32_t,
                                              int32_t,
-                                             CountVarGridDesc_M_KBlock,
+                                             CountGridDesc_M_KBlock,
                                              decltype(thread_buffer_desc_m_1),
                                              ThreadBufferLengths_M_1,
                                              Sequence<0, 1>,

@@ -51,11 +51,11 @@ template <typename GridwiseWelfordNormalization,
           typename ComputeDataType,
           typename YElementwiseOperation,
           typename MeanVarGridDesc_M_KBlock,
-          typename CountVarGridDesc_M_KBlock,
+          typename CountGridDesc_M_KBlock,
           typename XYGammaBetaGridDesc_M_K>
 __global__ void
 kernel_normalizationSplitK2nd(const MeanVarGridDesc_M_KBlock mean_var_grid_desc_m_kblock,
-                              const CountVarGridDesc_M_KBlock count_grid_desc_m_kblock,
+                              const CountGridDesc_M_KBlock count_grid_desc_m_kblock,
                               const XYGammaBetaGridDesc_M_K x_grid_desc_m_k,
                               const XYGammaBetaGridDesc_M_K gamma_grid_desc_m_k,
                               const XYGammaBetaGridDesc_M_K beta_grid_desc_m_k,
