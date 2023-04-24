@@ -178,10 +178,10 @@ int run_conv2d_fwd_bias_perlayer_quantization_example(const OutElementOp& out_el
     const auto in_element_op  = InElementOp{};
     const auto wei_element_op = WeiElementOp{};
 
-    using InLayout   = ck::tensor_layout::convolution::GNHWC;
-    using WeiLayout  = ck::tensor_layout::convolution::GKYXC;
+    using InLayout   = ck::tensor_layout::convolution::NHWGC;
+    using WeiLayout  = ck::tensor_layout::convolution::KYXGC;
     using BiasLayout = ck::tensor_layout::convolution::G_K;
-    using OutLayout  = ck::tensor_layout::convolution::GNHWK;
+    using OutLayout  = ck::tensor_layout::convolution::NHWGK;
 
     const auto in_g_n_c_wis_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);

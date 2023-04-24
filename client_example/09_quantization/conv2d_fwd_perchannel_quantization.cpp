@@ -16,25 +16,25 @@ using WeiDataType          = int8_t;
 using RequantScaleDataType = float;
 using OutDataType          = int8_t;
 
-using InLayout           = ck::tensor_layout::convolution::GNHWC;
+using InLayout           = ck::tensor_layout::convolution::NHWGC;
 using WeiLayout          = ck::tensor_layout::convolution::GKYXC;
 using RequantScaleLayout = ck::tensor_layout::convolution::G_K;
-using OutLayout          = ck::tensor_layout::convolution::GNHWK;
+using OutLayout          = ck::tensor_layout::convolution::NHWGK;
 using PassThrough        = ck::tensor_operation::element_wise::PassThrough;
 using ActivationOp       = PassThrough;
 using OutElementOp       = ck::tensor_operation::element_wise::Activation_Mul2_Clamp<ActivationOp>;
 
 static constexpr ck::index_t NumDimSpatial = 2;
-static constexpr ck::index_t G             = 1;
-static constexpr ck::index_t N             = 4;   // batch size
-static constexpr ck::index_t K             = 64;  // output channel
-static constexpr ck::index_t C             = 192; // input channel
-static constexpr ck::index_t Y             = 3;   // filter H
-static constexpr ck::index_t X             = 3;   // filter W
-static constexpr ck::index_t Hi            = 71;  // input H
-static constexpr ck::index_t Wi            = 71;  // input W
-static constexpr ck::index_t Ho            = 36;  // output H
-static constexpr ck::index_t Wo            = 36;  // output W
+static constexpr ck::index_t G             = 4;
+static constexpr ck::index_t N             = 4;  // batch size
+static constexpr ck::index_t K             = 32; // output channel
+static constexpr ck::index_t C             = 64; // input channel (per group)
+static constexpr ck::index_t Y             = 3;  // filter H
+static constexpr ck::index_t X             = 3;  // filter W
+static constexpr ck::index_t Hi            = 71; // input H
+static constexpr ck::index_t Wi            = 71; // input W
+static constexpr ck::index_t Ho            = 36; // output H
+static constexpr ck::index_t Wo            = 36; // output W
 
 struct SimpleDeviceMem
 {
@@ -54,23 +54,27 @@ struct SimpleDeviceMem
 
 int main(int argc, char* argv[])
 {
+    // We have NHWGC/GKYXC/NHWGK (x, weight, y) in memory space
+    // However, CK's API only accept length and stride with order of GNCHW/GKCYX/GNCHW
+    // Hence, we need to adjust the order of stride
     std::array<ck::index_t, 5> in_lengths{G, N, C, Hi, Wi};
-    std::array<ck::index_t, 5> in_strides{N * Hi * Wi * C, Hi * Wi * C, 1, Wi * C, C};
+    std::array<ck::index_t, 5> in_strides{C, Hi * Wi * G * C, 1, Wi * G * C, G * C};
     std::array<ck::index_t, 5> weight_lengths{G, K, C, Y, X};
     std::array<ck::index_t, 5> weight_strides{K * Y * X * C, Y * X * C, 1, X * C, C};
     std::array<ck::index_t, 5> requant_scale_lengths{G, N, K, Ho, Wo};
     std::array<ck::index_t, 5> requant_scale_strides{K, 0, 1, 0, 0};
     std::array<ck::index_t, 5> out_lengths{G, N, K, Ho, Wo};
-    std::array<ck::index_t, 5> out_strides{N * Ho * Wo * K, Ho * Wo * K, 1, Wo * K, K};
+    std::array<ck::index_t, 5> out_strides{C, Ho * Wo * G * C, 1, Wo * G * C, G * C};
+
     std::array<ck::index_t, 2> in_left_pad{1, 1};
     std::array<ck::index_t, 2> in_right_pad{1, 1};
     std::array<ck::index_t, 2> conv_strides{2, 2};
     std::array<ck::index_t, 2> conv_dilations{1, 1};
 
-    SimpleDeviceMem in(sizeof(InDataType) * N * Hi * Wi * C);
-    SimpleDeviceMem wei(sizeof(WeiDataType) * K * Y * X * C);
-    SimpleDeviceMem requant_scale(sizeof(RequantScaleDataType) * K);
-    SimpleDeviceMem out(sizeof(OutDataType) * N * Ho * Wo * K);
+    SimpleDeviceMem in(sizeof(InDataType) * N * Hi * Wi * G * C);
+    SimpleDeviceMem wei(sizeof(WeiDataType) * G * K * Y * X * C);
+    SimpleDeviceMem requant_scale(sizeof(RequantScaleDataType) * G * K);
+    SimpleDeviceMem out(sizeof(OutDataType) * N * Ho * Wo * G * K);
 
     using DeviceOp =
         ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<NumDimSpatial,
