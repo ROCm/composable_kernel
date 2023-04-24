@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck/utility/data_type.hpp"
-#include "ck/utility/math_v2.hpp"
+#include "ck/utility/math.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/element/quantization_operation.hpp"

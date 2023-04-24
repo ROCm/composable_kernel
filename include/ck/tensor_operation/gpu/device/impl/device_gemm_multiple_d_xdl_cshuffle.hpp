@@ -690,6 +690,308 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
 
         return str.str();
     }
+
+    struct Parameters : BaseParameters
+    {
+        template <class S>
+        static std::string GetSequenceString(S s)
+        {
+            auto str = std::stringstream();
+            str << "ck::Sequence<";
+            auto size = s.Size();
+            for(int i = 0; i < size; ++i)
+            {
+                str << s.At(i);
+                if(i < size - 1)
+                    str << ",";
+            }
+            str << ">";
+            return str.str();
+        }
+
+        template <class T>
+        static std::string GetTypeString(T)
+        {
+            return "";
+        }
+
+        template <>
+        static std::string GetTypeString<float>(float)
+        {
+            return "float";
+        }
+
+        template <>
+        static std::string GetTypeString<ck::half_t>(ck::half_t)
+        {
+            return "ck::half_t";
+        }
+
+        template <>
+        static std::string
+            GetTypeString<tensor_layout::gemm::RowMajor>(tensor_layout::gemm::RowMajor)
+        {
+            return "ck::tensor_layout::gemm::RowMajor";
+        }
+
+        template <>
+        static std::string
+            GetTypeString<tensor_layout::gemm::ColumnMajor>(tensor_layout::gemm::ColumnMajor)
+        {
+            return "ck::tensor_layout::gemm::ColumnMajor";
+        }
+
+        template <class T>
+        static std::string GetTupleString(T t)
+        {
+            auto str = std::stringstream();
+            str << "ck::Tuple<";
+            static_for<0, t.Size(), 1>{}([&](auto i) {
+                str << GetTypeString(t.At(i));
+                if(i < t.Size() - 1)
+                    str << ",";
+            });
+            str << ">";
+            return str.str();
+        }
+
+        template <>
+        static std::string GetTupleString<Tuple<>>(Tuple<>)
+        {
+            return "ck::Tuple<>";
+        }
+
+        void SetAElementOp(const std::string& s) override { a_elementwise_op = s; }
+
+        void SetBElementOp(const std::string& s) override { b_elementwise_op = s; }
+
+        void SetCDEElementOp(const std::string& s) override { cde_elementwise_op = s; }
+
+        void SetDsLayout(const std::string& s) override { ds_layout = s; }
+
+        void SetDsDataType(const std::string& s) override { ds_data_type = s; }
+
+        void SetGemmSpec(const index_t m, const index_t n, const index_t k) override
+        {
+            std::string spec = "";
+            if(math::integer_divide_ceil(m, MPerBlock) * MPerBlock - m != 0)
+                spec += "M";
+            if(math::integer_divide_ceil(n, NPerBlock) * NPerBlock - n != 0)
+                spec += "N";
+            if(math::integer_divide_ceil(k, KPerBlock) * KPerBlock - k != 0)
+                spec += "K";
+            if(spec == "")
+                gemm_spec = "ck::tensor_operation::device::GemmSpecialization::Default";
+            else
+                gemm_spec = "ck::tensor_operation::device::GemmSpecialization::" + spec + "Padding";
+        }
+
+        index_t GetGridSize(const index_t m, const index_t n) override
+        {
+            return math::integer_divide_ceil(m, MPerBlock) *
+                   math::integer_divide_ceil(n, NPerBlock);
+        }
+
+        index_t GetBlockSize() override { return BlockSize; }
+
+        std::string GetParametersString() override
+        {
+            auto str = std::stringstream();
+
+            std::map<LoopScheduler, std::string> LoopSchedToString{
+                {LoopScheduler::Default, "ck::LoopScheduler::Default"},
+                {LoopScheduler::Interwave, "ck::LoopScheduler::Interwave"}};
+
+            std::map<PipelineVersion, std::string> PipelineVersionToString{
+                {PipelineVersion::v1, "ck::PipelineVersion::v1"},
+                {PipelineVersion::v2, "ck::PipelineVersion::v2"}};
+
+            // clang-format off
+            str << "ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle"
+                << "<"
+                << GetTypeString(ALayout{}) << ", "
+                << GetTypeString(BLayout{}) << ", "
+                << ds_layout << ", "
+                << GetTypeString(ELayout{}) << ", "
+                << GetTypeString(ADataType{}) << ", "
+                << GetTypeString(BDataType{}) << ", "
+                << GetTypeString(AccDataType{}) << ", "
+                << GetTypeString(CShuffleDataType{}) << ", "
+                << ds_data_type << ", "
+                << GetTypeString(EDataType{}) << ", "
+                << a_elementwise_op << ", "
+                << b_elementwise_op << ", "
+                << cde_elementwise_op << ", "
+                << gemm_spec << ", "
+                << NumGemmKPrefetchStage << ", "
+                << BlockSize << ", "
+                << MPerBlock << ", "
+                << NPerBlock << ", "
+                << KPerBlock << ", "
+                << AK1 << ", "
+                << BK1 << ", "
+                << MPerXDL << ", "
+                << NPerXDL << ", "
+                << MXdlPerWave << ", "
+                << NXdlPerWave << ", "
+                << GetSequenceString(ABlockTransferThreadClusterLengths_AK0_M_AK1{}) << ", "
+                << GetSequenceString(ABlockTransferThreadClusterArrangeOrder{}) << ", "
+                << GetSequenceString(ABlockTransferSrcAccessOrder{}) << ", "
+                << ABlockTransferSrcVectorDim << ", "
+                << ABlockTransferSrcScalarPerVector << ", "
+                << ABlockTransferDstScalarPerVector_AK1 << ", "
+                << ABlockLdsExtraM << ", "
+                << GetSequenceString(BBlockTransferThreadClusterLengths_BK0_N_BK1{}) << ", "
+                << GetSequenceString(BBlockTransferThreadClusterArrangeOrder{}) << ", "
+                << GetSequenceString(BBlockTransferSrcAccessOrder{}) << ", "
+                << BBlockTransferSrcVectorDim << ", "
+                << BBlockTransferSrcScalarPerVector << ", "
+                << BBlockTransferDstScalarPerVector_BK1 << ", "
+                << BBlockLdsExtraN << ", "
+                << CShuffleMXdlPerWavePerShuffle << ", "
+                << CShuffleNXdlPerWavePerShuffle << ", "
+                << GetSequenceString(CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock{}) << ", "
+                << CDEBlockTransferScalarPerVector_NPerBlock << ", "
+                << LoopSchedToString[LoopSched] << ", "
+                << PipelineVersionToString[PipelineVer]
+                << ">";
+            // clang-format on
+
+            return str.str();
+        }
+
+        std::string a_elementwise_op   = "ck::tensor_operation::element_wise::PassThrough";
+        std::string b_elementwise_op   = "ck::tensor_operation::element_wise::PassThrough";
+        std::string cde_elementwise_op = "ck::tensor_operation::element_wise::PassThrough";
+        std::string ds_layout          = "ck::Tuple<>";
+        std::string ds_data_type       = "ck::Tuple<>";
+        std::string gemm_spec          = "ck::tensor_operation::device::GemmSpecialization::" +
+                                getGemmSpecializationString(GemmSpec);
+    };
+
+    std::unique_ptr<BaseParameters> MakeParametersPointer() override
+    {
+        return std::make_unique<Parameters>(Parameters{});
+    }
+
+    index_t GetBlockSize() const override { return BlockSize; }
+
+    index_t GetMPerBlock() const override { return MPerBlock; }
+
+    index_t GetNPerBlock() const override { return NPerBlock; }
+
+    template <class ADesc, class BDesc, class DsDesc, class EDesc>
+    struct Descriptor
+    {
+        static constexpr auto ds_tuple()
+        {
+            return transform_tuples(
+                [&](auto d) constexpr { return DeviceOp::matrix_padder.PadCDescriptor_M_N(d); },
+                DsDesc{});
+        }
+        using AGridDesc_AK0_M_AK1 =
+            remove_cvref_t<decltype(GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(
+                DeviceOp::matrix_padder.PadADescriptor_M_K(ADesc{})))>;
+        using BGridDesc_BK0_N_BK1 =
+            remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(
+                DeviceOp::matrix_padder.PadBDescriptor_N_K(BDesc{})))>;
+        using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
+            GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(ds_tuple()))>;
+        using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock  = remove_cvref_t<decltype(
+            GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                DeviceOp::matrix_padder.PadCDescriptor_M_N(EDesc{})))>;
+        using Block2ETileMap = remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(
+            DeviceOp::matrix_padder.PadCDescriptor_M_N(EDesc{})))>;
+
+        AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1;
+        BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1;
+        DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock ds_grid_desc_mblock_mperblock_nblock_nperblock;
+        EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock e_grid_desc_mblock_mperblock_nblock_nperblock;
+        Block2ETileMap block_2_etile_map;
+        bool has_main_k_block_loop = true;
+        bool is_valid              = false;
+
+        constexpr Descriptor(ADesc a, BDesc b, DsDesc ds, EDesc e)
+            : a_grid_desc_ak0_m_ak1{GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(
+                  DeviceOp::matrix_padder.PadADescriptor_M_K(a))},
+              b_grid_desc_bk0_n_bk1{GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(
+                  DeviceOp::matrix_padder.PadBDescriptor_N_K(b))},
+              ds_grid_desc_mblock_mperblock_nblock_nperblock{
+                  GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                      transform_tuples(
+                          [&](auto d) constexpr {
+                              return DeviceOp::matrix_padder.PadCDescriptor_M_N(d);
+                          },
+                          ds))},
+              e_grid_desc_mblock_mperblock_nblock_nperblock{
+                  GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                      DeviceOp::matrix_padder.PadCDescriptor_M_N(e))},
+              block_2_etile_map{GridwiseGemm::MakeDefaultBlock2ETileMap(
+                  DeviceOp::matrix_padder.PadCDescriptor_M_N(e))},
+              has_main_k_block_loop{GridwiseGemm::CalculateHasMainKBlockLoop(
+                  a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2))},
+              is_valid{GridwiseGemm::CheckValidity(
+                  (DeviceOp::matrix_padder.PadADescriptor_M_K(a)),
+                  DeviceOp::matrix_padder.PadBDescriptor_N_K(b),
+                  transform_tuples(
+                      [&](auto d) constexpr {
+                          return DeviceOp::matrix_padder.PadCDescriptor_M_N(d);
+                      },
+                      ds),
+                  DeviceOp::matrix_padder.PadCDescriptor_M_N(e),
+                  block_2_etile_map)}
+        {
+        }
+    };
+
+    template <class ADesc, class BDesc, class DsDesc, class EDesc>
+    static constexpr auto make_descriptor(ADesc a, BDesc b, DsDesc ds, EDesc e)
+    {
+        return Descriptor<ADesc, BDesc, DsDesc, EDesc>(a, b, ds, e);
+    }
+
+    template <class Desc, class DsPointer>
+    __device__ static void Run(Desc desc,
+                               const ADataType* __restrict__ p_a_grid,
+                               const BDataType* __restrict__ p_b_grid,
+                               DsPointer p_ds_grid,
+                               EDataType* __restrict__ p_e_grid)
+    {
+        __shared__ char p_shared_block[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        assert(desc.is_valid);
+        if(desc.has_main_k_block_loop)
+        {
+            GridwiseGemm::template Run<true>(p_a_grid,
+                                             p_b_grid,
+                                             p_ds_grid,
+                                             p_e_grid,
+                                             p_shared_block,
+                                             AElementwiseOperation{},
+                                             BElementwiseOperation{},
+                                             CDEElementwiseOperation{},
+                                             desc.a_grid_desc_ak0_m_ak1,
+                                             desc.b_grid_desc_bk0_n_bk1,
+                                             desc.ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                             desc.e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                             desc.block_2_etile_map);
+        }
+        else
+        {
+            GridwiseGemm::template Run<false>(p_a_grid,
+                                              p_b_grid,
+                                              p_ds_grid,
+                                              p_e_grid,
+                                              p_shared_block,
+                                              AElementwiseOperation{},
+                                              BElementwiseOperation{},
+                                              CDEElementwiseOperation{},
+                                              desc.a_grid_desc_ak0_m_ak1,
+                                              desc.b_grid_desc_bk0_n_bk1,
+                                              desc.ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              desc.e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              desc.block_2_etile_map);
+        }
+    }
 };
 
 } // namespace device

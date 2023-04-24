@@ -51,3 +51,6 @@ install.dir*
 # directories containing generated documentation
 docs/source/_build/
 docs/docBin/
+
+# Generated source
+library/src/jit_library/solution_instances/
