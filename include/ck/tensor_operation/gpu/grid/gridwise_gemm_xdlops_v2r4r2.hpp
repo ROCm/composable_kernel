@@ -771,7 +771,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 #else
         // gridwise GEMM pipeline
         const auto gridwise_gemm_pipeline =
-            GridwiseGemmPipeline_Selector<PipelineVersion::v1, 1, LoopScheduler::Default>();
+            GridwiseGemmPipeline_Selector<PipelineVersion::v2, 1, LoopScheduler::Default>();
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_b_k0_m_k1_grid_desc.GetLength(I1) * a_b_k0_m_k1_grid_desc.GetLength(I3)) /
