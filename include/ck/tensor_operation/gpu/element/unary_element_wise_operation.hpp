@@ -97,22 +97,25 @@ struct ConvertBF16RTN
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
 
+    // convert fp16->bf16 using rounding to nearest (rtn) via fp32
     template <>
     __host__ __device__ void operator()<bhalf_t, half_t>(bhalf_t& y, const half_t& x) const
     {
-        y = type_convert_precision<bhalf_t>(x);
+        y = bf16_convert_rtn<bhalf_t>(x);
     }
 
+    // convert fp32->bf16 using rounding to nearest (rtn)
     template <>
     __host__ __device__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
     {
-        y = type_convert_precision<bhalf_t>(x);
+        y = bf16_convert_rtn<bhalf_t>(x);
     }
 
+    // need to keep this specialization for fp16->fp16 ops
     template <>
     __host__ __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
     {
-        y = type_convert_precision<half_t>(x);
+        y = type_convert<half_t>(x);
     }
 };
 

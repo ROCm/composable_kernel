@@ -1033,16 +1033,16 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int8_t>(int8_
 
 // Convert X to Y with highest possible precision
 template <typename Y, typename X>
-__host__ __device__ constexpr Y type_convert_precision(X x)
-{
-    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
+__host__ __device__ constexpr Y bf16_convert_rtn(X x);
+// {
+//     static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
 
-    return static_cast<Y>(x);
-}
+//     return static_cast<Y>(x);
+// }
 
 // Convert fp32 to bf16 with RTN if higher precision is needed
 template <>
-inline __host__ __device__ constexpr bhalf_t type_convert_precision<bhalf_t, float>(float x)
+inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
 {
     union
     {
@@ -1086,11 +1086,11 @@ inline __host__ __device__ constexpr bhalf_t type_convert_precision<bhalf_t, flo
 
 // convert fp16 to bfp16 via fp32 with RTN if higher precision is needed
 template <>
-inline __host__ __device__ constexpr bhalf_t type_convert_precision<bhalf_t, half_t>(half_t x)
+inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, half_t>(half_t x)
 {
     float x_fp32 = static_cast<float>(x);
 
-    return type_convert_precision<bhalf_t>(x_fp32);
+    return bf16_convert_rtn<bhalf_t>(x_fp32);
 }
 
 template <typename T>

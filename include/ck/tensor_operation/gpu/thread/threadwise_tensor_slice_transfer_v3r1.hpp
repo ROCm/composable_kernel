@@ -339,7 +339,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         }
 
         static_ford<SliceLengths>{}([&](auto idx) {
-            // apply the src elementwise op and convert under the hood if needed
+            // apply the src elementwise op and convert to DstData under the hood if needed
             DstData dst_v;
             src_element_op_(dst_v, src_thread_scratch_tuple_[thread_scratch_id][idx]);
             dst_thread_scratch_(idx) = dst_v;
