@@ -1031,7 +1031,7 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int8_t>(int8_
     return type_convert<bhalf_t>(x_fp32);
 }
 
-// Convert X to Y with highest possible precision
+// Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
 __host__ __device__ constexpr Y bf16_convert_rtn(X x);
 
