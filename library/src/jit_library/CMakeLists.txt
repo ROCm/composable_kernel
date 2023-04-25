@@ -11,7 +11,7 @@ execute_process(
 
 
 set(JIT_LIB_SOURCE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/device_gemm_multiple_d_xdlop_cshuffle.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/device_gemm_multiple_d.hpp
 )
 
 add_library(jit_library STATIC ${JIT_LIB_SOURCE})

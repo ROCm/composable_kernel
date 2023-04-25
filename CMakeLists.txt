@@ -288,14 +288,16 @@ if (NOT CK_BUILD_JIT_LIB)
     add_subdirectory(example)
     add_subdirectory(test)
     add_subdirectory(profiler)
-else()
-    add_subdirectory(library)
 
+else()
     rocm_package_setup_component(jit_library
             LIBRARY_NAME composablekernel
             PACKAGE_NAME jit_library
     )
+    
 endif()
+
+add_subdirectory(library)
 
 #Create an interface target for the include only files and call it "composablekernels"
 include(CMakePackageConfigHelpers)
