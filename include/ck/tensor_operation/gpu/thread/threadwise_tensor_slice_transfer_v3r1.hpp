@@ -339,23 +339,10 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         }
 
         static_ford<SliceLengths>{}([&](auto idx) {
-            // if elementwise op does conversion, use the op instead of type_convert
-            if constexpr(is_same<SrcElementwiseOperation,
-                                 ck::tensor_operation::element_wise::UnaryConvert>::value ||
-                         is_same<SrcElementwiseOperation,
-                                 ck::tensor_operation::element_wise::UnaryConvertPrecision>::value)
-            {
-                DstData dst_v;
-                src_element_op_(dst_v, src_thread_scratch_tuple_[thread_scratch_id][idx]);
-                dst_thread_scratch_(idx) = dst_v;
-            }
-            // else apply elementwise op and use type_convert for conversion
-            else
-            {
-                SrcData src_v;
-                src_element_op_(src_v, src_thread_scratch_tuple_[thread_scratch_id][idx]);
-                dst_thread_scratch_(idx) = type_convert<DstData>(src_v);
-            }
+            // apply the src elementwise op and convert under the hood if needed
+            DstData dst_v;
+            src_element_op_(dst_v, src_thread_scratch_tuple_[thread_scratch_id][idx]);
+            dst_thread_scratch_(idx) = dst_v;
         });
 #endif
     }
