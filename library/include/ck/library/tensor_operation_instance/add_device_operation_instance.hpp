@@ -55,10 +55,10 @@ struct ArchitectureEnumSequence
         return mData[I];
     }
 };
-template <typename DeviceOp, GemmFeatureEnum Feature>
+template <GemmFeatureEnum Feature, typename DeviceOp>
 struct DeviceOperationInstances;
 
-template <typename DeviceOp, typename Arch>
+template <typename Arch, typename DeviceOp>
 struct DeviceOperationInstanceCreator;
 } // namespace instance
 } // namespace device

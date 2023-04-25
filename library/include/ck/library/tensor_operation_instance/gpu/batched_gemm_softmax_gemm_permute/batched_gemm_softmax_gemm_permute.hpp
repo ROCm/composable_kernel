@@ -18,7 +18,8 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-template <index_t NumDimG,
+template <typename Arch,
+          index_t NumDimG,
           index_t NumDimM,
           index_t NumDimN,
           index_t NumDimK,
@@ -34,9 +35,9 @@ template <index_t NumDimG,
           typename C0DEElementwiseOperation,
           typename B1ElementwiseOperation,
           typename C1DEElementwiseOperation,
-          MaskingSpecialization MaskingSpec,
-          typename Arch>
-struct DeviceOperationInstanceCreator<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
+          MaskingSpecialization MaskingSpec>
+struct DeviceOperationInstanceCreator<Arch,
+                                      DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
                                                                           NumDimM,
                                                                           NumDimN,
                                                                           NumDimK,
@@ -52,8 +53,7 @@ struct DeviceOperationInstanceCreator<DeviceBatchedGemmSoftmaxGemmPermute<NumDim
                                                                           C0DEElementwiseOperation,
                                                                           B1ElementwiseOperation,
                                                                           C1DEElementwiseOperation,
-                                                                          MaskingSpec>,
-                                      Arch>
+                                                                          MaskingSpec>>
 {
     using DeviceOp = DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
                                                          NumDimM,
@@ -74,11 +74,11 @@ struct DeviceOperationInstanceCreator<DeviceBatchedGemmSoftmaxGemmPermute<NumDim
                                                          MaskingSpec>;
     static void add_device_instances(std::vector<std::unique_ptr<DeviceOp>>& instances)
     {
-        if constexpr(DeviceOperationInstances<DeviceOp,
-                                              GemmFeatureEnum::Xdl>::template is_surport<Arch>())
+        if constexpr(DeviceOperationInstances<GemmFeatureEnum::Xdl,
+                                              DeviceOp>::template is_surport<Arch>())
             add_device_operation_instances(
                 instances,
-                DeviceOperationInstances<DeviceOp, GemmFeatureEnum::Xdl>::get_device_instances());
+                DeviceOperationInstances<GemmFeatureEnum::Xdl, DeviceOp>::get_device_instances());
     }
 };
 

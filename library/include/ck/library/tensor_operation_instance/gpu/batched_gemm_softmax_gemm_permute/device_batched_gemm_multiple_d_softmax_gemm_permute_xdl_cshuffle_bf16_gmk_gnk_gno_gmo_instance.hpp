@@ -27,7 +27,8 @@ template <index_t NumDimG,
           typename B1ElementwiseOperation,
           typename C1DEElementwiseOperation,
           MaskingSpecialization MaskingSpec>
-struct DeviceOperationInstances<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
+struct DeviceOperationInstances<GemmFeatureEnum::Xdl,
+                                DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
                                                                     NumDimM,
                                                                     NumDimN,
                                                                     NumDimK,
@@ -43,8 +44,7 @@ struct DeviceOperationInstances<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
                                                                     C0DEElementwiseOperation,
                                                                     B1ElementwiseOperation,
                                                                     C1DEElementwiseOperation,
-                                                                    MaskingSpec>,
-                                GemmFeatureEnum::Xdl>
+                                                                    MaskingSpec>>
 {
     template <ck::index_t... Is>
     using S = ck::Sequence<Is...>;
