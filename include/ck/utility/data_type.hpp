@@ -1034,11 +1034,6 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int8_t>(int8_
 // Convert X to Y with highest possible precision
 template <typename Y, typename X>
 __host__ __device__ constexpr Y bf16_convert_rtn(X x);
-// {
-//     static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
-
-//     return static_cast<Y>(x);
-// }
 
 // Convert fp32 to bf16 with RTN if higher precision is needed
 template <>
