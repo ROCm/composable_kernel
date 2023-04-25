@@ -137,7 +137,7 @@ int main()
     std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
     ck::tensor_operation::device::instance::DeviceOperationInstanceCreator<
         DeviceOp,
-        ck::tensor_operation::device::instance::ArchitectureEnum::Xdl>::
+        ck::tensor_operation::device::instance::GemmFeatureEnum::Xdl>::
         add_device_instances(op_ptrs);
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;

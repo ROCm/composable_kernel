@@ -44,7 +44,7 @@ struct DeviceOperationInstances<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
                                                                     B1ElementwiseOperation,
                                                                     C1DEElementwiseOperation,
                                                                     MaskingSpec>,
-                                ArchitectureEnum::Xdl>
+                                GemmFeatureEnum::Xdl>
 {
     template <ck::index_t... Is>
     using S = ck::Sequence<Is...>;
@@ -89,6 +89,18 @@ struct DeviceOperationInstances<DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
             // clang-format on
             >;
 
+    template <typename Archs>
+    static constexpr bool is_surport()
+    {
+        bool is_surport = false;
+        ck::static_for<0, Archs::mSize, 1>{}([&](auto I) {
+            if constexpr(Archs::At(I) == ArchitectureEnum::All ||
+                         Archs::At(I) == ArchitectureEnum::Gfx908 ||
+                         Archs::At(I) == ArchitectureEnum::Gfx90a)
+                is_surport = true;
+        });
+        return is_surport;
+    }
     static auto get_device_instances()
     {
         return device_batched_gemm_bias_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances{};

@@ -31,13 +31,34 @@ void add_device_operation_instances(std::vector<std::unique_ptr<BaseOp>>& op_ins
 
 enum struct ArchitectureEnum
 {
-    Xdl,
-    Dl
+    None,
+    Gfx908,
+    Gfx90a,
+    Gfx1030,
+    All
 };
-template <typename DeviceOp, ArchitectureEnum Arch = ArchitectureEnum::Xdl>
+enum struct GemmFeatureEnum
+{
+    Xdl,
+    Dl,
+    Wmd
+};
+template <ArchitectureEnum... Is>
+struct ArchitectureEnumSequence
+{
+    static constexpr int mSize = sizeof...(Is);
+
+    __host__ __device__ static constexpr ArchitectureEnum At(int I)
+    {
+        // the last dummy element is to prevent compiler complain about empty array, when mSize = 0
+        const ArchitectureEnum mData[mSize + 1] = {Is..., ArchitectureEnum::None};
+        return mData[I];
+    }
+};
+template <typename DeviceOp, GemmFeatureEnum Feature>
 struct DeviceOperationInstances;
 
-template <typename DeviceOp, ArchitectureEnum Arch>
+template <typename DeviceOp, typename Arch>
 struct DeviceOperationInstanceCreator;
 } // namespace instance
 } // namespace device
