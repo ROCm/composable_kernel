@@ -32,11 +32,11 @@ void add_device_operation_instances(std::vector<std::unique_ptr<BaseOp>>& op_ins
 enum struct ArchitectureEnum
 {
     None,
+    All,
     Gfx908,
     Gfx90a,
     Gfx940,
-    Gfx1030,
-    All
+    Gfx1030
 };
 enum struct ArchFeatureEnum
 {
