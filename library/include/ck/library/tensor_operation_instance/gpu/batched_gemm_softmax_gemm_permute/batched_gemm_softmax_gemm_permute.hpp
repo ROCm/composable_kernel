@@ -74,11 +74,11 @@ struct DeviceOperationInstanceCreator<Arch,
                                                          MaskingSpec>;
     static void add_device_instances(std::vector<std::unique_ptr<DeviceOp>>& instances)
     {
-        if constexpr(DeviceOperationInstances<GemmFeatureEnum::Xdl,
+        if constexpr(DeviceOperationInstances<ArchFeatureEnum::Xdl,
                                               DeviceOp>::template is_surport<Arch>())
             add_device_operation_instances(
                 instances,
-                DeviceOperationInstances<GemmFeatureEnum::Xdl, DeviceOp>::get_device_instances());
+                DeviceOperationInstances<ArchFeatureEnum::Xdl, DeviceOp>::get_device_instances());
     }
 };
 

@@ -27,7 +27,7 @@ template <index_t NumDimG,
           typename B1ElementwiseOperation,
           typename C1DEElementwiseOperation,
           MaskingSpecialization MaskingSpec>
-struct DeviceOperationInstances<GemmFeatureEnum::Xdl,
+struct DeviceOperationInstances<ArchFeatureEnum::Xdl,
                                 DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
                                                                     NumDimM,
                                                                     NumDimN,
@@ -95,7 +95,8 @@ struct DeviceOperationInstances<GemmFeatureEnum::Xdl,
         ck::static_for<0, Archs::mSize, 1>{}([&](auto I) {
             if constexpr(Archs::At(I) == ArchitectureEnum::All ||
                          Archs::At(I) == ArchitectureEnum::Gfx908 ||
-                         Archs::At(I) == ArchitectureEnum::Gfx90a)
+                         Archs::At(I) == ArchitectureEnum::Gfx90a ||
+                         Archs::At(I) == ArchitectureEnum::Gfx940)
                 is_surport = true;
         });
         return is_surport;

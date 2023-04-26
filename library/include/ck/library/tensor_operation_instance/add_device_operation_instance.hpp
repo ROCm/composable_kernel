@@ -34,14 +34,16 @@ enum struct ArchitectureEnum
     None,
     Gfx908,
     Gfx90a,
+    Gfx940,
     Gfx1030,
     All
 };
-enum struct GemmFeatureEnum
+enum struct ArchFeatureEnum
 {
+    None,
     Xdl,
     Dl,
-    Wmd
+    Wmma
 };
 template <ArchitectureEnum... Is>
 struct ArchitectureEnumSequence
@@ -55,7 +57,7 @@ struct ArchitectureEnumSequence
         return mData[I];
     }
 };
-template <GemmFeatureEnum Feature, typename DeviceOp>
+template <ArchFeatureEnum Feature, typename DeviceOp>
 struct DeviceOperationInstances;
 
 template <typename Arch, typename DeviceOp>
