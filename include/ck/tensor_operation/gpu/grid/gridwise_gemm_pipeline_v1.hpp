@@ -462,6 +462,100 @@ struct GridwiseGemmPipeline_v1<1, true, false>
 template <>
 struct GridwiseGemmPipeline_v1<1, false, false>
 {
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+
+    __host__ __device__ static constexpr bool IsSupported(index_t /* num_loop */) { return true; }
+
+    __host__ __device__ static constexpr bool CalculateHasMainLoop(index_t num_loop)
+    {
+        return num_loop > 1;
+    }
+
+    template <bool HasMainLoop,
+              typename AGridDesc,
+              typename ABlockDesc,
+              typename ABlockTransfer,
+              typename AGridBuffer,
+              typename ABlockBuffer,
+              typename ABlockTransferStep,
+              typename BGridDesc,
+              typename BBlockDesc,
+              typename BBlockTransfer,
+              typename BGridBuffer,
+              typename BBlockBuffer,
+              typename BBlockTransferStep,
+              typename BlockwiseGemm,
+              typename CThreadBuffer>
+    __device__ static void Run(const AGridDesc& a_grid_desc,
+                               const ABlockDesc& a_block_desc,
+                               ABlockTransfer& a_blockwise_copy,
+                               const AGridBuffer& a_grid_buf,
+                               ABlockBuffer& a_block_buf,
+                               const ABlockTransferStep& a_block_copy_step,
+                               const BGridDesc& b_grid_desc,
+                               const BBlockDesc& b_block_desc,
+                               BBlockTransfer& b_blockwise_copy,
+                               const BGridBuffer& b_grid_buf,
+                               BBlockBuffer& b_block_buf,
+                               const BBlockTransferStep& b_block_copy_step,
+                               const BlockwiseGemm& blockwise_gemm,
+                               CThreadBuffer& c_thread_buf,
+                               index_t num_loop)
+    {
+        constexpr auto b_block_origin_idx = make_tuple(I0, I0, I0, I0, I0, I0);
+        constexpr auto a_block_origin_idx = make_tuple(I0, I0, I0, I0, I0, I0);
+        auto b_block_buf_switch           = b_block_buf;
+        auto a_block_buf_switch           = a_block_buf;
+
+        // preload data into LDS
+        a_blockwise_copy.Run(
+            a_grid_desc, a_grid_buf, a_block_desc, a_block_origin_idx, a_block_buf);
+        b_blockwise_copy.Run(
+            b_grid_desc, b_grid_buf, b_block_desc, b_block_origin_idx, b_block_buf);
+
+        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+        // Initialize C
+        c_thread_buf.Clear();
+
+        // main body
+        if constexpr(HasMainLoop)
+        {
+            index_t i = 0;
+
+            do
+            {
+                a_blockwise_copy.Run(
+                    a_grid_desc, a_grid_buf, a_block_desc, a_block_origin_idx, a_block_buf_switch);
+                b_blockwise_copy.Run(
+                    b_grid_desc, b_grid_buf, b_block_desc, b_block_origin_idx, b_block_buf_switch);
+
+                block_sync_lds();
+
+                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+
+                block_sync_lds();
+
+                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+                a_block_buf = a_block_buf_switch;
+                b_block_buf = b_block_buf_switch;
+                ++i;
+            } while(i < (num_loop - 1));
+        }
+
+        // tail
+        {
+            block_sync_lds();
+
+            blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+
+            block_sync_lds();
+        }
+    }
 };
 
 template <index_t NumPrefetch>
