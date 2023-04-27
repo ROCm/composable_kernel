@@ -99,7 +99,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           typename ADataType,
-          typename BDataType,       
+          typename BDataType,
           typename AccDataType,
           typename CShuffleDataType,
           typename DsDataType,
@@ -179,7 +179,6 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
 
     static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu;
     static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu;
-
 
     static constexpr auto conv_to_gemm_transformer =
         TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization>{};

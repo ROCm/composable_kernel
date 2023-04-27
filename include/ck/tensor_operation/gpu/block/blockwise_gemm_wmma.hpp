@@ -418,7 +418,7 @@ struct BlockwiseGemmWMMA
     }
 
     protected:
-        static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor(
+    static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor(
         make_tuple(Number<WmmaK / A_K1>{}, Number<MRepeat>{}, I1, I1, Number<A_K1>{}),
         make_tuple(Number<A_K1>{}, Number<WmmaK>{}, Number<A_K1>{}, Number<A_K1>{}, Number<1>{}));
 

@@ -712,8 +712,8 @@ struct GridwiseGemmMultipleD_Wmma
         const auto M = e_grid_desc_m_n.GetLength(I0);
         const auto N = e_grid_desc_m_n.GetLength(I1);
 
-        const auto MBlock = M / MPerBlock;
-        const auto NBlock = N / NPerBlock;
+        const auto MBlock                                        = M / MPerBlock;
+        const auto NBlock                                        = N / NPerBlock;
         const auto e_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
             e_grid_desc_m_n,
             make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{})),
