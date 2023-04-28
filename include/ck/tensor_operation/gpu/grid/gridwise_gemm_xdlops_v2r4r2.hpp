@@ -30,7 +30,8 @@ __global__ void
         kernel_gemm_xdlops_v2r4r2_simplified(typename GridwiseGemm::Argument karg,
                                              const Block2CTileMap& b2c_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
+    defined(__gfx940__))
     constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
 
     __shared__ uint8_t p_shared[shared_size];
