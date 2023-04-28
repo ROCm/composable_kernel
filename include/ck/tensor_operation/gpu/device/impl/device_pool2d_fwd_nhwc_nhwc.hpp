@@ -9,7 +9,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
-#include "ck/tensor_operation/gpu/device/device_pool2d_fwd.hpp"
+#include "ck/tensor_operation/gpu/device/device_pool_fwd.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_threadwise.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -29,7 +29,7 @@ template <typename InDataType,
           ck::index_t ReduceMThreadSliceSize,
           ck::index_t ReduceKThreadSliceSize,
           ck::index_t InSrcOutDstVectorSize>
-struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd<ReduceOpId>
+struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePoolFwd<2, ReduceOpId>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -141,8 +141,8 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
         return make_tuple(in_grid_desc_reducem_reducek, out_grid_desc_reducem);
     }
 
-    using ABGridDescs = decltype(
-        MakeABGridDescriptor_A_M_K_B_M(1, 1, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}));
+    using ABGridDescs = decltype(MakeABGridDescriptor_A_M_K_B_M(
+        1, 1, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}));
 
     using AGridDesc_M_K = remove_cvref_t<decltype(ABGridDescs{}[I0])>;
     using BGridDesc_M   = remove_cvref_t<decltype(ABGridDescs{}[I1])>;
