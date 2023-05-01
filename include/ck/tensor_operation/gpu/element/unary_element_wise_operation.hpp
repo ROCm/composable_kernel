@@ -116,9 +116,6 @@ struct ConvertBF16RTN
     __host__ __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
     {
         y = x;
-
-        // fill user screen, but exit gracefully
-        printf("This datatype is not supported, please use ConvertBF16RTN for bf16 data only.\n");
     }
 };
 
