@@ -31,7 +31,7 @@ struct DeviceGroupedGemm : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-    static_assert(DsLayout::Size() == DsDataType::Size(), "wrong! inconsisiten NumDTensor");
+    static_assert(DsLayout::Size() == DsDataType::Size(), "wrong! inconsistent NumDTensor");
 
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(std::vector<const void*>& p_a,
