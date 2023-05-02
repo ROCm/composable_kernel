@@ -94,28 +94,19 @@ struct UnaryConvert
 
 struct ConvertBF16RTN
 {
+    // convert to bf16 using round to nearest (rtn)
     template <typename Y, typename X>
-    __host__ __device__ void operator()(Y& y, const X& x) const;
-
-    // convert fp16->bf16 using rounding to nearest (rtn) via fp32
-    template <>
-    __host__ __device__ void operator()<bhalf_t, half_t>(bhalf_t& y, const half_t& x) const
+    __host__ __device__ void operator()(Y& y, const X& x) const
     {
-        y = bf16_convert_rtn<bhalf_t>(x);
-    }
+        // check Y datatype
+        static_assert(is_same<Y, bhalf_t>::value,
+                "Data type is not supported by this operation!");
 
-    // convert fp32->bf16 using rounding to nearest (rtn)
-    template <>
-    __host__ __device__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
-    {
-        y = bf16_convert_rtn<bhalf_t>(x);
-    }
+        // check X datatype
+        static_assert(is_same<X, float>::value || is_same<X, half_t>::value,
+                "Data type is not supported by this operation!");
 
-    // need to keep this specialization for fp16->fp16 ops
-    template <>
-    __host__ __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
-    {
-        y = x;
+        y = bf16_convert_rtn<Y>(x);
     }
 };
 
