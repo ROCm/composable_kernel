@@ -99,12 +99,11 @@ struct ConvertBF16RTN
     __host__ __device__ void operator()(Y& y, const X& x) const
     {
         // check Y datatype
-        static_assert(is_same<Y, bhalf_t>::value,
-                "Data type is not supported by this operation!");
+        static_assert(is_same<Y, bhalf_t>::value, "Data type is not supported by this operation!");
 
         // check X datatype
         static_assert(is_same<X, float>::value || is_same<X, half_t>::value,
-                "Data type is not supported by this operation!");
+                      "Data type is not supported by this operation!");
 
         y = bf16_convert_rtn<Y>(x);
     }

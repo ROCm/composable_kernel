@@ -67,7 +67,8 @@ struct ReferenceGemm : public device::BaseOperator
                     BDataType v_b;
 
                     // use PassThrough instead of ConvertBF16RTN for reference calculation
-                    if constexpr(is_same_v<AElementwiseOperation, ck::tensor_operation::element_wise::ConvertBF16RTN>)
+                    if constexpr(is_same_v<AElementwiseOperation,
+                                           ck::tensor_operation::element_wise::ConvertBF16RTN>)
                     {
                         ck::tensor_operation::element_wise::PassThrough{}(v_a, arg.a_m_k_(m, k));
                     }
@@ -76,7 +77,8 @@ struct ReferenceGemm : public device::BaseOperator
                         arg.a_element_op_(v_a, arg.a_m_k_(m, k));
                     }
                     // same for B matrix
-                    if constexpr(is_same_v<BElementwiseOperation, ck::tensor_operation::element_wise::ConvertBF16RTN>)
+                    if constexpr(is_same_v<BElementwiseOperation,
+                                           ck::tensor_operation::element_wise::ConvertBF16RTN>)
                     {
                         ck::tensor_operation::element_wise::PassThrough{}(v_b, arg.b_k_n_(k, n));
                     }
