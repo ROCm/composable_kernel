@@ -1133,8 +1133,14 @@ amd_buffer_atomic_add(const typename vector_type_maker<T, N>::type::type src_thr
 #else
     if(dst_thread_element_valid)
     {
+#if CK_WORKAROUND_ATOMIC_ADD
         amd_buffer_atomic_add_impl<scalar_t, vector_size>(
             src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
+#else
+        static_for<0, vector_size, 1>{}([&](auto i) {
+            atomicAdd(p_dst_wave + dst_thread_element_offset + i, src_thread_data);
+        });
+#endif
     }
 #endif
 }
