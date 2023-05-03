@@ -298,6 +298,44 @@ struct intrin_mfma_i32_16x16x16i8<16, 16>
 };
 
 template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_i32_32x32x16i8;
+
+template <>
+struct intrin_mfma_i32_32x32x16i8<32, 32>
+{
+    template <class FloatC>
+    __device__ static void Run(const int8x8_t& reg_a, const int8x8_t& reg_b, FloatC& reg_c)
+    {
+        reg_c.template AsType<int32x16_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_i32_32x32x16_i8(bit_cast<int64_t>(reg_a),
+                                                  bit_cast<int64_t>(reg_b),
+                                                  reg_c.template AsType<int32x16_t>()[Number<0>{}],
+                                                  0,
+                                                  0,
+                                                  0);
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_i32_16x16x32i8;
+
+template <>
+struct intrin_mfma_i32_16x16x32i8<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const int8x8_t& reg_a, const int8x8_t& reg_b, FloatC& reg_c)
+    {
+        reg_c.template AsType<int32x4_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_i32_16x16x32i8(bit_cast<int64_t>(reg_a),
+                                                 bit_cast<int64_t>(reg_b),
+                                                 reg_c.template AsType<int32x4_t>()[Number<0>{}],
+                                                 0,
+                                                 0,
+                                                 0);
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_f64_16x16x4f64;
 
 template <>
@@ -306,7 +344,7 @@ struct intrin_mfma_f64_16x16x4f64<16, 16>
     template <class FloatC>
     __device__ static void Run(const double& reg_a, const double& reg_b, FloatC& reg_c)
     {
-#ifdef __gfx90a__
+#if defined(__gfx90a__) || defined(__gfx940__)
         reg_c.template AsType<double4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f64_16x16x4f64(
             reg_a, reg_b, reg_c.template AsType<double4_t>()[Number<0>{}], 0, 0, 0);
 #else
