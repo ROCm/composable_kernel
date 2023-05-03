@@ -72,8 +72,8 @@ bool profile_gemm_splitk_impl(int do_verification,
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-1, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-1, 2});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -94,7 +94,7 @@ bool profile_gemm_splitk_impl(int do_verification,
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
-    c_device_buf.ToDevice(c_m_n_device_result.mData.data());
+    c_device_buf.SetZero();
 
     using DeviceOp = ck::tensor_operation::device::DeviceGemmSplitK<ALayout,
                                                                     BLayout,

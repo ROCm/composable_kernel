@@ -17,13 +17,13 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-// grouped conv2d forward, GNHWC/GKYXC/GNHWK
-void add_device_conv2d_perchannel_quantization_int8_instances(
+// grouped conv2d forward, NHWGC/GKYXC/NHWGK
+void add_device_conv2d_dl_perchannel_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
-                                                              GNHWC,
+                                                              NHWGC,
                                                               GKYXC,
                                                               GK_Tuple,
-                                                              GNHWK,
+                                                              NHWGK,
                                                               int8_t,
                                                               int8_t,
                                                               F32_Tuple,
@@ -33,12 +33,42 @@ void add_device_conv2d_perchannel_quantization_int8_instances(
                                                               Activation_Mul2_Clamp<PassThrough>>>>&
         instances);
 
-void add_device_conv2d_relu_perchannel_quantization_int8_instances(
+void add_device_conv2d_dl_relu_perchannel_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
-                                                              GNHWC,
+                                                              NHWGC,
                                                               GKYXC,
                                                               GK_Tuple,
-                                                              GNHWK,
+                                                              NHWGK,
+                                                              int8_t,
+                                                              int8_t,
+                                                              F32_Tuple,
+                                                              int8_t,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              Activation_Mul2_Clamp<Relu>>>>&
+        instances);
+
+void add_device_conv2d_xdl_perchannel_quantization_int8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              NHWGC,
+                                                              GKYXC,
+                                                              GK_Tuple,
+                                                              NHWGK,
+                                                              int8_t,
+                                                              int8_t,
+                                                              F32_Tuple,
+                                                              int8_t,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              Activation_Mul2_Clamp<PassThrough>>>>&
+        instances);
+
+void add_device_conv2d_xdl_relu_perchannel_quantization_int8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              NHWGC,
+                                                              GKYXC,
+                                                              GK_Tuple,
+                                                              NHWGK,
                                                               int8_t,
                                                               int8_t,
                                                               F32_Tuple,
@@ -89,17 +119,23 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
-        if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, GNHWC> &&
+        if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NHWGC> &&
                      is_same_v<WeiLayout, GKYXC> && is_same_v<DsLayout, GK_Tuple> &&
-                     is_same_v<OutLayout, GNHWK>)
+                     is_same_v<OutLayout, NHWGK>)
         {
             if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
                          is_same_v<OutDataType, int8_t>)
             {
                 if constexpr(is_same_v<Activation, PassThrough>)
-                    add_device_conv2d_perchannel_quantization_int8_instances(op_ptrs);
+                {
+                    add_device_conv2d_dl_perchannel_quantization_int8_instances(op_ptrs);
+                    add_device_conv2d_xdl_perchannel_quantization_int8_instances(op_ptrs);
+                }
                 else if constexpr(is_same_v<Activation, Relu>)
-                    add_device_conv2d_relu_perchannel_quantization_int8_instances(op_ptrs);
+                {
+                    add_device_conv2d_dl_relu_perchannel_quantization_int8_instances(op_ptrs);
+                    add_device_conv2d_xdl_relu_perchannel_quantization_int8_instances(op_ptrs);
+                }
             }
         }
 

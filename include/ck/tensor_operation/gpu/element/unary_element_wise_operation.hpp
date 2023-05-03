@@ -316,8 +316,36 @@ struct Sigmoid
 
         y = 1 / (ck::type_convert<T>(1) + exp(-x));
     };
+};
 
-    int32_t divider_ = 1;
+struct TanH
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::tanh(x);
+    };
+};
+
+struct Swish
+{
+    Swish(float beta = 1.0f) : beta_(beta) {}
+
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = x / (ck::type_convert<T>(1) + ck::math::exp(-beta_ * x));
+    };
+
+    float beta_ = 1.0f;
 };
 
 } // namespace element_wise
