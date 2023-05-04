@@ -224,6 +224,7 @@ struct GridwiseNormalizationSplitK1st
             int count = threadwise_welford.cur_count_;
             BlockwiseWelford::Run(mean_thread_buf(I), var_thread_buf(I), count);
 
+            // The value of count is same for all I
             if constexpr(I == MThreadSliceSize - 1)
                 welford_count = count;
         });
