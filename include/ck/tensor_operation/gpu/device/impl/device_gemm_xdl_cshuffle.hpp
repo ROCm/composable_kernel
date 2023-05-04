@@ -209,7 +209,20 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                              index_t StrideB,
                              index_t StrideC)
     {
-        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC};
+        return Argument{p_a,
+                        p_b,
+                        p_c,
+                        M,
+                        N,
+                        K,
+                        StrideA,
+                        StrideB,
+                        StrideC,
+                        GridwiseGemm::CalculateMPadded(M),
+                        GridwiseGemm::CalculateNPadded(N),
+                        GridwiseGemm::CalculateKPadded(K),
+                        GridwiseGemm::CalculateAK0(K),
+                        GridwiseGemm::CalculateBK0(K)};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -236,7 +249,12 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                                           K,
                                           StrideA,
                                           StrideB,
-                                          StrideC);
+                                          StrideC,
+                                          GridwiseGemm::CalculateMPadded(M),
+                                          GridwiseGemm::CalculateNPadded(N),
+                                          GridwiseGemm::CalculateKPadded(K),
+                                          GridwiseGemm::CalculateAK0(K),
+                                          GridwiseGemm::CalculateBK0(K));
     }
 
     // polymorphic
