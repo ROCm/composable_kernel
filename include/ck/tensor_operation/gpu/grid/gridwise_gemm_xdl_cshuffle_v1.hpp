@@ -25,8 +25,7 @@ template <typename GridwiseGemm,
           typename CElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
-          typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-          typename Block2CTileMap,
+          typename CGridDesc_M_N,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -40,9 +39,7 @@ __global__ void
                                     const CElementwiseOperation c_element_op,
                                     const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
                                     const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-                                    const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                    const Block2CTileMap block_2_ctile_map)
+                                    const CGridDesc_M_N c_grid_desc_m_n)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -56,8 +53,7 @@ __global__ void
                                                   c_element_op,
                                                   a_grid_desc_ak0_m_ak1,
                                                   b_grid_desc_bk0_n_bk1,
-                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  block_2_ctile_map);
+                                                  c_grid_desc_m_n);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -67,8 +63,7 @@ __global__ void
     ignore = c_element_op;
     ignore = a_grid_desc_ak0_m_ak1;
     ignore = b_grid_desc_bk0_n_bk1;
-    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore = block_2_ctile_map;
+    ignore = c_grid_desc_m_n;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -144,7 +139,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     __host__ __device__ static auto CalculateGridSize(index_t M, index_t N)
     {
         // reference the implementation of class 'BlockToCTileMap_M00_N0_M01Adapt'
-        return std::make_tuple(DefaultBlock2CTileMap::CalculateGridSize(M, N), 1, 1);
+        return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), 1, 1);
     }
 
     __host__ __device__ static auto CalculateMPadded(index_t M)
@@ -269,12 +264,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
-    template <typename Block2CTileMap>
     __host__ __device__ static constexpr bool
     CheckValidity(const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                   const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
-                  const CGridDesc_M_N& c_grid_desc_m_n,
-                  const Block2CTileMap& block_2_ctile_map)
+                  const CGridDesc_M_N& c_grid_desc_m_n)
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
@@ -294,11 +287,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         const auto num_k_loop = K / KPerBlock;
 
         if(!GridwiseGemmPipe::IsSupported(num_k_loop))
-        {
-            return false;
-        }
-
-        if(!block_2_ctile_map.CheckValidity(c_grid_desc_m_n))
         {
             return false;
         }
@@ -335,7 +323,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
     // return block_id to C matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
-    MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n)
+    MakeBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n)
     {
         return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>(
             c_grid_desc_m_n);
@@ -344,10 +332,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     using CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
         MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}))>;
 
-    using DefaultBlock2CTileMap =
-        remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}))>;
+    using Block2CTileMap = remove_cvref_t<decltype(MakeBlock2CTileMap(CGridDesc_M_N{}))>;
 
-    template <bool HasMainKBlockLoop, typename Block2CTileMap>
+    template <bool HasMainKBlockLoop>
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
@@ -357,10 +344,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                const CElementwiseOperation& c_element_op,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
-                               const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
-                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
-                               const Block2CTileMap& block_2_ctile_map)
+                               const CGridDesc_M_N c_grid_desc_m_n)
     {
+        const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
+            MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
+
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -369,6 +357,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         // divide block work by [M, N]
+
+        const auto block_2_ctile_map = MakeBlock2CTileMap(c_grid_desc_m_n);
+
         const auto block_work_idx =
             block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 

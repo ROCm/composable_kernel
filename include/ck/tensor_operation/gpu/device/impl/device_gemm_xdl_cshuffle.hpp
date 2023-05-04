@@ -385,22 +385,11 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                                                                  N,
                                                                  GridwiseGemm::CalculateNPadded(N),
                                                                  StrideC)},
-              c_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op},
               kraw_{K}
         {
-            if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
-                                           b_grid_desc_bk0_n_bk1_,
-                                           c_grid_desc_m_n_,
-                                           block_2_ctile_map_))
-            {
-                c_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                    GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        c_grid_desc_m_n_);
-            }
         }
 
         //  private:
@@ -413,9 +402,6 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            c_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
@@ -446,10 +432,8 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
             }
 #endif
 
-            if(!GridwiseGemm::CheckValidity(karg.a_grid_desc_ak0_m_ak1_,
-                                            karg.b_grid_desc_bk0_n_bk1_,
-                                            karg.c_grid_desc_m_n_,
-                                            karg.block_2_ctile_map_))
+            if(!GridwiseGemm::CheckValidity(
+                   karg.a_grid_desc_ak0_m_ak1_, karg.b_grid_desc_bk0_n_bk1_, karg.c_grid_desc_m_n_))
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
@@ -463,66 +447,60 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                const auto kernel = kernel_gemm_xdl_cshuffle_v1<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
-                    DeviceOp::AGridDesc_AK0_M_AK1,
-                    DeviceOp::BGridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::DefaultBlock2CTileMap,
-                    true>;
+                const auto kernel =
+                    kernel_gemm_xdl_cshuffle_v1<GridwiseGemm,
+                                                ADataType, // TODO: distiguish A/B datatype
+                                                CDataType,
+                                                AElementwiseOperation,
+                                                BElementwiseOperation,
+                                                CElementwiseOperation,
+                                                DeviceOp::AGridDesc_AK0_M_AK1,
+                                                DeviceOp::BGridDesc_BK0_N_BK1,
+                                                DeviceOp::CGridDesc_M_N,
+                                                true>;
 
-                ave_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(gdx, gdy, gdz),
-                                           dim3(BlockSize),
-                                           0,
-                                           karg.p_a_grid_,
-                                           karg.p_b_grid_,
-                                           karg.p_c_grid_,
-                                           karg.a_element_op_,
-                                           karg.b_element_op_,
-                                           karg.c_element_op_,
-                                           karg.a_grid_desc_ak0_m_ak1_,
-                                           karg.b_grid_desc_bk0_n_bk1_,
-                                           karg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           karg.block_2_ctile_map_);
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3(gdx, gdy, gdz),
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  karg.p_a_grid_,
+                                                  karg.p_b_grid_,
+                                                  karg.p_c_grid_,
+                                                  karg.a_element_op_,
+                                                  karg.b_element_op_,
+                                                  karg.c_element_op_,
+                                                  karg.a_grid_desc_ak0_m_ak1_,
+                                                  karg.b_grid_desc_bk0_n_bk1_,
+                                                  karg.c_grid_desc_m_n_);
             }
             else
             {
-                const auto kernel = kernel_gemm_xdl_cshuffle_v1<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
-                    DeviceOp::AGridDesc_AK0_M_AK1,
-                    DeviceOp::BGridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::DefaultBlock2CTileMap,
-                    false>;
-                ave_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(gdx, gdy, gdz),
-                                           dim3(BlockSize),
-                                           0,
-                                           karg.p_a_grid_,
-                                           karg.p_b_grid_,
-                                           karg.p_c_grid_,
-                                           karg.a_element_op_,
-                                           karg.b_element_op_,
-                                           karg.c_element_op_,
-                                           karg.a_grid_desc_ak0_m_ak1_,
-                                           karg.b_grid_desc_bk0_n_bk1_,
-                                           karg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           karg.block_2_ctile_map_);
+                const auto kernel =
+                    kernel_gemm_xdl_cshuffle_v1<GridwiseGemm,
+                                                ADataType, // TODO: distiguish A/B datatype
+                                                CDataType,
+                                                AElementwiseOperation,
+                                                BElementwiseOperation,
+                                                CElementwiseOperation,
+                                                DeviceOp::AGridDesc_AK0_M_AK1,
+                                                DeviceOp::BGridDesc_BK0_N_BK1,
+                                                DeviceOp::CGridDesc_M_N,
+                                                false>;
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3(gdx, gdy, gdz),
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  karg.p_a_grid_,
+                                                  karg.p_b_grid_,
+                                                  karg.p_c_grid_,
+                                                  karg.a_element_op_,
+                                                  karg.b_element_op_,
+                                                  karg.c_element_op_,
+                                                  karg.a_grid_desc_ak0_m_ak1_,
+                                                  karg.b_grid_desc_bk0_n_bk1_,
+                                                  karg.c_grid_desc_m_n_);
             }
 
             return ave_time;
@@ -558,10 +536,8 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_m_n_,
-                                           arg.block_2_ctile_map_);
+        return GridwiseGemm::CheckValidity(
+            arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.c_grid_desc_m_n_);
     }
 
     // polymorphic
