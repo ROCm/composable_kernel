@@ -198,7 +198,6 @@ bool profile_grouped_gemm_impl(int do_verification,
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-
             if(kbatch > 1)
             {
                 using DeviceOpSplitK =
@@ -222,7 +221,7 @@ bool profile_grouped_gemm_impl(int do_verification,
             }
 
             float ave_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel, 1});
 
             if(time_kernel)
             {
