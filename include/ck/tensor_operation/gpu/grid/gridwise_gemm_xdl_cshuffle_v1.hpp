@@ -20,9 +20,6 @@ namespace ck {
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDesc_M_N,
@@ -34,9 +31,6 @@ __global__ void
         kernel_gemm_xdl_cshuffle_v1(const FloatAB* __restrict__ p_a_grid,
                                     const FloatAB* __restrict__ p_b_grid,
                                     FloatC* __restrict__ p_c_grid,
-                                    const AElementwiseOperation a_element_op,
-                                    const BElementwiseOperation b_element_op,
-                                    const CElementwiseOperation c_element_op,
                                     const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
                                     const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
                                     const CGridDesc_M_N c_grid_desc_m_n)
@@ -48,9 +42,6 @@ __global__ void
                                                   p_b_grid,
                                                   p_c_grid,
                                                   p_shared,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  c_element_op,
                                                   a_grid_desc_ak0_m_ak1,
                                                   b_grid_desc_bk0_n_bk1,
                                                   c_grid_desc_m_n);
@@ -58,9 +49,6 @@ __global__ void
     ignore = p_a_grid;
     ignore = p_b_grid;
     ignore = p_c_grid;
-    ignore = a_element_op;
-    ignore = b_element_op;
-    ignore = c_element_op;
     ignore = a_grid_desc_ak0_m_ak1;
     ignore = b_grid_desc_bk0_n_bk1;
     ignore = c_grid_desc_m_n;
@@ -339,9 +327,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                const FloatAB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
                                void* __restrict__ p_shared,
-                               const AElementwiseOperation& a_element_op,
-                               const BElementwiseOperation& b_element_op,
-                               const CElementwiseOperation& c_element_op,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                                const CGridDesc_M_N c_grid_desc_m_n)
@@ -356,8 +341,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
-        // divide block work by [M, N]
+        const AElementwiseOperation a_element_op{};
+        const BElementwiseOperation b_element_op{};
+        const CElementwiseOperation c_element_op{};
 
+        // divide block work by [M, N]
         const auto block_2_ctile_map = MakeBlock2CTileMap(c_grid_desc_m_n);
 
         const auto block_work_idx =

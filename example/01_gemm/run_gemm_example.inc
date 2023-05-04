@@ -89,10 +89,7 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
         K,
         StrideA,
         StrideB,
-        StrideC,
-        a_element_op,
-        b_element_op,
-        c_element_op);
+        StrideC);
 
     if(!gemm.IsSupportedArgument(argument))
     {

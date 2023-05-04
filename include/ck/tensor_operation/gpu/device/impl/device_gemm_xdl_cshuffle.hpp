@@ -356,10 +356,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                  index_t K,
                  index_t StrideA,
                  index_t StrideB,
-                 index_t StrideC,
-                 AElementwiseOperation a_element_op,
-                 BElementwiseOperation b_element_op,
-                 CElementwiseOperation c_element_op)
+                 index_t StrideC)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
@@ -385,9 +382,6 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                                                                  N,
                                                                  GridwiseGemm::CalculateNPadded(N),
                                                                  StrideC)},
-              a_element_op_{a_element_op},
-              b_element_op_{b_element_op},
-              c_element_op_{c_element_op},
               kraw_{K}
         {
         }
@@ -402,9 +396,6 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        AElementwiseOperation a_element_op_;
-        BElementwiseOperation b_element_op_;
-        CElementwiseOperation c_element_op_;
         index_t kraw_;
     };
 
@@ -451,9 +442,6 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                     kernel_gemm_xdl_cshuffle_v1<GridwiseGemm,
                                                 ADataType, // TODO: distiguish A/B datatype
                                                 CDataType,
-                                                AElementwiseOperation,
-                                                BElementwiseOperation,
-                                                CElementwiseOperation,
                                                 DeviceOp::AGridDesc_AK0_M_AK1,
                                                 DeviceOp::BGridDesc_BK0_N_BK1,
                                                 DeviceOp::CGridDesc_M_N,
@@ -467,9 +455,6 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                                                   karg.p_a_grid_,
                                                   karg.p_b_grid_,
                                                   karg.p_c_grid_,
-                                                  karg.a_element_op_,
-                                                  karg.b_element_op_,
-                                                  karg.c_element_op_,
                                                   karg.a_grid_desc_ak0_m_ak1_,
                                                   karg.b_grid_desc_bk0_n_bk1_,
                                                   karg.c_grid_desc_m_n_);
@@ -480,9 +465,6 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                     kernel_gemm_xdl_cshuffle_v1<GridwiseGemm,
                                                 ADataType, // TODO: distiguish A/B datatype
                                                 CDataType,
-                                                AElementwiseOperation,
-                                                BElementwiseOperation,
-                                                CElementwiseOperation,
                                                 DeviceOp::AGridDesc_AK0_M_AK1,
                                                 DeviceOp::BGridDesc_BK0_N_BK1,
                                                 DeviceOp::CGridDesc_M_N,
@@ -495,9 +477,6 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                                                   karg.p_a_grid_,
                                                   karg.p_b_grid_,
                                                   karg.p_c_grid_,
-                                                  karg.a_element_op_,
-                                                  karg.b_element_op_,
-                                                  karg.c_element_op_,
                                                   karg.a_grid_desc_ak0_m_ak1_,
                                                   karg.b_grid_desc_bk0_n_bk1_,
                                                   karg.c_grid_desc_m_n_);
@@ -554,23 +533,9 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                              index_t K,
                              index_t StrideA,
                              index_t StrideB,
-                             index_t StrideC,
-                             AElementwiseOperation a_element_op,
-                             BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op)
+                             index_t StrideC)
     {
-        return Argument{p_a,
-                        p_b,
-                        p_c,
-                        M,
-                        N,
-                        K,
-                        StrideA,
-                        StrideB,
-                        StrideC,
-                        a_element_op,
-                        b_element_op,
-                        c_element_op};
+        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -585,9 +550,9 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                                                       index_t StrideA,
                                                       index_t StrideB,
                                                       index_t StrideC,
-                                                      AElementwiseOperation a_element_op,
-                                                      BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op) override
+                                                      AElementwiseOperation,
+                                                      BElementwiseOperation,
+                                                      CElementwiseOperation) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -597,10 +562,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                                           K,
                                           StrideA,
                                           StrideB,
-                                          StrideC,
-                                          a_element_op,
-                                          b_element_op,
-                                          c_element_op);
+                                          StrideC);
     }
 
     // polymorphic
