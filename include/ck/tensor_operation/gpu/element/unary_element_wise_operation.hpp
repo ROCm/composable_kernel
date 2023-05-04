@@ -57,6 +57,12 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<bhalf_t, half_t>(bhalf_t& y, const half_t& x) const
+    {
+        y = type_convert<bhalf_t>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<int8_t, int8_t>(int8_t& y, const int8_t& x) const
     {
         y = x;
@@ -83,6 +89,23 @@ struct UnaryConvert
     __host__ __device__ void operator()(Y& y, const X& x) const
     {
         y = type_convert<Y>(x);
+    }
+};
+
+struct ConvertBF16RTN
+{
+    // convert to bf16 using round to nearest (rtn)
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const
+    {
+        // check Y datatype
+        static_assert(is_same<Y, bhalf_t>::value, "Data type is not supported by this operation!");
+
+        // check X datatype
+        static_assert(is_same<X, float>::value || is_same<X, half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = bf16_convert_rtn<Y>(x);
     }
 };
 
