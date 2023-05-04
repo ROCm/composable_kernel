@@ -117,8 +117,6 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
-    static constexpr auto I2 = Number<2>{};
-    static constexpr auto I3 = Number<3>{};
 
     __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt() = default;
 
@@ -229,7 +227,7 @@ struct BlockToCTileMap_M00_N0_M01Adapt : BlockToCTileMap_M00_N0_M01Adapt<MPerBlo
     {
     }
 
-    __host__ constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
+    __host__ static constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n)
     {
         return Parent::CalculateGridSize(c_grid_desc_m_n.GetLength(I0),
                                          c_grid_desc_m_n.GetLength(I1));
