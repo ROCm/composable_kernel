@@ -34,6 +34,9 @@ __global__ void
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid, p_b_grid, p_c_grid, p_shared, karg);
 #else
+    ignore = p_a_grid;
+    ignore = p_b_grid;
+    ignore = p_c_grid;
     ignore = karg;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
