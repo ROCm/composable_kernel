@@ -207,7 +207,10 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                              index_t K,
                              index_t StrideA,
                              index_t StrideB,
-                             index_t StrideC)
+                             index_t StrideC,
+                             AElementwiseOperation,
+                             BElementwiseOperation,
+                             CElementwiseOperation)
     {
         return Argument{p_a,
                         p_b,
