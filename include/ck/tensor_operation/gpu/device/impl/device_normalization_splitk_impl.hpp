@@ -530,6 +530,9 @@ struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
 
                 if(p_arg_->invariant_lowest_length % XSrcVectorSize != 0)
                     return false;
+
+                if(p_arg_->invariant_lowest_length % YDstVectorSize != 0)
+                    return false;
             };
         }
         else
@@ -539,12 +542,10 @@ struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
 
             if(p_arg_->Lengths_[Rank - 1] % XSrcVectorSize != 0)
                 return false;
-        };
 
-        if(p_arg_->Lengths_[Rank - 1] % YDstVectorSize != 0)
-        {
-            return false;
-        }
+            if(p_arg_->Lengths_[Rank - 1] % YDstVectorSize != 0)
+                return false;
+        };
 
         // if fastest dim is not reduced
         if constexpr(GammaSrcVectorDim == 0)
