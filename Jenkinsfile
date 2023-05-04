@@ -19,22 +19,32 @@ def runShell(String command){
 
 def getDockerImageName(){
     def img
-    if (params.ROCMVERSION != "5.5"){
-       if (params.COMPILER_COMMIT == ""){
-           img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
+    if (params.ROCMVERSION != "5.6"){
+       if (params.COMPILER_VERSION == "") {
+           img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
        }
        else{
-           def commit = "${params.COMPILER_COMMIT}"[0..6]
-           img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
+          if (params.COMPILER_COMMIT == ""){
+             img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
+          }
+          else{
+             def commit = "${params.COMPILER_COMMIT}"[0..6]
+             img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
+          }
        }
     }
     else{
-       if (params.COMPILER_COMMIT == ""){
-           img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
+       if (params.COMPILER_VERSION == "") {
+           img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}"
        }
        else{
-           def commit = "${params.COMPILER_COMMIT}"[0..6]
-           img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
+          if (params.COMPILER_COMMIT == ""){
+             img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
+          }
+          else{
+             def commit = "${params.COMPILER_COMMIT}"[0..6]
+             img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
+          }
        }
     }
     return img
@@ -587,7 +597,7 @@ def process_results(Map conf=[:]){
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true
-                                              0 21 * * * % COMPILER_VERSION=release;COMPILER_COMMIT=
+                                              0 21 * * * % ROCMVERSION=5.5;COMPILER_VERSION=release;COMPILER_COMMIT=
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=''' : ""
 
 pipeline {
@@ -605,16 +615,16 @@ pipeline {
             description: "Force building docker image (default: false), set to true if docker image needs to be updated.")
         string(
             name: 'ROCMVERSION', 
-            defaultValue: '5.4.3', 
-            description: 'Specify which ROCM version to use: 5.4.3 (default).')
+            defaultValue: '5.6', 
+            description: 'Specify which ROCM version to use: 5.6 (default).')
         string(
             name: 'COMPILER_VERSION', 
-            defaultValue: 'amd-stg-open', 
-            description: 'Specify which version of compiler to use: ck-9110, release, or amd-stg-open (default).')
+            defaultValue: '', 
+            description: 'Specify which version of compiler to use: release, amd-stg-open, or leave blank (default).')
         string(
             name: 'COMPILER_COMMIT', 
-            defaultValue: '5541927df00eabd6a110180170eca7785d436ee3', 
-            description: 'Specify which commit of compiler branch to use: leave empty to use the latest commit, or use 5541927df00eabd6a110180170eca7785d436ee3 (default) commit of amd-stg-open branch.')
+            defaultValue: '', 
+            description: 'Specify which commit of compiler branch to use: leave blank to use the latest commit, or use 5541927df00eabd6a110180170eca7785d436ee3 (default) commit of amd-stg-open branch.')
         string(
             name: 'BUILD_COMPILER', 
             defaultValue: 'hipcc', 
