@@ -130,106 +130,11 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         LoopSched,
         PipelineVer>;
 
-    using AGridDesc_AK0_M_AK1 =
-        decltype(GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(1, 1, 1, 1, 1, 1));
-    using BGridDesc_BK0_N_BK1 =
-        decltype(GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(1, 1, 1, 1, 1, 1));
-    using CGridDesc_M_N = decltype(GridwiseGemm::MakeCGridDescriptor_M_N(1, 1, 1, 1, 1));
-
-    // Argument
-    struct Argument : public BaseArgument
-    {
-        __host__ Argument(const ADataType* p_a_grid_,
-                          const BDataType* p_b_grid_,
-                          CDataType* p_c_grid_,
-                          index_t M_,
-                          index_t N_,
-                          index_t K_,
-                          index_t StrideA_,
-                          index_t StrideB_,
-                          index_t StrideC_)
-            : p_a_grid{p_a_grid_},
-              p_b_grid{p_b_grid_},
-              p_c_grid{p_c_grid_},
-              M{M_},
-              N{N_},
-              K{K_},
-              StrideA{StrideA_},
-              StrideB{StrideB_},
-              StrideC{StrideC_},
-              MPadded{GridwiseGemm::CalculateMPadded(M_)},
-              NPadded{GridwiseGemm::CalculateNPadded(N_)},
-              KPadded{GridwiseGemm::CalculateKPadded(K_)},
-              AK0{GridwiseGemm::CalculateAK0(K_)},
-              BK0{GridwiseGemm::CalculateBK0(K_)},
-              a_grid_desc_ak0_m_ak1{
-                  GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(M_,
-                                                              GridwiseGemm::CalculateMPadded(M_),
-                                                              K_,
-                                                              GridwiseGemm::CalculateKPadded(K_),
-                                                              StrideA_,
-                                                              GridwiseGemm::CalculateAK0(K_))},
-              b_grid_desc_bk0_n_bk1{
-                  GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(K_,
-                                                              GridwiseGemm::CalculateKPadded(K_),
-                                                              N_,
-                                                              GridwiseGemm::CalculateNPadded(N_),
-                                                              StrideB_,
-                                                              GridwiseGemm::CalculateBK0(K_))},
-              c_grid_desc_m_n{
-                  GridwiseGemm::MakeCGridDescriptor_M_N(M_,
-                                                        GridwiseGemm::CalculateMPadded(M_),
-                                                        N_,
-                                                        GridwiseGemm::CalculateNPadded(N_),
-                                                        StrideC_)}
-        {
-        }
-
-        __host__ __device__ void Print() const
-        {
-            std::cout << "arg {"
-                      << "M:" << M << ", "
-                      << "N:" << N << ", "
-                      << "K:" << K << ", "
-                      << "SA:" << StrideA << ", "
-                      << "SB:" << StrideB << ", "
-                      << "SC:" << StrideC << ", "
-                      << "MP:" << MPadded << ", "
-                      << "NP:" << NPadded << ", "
-                      << "KP:" << KPadded << ", "
-                      << "AK0:" << AK0 << ", "
-                      << "BK0:" << BK0 << "}" << std::endl;
-        }
-
-        __host__ __device__ Argument(const Argument&) = default;
-
-        __host__ __device__ ~Argument() override {}
-
-        //  private:
-        const ADataType* p_a_grid;
-        const BDataType* p_b_grid;
-        CDataType* p_c_grid;
-        index_t M;
-        index_t N;
-        index_t K;
-        index_t StrideA;
-        index_t StrideB;
-        index_t StrideC;
-        index_t MPadded;
-        index_t NPadded;
-        index_t KPadded;
-        index_t AK0;
-        index_t BK0;
-        AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1;
-        BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1;
-        CGridDesc_M_N c_grid_desc_m_n;
-    };
+    using Argument = typename GridwiseGemm::Argument;
 
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceOp::Argument;
-
         void Print(const Argument& karg) { karg.Print(); }
 
         float Run(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
@@ -253,16 +158,15 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                const auto kernel =
-                    kernel_gemm_xdl_cshuffle_v1_simplified<GridwiseGemm, Argument, true>;
+                const auto kernel = kernel_gemm_xdl_cshuffle_v1_simplified<GridwiseGemm, true>;
 
                 ave_time = launch_and_time_kernel(
                     stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg);
             }
             else
             {
-                const auto kernel =
-                    kernel_gemm_xdl_cshuffle_v1_simplified<GridwiseGemm, Argument, false>;
+                const auto kernel = kernel_gemm_xdl_cshuffle_v1_simplified<GridwiseGemm, false>;
+
                 ave_time = launch_and_time_kernel(
                     stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg);
             }
