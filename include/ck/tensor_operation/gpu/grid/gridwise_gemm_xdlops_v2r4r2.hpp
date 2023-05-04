@@ -383,7 +383,15 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
         {
             if(!(karg.M % MPerBlock == 0))
+            {
+#if DEBUG_LOG
+            std::cout << "Arg M value is not a multiple of MPerBlock! M: " << karg.M << " "
+                      << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                      << std::endl;
+                         
+#endif // DEBUG_LOG
                 return false;
+            }
         }
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
@@ -391,40 +399,102 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
         {
             if(!(karg.N % NPerBlock == 0))
+            {
+#if DEBUG_LOG
+            std::cout << "Arg N value is not a multiple of NPerBlock! N: " << karg.N << " "
+                      << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                      << std::endl;
+                         
+#endif // DEBUG_LOG
                 return false;
+            }
         }
 
         if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
             if(karg.K % ABlockTransferSrcScalarPerVector != 0)
+            {
+#if DEBUG_LOG
+            std::cout << "Arg K (" << karg.K << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
+                      << ABlockTransferSrcScalarPerVector << " )! " 
+                      << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                      << std::endl;
+                         
+#endif // DEBUG_LOG
                 return false;
+            }
         }
         else
         {
             if(karg.M % ABlockTransferSrcScalarPerVector != 0)
+            {
+#if DEBUG_LOG
+            std::cout << "Arg M (" << karg.M << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
+                      << ABlockTransferSrcScalarPerVector << " )! " 
+                      << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                      << std::endl;
+                         
+#endif // DEBUG_LOG
                 return false;
+            }
         }
 
         if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
         {
             if(karg.N % BBlockTransferSrcScalarPerVector != 0)
+            {
+#if DEBUG_LOG
+            std::cout << "Arg N (" << karg.N << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
+                      << BBlockTransferSrcScalarPerVector << " )! " 
+                      << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                      << std::endl;
+                         
+#endif // DEBUG_LOG
                 return false;
+            }
         }
         else
         {
             if(karg.K % BBlockTransferSrcScalarPerVector != 0)
+            {
+#if DEBUG_LOG
+            std::cout << "Arg K (" << karg.K << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
+                      << BBlockTransferSrcScalarPerVector << " )! " 
+                      << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                      << std::endl;
+                         
+#endif // DEBUG_LOG
                 return false;
+            }
         }
 
         if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
         {
             if(karg.N % CBlockTransferScalarPerVector_NWaveNPerXDL != 0)
+            {
+#if DEBUG_LOG
+            std::cout << "Arg N (" << karg.N << ") value is not a multiple of CBlockTransferScalarPerVector_NWaveNPerXDL ("
+                      << CBlockTransferScalarPerVector_NWaveNPerXDL << " )! " 
+                      << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                      << std::endl;
+                         
+#endif // DEBUG_LOG
                 return false;
+            }
         }
         else
         {
             if(karg.M % CBlockTransferScalarPerVector_NWaveNPerXDL != 0)
+            {
+#if DEBUG_LOG
+            std::cout << "Arg M (" << karg.M << ") value is not a multiple of CBlockTransferScalarPerVector_NWaveNPerXDL ("
+                      << CBlockTransferScalarPerVector_NWaveNPerXDL << " )! " 
+                      << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                      << std::endl;
+                         
+#endif // DEBUG_LOG
                 return false;
+            }
         }
 
         return true;
@@ -992,24 +1062,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             });
         }
     }
-
-    template <typename Layout>
-    struct LStr
-    {
-        static std::string Get() { return ""; }
-    };
-
-    template <>
-    struct LStr<ck::tensor_layout::gemm::RowMajor>
-    {
-        static std::string Get() { return "R"; }
-    };
-
-    template <>
-    struct LStr<ck::tensor_layout::gemm::ColumnMajor>
-    {
-        static std::string Get() { return "C"; }
-    };
 
     static std::string GetTypeString()
     {
