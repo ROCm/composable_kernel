@@ -221,17 +221,17 @@ struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
     template <typename DoPads, index_t MPerTile, index_t KPerTile>
     static auto MakeMeanVarDescriptor_M_K(index_t M, index_t K)
     {
-        const auto grid_desc_m_n =
+        const auto grid_desc_m_k =
             make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(K, I1));
-        return PadTensorDescriptor(grid_desc_m_n, make_tuple(MPerTile, KPerTile), DoPads{});
+        return PadTensorDescriptor(grid_desc_m_k, make_tuple(MPerTile, KPerTile), DoPads{});
     }
 
     template <typename DoPads, index_t MPerTile, index_t KPerTile>
     static auto MakeCountDescriptor_M_K(index_t M, index_t K)
     {
-        const auto grid_desc_m_n =
+        const auto grid_desc_m_k =
             make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(I0, I1));
-        return PadTensorDescriptor(grid_desc_m_n, make_tuple(MPerTile, KPerTile), DoPads{});
+        return PadTensorDescriptor(grid_desc_m_k, make_tuple(MPerTile, KPerTile), DoPads{});
     }
 
     using SrcGridDesc_M_K = decltype(MakeSrc2dDescriptor({1}, {1}, 1, 1));

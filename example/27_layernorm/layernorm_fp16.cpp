@@ -27,7 +27,7 @@ using DeviceInstance =
                                                           32,  // ClusterK
                                                           1,   // SliceM
                                                           8,   // SliceK
-                                                          1,   // SrcVecDim (0=M, 1=K)
+                                                          1,   // XYVectorDim (0=M, 1=K)
                                                           8,   // SrcScalarPerVector
                                                           1,   // GammaVecDim (0=M, 1=K)
                                                           8,   // GammaScalarPerVector
