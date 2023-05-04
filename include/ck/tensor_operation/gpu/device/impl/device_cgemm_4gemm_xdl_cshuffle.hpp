@@ -451,26 +451,18 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                  index_t K_,
                  index_t StrideA_,
                  index_t StrideB_,
-                 index_t StrideC_,
-                 index_t MPadded_,
-                 index_t NPadded_,
-                 index_t KPadded_,
-                 index_t AK0_,
-                 index_t BK0_)
-            : Parent(nullptr,
-                     nullptr,
-                     nullptr,
-                     M_,
+                 index_t StrideC_)
+            : Parent(M_,
                      N_,
                      K_,
                      StrideA_,
                      StrideB_,
                      StrideC_,
-                     MPadded_,
-                     NPadded_,
-                     KPadded_,
-                     AK0_,
-                     BK0_),
+                     GridwiseGemm::CalculateMPadded(M_),
+                     GridwiseGemm::CalculateNPadded(N_),
+                     GridwiseGemm::CalculateKPadded(K_),
+                     GridwiseGemm::CalculateAK0(K_),
+                     GridwiseGemm::CalculateBK0(K_)),
               p_a_grid_real_{p_a_grid_real},
               p_a_grid_imag_{p_a_grid_imag},
               p_b_grid_real_{p_b_grid_real},
@@ -510,15 +502,13 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        // void Print(const Argument& karg) { karg.Print(); }
+        void Print(const Argument& karg) { karg.Print(); }
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        float Run(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
         {
-            Argument karg = arg;
-
             if(stream_config.log_level_ > 0)
             {
-                // Print(karg);
+                Print(karg);
             }
 
             if(!GridwiseGemm::CheckValidity(karg))
@@ -575,17 +565,25 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
             {
                 const auto kernel = kernel_gemm_xdl_cshuffle_v1_simplified<GridwiseGemm, true>;
 
-                karg.p_a_grid = karg.p_a_grid_real_;
-                karg.p_b_grid = karg.p_b_grid_real_;
-                karg.p_c_grid = karg.p_aux_grid_;
-                ave_time += launch_and_time_kernel(
-                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   karg.p_a_grid_real_,
+                                                   karg.p_b_grid_real_,
+                                                   karg.p_aux_grid_,
+                                                   karg);
 
-                karg.p_a_grid = karg.p_a_grid_imag_;
-                karg.p_b_grid = karg.p_b_grid_imag_;
-                karg.p_c_grid = karg.p_aux_2_grid_;
-                ave_time += launch_and_time_kernel(
-                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   karg.p_a_grid_imag_,
+                                                   karg.p_b_grid_imag_,
+                                                   karg.p_aux_2_grid_,
+                                                   karg);
 
                 // c_real = aux - aux_2
                 ave_time += launch_and_time_kernel(
@@ -601,17 +599,25 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                     make_tuple(karg.p_c_grid_real_),
                     Subtract{});
 
-                karg.p_a_grid = karg.p_a_grid_real_;
-                karg.p_b_grid = karg.p_b_grid_imag_;
-                karg.p_c_grid = karg.p_aux_grid_;
-                ave_time += launch_and_time_kernel(
-                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   karg.p_a_grid_real_,
+                                                   karg.p_b_grid_imag_,
+                                                   karg.p_aux_grid_,
+                                                   karg);
 
-                karg.p_a_grid = karg.p_a_grid_imag_;
-                karg.p_b_grid = karg.p_b_grid_real_;
-                karg.p_c_grid = karg.p_aux_2_grid_;
-                ave_time += launch_and_time_kernel(
-                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   karg.p_a_grid_imag_,
+                                                   karg.p_b_grid_real_,
+                                                   karg.p_aux_2_grid_,
+                                                   karg);
 
                 // c_imag = aux + aux_2
                 ave_time += launch_and_time_kernel(
@@ -631,17 +637,25 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
             {
                 const auto kernel = kernel_gemm_xdl_cshuffle_v1_simplified<GridwiseGemm, false>;
 
-                karg.p_a_grid = karg.p_a_grid_real_;
-                karg.p_b_grid = karg.p_b_grid_real_;
-                karg.p_c_grid = karg.p_aux_grid_;
-                ave_time += launch_and_time_kernel(
-                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   karg.p_a_grid_real_,
+                                                   karg.p_b_grid_real_,
+                                                   karg.p_aux_grid_,
+                                                   karg);
 
-                karg.p_a_grid = karg.p_a_grid_imag_;
-                karg.p_b_grid = karg.p_b_grid_imag_;
-                karg.p_c_grid = karg.p_aux_2_grid_;
-                ave_time += launch_and_time_kernel(
-                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   karg.p_a_grid_imag_,
+                                                   karg.p_b_grid_imag_,
+                                                   karg.p_aux_2_grid_,
+                                                   karg);
 
                 // c_real = aux - aux_2
                 ave_time += launch_and_time_kernel(
@@ -657,17 +671,25 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                     make_tuple(karg.p_c_grid_real_),
                     Subtract{});
 
-                karg.p_a_grid = karg.p_a_grid_real_;
-                karg.p_b_grid = karg.p_b_grid_imag_;
-                karg.p_c_grid = karg.p_aux_grid_;
-                ave_time += launch_and_time_kernel(
-                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   karg.p_a_grid_real_,
+                                                   karg.p_b_grid_imag_,
+                                                   karg.p_aux_grid_,
+                                                   karg);
 
-                karg.p_a_grid = karg.p_a_grid_imag_;
-                karg.p_b_grid = karg.p_b_grid_real_;
-                karg.p_c_grid = karg.p_aux_2_grid_;
-                ave_time += launch_and_time_kernel(
-                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   karg.p_a_grid_imag_,
+                                                   karg.p_b_grid_real_,
+                                                   karg.p_aux_2_grid_,
+                                                   karg);
 
                 // c_imag = aux + aux_2
                 ave_time += launch_and_time_kernel(
@@ -741,12 +763,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                         K,
                         StrideA,
                         StrideB,
-                        StrideC,
-                        GridwiseGemm::CalculateMPadded(M),
-                        GridwiseGemm::CalculateNPadded(N),
-                        GridwiseGemm::CalculateKPadded(K),
-                        GridwiseGemm::CalculateAK0(K),
-                        GridwiseGemm::CalculateBK0(K)};
+                        StrideC};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -782,12 +799,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                           K,
                                           StrideA,
                                           StrideB,
-                                          StrideC,
-                                          GridwiseGemm::CalculateMPadded(M),
-                                          GridwiseGemm::CalculateNPadded(N),
-                                          GridwiseGemm::CalculateKPadded(K),
-                                          GridwiseGemm::CalculateAK0(K),
-                                          GridwiseGemm::CalculateBK0(K));
+                                          StrideC);
     }
 
     // polymorphic

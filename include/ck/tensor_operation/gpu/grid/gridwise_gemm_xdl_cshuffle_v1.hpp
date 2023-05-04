@@ -22,13 +22,17 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdl_cshuffle_v1_simplified(typename GridwiseGemm::Argument karg)
+        kernel_gemm_xdl_cshuffle_v1_simplified(
+            const typename GridwiseGemm::FloatAB* __restrict__ p_a_grid,
+            const typename GridwiseGemm::FloatAB* __restrict__ p_b_grid,
+            typename GridwiseGemm::FloatC* __restrict__ p_c_grid,
+            typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(karg, p_shared);
+    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid, p_b_grid, p_c_grid, p_shared, karg);
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
@@ -37,10 +41,10 @@ __global__ void
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
-          typename FloatAB,
+          typename FloatAB_,
           typename FloatGemmAcc,
           typename FloatCShuffle,
-          typename FloatC,
+          typename FloatC_,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -95,6 +99,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     static constexpr auto BK0_c = Number<KPerBlock / BK1Value>{};
     static constexpr auto AK1_c = Number<AK1Value>{};
     static constexpr auto BK1_c = Number<BK1Value>{};
+
+    using FloatAB = FloatAB_;
+    using FloatC  = FloatC_;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -390,10 +397,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     // Argument
     struct Argument : public tensor_operation::device::BaseArgument
     {
-        __host__ Argument(const FloatAB* p_a_grid_,
-                          const FloatAB* p_b_grid_,
-                          FloatC* p_c_grid_,
-                          index_t M_,
+        __host__ Argument(index_t M_,
                           index_t N_,
                           index_t K_,
                           index_t StrideA_,
@@ -404,10 +408,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                           index_t KPadded_,
                           index_t AK0_,
                           index_t BK0_)
-            : p_a_grid{p_a_grid_},
-              p_b_grid{p_b_grid_},
-              p_c_grid{p_c_grid_},
-              M{M_},
+            : M{M_},
               N{N_},
               K{K_},
               StrideA{StrideA_},
@@ -446,10 +447,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
         __host__ __device__ ~Argument() override {}
 
-        //  private:
-        const FloatAB* p_a_grid;
-        const FloatAB* p_b_grid;
-        FloatC* p_c_grid;
         index_t M;
         index_t N;
         index_t K;
@@ -673,12 +670,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     }
 
     template <bool HasMainKBlockLoop>
-    __device__ static void Run(const Argument& karg, void* __restrict__ p_shared)
+    __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
+                               const FloatAB* __restrict__ p_b_grid,
+                               FloatC* __restrict__ p_c_grid,
+                               void* __restrict__ p_shared,
+                               const Argument& karg)
     {
-        const FloatAB* p_a_grid = karg.p_a_grid;
-        const FloatAB* p_b_grid = karg.p_b_grid;
-        FloatC* p_c_grid        = karg.p_c_grid;
-
 #define CREATE_DESCS_ON_HOST 1
 #if CREATE_DESCS_ON_HOST
         const auto a_grid_desc_ak0_m_ak1 = karg.a_grid_desc_ak0_m_ak1;
