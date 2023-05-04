@@ -381,8 +381,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                                                                 GridwiseGemm::CalculateMPadded(M_),
                                                                 N_,
                                                                 GridwiseGemm::CalculateNPadded(N_),
-                                                                StrideC_)},
-              kraw_{K_}
+                                                                StrideC_)}
         {
         }
 
@@ -400,7 +399,6 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1;
         CGridDesc_M_N c_grid_desc_m_n;
-        index_t kraw_;
     };
 
     // Invoker
@@ -472,14 +470,14 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         return true;
     }
 
-    static bool IsSupportedArgument(const Argument& arg)
+    static bool IsSupportedArgument(const Argument& karg)
     {
         if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
         {
             return false;
         }
 
-        if((arg.kraw_ % AK1 != 0 || arg.kraw_ % BK1 != 0) &&
+        if((karg.K % AK1 != 0 || karg.K % BK1 != 0) &&
            !(GemmSpec == GemmSpecialization::MKPadding ||
              GemmSpec == GemmSpecialization::NKPadding ||
              GemmSpec == GemmSpecialization::MNKPadding ||
@@ -489,7 +487,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         }
 
         return GridwiseGemm::CheckValidity(
-            arg.a_grid_desc_ak0_m_ak1, arg.b_grid_desc_bk0_n_bk1, arg.c_grid_desc_m_n);
+            karg.a_grid_desc_ak0_m_ak1, karg.b_grid_desc_bk0_n_bk1, karg.c_grid_desc_m_n);
     }
 
     // polymorphic
