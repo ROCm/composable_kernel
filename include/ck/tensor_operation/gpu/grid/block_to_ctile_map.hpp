@@ -120,6 +120,15 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
 
     __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt() = default;
 
+    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(const BlockToCTileMap_M00_N0_M01Adapt&) =
+        default;
+    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(BlockToCTileMap_M00_N0_M01Adapt&&) =
+        default;
+    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt&
+    operator=(const BlockToCTileMap_M00_N0_M01Adapt&) = default;
+    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt&
+    operator=(BlockToCTileMap_M00_N0_M01Adapt&&) = default;
+
     __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(index_t M, index_t N, index_t M01 = 8)
         : M_(M), N_(N), M01_(M01)
     {
@@ -220,6 +229,9 @@ struct BlockToCTileMap_M00_N0_M01Adapt : BlockToCTileMap_M00_N0_M01Adapt<MPerBlo
 
     using Parent::I0;
     using Parent::I1;
+
+    using Parent::Parent;
+    using Parent::operator=;
 
     __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(const CGridDesc_M_N& c_grid_desc_m_n,
                                                         index_t M01 = 8)
