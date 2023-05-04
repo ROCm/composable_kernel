@@ -135,6 +135,21 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
+    __host__ __device__ static auto CalculateMPadded(index_t M)
+    {
+        return (M + MPerBlock - 1) / MPerBlock * MPerBlock;
+    }
+
+    __host__ __device__ static auto CalculateNPadded(index_t N)
+    {
+        return (N + NPerBlock - 1) / NPerBlock * NPerBlock;
+    }
+
+    __host__ __device__ static auto CalculateKPadded(index_t K)
+    {
+        return (K + KPerBlock - 1) / KPerBlock * KPerBlock;
+    }
+
     // FIXME: pass GridwiseGemmPipe as a template arguement into GridwiseGemm
     using GridwiseGemmPipe = remove_cvref_t<decltype(
         GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
