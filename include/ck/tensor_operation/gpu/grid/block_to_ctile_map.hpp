@@ -125,14 +125,17 @@ struct BlockToCTileMap_M00_N0_M01Adapt
     {
     }
 
+    __host__ static constexpr index_t CalculateGridSize(index_t M, index_t N)
+    {
+        const auto M0 = math::integer_divide_ceil(M, MPerBlock);
+        const auto N0 = math::integer_divide_ceil(N, NPerBlock);
+
+        return M0 * N0;
+    }
+
     __host__ constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
     {
-        const auto M0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I0), MPerBlock);
-        const auto N0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I1), NPerBlock);
-
-        const index_t grid_size = M0 * N0;
-
-        return grid_size;
+        return CalculateGridSize(c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1));
     }
 
     template <typename TopIdx>
