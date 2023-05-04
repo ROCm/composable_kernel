@@ -17,41 +17,19 @@
 
 namespace ck {
 
-template <typename GridwiseGemm,
-          typename FloatAB,
-          typename FloatC,
-          typename AGridDesc_AK0_M_AK1,
-          typename BGridDesc_BK0_N_BK1,
-          typename CGridDesc_M_N,
-          bool HasMainKBlockLoop>
+template <typename GridwiseGemm, typename Argument, bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdl_cshuffle_v1(const FloatAB* __restrict__ p_a_grid,
-                                    const FloatAB* __restrict__ p_b_grid,
-                                    FloatC* __restrict__ p_c_grid,
-                                    const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-                                    const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-                                    const CGridDesc_M_N c_grid_desc_m_n)
+        kernel_gemm_xdl_cshuffle_v1(const Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
-                                                  p_b_grid,
-                                                  p_c_grid,
-                                                  p_shared,
-                                                  a_grid_desc_ak0_m_ak1,
-                                                  b_grid_desc_bk0_n_bk1,
-                                                  c_grid_desc_m_n);
+    GridwiseGemm::template Run<HasMainKBlockLoop>(karg, p_shared);
 #else
-    ignore = p_a_grid;
-    ignore = p_b_grid;
-    ignore = p_c_grid;
-    ignore = a_grid_desc_ak0_m_ak1;
-    ignore = b_grid_desc_bk0_n_bk1;
-    ignore = c_grid_desc_m_n;
+    ignore = karg;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -322,15 +300,17 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
     using Block2CTileMap = remove_cvref_t<decltype(MakeBlock2CTileMap(CGridDesc_M_N{}))>;
 
-    template <bool HasMainKBlockLoop>
-    __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
-                               const FloatAB* __restrict__ p_b_grid,
-                               FloatC* __restrict__ p_c_grid,
-                               void* __restrict__ p_shared,
-                               const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
-                               const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
-                               const CGridDesc_M_N c_grid_desc_m_n)
+    template <bool HasMainKBlockLoop, typename Argument>
+    __device__ static void Run(const Argument karg, void* __restrict__ p_shared)
     {
+        const FloatAB* p_a_grid = karg.p_a_grid;
+        const FloatAB* p_b_grid = karg.p_b_grid;
+        FloatC* p_c_grid        = karg.p_c_grid;
+
+        const auto& a_grid_desc_ak0_m_ak1 = karg.a_grid_desc_ak0_m_ak1;
+        const auto& b_grid_desc_bk0_n_bk1 = karg.b_grid_desc_bk0_n_bk1;
+        const auto& c_grid_desc_m_n       = karg.c_grid_desc_m_n;
+
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
 

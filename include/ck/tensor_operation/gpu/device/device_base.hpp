@@ -18,7 +18,7 @@ struct BaseArgument
     BaseArgument(const BaseArgument&) = default;
     BaseArgument& operator=(const BaseArgument&) = default;
 
-    virtual ~BaseArgument() {}
+    __host__ __device__ virtual ~BaseArgument() {}
 
     void* p_workspace_ = nullptr;
 };
