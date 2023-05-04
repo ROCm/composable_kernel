@@ -79,6 +79,7 @@ template <typename FloatAB,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          tensor_operation::device::GemmSpecialization GemmSpec,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
@@ -148,6 +149,48 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     __host__ __device__ static auto CalculateKPadded(index_t K)
     {
         return (K + KPerBlock - 1) / KPerBlock * KPerBlock;
+    }
+
+    __host__ __device__ static auto CalculateAK0(index_t K)
+    {
+        using GemmSpecialization = tensor_operation::device::GemmSpecialization;
+
+        if constexpr(GemmSpec == GemmSpecialization::MKPadding ||
+                     GemmSpec == GemmSpecialization::MNKPadding ||
+                     GemmSpec == GemmSpecialization::KPadding ||
+                     GemmSpec == GemmSpecialization::NKPadding)
+        {
+            assert(CalculateKPadded(K) % AK1 == 0);
+
+            return CalculateKPadded(K) / AK1;
+        }
+        else
+        {
+            assert(K % AK1 == 0);
+
+            return K / AK1;
+        }
+    }
+
+    __host__ __device__ static auto CalculateBK0(index_t K)
+    {
+        using GemmSpecialization = tensor_operation::device::GemmSpecialization;
+
+        if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
+                     GemmSpec == GemmSpecialization::MNKPadding ||
+                     GemmSpec == GemmSpecialization::KPadding ||
+                     GemmSpec == GemmSpecialization::MKPadding)
+        {
+            assert(CalculateKPadded(K) % BK1 == 0);
+
+            return CalculateKPadded(K) / BK1;
+        }
+        else
+        {
+            assert(K % BK1 == 0);
+
+            return K / BK1;
+        }
     }
 
     // FIXME: pass GridwiseGemmPipe as a template arguement into GridwiseGemm
