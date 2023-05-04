@@ -168,6 +168,10 @@ __device__ double exp<double>(double x)
     return exp(x);
 }
 
+static inline __host__ float exp(float x) { return std::expf(x); }
+
+static inline __host__ double exp(double x) { return std::exp(x); }
+
 // greatest common divisor, aka highest common factor
 __host__ __device__ constexpr index_t gcd(index_t x, index_t y)
 {

@@ -1,80 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <iostream>
-#include <numeric>
-#include <initializer_list>
-#include <cstdlib>
-#include <getopt.h>
+#pragma once
 
-#include "ck/ck.hpp"
-#include "ck/utility/reduction_enums.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_normalization_impl.hpp"
-#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
-
-#include "ck/library/utility/fill.hpp"
-#include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/device_memory.hpp"
-#include "ck/library/utility/host_common_util.hpp"
-#include "ck/library/utility/host_tensor.hpp"
-#include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_groupnorm.hpp"
-
-constexpr int Rank         = 5;
-constexpr int NumReduceDim = 3;
-
-using XDataType       = ck::half_t;
-using GammaDataType   = ck::half_t;
-using BetaDataType    = ck::half_t;
-using YDataType       = ck::half_t;
-using ComputeDataType = float;
-
-struct YElementOp
+int run_groupnorm_example(int argc, char* argv[])
 {
-    template <typename T>
-    __host__ __device__ void operator()(T& y, const T& x) const
-    {
-        static_assert(ck::is_same<T, float>::value || ck::is_same<T, double>::value ||
-                          ck::is_same<T, ck::half_t>::value,
-                      "Data type is not supported by this operation!");
-
-        T a;
-
-        ck::tensor_operation::element_wise::Sigmoid{}(a, x);
-
-        y = x * a;
-    };
-};
-
-using DeviceInstance =
-    ck::tensor_operation::device::DeviceNormalizationImpl<XDataType,
-                                                          GammaDataType,
-                                                          BetaDataType,
-                                                          ComputeDataType,
-                                                          YDataType,
-                                                          YElementOp,
-                                                          Rank,
-                                                          NumReduceDim,
-                                                          1024, // BlockSize
-                                                          1,    // ClusterM
-                                                          1024, // ClusterK
-                                                          1,    // SliceM
-                                                          32,   // SliceK
-                                                          1,    // SrcVecDim (0=M, 1=K)
-                                                          2,    // SrcScalarPerVector
-                                                          1,    // GammaVecDim (0=M, 1=K)
-                                                          2,    // GammaScalarPerVector
-                                                          1,    // BetaVecDim (0=M, 1=K)
-                                                          2,    // BetaScalarPerVector
-                                                          2>;   // OutScalarPerVector
-
-int main(int argc, char* argv[])
-{
-    ck::index_t N = 2;
-    ck::index_t H = 32;
-    ck::index_t W = 32;
-    ck::index_t G = 32;
-    ck::index_t C = 30;
+    ck::index_t N = 32;
+    ck::index_t H = 16;
+    ck::index_t W = 16;
+    ck::index_t G = 64;
+    ck::index_t C = 128;
 
     if(argc == 1)
     {

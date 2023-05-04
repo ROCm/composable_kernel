@@ -190,9 +190,9 @@ bool profile_groupnorm_impl(int do_verification,
 
     if(time_kernel)
     {
-        LogRange(std::cout << "length = ", length, ",") << ", ";
-        std::cout << "num_kernel = " << num_kernel << ", best perf = " << best_avg_time << " ms, "
-                  << best_gb_per_sec << " GB/s, " << best_instance_name << std::endl;
+        LogRange(std::cout << "length = ", length, ",") << std::endl;
+        std::cout << "best perf = " << best_avg_time << " ms, " << best_gb_per_sec << " GB/s, "
+                  << best_instance_name << std::endl;
     }
 
     if(num_kernel == 0)
