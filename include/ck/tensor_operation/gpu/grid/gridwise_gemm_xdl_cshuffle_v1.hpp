@@ -143,6 +143,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 #define INTEGER_DIVIDE_CEIL(x, y) (((x) + (y)-1) / (y))
     __host__ __device__ static auto CalculateGridSize(index_t M, index_t N)
     {
+        // reference the implementation of class 'BlockToCTileMap_M00_N0_M01Adapt'
         return std::make_tuple(
             INTEGER_DIVIDE_CEIL(M, MPerBlock) * INTEGER_DIVIDE_CEIL(N, NPerBlock), 1, 1);
     }
