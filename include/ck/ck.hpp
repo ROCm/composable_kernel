@@ -170,7 +170,7 @@
 // workaround: compiler issue on gfx908
 #define CK_WORKAROUND_SWDEV_388832 1
 // flag to enable (1) or disable (0) the debugging output in some kernels
-#define DEBUG_LOG 0
+#define DEBUG_LOG 1
 
 // denorm test fix, required to work around dissue
 #ifndef CK_WORKAROUND_DENORM_FIX
