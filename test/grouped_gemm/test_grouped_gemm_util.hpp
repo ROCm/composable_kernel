@@ -17,6 +17,18 @@
 namespace ck {
 namespace test {
 
+template <typename Range>
+std::string serialize_range(const Range& range)
+{
+    std::stringstream ss;
+    for(auto& r : range)
+    {
+        ss << r << ", ";
+    }
+    std::string str = ss.str();
+    return std::string(str.begin(), str.end() - 2);
+}
+
 template <typename Tuple>
 class TestGroupedGemm : public testing::TestWithParam<int>
 {
@@ -30,7 +42,7 @@ class TestGroupedGemm : public testing::TestWithParam<int>
 
     public:
     bool verify_     = true;
-    int init_method_ = 2; // decimal value initialization
+    int init_method_ = 0; // decimal value initialization
     bool log_        = false;
     bool bench_      = false; // measure kernel performance
 
@@ -44,6 +56,15 @@ class TestGroupedGemm : public testing::TestWithParam<int>
              const std::vector<int>& StrideCs,
              int kbatch = 1)
     {
+
+        std::cout << "Ms: [" << serialize_range(Ms) << "] "
+                  << "Ns: [" << serialize_range(Ns) << "] "
+                  << "Ks: [" << serialize_range(Ks) << "] "
+                  << "StrideAs: [" << serialize_range(StrideAs) << "] "
+                  << "StrideBs: [" << serialize_range(StrideBs) << "] "
+                  << "StrideCs: [" << serialize_range(StrideCs) << "] "
+                  << "kbatch: " << kbatch << std::endl;
+
         bool pass = ck::profiler::profile_grouped_gemm_impl<ADataType,
                                                             BDataType,
                                                             EDataType,
