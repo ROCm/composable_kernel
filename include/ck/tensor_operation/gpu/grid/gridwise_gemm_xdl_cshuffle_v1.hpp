@@ -675,27 +675,19 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         const FloatAB* p_b_grid = karg.p_b_grid;
         FloatC* p_c_grid        = karg.p_c_grid;
 
+#define CREATE_DESCS_ON_HOST 1
+#if CREATE_DESCS_ON_HOST
         const auto a_grid_desc_ak0_m_ak1 = karg.a_grid_desc_ak0_m_ak1;
         const auto b_grid_desc_bk0_n_bk1 = karg.b_grid_desc_bk0_n_bk1;
         const auto c_grid_desc_m_n       = karg.c_grid_desc_m_n;
-
-        // const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(karg.M,
-        //                                                   karg.MPadded,
-        //                                                   karg.K,
-        //                                                   karg.KPadded,
-        //                                                   karg.StrideA,
-        //                                                   karg.AK0);
-        // const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(karg.K,
-        //                                                   karg.KPadded,
-        //                                                   karg.N,
-        //                                                   karg.NPadded,
-        //                                                   karg.StrideB,
-        //                                                   karg.BK0);
-        // const auto c_grid_desc_m_n       = MakeCGridDescriptor_M_N(karg.M,
-        //                                                         karg.MPadded,
-        //                                                         karg.N,
-        //                                                         karg.NPadded,
-        //                                                         karg.StrideC);
+#else
+        const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
+            karg.M, karg.MPadded, karg.K, karg.KPadded, karg.StrideA, karg.AK0);
+        const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(
+            karg.K, karg.KPadded, karg.N, karg.NPadded, karg.StrideB, karg.BK0);
+        const auto c_grid_desc_m_n =
+            MakeCGridDescriptor_M_N(karg.M, karg.MPadded, karg.N, karg.NPadded, karg.StrideC);
+#endif
         // if (blockIdx.x == 0 && threadIdx.x == 0) {
         //     print_bytes(a_grid_desc_ak0_m_ak1);
         // }
