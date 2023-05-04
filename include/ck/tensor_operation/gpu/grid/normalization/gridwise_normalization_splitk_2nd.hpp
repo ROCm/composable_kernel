@@ -337,7 +337,7 @@ struct GridwiseNormalizationSplitK2nd
         // step2: normalization
         constexpr auto thread_copy_fwd_step_m_k = make_multi_index(0, K_BlockTileStepSize);
 
-        for(index_t k = 0; k < num_k_mean_var_count_iteration; ++k)
+        for(index_t k = 0; k < num_k_block_tile_iteration; ++k)
         {
             static_for<0, ThreadBufferNumber, 1>{}([&](auto i) {
                 threadwise_x_load.Run(x_grid_desc_m_k,
