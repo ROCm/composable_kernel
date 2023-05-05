@@ -29,7 +29,8 @@ template <typename InDataType,
           ck::index_t MThreadSliceSize,
           ck::index_t KThreadSliceSize,
           ck::index_t InSrcOutDstVectorSize>
-struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C : public DevicePoolFwd<3, ReduceOpId>
+struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
+    : public DevicePoolFwd<5, 3, ReduceOpId>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -37,6 +38,9 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C : public DevicePoo
     static constexpr auto I3 = Number<3>{};
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
+
+    static constexpr index_t InOutRank  = 5;
+    static constexpr index_t WindowRank = 3;
 
     using IndexDataType = int32_t;
 
@@ -55,14 +59,15 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C : public DevicePoo
     static constexpr ck::index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr ck::index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
-    static auto MakeABGridDescriptor_A_M_K_B_M(ck::index_t N,
-                                               ck::index_t C,
-                                               std::array<ck::index_t, 3> input_spatial_lengths,
-                                               std::array<ck::index_t, 3> window_spatial_lengths,
-                                               std::array<ck::index_t, 3> output_spatial_lengths,
-                                               std::array<ck::index_t, 3> window_strides,
-                                               std::array<ck::index_t, 3> input_left_pads,
-                                               std::array<ck::index_t, 3> input_right_pads)
+    static auto
+    MakeABGridDescriptor_A_M_K_B_M(ck::index_t N,
+                                   ck::index_t C,
+                                   std::array<ck::index_t, WindowRank> input_spatial_lengths,
+                                   std::array<ck::index_t, WindowRank> window_spatial_lengths,
+                                   std::array<ck::index_t, WindowRank> output_spatial_lengths,
+                                   std::array<ck::index_t, WindowRank> window_strides,
+                                   std::array<ck::index_t, WindowRank> input_left_pads,
+                                   std::array<ck::index_t, WindowRank> input_right_pads)
     {
         const index_t Di = input_spatial_lengths[0];
         const index_t Hi = input_spatial_lengths[1];
@@ -161,12 +166,12 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C : public DevicePoo
                  int* p_out_indices_dev,
                  ck::index_t N,
                  ck::index_t C,
-                 std::array<ck::index_t, 3>& input_spatial_lengths,
-                 std::array<ck::index_t, 3>& window_spatial_lengths,
-                 std::array<ck::index_t, 3>& output_spatial_lengths,
-                 std::array<ck::index_t, 3>& window_strides,
-                 std::array<ck::index_t, 3>& input_left_pads,
-                 std::array<ck::index_t, 3>& input_right_pads)
+                 std::array<ck::index_t, WindowRank>& input_spatial_lengths,
+                 std::array<ck::index_t, WindowRank>& window_spatial_lengths,
+                 std::array<ck::index_t, WindowRank>& output_spatial_lengths,
+                 std::array<ck::index_t, WindowRank>& window_strides,
+                 std::array<ck::index_t, WindowRank>& input_left_pads,
+                 std::array<ck::index_t, WindowRank>& input_right_pads)
             : p_in_dev_{p_in_dev},
               p_out_dev_{p_out_dev},
               p_out_indices_dev_{p_out_indices_dev},
@@ -285,22 +290,33 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C : public DevicePoo
     MakeArgumentPointer(const void* p_in_dev,
                         void* p_out_dev,
                         void* p_out_indices_dev,
-                        ck::index_t N,
-                        ck::index_t C,
-                        std::array<ck::index_t, 3> input_spatial_lengths,
-                        std::array<ck::index_t, 3> window_spatial_lengths,
-                        std::array<ck::index_t, 3> output_spatial_lengths,
-                        std::array<ck::index_t, 3> window_strides,
-                        std::array<ck::index_t, 3> input_left_pads,
-                        std::array<ck::index_t, 3> input_right_pads) override
+                        std::array<ck::index_t, InOutRank> input_lengths,
+                        std::array<ck::index_t, WindowRank> window_lengths,
+                        std::array<ck::index_t, InOutRank> output_lengths,
+                        std::array<ck::index_t, WindowRank> window_strides,
+                        std::array<ck::index_t, WindowRank> input_left_pads,
+                        std::array<ck::index_t, WindowRank> input_right_pads,
+                        std::array<ck::index_t, WindowRank>) override
     {
+        index_t N  = input_lengths[0];
+        index_t C  = input_lengths[1];
+        index_t Di = input_lengths[2];
+        index_t Hi = input_lengths[3];
+        index_t Wi = input_lengths[4];
+        index_t Do = output_lengths[2];
+        index_t Ho = output_lengths[3];
+        index_t Wo = output_lengths[4];
+
+        std::array<ck::index_t, WindowRank> input_spatial_lengths  = {Di, Hi, Wi};
+        std::array<ck::index_t, WindowRank> output_spatial_lengths = {Do, Ho, Wo};
+
         return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_dev),
                                           static_cast<OutDataType*>(p_out_dev),
                                           static_cast<int*>(p_out_indices_dev),
                                           N,
                                           C,
                                           input_spatial_lengths,
-                                          window_spatial_lengths,
+                                          window_lengths,
                                           output_spatial_lengths,
                                           window_strides,
                                           input_left_pads,

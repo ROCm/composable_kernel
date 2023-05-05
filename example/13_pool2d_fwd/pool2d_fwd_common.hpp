@@ -219,14 +219,13 @@ bool pool_test(bool do_verification,
         static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
         static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
         static_cast<IndexDataType*>(out_indices_device_buf.GetDeviceBuffer()),
-        N,
-        C,
-        std::array<ck::index_t, 2>{{Hi, Wi}},
-        std::array<ck::index_t, 2>{{Y, X}},
-        std::array<ck::index_t, 2>{{Ho, Wo}},
+        {N, C, Hi, Wi},
+        {Y, X},
+        {N, C, Ho, Wo},
         window_strides,
         input_left_pads,
-        input_right_pads);
+        input_right_pads,
+        {2, 3});
 
     if(!pool.IsSupportedArgument(argument_ptr.get()))
     {

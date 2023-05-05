@@ -32,7 +32,8 @@ static void pool3d_host_verify(const Tensor<InDataType>& in,
                                const std::array<ck::index_t, 3>& in_left_pads,
                                const std::array<ck::index_t, 3>& /*in_right_pads*/)
 {
-    const int32_t reduceLength = window_spatial_lengths[0] * window_spatial_lengths[1];
+    const int32_t reduceLength =
+        window_spatial_lengths[0] * window_spatial_lengths[1] * window_spatial_lengths[2];
 
     using ReduceOperation = typename ck::reduce_binary_operator<ReduceOpId>::opType;
 
@@ -241,14 +242,13 @@ bool pool3d_test(bool do_verification,
         static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
         static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
         static_cast<IndexDataType*>(out_indices_device_buf.GetDeviceBuffer()),
-        N,
-        C,
-        std::array<ck::index_t, 3>{{Di, Hi, Wi}},
-        std::array<ck::index_t, 3>{{Z, Y, X}},
-        std::array<ck::index_t, 3>{{Do, Ho, Wo}},
+        {N, C, Di, Hi, Wi},
+        {Z, Y, X},
+        {N, C, Do, Ho, Wo},
         window_strides,
         input_left_pads,
-        input_right_pads);
+        input_right_pads,
+        {2, 3, 4});
 
     if(!pool.IsSupportedArgument(argument_ptr.get()))
     {
