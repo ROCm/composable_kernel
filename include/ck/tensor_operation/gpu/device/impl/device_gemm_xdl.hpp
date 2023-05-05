@@ -312,12 +312,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                const auto kernel =
-                    kernel_gemm_xdlops_v2r3<GridwiseGemm,
-                                            ADataType, // TODO: distiguish A/B datatype
-                                            CDataType,
-                                            Argument,
-                                            true>;
+                const auto kernel = kernel_gemm_xdlops_v2r3<GridwiseGemm, Argument, true>;
 
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,
@@ -331,12 +326,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             }
             else
             {
-                const auto kernel =
-                    kernel_gemm_xdlops_v2r3<GridwiseGemm,
-                                            ADataType, // TODO: distiguish A/B datatype
-                                            CDataType,
-                                            Argument,
-                                            false>;
+                const auto kernel = kernel_gemm_xdlops_v2r3<GridwiseGemm, Argument, false>;
 
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,

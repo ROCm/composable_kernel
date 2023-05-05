@@ -16,18 +16,14 @@
 
 namespace ck {
 
-template <typename GridwiseGemm,
-          typename FloatAB,
-          typename FloatC,
-          typename Argument,
-          bool HasMainKBlockLoop>
+template <typename GridwiseGemm, typename Argument, bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_v2r3(const FloatAB* __restrict__ p_a_grid,
-                                const FloatAB* __restrict__ p_b_grid,
-                                FloatC* __restrict__ p_c_grid,
+        kernel_gemm_xdlops_v2r3(const typename GridwiseGemm::FloatAB* __restrict__ p_a_grid,
+                                const typename GridwiseGemm::FloatAB* __restrict__ p_b_grid,
+                                typename GridwiseGemm::FloatC* __restrict__ p_c_grid,
                                 const Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
@@ -44,9 +40,9 @@ __global__ void
 }
 
 template <index_t BlockSize,
-          typename FloatAB,
+          typename FloatAB_,
           typename FloatAcc,
-          typename FloatC,
+          typename FloatC_,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename AGridDesc_K0_M_K1,
           typename BGridDesc_K0_N_K1,
@@ -97,6 +93,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
     // K1 should be Number<...>
     static constexpr auto K1 = Number<K1Value>{};
+
+    using FloatAB = FloatAB_;
+    using FloatC  = FloatC_;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
