@@ -22,7 +22,6 @@ template <typename GridwiseGemm,
           typename AGridDesc_K0_M_K1,
           typename BGridDesc_K0_N_K1,
           typename CGridDesc_M_N,
-          typename Block2CTileMap,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -33,8 +32,7 @@ __global__ void
                                 FloatC* __restrict__ p_c_grid,
                                 const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
                                 const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
-                                const CGridDesc_M_N c_grid_desc_m_n,
-                                const Block2CTileMap block_2_ctile_map)
+                                const CGridDesc_M_N c_grid_desc_m_n)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__))
@@ -46,8 +44,7 @@ __global__ void
                                                   p_shared,
                                                   a_grid_desc_k0_m_k1,
                                                   b_grid_desc_k0_n_k1,
-                                                  c_grid_desc_m_n,
-                                                  block_2_ctile_map);
+                                                  c_grid_desc_m_n);
 #else
     ignore                = p_a_grid;
     ignore                = p_b_grid;
@@ -55,7 +52,6 @@ __global__ void
     ignore                = a_grid_desc_k0_m_k1;
     ignore                = b_grid_desc_k0_n_k1;
     ignore                = c_grid_desc_m_n;
-    ignore                = block_2_ctile_map;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -293,8 +289,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
     }
 
     // return block_id to C matrix tile idx (m0, n0) mapping
-    __host__ __device__ static constexpr auto MakeDefaultBlock2CTileMap(
-        const CGridDesc_M_N& c_grid_desc_m_n, index_t /* M01 */, index_t /* N01 */)
+    __host__ __device__ static constexpr auto
+    MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n)
     {
         return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>(
             c_grid_desc_m_n);
@@ -302,17 +298,16 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
-    using DefaultBlock2CTileMap = decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
+    using DefaultBlock2CTileMap = decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}));
 
-    template <bool HasMainKBlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
+    template <bool HasMainKBlockLoop>
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
                                void* __restrict__ p_shared,
                                const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
                                const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
-                               const CGridDesc_M_N& c_grid_desc_m_n,
-                               const Block2CTileMap& block_2_ctile_map)
+                               const CGridDesc_M_N& c_grid_desc_m_n)
     {
         const auto c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
             MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n);
@@ -329,6 +324,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         const CElementwiseOperation c_element_op{};
 
         const auto K0 = a_grid_desc_k0_m_k1.GetLength(I0);
+
+        const auto block_2_ctile_map = MakeDefaultBlock2CTileMap(c_grid_desc_m_n);
 
         // divide block work by [M, N]
         const auto block_work_idx =

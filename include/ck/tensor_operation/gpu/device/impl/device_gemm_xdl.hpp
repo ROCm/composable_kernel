@@ -243,9 +243,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                  index_t K,
                  index_t StrideA,
                  index_t StrideB,
-                 index_t StrideC,
-                 index_t M01,
-                 index_t N01)
+                 index_t StrideC)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
@@ -253,16 +251,13 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
               b_grid_desc_k0_n_k1_{},
               c_grid_desc_m_n_{},
               block_2_ctile_map_{},
-              M01_{M01},
-              N01_{N01},
               kraw_{K}
         {
             a_grid_desc_k0_m_k1_ = DeviceGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
             b_grid_desc_k0_n_k1_ = DeviceGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
             c_grid_desc_m_n_     = DeviceGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
 
-            block_2_ctile_map_ =
-                GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
+            block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_);
         }
 
         //  private:
@@ -273,8 +268,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
-        index_t M01_;
-        index_t N01_;
         index_t kraw_;
     };
 
@@ -319,15 +312,14 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                const auto kernel = kernel_gemm_xdlops_v2r3<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceGemmXdl::CGridDesc_M_N>,
-                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
-                    true>;
+                const auto kernel =
+                    kernel_gemm_xdlops_v2r3<GridwiseGemm,
+                                            ADataType, // TODO: distiguish A/B datatype
+                                            CDataType,
+                                            remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
+                                            remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
+                                            remove_reference_t<DeviceGemmXdl::CGridDesc_M_N>,
+                                            true>;
 
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,
@@ -339,20 +331,18 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m_n_,
-                                                  arg.block_2_ctile_map_);
+                                                  arg.c_grid_desc_m_n_);
             }
             else
             {
-                const auto kernel = kernel_gemm_xdlops_v2r3<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceGemmXdl::CGridDesc_M_N>,
-                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
-                    false>;
+                const auto kernel =
+                    kernel_gemm_xdlops_v2r3<GridwiseGemm,
+                                            ADataType, // TODO: distiguish A/B datatype
+                                            CDataType,
+                                            remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
+                                            remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
+                                            remove_reference_t<DeviceGemmXdl::CGridDesc_M_N>,
+                                            false>;
 
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,
@@ -364,8 +354,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m_n_,
-                                                  arg.block_2_ctile_map_);
+                                                  arg.c_grid_desc_m_n_);
             }
 
             return ave_time;
@@ -438,7 +427,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                              BElementwiseOperation,
                              CElementwiseOperation)
     {
-        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, 1, 1};
+        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -465,9 +454,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                           K,
                                           StrideA,
                                           StrideB,
-                                          StrideC,
-                                          1,
-                                          1);
+                                          StrideC);
     }
 
     // polymorphic
