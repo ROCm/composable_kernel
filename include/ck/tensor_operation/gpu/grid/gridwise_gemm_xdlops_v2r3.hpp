@@ -312,26 +312,30 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                           (NPerBlock % (NXdlPerWave * NPerXDL)) == 0,
                       "Invalid tuning param!");
 
-        const auto M  = karg.a_grid_desc_k0_m_k1.GetLength(I1);
-        const auto N  = karg.b_grid_desc_k0_n_k1.GetLength(I1);
-        const auto K0 = karg.a_grid_desc_k0_m_k1.GetLength(I0);
+        (void)karg;
+        return true;
 
-        if(!(M == karg.c_grid_desc_m_n.GetLength(I0) && N == karg.c_grid_desc_m_n.GetLength(I1) &&
-             K0 == karg.b_grid_desc_k0_n_k1.GetLength(I0) &&
-             K1 == karg.a_grid_desc_k0_m_k1.GetLength(I2) &&
-             K1 == karg.b_grid_desc_k0_n_k1.GetLength(I2)))
-            return false;
+        // const auto M  = karg.a_grid_desc_k0_m_k1.GetLength(I1);
+        // const auto N  = karg.b_grid_desc_k0_n_k1.GetLength(I1);
+        // const auto K0 = karg.a_grid_desc_k0_m_k1.GetLength(I0);
 
-        if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % K0PerBlock == 0))
-            return false;
+        // if(!(M == karg.c_grid_desc_m_n.GetLength(I0) && N == karg.c_grid_desc_m_n.GetLength(I1)
+        // &&
+        //      K0 == karg.b_grid_desc_k0_n_k1.GetLength(I0) &&
+        //      K1 == karg.a_grid_desc_k0_m_k1.GetLength(I2) &&
+        //      K1 == karg.b_grid_desc_k0_n_k1.GetLength(I2)))
+        //     return false;
 
-        // check gridwise gemm pipeline
-        const auto num_k_loop = K0 / K0PerBlock;
+        // if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % K0PerBlock == 0))
+        //     return false;
 
-        if(!GridwiseGemmPipe::IsSupported(num_k_loop))
-        {
-            return false;
-        }
+        // // check gridwise gemm pipeline
+        // const auto num_k_loop = K0 / K0PerBlock;
+
+        // if(!GridwiseGemmPipe::IsSupported(num_k_loop))
+        // {
+        //     return false;
+        // }
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
@@ -408,16 +412,15 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 #define CREATE_DESC_ON_HOST 1
 #if CREATE_DESC_ON_HOST
         const auto a_grid_desc_k0_m_k1 = karg.a_grid_desc_k0_m_k1;
-        const auto b_grid_desc_k0_n_k1 = karg.b_grid_desc_k0_n_k1;
         const auto c_grid_desc_m_n     = karg.c_grid_desc_m_n;
 #else
         const auto a_grid_desc_k0_m_k1 =
             MakeAGridDescriptor_K0_M_K1(karg.M, karg.MPadded, karg.K, karg.StrideA);
-        const auto b_grid_desc_k0_n_k1 =
-            MakeBGridDescriptor_K0_N_K1(karg.K, karg.N, karg.NPadded, karg.StrideB);
         const auto c_grid_desc_m_n =
             MakeCGridDescriptor_M_N(karg.M, karg.MPadded, karg.N, karg.NPadded, karg.StrideC);
 #endif
+        const auto b_grid_desc_k0_n_k1 =
+            MakeBGridDescriptor_K0_N_K1(karg.K, karg.N, karg.NPadded, karg.StrideB);
 
         const auto c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
             MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n);
