@@ -238,36 +238,38 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         Argument(const ADataType* p_a_grid,
                  const BDataType* p_b_grid,
                  CDataType* p_c_grid,
-                 index_t M,
-                 index_t N,
-                 index_t K,
+                 index_t M_,
+                 index_t N_,
+                 index_t K_,
                  index_t StrideA,
                  index_t StrideB,
                  index_t StrideC)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
+              M{M_},
+              N{N_},
+              K{K_},
               a_grid_desc_k0_m_k1_{},
               b_grid_desc_k0_n_k1_{},
               c_grid_desc_m_n_{},
-              block_2_ctile_map_{},
               kraw_{K}
         {
-            a_grid_desc_k0_m_k1_ = DeviceGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
-            b_grid_desc_k0_n_k1_ = DeviceGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
-            c_grid_desc_m_n_     = DeviceGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
-
-            block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_);
+            a_grid_desc_k0_m_k1_ = DeviceGemmXdl::MakeAGridDescriptor_K0_M_K1(M_, K_, StrideA);
+            b_grid_desc_k0_n_k1_ = DeviceGemmXdl::MakeBGridDescriptor_K0_N_K1(K_, N_, StrideB);
+            c_grid_desc_m_n_     = DeviceGemmXdl::MakeCGridDescriptor_M_N(M_, N_, StrideC);
         }
 
         //  private:
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
+        index_t M;
+        index_t N;
+        index_t K;
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         index_t kraw_;
     };
 
@@ -293,17 +295,15 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             }
 #endif
 
-            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
-                                            arg.b_grid_desc_k0_n_k1_,
-                                            arg.c_grid_desc_m_n_,
-                                            arg.block_2_ctile_map_))
+            if(!GridwiseGemm::CheckValidity(
+                   arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.c_grid_desc_m_n_))
             {
                 throw std::runtime_error(
                     "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
             }
 
-            const index_t grid_size =
-                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
+            index_t gdx, gdy, gdz;
+            std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.M, arg.N);
 
             const auto K =
                 arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
@@ -319,11 +319,12 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                             remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
                                             remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
                                             remove_reference_t<DeviceGemmXdl::CGridDesc_M_N>,
+                                            Argument,
                                             true>;
 
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,
-                                                  dim3(grid_size),
+                                                  dim3(gdx, gdy, gdz),
                                                   dim3(BlockSize),
                                                   0,
                                                   arg.p_a_grid_,
@@ -331,7 +332,8 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m_n_);
+                                                  arg.c_grid_desc_m_n_,
+                                                  arg);
             }
             else
             {
@@ -342,11 +344,12 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                             remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
                                             remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
                                             remove_reference_t<DeviceGemmXdl::CGridDesc_M_N>,
+                                            Argument,
                                             false>;
 
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,
-                                                  dim3(grid_size),
+                                                  dim3(gdx, gdy, gdz),
                                                   dim3(BlockSize),
                                                   0,
                                                   arg.p_a_grid_,
@@ -354,7 +357,8 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m_n_);
+                                                  arg.c_grid_desc_m_n_,
+                                                  arg);
             }
 
             return ave_time;
@@ -402,10 +406,8 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
-                                           arg.b_grid_desc_k0_n_k1_,
-                                           arg.c_grid_desc_m_n_,
-                                           arg.block_2_ctile_map_);
+        return GridwiseGemm::CheckValidity(
+            arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.c_grid_desc_m_n_);
     }
 
     // polymorphic
