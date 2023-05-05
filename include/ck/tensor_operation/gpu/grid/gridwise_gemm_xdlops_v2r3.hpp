@@ -22,9 +22,6 @@ template <typename GridwiseGemm,
           typename AGridDesc_K0_M_K1,
           typename BGridDesc_K0_N_K1,
           typename CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation,
           typename Block2CTileMap,
           bool HasMainKBlockLoop>
 __global__ void
@@ -38,9 +35,6 @@ __global__ void
             const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
             const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
             const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CElementwiseOperation c_element_op,
             const Block2CTileMap block_2_ctile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
@@ -54,9 +48,6 @@ __global__ void
                                                   a_grid_desc_k0_m_k1,
                                                   b_grid_desc_k0_n_k1,
                                                   c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  c_element_op,
                                                   block_2_ctile_map);
 #else
     ignore                = p_a_grid;
@@ -65,9 +56,6 @@ __global__ void
     ignore                = a_grid_desc_k0_m_k1;
     ignore                = b_grid_desc_k0_n_k1;
     ignore                = c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2;
-    ignore                = a_element_op;
-    ignore                = b_element_op;
-    ignore                = c_element_op;
     ignore                = block_2_ctile_map;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
@@ -326,9 +314,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
         const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
         const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2& c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-        const AElementwiseOperation& a_element_op,
-        const BElementwiseOperation& b_element_op,
-        const CElementwiseOperation& c_element_op,
         const Block2CTileMap& block_2_ctile_map)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -337,6 +322,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             p_b_grid, b_grid_desc_k0_n_k1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetElementSpaceSize());
+
+        const AElementwiseOperation a_element_op{};
+        const BElementwiseOperation b_element_op{};
+        const CElementwiseOperation c_element_op{};
 
         const auto K0 = a_grid_desc_k0_m_k1.GetLength(I0);
 

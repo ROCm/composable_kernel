@@ -245,10 +245,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                  index_t StrideB,
                  index_t StrideC,
                  index_t M01,
-                 index_t N01,
-                 AElementwiseOperation a_element_op,
-                 BElementwiseOperation b_element_op,
-                 CElementwiseOperation c_element_op)
+                 index_t N01)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
@@ -259,9 +256,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
-              a_element_op_{a_element_op},
-              b_element_op_{b_element_op},
-              c_element_op_{c_element_op},
               kraw_{K}
         {
             a_grid_desc_k0_m_k1_ = DeviceGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
@@ -293,9 +287,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
-        AElementwiseOperation a_element_op_;
-        BElementwiseOperation b_element_op_;
-        CElementwiseOperation c_element_op_;
         index_t kraw_;
     };
 
@@ -347,9 +338,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                     remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
                     remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     true>;
 
@@ -364,9 +352,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.a_element_op_,
-                                                  arg.b_element_op_,
-                                                  arg.c_element_op_,
                                                   arg.block_2_ctile_map_);
             }
             else
@@ -378,9 +363,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                     remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
                     remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     false>;
 
@@ -395,9 +377,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.a_element_op_,
-                                                  arg.b_element_op_,
-                                                  arg.c_element_op_,
                                                   arg.block_2_ctile_map_);
             }
 
@@ -467,24 +446,11 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                              index_t StrideA,
                              index_t StrideB,
                              index_t StrideC,
-                             AElementwiseOperation a_element_op,
-                             BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op)
+                             AElementwiseOperation,
+                             BElementwiseOperation,
+                             CElementwiseOperation)
     {
-        return Argument{p_a,
-                        p_b,
-                        p_c,
-                        M,
-                        N,
-                        K,
-                        StrideA,
-                        StrideB,
-                        StrideC,
-                        1,
-                        1,
-                        a_element_op,
-                        b_element_op,
-                        c_element_op};
+        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, 1, 1};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -499,9 +465,9 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                                       index_t StrideA,
                                                       index_t StrideB,
                                                       index_t StrideC,
-                                                      AElementwiseOperation a_element_op,
-                                                      BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op) override
+                                                      AElementwiseOperation,
+                                                      BElementwiseOperation,
+                                                      CElementwiseOperation) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -513,10 +479,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                           StrideB,
                                           StrideC,
                                           1,
-                                          1,
-                                          a_element_op,
-                                          b_element_op,
-                                          c_element_op);
+                                          1);
     }
 
     // polymorphic
