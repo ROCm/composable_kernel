@@ -96,7 +96,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
     // we convert fp16->fp32->bf16 and execute bf16 mfma instruction
     // when mfma if fixed, remove this section and update
     // ABDataTypeAdjusted -> ABDataType throughout this file
-#if CK_WORKAROUND_DENORM_FIX && defined(__gfx90a__)
+#if CK_WORKAROUND_DENORM_FIX
     using ABDataTypeAdjusted =
         conditional_t<is_same_v<ABDataType, ck::half_t>, ck::bhalf_t, ABDataType>;
 #else
