@@ -19,9 +19,6 @@ namespace ck {
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
-          typename AGridDesc_K0_M_K1,
-          typename BGridDesc_K0_N_K1,
-          typename CGridDesc_M_N,
           typename Argument,
           bool HasMainKBlockLoop>
 __global__ void
@@ -31,30 +28,17 @@ __global__ void
         kernel_gemm_xdlops_v2r3(const FloatAB* __restrict__ p_a_grid,
                                 const FloatAB* __restrict__ p_b_grid,
                                 FloatC* __restrict__ p_c_grid,
-                                const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
-                                const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
-                                const CGridDesc_M_N c_grid_desc_m_n,
                                 const Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
-                                                  p_b_grid,
-                                                  p_c_grid,
-                                                  p_shared,
-                                                  a_grid_desc_k0_m_k1,
-                                                  b_grid_desc_k0_n_k1,
-                                                  c_grid_desc_m_n,
-                                                  karg);
+    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid, p_b_grid, p_c_grid, p_shared, karg);
 #else
     ignore                = p_a_grid;
     ignore                = p_b_grid;
     ignore                = p_c_grid;
-    ignore                = a_grid_desc_k0_m_k1;
-    ignore                = b_grid_desc_k0_n_k1;
-    ignore                = c_grid_desc_m_n;
     ignore                = karg;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
@@ -300,11 +284,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                const FloatAB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
                                void* __restrict__ p_shared,
-                               const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
-                               const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
-                               const CGridDesc_M_N& c_grid_desc_m_n,
                                const Argument& karg)
     {
+        const auto a_grid_desc_k0_m_k1 = karg.a_grid_desc_k0_m_k1_;
+        const auto b_grid_desc_k0_n_k1 = karg.b_grid_desc_k0_n_k1_;
+        const auto c_grid_desc_m_n     = karg.c_grid_desc_m_n_;
+
         const auto c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
             MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n);
 

@@ -316,9 +316,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                     kernel_gemm_xdlops_v2r3<GridwiseGemm,
                                             ADataType, // TODO: distiguish A/B datatype
                                             CDataType,
-                                            remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
-                                            remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
-                                            remove_reference_t<DeviceGemmXdl::CGridDesc_M_N>,
                                             Argument,
                                             true>;
 
@@ -330,9 +327,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
-                                                  arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m_n_,
                                                   arg);
             }
             else
@@ -341,9 +335,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                     kernel_gemm_xdlops_v2r3<GridwiseGemm,
                                             ADataType, // TODO: distiguish A/B datatype
                                             CDataType,
-                                            remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
-                                            remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
-                                            remove_reference_t<DeviceGemmXdl::CGridDesc_M_N>,
                                             Argument,
                                             false>;
 
@@ -355,9 +346,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
-                                                  arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m_n_,
                                                   arg);
             }
 
