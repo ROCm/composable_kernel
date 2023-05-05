@@ -99,10 +99,26 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
+#if defined(INTEGER_DIVIDE_CEIL)
+#error "macro INTEGER_DIVIDE_CEIL() was already defined somewhere else"
+#endif
+
+#define INTEGER_DIVIDE_CEIL(x, y) (((x) + (y)-1) / (y))
     __host__ static auto CalculateGridSize(index_t M, index_t N)
     {
         return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), 1, 1);
     }
+
+    __host__ static auto CalculateMPadded(index_t M)
+    {
+        return INTEGER_DIVIDE_CEIL(M, MPerBlock) * MPerBlock;
+    }
+
+    __host__ static auto CalculateNPadded(index_t N)
+    {
+        return INTEGER_DIVIDE_CEIL(N, NPerBlock) * NPerBlock;
+    }
+#undef INTEGER_DIVIDE_CEIL
 
     using GridwiseGemmPipe = remove_cvref_t<decltype(
         GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
