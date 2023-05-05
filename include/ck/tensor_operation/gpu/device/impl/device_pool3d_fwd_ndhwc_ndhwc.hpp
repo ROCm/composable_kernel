@@ -153,8 +153,8 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
         return make_tuple(in_grid_desc_reducem_reducek, out_grid_desc_reducem);
     }
 
-    using ABGridDescs = decltype(MakeABGridDescriptor_A_M_K_B_M(
-        1, 1, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}));
+    using ABGridDescs = decltype(
+        MakeABGridDescriptor_A_M_K_B_M(1, 1, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}));
 
     using AGridDesc_M_K = remove_cvref_t<decltype(ABGridDescs{}[I0])>;
     using BGridDesc_M   = remove_cvref_t<decltype(ABGridDescs{}[I1])>;
