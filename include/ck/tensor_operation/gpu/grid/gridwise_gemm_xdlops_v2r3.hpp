@@ -142,7 +142,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             return transform_tensor_descriptor(
                 a_grid_desc_m_k,
                 make_tuple(make_unmerge_transform(make_tuple(K0, K1Value)),
-                           make_right_pad_transform(M, M - MPad)),
+                           make_right_pad_transform(M, MPad - M)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
         }
@@ -178,7 +178,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             return transform_tensor_descriptor(
                 b_grid_desc_k_n,
                 make_tuple(make_unmerge_transform(make_tuple(K0, K1Value)),
-                           make_right_pad_transform(N, N - NPad)),
+                           make_right_pad_transform(N, NPad - N)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
         }
@@ -210,8 +210,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding)
         {
             return transform_tensor_descriptor(c_grid_desc_m_n,
-                                               make_tuple(make_right_pad_transform(M, M - MPad),
-                                                          make_right_pad_transform(N, N - NPad)),
+                                               make_tuple(make_right_pad_transform(M, MPad - M),
+                                                          make_right_pad_transform(N, NPad - N)),
                                                make_tuple(Sequence<0>{}, Sequence<1>{}),
                                                make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
