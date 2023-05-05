@@ -184,10 +184,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         }
     }
 
-    using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
-    using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
-    using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
-
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
         BlockSize,
@@ -195,12 +191,13 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         AccDataType,
         CDataType,
         InMemoryDataOperationEnum::Set,
-        AGridDesc_K0_M_K1,
-        BGridDesc_K0_N_K1,
-        CGridDesc_M_N,
+        ALayout,
+        BLayout,
+        CLayout,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
+        GemmSpec,
         MPerBlock,
         NPerBlock,
         K0PerBlock,
@@ -232,6 +229,10 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         LoopSched,
         PipelineVer>;
 
+    using AGridDesc_K0_M_K1 = decltype(GridwiseGemm::MakeAGridDescriptor_K0_M_K1(1, 1, 1, 1));
+    using BGridDesc_K0_N_K1 = decltype(GridwiseGemm::MakeBGridDescriptor_K0_N_K1(1, 1, 1, 1));
+    using CGridDesc_M_N     = decltype(GridwiseGemm::MakeCGridDescriptor_M_N(1, 1, 1, 1, 1));
+
     // Argument
     struct Argument : public BaseArgument
     {
@@ -241,22 +242,28 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                  index_t M_,
                  index_t N_,
                  index_t K_,
-                 index_t StrideA,
-                 index_t StrideB,
-                 index_t StrideC)
+                 index_t StrideA_,
+                 index_t StrideB_,
+                 index_t StrideC_)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
               M{M_},
               N{N_},
               K{K_},
-              a_grid_desc_k0_m_k1_{},
-              b_grid_desc_k0_n_k1_{},
-              c_grid_desc_m_n_{}
+              StrideA{StrideA_},
+              StrideB{StrideB_},
+              StrideC{StrideC_},
+              MPadded{GridwiseGemm::CalculateMPadded(M_)},
+              NPadded{GridwiseGemm::CalculateNPadded(N_)},
+              a_grid_desc_k0_m_k1{},
+              b_grid_desc_k0_n_k1{},
+              c_grid_desc_m_n{}
         {
-            a_grid_desc_k0_m_k1_ = DeviceGemmXdl::MakeAGridDescriptor_K0_M_K1(M_, K_, StrideA);
-            b_grid_desc_k0_n_k1_ = DeviceGemmXdl::MakeBGridDescriptor_K0_N_K1(K_, N_, StrideB);
-            c_grid_desc_m_n_     = DeviceGemmXdl::MakeCGridDescriptor_M_N(M_, N_, StrideC);
+            a_grid_desc_k0_m_k1 = GridwiseGemm::MakeAGridDescriptor_K0_M_K1(M, MPadded, K, StrideA);
+            b_grid_desc_k0_n_k1 = GridwiseGemm::MakeBGridDescriptor_K0_N_K1(K, N, NPadded, StrideB);
+            c_grid_desc_m_n =
+                GridwiseGemm::MakeCGridDescriptor_M_N(M, MPadded, N, NPadded, StrideC);
         }
 
         //  private:
@@ -266,9 +273,14 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         index_t M;
         index_t N;
         index_t K;
-        AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
-        BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
-        CGridDesc_M_N c_grid_desc_m_n_;
+        index_t StrideA;
+        index_t StrideB;
+        index_t StrideC;
+        index_t MPadded;
+        index_t NPadded;
+        AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1;
+        BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1;
+        CGridDesc_M_N c_grid_desc_m_n;
     };
 
     // Invoker
@@ -293,8 +305,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             }
 #endif
 
-            if(!GridwiseGemm::CheckValidity(
-                   arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.c_grid_desc_m_n_))
+            if(!GridwiseGemm::CheckValidity(arg))
             {
                 throw std::runtime_error(
                     "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
@@ -303,12 +314,9 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             index_t gdx, gdy, gdz;
             std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.M, arg.N);
 
-            const auto K =
-                arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
-
             float ave_time = 0;
 
-            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
+            if(GridwiseGemm::CalculateHasMainKBlockLoop(arg.K))
             {
                 const auto kernel = kernel_gemm_xdlops_v2r3<GridwiseGemm, Argument, true>;
 
@@ -382,8 +390,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(
-            arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.c_grid_desc_m_n_);
+        return GridwiseGemm::CheckValidity(arg);
     }
 
     // polymorphic
