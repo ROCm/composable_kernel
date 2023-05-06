@@ -168,13 +168,11 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        void Print(const Argument& karg) { karg.Print(); }
-
         float Run(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
-                Print(karg);
+                karg.Print();
             }
 
             if(!GridwiseGemm::CheckValidity(karg))

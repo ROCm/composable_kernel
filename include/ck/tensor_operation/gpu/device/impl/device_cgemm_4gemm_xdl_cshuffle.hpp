@@ -235,13 +235,11 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        void Print(const Argument& karg) { karg.Print(); }
-
         float Run(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
-                Print(karg);
+                karg.Print();
             }
 
             if(!GridwiseGemm::CheckValidity(karg))
