@@ -217,7 +217,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                     DeviceOp::MakeDescriptor_M({M_, N_}, {I1, StrideC_}, grid_size, BlockSize);
             }
 
-            p_aux_2_grid_ = p_workspace + Parent::c_grid_desc_m_n.GetElementSpaceSize();
+            p_aux_2_grid_ = p_workspace + GetCElementSpaceSize(M_, N_, StrideC_);
         }
 
         //  private:
@@ -561,6 +561,14 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         return str.str();
     }
 
+    static std::size_t GetCElementSpaceSize(index_t M, index_t N, index_t StrideC)
+    {
+        const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(
+            M, GridwiseGemm::CalculateMPadded(M), N, GridwiseGemm::CalculateNPadded(N), StrideC);
+
+        return c_grid_desc_m_n.GetElementSpaceSize();
+    }
+
     std::size_t GetWorkspaceSize(index_t M,
                                  index_t N,
                                  [[maybe_unused]] index_t K,
@@ -568,10 +576,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                  [[maybe_unused]] index_t StrideB,
                                  index_t StrideC) override
     {
-        const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(
-            M, GridwiseGemm::CalculateMPadded(M), N, GridwiseGemm::CalculateNPadded(N), StrideC);
-
-        return 2 * sizeof(CDataType) * c_grid_desc_m_n.GetElementSpaceSize();
+        return 2 * sizeof(CDataType) * GetCElementSpaceSize(M, N, StrideC);
     }
 };
 
