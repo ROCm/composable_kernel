@@ -393,9 +393,9 @@ struct Embed
 
     __host__ __device__ constexpr Embed() = default;
 
-    __host__ __device__ constexpr Embed(const UpLengths& up_lengths,
-                                        const Coefficients& coefficients)
-        : up_lengths_{up_lengths}, coefficients_{coefficients}
+    /// NOTE: force copying here to prevent uninitialized data members (on device side)
+    __host__ __device__ constexpr Embed(UpLengths up_lengths, Coefficients coefficients)
+        : up_lengths_{std::move(up_lengths)}, coefficients_{std::move(coefficients)}
     {
     }
 
