@@ -108,11 +108,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-#if defined(INTEGER_DIVIDE_CEIL)
-#error "macro INTEGER_DIVIDE_CEIL() was already defined somewhere else"
-#endif
-
-#define INTEGER_DIVIDE_CEIL(x, y) (((x) + (y)-1) / (y))
     __host__ static auto CalculateGridSize(index_t M, index_t N)
     {
         return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), 1, 1);
@@ -120,19 +115,18 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
     __host__ static auto CalculateMPadded(index_t M)
     {
-        return INTEGER_DIVIDE_CEIL(M, MPerBlock) * MPerBlock;
+        return math::integer_divide_ceil(M, MPerBlock) * MPerBlock;
     }
 
     __host__ static auto CalculateNPadded(index_t N)
     {
-        return INTEGER_DIVIDE_CEIL(N, NPerBlock) * NPerBlock;
+        return math::integer_divide_ceil(N, NPerBlock) * NPerBlock;
     }
 
     __host__ static auto CalculateKPadded(index_t K)
     {
-        return INTEGER_DIVIDE_CEIL(K, KPerBlock) * KPerBlock;
+        return math::integer_divide_ceil(K, KPerBlock) * KPerBlock;
     }
-#undef INTEGER_DIVIDE_CEIL
 
     __host__ static auto CalculateAK0(index_t K)
     {
