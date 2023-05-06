@@ -98,10 +98,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     static constexpr auto I7 = Number<7>{};
 
     // K1 should be Number<...>
-    static constexpr auto AK0_c = Number<KPerBlock / AK1Value>{};
-    static constexpr auto BK0_c = Number<KPerBlock / BK1Value>{};
-    static constexpr auto AK1_c = Number<AK1Value>{};
-    static constexpr auto BK1_c = Number<BK1Value>{};
+    static constexpr auto AK0Number = Number<KPerBlock / AK1Value>{};
+    static constexpr auto BK0Number = Number<KPerBlock / BK1Value>{};
+    static constexpr auto AK1Number = Number<AK1Value>{};
+    static constexpr auto BK1Number = Number<BK1Value>{};
 
     using FloatAB = FloatAB_;
     using FloatC  = FloatC_;
@@ -460,16 +460,16 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     {
         // A matrix in LDS memory, dst of blockwise copy
         return make_naive_tensor_descriptor(
-            make_tuple(AK0_c, Number<MPerBlock>{}, AK1_c),
-            make_tuple(Number<MPerBlock + ABlockLdsExtraM>{} * AK1_c, AK1_c, I1));
+            make_tuple(AK0Number, Number<MPerBlock>{}, AK1Number),
+            make_tuple(Number<MPerBlock + ABlockLdsExtraM>{} * AK1Number, AK1Number, I1));
     }
 
     __host__ __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
         // B matrix in LDS memory, dst of blockwise copy
         return make_naive_tensor_descriptor(
-            make_tuple(BK0_c, Number<NPerBlock>{}, BK1_c),
-            make_tuple(Number<NPerBlock + BBlockLdsExtraN>{} * BK1_c, BK1_c, I1));
+            make_tuple(BK0Number, Number<NPerBlock>{}, BK1Number),
+            make_tuple(Number<NPerBlock + BBlockLdsExtraN>{} * BK1Number, BK1Number, I1));
     }
 
     __host__ __device__ static constexpr auto
@@ -495,7 +495,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
         // lds max alignment
-        constexpr auto max_lds_align = math::lcm(AK1_c, BK1_c);
+        constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
 
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
@@ -708,7 +708,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
 
         // lds max alignment
-        constexpr auto max_lds_align = math::lcm(AK1_c, BK1_c);
+        constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
 
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
@@ -722,7 +722,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                 AElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
-                                                Sequence<AK0_c, MPerBlock, AK1_c>,
+                                                Sequence<AK0Number, MPerBlock, AK1Number>,
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
                                                 FloatAB,
@@ -753,7 +753,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                 BElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
-                                                Sequence<BK0_c, NPerBlock, BK1_c>,
+                                                Sequence<BK0Number, NPerBlock, BK1Number>,
                                                 BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 BBlockTransferThreadClusterArrangeOrder,
                                                 FloatAB,
@@ -786,7 +786,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         //       register
         // sanity check
         constexpr index_t KPack =
-            math::max(math::lcm(AK1_c, BK1_c),
+            math::max(math::lcm(AK1Number, BK1Number),
                       MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
@@ -815,8 +815,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             static_cast<FloatAB*>(p_shared) + a_block_space_size_aligned,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
-        constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1_c, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1_c, 0, 0);
+        constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
+        constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
 
         // gridwise GEMM pipeline
         static_assert(std::is_default_constructible_v<GridwiseGemmPipe>);
