@@ -421,12 +421,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
               NPadded{NPadded_},
               KPadded{KPadded_},
               AK0{AK0_},
-              BK0{BK0_},
-              a_grid_desc_ak0_m_ak1{
-                  MakeAGridDescriptor_AK0_M_AK1(M_, MPadded_, K_, KPadded_, StrideA_, AK0_)},
-              b_grid_desc_bk0_n_bk1{
-                  MakeBGridDescriptor_BK0_N_BK1(K_, KPadded_, N_, NPadded_, StrideB_, BK0_)},
-              c_grid_desc_m_n{MakeCGridDescriptor_M_N(M_, MPadded_, N_, NPadded_, StrideC_)}
+              BK0{BK0_}
         {
         }
 
@@ -461,9 +456,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         index_t KPadded;
         index_t AK0;
         index_t BK0;
-        AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1;
-        BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1;
-        CGridDesc_M_N c_grid_desc_m_n;
     };
 
     // FIXME: pass GridwiseGemmPipe as a template arguement into GridwiseGemm
@@ -679,22 +671,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                void* __restrict__ p_shared,
                                const Argument& karg)
     {
-#define CREATE_DESCS_ON_HOST 1
-#if CREATE_DESCS_ON_HOST
-        const auto a_grid_desc_ak0_m_ak1 = karg.a_grid_desc_ak0_m_ak1;
-        const auto b_grid_desc_bk0_n_bk1 = karg.b_grid_desc_bk0_n_bk1;
-        const auto c_grid_desc_m_n       = karg.c_grid_desc_m_n;
-#else
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             karg.M, karg.MPadded, karg.K, karg.KPadded, karg.StrideA, karg.AK0);
         const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(
             karg.K, karg.KPadded, karg.N, karg.NPadded, karg.StrideB, karg.BK0);
         const auto c_grid_desc_m_n =
             MakeCGridDescriptor_M_N(karg.M, karg.MPadded, karg.N, karg.NPadded, karg.StrideC);
-#endif
-        // if (blockIdx.x == 0 && threadIdx.x == 0) {
-        //     print_bytes(a_grid_desc_ak0_m_ak1);
-        // }
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
