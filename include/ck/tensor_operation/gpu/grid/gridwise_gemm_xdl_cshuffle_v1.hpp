@@ -395,23 +395,18 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                           index_t K_,
                           index_t StrideA_,
                           index_t StrideB_,
-                          index_t StrideC_,
-                          index_t MPadded_,
-                          index_t NPadded_,
-                          index_t KPadded_,
-                          index_t AK0_,
-                          index_t BK0_)
+                          index_t StrideC_)
             : M{M_},
               N{N_},
               K{K_},
               StrideA{StrideA_},
               StrideB{StrideB_},
               StrideC{StrideC_},
-              MPadded{MPadded_},
-              NPadded{NPadded_},
-              KPadded{KPadded_},
-              AK0{AK0_},
-              BK0{BK0_}
+              MPadded{CalculateMPadded(M_)},
+              NPadded{CalculateNPadded(N_)},
+              KPadded{CalculateKPadded(K_)},
+              AK0{CalculateAK0(K_)},
+              BK0{CalculateBK0(K_)}
         {
         }
 
