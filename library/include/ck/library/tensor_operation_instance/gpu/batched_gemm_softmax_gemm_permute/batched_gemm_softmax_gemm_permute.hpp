@@ -18,7 +18,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-template <typename Arch,
+template <ArchitectureEnum Arch,
           index_t NumDimG,
           index_t NumDimM,
           index_t NumDimN,
@@ -74,11 +74,8 @@ struct DeviceOperationInstanceCreator<Arch,
                                                          MaskingSpec>;
     static void add_device_instances(std::vector<std::unique_ptr<DeviceOp>>& instances)
     {
-        if constexpr(DeviceOperationInstances<ArchFeatureEnum::Xdl,
-                                              DeviceOp>::template is_surport<Arch>())
-            add_device_operation_instances(
-                instances,
-                DeviceOperationInstances<ArchFeatureEnum::Xdl, DeviceOp>::get_device_instances());
+        add_device_operation_instances(
+            instances, DeviceOperationInstances<Arch, DeviceOp>::get_device_instances());
     }
 };
 

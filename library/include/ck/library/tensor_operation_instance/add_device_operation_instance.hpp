@@ -38,29 +38,14 @@ enum struct ArchitectureEnum
     Gfx940,
     Gfx1030
 };
-enum struct ArchFeatureEnum
-{
-    None,
-    Xdl,
-    Dl,
-    Wmma
-};
-template <ArchitectureEnum... Is>
-struct ArchitectureEnumSequence
-{
-    static constexpr int mSize = sizeof...(Is);
 
-    __host__ __device__ static constexpr ArchitectureEnum At(int I)
-    {
-        // the last dummy element is to prevent compiler complain about empty array, when mSize = 0
-        const ArchitectureEnum mData[mSize + 1] = {Is..., ArchitectureEnum::None};
-        return mData[I];
-    }
+template <ArchitectureEnum Arch, typename DeviceOp>
+struct DeviceOperationInstances
+{
+    static auto get_device_instances() { return std::tuple<>{}; }
 };
-template <ArchFeatureEnum Feature, typename DeviceOp>
-struct DeviceOperationInstances;
 
-template <typename Arch, typename DeviceOp>
+template <ArchitectureEnum Arch, typename DeviceOp>
 struct DeviceOperationInstanceCreator;
 } // namespace instance
 } // namespace device

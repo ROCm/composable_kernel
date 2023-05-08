@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "ck/ck.hpp"
-#include "ck/library/tensor_operation_instance/gpu/batched_gemm_softmax_gemm_permute/batched_gemm_softmax_gemm_permute.hpp"
+#include "ck/library/tensor_operation_instance/gpu/batched_gemm_softmax_gemm_permute_general.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
@@ -134,11 +134,8 @@ int main()
         MaskingSpec>;
 
     // get device op instances
-    std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-    ck::tensor_operation::device::instance::DeviceOperationInstanceCreator<
-        ck::tensor_operation::device::instance::ArchitectureEnumSequence<
-            ck::tensor_operation::device::instance::ArchitectureEnum::All>,
-        DeviceOp>::add_device_instances(op_ptrs);
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 

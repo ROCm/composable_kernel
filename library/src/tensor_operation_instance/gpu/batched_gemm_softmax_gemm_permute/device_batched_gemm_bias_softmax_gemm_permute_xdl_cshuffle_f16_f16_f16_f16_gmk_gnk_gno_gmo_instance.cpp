@@ -65,8 +65,8 @@ void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_i
                                             PassThrough,
                                             PassThrough,
                                             MaskingSpecialization::MaskOutUpperTriangle>;
-    DeviceOperationInstanceCreator<ArchitectureEnumSequence<ArchitectureEnum::Gfx908>,
-                                   DeviceOp>::add_device_instances(instances);
+    DeviceOperationInstanceCreator<ArchitectureEnum::Gfx908, DeviceOp>::add_device_instances(
+        instances);
 }
 
 void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_instances(
@@ -107,8 +107,8 @@ void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_gmk_gnk_gno_gmo_i
                                                          PassThrough,
                                                          PassThrough,
                                                          MaskingSpecialization::MaskDisabled>;
-    DeviceOperationInstanceCreator<ArchitectureEnumSequence<ArchitectureEnum::Gfx908>,
-                                   DeviceOp>::add_device_instances(instances);
+    DeviceOperationInstanceCreator<ArchitectureEnum::Gfx908, DeviceOp>::add_device_instances(
+        instances);
 }
 
 } // namespace instance
