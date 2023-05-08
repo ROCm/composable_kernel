@@ -1053,7 +1053,7 @@ template <>
 inline __host__ __device__ f8_t type_convert<f8_t, float>(float x)
 {
     constexpr bool negative_zero_nan = true;
-    constexpr bool clip = true; 
+    constexpr bool clip              = true;
 
     // fp8 exponent/mantissa layout
     constexpr int we = 4;
@@ -1088,14 +1088,13 @@ inline __host__ __device__ f8_t type_convert<f8_t, float>(float x)
         if((_x & 0x7F800000) == 0x7F800000)
             return signed_inf + (mantissa != 0 ? 1 : 0);
     }
-    
+
     if(_x == 0)
         return 0;
 
-    uint32_t drop_mask = (1 << (mfmt - wm)) - 1;
-    const int max_exp  = (1 << we) - (negative_zero_nan ? 1 : 2);
-    const int exp_low_cutoff =
-        128 - (1 << (we - 1)) + 1 - (negative_zero_nan ? 1 : 0);
+    uint32_t drop_mask       = (1 << (mfmt - wm)) - 1;
+    const int max_exp        = (1 << we) - (negative_zero_nan ? 1 : 2);
+    const int exp_low_cutoff = 128 - (1 << (we - 1)) + 1 - (negative_zero_nan ? 1 : 0);
 
     exponent -= exp_low_cutoff - 1;
     if(exponent <= 0)
@@ -1169,7 +1168,7 @@ inline __host__ __device__ float type_convert<float, f8_t>(f8_t x)
     uint32_t sign     = x >> 7;
     uint32_t mantissa = x & ((1 << wm) - 1);
     int exponent      = (x & 0x7F) >> wm;
-    
+
     if(negative_zero_nan)
     {
         if(x == 0x80)
