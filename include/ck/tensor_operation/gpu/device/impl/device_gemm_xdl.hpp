@@ -125,38 +125,25 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        float Run(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
         {
-#if DEBUG_LOG
+            if(stream_config.log_level_ > 0)
             {
-                // std::cout << "arg.a_grid_desc_k0_m_k1_{" <<
-                // arg.a_grid_desc_k0_m_k1_.GetLength(I0)
-                //           << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
-                //           << arg.a_grid_desc_k0_m_k1_.GetLength(I2) << "}" << std::endl;
-
-                // std::cout << "arg.b_grid_desc_k0_n_k1_{" <<
-                // arg.b_grid_desc_k0_n_k1_.GetLength(I0)
-                //           << ", " << arg.b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
-                //           << arg.b_grid_desc_k0_n_k1_.GetLength(I2) << "}" << std::endl;
-
-                // std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ",
-                // "
-                //           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+                karg.Print();
             }
-#endif
 
-            if(!GridwiseGemm::CheckValidity(arg))
+            if(!GridwiseGemm::CheckValidity(karg))
             {
                 throw std::runtime_error(
                     "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
             }
 
             index_t gdx, gdy, gdz;
-            std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.M, arg.N);
+            std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(karg.M, karg.N);
 
             float ave_time = 0;
 
-            if(GridwiseGemm::CalculateHasMainKBlockLoop(arg.K))
+            if(GridwiseGemm::CalculateHasMainKBlockLoop(karg.K))
             {
                 const auto kernel = kernel_gemm_xdlops_v2r3<GridwiseGemm, true>;
 
@@ -165,10 +152,10 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                                   dim3(gdx, gdy, gdz),
                                                   dim3(BlockSize),
                                                   0,
-                                                  arg.p_a_grid,
-                                                  arg.p_b_grid,
-                                                  arg.p_c_grid,
-                                                  arg);
+                                                  karg.p_a_grid,
+                                                  karg.p_b_grid,
+                                                  karg.p_c_grid,
+                                                  karg);
             }
             else
             {
@@ -179,10 +166,10 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                                   dim3(gdx, gdy, gdz),
                                                   dim3(BlockSize),
                                                   0,
-                                                  arg.p_a_grid,
-                                                  arg.p_b_grid,
-                                                  arg.p_c_grid,
-                                                  arg);
+                                                  karg.p_a_grid,
+                                                  karg.p_b_grid,
+                                                  karg.p_c_grid,
+                                                  karg);
             }
 
             return ave_time;
@@ -202,7 +189,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         return true;
     }
 
-    static bool IsSupportedArgument(const Argument& arg)
+    static bool IsSupportedArgument(const Argument& karg)
     {
         if(ck::get_device_name() == "gfx908")
         {
@@ -225,12 +212,12 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             return false;
         }
 
-        if(arg.K % K1 != 0)
+        if(karg.K % K1 != 0)
         {
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(arg);
+        return GridwiseGemm::CheckValidity(karg);
     }
 
     // polymorphic

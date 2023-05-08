@@ -358,30 +358,66 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                           (NPerBlock % (NXdlPerWave * NPerXDL)) == 0,
                       "Invalid tuning param!");
 
-        (void)karg;
-        return true;
+        if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
+        {
+            if(!(karg.M % MPerBlock == 0))
+            {
+                return false;
+            }
+        }
 
-        // const auto M  = karg.a_grid_desc_k0_m_k1.GetLength(I1);
-        // const auto N  = karg.b_grid_desc_k0_n_k1.GetLength(I1);
-        // const auto K0 = karg.a_grid_desc_k0_m_k1.GetLength(I0);
+        if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
+        {
+            if(!(karg.N % NPerBlock == 0))
+            {
+                return false;
+            }
+        }
 
-        // if(!(M == karg.c_grid_desc_m_n.GetLength(I0) && N == karg.c_grid_desc_m_n.GetLength(I1)
-        // &&
-        //      K0 == karg.b_grid_desc_k0_n_k1.GetLength(I0) &&
-        //      K1 == karg.a_grid_desc_k0_m_k1.GetLength(I2) &&
-        //      K1 == karg.b_grid_desc_k0_n_k1.GetLength(I2)))
-        //     return false;
+        if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
+        {
+            if(karg.K % ABlockTransferSrcScalarPerVector != 0)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if(karg.M % ABlockTransferSrcScalarPerVector != 0)
+            {
+                return false;
+            }
+        }
 
-        // if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % K0PerBlock == 0))
-        //     return false;
+        if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
+        {
+            if(karg.N % BBlockTransferSrcScalarPerVector != 0)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if(karg.K % BBlockTransferSrcScalarPerVector != 0)
+            {
+                return false;
+            }
+        }
 
-        // // check gridwise gemm pipeline
-        // const auto num_k_loop = K0 / K0PerBlock;
+        // check gridwise gemm pipeline
+        const index_t K0      = karg.K / K1;
+        const auto num_k_loop = K0 / K0PerBlock;
 
-        // if(!GridwiseGemmPipe::IsSupported(num_k_loop))
-        // {
-        //     return false;
-        // }
+        if(!GridwiseGemmPipe::IsSupported(num_k_loop))
+        {
+            return false;
+        }
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
@@ -476,7 +512,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         const BElementwiseOperation b_element_op{};
         const CElementwiseOperation c_element_op{};
 
-        const auto K0 = a_grid_desc_k0_m_k1.GetLength(I0);
+        const index_t K0 = karg.K / K1;
 
         const auto block_2_ctile_map = Block2CTileMap{karg.M, karg.N};
 
