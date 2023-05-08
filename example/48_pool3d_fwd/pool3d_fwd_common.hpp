@@ -110,9 +110,7 @@ static void pool3d_host_verify(const Tensor<InDataType>& in,
                            wi >= 0 && wi < static_cast<ck::index_t>(in.mDesc.GetLengths()[4]))
                         {
                             AccDataType currVal = static_cast<AccDataType>(in(n, c, di, hi, wi));
-                            IndexDataType currIndex =
-                                z * window_spatial_lengths[1] * window_spatial_lengths[2] +
-                                y * window_spatial_lengths[2] + x;
+                            IndexDataType currIndex = in.GetOffsetFromMultiIndex(n, c, di, hi, wi);
 
                             in_elementwise_op(currVal, currVal);
 

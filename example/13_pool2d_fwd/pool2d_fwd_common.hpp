@@ -96,11 +96,11 @@ static void pool_host_verify(const Tensor<InDataType>& in,
                 for(ck::index_t x = 0; x < window_spatial_lengths[1]; ++x)
                 {
                     ck::index_t wi = wo * window_strides[1] + x - in_left_pads[1];
-                    if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
-                       wi < in.mDesc.GetLengths()[3])
+                    if(hi >= 0 && hi < static_cast<ck::index_t>(in.mDesc.GetLengths()[2]) &&
+                       wi >= 0 && wi < static_cast<ck::index_t>(in.mDesc.GetLengths()[3]))
                     {
                         AccDataType currVal     = static_cast<AccDataType>(in(n, c, hi, wi));
-                        IndexDataType currIndex = y * window_spatial_lengths[1] + x;
+                        IndexDataType currIndex = in.GetOffsetFromMultiIndex(n, c, hi, wi);
 
                         in_elementwise_op(currVal, currVal);
 

@@ -234,17 +234,19 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
                                                      InSrcOutDstVectorSize,
                                                      InSrcOutDstVectorSize>;
 
-            const auto kernel = kernel_reduce_threadwise<gridwise_reduce,
-                                                         OuputIndex,
-                                                         false, // don't have index input
-                                                         InDataType,
-                                                         OutDataType,
-                                                         AccDataType,
-                                                         IndexDataType,
-                                                         AGridDesc_M_K,
-                                                         BGridDesc_M,
-                                                         InElementwiseOperation,
-                                                         AccElementwiseOperation>;
+            const auto kernel =
+                kernel_reduce_threadwise<gridwise_reduce,
+                                         OuputIndex,
+                                         true,  // pooling need to return global index
+                                         false, // don't have index input
+                                         InDataType,
+                                         OutDataType,
+                                         AccDataType,
+                                         IndexDataType,
+                                         AGridDesc_M_K,
+                                         BGridDesc_M,
+                                         InElementwiseOperation,
+                                         AccElementwiseOperation>;
 
             ck::index_t M = arg.a_grid_desc_m_k_.GetLength(I0);
 
