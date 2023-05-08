@@ -16,7 +16,7 @@
 
 namespace ck {
 
-template <typename GridwiseGemm, typename Argument, bool HasMainKBlockLoop>
+template <typename GridwiseGemm, bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -24,7 +24,7 @@ __global__ void
         kernel_gemm_xdlops_v2r3(const typename GridwiseGemm::FloatAB* __restrict__ p_a_grid,
                                 const typename GridwiseGemm::FloatAB* __restrict__ p_b_grid,
                                 typename GridwiseGemm::FloatC* __restrict__ p_c_grid,
-                                const Argument karg)
+                                const typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__))
@@ -219,6 +219,58 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
     }
+
+    // Argument
+    struct Argument : public tensor_operation::device::BaseArgument
+    {
+        __host__ Argument(const FloatAB* p_a_grid_,
+                          const FloatAB* p_b_grid_,
+                          FloatC* p_c_grid_,
+                          index_t M_,
+                          index_t N_,
+                          index_t K_,
+                          index_t StrideA_,
+                          index_t StrideB_,
+                          index_t StrideC_)
+            : p_a_grid{p_a_grid_},
+              p_b_grid{p_b_grid_},
+              p_c_grid{p_c_grid_},
+              M{M_},
+              N{N_},
+              K{K_},
+              StrideA{StrideA_},
+              StrideB{StrideB_},
+              StrideC{StrideC_},
+              MPadded{CalculateMPadded(M_)},
+              NPadded{CalculateNPadded(N_)}
+        {
+        }
+
+        __host__ void Print() const
+        {
+            std::cout << "arg {"
+                      << "M:" << M << ", "
+                      << "N:" << N << ", "
+                      << "K:" << K << ", "
+                      << "SA:" << StrideA << ", "
+                      << "SB:" << StrideB << ", "
+                      << "SC:" << StrideC << ", "
+                      << "MP:" << MPadded << ", "
+                      << "NP:" << NPadded << "}" << std::endl;
+        }
+
+        const FloatAB* p_a_grid;
+        const FloatAB* p_b_grid;
+        FloatC* p_c_grid;
+        index_t M;
+        index_t N;
+        index_t K;
+        index_t StrideA;
+        index_t StrideB;
+        index_t StrideC;
+        index_t MPadded;
+        index_t NPadded;
+    };
 
     using GridwiseGemmPipe = remove_cvref_t<decltype(
         GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;

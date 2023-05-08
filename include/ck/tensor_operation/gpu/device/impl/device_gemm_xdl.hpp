@@ -120,69 +120,11 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         LoopSched,
         PipelineVer>;
 
-    using AGridDesc_K0_M_K1 = decltype(GridwiseGemm::MakeAGridDescriptor_K0_M_K1(1, 1, 1, 1));
-    using BGridDesc_K0_N_K1 = decltype(GridwiseGemm::MakeBGridDescriptor_K0_N_K1(1, 1, 1, 1));
-    using CGridDesc_M_N     = decltype(GridwiseGemm::MakeCGridDescriptor_M_N(1, 1, 1, 1, 1));
-
-    // Argument
-    struct Argument : public BaseArgument
-    {
-        Argument(const ADataType* p_a_grid,
-                 const BDataType* p_b_grid,
-                 CDataType* p_c_grid,
-                 index_t M_,
-                 index_t N_,
-                 index_t K_,
-                 index_t StrideA_,
-                 index_t StrideB_,
-                 index_t StrideC_)
-            : p_a_grid_{p_a_grid},
-              p_b_grid_{p_b_grid},
-              p_c_grid_{p_c_grid},
-              M{M_},
-              N{N_},
-              K{K_},
-              StrideA{StrideA_},
-              StrideB{StrideB_},
-              StrideC{StrideC_},
-              MPadded{GridwiseGemm::CalculateMPadded(M_)},
-              NPadded{GridwiseGemm::CalculateNPadded(N_)}
-        {
-        }
-
-        __host__ void Print() const
-        {
-            printf("M = %d, N = %d, K = %d, "
-                   "SA = %d, SB = %d, SC = %d, "
-                   "MP = %d, NP = %d\n",
-                   M,
-                   N,
-                   K,
-                   StrideA,
-                   StrideB,
-                   StrideC,
-                   MPadded,
-                   NPadded);
-        }
-
-        const ADataType* p_a_grid_;
-        const BDataType* p_b_grid_;
-        CDataType* p_c_grid_;
-        index_t M;
-        index_t N;
-        index_t K;
-        index_t StrideA;
-        index_t StrideB;
-        index_t StrideC;
-        index_t MPadded;
-        index_t NPadded;
-    };
+    using Argument = typename GridwiseGemm::Argument;
 
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceGemmXdl::Argument;
-
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
 #if DEBUG_LOG
@@ -216,30 +158,30 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(arg.K))
             {
-                const auto kernel = kernel_gemm_xdlops_v2r3<GridwiseGemm, Argument, true>;
+                const auto kernel = kernel_gemm_xdlops_v2r3<GridwiseGemm, true>;
 
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,
                                                   dim3(gdx, gdy, gdz),
                                                   dim3(BlockSize),
                                                   0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
+                                                  arg.p_a_grid,
+                                                  arg.p_b_grid,
+                                                  arg.p_c_grid,
                                                   arg);
             }
             else
             {
-                const auto kernel = kernel_gemm_xdlops_v2r3<GridwiseGemm, Argument, false>;
+                const auto kernel = kernel_gemm_xdlops_v2r3<GridwiseGemm, false>;
 
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,
                                                   dim3(gdx, gdy, gdz),
                                                   dim3(BlockSize),
                                                   0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
+                                                  arg.p_a_grid,
+                                                  arg.p_b_grid,
+                                                  arg.p_c_grid,
                                                   arg);
             }
 
