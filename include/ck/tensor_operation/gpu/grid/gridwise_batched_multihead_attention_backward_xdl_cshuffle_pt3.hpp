@@ -2164,7 +2164,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
         // shuffle dK&dV and write
         {
             static_assert(Gemm2Params_N_O_M::GemmNRepeat % CShuffleMXdlPerWavePerShuffle == 0 &&
-                              Gemm2Params_N_O_M::GemmNRepeat % CShuffleNXdlPerWavePerShuffle == 0,
+                              Gemm2Params_N_O_M::GemmORepeat % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");
 
             constexpr index_t MWave = Gemm2Params_N_O_M::GemmNWave;
@@ -2363,7 +2363,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
 
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr = SpaceFillingCurve<Sequence<Gemm2Params_N_O_M::GemmNRepeat,
-                                                                   Gemm2Params_N_O_M::GemmNRepeat,
+                                                                   Gemm2Params_N_O_M::GemmORepeat,
                                                                    1,
                                                                    1,
                                                                    1,
