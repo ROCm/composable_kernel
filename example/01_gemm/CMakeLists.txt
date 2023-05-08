@@ -44,3 +44,4 @@ if(GPU_TARGETS MATCHES "gfx1100" OR GPU_TARGETS MATCHES "gfx1101" OR GPU_TARGETS
   add_dependencies(example_gemm_wmma example_gemm_wmma_fp16)
 endif()
 
+add_example_executable(example_gemm_xdl_streamk gemm_xdl_streamk.cpp)

@@ -11,7 +11,7 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 
     using namespace ck::literals;
 
-    auto& [M, N, K, StrideA, StrideB, StrideC] = problem_size;
+    auto [M, N, K, StrideA, StrideB, StrideC] = problem_size;
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -25,12 +25,35 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
             }
         };
 
+    auto f_get_default_stride = [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+        if(stride == 0) {
+            // give a chance if stride is zero, return a defalt packed stride
+            if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
+            {
+                return col;
+            }
+            else
+            {
+                return row;
+            }
+        }
+        else
+            return stride;
+    };
+
+    StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
+    StrideB = f_get_default_stride(K, N, StrideB, BLayout{});
+    StrideC = f_get_default_stride(M, N, StrideC, CLayout{});
+
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
 
     switch(config.init_method)
     {
-    case 0: break;
+    case 0:
+        ck::utils::FillConstant<ADataType>{1.f}(a_m_k);
+        ck::utils::FillConstant<BDataType>{1.f}(b_k_n);
+        break;
     case 1:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k);
         ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n);

@@ -157,4 +157,42 @@ struct MagicDivision
     }
 };
 
+struct MDiv
+{
+    // 1 dword -> 3 dword storage
+    uint32_t divisor;
+    uint32_t multiplier;
+    uint32_t shift;
+
+    // prefer construct on host
+    __host__ __device__ MDiv(uint32_t divisor_) : divisor(divisor_)
+    {
+        ck::tie(multiplier, shift) = MagicDivision::CalculateMagicNumbers(divisor_);
+    }
+
+    __host__ __device__ MDiv() : divisor(0), multiplier(0), shift(0) {}
+
+    __host__ __device__ void update(uint32_t divisor_)
+    {
+        divisor                    = divisor_;
+        ck::tie(multiplier, shift) = MagicDivision::CalculateMagicNumbers(divisor_);
+    }
+
+    __host__ __device__ uint32_t div(uint32_t dividend) const
+    {
+        return MagicDivision::DoMagicDivision(dividend, multiplier, shift);
+    }
+
+    __host__ __device__ void
+    divmod(uint32_t dividend, uint32_t& quotient, uint32_t& remainder) const
+    {
+        quotient  = div(dividend);
+        remainder = dividend - (quotient * divisor);
+    }
+
+    __host__ __device__ uint32_t operator/(uint32_t dividend) const { return div(dividend); }
+
+    __host__ __device__ uint32_t get() const { return divisor; }
+};
+
 } // namespace ck
