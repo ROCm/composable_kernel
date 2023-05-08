@@ -146,18 +146,11 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
               StrideB{StrideB_},
               StrideC{StrideC_},
               MPadded{GridwiseGemm::CalculateMPadded(M_)},
-              NPadded{GridwiseGemm::CalculateNPadded(N_)},
-              a_grid_desc_k0_m_k1{},
-              c_grid_desc_m_n{}
+              NPadded{GridwiseGemm::CalculateNPadded(N_)}
         {
-            // Print();
-
-            a_grid_desc_k0_m_k1 = GridwiseGemm::MakeAGridDescriptor_K0_M_K1(M, MPadded, K, StrideA);
-            c_grid_desc_m_n =
-                GridwiseGemm::MakeCGridDescriptor_M_N(M, MPadded, N, NPadded, StrideC);
         }
 
-        __host__ __device__ void Print() const
+        __host__ void Print() const
         {
             printf("M = %d, N = %d, K = %d, "
                    "SA = %d, SB = %d, SC = %d, "
@@ -172,7 +165,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                    NPadded);
         }
 
-        //  private:
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
@@ -184,8 +176,6 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         index_t StrideC;
         index_t MPadded;
         index_t NPadded;
-        AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1;
-        CGridDesc_M_N c_grid_desc_m_n;
     };
 
     // Invoker
