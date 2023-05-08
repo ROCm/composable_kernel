@@ -12,6 +12,7 @@ using half_t  = _Float16;
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 using int4_t = _BitInt(4);
 #endif
+using f8_t = uint8_t;
 
 // vector_type
 template <typename T, index_t N>
@@ -141,6 +142,13 @@ struct scalar_type<int4_t>
     static constexpr index_t vector_size = 1;
 };
 #endif
+
+template <>
+struct scalar_type<f8_t>
+{
+    using type                           = f8_t;
+    static constexpr index_t vector_size = 1;
+};
 
 //
 template <typename T>
@@ -944,6 +952,14 @@ using int8x16_t = typename vector_type<int8_t, 16>::type;
 using int8x32_t = typename vector_type<int8_t, 32>::type;
 using int8x64_t = typename vector_type<int8_t, 64>::type;
 
+// f8
+using f8x2_t  = typename vector_type<f8_t, 2>::type;
+using f8x4_t  = typename vector_type<f8_t, 4>::type;
+using f8x8_t  = typename vector_type<f8_t, 8>::type;
+using f8x16_t = typename vector_type<f8_t, 16>::type;
+using f8x32_t = typename vector_type<f8_t, 32>::type;
+using f8x64_t = typename vector_type<f8_t, 64>::type;
+
 // Convert X to Y
 template <typename Y, typename X>
 __host__ __device__ constexpr Y type_convert(X x)
@@ -1090,6 +1106,53 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, half_t>(h
     return bf16_convert_rtn<bhalf_t>(x_fp32);
 }
 
+// Pseudo random number generator
+// version for fp32
+template <typename T,
+          uint32_t seed,
+          std::enable_if_t<std::is_same<float, T>{}, bool> = false>
+__host__ __device__ uint32_t prand_generator(index_t id, T val)
+{
+    uint32_t       x         = reinterpret_cast<uint32_t&>(val);
+    uint32_t drop_bits = uint32_t(x) & 0xFFFFu;
+    drop_bits ^= x >> 16;
+    drop_bits = ((drop_bits & 31) << 11) | (drop_bits >> 5);
+    drop_bits *= 0x7000149;
+    // NOTE: If id is in 64 bit, we are only using lower 32 bit.
+    //       So, it can have an effect of using same id for multiple elements when the id is very large!
+    uint32_t rng = (drop_bits ^ 0x13371337 ^ (id * 229791) ^ seed);
+    return rng;
+}
+
+// version for fp16
+template <typename T,
+          uint32_t seed,
+          std::enable_if_t<std::is_same<half_t, T>{}, bool> = false>
+__host__ __device__ uint32_t prand_generator(index_t id, T val)
+{
+    uint16_t       x         = reinterpret_cast<uint16_t&>(val);
+    uint32_t drop_bits = uint32_t(x) & 0xFFFFu;
+    drop_bits = ((drop_bits & 31) << 11) | (drop_bits >> 5);
+    drop_bits *= 0x7000149;
+    // NOTE: If id is in 64 bit, we are only using lower 32 bit.
+    //       So, it can have an effect of using same id for multiple elements when the id is very large!
+    uint32_t rng = (drop_bits ^ 0x13371337 ^ (id * 229791) ^ seed);
+    return rng;
+}
+
+// return 0 if data is not fp16 or fp32
+template <typename T,
+          uint32_t seed,
+          std::enable_if_t<!(std::is_same<float, T>{} || std::is_same<half_t, T>{}), bool> = false>
+__host__ __device__ uint32_t prand_generator(int id, T val)
+{
+    std::ignore = id;
+    std::ignore = seed;
+    std::ignore = val;
+
+    return 0;
+}
+
 template <typename T>
 struct NumericLimits
 {
@@ -1135,5 +1198,22 @@ struct NumericLimits<int4_t>
     __host__ __device__ static constexpr int4_t Lowest() { return int4_t(-8); }
 };
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+
+template <>
+struct NumericLimits<f8_t>
+{
+    static constexpr uint8_t binary_min    = 0x08; // 0b00001000
+    static constexpr uint8_t binary_max    = 0x77; // 0b01110111
+    static constexpr uint8_t binary_lowest = 0xF7; // 0b11110111
+    static constexpr uint8_t binary_qnan   = 0x80; // 0b10000000
+
+    __host__ __device__ static constexpr f8_t Min() { return bit_cast<f8_t>(binary_min); }
+
+    __host__ __device__ static constexpr f8_t Max() { return bit_cast<f8_t>(binary_max); }
+
+    __host__ __device__ static constexpr f8_t Lowest() { return bit_cast<f8_t>(binary_lowest); }
+
+    __host__ __device__ static constexpr f8_t QuietNaN() { return bit_cast<f8_t>(binary_qnan); }
+};
 
 } // namespace ck
