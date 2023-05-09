@@ -63,8 +63,8 @@ struct GridwiseGemmPipeline_v3
 
         while(num_loop > 0)
         {
-            block_sync_lds();
             a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
+            block_sync_lds();
             b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
 
             blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
