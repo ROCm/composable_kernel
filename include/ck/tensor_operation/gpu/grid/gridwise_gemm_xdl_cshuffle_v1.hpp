@@ -137,14 +137,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                      GemmSpec == GemmSpecialization::KPadding ||
                      GemmSpec == GemmSpecialization::NKPadding)
         {
-            assert(CalculateKPadded(K) % AK1Value == 0);
-
             return CalculateKPadded(K) / AK1Value;
         }
         else
         {
-            assert(K % AK1Value == 0);
-
             return K / AK1Value;
         }
     }
@@ -158,14 +154,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                      GemmSpec == GemmSpecialization::KPadding ||
                      GemmSpec == GemmSpecialization::MKPadding)
         {
-            assert(CalculateKPadded(K) % BK1Value == 0);
-
             return CalculateKPadded(K) / BK1Value;
         }
         else
         {
-            assert(K % BK1Value == 0);
-
             return K / BK1Value;
         }
     }
@@ -525,6 +517,25 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
         {
             if(!(karg.N % NPerBlock == 0))
+            {
+                return false;
+            }
+        }
+
+        if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
+                     GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding ||
+                     GemmSpec == tensor_operation::device::GemmSpecialization::KPadding ||
+                     GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding)
+        {
+            if(!(CalculateKPadded(karg.K) % AK1Value == 0) ||
+               !(CalculateKPadded(karg.K) % BK1Value == 0))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if(!(karg.K % AK1Value == 0) || !(karg.K % BK1Value == 0))
             {
                 return false;
             }
