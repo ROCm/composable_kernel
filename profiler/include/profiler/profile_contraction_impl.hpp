@@ -16,18 +16,20 @@
 
 #include "ck/library/tensor_operation_instance/gpu/contraction_bilinear.hpp"
 #include "ck/library/tensor_operation_instance/gpu/contraction_scale.hpp"
-
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_contraction.hpp"
 
 #include "ck/host_utility/io.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_contraction.hpp"
 
 namespace ck {
 namespace profiler {
+
+using Bilinear = ck::tensor_operation::element_wise::Bilinear;
+using Scale    = ck::tensor_operation::element_wise::Scale;
 
 template <typename ALayout,
           typename BLayout,
@@ -35,8 +37,8 @@ template <typename ALayout,
           typename DataType,
           typename DTupleDataType,
           typename CDElementOp>
-int profile_contraction_impl(int do_verification,
-                             int init_method,
+int profile_contraction_impl(ck::index_t do_verification,
+                             ck::index_t init_method,
                              bool do_log,
                              bool time_kernel,
                              CDElementOp cd_element_op,
@@ -53,8 +55,6 @@ int profile_contraction_impl(int do_verification,
     auto f_host_tensor_descriptor = [](const std::vector<ck::index_t>& dims01,
                                        const std::vector<ck::index_t>& dims23,
                                        const std::vector<ck::index_t>& strides) {
-        using namespace ck::literals;
-
         std::vector<std::size_t> dims_szt(dims01.begin(), dims01.end());
         dims_szt.insert(dims_szt.end(), dims23.begin(), dims23.end());
         std::vector<std::size_t> strides_szt(strides.begin(), strides.end());
@@ -97,6 +97,7 @@ int profile_contraction_impl(int do_verification,
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
+    c_device_buf.SetZero();
     d_device_buf.ToDevice(d_m_n.mData.data());
 
     const std::vector<index_t> a_ms_ks_lengths = {M[0], M[1], K[0], K[1]};
@@ -107,8 +108,8 @@ int profile_contraction_impl(int do_verification,
     const auto a_element_op = AElementOp{};
     const auto b_element_op = BElementOp{};
 
-    constexpr int NumDim = 2;
-    using DeviceOp       = ck::tensor_operation::device::DeviceContractionMultipleD<NumDim,
+    constexpr ck::index_t NumDim = 2;
+    using DeviceOp               = ck::tensor_operation::device::DeviceContractionMultipleD<NumDim,
                                                                               NumDim,
                                                                               NumDim,
                                                                               DataType,

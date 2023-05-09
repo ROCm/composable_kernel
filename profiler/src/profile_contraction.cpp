@@ -59,10 +59,10 @@ static void print_helper_msg()
 
 void collect_index_params(char* argv[],
                           std::vector<ck::index_t>& params,
-                          const int from,
-                          const int num)
+                          const ck::index_t from,
+                          const ck::index_t num)
 {
-    for(int p = from; p < from + num; p++)
+    for(ck::index_t p = from; p < from + num; p++)
         params.push_back(std::stoi(argv[p]));
 }
 
@@ -94,19 +94,19 @@ int profile_contraction(int argc, char* argv[])
         exit(1);
     }
 
-    const auto data_type       = static_cast<ContractionDataType>(std::stoi(argv[2]));
-    const auto layout          = static_cast<ContractionMatrixLayout>(std::stoi(argv[3]));
-    const bool do_verification = std::stoi(argv[4]);
-    const int init_method      = std::stoi(argv[5]);
-    const bool do_log          = std::stoi(argv[6]);
-    const bool time_kernel     = std::stoi(argv[7]);
-    const float alpha          = std::stof(argv[8]);
-    const float beta           = with_bilinear ? std::stof(argv[9]) : 0;
+    const auto data_type          = static_cast<ContractionDataType>(std::stoi(argv[2]));
+    const auto layout             = static_cast<ContractionMatrixLayout>(std::stoi(argv[3]));
+    const bool do_verification    = std::stoi(argv[4]);
+    const ck::index_t init_method = std::stoi(argv[5]);
+    const bool do_log             = std::stoi(argv[6]);
+    const bool time_kernel        = std::stoi(argv[7]);
+    const float alpha             = std::stof(argv[8]);
+    const float beta              = with_bilinear ? std::stof(argv[9]) : 0;
 
     std::vector<ck::index_t> M;
     std::vector<ck::index_t> N;
     std::vector<ck::index_t> K;
-    const int dims_arg_num = with_bilinear ? 10 : 9;
+    const ck::index_t dims_arg_num = with_bilinear ? 10 : 9;
     collect_index_params(argv, M, dims_arg_num, 2);
     collect_index_params(argv, N, dims_arg_num + 2, 2);
     collect_index_params(argv, K, dims_arg_num + 4, 2);

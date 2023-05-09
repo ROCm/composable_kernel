@@ -16,7 +16,6 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/numeric.hpp"
-
 #include "ck/library/reference_tensor_operation/cpu/reference_contraction.hpp"
 
 template <ck::index_t... Is>

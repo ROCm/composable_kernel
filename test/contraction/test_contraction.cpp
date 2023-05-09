@@ -57,13 +57,13 @@ class TestContraction : public ::testing::Test
                                                         {16384, 1024, 32, 1},
                                                         {16384, 1024, 32, 1}}};
 
-    std::vector<int> init_methods = {0, 1, 2};
-    std::unique_ptr<CDElementOp> cd_element_op_ptr;
+    std::vector<ck::index_t> init_methods = {0, 1, 2};
+    std::unique_ptr<CDElementOp> p_cd_element_op;
     void Run()
     {
         for(auto& memory_params : list_of_memory_params)
         {
-            for(const int init_method : init_methods)
+            for(const ck::index_t init_method : init_methods)
             {
                 bool pass =
                     ck::profiler::profile_contraction_impl<ALayout,
@@ -75,7 +75,7 @@ class TestContraction : public ::testing::Test
                                                                         init_method,
                                                                         false /*do_logs*/,
                                                                         false /*time_kernel*/,
-                                                                        *cd_element_op_ptr,
+                                                                        *p_cd_element_op,
                                                                         memory_params.M,
                                                                         memory_params.N,
                                                                         memory_params.K,
@@ -104,35 +104,35 @@ using BilinearKernelTypes =
                      std::tuple<Row, Col, Row, F32, ck::Tuple<F32>, Bilinear>,
                      std::tuple<Col, Row, Row, F32, ck::Tuple<F32>, Bilinear>,
                      std::tuple<Col, Col, Row, F32, ck::Tuple<F32>, Bilinear>,
-                     std::tuple<Row, Row, Row, F64, Bilinear>,
-                     std::tuple<Row, Col, Row, F64, Bilinear>,
-                     std::tuple<Col, Row, Row, F64, Bilinear>,
-                     std::tuple<Col, Col, Row, F64, Bilinear>>;
+                     std::tuple<Row, Row, Row, F64, ck::Tuple<F32>, Bilinear>,
+                     std::tuple<Row, Col, Row, F64, ck::Tuple<F32>, Bilinear>,
+                     std::tuple<Col, Row, Row, F64, ck::Tuple<F32>, Bilinear>,
+                     std::tuple<Col, Col, Row, F64, ck::Tuple<F32>, Bilinear>>;
 
 using ScaleKernelTypes = ::testing::Types<std::tuple<Row, Row, Row, F32, ck::Tuple<>, Scale>,
                                           std::tuple<Row, Col, Row, F32, ck::Tuple<>, Scale>,
                                           std::tuple<Col, Row, Row, F32, ck::Tuple<>, Scale>,
                                           std::tuple<Col, Col, Row, F32, ck::Tuple<>, Scale>,
-                                          std::tuple<Row, Row, Row, F64, Scale>,
-                                          std::tuple<Row, Col, Row, F64, Scale>,
-                                          std::tuple<Col, Row, Row, F64, Scale>,
-                                          std::tuple<Col, Col, Row, F64, Scale>>;
+                                          std::tuple<Row, Row, Row, F64, ck::Tuple<>, Scale>,
+                                          std::tuple<Row, Col, Row, F64, ck::Tuple<>, Scale>,
+                                          std::tuple<Col, Row, Row, F64, ck::Tuple<>, Scale>,
+                                          std::tuple<Col, Col, Row, F64, ck::Tuple<>, Scale>>;
 
 TYPED_TEST_SUITE(TestContractionBilinear, BilinearKernelTypes);
 TYPED_TEST_SUITE(TestContractionScale, ScaleKernelTypes);
 
 TYPED_TEST(TestContractionBilinear, bilinear)
 {
-    this->cd_element_op_ptr = std::make_unique<Bilinear>(1.f, 1.f);
+    this->p_cd_element_op = std::make_unique<Bilinear>(1.f, 1.f);
     this->Run();
-    this->cd_element_op_ptr = std::make_unique<Bilinear>(0.5f, 0.5f);
+    this->p_cd_element_op = std::make_unique<Bilinear>(0.5f, 0.5f);
     this->Run();
 }
 
 TYPED_TEST(TestContractionScale, scale)
 {
-    this->cd_element_op_ptr = std::make_unique<Scale>(1.f);
+    this->p_cd_element_op = std::make_unique<Scale>(1.f);
     this->Run();
-    this->cd_element_op_ptr = std::make_unique<Scale>(0.5f);
+    this->p_cd_element_op = std::make_unique<Scale>(0.5f);
     this->Run();
 }

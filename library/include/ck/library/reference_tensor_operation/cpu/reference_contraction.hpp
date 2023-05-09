@@ -11,9 +11,7 @@
 
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-using Bilinear    = ck::tensor_operation::element_wise::Bilinear;
-using Scale       = ck::tensor_operation::element_wise::Scale;
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using Bilinear = ck::tensor_operation::element_wise::Bilinear;
 
 namespace ck {
 namespace tensor_operation {
@@ -87,14 +85,14 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
         float Run(const Argument& arg)
         {
             auto f_ms_ns = [&](auto m0, auto m1, auto n0, auto n1) {
-                const int K0 = arg.a_ms_ks_.mDesc.GetLengths()[2];
-                const int K1 = arg.a_ms_ks_.mDesc.GetLengths()[3];
+                const ck::index_t K0 = arg.a_ms_ks_.mDesc.GetLengths()[2];
+                const ck::index_t K1 = arg.a_ms_ks_.mDesc.GetLengths()[3];
 
                 AccDataType v_acc = 0;
 
-                for(int k0 = 0; k0 < K0; ++k0)
+                for(ck::index_t k0 = 0; k0 < K0; ++k0)
                 {
-                    for(int k1 = 0; k1 < K1; ++k1)
+                    for(ck::index_t k1 = 0; k1 < K1; ++k1)
                     {
                         AccDataType v_a;
                         AccDataType v_b;
