@@ -242,7 +242,8 @@ int main(int argc, char* argv[])
                                                                       AccDataType,
                                                                       AElementOp,
                                                                       BElementOp,
-                                                                      CDEElementOp>;
+                                                                      CDEElementOp,
+                                                                      false>;
 
         auto ref_gemm    = ReferenceOpInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();

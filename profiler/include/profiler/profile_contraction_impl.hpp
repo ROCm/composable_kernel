@@ -129,18 +129,19 @@ int profile_contraction_impl(ck::index_t do_verification,
     // Run reference op
     if(do_verification)
     {
-        using ReferenceGemmInstance =
-            ck::tensor_operation::host::ReferenceContraction_M2_N2_K2<NumDim,
-                                                                      NumDim,
-                                                                      NumDim,
-                                                                      DataType,
-                                                                      DataType,
-                                                                      DataType,
-                                                                      DataType,
-                                                                      AElementOp,
-                                                                      BElementOp,
-                                                                      CDElementOp,
-                                                                      DataType>;
+        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceContraction_M2_N2_K2<
+            NumDim,
+            NumDim,
+            NumDim,
+            DataType,
+            DataType,
+            DataType,
+            DataType,
+            AElementOp,
+            BElementOp,
+            CDElementOp,
+            std::is_same<CDElementOp, Bilinear>::value,
+            DataType>;
 
         auto ref_op      = ReferenceGemmInstance{};
         auto ref_invoker = ref_op.MakeInvoker();

@@ -260,6 +260,7 @@ int main(int argc, char* argv[])
                                                                       AElementOp,
                                                                       BElementOp,
                                                                       CDEElementOp,
+                                                                      true,
                                                                       DDataType>;
 
         auto ref_gemm    = ReferenceOpInstance{};

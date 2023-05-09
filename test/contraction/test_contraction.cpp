@@ -125,7 +125,7 @@ TYPED_TEST(TestContractionBilinear, bilinear)
 {
     this->p_cd_element_op = std::make_unique<Bilinear>(1.f, 1.f);
     this->Run();
-    this->p_cd_element_op = std::make_unique<Bilinear>(0.5f, 0.5f);
+    this->p_cd_element_op = std::make_unique<Bilinear>(-0.5f, 0.5f);
     this->Run();
 }
 
