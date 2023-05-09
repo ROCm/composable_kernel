@@ -383,6 +383,8 @@ template <typename UpLengths,
           typename enable_if<UpLengths::Size() == Coefficients::Size(), bool>::type = false>
 struct Embed
 {
+    static_assert(!std::is_reference_v<UpLengths> && !std::is_reference_v<Coefficients>);
+
     static constexpr index_t NDimUp = UpLengths::Size();
 
     using LowerIndex = MultiIndex<1>;
