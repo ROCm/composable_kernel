@@ -162,6 +162,16 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         }
     }
 
+    __host__ static auto CalculateMBlock(index_t M)
+    {
+        return math::integer_divide_floor(M, MPerBlock);
+    }
+
+    __host__ static auto CalculateNBlock(index_t N)
+    {
+        return math::integer_divide_floor(N, NPerBlock);
+    }
+
     __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
         index_t M, index_t MPad, index_t K, index_t KPad, index_t StrideA, index_t AK0)
     {
@@ -398,7 +408,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
               NPadded{CalculateNPadded(N_)},
               KPadded{CalculateKPadded(K_)},
               AK0{CalculateAK0(K_)},
-              BK0{CalculateBK0(K_)}
+              BK0{CalculateBK0(K_)},
+              MBlock{CalculateMBlock(M_)},
+              NBlock{CalculateNBlock(N_)}
         {
         }
 
@@ -415,7 +427,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                       << "NP:" << NPadded << ", "
                       << "KP:" << KPadded << ", "
                       << "AK0:" << AK0 << ", "
-                      << "BK0:" << BK0 << "}" << std::endl;
+                      << "BK0:" << BK0 << ", "
+                      << "MBlock: " << MBlock << ", "
+                      << "NBlock: " << NBlock << "}" << std::endl;
         }
 
         index_t M;
@@ -429,6 +443,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         index_t KPadded;
         index_t AK0;
         index_t BK0;
+        index_t MBlock;
+        index_t NBlock;
     };
 
     // FIXME: pass GridwiseGemmPipe as a template arguement into GridwiseGemm
@@ -606,15 +622,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     }
 
     template <typename CGridDesc>
-    __device__ static constexpr auto
-    MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const CGridDesc& c_grid_desc_m_n)
+    __device__ static constexpr auto MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+        const CGridDesc& c_grid_desc_m_n, index_t MBlock, index_t NBlock)
     {
-        const auto M = c_grid_desc_m_n.GetLength(I0);
-        const auto N = c_grid_desc_m_n.GetLength(I1);
-
-        const auto MBlock = M / MPerBlock;
-        const auto NBlock = N / NPerBlock;
-
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
             c_grid_desc_m_n,
             make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{})),
@@ -643,7 +653,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             MakeCGridDescriptor_M_N(karg.M, karg.MPadded, karg.N, karg.NPadded, karg.StrideC);
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
-            MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
+            MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                c_grid_desc_m_n, karg.MBlock, karg.NBlock);
 
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
