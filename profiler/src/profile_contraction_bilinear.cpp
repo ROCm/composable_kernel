@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "profiler/profile_contraction_impl.hpp"
+#include "profiler/profile_contraction_utils.hpp"
 #include "profiler_operation_registry.hpp"
 
 enum struct ContractionMatrixLayout
@@ -24,14 +25,8 @@ enum struct ContractionDataType
     F64_F64_F64_F64, // 1
 };
 
-#define OP_NAME "contraction"
-#define OP_DESC "CONTRACTION"
-
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
-
-using Bilinear = ck::tensor_operation::element_wise::Bilinear;
-using Scale    = ck::tensor_operation::element_wise::Scale;
+#define OP_NAME "contraction_bilinear"
+#define OP_DESC "CONTRACTION+Bilinear"
 
 static void print_helper_msg()
 {
@@ -50,45 +45,17 @@ static void print_helper_msg()
               << "value)\n"
               << "arg6: print tensor value (0: no; 1: yes)\n"
               << "arg7: time kernel (0: no, 1: yes)\n"
-              << "arg8 and arg9(optional): alpha and beta for bilinear (pass only "
-              << "alpha for scale)\n"
-              << "arg9/10 to 14/15: M0, M1, N0, N1, K0, K1\n"
-              << "arg15/16 to 30/31: Strides for A, B, C and D (skip for default)\n"
+              << "arg8 and arg9: alpha and beta\n"
+              << "arg10 to 15: M0, M1, N0, N1, K0, K1\n"
+              << "arg16 to 31: Strides for A, B, C and D (skip for default)\n"
               << std::endl;
 }
 
-void collect_index_params(char* argv[],
-                          std::vector<ck::index_t>& params,
-                          const ck::index_t from,
-                          const ck::index_t num)
+int profile_contraction_bilinear(int argc, char* argv[])
 {
-    for(ck::index_t p = from; p < from + num; p++)
-        params.push_back(std::stoi(argv[p]));
-}
+    const bool default_strides = argc == 16;
 
-// Defualt strides for row-major: {Dim1 * Dim2 * Dim3, Dim2 * Dim3, Dim3, 1}
-// Defualt strides for column-major: {Dim1, 1, Dim0 * Dim1 * Dim3, Dim0 * Dim1}
-void assign_default_strides(Row, std::vector<ck::index_t>& strides, std::vector<ck::index_t> dims)
-{
-    strides = {dims[1] * dims[2] * dims[3], dims[2] * dims[3], dims[3], 1};
-}
-
-void assign_default_strides(Col, std::vector<ck::index_t>& strides, std::vector<ck::index_t> dims)
-{
-    strides = {dims[1], 1, dims[0] * dims[1] * dims[3], dims[0] * dims[1]};
-}
-
-int profile_contraction(int argc, char* argv[])
-{
-    const bool all_parameters_bilinear        = argc == 32;
-    const bool all_parameters_scale           = argc == 31;
-    const bool parameters_wo_strides_bilinear = argc == 16;
-    const bool parameters_wo_strides_scale    = argc == 15;
-    const bool default_strides = parameters_wo_strides_bilinear || parameters_wo_strides_scale;
-    const bool with_bilinear   = all_parameters_bilinear || parameters_wo_strides_bilinear;
-
-    if(!(all_parameters_bilinear || all_parameters_scale || parameters_wo_strides_bilinear ||
-         parameters_wo_strides_scale))
+    if(argc != 32 && argc != 16)
     {
         print_helper_msg();
         exit(1);
@@ -101,12 +68,12 @@ int profile_contraction(int argc, char* argv[])
     const bool do_log             = std::stoi(argv[6]);
     const bool time_kernel        = std::stoi(argv[7]);
     const float alpha             = std::stof(argv[8]);
-    const float beta              = with_bilinear ? std::stof(argv[9]) : 0;
+    const float beta              = std::stof(argv[9]);
 
     std::vector<ck::index_t> M;
     std::vector<ck::index_t> N;
     std::vector<ck::index_t> K;
-    const ck::index_t dims_arg_num = with_bilinear ? 10 : 9;
+    const ck::index_t dims_arg_num = 10;
     collect_index_params(argv, M, dims_arg_num, 2);
     collect_index_params(argv, N, dims_arg_num + 2, 2);
     collect_index_params(argv, K, dims_arg_num + 4, 2);
@@ -140,44 +107,23 @@ int profile_contraction(int argc, char* argv[])
             assign_default_strides(cd_layout, StridesC, {M[0], M[1], N[0], N[1]});
             assign_default_strides(cd_layout, StridesD, {M[0], M[1], N[0], N[1]});
         }
-        bool pass;
-        if(with_bilinear)
-        {
-            pass = ck::profiler::profile_contraction_impl<ALayout,
-                                                          BLayout,
-                                                          CDLayout,
-                                                          DataType,
-                                                          ck::Tuple<DataType>,
-                                                          Bilinear>(do_verification,
-                                                                    init_method,
-                                                                    do_log,
-                                                                    time_kernel,
-                                                                    Bilinear{alpha, beta},
-                                                                    M,
-                                                                    N,
-                                                                    K,
-                                                                    StridesA,
-                                                                    StridesB,
-                                                                    StridesC,
-                                                                    StridesD);
-        }
-        else
-        {
-            pass = ck::profiler::
-                profile_contraction_impl<ALayout, BLayout, CDLayout, DataType, ck::Tuple<>, Scale>(
-                    do_verification,
-                    init_method,
-                    do_log,
-                    time_kernel,
-                    Scale{alpha},
-                    M,
-                    N,
-                    K,
-                    StridesA,
-                    StridesB,
-                    StridesC,
-                    StridesD);
-        }
+        bool pass = ck::profiler::profile_contraction_impl<ALayout,
+                                                           BLayout,
+                                                           CDLayout,
+                                                           DataType,
+                                                           ck::Tuple<DataType>,
+                                                           Bilinear>(do_verification,
+                                                                     init_method,
+                                                                     do_log,
+                                                                     time_kernel,
+                                                                     Bilinear{alpha, beta},
+                                                                     M,
+                                                                     N,
+                                                                     K,
+                                                                     StridesA,
+                                                                     StridesB,
+                                                                     StridesC,
+                                                                     StridesD);
 
         return pass;
     };
@@ -230,4 +176,4 @@ int profile_contraction(int argc, char* argv[])
     }
 }
 
-REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_contraction);
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_contraction_bilinear);

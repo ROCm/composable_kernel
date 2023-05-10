@@ -30,7 +30,8 @@ set(PROFILER_SOURCES
     profile_batchnorm_bwd.cpp
     profile_batchnorm_infer.cpp
     profile_grouped_gemm_fastgelu.cpp
-    profile_contraction.cpp
+    profile_contraction_bilinear.cpp
+    profile_contraction_scale.cpp
 )
 
 set(PROFILER_EXECUTABLE ckProfiler)

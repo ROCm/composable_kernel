@@ -91,3 +91,8 @@ TEST(TestContractionInterface, IncorrectDataTypes)
     EXPECT_FALSE(wrapper_1.IsSupported());
     EXPECT_FALSE(wrapper_2.IsSupported());
 }
+
+// TEST(TestContractionInterface, CornerCases)
+// {
+//     EXPECT_FALSE()
+// }
