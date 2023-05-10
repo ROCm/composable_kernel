@@ -383,8 +383,6 @@ template <typename UpLengths,
           typename enable_if<UpLengths::Size() == Coefficients::Size(), bool>::type = false>
 struct Embed
 {
-    static_assert(!std::is_reference_v<UpLengths> && !std::is_reference_v<Coefficients>);
-
     static constexpr index_t NDimUp = UpLengths::Size();
 
     using LowerIndex = MultiIndex<1>;
@@ -395,14 +393,9 @@ struct Embed
 
     __host__ __device__ constexpr Embed() = default;
 
-    __host__ constexpr Embed(const UpLengths& up_lengths, const Coefficients& coefficients)
+    __host__ __device__ constexpr Embed(const UpLengths& up_lengths,
+                                        const Coefficients& coefficients)
         : up_lengths_{up_lengths}, coefficients_{coefficients}
-    {
-    }
-
-    /// NOTE: force copying here to prevent uninitialized data members (on device side)
-    __device__ constexpr Embed(UpLengths up_lengths, Coefficients coefficients)
-        : up_lengths_{std::move(up_lengths)}, coefficients_{std::move(coefficients)}
     {
     }
 
