@@ -196,32 +196,33 @@ bool profile_grouped_gemm_impl(int do_verification,
         gemm_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
         std::string gemm_name = gemm_ptr->GetTypeString();
 
+        if(kbatch > 1)
+        {
+            using DeviceOpSplitK =
+                ck::tensor_operation::device::DeviceGroupedGemmSplitK<ALayout,
+                                                                      BLayout,
+                                                                      ck::Tuple<>,
+                                                                      CLayout,
+                                                                      ADataType,
+                                                                      BDataType,
+                                                                      ck::Tuple<>,
+                                                                      CDataType,
+                                                                      AElementOp,
+                                                                      BElementOp,
+                                                                      CElementOp>;
+
+            if(dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get()) != nullptr)
+            {
+                dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get())
+                    ->SetKBatchSize(argument_ptr.get(), kbatch);
+            }
+        }
+
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            if(kbatch > 1)
-            {
-                using DeviceOpSplitK =
-                    ck::tensor_operation::device::DeviceGroupedGemmSplitK<ALayout,
-                                                                          BLayout,
-                                                                          ck::Tuple<>,
-                                                                          CLayout,
-                                                                          ADataType,
-                                                                          BDataType,
-                                                                          ck::Tuple<>,
-                                                                          CDataType,
-                                                                          AElementOp,
-                                                                          BElementOp,
-                                                                          CElementOp>;
-
-                if(dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get()) != nullptr)
-                {
-                    dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get())
-                        ->SetKBatchSize(argument_ptr.get(), kbatch);
-                }
-            }
 
             float ave_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel, 1});
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
             if(time_kernel)
             {
