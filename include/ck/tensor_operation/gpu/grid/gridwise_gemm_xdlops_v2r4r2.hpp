@@ -55,6 +55,7 @@ template <index_t BlockSize,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           tensor_operation::device::GemmSpecialization GemmSpec,
+          index_t NumGemmKPrefetchStage,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t K0PerBlock,
@@ -82,7 +83,9 @@ template <index_t BlockSize,
           index_t CShuffleMRepeatPerShuffle,
           index_t CShuffleNRepeatPerShuffle,
           index_t CBlockTransferScalarPerVector_NWaveNPerXDL,
-          typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>
+          typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+          LoopScheduler LoopSched     = make_default_loop_scheduler(),
+          PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 {
     static constexpr auto I0 = Number<0>{};
@@ -100,6 +103,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     static constexpr auto N01 = 1;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
+
+    using GridwiseGemmPipe = remove_cvref_t<decltype(
+        GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
     struct Argument : public ck::tensor_operation::device::BaseArgument
     {
@@ -497,6 +503,18 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             }
         }
 
+        const auto num_k_loop = karg.K0 / K0PerBlock;
+        if(!GridwiseGemmPipe::IsSupported(num_k_loop))
+        {
+#if DEBUG_LOG
+            std::cout << "The number of k loops (" << num_k_loop
+                      << ") value is not supported by GridwiseGemm Pipeline."
+                      << " K0: " << karg.K0 << ", K0PerBlock: " << K0PerBlock << " " << __FILE__
+                      << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+#endif // DEBUG_LOG
+            return false;
+        }
+
         return true;
     }
 
@@ -509,9 +527,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
     __host__ __device__ static constexpr bool CalculateHasMainK0BlockLoop(index_t K0)
     {
-        const bool has_main_k0_block_loop = K0 > K0PerBlock;
-
-        return has_main_k0_block_loop;
+        const index_t num_loop = K0 / K0PerBlock;
+        return GridwiseGemmPipe::CalculateHasMainLoop(num_loop);
     }
 
     template <typename CGridDesc>
@@ -750,20 +767,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
-#if 1
-        auto blockwise_gemm =
-            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                FloatAB,
-                                                                FloatAcc,
-                                                                decltype(a_k0_m_k1_block_desc),
-                                                                decltype(b_k0_n_k1_block_desc),
-                                                                MPerXDL,
-                                                                NPerXDL,
-                                                                MRepeat,
-                                                                NRepeat,
-                                                                K1>{};
-#else
-        auto blockwise_gemm = BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<
+
+        auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
             FloatAB,
             FloatAcc,
@@ -773,9 +778,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             NPerXDL,
             MRepeat,
             NRepeat,
-            K1>{};
-
-#endif
+            K1,
+            LoopSched>();
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
@@ -831,7 +835,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                 b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);
 
                 k0_block_data_begin += K0PerBlock;
-            } while(k0_block_data_begin < (K0 - K0PerBlock));
+            } while(k0_block_data_begin < (karg.K0 - K0PerBlock));
         }
 
         // tail
@@ -841,13 +845,11 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
         }
 #else
-        // gridwise GEMM pipeline
-        const auto gridwise_gemm_pipeline =
-            GridwiseGemmPipeline_Selector<PipelineVersion::v2, 1, LoopScheduler::Default>();
-
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_b_k0_m_k1_grid_desc.GetLength(I1) * a_b_k0_m_k1_grid_desc.GetLength(I3)) /
             (K0PerBlock * K1));
+
+        const auto gridwise_gemm_pipeline = GridwiseGemmPipe{};
 
         gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_b_k0_m_k1_grid_desc,
                                                                a_b_k0_m_k1_block_desc,

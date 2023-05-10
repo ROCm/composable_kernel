@@ -85,7 +85,7 @@ template <typename ALayout,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
           GemmSpecialization GemmSpec,
-          ck::index_t NumPrefetch,
+          ck::index_t NumGemmKPrefetchStage,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -152,6 +152,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         BElementwiseOperation,
         CDEElementwiseOperation,
         GemmSpec,
+        NumGemmKPrefetchStage,
         MPerBlock,
         NPerBlock,
         K0PerBlock,
@@ -179,7 +180,9 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CDEBlockTransferScalarPerVector_NPerBlock,
-        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
+        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        LoopSched,
+        PipelineVersion::v2>;
 
     using CGridDesc_M_N = typename GridwiseGemm::CGridDesc_M_N;
     using Block2ETileMapKSplit =
