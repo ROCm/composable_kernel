@@ -1,82 +1,180 @@
 #pragma once
 
-// TEST_P(RRR_F16_F16_F16, TinyCases)
-// {
-//     const std::vector<int> Ms{0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0};
-//     const std::vector<int> Ns(Ms.size(), 4608);
-//     const std::vector<int> Ks(Ms.size(), 384);
-//     const std::vector<int> StrideAs(Ms.size(), 384);
-//     const std::vector<int> StrideBs(Ms.size(), 4608);
-//     const std::vector<int> StrideCs(Ms.size(), 4608);
+TEST_P(RRR_F16_F16_F16, TinyCases)
+{
+    const std::vector<int> Ms{0, 1};
+    const int N = 768;
+    const int K = 544;
 
-//     this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
-// }
+    const std::vector<int> Ns(Ms.size(), N);
+    const std::vector<int> Ks(Ms.size(), K);
+    const std::vector<int> StrideAs(Ms.size(), K);
+    const std::vector<int> StrideBs(Ms.size(), N);
+    const std::vector<int> StrideCs(Ms.size(), N);
 
-// TEST_P(RRR_F16_F16_F16, SmallCases)
-// {
-//     const std::vector<int> Ms{2, 1, 1, 1, 1, 1, 3, 4, 3, 5, 2, 4, 2, 1, 0, 1};
-//     const std::vector<int> Ns(Ms.size(), 4608);
-//     const std::vector<int> Ks(Ms.size(), 384);
-//     const std::vector<int> StrideAs(Ms.size(), 384);
-//     const std::vector<int> StrideBs(Ms.size(), 4608);
-//     const std::vector<int> StrideCs(Ms.size(), 4608);
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+}
 
-//     this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
-// }
+TEST_P(RRR_F16_F16_F16, SmallCases)
+{
+    const std::vector<int> Ms{2, 1, 3, 4, 5, 0};
+    const int N = 768;
+    const int K = 544;
 
-// TEST_P(RRR_F16_F16_F16, MidCases)
-// {
-//     const std::vector<int> Ms{
-//         167, 183, 177, 181, 153, 139, 156, 173, 163, 150, 204, 184, 168, 156, 168, 148};
-//     const std::vector<int> Ns(Ms.size(), 4608);
-//     const std::vector<int> Ks(Ms.size(), 384);
-//     const std::vector<int> StrideAs(Ms.size(), 384);
-//     const std::vector<int> StrideBs(Ms.size(), 4608);
-//     const std::vector<int> StrideCs(Ms.size(), 4608);
+    const std::vector<int> Ns(Ms.size(), N);
+    const std::vector<int> Ks(Ms.size(), K);
+    const std::vector<int> StrideAs(Ms.size(), K);
+    const std::vector<int> StrideBs(Ms.size(), N);
+    const std::vector<int> StrideCs(Ms.size(), N);
 
-//     this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
-// }
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+}
 
-// TEST_P(RCR_F16_F16_F16, TinyCases)
-// {
-//     const std::vector<int> Ms{0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0};
-//     const std::vector<int> Ns(Ms.size(), 768);
-//     const std::vector<int> Ks(Ms.size(), 4608);
-//     const std::vector<int> StrideAs(Ms.size(), 4608);
-//     const std::vector<int> StrideBs(Ms.size(), 4608);
-//     const std::vector<int> StrideCs(Ms.size(), 768);
+TEST_P(RRR_F16_F16_F16, MidCases)
+{
+    const std::vector<int> Ms{167, 183, 177, 153, 139, 204};
+    const int N = 768;
+    const int K = 544;
 
-//     this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
-// }
+    const std::vector<int> Ns(Ms.size(), N);
+    const std::vector<int> Ks(Ms.size(), K);
+    const std::vector<int> StrideAs(Ms.size(), K);
+    const std::vector<int> StrideBs(Ms.size(), N);
+    const std::vector<int> StrideCs(Ms.size(), N);
 
-// TEST_P(RCR_F16_F16_F16, SmallCases)
-// {
-//     const std::vector<int> Ms{2, 1, 1, 1, 1, 1, 3, 4, 3, 5, 2, 4, 2, 1, 0, 1};
-//     const std::vector<int> Ns(Ms.size(), 768);
-//     const std::vector<int> Ks(Ms.size(), 4608);
-//     const std::vector<int> StrideAs(Ms.size(), 4608);
-//     const std::vector<int> StrideBs(Ms.size(), 4608);
-//     const std::vector<int> StrideCs(Ms.size(), 768);
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+}
 
-//     this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
-// }
+TEST_P(RRR_F16_F16_F16, Regular)
+{
+    const std::vector<int> Ms{64, 128, 256};
+    const int N = 768;
+    const int K = 320;
+
+    const std::vector<int> Ns(Ms.size(), N);
+    const std::vector<int> Ks(Ms.size(), K);
+    const std::vector<int> StrideAs(Ms.size(), K);
+    const std::vector<int> StrideBs(Ms.size(), N);
+    const std::vector<int> StrideCs(Ms.size(), N);
+
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+}
+
+TEST_P(RRR_F16_F16_F16, MNKPadded)
+{
+    const std::vector<int> Ms{127, 150, 188, 210};
+    const int N = 136;
+    const int K = 280;
+
+    const std::vector<int> Ns(Ms.size(), N);
+    const std::vector<int> Ks(Ms.size(), K);
+    const std::vector<int> StrideAs(Ms.size(), K);
+    const std::vector<int> StrideBs(Ms.size(), N);
+    const std::vector<int> StrideCs(Ms.size(), N);
+
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+}
+
+TEST_P(RCR_F16_F16_F16, TinyCases)
+{
+    const std::vector<int> Ms{0, 1};
+    const int N = 768;
+    const int K = 544;
+
+    const std::vector<int> Ns(Ms.size(), N);
+    const std::vector<int> Ks(Ms.size(), K);
+    const std::vector<int> StrideAs(Ms.size(), K);
+    const std::vector<int> StrideBs(Ms.size(), K);
+    const std::vector<int> StrideCs(Ms.size(), N);
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+}
+
+TEST_P(RCR_F16_F16_F16, SmallCases)
+{
+    const std::vector<int> Ms{2, 1, 3, 4, 5, 0};
+    const int N = 768;
+    const int K = 544;
+
+    const std::vector<int> Ns(Ms.size(), N);
+    const std::vector<int> Ks(Ms.size(), K);
+    const std::vector<int> StrideAs(Ms.size(), K);
+    const std::vector<int> StrideBs(Ms.size(), K);
+    const std::vector<int> StrideCs(Ms.size(), N);
+
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+}
 
 TEST_P(RCR_F16_F16_F16, MidCases)
 {
-    const std::vector<int> Ms{
-        // 167, 183, 177, 181, 153, 139, 156, 173, 163, 150, 204, 184, 168, 156, 168, 148};
-        167};
-    // const std::vector<int> Ns(Ms.size(), 768);
-    // const std::vector<int> Ks(Ms.size(), 4608);
-    // const std::vector<int> StrideAs(Ms.size(), 4608);
-    // const std::vector<int> StrideBs(Ms.size(), 4608);
-    // const std::vector<int> StrideCs(Ms.size(), 768);
+    const std::vector<int> Ms{167, 183, 177, 153, 139, 204};
+    const int N = 768;
+    const int K = 544;
 
-    const std::vector<int> Ns(Ms.size(), 256);
-    const std::vector<int> Ks(Ms.size(), 128);
-    const std::vector<int> StrideAs(Ms.size(), 128);
-    const std::vector<int> StrideBs(Ms.size(), 128);
-    const std::vector<int> StrideCs(Ms.size(), 256);
+    const std::vector<int> Ns(Ms.size(), N);
+    const std::vector<int> Ks(Ms.size(), K);
+    const std::vector<int> StrideAs(Ms.size(), K);
+    const std::vector<int> StrideBs(Ms.size(), K);
+    const std::vector<int> StrideCs(Ms.size(), N);
+
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+}
+
+TEST_P(RCR_F16_F16_F16, Regular)
+{
+    const std::vector<int> Ms{32, 64, 128, 256};
+    const int N = 768;
+    const int K = 320;
+
+    const std::vector<int> Ns(Ms.size(), N);
+    const std::vector<int> Ks(Ms.size(), K);
+    const std::vector<int> StrideAs(Ms.size(), K);
+    const std::vector<int> StrideBs(Ms.size(), K);
+    const std::vector<int> StrideCs(Ms.size(), N);
+
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+}
+
+TEST_P(RCR_F16_F16_F16, MNKPadded)
+{
+    const std::vector<int> Ms{127, 150, 188, 210};
+    const int N = 136;
+    const int K = 280;
+
+    const std::vector<int> Ns(Ms.size(), N);
+    const std::vector<int> Ks(Ms.size(), K);
+    const std::vector<int> StrideAs(Ms.size(), K);
+    const std::vector<int> StrideBs(Ms.size(), K);
+    const std::vector<int> StrideCs(Ms.size(), N);
+
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+}
+
+TEST_P(RRR_F16_F16_F16_LargeK, TestLargeKBatch)
+{
+    const std::vector<int> Ms{188, 210};
+    const int N = 768;
+    const int K = 4096;
+
+    const std::vector<int> Ns(Ms.size(), N);
+    const std::vector<int> Ks(Ms.size(), K);
+    const std::vector<int> StrideAs(Ms.size(), K);
+    const std::vector<int> StrideBs(Ms.size(), N);
+    const std::vector<int> StrideCs(Ms.size(), N);
+
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+}
+
+TEST_P(RCR_F16_F16_F16_LargeK, TestLargeKBatch)
+{
+    const std::vector<int> Ms{188, 210};
+    const int N = 768;
+    const int K = 4096;
+
+    const std::vector<int> Ns(Ms.size(), N);
+    const std::vector<int> Ks(Ms.size(), K);
+    const std::vector<int> StrideAs(Ms.size(), K);
+    const std::vector<int> StrideBs(Ms.size(), K);
+    const std::vector<int> StrideCs(Ms.size(), N);
 
     this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
 }

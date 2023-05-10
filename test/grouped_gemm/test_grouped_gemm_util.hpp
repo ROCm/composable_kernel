@@ -56,15 +56,6 @@ class TestGroupedGemm : public testing::TestWithParam<int>
              const std::vector<int>& StrideCs,
              int kbatch = 1)
     {
-
-        std::cout << "Ms: [" << serialize_range(Ms) << "] "
-                  << "Ns: [" << serialize_range(Ns) << "] "
-                  << "Ks: [" << serialize_range(Ks) << "] "
-                  << "StrideAs: [" << serialize_range(StrideAs) << "] "
-                  << "StrideBs: [" << serialize_range(StrideBs) << "] "
-                  << "StrideCs: [" << serialize_range(StrideCs) << "] "
-                  << "kbatch: " << kbatch << std::endl;
-
         bool pass = ck::profiler::profile_grouped_gemm_impl<ADataType,
                                                             BDataType,
                                                             EDataType,
