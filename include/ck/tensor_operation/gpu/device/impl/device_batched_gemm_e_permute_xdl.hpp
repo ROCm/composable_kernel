@@ -341,10 +341,6 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
         BElementwiseOperation,
         CDEElementwiseOperation,
         InMemoryDataOperationEnum::Set,
-        AGridDesc_M_K,
-        BGridDesc_N_K,
-        Tuple<>,
-        EGridDesc_M_N,
         NumPrefetch,
         BlockSize,
         MPerBlock,
@@ -382,10 +378,10 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
         GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}))>;
     using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
-
+    using Block2ETileMap =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
     using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = decltype(
         GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}));
-    using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
 
     // Argument
     struct Argument : public BaseArgument
@@ -518,7 +514,7 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
                     EDataType,
                     remove_reference_t<DeviceOp::AGridDesc_AK0_M_AK1>,
                     remove_reference_t<DeviceOp::BGridDesc_BK0_N_BK1>,
-                    typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                    EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CDEElementwiseOperation,
