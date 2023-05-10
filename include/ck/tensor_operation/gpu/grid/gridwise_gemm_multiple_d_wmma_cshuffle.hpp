@@ -874,7 +874,8 @@ struct GridwiseGemmMultipleD_Wmma
 /* index_t SrcScalarStrideInVector,               */    1,
 /* index_t DstScalarStrideInVector,               */    1,
 /* bool ThreadTransferSrcResetCoordinateAfterRun, */    AThreadTransferSrcResetCoordinateAfterRun,
-/* bool ThreadTransferDstResetCoordinateAfterRun, */    true>(
+/* bool ThreadTransferDstResetCoordinateAfterRun, */    true,
+                                                        NumGemmKPrefetchStage>(
                 a_grid_desc,
                 make_multi_index(0, m_block_data_idx_on_grid, 0),
                 a_element_op,
@@ -950,7 +951,8 @@ struct GridwiseGemmMultipleD_Wmma
                                                         1,
                                                         1,
                                                         BThreadTransferSrcResetCoordinateAfterRun,
-                                                        true>(
+                                                        true,
+                                                        NumGemmKPrefetchStage>(
                     b_grid_desc,
                     make_multi_index(0, n_block_data_idx_on_grid, 0),
                     b_element_op,

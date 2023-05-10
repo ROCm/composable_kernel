@@ -47,6 +47,10 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{1.f, 1.f}(a_m_k);
         ck::utils::FillUniformDistributionIntegerValue<BDataType>{1.f, 1.f}(b_k_n);
         break;
+    case 5:
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-2.f, 2.f}(a_m_k);
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-2.f, 2.f}(b_k_n);
+        break;
     default:
         ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
         ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);

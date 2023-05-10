@@ -101,8 +101,8 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
     static constexpr auto AEnableLds_manu = true;
     static constexpr auto BEnableLds_manu = true;
 
-    static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu;
-    static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu;
+    static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu || (NumPrefetch > 1);
+    static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu || (NumPrefetch > 1);
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};

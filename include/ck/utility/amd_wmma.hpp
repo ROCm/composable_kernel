@@ -12,11 +12,11 @@ namespace ck {
 /********************************WAVE32 MODE***********************************************/
 
 // src: fp16, dst: fp32
-template <index_t MPerWave, index_t NPerWave, bool AssemblyBackend>
+template <index_t MPerWave, index_t NPerWave>
 struct intrin_wmma_f32_16x16x16_f16_w32;
 
-template <bool AssemblyBackend>
-struct intrin_wmma_f32_16x16x16_f16_w32<16, 16, AssemblyBackend>
+template <>
+struct intrin_wmma_f32_16x16x16_f16_w32<16, 16>
 {
     template <class FloatC>
     __device__ static void Run(const half16_t& reg_a, const half16_t& reg_b, FloatC& reg_c)

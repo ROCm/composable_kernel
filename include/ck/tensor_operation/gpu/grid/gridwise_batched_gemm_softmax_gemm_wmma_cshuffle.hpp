@@ -868,7 +868,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
 /* index_t SrcScalarStrideInVector,               */     1,
 /* index_t DstScalarStrideInVector,               */     1,
 /* bool ThreadTransferSrcResetCoordinateAfterRun, */     AThreadTransferSrcResetCoordinateAfterRun,
-/* bool ThreadTransferDstResetCoordinateAfterRun, */     true>(
+/* bool ThreadTransferDstResetCoordinateAfterRun, */     true,
+                                                         NumGemmKPrefetchStage>(
                 a_grid_desc,
                 make_multi_index(0, m_block_data_idx_on_grid, 0),
                 a_element_op,
@@ -943,7 +944,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
                                                 1,
                                                 1,
                                                 B0ThreadTransferSrcResetCoordinateAfterRun,
-                                                true>(
+                                                true,
+                                                NumGemmKPrefetchStage>(
                 b0_grid_desc,
                 make_multi_index(0, 0, 0),
                 b0_element_op,

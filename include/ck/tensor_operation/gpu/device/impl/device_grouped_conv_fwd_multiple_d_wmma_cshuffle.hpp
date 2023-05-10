@@ -177,8 +177,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
     static constexpr auto AEnableLds_manu = false;
     static constexpr auto BEnableLds_manu = false;
 
-    static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu;
-    static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu;
+    static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu || (NumGemmKPrefetchStage > 1);
+    static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu || (NumGemmKPrefetchStage > 1);
 
     static constexpr auto conv_to_gemm_transformer =
         TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization>{};

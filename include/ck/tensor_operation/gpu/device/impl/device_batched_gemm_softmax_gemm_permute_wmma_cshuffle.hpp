@@ -151,9 +151,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
     static constexpr auto B0EnableLds_manu = true;
     static constexpr auto B1EnableLds_manu = true;
 
-    static constexpr auto AEnableLds  = AEnableLds_auto || AEnableLds_manu;
-    static constexpr auto B0EnableLds = B0EnableLds_auto || B0EnableLds_manu;
-    static constexpr auto B1EnableLds = B1EnableLds_auto || B1EnableLds_manu;
+    static constexpr auto AEnableLds  = AEnableLds_auto || AEnableLds_manu || (NumPrefetch >1);
+    static constexpr auto B0EnableLds = B0EnableLds_auto || B0EnableLds_manu || (NumPrefetch >1);
+    static constexpr auto B1EnableLds = B1EnableLds_auto || B1EnableLds_manu || (NumPrefetch >1);
 
     using Transform = TransformBatchedContractionContractionToBatchedGemmGemm<
         Sequence<NumDimG, NumDimM, NumDimL, NumDimK, NumDimN>,
