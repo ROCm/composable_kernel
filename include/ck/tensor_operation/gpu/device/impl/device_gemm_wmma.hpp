@@ -94,8 +94,8 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
     static constexpr auto AEnableLds_manu = false;
     static constexpr auto BEnableLds_manu = false;
 
-    static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu || (NumPrefetch>1);
-    static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu || (NumPrefetch>1);
+    static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu || (NumPrefetch > 1);
+    static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu || (NumPrefetch > 1);
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
@@ -467,7 +467,8 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
         if(ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
            ck::get_device_name() == "gfx1102")
         {
-            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, ck::half_t> || is_same_v<AccDataType, int32_t>))
+            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, ck::half_t> ||
+                           is_same_v<AccDataType, int32_t>))
             {
                 printf("DeviceOp err: AccDataType");
                 return false;

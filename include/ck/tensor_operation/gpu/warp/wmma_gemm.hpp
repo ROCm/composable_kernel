@@ -104,11 +104,7 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f16,
         m_per_wmma * n_per_wmma * acc_data_size * acc_pack_number / wave_size / 4;
     static constexpr index_t num_subgroups = wave_size / num_thread_per_subgroups;
 
-    template <index_t MPerWmma,
-              index_t NPerWmma,
-              class FloatA,
-              class FloatB,
-              class FloatC>
+    template <index_t MPerWmma, index_t NPerWmma, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
         if constexpr(wave_size == 32)
@@ -142,7 +138,7 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_bf16,
     static constexpr index_t num_src_a_vgprs_per_wave = m_per_wmma * src_a_data_size / 4;
     static constexpr index_t num_src_b_vgprs_per_wave = n_per_wmma * src_b_data_size / 4;
     static constexpr index_t num_acc_vgprs_per_wave =
-        m_per_wmma * n_per_wmma * acc_data_size *acc_pack_number/ wave_size / 4;
+        m_per_wmma * n_per_wmma * acc_data_size * acc_pack_number / wave_size / 4;
     static constexpr index_t num_subgroups = wave_size / num_thread_per_subgroups;
 
     template <index_t MPerWmma, index_t NPerWmma, class FloatA, class FloatB, class FloatC>
@@ -182,11 +178,7 @@ struct wmma_type<WmmaInstr::wmma_f16_16x16x16_f16,
         m_per_wmma * n_per_wmma * acc_data_size * acc_pack_number / wave_size / 4;
     static constexpr index_t num_subgroups = wave_size / num_thread_per_subgroups;
 
-    template <index_t MPerWmma,
-              index_t NPerWmma,
-              class FloatA,
-              class FloatB,
-              class FloatC>
+    template <index_t MPerWmma, index_t NPerWmma, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
         if constexpr(wave_size == 32)
@@ -261,7 +253,7 @@ struct wmma_type<WmmaInstr::wmma_i32_16x16x16_iu8,
     static constexpr index_t num_src_a_vgprs_per_wave = m_per_wmma * src_a_data_size / 4;
     static constexpr index_t num_src_b_vgprs_per_wave = n_per_wmma * src_b_data_size / 4;
     static constexpr index_t num_acc_vgprs_per_wave =
-        m_per_wmma * n_per_wmma * acc_data_size *acc_pack_number / wave_size / 4;
+        m_per_wmma * n_per_wmma * acc_data_size * acc_pack_number / wave_size / 4;
     static constexpr index_t num_subgroups = wave_size / num_thread_per_subgroups;
 
     template <index_t MPerWmma,
@@ -496,13 +488,11 @@ struct WmmaGemm
             "(int8, int32) or (int4, int32)!");
         if constexpr(!TransposeC)
         {
-            wmma_instr.template run<MPerWmma, NPerWmma>(
-                p_a_wave, p_b_wave, p_c_thread);
+            wmma_instr.template run<MPerWmma, NPerWmma>(p_a_wave, p_b_wave, p_c_thread);
         }
         else
         {
-            wmma_instr.template run<MPerWmma, NPerWmma>(
-                p_b_wave, p_a_wave, p_c_thread);
+            wmma_instr.template run<MPerWmma, NPerWmma>(p_b_wave, p_a_wave, p_c_thread);
         }
     }
 
@@ -555,7 +545,10 @@ struct WmmaGemm
     __host__ __device__ static constexpr auto
     GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths()
     {
-        return make_tuple(I1, I1, Number<wmma_instr.num_acc_vgprs_per_wave>{}, Number<wmma_instr.acc_pack_number>{});
+        return make_tuple(I1,
+                          I1,
+                          Number<wmma_instr.num_acc_vgprs_per_wave>{},
+                          Number<wmma_instr.acc_pack_number>{});
     }
 };
 

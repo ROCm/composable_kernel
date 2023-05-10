@@ -211,27 +211,20 @@ struct BlockwiseGemmWMMA
         constexpr auto c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens =
             wmma_gemm.GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths();
 
-        constexpr auto MAccVgprs          = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
-        constexpr auto AccStride          = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I3];
+        constexpr auto MAccVgprs = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
+        constexpr auto AccStride = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I3];
         return make_naive_tensor_descriptor(
             //        |MRepeat           |MWave |MSubGroup |NRepeat           |NWave
             //        |NThreadPerSubGroup |MAccVgprs
-            make_tuple(Number<MRepeat>{}, 
-                       I1,
-                       I1,
-                       Number<NRepeat>{},
-                       I1,
-                       I1,
-                       MAccVgprs),
+            make_tuple(Number<MRepeat>{}, I1, I1, Number<NRepeat>{}, I1, I1, MAccVgprs),
             make_tuple(Number<NRepeat>{} * MAccVgprs * AccStride,
                        Number<NRepeat>{} * MAccVgprs * AccStride,
                        Number<NRepeat>{} * MAccVgprs * AccStride,
                        MAccVgprs * AccStride,
                        MAccVgprs * AccStride,
                        MAccVgprs * AccStride,
-                       AccStride)
-            );
-        #if 0
+                       AccStride));
+#if 0
         return make_naive_tensor_descriptor_packed(
             //        |MRepeat           |MWave |MSubGroup |NRepeat           |NWave
             //        |NThreadPerSubGroup |MAccVgprs
@@ -242,7 +235,7 @@ struct BlockwiseGemmWMMA
                        I1,
                        NThreadPerSubGroup,
                        MAccVgprs));
-        #endif
+#endif
     }
 
     template <typename CGridDesc_M_N>
