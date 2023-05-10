@@ -265,7 +265,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
                 const index_t m_padded = GridwiseGemm::CalculateMPadded(M);
                 const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
-                const index_t k_padded = GridwiseGemm::CalculateKPadded(K);
+                const index_t k_padded = GridwiseGemm::CalculateKPadded(K, K_BATCH);
                 const index_t k0       = GridwiseGemm::CalculateK0(K, K_BATCH);
 
                 const auto c_grid_desc_m_n =
@@ -319,7 +319,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
                 auto& karg = gemm_kernel_args_[i].karg_;
 
-                const index_t k_padded = GridwiseGemm::CalculateKPadded(karg.K);
+                const index_t k_padded = GridwiseGemm::CalculateKPadded(karg.K, K_BATCH);
                 const index_t k0       = GridwiseGemm::CalculateK0(karg.K, K_BATCH);
 
                 const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(
