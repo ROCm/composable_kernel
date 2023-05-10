@@ -202,12 +202,6 @@ struct DeviceGemmXdlStreamK : public DeviceGemm<ALayout,
         hip_check_error(rtn);
         num_cu = dev_prop.multiProcessorCount;
 
-        printf("XXX occupancy:%d, num_cu:%d, BLOCK_SIZE:%d, LDS:%d\n",
-               occupancy,
-               num_cu,
-               BlockSize,
-               GridwiseGemm::GetSharedMemoryNumberOfByte());
-
         return Argument{p_a,
                         p_b,
                         p_c,

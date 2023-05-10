@@ -635,7 +635,7 @@ struct BlockToCTileMap_3DGrid_KSplit
         return true;
     }
 };
-
+#include <stdlib.h>
 template <uint32_t MPerBlock_, uint32_t NPerBlock_, uint32_t KPerBlock_>
 struct BlockToCTileMap_GemmStreamK
 {
@@ -657,11 +657,22 @@ struct BlockToCTileMap_GemmStreamK
     uint32_t k_iters_per_big_block;
     MDiv k_iters_per_tile;
     MDiv n_tiles;
+    MDiv tile_swizzle_sub_m;
+    MDiv tile_swizzle_sub_m_rem;
     //--------------------------------------
+
+    static int env_get_int(const char* var_name, int default_int)
+    {
+        char* v = getenv(var_name);
+        int r   = default_int;
+        if(v)
+            r = atoi(v);
+        return r;
+    }
 
     // prefer construct on host
     BlockToCTileMap_GemmStreamK(
-        uint32_t m, uint32_t n, uint32_t k, uint32_t num_cu, uint32_t occupancy)
+        uint32_t m, uint32_t n, uint32_t k, uint32_t num_cu, uint32_t occupancy, uint32_t tile_swizzle_sub_m_factor = 8)
     {
         uint32_t num_tiles =
             math::integer_divide_ceil(m, MPerBlock) * math::integer_divide_ceil(n, NPerBlock);
@@ -760,6 +771,8 @@ struct BlockToCTileMap_GemmStreamK
                 sk_num_blocks = 0;
             }
 
+            sk_num_blocks = env_get_int("sk_num_blocks", sk_num_blocks);
+
             if(sk_num_blocks == 0)
             {
                 sk_num_big_blocks     = 0;
@@ -791,13 +804,17 @@ struct BlockToCTileMap_GemmStreamK
             }
         }
         n_tiles = MDiv(math::integer_divide_ceil(n, NPerBlock));
+        tile_swizzle_sub_m = MDiv(tile_swizzle_sub_m_factor);
+        tile_swizzle_sub_m_rem = MDiv(math::integer_divide_ceil(m, MPerBlock) % tile_swizzle_sub_m_factor);
 
-        printf("cu:%d, occupancy:%d, grids:%d, sk_num_big_blocks:%d, sk_num_blocks:%d, "
+        printf("cu:%d, occupancy:%d, grids:%d, num_tiles:%d, dp_tiles:%d, sk_num_big_blocks:%d, sk_num_blocks:%d, "
                "sk_total_iters:%d, dp_start_block_idx:%d, dp_iters_per_block:%d, dp_num_blocks:%d, "
                "k_iters_per_tile:%d, k_iters_per_big_block:%d\n",
                num_cu,
                occupancy,
                get_grid_dims().x,
+               num_tiles,
+               dp_tiles,
                sk_num_big_blocks,
                sk_num_blocks,
                sk_total_iters,
@@ -859,12 +876,30 @@ struct BlockToCTileMap_GemmStreamK
         k_iters_per_tile.divmod(iter, tile_idx, iter_offset);
     }
 
-    __device__ auto tile_to_spatial(uint32_t tile_idx) const
+    __device__ auto tile_to_spatial(uint32_t tile_idx, uint32_t m, uint32_t /*n*/) const
     {
-        // TODO:
         uint32_t m_tile_idx, n_tile_idx;
         n_tiles.divmod(tile_idx, m_tile_idx, n_tile_idx);
-        return make_tuple(m_tile_idx, n_tile_idx);
+        // return make_tuple(m_tile_idx, n_tile_idx);
+
+        // swizzle tile
+        uint32_t m_tiles = math::integer_divide_ceil(m, MPerBlock);
+        // uint32_t n_tiles = math::integer_divide_ceil(n, NPerBlock);
+
+        uint32_t quo_sub_m, rem_sub_m;
+        tile_swizzle_sub_m.divmod(m_tile_idx, quo_sub_m, rem_sub_m);
+
+        const auto sub_m_adapt = (m_tile_idx < (m_tiles - tile_swizzle_sub_m_rem.get())) ?
+            tile_swizzle_sub_m : tile_swizzle_sub_m_rem;
+        
+        uint32_t m_tile_idx_sub0, m_tile_idx_sub1;
+        tile_swizzle_sub_m.divmod(m_tile_idx, m_tile_idx_sub0, m_tile_idx_sub1);
+        uint32_t tile_idx_local = n_tile_idx + m_tile_idx_sub1 * n_tiles.get();
+
+        uint32_t m_tile_idx_with_adapt, n_tile_idx_with_adapt;
+        sub_m_adapt.divmod(tile_idx_local, n_tile_idx_with_adapt, m_tile_idx_with_adapt);
+        return make_tuple(m_tile_idx_with_adapt + m_tile_idx_sub0 * tile_swizzle_sub_m.get(),
+                            n_tile_idx_with_adapt);
     }
 };
 

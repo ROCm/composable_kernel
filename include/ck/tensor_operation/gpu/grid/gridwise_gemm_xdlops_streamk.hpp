@@ -474,7 +474,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
         block_mapping.get_block_itr(block_idx, iter_start, iter_end);
         uint32_t total_iter_length = iter_end - iter_start;
         // if(threadIdx.x == 0)
-        //     printf("xxx bid:%d\n", static_cast<int>(blockIdx.x));
+        //     printf("xxx bid:%d, is_sk_block:%d, is_dp_block:%d\n", static_cast<int>(blockIdx.x), is_sk_block, is_dp_block);
         if(!is_sk_block && !is_dp_block)
             return;
 
@@ -485,7 +485,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
             uint32_t tile_idx, iter_offset;
             block_mapping.get_tile_idx_with_offset(iter_end - 1, tile_idx, iter_offset);
             iter_offset = __builtin_amdgcn_readfirstlane(iter_offset - current_iter_length + 1);
-            auto spatial_idx = block_mapping.tile_to_spatial(tile_idx);
+            auto spatial_idx = block_mapping.tile_to_spatial(tile_idx, m, n);
 
             const index_t m_block_data_idx_on_grid =
                 __builtin_amdgcn_readfirstlane(spatial_idx[I0] * MPerBlock);
@@ -496,13 +496,12 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
             const index_t k0_block_data_idx_on_grid =
                 __builtin_amdgcn_readfirstlane(iter_offset * K0PerBlock);
 
-            // if(threadIdx.x == 0)
-            //     printf("[%s], bid:%d, block_idx:%d, tile_idx:%d(%d, %d, %d), iter_start:%d(%d |
-            //     %d), iter_end:%d, len:%d\n",
-            //         is_sk_block ? "sk_block" : (is_dp_block ? "dp_block" : "other "),
-            //         static_cast<int>(blockIdx.x), block_idx, tile_idx, m_block_data_idx_on_grid,
-            //         n_block_data_idx_on_grid, k0_block_data_idx_on_grid, iter_end -
-            //         current_iter_length, iter_offset, iter_start, iter_end, current_iter_length);
+        // if(threadIdx.x == 0)
+        //     printf("[%s], bid:%d, block_idx:%d, tile_idx:%d(%d, %d, %d), iter_start:%d(%d | %d), iter_end:%d, len:%d\n",
+        //         is_sk_block ? "sk_block" : (is_dp_block ? "dp_block" : "other "),
+        //         static_cast<int>(blockIdx.x), block_idx, tile_idx, m_block_data_idx_on_grid,
+        //         n_block_data_idx_on_grid, k0_block_data_idx_on_grid, iter_end -
+        //         current_iter_length, iter_offset, iter_start, iter_end, current_iter_length);
 
             // A matrix blockwise copy
             auto a_blockwise_copy =
