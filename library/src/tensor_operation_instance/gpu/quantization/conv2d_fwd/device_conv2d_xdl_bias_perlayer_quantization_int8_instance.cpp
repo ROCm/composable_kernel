@@ -9,10 +9,10 @@ namespace device {
 namespace instance {
 void add_device_conv2d_xdl_bias_perlayer_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                                              GNHWC,
+                                                              NHWGC,
                                                               GKYXC,
                                                               GK_Tuple,
-                                                              GNHWK,
+                                                              NHWGK,
                                                               int8_t,
                                                               int8_t,
                                                               I32_Tuple,
@@ -22,19 +22,28 @@ void add_device_conv2d_xdl_bias_perlayer_quantization_int8_instances(
                                                               Add_Mul_Clamp>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_xdl_int8_instances<GK_Tuple,
+                                   device_grouped_conv2d_xdl_int8_instances<NHWGC,
+                                                                            GKYXC,
+                                                                            GK_Tuple,
+                                                                            NHWGK,
                                                                             I32_Tuple,
                                                                             Add_Mul_Clamp,
                                                                             ConvFwdDefault,
                                                                             8>{});
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_xdl_int8_instances<GK_Tuple,
+                                   device_grouped_conv2d_xdl_int8_instances<NHWGC,
+                                                                            GKYXC,
+                                                                            GK_Tuple,
+                                                                            NHWGK,
                                                                             I32_Tuple,
                                                                             Add_Mul_Clamp,
                                                                             ConvFwd1x1P0,
                                                                             8>{});
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_xdl_int8_instances<GK_Tuple,
+                                   device_grouped_conv2d_xdl_int8_instances<NHWGC,
+                                                                            GKYXC,
+                                                                            GK_Tuple,
+                                                                            NHWGK,
                                                                             I32_Tuple,
                                                                             Add_Mul_Clamp,
                                                                             ConvFwd1x1S1P0,
@@ -43,10 +52,10 @@ void add_device_conv2d_xdl_bias_perlayer_quantization_int8_instances(
 
 void add_device_conv2d_xdl_bias_relu_perlayer_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                                              GNHWC,
+                                                              NHWGC,
                                                               GKYXC,
                                                               GK_Tuple,
-                                                              GNHWK,
+                                                              NHWGK,
                                                               int8_t,
                                                               int8_t,
                                                               I32_Tuple,
@@ -56,21 +65,30 @@ void add_device_conv2d_xdl_bias_relu_perlayer_quantization_int8_instances(
                                                               Add_Relu_Mul_Clamp>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_xdl_int8_instances<GK_Tuple,
+                                   device_grouped_conv2d_xdl_int8_instances<NHWGC,
+                                                                            GKYXC,
+                                                                            GK_Tuple,
+                                                                            NHWGK,
                                                                             I32_Tuple,
                                                                             Add_Relu_Mul_Clamp,
                                                                             ConvFwdDefault,
                                                                             8>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_xdl_int8_instances<GK_Tuple,
+                                   device_grouped_conv2d_xdl_int8_instances<NHWGC,
+                                                                            GKYXC,
+                                                                            GK_Tuple,
+                                                                            NHWGK,
                                                                             I32_Tuple,
                                                                             Add_Relu_Mul_Clamp,
                                                                             ConvFwd1x1P0,
                                                                             8>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_xdl_int8_instances<GK_Tuple,
+                                   device_grouped_conv2d_xdl_int8_instances<NHWGC,
+                                                                            GKYXC,
+                                                                            GK_Tuple,
+                                                                            NHWGK,
                                                                             I32_Tuple,
                                                                             Add_Relu_Mul_Clamp,
                                                                             ConvFwd1x1S1P0,
@@ -79,10 +97,10 @@ void add_device_conv2d_xdl_bias_relu_perlayer_quantization_int8_instances(
 
 void add_device_conv2d_xdl_bias_tanh_perlayer_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                                              GNHWC,
+                                                              NHWGC,
                                                               GKYXC,
                                                               GK_Tuple,
-                                                              GNHWK,
+                                                              NHWGK,
                                                               int8_t,
                                                               int8_t,
                                                               I32_Tuple,
@@ -92,21 +110,30 @@ void add_device_conv2d_xdl_bias_tanh_perlayer_quantization_int8_instances(
                                                               Add_Mul_TanH_Mul_Clamp>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_xdl_int8_instances<GK_Tuple,
+                                   device_grouped_conv2d_xdl_int8_instances<NHWGC,
+                                                                            GKYXC,
+                                                                            GK_Tuple,
+                                                                            NHWGK,
                                                                             I32_Tuple,
                                                                             Add_Mul_TanH_Mul_Clamp,
                                                                             ConvFwdDefault,
                                                                             8>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_xdl_int8_instances<GK_Tuple,
+                                   device_grouped_conv2d_xdl_int8_instances<NHWGC,
+                                                                            GKYXC,
+                                                                            GK_Tuple,
+                                                                            NHWGK,
                                                                             I32_Tuple,
                                                                             Add_Mul_TanH_Mul_Clamp,
                                                                             ConvFwd1x1P0,
                                                                             8>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_xdl_int8_instances<GK_Tuple,
+                                   device_grouped_conv2d_xdl_int8_instances<NHWGC,
+                                                                            GKYXC,
+                                                                            GK_Tuple,
+                                                                            NHWGK,
                                                                             I32_Tuple,
                                                                             Add_Mul_TanH_Mul_Clamp,
                                                                             ConvFwd1x1S1P0,
