@@ -249,6 +249,8 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
+        Tensor<CShuffleDataType> c_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides);
+
         using ReferenceOpInstance =
             ck::tensor_operation::host::ReferenceContraction_M2_N2_K2<NumDimM,
                                                                       NumDimN,
@@ -258,23 +260,31 @@ int main(int argc, char* argv[])
                                                                       CShuffleDataType,
                                                                       AccDataType,
                                                                       AElementOp,
-                                                                      BElementOp,
-                                                                      CDEElementOp,
-                                                                      true,
-                                                                      DDataType>;
+                                                                      BElementOp>;
 
         auto ref_gemm    = ReferenceOpInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
-        auto ref_argument = ref_gemm.MakeArgument(a_ms_ks,
-                                                  b_ns_ks,
-                                                  d_ms_ns,
-                                                  e_ms_ns_host_result,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  cde_element_op);
+        auto ref_argument = ref_gemm.MakeArgument(
+            a_ms_ks, b_ns_ks, c_ms_ns_host_result, a_element_op, b_element_op);
 
         ref_invoker.Run(ref_argument);
+
+        for(size_t m0 = 0; m0 < e_ms_ns_host_result.mDesc.GetLengths()[0]; ++m0)
+        {
+            for(size_t m1 = 0; m1 < e_ms_ns_host_result.mDesc.GetLengths()[1]; ++m1)
+            {
+                for(size_t n0 = 0; n0 < e_ms_ns_host_result.mDesc.GetLengths()[2]; ++n0)
+                {
+                    for(size_t n1 = 0; n1 < e_ms_ns_host_result.mDesc.GetLengths()[3]; ++n1)
+                    {
+                        cde_element_op(e_ms_ns_host_result(m0, m1, n0, n1),
+                                       c_ms_ns_host_result(m0, m1, n0, n1),
+                                       d_ms_ns(m0, m1, n0, n1));
+                    }
+                }
+            }
+        }
 
         return ck::utils::check_err(e_ms_ns_device_result, e_ms_ns_host_result) ? 0 : 1;
     }

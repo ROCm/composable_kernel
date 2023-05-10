@@ -41,7 +41,7 @@ int profile_contraction_impl(ck::index_t do_verification,
                              ck::index_t init_method,
                              bool do_log,
                              bool time_kernel,
-                             CDElementOp cd_element_op,
+                             CDElementOp cde_element_op,
                              const std::vector<ck::index_t>& M,
                              const std::vector<ck::index_t>& N,
                              const std::vector<ck::index_t>& K,
@@ -64,14 +64,14 @@ int profile_contraction_impl(ck::index_t do_verification,
 
     Tensor<DataType> a_m_k(f_host_tensor_descriptor(M, K, StridesA));
     Tensor<DataType> b_k_n(f_host_tensor_descriptor(K, N, StridesB));
-    Tensor<DataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StridesC));
-    Tensor<DataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StridesC));
+    Tensor<DataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StridesC));
+    Tensor<DataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StridesC));
     Tensor<DataType> d_m_n(f_host_tensor_descriptor(M, N, StridesD));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "d_m_n: " << d_m_n.mDesc << std::endl;
-    std::cout << "c_m_n: " << c_m_n_device_result.mDesc << std::endl;
+    std::cout << "e_m_n: " << e_m_n_device_result.mDesc << std::endl;
 
     switch(init_method)
     {
@@ -92,18 +92,18 @@ int profile_contraction_impl(ck::index_t do_verification,
 
     DeviceMem a_device_buf(sizeof(DataType) * a_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(DataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(DataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem e_device_buf(sizeof(DataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
     DeviceMem d_device_buf(sizeof(DataType) * d_m_n.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
-    c_device_buf.SetZero();
+    e_device_buf.SetZero();
     d_device_buf.ToDevice(d_m_n.mData.data());
 
-    const std::vector<index_t> a_ms_ks_lengths = {M[0], M[1], K[0], K[1]};
-    const std::vector<index_t> b_ns_ks_lengths = {N[0], N[1], K[0], K[1]};
-    const std::vector<index_t> c_ms_ns_lengths = {M[0], M[1], N[0], N[1]};
-    const std::vector<index_t> d_ms_ns_lengths = {M[0], M[1], N[0], N[1]};
+    const std::vector<index_t> a_m_k_lengths = {M[0], M[1], K[0], K[1]};
+    const std::vector<index_t> b_n_k_lengths = {N[0], N[1], K[0], K[1]};
+    const std::vector<index_t> c_m_n_lengths = {M[0], M[1], N[0], N[1]};
+    const std::vector<index_t> d_m_n_lengths = {M[0], M[1], N[0], N[1]};
 
     const auto a_element_op = AElementOp{};
     const auto b_element_op = BElementOp{};
@@ -129,30 +129,50 @@ int profile_contraction_impl(ck::index_t do_verification,
     // Run reference op
     if(do_verification)
     {
-        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceContraction_M2_N2_K2<
-            NumDim,
-            NumDim,
-            NumDim,
-            DataType,
-            DataType,
-            DataType,
-            DataType,
-            AElementOp,
-            BElementOp,
-            CDElementOp,
-            std::is_same<CDElementOp, Bilinear>::value,
-            DataType>;
+        using ReferenceGemmInstance =
+            ck::tensor_operation::host::ReferenceContraction_M2_N2_K2<NumDim,
+                                                                      NumDim,
+                                                                      NumDim,
+                                                                      DataType,
+                                                                      DataType,
+                                                                      DataType,
+                                                                      DataType,
+                                                                      AElementOp,
+                                                                      BElementOp>;
 
         auto ref_op      = ReferenceGemmInstance{};
         auto ref_invoker = ref_op.MakeInvoker();
 
-        if constexpr(std::is_same<CDElementOp, Scale>::value)
-            d_m_n = Tensor<DataType>(std::vector<ck::index_t>{}, std::vector<ck::index_t>{});
+        Tensor<DataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StridesC));
 
-        auto ref_argument = ref_op.MakeArgument(
-            a_m_k, b_k_n, d_m_n, c_m_n_host_result, a_element_op, b_element_op, cd_element_op);
+        auto ref_argument =
+            ref_op.MakeArgument(a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op);
 
         ref_invoker.Run(ref_argument);
+
+        for(size_t m0 = 0; m0 < e_m_n_host_result.mDesc.GetLengths()[0]; ++m0)
+        {
+            for(size_t m1 = 0; m1 < e_m_n_host_result.mDesc.GetLengths()[1]; ++m1)
+            {
+                for(size_t n0 = 0; n0 < e_m_n_host_result.mDesc.GetLengths()[2]; ++n0)
+                {
+                    for(size_t n1 = 0; n1 < e_m_n_host_result.mDesc.GetLengths()[3]; ++n1)
+                    {
+                        if constexpr(is_same<CDElementOp, Bilinear>::value)
+                        {
+                            cde_element_op(e_m_n_host_result(m0, m1, n0, n1),
+                                           c_m_n_host_result(m0, m1, n0, n1),
+                                           d_m_n(m0, m1, n0, n1));
+                        }
+                        else if constexpr(is_same<CDElementOp, Scale>::value)
+                        {
+                            cde_element_op(e_m_n_host_result(m0, m1, n0, n1),
+                                           c_m_n_host_result(m0, m1, n0, n1));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     std::string best_op_name;
@@ -170,18 +190,18 @@ int profile_contraction_impl(ck::index_t do_verification,
                 static_cast<DataType*>(a_device_buf.GetDeviceBuffer()),
                 static_cast<DataType*>(b_device_buf.GetDeviceBuffer()),
                 std::array<const void*, 1>{d_device_buf.GetDeviceBuffer()},
-                static_cast<DataType*>(c_device_buf.GetDeviceBuffer()),
-                a_ms_ks_lengths,
+                static_cast<DataType*>(e_device_buf.GetDeviceBuffer()),
+                a_m_k_lengths,
                 StridesA,
-                b_ns_ks_lengths,
+                b_n_k_lengths,
                 StridesB,
-                std::array<std::vector<ck::index_t>, 1>{d_ms_ns_lengths},
+                std::array<std::vector<ck::index_t>, 1>{d_m_n_lengths},
                 std::array<std::vector<ck::index_t>, 1>{StridesD},
-                c_ms_ns_lengths,
+                c_m_n_lengths,
                 StridesC,
                 a_element_op,
                 b_element_op,
-                cd_element_op);
+                cde_element_op);
         }
         else
         {
@@ -189,18 +209,18 @@ int profile_contraction_impl(ck::index_t do_verification,
                 op_ptr->MakeArgumentPointer(static_cast<DataType*>(a_device_buf.GetDeviceBuffer()),
                                             static_cast<DataType*>(b_device_buf.GetDeviceBuffer()),
                                             std::array<const void*, 0>{},
-                                            static_cast<DataType*>(c_device_buf.GetDeviceBuffer()),
-                                            a_ms_ks_lengths,
+                                            static_cast<DataType*>(e_device_buf.GetDeviceBuffer()),
+                                            a_m_k_lengths,
                                             StridesA,
-                                            b_ns_ks_lengths,
+                                            b_n_k_lengths,
                                             StridesB,
                                             std::array<std::vector<ck::index_t>, 0>{},
                                             std::array<std::vector<ck::index_t>, 0>{},
-                                            c_ms_ns_lengths,
+                                            c_m_n_lengths,
                                             StridesC,
                                             a_element_op,
                                             b_element_op,
-                                            cd_element_op);
+                                            cde_element_op);
         }
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
@@ -212,7 +232,7 @@ int profile_contraction_impl(ck::index_t do_verification,
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             // re-init C to zero before profiling next kernel
-            c_device_buf.SetZero();
+            e_device_buf.SetZero();
 
             std::string op_name = op_ptr->GetTypeString();
 
@@ -242,12 +262,12 @@ int profile_contraction_impl(ck::index_t do_verification,
 
             if(do_verification)
             {
-                c_device_buf.FromDevice(c_m_n_device_result.mData.data());
+                e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
                 float threshold =
                     static_cast<DataType>(nelems_k) * std::numeric_limits<DataType>::epsilon();
-                pass = pass & ck::utils::check_err(c_m_n_device_result,
-                                                   c_m_n_host_result,
+                pass = pass & ck::utils::check_err(e_m_n_device_result,
+                                                   e_m_n_host_result,
                                                    "Error: incorrect results!",
                                                    threshold,
                                                    threshold);
@@ -256,9 +276,9 @@ int profile_contraction_impl(ck::index_t do_verification,
                 {
                     LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
                     LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "c_host  : ", e_m_n_host_result.mData, ",")
                         << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "c_device: ", e_m_n_device_result.mData, ",")
                         << std::endl;
                 }
             }
