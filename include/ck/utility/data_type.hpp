@@ -1058,7 +1058,7 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int8_t>(int8_
 
 // cast fp32 to fp8
 template <bool negative_zero_nan, bool clip, bool stoch>
-__host__ __device__ uint8_t cast_to_f8(float x, uint32_t rng)
+__host__ __device__ fp8_t cast_to_f8(float x, uint32_t rng)
 {
     // fp8 exponent/mantissa layout
     constexpr int we_f8 = 4;
@@ -1157,7 +1157,7 @@ inline __host__ __device__ f8_t type_convert<f8_t, float>(float x)
 
 // cast fp8 to fp32
 template <bool negative_zero_nan>
-__host__ __device__ float cast_from_f8(uint8_t x)
+__host__ __device__ float cast_from_f8(f8_t x)
 {
     // fp8 exponent/mantissa layout
     constexpr int we_f8 = 4;
