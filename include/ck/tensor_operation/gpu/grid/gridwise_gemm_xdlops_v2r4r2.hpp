@@ -186,12 +186,12 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     // prefer this to be called on host
     __host__ __device__ static auto CalculateMPadded(index_t M)
     {
-        return (M + MPerBlock - 1) / MPerBlock * MPerBlock;
+        return math::integer_least_multiple(M, MPerBlock);
     }
 
     __host__ __device__ static auto CalculateNPadded(index_t N)
     {
-        return (N + NPerBlock - 1) / NPerBlock * NPerBlock;
+        return math::integer_least_multiple(N, NPerBlock);
     }
 
     __host__ __device__ static auto CalculateK0(index_t K, index_t K_Batch = 1)
