@@ -11,8 +11,6 @@
 
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-using Bilinear = ck::tensor_operation::element_wise::Bilinear;
-
 namespace ck {
 namespace tensor_operation {
 namespace host {

@@ -13,6 +13,20 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 using Bilinear = ck::tensor_operation::element_wise::Bilinear;
 using Scale    = ck::tensor_operation::element_wise::Scale;
 
+enum struct ContractionMatrixLayout
+{
+    MK_KN_MN_MN, // 0
+    MK_NK_MN_MN, // 1
+    KM_KN_MN_MN, // 2
+    KM_NK_MN_MN, // 3
+};
+
+enum struct ContractionDataType
+{
+    F32_F32_F32_F32, // 0
+    F64_F64_F64_F64, // 1
+};
+
 inline void collect_index_params(char* argv[],
                                  std::vector<ck::index_t>& params,
                                  const ck::index_t from,

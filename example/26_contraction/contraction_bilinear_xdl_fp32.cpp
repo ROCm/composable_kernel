@@ -262,11 +262,11 @@ int main(int argc, char* argv[])
                                                                       AElementOp,
                                                                       BElementOp>;
 
-        auto ref_gemm    = ReferenceOpInstance{};
-        auto ref_invoker = ref_gemm.MakeInvoker();
+        auto ref_op      = ReferenceOpInstance{};
+        auto ref_invoker = ref_op.MakeInvoker();
 
-        auto ref_argument = ref_gemm.MakeArgument(
-            a_ms_ks, b_ns_ks, c_ms_ns_host_result, a_element_op, b_element_op);
+        auto ref_argument =
+            ref_op.MakeArgument(a_ms_ks, b_ns_ks, c_ms_ns_host_result, a_element_op, b_element_op);
 
         ref_invoker.Run(ref_argument);
 

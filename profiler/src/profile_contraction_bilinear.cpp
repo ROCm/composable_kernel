@@ -11,20 +11,6 @@
 #include "profiler/profile_contraction_utils.hpp"
 #include "profiler_operation_registry.hpp"
 
-enum struct ContractionMatrixLayout
-{
-    MK_KN_MN_MN, // 0
-    MK_NK_MN_MN, // 1
-    KM_KN_MN_MN, // 2
-    KM_NK_MN_MN, // 3
-};
-
-enum struct ContractionDataType
-{
-    F32_F32_F32_F32, // 0
-    F64_F64_F64_F64, // 1
-};
-
 #define OP_NAME "contraction_bilinear"
 #define OP_DESC "CONTRACTION+Bilinear"
 
@@ -33,13 +19,13 @@ static void print_helper_msg()
     std::cout << "arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n"
               << "arg2: data type (0: fp32; 1: f64)\n"
               << "arg3: matrix layout (0: A[m0, m1, k0, k1] * B[k0, k1, n0, n1] + "
-                 "D[m0, m1, n0, n1] = C[m0, m1, n0, n1];\n"
+                 "D[m0, m1, n0, n1] = E[m0, m1, n0, n1];\n"
               << "                     1: A[m0, m1, k0, k1] * B[n0, n1, k0, k1] + "
-                 "D[m0, m1, n0, n1] = C[m0, m1, n0, n1];\n"
+                 "D[m0, m1, n0, n1] = E[m0, m1, n0, n1];\n"
               << "                     2: A[k0, k1, m0, m1] * B[k0, k1, n0, n1] + "
-                 "D[m0, m1, n0, n1] = C[m0, m1, n0, n1];\n"
+                 "D[m0, m1, n0, n1] = E[m0, m1, n0, n1];\n"
               << "                     3: A[k0, k1, m0, m1] * B[n0, n1, k0, k1] + "
-                 "D[m0, m1, n0, n1] = C[m0, m1, n0, n1])\n"
+                 "D[m0, m1, n0, n1] = E[m0, m1, n0, n1])\n"
               << "arg4: verification (0: no; 1: yes)\n"
               << "arg5: initialization (0: no init; 1: integer value; 2: decimal "
               << "value)\n"
@@ -47,7 +33,7 @@ static void print_helper_msg()
               << "arg7: time kernel (0: no, 1: yes)\n"
               << "arg8 and arg9: alpha and beta\n"
               << "arg10 to 15: M0, M1, N0, N1, K0, K1\n"
-              << "arg16 to 31: Strides for A, B, C and D (skip for default)\n"
+              << "arg16 to 31: Strides for A, B, D and E (skip for default)\n"
               << std::endl;
 }
 
@@ -80,23 +66,23 @@ int profile_contraction_bilinear(int argc, char* argv[])
 
     std::vector<ck::index_t> StridesA;
     std::vector<ck::index_t> StridesB;
-    std::vector<ck::index_t> StridesC;
+    std::vector<ck::index_t> StridesE;
     std::vector<ck::index_t> StridesD;
     if(!default_strides)
     {
         collect_index_params(argv, StridesA, dims_arg_num + 6, 4);
         collect_index_params(argv, StridesB, dims_arg_num + 10, 4);
-        collect_index_params(argv, StridesC, dims_arg_num + 14, 4);
+        collect_index_params(argv, StridesE, dims_arg_num + 14, 4);
         collect_index_params(argv, StridesD, dims_arg_num + 18, 4);
     }
 
     using F32 = float;
     using F64 = double;
 
-    auto profile = [&](auto a_layout, auto b_layout, auto cd_layout, auto type) {
-        using ALayout  = decltype(a_layout);
-        using BLayout  = decltype(b_layout);
-        using CDLayout = decltype(cd_layout);
+    auto profile = [&](auto a_layout, auto b_layout, auto cde_layout, auto type) {
+        using ALayout   = decltype(a_layout);
+        using BLayout   = decltype(b_layout);
+        using CDELayout = decltype(cde_layout);
 
         using DataType = decltype(type);
 
@@ -104,12 +90,12 @@ int profile_contraction_bilinear(int argc, char* argv[])
         {
             assign_default_strides(a_layout, StridesA, {M[0], M[1], K[0], K[1]});
             assign_default_strides(b_layout, StridesB, {K[0], K[1], N[0], N[1]});
-            assign_default_strides(cd_layout, StridesC, {M[0], M[1], N[0], N[1]});
-            assign_default_strides(cd_layout, StridesD, {M[0], M[1], N[0], N[1]});
+            assign_default_strides(cde_layout, StridesE, {M[0], M[1], N[0], N[1]});
+            assign_default_strides(cde_layout, StridesD, {M[0], M[1], N[0], N[1]});
         }
         bool pass = ck::profiler::profile_contraction_impl<ALayout,
                                                            BLayout,
-                                                           CDLayout,
+                                                           CDELayout,
                                                            DataType,
                                                            ck::Tuple<DataType>,
                                                            Bilinear>(do_verification,
@@ -122,7 +108,7 @@ int profile_contraction_bilinear(int argc, char* argv[])
                                                                      K,
                                                                      StridesA,
                                                                      StridesB,
-                                                                     StridesC,
+                                                                     StridesE,
                                                                      StridesD);
 
         return pass;

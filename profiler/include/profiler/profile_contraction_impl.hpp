@@ -33,7 +33,7 @@ using Scale    = ck::tensor_operation::element_wise::Scale;
 
 template <typename ALayout,
           typename BLayout,
-          typename CDLayout,
+          typename CDELayout,
           typename DataType,
           typename DTupleDataType,
           typename CDElementOp>
@@ -47,7 +47,7 @@ int profile_contraction_impl(ck::index_t do_verification,
                              const std::vector<ck::index_t>& K,
                              const std::vector<ck::index_t>& StridesA,
                              const std::vector<ck::index_t>& StridesB,
-                             const std::vector<ck::index_t>& StridesC,
+                             const std::vector<ck::index_t>& StridesE,
                              const std::vector<ck::index_t>& StridesD)
 {
     bool pass = true;
@@ -64,8 +64,8 @@ int profile_contraction_impl(ck::index_t do_verification,
 
     Tensor<DataType> a_m_k(f_host_tensor_descriptor(M, K, StridesA));
     Tensor<DataType> b_k_n(f_host_tensor_descriptor(K, N, StridesB));
-    Tensor<DataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StridesC));
-    Tensor<DataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StridesC));
+    Tensor<DataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StridesE));
+    Tensor<DataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StridesE));
     Tensor<DataType> d_m_n(f_host_tensor_descriptor(M, N, StridesD));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
@@ -100,10 +100,10 @@ int profile_contraction_impl(ck::index_t do_verification,
     e_device_buf.SetZero();
     d_device_buf.ToDevice(d_m_n.mData.data());
 
-    const std::vector<index_t> a_m_k_lengths = {M[0], M[1], K[0], K[1]};
-    const std::vector<index_t> b_n_k_lengths = {N[0], N[1], K[0], K[1]};
-    const std::vector<index_t> c_m_n_lengths = {M[0], M[1], N[0], N[1]};
-    const std::vector<index_t> d_m_n_lengths = {M[0], M[1], N[0], N[1]};
+    const std::vector<index_t> a_ms_ks_lengths = {M[0], M[1], K[0], K[1]};
+    const std::vector<index_t> b_ns_ks_lengths = {N[0], N[1], K[0], K[1]};
+    const std::vector<index_t> e_ms_ns_lengths = {M[0], M[1], N[0], N[1]};
+    const std::vector<index_t> d_m_n_lengths   = {M[0], M[1], N[0], N[1]};
 
     const auto a_element_op = AElementOp{};
     const auto b_element_op = BElementOp{};
@@ -143,7 +143,7 @@ int profile_contraction_impl(ck::index_t do_verification,
         auto ref_op      = ReferenceGemmInstance{};
         auto ref_invoker = ref_op.MakeInvoker();
 
-        Tensor<DataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StridesC));
+        Tensor<DataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StridesE));
 
         auto ref_argument =
             ref_op.MakeArgument(a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op);
@@ -169,6 +169,10 @@ int profile_contraction_impl(ck::index_t do_verification,
                             cde_element_op(e_m_n_host_result(m0, m1, n0, n1),
                                            c_m_n_host_result(m0, m1, n0, n1));
                         }
+                        else
+                        {
+                            static_assert("Unsupported CDElementOp in contraction profiler.");
+                        }
                     }
                 }
             }
@@ -191,36 +195,40 @@ int profile_contraction_impl(ck::index_t do_verification,
                 static_cast<DataType*>(b_device_buf.GetDeviceBuffer()),
                 std::array<const void*, 1>{d_device_buf.GetDeviceBuffer()},
                 static_cast<DataType*>(e_device_buf.GetDeviceBuffer()),
-                a_m_k_lengths,
+                a_ms_ks_lengths,
                 StridesA,
-                b_n_k_lengths,
+                b_ns_ks_lengths,
                 StridesB,
                 std::array<std::vector<ck::index_t>, 1>{d_m_n_lengths},
                 std::array<std::vector<ck::index_t>, 1>{StridesD},
-                c_m_n_lengths,
-                StridesC,
+                e_ms_ns_lengths,
+                StridesE,
                 a_element_op,
                 b_element_op,
                 cde_element_op);
         }
-        else
+        else if constexpr(is_same<CDElementOp, Scale>::value)
         {
             argument_ptr =
                 op_ptr->MakeArgumentPointer(static_cast<DataType*>(a_device_buf.GetDeviceBuffer()),
                                             static_cast<DataType*>(b_device_buf.GetDeviceBuffer()),
                                             std::array<const void*, 0>{},
                                             static_cast<DataType*>(e_device_buf.GetDeviceBuffer()),
-                                            a_m_k_lengths,
+                                            a_ms_ks_lengths,
                                             StridesA,
-                                            b_n_k_lengths,
+                                            b_ns_ks_lengths,
                                             StridesB,
                                             std::array<std::vector<ck::index_t>, 0>{},
                                             std::array<std::vector<ck::index_t>, 0>{},
-                                            c_m_n_lengths,
-                                            StridesC,
+                                            e_ms_ns_lengths,
+                                            StridesE,
                                             a_element_op,
                                             b_element_op,
                                             cde_element_op);
+        }
+        else
+        {
+            static_assert("Unsupported CDElementOp in contraction profiler.");
         }
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
@@ -316,8 +324,17 @@ int profile_contraction_impl(ck::index_t do_verification,
         std::cout << " BLayout =  ColumnMajor";
     }
 
+    if constexpr(is_same<CDELayout, tensor_layout::gemm::RowMajor>::value)
+    {
+        std::cout << " CDELayout =  RowMajor";
+    }
+    else if constexpr(is_same<CDELayout, tensor_layout::gemm::ColumnMajor>::value)
+    {
+        std::cout << " CDELayout =  ColumnMajor";
+    }
+
     std::cout << " M = " << M << " N = " << N << " K = " << K << " StridesA = " << StridesA
-              << " StridesB = " << StridesB << " StridesC = " << StridesC << " : " << best_avg_time
+              << " StridesB = " << StridesB << " StridesE = " << StridesE << " : " << best_avg_time
               << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
               << best_op_name << std::endl;
 
