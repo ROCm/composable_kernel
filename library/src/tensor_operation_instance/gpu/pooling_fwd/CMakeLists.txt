@@ -1,0 +1,10 @@
+add_instance_library(device_pooling_fwd_instance
+    device_avg_pooling2d_fwd_nhwc_f16_instance.cpp
+    device_avg_pooling2d_fwd_nhwc_f32_instance.cpp
+    device_avg_pooling3d_fwd_ndhwc_f16_instance.cpp
+    device_avg_pooling3d_fwd_ndhwc_f32_instance.cpp
+    device_max_pooling2d_fwd_nhwc_f16_instance.cpp
+    device_max_pooling2d_fwd_nhwc_f32_instance.cpp
+    device_max_pooling3d_fwd_ndhwc_f16_instance.cpp
+    device_max_pooling3d_fwd_ndhwc_f32_instance.cpp
+)
