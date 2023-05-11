@@ -28,7 +28,7 @@ using Empty_Tuple = ck::Tuple<>;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-// static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // a[m, k] * b[n, k] = e[m, n]
 using device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances = std::tuple<

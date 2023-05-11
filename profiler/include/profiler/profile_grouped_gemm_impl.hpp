@@ -89,10 +89,7 @@ bool profile_grouped_gemm_impl(int do_verification,
         std::size_t num_thread = 1;
         switch(init_method)
         {
-        case 0:
-            utils::FillConstant<ADataType>{1.0}(a_m_k[i]);
-            utils::FillConstant<BDataType>{1.0}(b_k_n[i]);
-            break;
+        case 0: break;
         case 1:
             a_m_k[i].GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5}, num_thread);
             b_k_n[i].GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5}, num_thread);
