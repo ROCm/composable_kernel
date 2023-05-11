@@ -73,6 +73,10 @@ int run_groupnorm_example(int argc, char* argv[])
         return 1;
     };
 
+    size_t workspace_sz = device_instance.GetWorkSpaceSize(argument_ptr.get());
+    DeviceMem workspace_dev(workspace_sz);
+    device_instance.SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
+
     auto invoker_ptr = device_instance.MakeInvokerPointer();
     float ave_time   = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true, true});
 
