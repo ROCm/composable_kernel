@@ -265,7 +265,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                         StrideC,
                         GridwiseGemm::CalculateMPadded(M),
                         GridwiseGemm::CalculateNPadded(N),
-                        GridwiseGemm::CalculateKPadded(K),
+                        GridwiseGemm::CalculateKPadded(K, KBatch),
                         GridwiseGemm::CalculateK0(K, KBatch),
                         KBatch};
     }
@@ -298,7 +298,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                           StrideC,
                                           GridwiseGemm::CalculateMPadded(M),
                                           GridwiseGemm::CalculateNPadded(N),
-                                          GridwiseGemm::CalculateKPadded(K),
+                                          GridwiseGemm::CalculateKPadded(K, KBatch),
                                           GridwiseGemm::CalculateK0(K, KBatch),
                                           KBatch);
     }
