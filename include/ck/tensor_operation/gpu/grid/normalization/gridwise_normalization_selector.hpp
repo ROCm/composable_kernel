@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "ck/tensor_operation/gpu/grid/gridwise_normalization_naive_variance.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_normalization_welford_variance.hpp"
+#include "ck/tensor_operation/gpu/grid/normalization/gridwise_normalization_naive_variance.hpp"
+#include "ck/tensor_operation/gpu/grid/normalization/gridwise_normalization_welford_variance.hpp"
 
 namespace ck {
 template <typename GridwiseReduction,
