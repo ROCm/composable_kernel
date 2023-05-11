@@ -1097,10 +1097,9 @@ __host__ __device__ uint8_t cast_to_f8(float x, uint32_t rng)
     if(x_bitwise == 0)
         return 0;
 
-    uint32_t drop_mask = (1 << (wm_f32 - wm_f8)) - 1;
-    const int max_exp  = (1 << we_f8) - (negative_zero_nan ? 1 : 2);
-    const int exp_low_cutoff =
-        0x80 - (1 << (we_f8 - 1)) + 1 - (negative_zero_nan ? 1 : 0);
+    uint32_t drop_mask       = (1 << (wm_f32 - wm_f8)) - 1;
+    const int max_exp        = (1 << we_f8) - (negative_zero_nan ? 1 : 2);
+    const int exp_low_cutoff = 0x80 - (1 << (we_f8 - 1)) + 1 - (negative_zero_nan ? 1 : 0);
 
     exponent -= exp_low_cutoff - 1;
     if(exponent <= 0)
@@ -1150,9 +1149,9 @@ template <>
 inline __host__ __device__ f8_t type_convert<f8_t, float>(float x)
 {
     constexpr bool negative_zero_nan = true;
-    constexpr bool clip = true;
-    constexpr f8_rounding_mode rm = f8_rounding_mode::standard;
-    constexpr uint32_t rng = 0;
+    constexpr bool clip              = true;
+    constexpr f8_rounding_mode rm    = f8_rounding_mode::standard;
+    constexpr uint32_t rng           = 0;
     return cast_to_f8<negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(x, rng);
 }
 
@@ -1185,7 +1184,7 @@ __host__ __device__ float cast_from_f8(uint8_t x)
     uint32_t sign     = x >> (we_f8 + wm_f8);
     uint32_t mantissa = x & ((1 << wm_f8) - 1);
     int exponent      = (x & 0x7F) >> wm_f8;
-    
+
     if(negative_zero_nan)
     {
         if(x == 0x80)
@@ -1200,7 +1199,8 @@ __host__ __device__ float cast_from_f8(uint8_t x)
     }
 
     uint32_t retval;
-    const int exp_low_cutoff = (1 << (we_f32 - 1)) - (1 << (we_f8 - 1)) + 1 - (negative_zero_nan ? 1 : 0);
+    const int exp_low_cutoff =
+        (1 << (we_f32 - 1)) - (1 << (we_f8 - 1)) + 1 - (negative_zero_nan ? 1 : 0);
 
     // subnormal input
     if(exponent == 0)
