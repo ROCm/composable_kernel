@@ -268,8 +268,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 const index_t k_padded = GridwiseGemm::CalculateKPadded(K, K_BATCH);
                 const index_t k0       = GridwiseGemm::CalculateK0(K, K_BATCH);
 
-                const auto c_grid_desc_m_n =
-                    GridwiseGemm::MakeCGridDescriptor_M_N(M, N, m_padded, n_padded, stride_c);
+                const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(M, N, stride_c);
 
                 const auto local_b2c_tile_map =
                     Block2ETileMapKSplit{c_grid_desc_m_n, B2E_M01, K_BATCH};
@@ -322,8 +321,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 const index_t k_padded = GridwiseGemm::CalculateKPadded(karg.K, K_BATCH);
                 const index_t k0       = GridwiseGemm::CalculateK0(karg.K, K_BATCH);
 
-                const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(
-                    karg.M, karg.N, karg.MPadded, karg.NPadded, karg.StrideC);
+                const auto c_grid_desc_m_n =
+                    GridwiseGemm::MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
 
                 const auto local_b2c_tile_map =
                     Block2ETileMapKSplit{c_grid_desc_m_n, B2E_M01, K_BATCH};

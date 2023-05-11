@@ -8,14 +8,14 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
+#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 
 namespace ck {
 
@@ -101,6 +101,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     static constexpr auto K1  = Number<K1Value>{};
     static constexpr auto M01 = 1;
     static constexpr auto N01 = 1;
+
+    static constexpr auto gemm_padder =
+        tensor_operation::device::GemmPadder<GemmSpec, index_t, index_t, index_t>{
+            MPerBlock, NPerBlock, K1* K0PerBlock};
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -301,8 +305,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         }
     }
 
-    __host__ __device__ static auto
-    MakeCGridDescriptor_M_N(index_t M, index_t N, index_t MPad, index_t NPad, index_t StrideC)
+    __host__ __device__ static auto MakeCGridDescriptor_M_N(index_t M, index_t N, index_t StrideC)
     {
         const auto c_grid_desc_m_n = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
@@ -315,22 +318,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             }
         }();
 
-        if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding)
-        {
-            return transform_tensor_descriptor(c_grid_desc_m_n,
-                                               make_tuple(make_right_pad_transform(M, MPad - M),
-                                                          make_right_pad_transform(N, NPad - N)),
-                                               make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                               make_tuple(Sequence<0>{}, Sequence<1>{}));
-        }
-        else
-        {
-            return transform_tensor_descriptor(
-                c_grid_desc_m_n,
-                make_tuple(make_pass_through_transform(M), make_pass_through_transform(N)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
-        }
+        return gemm_padder.PadCDescriptor_M_N(c_grid_desc_m_n);
     }
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
@@ -579,7 +567,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         return BlockToCTileMap_3DGrid_KSplit<MPerBlock, NPerBlock>();
     }
 
-    using CGridDesc_M_N         = remove_cvref_t<decltype(MakeCGridDescriptor_M_N(1, 1, 1, 1, 1))>;
+    using CGridDesc_M_N         = remove_cvref_t<decltype(MakeCGridDescriptor_M_N(1, 1, 1))>;
     using DefaultBlock2CTileMap = remove_cvref_t<decltype(MakeDefaultBlock2CTileMap())>;
 
     template <bool HasMainKBlockLoop,
@@ -596,8 +584,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             karg.M, karg.MPadded, karg.K, karg.StrideA, karg.k_batch, karg.K0, karg.KPadded);
         const auto b_b_k0_n_k1_grid_desc = MakeBGridDescriptor_KBatch_K0_N_K1(
             karg.K, karg.NPadded, karg.N, karg.StrideB, karg.k_batch, karg.K0, karg.KPadded);
-        const auto c_grid_desc_m_n =
-            MakeCGridDescriptor_M_N(karg.M, karg.N, karg.MPadded, karg.NPadded, karg.StrideC);
+        const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
@@ -847,6 +834,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
         }
 #else
+        // gridwise GEMM pipeline
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_b_k0_m_k1_grid_desc.GetLength(I1) * a_b_k0_m_k1_grid_desc.GetLength(I3)) /
             (K0PerBlock * K1));
