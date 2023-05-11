@@ -30,7 +30,7 @@ template <typename InDataType,
           ck::index_t KThreadSliceSize,
           ck::index_t InSrcOutDstVectorSize>
 struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
-    : public DevicePoolFwd<5, 3, ReduceOpId>
+    : public DevicePoolFwd<5, 3, ReduceOpId, OuputIndex>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
