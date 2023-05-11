@@ -337,11 +337,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 auto grouped_block_2_ctile_map =
                     GroupedGemmBlock2ETileMap(local_b2c_tile_map, block_start);
 
-#if DEBUG_LOG
-                std::cout << "[group " << i << "], k_padded: " << k_padded << ", k0: " << k0
-                          << std::endl;
-#endif // DEBUG_LOG
-
                 karg.KPadded                            = k_padded;
                 karg.K0                                 = k0;
                 karg.k_batch                            = K_BATCH;
