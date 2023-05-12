@@ -81,6 +81,24 @@ struct PassThrough
         y = x;
     }
 #endif
+
+    template <>
+    __host__ __device__ void operator()<f8_t, f8_t>(f8_t& y, const f8_t& x) const
+    {
+        y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<float, f8_t>(float& y, const f8_t& x) const
+    {
+        y = type_convert<float>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<f8_t, float>(f8_t& y, const float& x) const
+    {
+        y = type_convert<f8_t>(x);
+    }
 };
 
 struct UnaryConvert
