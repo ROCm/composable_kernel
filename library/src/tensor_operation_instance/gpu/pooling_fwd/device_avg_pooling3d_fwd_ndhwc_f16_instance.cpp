@@ -14,7 +14,7 @@ void add_device_avg_pooling3d_fwd_ndhwc_f16_instances(
     std::vector<std::unique_ptr<DevicePoolFwd<5, 3, ReduceOpId, false>>>& instances)
 {
     add_device_operation_instances(
-        instances, device_pooling3d_fwd_ndhwc_instances<F16, F16, F32, ReduceOpId, false>{});
+        instances, device_pooling3d_fwd_ndhwc_instances<F16, F16, I32, F32, ReduceOpId, false>{});
 }
 
 

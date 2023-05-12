@@ -14,7 +14,7 @@ void add_device_avg_pooling2d_fwd_nhwc_f32_instances(
     std::vector<std::unique_ptr<DevicePoolFwd<4, 2, ReduceOpId, false>>>& instances)
 {
     add_device_operation_instances(
-        instances, device_pooling2d_fwd_nhwc_instances<F32, F32, F32, ReduceOpId, false>{});
+        instances, device_pooling2d_fwd_nhwc_instances<F32, F32, I32, F32, ReduceOpId, false>{});
 }
 
 } // namespace instance

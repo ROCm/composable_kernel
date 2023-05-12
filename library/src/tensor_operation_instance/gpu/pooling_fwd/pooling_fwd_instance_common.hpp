@@ -15,20 +15,22 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+using I32 = int32_t;
 using F16 = ck::half_t;
 using F32 = float;
 
 template <typename InDataType,
           typename OutDataType,
+          typename IndexDataType,
           typename AccDataType,
           ReduceTensorOp ReduceOpId,
           bool OuputIndex>
 using device_pooling2d_fwd_nhwc_instances =
     // clang-format off
     std::tuple <
-        DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<InDataType, OutDataType, AccDataType, ReduceOpId, OuputIndex, 256, 256, 1, 1, 1, 1>,
-        DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<InDataType, OutDataType, AccDataType, ReduceOpId, OuputIndex, 256, 256, 1, 2, 1, 2>,
-        DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<InDataType, OutDataType, AccDataType, ReduceOpId, OuputIndex, 256, 256, 1, 4, 1, 4>
+        DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<InDataType, OutDataType, IndexDataType, AccDataType, ReduceOpId, OuputIndex, 256, 256, 1, 1, 1, 1>,
+        DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<InDataType, OutDataType, IndexDataType, AccDataType, ReduceOpId, OuputIndex, 256, 256, 1, 2, 1, 2>,
+        DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<InDataType, OutDataType, IndexDataType, AccDataType, ReduceOpId, OuputIndex, 256, 256, 1, 4, 1, 4>
                  // clang-format on
                  >;
 
@@ -40,9 +42,9 @@ template <typename InDataType,
 using device_pooling3d_fwd_ndhwc_instances =
     // clang-format off
     std::tuple <
-        DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C<InDataType, OutDataType, AccDataType, ReduceOpId, OuputIndex, 256, 256, 1, 1, 1, 1>,
-        DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C<InDataType, OutDataType, AccDataType, ReduceOpId, OuputIndex, 256, 256, 1, 2, 1, 2>,
-        DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C<InDataType, OutDataType, AccDataType, ReduceOpId, OuputIndex, 256, 256, 1, 4, 1, 4>
+        DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C<InDataType, OutDataType, IndexDataType, AccDataType, ReduceOpId, OuputIndex, 256, 256, 1, 1, 1, 1>,
+        DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C<InDataType, OutDataType, IndexDataType, AccDataType, ReduceOpId, OuputIndex, 256, 256, 1, 2, 1, 2>,
+        DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C<InDataType, OutDataType, IndexDataType, AccDataType, ReduceOpId, OuputIndex, 256, 256, 1, 4, 1, 4>
                  // clang-format on
                  >;
 

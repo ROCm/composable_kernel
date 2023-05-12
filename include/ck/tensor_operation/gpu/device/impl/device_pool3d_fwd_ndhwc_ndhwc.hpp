@@ -20,6 +20,7 @@ namespace device {
 
 template <typename InDataType,
           typename OutDataType,
+          typename IndexDataType, // enable if OuputIndex == true
           typename AccDataType,
           ck::ReduceTensorOp ReduceOpId,
           bool OuputIndex,
@@ -41,8 +42,6 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
 
     static constexpr index_t InOutRank  = 5;
     static constexpr index_t WindowRank = 3;
-
-    using IndexDataType = int32_t;
 
     using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
 

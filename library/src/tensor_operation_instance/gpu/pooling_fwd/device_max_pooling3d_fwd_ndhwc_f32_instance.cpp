@@ -14,14 +14,14 @@ void add_device_max_pooling3d_fwd_ndhwc_f32_instances(
     std::vector<std::unique_ptr<DevicePoolFwd<5, 3, ReduceOpId, false>>>& instances)
 {
     add_device_operation_instances(
-        instances, device_pooling3d_fwd_ndhwc_instances<F32, F32, F32, ReduceOpId, false>{});
+        instances, device_pooling3d_fwd_ndhwc_instances<F32, F32, I32, F32, ReduceOpId, false>{});
 }
 
 void add_device_max_pooling3d_fwd_ndhwc_index_f32_instances(
     std::vector<std::unique_ptr<DevicePoolFwd<5, 3, ReduceOpId, true>>>& instances)
 {
     add_device_operation_instances(
-        instances, device_pooling3d_fwd_ndhwc_instances<F32, F32, F32, ReduceOpId, true>{});
+        instances, device_pooling3d_fwd_ndhwc_instances<F32, F32, I32, F32, ReduceOpId, true>{});
 }
 
 } // namespace instance

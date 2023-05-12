@@ -166,9 +166,10 @@ bool pool3d_test(bool do_verification,
 {
     using DevicePoolFwdInstance =
         ck::tensor_operation::device::DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C<
-            InDataType,  // InDataType
-            OutDataType, // OutDataType
-            AccDataType, // AccDataType
+            InDataType,    // InDataType
+            OutDataType,   // OutDataType
+            IndexDataType, // IndexDataType
+            AccDataType,   // AccDataType
             ReduceOpId,
             OutputIndex,
             64, // BlockSize
