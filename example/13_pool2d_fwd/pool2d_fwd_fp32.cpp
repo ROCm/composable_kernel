@@ -2,7 +2,6 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
-#include <cstdlib>
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
