@@ -121,7 +121,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                  index_t StrideB_,
                  index_t StrideC_,
                  uint32_t num_cu,
-                 uint32_t occupancy)
+                 uint32_t occupancy,
+                 uint32_t num_sk_blocks_)
             : p_a_grid(p_a_grid_),
               p_b_grid(p_b_grid_),
               p_c_grid(p_c_grid_),
@@ -131,7 +132,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
               StrideA(StrideA_),
               StrideB(StrideB_),
               StrideC(StrideC_),
-              block_mapping(M, N, K, num_cu, occupancy)
+              block_mapping(M, N, K, num_cu, occupancy, num_sk_blocks_)
         {
         }
 
@@ -384,13 +385,13 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
     }
 
     // return block_id to C matrix tile idx (m0, n0, k_split) mapping
-    __host__ __device__ static constexpr auto MakeDefaultBlock2CTileMap()
-    {
-        return BlockToCTileMap_3DGrid_KSplit<MPerBlock, NPerBlock>();
-    }
+    // __host__ __device__ static constexpr auto MakeDefaultBlock2CTileMap()
+    // {
+    //     return BlockToCTileMap_3DGrid_KSplit<MPerBlock, NPerBlock>();
+    // }
 
-    using CGridDesc_M_N         = remove_cvref_t<decltype(MakeCGridDescriptor_M_N(1, 1, 1, 1, 1))>;
-    using DefaultBlock2CTileMap = remove_cvref_t<decltype(MakeDefaultBlock2CTileMap())>;
+    using CGridDesc_M_N = remove_cvref_t<decltype(MakeCGridDescriptor_M_N(1, 1, 1, 1, 1))>;
+    // using DefaultBlock2CTileMap = remove_cvref_t<decltype(MakeDefaultBlock2CTileMap())>;
 
     __device__ static void Run(const Argument& karg, void* __restrict__ p_shared_block)
     {
@@ -474,7 +475,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
         block_mapping.get_block_itr(block_idx, iter_start, iter_end);
         uint32_t total_iter_length = iter_end - iter_start;
         // if(threadIdx.x == 0)
-        //     printf("xxx bid:%d, is_sk_block:%d, is_dp_block:%d\n", static_cast<int>(blockIdx.x), is_sk_block, is_dp_block);
+        //     printf("xxx bid:%d, is_sk_block:%d, is_dp_block:%d\n", static_cast<int>(blockIdx.x),
+        //     is_sk_block, is_dp_block);
         if(!is_sk_block && !is_dp_block)
             return;
 
@@ -496,12 +498,13 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
             const index_t k0_block_data_idx_on_grid =
                 __builtin_amdgcn_readfirstlane(iter_offset * K0PerBlock);
 
-        // if(threadIdx.x == 0)
-        //     printf("[%s], bid:%d, block_idx:%d, tile_idx:%d(%d, %d, %d), iter_start:%d(%d | %d), iter_end:%d, len:%d\n",
-        //         is_sk_block ? "sk_block" : (is_dp_block ? "dp_block" : "other "),
-        //         static_cast<int>(blockIdx.x), block_idx, tile_idx, m_block_data_idx_on_grid,
-        //         n_block_data_idx_on_grid, k0_block_data_idx_on_grid, iter_end -
-        //         current_iter_length, iter_offset, iter_start, iter_end, current_iter_length);
+            // if(threadIdx.x == 0)
+            //     printf("[%s], bid:%d, block_idx:%d, tile_idx:%d(%d, %d, %d), iter_start:%d(%d |
+            //     %d), iter_end:%d, len:%d\n",
+            //         is_sk_block ? "sk_block" : (is_dp_block ? "dp_block" : "other "),
+            //         static_cast<int>(blockIdx.x), block_idx, tile_idx, m_block_data_idx_on_grid,
+            //         n_block_data_idx_on_grid, k0_block_data_idx_on_grid, iter_end -
+            //         current_iter_length, iter_offset, iter_start, iter_end, current_iter_length);
 
             // A matrix blockwise copy
             auto a_blockwise_copy =

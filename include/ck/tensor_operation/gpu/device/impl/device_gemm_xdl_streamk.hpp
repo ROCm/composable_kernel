@@ -10,7 +10,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_streamk.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_streamk.hpp"
 #include "ck/host_utility/device_prop.hpp"
@@ -58,15 +58,15 @@ template <typename ADataType,
           index_t CShuffleNRepeatPerShuffle,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CBlockTransferScalarPerVector_NWaveNPerXDL>
-struct DeviceGemmXdlStreamK : public DeviceGemm<ALayout,
-                                                BLayout,
-                                                CLayout,
-                                                ADataType,
-                                                BDataType,
-                                                CDataType,
-                                                AElementwiseOperation,
-                                                BElementwiseOperation,
-                                                CElementwiseOperation>
+struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
+                                                       BLayout,
+                                                       CLayout,
+                                                       ADataType,
+                                                       BDataType,
+                                                       CDataType,
+                                                       AElementwiseOperation,
+                                                       BElementwiseOperation,
+                                                       CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -185,7 +185,8 @@ struct DeviceGemmXdlStreamK : public DeviceGemm<ALayout,
                              index_t StrideC,
                              AElementwiseOperation,
                              BElementwiseOperation,
-                             CElementwiseOperation)
+                             CElementwiseOperation,
+                             index_t NumSKBlocks = 0)
     {
         const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm>;
         int occupancy, num_cu;
@@ -212,7 +213,8 @@ struct DeviceGemmXdlStreamK : public DeviceGemm<ALayout,
                         StrideB,
                         StrideC,
                         static_cast<uint32_t>(num_cu),
-                        static_cast<uint32_t>(occupancy)};
+                        static_cast<uint32_t>(occupancy),
+                        static_cast<uint32_t>(NumSKBlocks)};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -229,7 +231,8 @@ struct DeviceGemmXdlStreamK : public DeviceGemm<ALayout,
                                                       index_t StrideC,
                                                       AElementwiseOperation,
                                                       BElementwiseOperation,
-                                                      CElementwiseOperation) override
+                                                      CElementwiseOperation,
+                                                      index_t NumSKBlocks = 0) override
     {
         const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm>;
         int occupancy, num_cu;
@@ -256,7 +259,8 @@ struct DeviceGemmXdlStreamK : public DeviceGemm<ALayout,
                                           StrideB,
                                           StrideC,
                                           static_cast<uint32_t>(num_cu),
-                                          static_cast<uint32_t>(occupancy));
+                                          static_cast<uint32_t>(occupancy),
+                                          static_cast<uint32_t>(NumSKBlocks));
     }
 
     // polymorphic

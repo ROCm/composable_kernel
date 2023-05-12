@@ -671,8 +671,13 @@ struct BlockToCTileMap_GemmStreamK
     }
 
     // prefer construct on host
-    BlockToCTileMap_GemmStreamK(
-        uint32_t m, uint32_t n, uint32_t k, uint32_t num_cu, uint32_t occupancy, uint32_t tile_swizzle_sub_m_factor = 8)
+    BlockToCTileMap_GemmStreamK(uint32_t m,
+                                uint32_t n,
+                                uint32_t k,
+                                uint32_t num_cu,
+                                uint32_t occupancy,
+                                uint32_t sk_blocks                 = 0,
+                                uint32_t tile_swizzle_sub_m_factor = 8)
     {
         uint32_t num_tiles =
             math::integer_divide_ceil(m, MPerBlock) * math::integer_divide_ceil(n, NPerBlock);
@@ -771,6 +776,8 @@ struct BlockToCTileMap_GemmStreamK
                 sk_num_blocks = 0;
             }
 
+            // give a chance to control num of sk blocks
+            sk_num_blocks = sk_blocks != 0 ? sk_blocks : sk_num_blocks;
             sk_num_blocks = env_get_int("sk_num_blocks", sk_num_blocks);
 
             if(sk_num_blocks == 0)
@@ -804,10 +811,15 @@ struct BlockToCTileMap_GemmStreamK
             }
         }
         n_tiles = MDiv(math::integer_divide_ceil(n, NPerBlock));
-        tile_swizzle_sub_m = MDiv(tile_swizzle_sub_m_factor);
-        tile_swizzle_sub_m_rem = MDiv(math::integer_divide_ceil(m, MPerBlock) % tile_swizzle_sub_m_factor);
 
-        printf("cu:%d, occupancy:%d, grids:%d, num_tiles:%d, dp_tiles:%d, sk_num_big_blocks:%d, sk_num_blocks:%d, "
+        tile_swizzle_sub_m_factor =
+            env_get_int("tile_swizzle_sub_m_factor", tile_swizzle_sub_m_factor);
+        tile_swizzle_sub_m = MDiv(tile_swizzle_sub_m_factor);
+        tile_swizzle_sub_m_rem =
+            MDiv(math::integer_divide_ceil(m, MPerBlock) % tile_swizzle_sub_m_factor);
+
+        printf("cu:%d, occupancy:%d, grids:%d, num_tiles:%d, dp_tiles:%d, sk_num_big_blocks:%d, "
+               "sk_num_blocks:%d, "
                "sk_total_iters:%d, dp_start_block_idx:%d, dp_iters_per_block:%d, dp_num_blocks:%d, "
                "k_iters_per_tile:%d, k_iters_per_big_block:%d\n",
                num_cu,
@@ -889,9 +901,10 @@ struct BlockToCTileMap_GemmStreamK
         uint32_t quo_sub_m, rem_sub_m;
         tile_swizzle_sub_m.divmod(m_tile_idx, quo_sub_m, rem_sub_m);
 
-        const auto sub_m_adapt = (m_tile_idx < (m_tiles - tile_swizzle_sub_m_rem.get())) ?
-            tile_swizzle_sub_m : tile_swizzle_sub_m_rem;
-        
+        const auto sub_m_adapt = (m_tile_idx < (m_tiles - tile_swizzle_sub_m_rem.get()))
+                                     ? tile_swizzle_sub_m
+                                     : tile_swizzle_sub_m_rem;
+
         uint32_t m_tile_idx_sub0, m_tile_idx_sub1;
         tile_swizzle_sub_m.divmod(m_tile_idx, m_tile_idx_sub0, m_tile_idx_sub1);
         uint32_t tile_idx_local = n_tile_idx + m_tile_idx_sub1 * n_tiles.get();
@@ -899,7 +912,7 @@ struct BlockToCTileMap_GemmStreamK
         uint32_t m_tile_idx_with_adapt, n_tile_idx_with_adapt;
         sub_m_adapt.divmod(tile_idx_local, n_tile_idx_with_adapt, m_tile_idx_with_adapt);
         return make_tuple(m_tile_idx_with_adapt + m_tile_idx_sub0 * tile_swizzle_sub_m.get(),
-                            n_tile_idx_with_adapt);
+                          n_tile_idx_with_adapt);
     }
 };
 

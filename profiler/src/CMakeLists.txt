@@ -3,6 +3,7 @@ set(PROFILER_SOURCES
     profiler.cpp
     profile_gemm.cpp
     profile_gemm_splitk.cpp
+    profile_gemm_streamk.cpp
     profile_gemm_bilinear.cpp
     profile_gemm_bias_add_reduce.cpp
     profile_gemm_add_add_fastgelu.cpp
@@ -40,6 +41,7 @@ target_compile_options(${PROFILER_EXECUTABLE} PRIVATE -Wno-global-constructors)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE utility)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_splitk_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_streamk_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_bilinear_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_add_fastgelu_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_multiply_instance)
