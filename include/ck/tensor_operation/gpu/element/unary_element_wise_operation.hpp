@@ -127,6 +127,23 @@ struct ConvertBF16RTN
     }
 };
 
+struct ConvertF8SR
+{
+    // convert to fp8 using stochastic rounding (SR)
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const
+    {
+        // check Y datatype
+        static_assert(is_same<Y, f8_t>::value, "Data type is not supported by this operation!");
+
+        // check X datatype
+        static_assert(is_same<X, float>::value || is_same<X, half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = f8_convert_sr<Y>(x);
+    }
+};
+
 struct Scale
 {
     __host__ __device__ Scale(float scale) : scale_(scale) {}

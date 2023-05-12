@@ -1174,11 +1174,11 @@ __host__ __device__ uint32_t prand_generator(int id, T val)
 
 // Declare a template function for fp8 conversion using SR
 template <typename Y, typename X>
-__host__ __device__ constexpr Y fp8_convert_sr(X x);
+__host__ __device__ constexpr Y f8_convert_sr(X x);
 
 // convert fp32 to fp8 with stochastic rounding
 template <>
-inline __host__ __device__ f8_t fp8_convert_sr<f8_t, float>(float x)
+inline __host__ __device__ f8_t f8_convert_sr<f8_t, float>(float x)
 {
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
@@ -1186,13 +1186,6 @@ inline __host__ __device__ f8_t fp8_convert_sr<f8_t, float>(float x)
     constexpr int seed               = 42;
     uint32_t rng                     = prand_generator<float, seed>(get_thread_global_1d_id(), x);
     return cast_to_f8<negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(x, rng);
-}
-
-// convert fp8 to fp32
-template <>
-inline __host__ __device__ float fp8_convert_sr<float, f8_t>(f8_t x)
-{
-    return type_convert<float>(x);
 }
 
 template <typename T>
