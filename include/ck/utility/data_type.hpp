@@ -1183,8 +1183,8 @@ inline __host__ __device__ f8_t fp8_convert_sr<f8_t, float>(float x)
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
-    constexpr int seed = 42;
-    uint32_t rng           = prand_generator<float, seed>(get_thread_global_1d_id(), x);
+    constexpr int seed               = 42;
+    uint32_t rng                     = prand_generator<float, seed>(get_thread_global_1d_id(), x);
     return cast_to_f8<negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(x, rng);
 }
 
@@ -1192,7 +1192,7 @@ inline __host__ __device__ f8_t fp8_convert_sr<f8_t, float>(float x)
 template <>
 inline __host__ __device__ float fp8_convert_sr<float, f8_t>(f8_t x)
 {
-        return type_convert<float>(x);
+    return type_convert<float>(x);
 }
 
 template <typename T>
