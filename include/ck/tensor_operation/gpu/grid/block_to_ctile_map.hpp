@@ -686,7 +686,7 @@ struct BlockToCTileMap_GemmStreamK
         // one cu can hold one wg at one time, from the whole chip's point of view
         // if number of wg is same as num_cu, we call it 1 dispatch
         // if number of wg is 2x num_cu, we call it 2 dispatches.
-        // one dispatch can deliever wg same as num_cu (full dispatch), or less than num_cu (partial
+        // one dispatch can deliver wg same as num_cu (full dispatch), or less than num_cu (partial
         // dispatch)
         //
         uint32_t full_dispatches         = num_tiles / num_cu;

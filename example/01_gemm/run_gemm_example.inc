@@ -37,7 +37,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(stride == 0)
             {
-                // give a chance if stride is zero, return a defalt packed stride
+                // give a chance if stride is zero, return a default packed stride
                 if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
                 {
                     return col;
