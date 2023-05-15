@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-// #include <algorithm>
-// #include <stdexcept>
-#include <vector>
+#include <tuple>
 
 #include "gtest/gtest.h"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -34,17 +32,23 @@ class TestGemmSplitK_MK_KN
 {
 };
 
-// template <typename Tuple>
-// class TestGemmSplitK_MK_NK : public ck::test::TestGemmSplitK<tuple_concat<std::tuple<Row, Col>,
-// Tuple>::type> {};
+template <typename Tuple>
+class TestGemmSplitK_MK_NK
+    : public ck::test::TestGemmSplitK<typename tuple_concat<std::tuple<Row, Col>, Tuple>::type>
+{
+};
 
-// template <typename Tuple>
-// class TestGemmSplitK_KM_KN : public ck::test::TestGemmSplitK<tuple_concat<std::tuple<Col, Row>,
-// Tuple>::type> {};
+template <typename Tuple>
+class TestGemmSplitK_KM_KN
+    : public ck::test::TestGemmSplitK<typename tuple_concat<std::tuple<Col, Row>, Tuple>::type>
+{
+};
 
-// template <typename Tuple>
-// class TestGemmSplitK_KM_NK : public ck::test::TestGemmSplitK<tuple_concat<std::tuple<Col, Col>,
-// Tuple>::type> {};
+template <typename Tuple>
+class TestGemmSplitK_KM_NK
+    : public ck::test::TestGemmSplitK<typename tuple_concat<std::tuple<Col, Col>, Tuple>::type>
+{
+};
 
 // clang-format off
 using KernelTypes = ::testing::Types<
@@ -55,8 +59,8 @@ using KernelTypes = ::testing::Types<
 // clang-format on
 
 TYPED_TEST_SUITE(TestGemmSplitK_MK_KN, KernelTypes);
-// TYPED_TEST_SUITE(TestGemmSplitK_MK_NK, KernelTypes);
-// TYPED_TEST_SUITE(TestGemmSplitK_KM_KN, KernelTypes);
-// TYPED_TEST_SUITE(TestGemmSplitK_KM_NK, KernelTypes);
+TYPED_TEST_SUITE(TestGemmSplitK_MK_NK, KernelTypes);
+TYPED_TEST_SUITE(TestGemmSplitK_KM_KN, KernelTypes);
+TYPED_TEST_SUITE(TestGemmSplitK_KM_NK, KernelTypes);
 
 #include "test_gemm_splitk_ut_cases.inc"
