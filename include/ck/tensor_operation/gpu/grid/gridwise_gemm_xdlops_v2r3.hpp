@@ -43,7 +43,8 @@ __global__ void
             const CElementwiseOperation c_element_op,
             const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
+    defined(__gfx940__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -135,7 +136,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
     // we convert fp16->fp32->bf16 and execute bf16 mfma instruction
     // when mfma if fixed, remove this section and update
     // FloatABAdjusted -> FloatAB throughout this file
-#if CK_WORKAROUND_DENORM_FIX && defined(__gfx90a__)
+#if CK_WORKAROUND_DENORM_FIX
     using FloatABAdjusted = conditional_t<is_same_v<FloatAB, ck::half_t>, ck::bhalf_t, FloatAB>;
 #else
     using FloatABAdjusted = FloatAB;

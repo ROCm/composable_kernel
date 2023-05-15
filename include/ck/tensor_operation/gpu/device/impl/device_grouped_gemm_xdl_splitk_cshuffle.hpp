@@ -34,7 +34,8 @@ __global__ void
         kernel_grouped_gemm_xdl_splitk(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                        const index_t group_count)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
+    defined(__gfx940__))
     constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
     __shared__ uint8_t p_shared[shared_size];
 
