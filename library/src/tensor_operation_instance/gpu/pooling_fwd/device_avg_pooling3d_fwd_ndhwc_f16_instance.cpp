@@ -17,7 +17,6 @@ void add_device_avg_pooling3d_fwd_ndhwc_f16_instances(
         instances, device_pooling3d_fwd_ndhwc_instances<F16, F16, I32, F32, ReduceOpId, false>{});
 }
 
-
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
