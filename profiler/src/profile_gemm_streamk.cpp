@@ -58,10 +58,11 @@ int profile_gemm_streamk(int argc, char* argv[])
     const int N = std::stoi(argv[9]);
     const int K = std::stoi(argv[10]);
 
-    const int StrideA     = std::stoi(argv[11]);
-    const int StrideB     = std::stoi(argv[12]);
-    const int StrideC     = std::stoi(argv[13]);
-    const int NumSKBlocks = argc >= 15 ? std::stoi(argv[14]) : 0;
+    const int StrideA = std::stoi(argv[11]);
+    const int StrideB = std::stoi(argv[12]);
+    const int StrideC = std::stoi(argv[13]);
+    const uint32_t NumSKBlocks =
+        argc >= 15 ? static_cast<uint32_t>(std::stoul(std::string(argv[14]))) : 0xffffffff;
 
     using F32 = float;
     using F16 = ck::half_t;

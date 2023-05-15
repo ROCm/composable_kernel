@@ -676,7 +676,7 @@ struct BlockToCTileMap_GemmStreamK
                                 uint32_t k,
                                 uint32_t num_cu,
                                 uint32_t occupancy,
-                                uint32_t sk_blocks                 = 0,
+                                uint32_t sk_blocks                 = 0xffffffff,
                                 uint32_t tile_swizzle_sub_m_factor = 8)
     {
         uint32_t num_tiles =
@@ -777,7 +777,7 @@ struct BlockToCTileMap_GemmStreamK
             }
 
             // give a chance to control num of sk blocks
-            sk_num_blocks = sk_blocks != 0 ? sk_blocks : sk_num_blocks;
+            sk_num_blocks = sk_blocks != 0xffffffff ? sk_blocks : sk_num_blocks;
             sk_num_blocks = env_get_int("sk_num_blocks", sk_num_blocks);
 
             if(sk_num_blocks == 0)

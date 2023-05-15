@@ -41,7 +41,7 @@ bool profile_gemm_streamk_impl(int do_verification,
                                int StrideA,
                                int StrideB,
                                int StrideC,
-                               int NumSKBlocks = 0)
+                               uint32_t NumSKBlocks = 0xffffffff)
 {
     bool pass = true;
 
@@ -72,8 +72,8 @@ bool profile_gemm_streamk_impl(int do_verification,
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{0, 1});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-1, 1});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-3, 3});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -110,7 +110,8 @@ bool profile_gemm_streamk_impl(int do_verification,
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
 
-    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+    std::cout << "found " << op_ptrs.size() << " instances, "
+              << (do_verification ? "with verification" : "without verification") << std::endl;
 
     // Run reference GEMM
     if(do_verification)

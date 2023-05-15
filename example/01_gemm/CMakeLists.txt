@@ -45,3 +45,4 @@ if(GPU_TARGETS MATCHES "gfx1100" OR GPU_TARGETS MATCHES "gfx1101" OR GPU_TARGETS
 endif()
 
 add_example_executable(example_gemm_xdl_streamk gemm_xdl_streamk.cpp)
+set_source_files_properties(gemm_xdl_streamk.cpp PROPERTIES COMPILE_OPTIONS "-v;--save-temps;-Wno-gnu-line-marker")

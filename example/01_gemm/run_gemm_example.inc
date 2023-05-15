@@ -3,7 +3,10 @@
 
 #pragma once
 
-bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
+#include "ck/tensor_operation/gpu/device/device_gemm_streamk.hpp"
+
+template <typename ProblemType>
+bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 {
 #if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
     static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
@@ -11,7 +14,12 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 
     using namespace ck::literals;
 
-    auto [M, N, K, StrideA, StrideB, StrideC] = problem_size;
+    auto M       = problem_size.M;
+    auto N       = problem_size.N;
+    auto K       = problem_size.K;
+    auto StrideA = problem_size.StrideA;
+    auto StrideB = problem_size.StrideB;
+    auto StrideC = problem_size.StrideC;
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -25,21 +33,23 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
             }
         };
 
-    auto f_get_default_stride = [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-        if(stride == 0) {
-            // give a chance if stride is zero, return a defalt packed stride
-            if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
+    auto f_get_default_stride =
+        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+            if(stride == 0)
             {
-                return col;
+                // give a chance if stride is zero, return a defalt packed stride
+                if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
+                {
+                    return col;
+                }
+                else
+                {
+                    return row;
+                }
             }
             else
-            {
-                return row;
-            }
-        }
-        else
-            return stride;
-    };
+                return stride;
+        };
 
     StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
     StrideB = f_get_default_stride(K, N, StrideB, BLayout{});
@@ -94,37 +104,86 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     auto b_element_op = BElementOp{};
     auto c_element_op = CElementOp{};
 
+    using BaseStreamK = ck::tensor_operation::device::DeviceGemmStreamK<ALayout,
+                                                                        BLayout,
+                                                                        CLayout,
+                                                                        ADataType,
+                                                                        BDataType,
+                                                                        CDataType,
+                                                                        AElementOp,
+                                                                        BElementOp,
+                                                                        CElementOp>;
+
     // do GEMM
-    auto gemm     = DeviceGemmInstance{};
-    auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(
-#ifdef BUILD_INT4_EXAMPLE
-        static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-        static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-        static_cast<KernelCDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-#else
-        static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-        static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-        static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-#endif
-        M,
-        N,
-        K,
-        StrideA,
-        StrideB,
-        StrideC,
-        a_element_op,
-        b_element_op,
-        c_element_op);
+    auto gemm      = DeviceGemmInstance{};
+    auto invoker   = gemm.MakeInvoker();
+    float ave_time = 0;
 
-    if(!gemm.IsSupportedArgument(argument))
+    if constexpr(std::is_same<ProblemType, ProblemSize>::value &&
+                 !std::is_base_of<BaseStreamK, DeviceGemmInstance>::value)
     {
-        std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
+        auto argument = gemm.MakeArgument(
+#ifdef BUILD_INT4_EXAMPLE
+            static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+            static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+            static_cast<KernelCDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+#else
+            static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+            static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+            static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+#endif
+            M,
+            N,
+            K,
+            StrideA,
+            StrideB,
+            StrideC,
+            a_element_op,
+            b_element_op,
+            c_element_op);
 
-        return true;
+        if(!gemm.IsSupportedArgument(argument))
+        {
+            std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+            return true;
+        }
+
+        ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
     }
+    else if constexpr(std::is_same<ProblemType, ProblemSizeStreamK>::value &&
+                      std::is_base_of<BaseStreamK, DeviceGemmInstance>::value)
+    {
+        auto argument = gemm.MakeArgument(
+#ifdef BUILD_INT4_EXAMPLE
+            static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+            static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+            static_cast<KernelCDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+#else
+            static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+            static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+            static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+#endif
+            M,
+            N,
+            K,
+            StrideA,
+            StrideB,
+            StrideC,
+            a_element_op,
+            b_element_op,
+            c_element_op,
+            problem_size.NumSKBlocks);
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+        if(!gemm.IsSupportedArgument(argument))
+        {
+            std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+            return true;
+        }
+
+        ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+    }
 
     std::size_t flop = 2_uz * M * N * K;
     std::size_t num_btype =
@@ -168,6 +227,14 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 bool run_gemm_example(int argc, char* argv[])
 {
     ProblemSize problem_size;
+    ExecutionConfig config;
+
+    return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);
+}
+
+bool run_gemm_streamk_example(int argc, char* argv[])
+{
+    ProblemSizeStreamK problem_size;
     ExecutionConfig config;
 
     return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);
