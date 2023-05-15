@@ -36,6 +36,7 @@ using device_pooling2d_fwd_nhwc_instances =
 
 template <typename InDataType,
           typename OutDataType,
+          typename IndexDataType,
           typename AccDataType,
           ReduceTensorOp ReduceOpId,
           bool OuputIndex>
