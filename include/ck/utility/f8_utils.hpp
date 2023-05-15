@@ -25,7 +25,7 @@ __host__ __device__ f8_t cast_to_f8(float x, uint32_t rng)
     constexpr int wm_f8 = 3;
 
     // fp32 exponent/mantissa layout
-    // constexpr int we_f32 = 8;
+    constexpr int we_f32 = 8;
     constexpr int wm_f32 = 23;
 
     uint32_t x_bitwise;
@@ -38,8 +38,8 @@ __host__ __device__ f8_t cast_to_f8(float x, uint32_t rng)
 
     head     = x_bitwise & 0xFF800000;
     mantissa = x_bitwise & 0x7FFFFF;
-    exponent = (head >> 23) & 0xFF;
-    sign     = head >> 31;
+    exponent = (head >> wm_f32) & 0xFF;
+    sign     = head >> (we_f32 + wm_f32);
 
     uint32_t signed_inf = (sign << (we_f8 + wm_f8)) + (((1 << we_f8) - 1) << wm_f8);
 
@@ -99,9 +99,9 @@ __host__ __device__ f8_t cast_to_f8(float x, uint32_t rng)
         }
     }
     if(exponent == 0 && mantissa == 0)
-        return negative_zero_nan ? 0 : (sign << 7);
+        return negative_zero_nan ? 0 : (sign << (we_f8 + wm_f8));
     mantissa &= (1 << wm_f8) - 1;
-    return (sign << 7) | (exponent << wm_f8) | mantissa;
+    return (sign << (we_f8 + wm_f8)) | (exponent << wm_f8) | mantissa;
 }
 
 // cast fp8 to fp32
