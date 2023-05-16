@@ -49,8 +49,8 @@ template <
     typename = std::enable_if_t<std::is_class_v<Object> && std::is_trivially_copyable_v<Object>>>
 __device__ auto readfirstlane(const Object& obj)
 {
-    static constexpr std::size_t SgprSize   = 4;
-    static constexpr std::size_t ObjectSize = sizeof(Object);
+    constexpr std::size_t SgprSize   = 4;
+    constexpr std::size_t ObjectSize = sizeof(Object);
 
     using Sgpr = detail::get_signed_int_t<SgprSize>;
 
