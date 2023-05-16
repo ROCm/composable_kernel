@@ -493,10 +493,11 @@ def Build_CK(Map conf=[:]){
                 {
                     cmake_build(conf)
                     dir("build"){
+                        //run tests and examples 
+                        sh 'make -j check'
                         if (navi_node == 0 ){
-                           //run tests and examples on all nodes except Navi
-                           sh 'make -j check'
-                           //we only need the ckProfiler to run the performance tests, so we pack and stash it
+                            //we only need the ckProfiler to run the performance tests, so we pack and stash it
+                            //do not stash profiler on Navi nodes
                            sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
                            stash "ckProfiler.tar.gz"
                         }
