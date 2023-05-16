@@ -162,7 +162,7 @@ struct MDiv
     // 1 dword -> 3 dword storage
     uint32_t divisor;
     uint32_t multiplier;
-    uint32_t shift;
+    uint32_t shift; // TODO: 8 bit is enough
 
     // prefer construct on host
     __host__ __device__ MDiv(uint32_t divisor_) : divisor(divisor_)

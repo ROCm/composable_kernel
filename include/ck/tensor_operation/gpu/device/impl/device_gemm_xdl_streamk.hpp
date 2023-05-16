@@ -143,8 +143,21 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
             // TODO: remove clear buffer for streamk kernels
             hipGetErrorString(hipMemset(karg.p_c_grid, 0, karg.M * karg.N * sizeof(CDataType)));
 
-            ave_time =
-                launch_and_time_kernel(stream_config, kernel, grid_dims, dim3(BlockSize), 0, karg);
+            ave_time = launch_and_time_kernel(stream_config,
+                                              kernel,
+                                              grid_dims,
+                                              dim3(BlockSize),
+                                              0,
+                                              karg.p_a_grid,
+                                              karg.p_b_grid,
+                                              karg.p_c_grid,
+                                              karg.M,
+                                              karg.N,
+                                              karg.K,
+                                              karg.StrideA,
+                                              karg.StrideB,
+                                              karg.StrideC,
+                                              karg.block_mapping);
 
             return ave_time;
         }

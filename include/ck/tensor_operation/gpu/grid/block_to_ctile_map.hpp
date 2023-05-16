@@ -8,6 +8,7 @@
 #include "ck/tensor_description/tensor_adaptor.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include <limits>
+#include <stdlib.h>
 
 namespace ck {
 
@@ -635,14 +636,18 @@ struct BlockToCTileMap_3DGrid_KSplit
         return true;
     }
 };
-#include <stdlib.h>
-template <uint32_t MPerBlock_, uint32_t NPerBlock_, uint32_t KPerBlock_>
+
+template <uint32_t MPerBlock_,
+          uint32_t NPerBlock_,
+          uint32_t KPerBlock_,
+          uint32_t TileSwizzleSubM_ = 8>
 struct BlockToCTileMap_GemmStreamK
 {
     static constexpr uint32_t min_k_iters_per_sk_block = 2;
     static constexpr uint32_t MPerBlock                = MPerBlock_;
     static constexpr uint32_t NPerBlock                = NPerBlock_;
     static constexpr uint32_t KPerBlock                = KPerBlock_;
+    static constexpr uint32_t tile_swizzle_sub_m       = TileSwizzleSubM_;
 
     //--------------------------------------
     // pass to device
@@ -657,8 +662,8 @@ struct BlockToCTileMap_GemmStreamK
     uint32_t k_iters_per_big_block;
     MDiv k_iters_per_tile;
     MDiv n_tiles;
-    MDiv tile_swizzle_sub_m;
-    MDiv tile_swizzle_sub_m_rem;
+
+    // MDiv tile_swizzle_sub_m_rem;
     //--------------------------------------
 
     static int env_get_int(const char* var_name, int default_int)
@@ -676,8 +681,7 @@ struct BlockToCTileMap_GemmStreamK
                                 uint32_t k,
                                 uint32_t num_cu,
                                 uint32_t occupancy,
-                                uint32_t sk_blocks                 = 0xffffffff,
-                                uint32_t tile_swizzle_sub_m_factor = 8)
+                                uint32_t sk_blocks = 0xffffffff)
     {
         uint32_t num_tiles =
             math::integer_divide_ceil(m, MPerBlock) * math::integer_divide_ceil(n, NPerBlock);
@@ -723,15 +727,8 @@ struct BlockToCTileMap_GemmStreamK
             sk_tiles     = partial_dispatche_tiles + num_cu;
         }
 
-        // dp_num_blocks = dp_tiles;
-        // dp_start_block_idx = num_cu * sk_occupancy;
         dp_iters_per_block = k_iters_per_tile.get();
-
-        sk_total_iters = k_iters_per_tile.get() * sk_tiles;
-
-        // printf("num_tiles:%d, full_dispatches:%d, full_dispatch_tiles:%d,
-        // partial_dispatche_tiles:%d\n",
-        //         num_tiles, full_dispatches, full_dispatch_tiles, partial_dispatche_tiles);
+        sk_total_iters     = k_iters_per_tile.get() * sk_tiles;
 
         {
             uint32_t min_sk_tiles = (sk_tiles >= num_cu) ? num_cu : (sk_tiles + 1);
@@ -812,11 +809,8 @@ struct BlockToCTileMap_GemmStreamK
         }
         n_tiles = MDiv(math::integer_divide_ceil(n, NPerBlock));
 
-        tile_swizzle_sub_m_factor =
-            env_get_int("tile_swizzle_sub_m_factor", tile_swizzle_sub_m_factor);
-        tile_swizzle_sub_m = MDiv(tile_swizzle_sub_m_factor);
-        tile_swizzle_sub_m_rem =
-            MDiv(math::integer_divide_ceil(m, MPerBlock) % tile_swizzle_sub_m_factor);
+        // tile_swizzle_sub_m_rem =
+        //    MDiv(math::integer_divide_ceil(m, MPerBlock) % tile_swizzle_sub_m);
 
         printf("cu:%d, occupancy:%d, grids:%d, num_tiles:%d, dp_tiles:%d, sk_num_big_blocks:%d, "
                "sk_num_blocks:%d, "
@@ -896,22 +890,25 @@ struct BlockToCTileMap_GemmStreamK
 
         // swizzle tile
         uint32_t m_tiles = math::integer_divide_ceil(m, MPerBlock);
-        // uint32_t n_tiles = math::integer_divide_ceil(n, NPerBlock);
 
-        uint32_t quo_sub_m, rem_sub_m;
-        tile_swizzle_sub_m.divmod(m_tile_idx, quo_sub_m, rem_sub_m);
+        uint32_t tile_swizzle_sub_m_rem = m_tiles % tile_swizzle_sub_m;
 
-        const auto sub_m_adapt = (m_tile_idx < (m_tiles - tile_swizzle_sub_m_rem.get()))
+        const auto sub_m_adapt = (m_tile_idx < (m_tiles - tile_swizzle_sub_m_rem))
                                      ? tile_swizzle_sub_m
                                      : tile_swizzle_sub_m_rem;
 
         uint32_t m_tile_idx_sub0, m_tile_idx_sub1;
-        tile_swizzle_sub_m.divmod(m_tile_idx, m_tile_idx_sub0, m_tile_idx_sub1);
+        m_tile_idx_sub0 = m_tile_idx / tile_swizzle_sub_m;
+        m_tile_idx_sub1 = m_tile_idx % tile_swizzle_sub_m;
+
         uint32_t tile_idx_local = n_tile_idx + m_tile_idx_sub1 * n_tiles.get();
 
         uint32_t m_tile_idx_with_adapt, n_tile_idx_with_adapt;
-        sub_m_adapt.divmod(tile_idx_local, n_tile_idx_with_adapt, m_tile_idx_with_adapt);
-        return make_tuple(m_tile_idx_with_adapt + m_tile_idx_sub0 * tile_swizzle_sub_m.get(),
+
+        n_tile_idx_with_adapt = tile_idx_local / sub_m_adapt;
+        m_tile_idx_with_adapt = tile_idx_local % sub_m_adapt;
+        // sub_m_adapt.divmod(tile_idx_local, n_tile_idx_with_adapt, m_tile_idx_with_adapt);
+        return make_tuple(m_tile_idx_with_adapt + m_tile_idx_sub0 * tile_swizzle_sub_m,
                           n_tile_idx_with_adapt);
     }
 };
