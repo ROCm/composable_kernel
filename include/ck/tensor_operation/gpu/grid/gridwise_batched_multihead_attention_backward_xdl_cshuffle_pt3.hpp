@@ -1507,7 +1507,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                              3,
                                              m2,
                                              1,
-                                             false>{
+                                             true /* ResetCoordAfterRun */>{
                 lse_grid_desc_mblock_mrepeat_mwave_mperxdl,
                 make_multi_index(0,                        // mblock
                                  acc0_thread_origin[I0],   // mrepeat
@@ -1746,11 +1746,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             3,
             m2,
             1,
-            false>{y_dot_ygrad_block_desc_mblock_mrepeat_mwave_mperxdl,
-                   make_multi_index(I0,                       // mblock
-                                    acc0_thread_origin[I0],   // mrepeat
-                                    acc0_thread_origin[I2],   // mwave
-                                    acc0_thread_origin[I4])}; // mperxdl
+            true /* ResetCoordAfterRun */>{y_dot_ygrad_block_desc_mblock_mrepeat_mwave_mperxdl,
+                                           make_multi_index(I0,                       // mblock
+                                                            acc0_thread_origin[I0],   // mrepeat
+                                                            acc0_thread_origin[I2],   // mwave
+                                                            acc0_thread_origin[I4])}; // mperxdl
 
         auto y_dot_ygrad_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatGemmAcc>(
             y_dot_ygrad_thread_desc_mblock_mrepeat_mwave_mperxdl.GetElementSpaceSize());
@@ -1785,6 +1785,20 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             if(c0_matrix_mask.IsTileSkippable(
                    m_block_data_idx_on_grid, n_block_data_idx_on_grid, MPerBlock, NPerBlock))
             {
+                // move slice window
+                gemm_tile_q_blockwise_copy.MoveSrcSliceWindow(
+                    q_grid_desc_k0_m_k1,
+                    GemmBlockwiseCopy::gemm_tile_q_block_slice_copy_step); // step M
+                gemm_tile_ygrad_blockwise_copy.MoveSrcSliceWindow(
+                    ygrad_grid_desc_o0_m_o1,
+                    GemmBlockwiseCopy::gemm_tile_ygrad_block_slice_copy_step); // step M
+                qgrad_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+                    qgrad_grid_desc_m0_o0_m1_o1_m2_o2_o3_o4,
+                    Gemm1::c_block_slice_copy_step); // step M
+                lse_thread_copy_global_to_vgpr.MoveSrcSliceWindow(
+                    lse_grid_desc_mblock_mrepeat_mwave_mperxdl, make_multi_index(1, 0, 0, 0));
+                y_threadwise_copy.MoveSrcSliceWindow(y_grid_desc_mblock_mperblock_oblock_operblock,
+                                                     make_multi_index(1, 0, 0, 0));
                 continue;
             }
 
