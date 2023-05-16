@@ -1189,7 +1189,7 @@ inline __host__ f8_t f8_convert_sr<f8_t, float>(float x)
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 42;
     // as thread id is not available on host, use 0 for prn generation
-    uint32_t rng                     = prand_generator<float, seed>(0, x);
+    uint32_t rng = prand_generator<float, seed>(0, x);
     return cast_to_f8<negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(x, rng);
 }
 
