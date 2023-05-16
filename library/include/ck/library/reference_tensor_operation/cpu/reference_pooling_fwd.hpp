@@ -9,6 +9,8 @@
 #include <algorithm>
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
+#include "ck/utility/reduction_functions_accumulate.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 
