@@ -7,6 +7,7 @@
 #include "ck/utility/functional2.hpp"
 #include "ck/utility/math.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <type_traits>
 
@@ -54,9 +55,9 @@ __device__ auto readfirstlane(const Object& obj)
 
     using Sgpr = detail::get_signed_int_t<SgprSize>;
 
-    alignas(Object) unsigned char memory[ObjectSize];
+    alignas(Object) std::byte memory[ObjectSize];
 
-    const auto* from = reinterpret_cast<const unsigned char*>(&obj);
+    const auto* from = reinterpret_cast<const std::byte*>(&obj);
     static_for<0, ObjectSize, SgprSize>{}([&](auto offset) {
         *reinterpret_cast<Sgpr*>(memory + offset) =
             readfirstlane(*reinterpret_cast<const Sgpr*>(from + offset));
