@@ -40,6 +40,7 @@
 #include "ck/utility/amd_address_space.hpp"
 #include "ck/utility/static_buffer.hpp"
 #include "ck/utility/dynamic_buffer.hpp"
+#include "ck/utility/readfirstlane.hpp"
 
 // TODO: remove this
 #if CK_USE_AMD_INLINE_ASM
