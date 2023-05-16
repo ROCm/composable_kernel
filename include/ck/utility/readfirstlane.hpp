@@ -57,7 +57,7 @@ __device__ auto readfirstlane(const Object& obj)
 
     alignas(Object) std::byte memory[ObjectSize];
 
-    const auto* from = reinterpret_cast<const std::byte*>(&obj);
+    auto* const from = reinterpret_cast<const std::byte*>(&obj);
     static_for<0, ObjectSize, SgprSize>{}([&](auto offset) {
         *reinterpret_cast<Sgpr*>(memory + offset) =
             readfirstlane(*reinterpret_cast<const Sgpr*>(from + offset));
