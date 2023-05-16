@@ -62,7 +62,7 @@ __device__ auto readfirstlane(const Object& obj)
             readfirstlane(*reinterpret_cast<const Sgpr*>(from + offset));
     });
 
-    static constexpr std::size_t RemainedSize = ObjectSize % SgprSize;
+    constexpr std::size_t RemainedSize = ObjectSize % SgprSize;
     if constexpr(0 < RemainedSize)
     {
         using Carrier = detail::get_signed_int_t<RemainedSize>;
