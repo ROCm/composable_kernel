@@ -22,32 +22,49 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdl_cshuffle_v1_simplified(
-            const typename GridwiseGemm::FloatAB* __restrict__ p_a_grid,
-            const typename GridwiseGemm::FloatAB* __restrict__ p_b_grid,
-            typename GridwiseGemm::FloatC* __restrict__ p_c_grid,
-            typename GridwiseGemm::Argument karg)
+        kernel_gemm_xdl_cshuffle_v1(typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid, p_b_grid, p_c_grid, p_shared, karg);
+    GridwiseGemm::template Run<HasMainKBlockLoop>(
+        karg.p_a_grid, karg.p_b_grid, karg.p_c_grid, p_shared, karg);
+#else
+    ignore = karg;
+#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+}
+
+template <typename GridwiseGemm, typename FloatAB, typename FloatC, bool HasMainKBlockLoop>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_gemm_xdl_cshuffle_v2(const FloatAB* __restrict__ p_a_grid,
+                                    const FloatAB* __restrict__ p_b_grid,
+                                    FloatC* __restrict__ p_c_grid,
+                                    typename GridwiseGemm::Problem problem)
+{
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
+    defined(__gfx940__))
+    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+
+    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid, p_b_grid, p_c_grid, p_shared, problem);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
     ignore = p_c_grid;
-    ignore = karg;
+    ignore = problem;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
-          typename FloatAB_,
+          typename FloatAB,
           typename FloatGemmAcc,
           typename FloatCShuffle,
-          typename FloatC_,
+          typename FloatC,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -102,9 +119,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     static constexpr auto BK0Number = Number<KPerBlock / BK1Value>{};
     static constexpr auto AK1Number = Number<AK1Value>{};
     static constexpr auto BK1Number = Number<BK1Value>{};
-
-    using FloatAB = FloatAB_;
-    using FloatC  = FloatC_;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -389,15 +403,14 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         }
     }
 
-    // Argument
-    struct Argument : public tensor_operation::device::BaseArgument
+    struct Problem
     {
-        __host__ Argument(index_t M_,
-                          index_t N_,
-                          index_t K_,
-                          index_t StrideA_,
-                          index_t StrideB_,
-                          index_t StrideC_)
+        __host__ Problem(index_t M_,
+                         index_t N_,
+                         index_t K_,
+                         index_t StrideA_,
+                         index_t StrideB_,
+                         index_t StrideC_)
             : M{M_},
               N{N_},
               K{K_},
@@ -416,7 +429,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
         __host__ void Print() const
         {
-            std::cout << "arg {"
+            std::cout << "problem {"
                       << "M:" << M << ", "
                       << "N:" << N << ", "
                       << "K:" << K << ", "
@@ -445,6 +458,30 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         index_t BK0;
         index_t MBlock;
         index_t NBlock;
+    };
+
+    // Argument
+    struct Argument : public tensor_operation::device::BaseArgument, public Problem
+    {
+        __host__ Argument(const FloatAB* p_a_grid_,
+                          const FloatAB* p_b_grid_,
+                          FloatC* p_c_grid_,
+                          index_t M_,
+                          index_t N_,
+                          index_t K_,
+                          index_t StrideA_,
+                          index_t StrideB_,
+                          index_t StrideC_)
+            : Problem{M_, N_, K_, StrideA_, StrideB_, StrideC_},
+              p_a_grid{p_a_grid_},
+              p_b_grid{p_b_grid_},
+              p_c_grid{p_c_grid_}
+        {
+        }
+
+        const FloatAB* p_a_grid;
+        const FloatAB* p_b_grid;
+        FloatC* p_c_grid;
     };
 
     // FIXME: pass GridwiseGemmPipe as a template arguement into GridwiseGemm
@@ -510,7 +547,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
-    __host__ static constexpr bool CheckValidity(const Argument& karg)
+    __host__ static constexpr bool CheckValidity(const Problem& problem)
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
@@ -521,7 +558,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                        GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
         {
-            if(!(karg.M % MPerBlock == 0))
+            if(!(problem.M % MPerBlock == 0))
             {
                 return false;
             }
@@ -532,7 +569,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                        GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
         {
-            if(!(karg.N % NPerBlock == 0))
+            if(!(problem.N % NPerBlock == 0))
             {
                 return false;
             }
@@ -543,15 +580,15 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                      GemmSpec == tensor_operation::device::GemmSpecialization::KPadding ||
                      GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding)
         {
-            if(!(CalculateKPadded(karg.K) % AK1Value == 0) ||
-               !(CalculateKPadded(karg.K) % BK1Value == 0))
+            if(!(CalculateKPadded(problem.K) % AK1Value == 0) ||
+               !(CalculateKPadded(problem.K) % BK1Value == 0))
             {
                 return false;
             }
         }
         else
         {
-            if(!(karg.K % AK1Value == 0) || !(karg.K % BK1Value == 0))
+            if(!(problem.K % AK1Value == 0) || !(problem.K % BK1Value == 0))
             {
                 return false;
             }
@@ -559,14 +596,14 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
         if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
-            if(karg.K % ABlockTransferSrcScalarPerVector != 0)
+            if(problem.K % ABlockTransferSrcScalarPerVector != 0)
             {
                 return false;
             }
         }
         else
         {
-            if(karg.M % ABlockTransferSrcScalarPerVector != 0)
+            if(problem.M % ABlockTransferSrcScalarPerVector != 0)
             {
                 return false;
             }
@@ -574,14 +611,14 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
         if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
         {
-            if(karg.N % BBlockTransferSrcScalarPerVector != 0)
+            if(problem.N % BBlockTransferSrcScalarPerVector != 0)
             {
                 return false;
             }
         }
         else
         {
-            if(karg.K % BBlockTransferSrcScalarPerVector != 0)
+            if(problem.K % BBlockTransferSrcScalarPerVector != 0)
             {
                 return false;
             }
@@ -589,21 +626,21 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
         if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
         {
-            if(karg.N % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
+            if(problem.N % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
                 return false;
             }
         }
         else
         {
-            if(karg.M % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
+            if(problem.M % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
                 return false;
             }
         }
 
         // check gridwise gemm pipeline
-        const auto num_k_loop = (CalculateAK0(karg.K) * AK1Value) / KPerBlock;
+        const auto num_k_loop = (CalculateAK0(problem.K) * AK1Value) / KPerBlock;
 
         if(!GridwiseGemmPipe::IsSupported(num_k_loop))
         {
@@ -643,18 +680,18 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                const FloatAB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
                                void* __restrict__ p_shared,
-                               const Argument& karg)
+                               const Problem& problem)
     {
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
-            karg.M, karg.MPadded, karg.K, karg.KPadded, karg.StrideA, karg.AK0);
+            problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
         const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(
-            karg.K, karg.KPadded, karg.N, karg.NPadded, karg.StrideB, karg.BK0);
-        const auto c_grid_desc_m_n =
-            MakeCGridDescriptor_M_N(karg.M, karg.MPadded, karg.N, karg.NPadded, karg.StrideC);
+            problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideB, problem.BK0);
+        const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(
+            problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                c_grid_desc_m_n, karg.MBlock, karg.NBlock);
+                c_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -668,7 +705,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         const CElementwiseOperation c_element_op{};
 
         // divide block work by [M, N]
-        const auto block_2_ctile_map = Block2CTileMap{karg.M, karg.N};
+        const auto block_2_ctile_map = Block2CTileMap{problem.M, problem.N};
 
         const auto block_work_idx =
             block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));

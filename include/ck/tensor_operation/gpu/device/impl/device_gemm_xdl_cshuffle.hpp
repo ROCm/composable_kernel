@@ -130,80 +130,43 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         LoopSched,
         PipelineVer>;
 
-    struct Argument : public GridwiseGemm::Argument
-    {
-        using Parent = typename GridwiseGemm::Argument;
-
-        Argument(const ADataType* p_a_grid_,
-                 const BDataType* p_b_grid_,
-                 CDataType* p_c_grid_,
-                 index_t M_,
-                 index_t N_,
-                 index_t K_,
-                 index_t StrideA_,
-                 index_t StrideB_,
-                 index_t StrideC_)
-            : Parent(M_, N_, K_, StrideA_, StrideB_, StrideC_),
-              p_a_grid{p_a_grid_},
-              p_b_grid{p_b_grid_},
-              p_c_grid{p_c_grid_}
-        {
-        }
-
-        const ADataType* p_a_grid;
-        const BDataType* p_b_grid;
-        CDataType* p_c_grid;
-    };
+    using Argument = typename GridwiseGemm::Argument;
 
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
-                karg.Print();
+                arg.Print();
             }
 
-            if(!GridwiseGemm::CheckValidity(karg))
+            if(!GridwiseGemm::CheckValidity(arg))
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
 
             index_t gdx, gdy, gdz;
-            std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(karg.M, karg.N);
+            std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.M, arg.N);
 
-            const auto K = GridwiseGemm::CalculateAK0(karg.K) * AK1;
+            const auto K = GridwiseGemm::CalculateAK0(arg.K) * AK1;
 
             float ave_time = 0;
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                const auto kernel = kernel_gemm_xdl_cshuffle_v1_simplified<GridwiseGemm, true>;
+                const auto kernel = kernel_gemm_xdl_cshuffle_v1<GridwiseGemm, true>;
 
-                ave_time = launch_and_time_kernel(stream_config,
-                                                  kernel,
-                                                  dim3(gdx, gdy, gdz),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  karg.p_a_grid,
-                                                  karg.p_b_grid,
-                                                  karg.p_c_grid,
-                                                  karg);
+                ave_time = launch_and_time_kernel(
+                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
             }
             else
             {
-                const auto kernel = kernel_gemm_xdl_cshuffle_v1_simplified<GridwiseGemm, false>;
+                const auto kernel = kernel_gemm_xdl_cshuffle_v1<GridwiseGemm, false>;
 
-                ave_time = launch_and_time_kernel(stream_config,
-                                                  kernel,
-                                                  dim3(gdx, gdy, gdz),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  karg.p_a_grid,
-                                                  karg.p_b_grid,
-                                                  karg.p_c_grid,
-                                                  karg);
+                ave_time = launch_and_time_kernel(
+                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
             }
 
             return ave_time;
@@ -223,9 +186,9 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         return true;
     }
 
-    static bool IsSupportedArgument(const Argument& karg)
+    static bool IsSupportedArgument(const Argument& arg)
     {
-        return GridwiseGemm::CheckValidity(karg);
+        return GridwiseGemm::CheckValidity(arg);
     }
 
     // polymorphic
