@@ -291,6 +291,9 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
     MakeArgumentPointer(const void* p_in_dev,
                         void* p_out_dev,
                         void* p_out_indices_dev,
+                        std::array<ck::index_t, InOutRank>, // Suppose tensor layout = NDHWC
+                        std::array<ck::index_t, InOutRank>, // Suppose tensor layout = NDHWC
+                        std::array<ck::index_t, InOutRank>, // Suppose tensor layout = NDHWC
                         std::array<ck::index_t, InOutRank> input_lengths,
                         std::array<ck::index_t, WindowRank> window_lengths,
                         std::array<ck::index_t, InOutRank> output_lengths,
