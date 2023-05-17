@@ -1,0 +1,1 @@
+add_executable(client_flash_attention flash_attention.cpp)

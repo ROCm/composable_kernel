@@ -29,6 +29,14 @@ void add_device_operation_instances(std::vector<std::unique_ptr<BaseOp>>& op_ins
     });
 }
 
+template <typename DeviceOp>
+struct DeviceOperationInstances
+{
+    static auto get_device_instances() { return std::tuple<>{}; }
+};
+
+template <typename DeviceOp>
+struct DeviceOperationInstanceCreator;
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
