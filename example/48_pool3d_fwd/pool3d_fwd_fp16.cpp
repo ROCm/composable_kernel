@@ -35,12 +35,12 @@ int main()
     // Pool shape
     ck::index_t N               = 2;
     ck::index_t C               = 32;
-    ck::index_t Z               = 3;
-    ck::index_t Y               = 3;
-    ck::index_t X               = 3;
-    ck::index_t Di              = 31;
-    ck::index_t Hi              = 31;
-    ck::index_t Wi              = 31;
+    ck::index_t Z               = 2;
+    ck::index_t Y               = 2;
+    ck::index_t X               = 2;
+    ck::index_t Di              = 30;
+    ck::index_t Hi              = 30;
+    ck::index_t Wi              = 30;
     ck::index_t window_stride_d = 2;
     ck::index_t window_stride_h = 2;
     ck::index_t window_stride_w = 2;
