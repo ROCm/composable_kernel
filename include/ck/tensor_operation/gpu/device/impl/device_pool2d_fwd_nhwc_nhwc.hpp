@@ -20,10 +20,10 @@ namespace device {
 
 template <typename InDataType,
           typename OutDataType,
-          typename IndexDataType, // enable if OuputIndex == true
+          typename IndexDataType, // enable if OutputIndex == true
           typename AccDataType,
           ck::ReduceTensorOp ReduceOpId,
-          bool OuputIndex,
+          bool OutputIndex,
           ck::index_t BlockSize,
           ck::index_t ReduceMThreadClusterSize,
           ck::index_t ReduceKThreadClusterSize,
@@ -31,7 +31,7 @@ template <typename InDataType,
           ck::index_t ReduceKThreadSliceSize,
           ck::index_t InSrcOutDstVectorSize>
 struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
-    : public DevicePoolFwd<4, 2, InDataType, OutDataType, IndexDataType, ReduceOpId, OuputIndex>
+    : public DevicePoolFwd<4, 2, InDataType, OutDataType, IndexDataType, ReduceOpId, OutputIndex>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -230,7 +230,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
 
             const auto kernel =
                 kernel_reduce_threadwise<gridwise_reduce,
-                                         OuputIndex,
+                                         OutputIndex,
                                          true,  // pooling need to return global index
                                          false, // don't have index input
                                          InDataType,

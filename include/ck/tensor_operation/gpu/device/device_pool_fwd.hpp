@@ -19,7 +19,7 @@ template <index_t InOutRank,
           typename OutDataType,
           typename IndexDataType,
           ReduceTensorOp ReduceOpId,
-          bool OuputIndex>
+          bool OutputIndex>
 struct DevicePoolFwd : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
