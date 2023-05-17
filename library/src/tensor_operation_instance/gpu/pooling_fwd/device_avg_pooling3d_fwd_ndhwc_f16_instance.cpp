@@ -10,7 +10,7 @@ namespace instance {
 
 static constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
 
-void add_device_avg_pooling3d_fwd_ndhwc_f16_instances(
+void add_device_pooling3d_fwd_ndhwc_f16_instances(
     std::vector<std::unique_ptr<DevicePoolFwd<5, 3, ReduceOpId, false>>>& instances)
 {
     add_device_operation_instances(
