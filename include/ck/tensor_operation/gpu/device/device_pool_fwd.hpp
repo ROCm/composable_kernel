@@ -13,7 +13,13 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <index_t InOutRank, index_t WindowRank, ReduceTensorOp ReduceOpId, bool OuputIndex>
+template <index_t InOutRank,
+          index_t WindowRank,
+          typename InDataType,
+          typename OutDataType,
+          typename IndexDataType,
+          ReduceTensorOp ReduceOpId,
+          bool OuputIndex>
 struct DevicePoolFwd : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>

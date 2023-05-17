@@ -11,14 +11,14 @@ namespace instance {
 static constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
 
 void add_device_pooling2d_fwd_nhwc_f16_instances(
-    std::vector<std::unique_ptr<DevicePoolFwd<4, 2, ReduceOpId, false>>>& instances)
+    std::vector<std::unique_ptr<DevicePoolFwd<4, 2, F16, F16, I32, ReduceOpId, false>>>& instances)
 {
     add_device_operation_instances(
         instances, device_pooling2d_fwd_nhwc_instances<F16, F16, I32, F16, ReduceOpId, false>{});
 }
 
 void add_device_pooling2d_fwd_nhwc_index_f16_instances(
-    std::vector<std::unique_ptr<DevicePoolFwd<4, 2, ReduceOpId, true>>>& instances)
+    std::vector<std::unique_ptr<DevicePoolFwd<4, 2, F16, F16, I32, ReduceOpId, true>>>& instances)
 {
     add_device_operation_instances(
         instances, device_pooling2d_fwd_nhwc_instances<F16, F16, I32, F16, ReduceOpId, true>{});

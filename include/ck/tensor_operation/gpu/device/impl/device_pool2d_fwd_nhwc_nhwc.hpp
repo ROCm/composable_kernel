@@ -31,7 +31,7 @@ template <typename InDataType,
           ck::index_t ReduceKThreadSliceSize,
           ck::index_t InSrcOutDstVectorSize>
 struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
-    : public DevicePoolFwd<4, 2, ReduceOpId, OuputIndex>
+    : public DevicePoolFwd<4, 2, InDataType, OutDataType, IndexDataType, ReduceOpId, OuputIndex>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
