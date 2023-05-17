@@ -40,7 +40,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdl_cshuffle_v2(const FloatAB* __restrict__ p_a_grid,
+        kernel_gemm_xdl_cshuffle_v1(const FloatAB* __restrict__ p_a_grid,
                                     const FloatAB* __restrict__ p_b_grid,
                                     FloatC* __restrict__ p_c_grid,
                                     typename GridwiseGemm::Problem problem)

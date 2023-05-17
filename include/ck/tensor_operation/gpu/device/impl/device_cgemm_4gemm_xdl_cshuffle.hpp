@@ -285,7 +285,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
                 const auto kernel =
-                    kernel_gemm_xdl_cshuffle_v2<GridwiseGemm, ADataType, CDataType, true>;
+                    kernel_gemm_xdl_cshuffle_v1<GridwiseGemm, ADataType, CDataType, true>;
 
                 ave_time += launch_and_time_kernel(stream_config,
                                                    kernel,
@@ -358,7 +358,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
             else
             {
                 const auto kernel =
-                    kernel_gemm_xdl_cshuffle_v2<GridwiseGemm, ADataType, CDataType, false>;
+                    kernel_gemm_xdl_cshuffle_v1<GridwiseGemm, ADataType, CDataType, false>;
 
                 ave_time += launch_and_time_kernel(stream_config,
                                                    kernel,
