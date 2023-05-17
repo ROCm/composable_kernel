@@ -447,6 +447,9 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                const ushort p_dropout_in_16bits,
                                FloatGemmAcc p_dropout_rescale,
                                ck::philox& ph,
+                               const index_t g_idx,
+                               const index_t MRaw,
+                               const index_t NRaw,
                                const index_t block_idx_m)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -917,7 +920,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         {
             block_sync_lds();
         }
-        
+
         do
         {
             auto n_block_data_idx_on_grid =
@@ -986,6 +989,12 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                         block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
                     auto m_global = m_local + m_block_data_idx_on_grid;
                     auto n_global = n_local + n_block_data_idx_on_grid;
+
+                    // if(get_thread_global_1d_id()==0){
+                    //    printf("m_global is %d \n", m_global);
+                    //    printf("n_global is %d \n", n_global);
+                    //}
+
                     if(c0_matrix_mask.IsMaskedElement(m_global, n_global))
                     {
                         acc_thread_buf(i) = -ck::NumericLimits<float>::Infinity();
@@ -1012,6 +1021,51 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
 
             if constexpr(IsDropout) // dropout
             {
+                // 8d thread_desc in thread scope
+                constexpr auto c_thread_lengths =
+                    blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
+
+                // 8d block_desc in block scope
+                constexpr auto c_block_lengths =
+                    blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
+
+                constexpr auto M0 = c_block_lengths[I0];
+                constexpr auto N0 = c_block_lengths[I1];
+                constexpr auto M1 = c_block_lengths[I2];
+                constexpr auto N1 = c_block_lengths[I3];
+                constexpr auto M2 = c_block_lengths[I4];
+                constexpr auto N2 = c_block_lengths[I5];
+                constexpr auto N3 = c_block_lengths[I6];
+                constexpr auto N4 = c_block_lengths[I7];
+
+                // works like multi-dimension static_for (static_ford), but provides both the linear
+                // index as well as n-d index
+                using Acc0TileIterator = SpaceFillingCurve<
+                    decltype(c_thread_lengths),
+                    typename arithmetic_sequence_gen<0, c_thread_lengths.Size(), 1>::type,
+                    typename uniform_sequence_gen<c_thread_lengths.Size(), 1>::type,
+                    false>; // SnakeCurved
+
+                constexpr auto block_idx_to_m_n_adaptor = make_single_stage_tensor_adaptor(
+                    make_tuple(make_unmerge_transform(make_tuple(M0, M1, M2)),
+                               make_unmerge_transform(make_tuple(N0, N1, N2, N3, N4))),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}),
+                    make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5, 6, 7>{}));
+
+                auto acc0_thread_idx = Acc0TileIterator::GetIndex(I0) + acc0_thread_origin;
+                auto m_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
+                auto n_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
+                auto m_global = m_local + m_block_data_idx_on_grid;
+                auto n_global = n_local + n_block_data_idx_on_grid;
+
+                auto global_elem_id =
+                    MRaw * NRaw * g_idx + m_global * NRaw + n_global; // unique element global 1d id
+
+                // if(get_thread_global_1d_id()==1){
+                //        printf("at 1 m_global is %d \n", m_global);
+                //        printf("at 1 n_global is %d \n", n_global);
+                //        printf("at 1 global_elem_id is %d \n", global_elem_id);
+                //    }
 
                 // save z to global
                 if(p_z_grid)
@@ -1022,7 +1076,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                                                 false,
                                                                 decltype(n0),
                                                                 decltype(i)>(
-                            acc_thread_buf, ph, z_tenor_buffer);
+                            acc_thread_buf, ph, global_elem_id, z_tenor_buffer);
 
                         z_thread_copy_vgpr_to_global.Run(
                             z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
@@ -1046,7 +1100,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                     // ignore = z_grid_buf;
                     // P_dropped
                     blockwise_dropout.template ApplyDropout<decltype(acc_thread_buf), false>(
-                        acc_thread_buf, ph);
+                        acc_thread_buf, ph, global_elem_id);
                 }
             }
 
