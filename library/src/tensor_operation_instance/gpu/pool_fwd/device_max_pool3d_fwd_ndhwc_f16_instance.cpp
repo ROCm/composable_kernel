@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "pooling_fwd_instance_common.hpp"
+#include "pool_fwd_instance_common.hpp"
 
 namespace ck {
 namespace tensor_operation {

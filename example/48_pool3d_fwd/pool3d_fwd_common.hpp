@@ -16,7 +16,7 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_pooling_fwd.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_pool_fwd.hpp"
 
 template <typename InDataType,
           typename OutDataType,
