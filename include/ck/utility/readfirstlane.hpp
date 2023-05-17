@@ -40,7 +40,7 @@ using get_signed_int_t = typename get_signed_int<Size>::type;
 
 } // namespace detail
 
-__device__ std::int32_t readfirstlane(std::int32_t value)
+__device__ inline std::int32_t readfirstlane(std::int32_t value)
 {
     return __builtin_amdgcn_readfirstlane(value);
 }
@@ -55,12 +55,12 @@ __device__ auto readfirstlane(const Object& obj)
 
     using Sgpr = detail::get_signed_int_t<SgprSize>;
 
-    alignas(Object) std::byte memory[ObjectSize];
+    alignas(Object) std::byte to_obj[ObjectSize];
 
-    auto* const from = reinterpret_cast<const std::byte*>(&obj);
+    auto* const from_obj = reinterpret_cast<const std::byte*>(&obj);
     static_for<0, ObjectSize, SgprSize>{}([&](auto offset) {
-        *reinterpret_cast<Sgpr*>(memory + offset) =
-            readfirstlane(*reinterpret_cast<const Sgpr*>(from + offset));
+        *reinterpret_cast<Sgpr*>(to_obj + offset) =
+            readfirstlane(*reinterpret_cast<const Sgpr*>(from_obj + offset));
     });
 
     constexpr std::size_t RemainedSize = ObjectSize % SgprSize;
@@ -70,11 +70,13 @@ __device__ auto readfirstlane(const Object& obj)
 
         constexpr std::size_t offset = SgprSize * math::integer_divide_floor(ObjectSize, SgprSize);
 
-        *reinterpret_cast<Carrier>(memory + offset) =
-            readfirstlane(*reinterpret_cast<const Carrier*>(from + offset));
+        *reinterpret_cast<Carrier>(to_obj + offset) =
+            readfirstlane(*reinterpret_cast<const Carrier*>(from_obj + offset));
     }
 
-    return *reinterpret_cast<Object*>(memory);
+    /// NOTE: Implicitly start object lifetime. It's better to use
+    //        std::start_lifetime_at() in this scenario
+    return *reinterpret_cast<Object*>(to_obj);
 }
 
 } // namespace ck
