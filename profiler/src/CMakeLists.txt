@@ -25,6 +25,7 @@ set(PROFILER_SOURCES
     profile_reduce.cpp
     profile_groupnorm.cpp
     profile_layernorm.cpp
+    profile_avg_pool2d_fwd.cpp
     profile_max_pool3d_fwd.cpp
     profile_softmax.cpp
     profile_batchnorm_fwd.cpp
