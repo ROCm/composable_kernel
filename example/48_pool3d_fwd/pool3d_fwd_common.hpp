@@ -66,12 +66,11 @@ bool pool3d_test(bool do_verification,
     const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Y) / window_stride_h + 1;
     const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - X) / window_stride_w + 1;
 
-    const std::array<ck::index_t, 3> window_spatial_lengths{{Z, Y, X}};
-    const std::array<ck::index_t, 3> window_strides{
-        {window_stride_d, window_stride_h, window_stride_w}};
-    const std::array<ck::index_t, 3> input_left_pads{{in_left_pad_d, in_left_pad_h, in_left_pad_w}};
-    const std::array<ck::index_t, 3> input_right_pads{
-        {in_right_pad_d, in_right_pad_h, in_right_pad_w}};
+    const std::vector<ck::index_t> window_spatial_lengths{Z, Y, X};
+    const std::vector<ck::index_t> window_strides{
+        window_stride_d, window_stride_h, window_stride_w};
+    const std::vector<ck::index_t> input_left_pads{in_left_pad_d, in_left_pad_h, in_left_pad_w};
+    const std::vector<ck::index_t> input_right_pads{in_right_pad_d, in_right_pad_h, in_right_pad_w};
 
     // tensor layout
     auto f_host_tensor_descriptor = [](std::size_t N_,

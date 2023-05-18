@@ -26,16 +26,16 @@ struct DevicePoolFwd : public BaseOperator
     MakeArgumentPointer(const void* p_in_dev,
                         void* p_out_dev,
                         void* p_out_indices_dev,
-                        std::array<ck::index_t, InOutRank> input_stride,
-                        std::array<ck::index_t, InOutRank> output_stride,
-                        std::array<ck::index_t, InOutRank> indices_stride,
-                        std::array<ck::index_t, InOutRank> input_lengths,
-                        std::array<ck::index_t, WindowRank> window_lengths,
-                        std::array<ck::index_t, InOutRank> output_lengths,
-                        std::array<ck::index_t, WindowRank> window_strides,
-                        std::array<ck::index_t, WindowRank> input_left_pads,
-                        std::array<ck::index_t, WindowRank> input_right_pads,
-                        std::array<ck::index_t, WindowRank> pooling_dims) = 0;
+                        std::vector<ck::index_t> input_stride,
+                        std::vector<ck::index_t> output_stride,
+                        std::vector<ck::index_t> indices_stride,
+                        std::vector<ck::index_t> input_lengths,
+                        std::vector<ck::index_t> window_lengths,
+                        std::vector<ck::index_t> output_lengths,
+                        std::vector<ck::index_t> window_strides,
+                        std::vector<ck::index_t> input_left_pads,
+                        std::vector<ck::index_t> input_right_pads,
+                        std::vector<ck::index_t> pooling_dims) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };

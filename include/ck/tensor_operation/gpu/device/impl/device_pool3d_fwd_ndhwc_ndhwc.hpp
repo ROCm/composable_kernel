@@ -58,15 +58,14 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
     static constexpr ck::index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr ck::index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
-    static auto
-    MakeABGridDescriptor_A_M_K_B_M(ck::index_t N,
-                                   ck::index_t C,
-                                   std::array<ck::index_t, WindowRank> input_spatial_lengths,
-                                   std::array<ck::index_t, WindowRank> window_spatial_lengths,
-                                   std::array<ck::index_t, WindowRank> output_spatial_lengths,
-                                   std::array<ck::index_t, WindowRank> window_strides,
-                                   std::array<ck::index_t, WindowRank> input_left_pads,
-                                   std::array<ck::index_t, WindowRank> input_right_pads)
+    static auto MakeABGridDescriptor_A_M_K_B_M(ck::index_t N,
+                                               ck::index_t C,
+                                               std::vector<ck::index_t> input_spatial_lengths,
+                                               std::vector<ck::index_t> window_spatial_lengths,
+                                               std::vector<ck::index_t> output_spatial_lengths,
+                                               std::vector<ck::index_t> window_strides,
+                                               std::vector<ck::index_t> input_left_pads,
+                                               std::vector<ck::index_t> input_right_pads)
     {
         const index_t Di = input_spatial_lengths[0];
         const index_t Hi = input_spatial_lengths[1];
@@ -165,12 +164,12 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
                  IndexDataType* p_out_indices_dev,
                  ck::index_t N,
                  ck::index_t C,
-                 std::array<ck::index_t, WindowRank>& input_spatial_lengths,
-                 std::array<ck::index_t, WindowRank>& window_spatial_lengths,
-                 std::array<ck::index_t, WindowRank>& output_spatial_lengths,
-                 std::array<ck::index_t, WindowRank>& window_strides,
-                 std::array<ck::index_t, WindowRank>& input_left_pads,
-                 std::array<ck::index_t, WindowRank>& input_right_pads)
+                 std::vector<ck::index_t>& input_spatial_lengths,
+                 std::vector<ck::index_t>& window_spatial_lengths,
+                 std::vector<ck::index_t>& output_spatial_lengths,
+                 std::vector<ck::index_t>& window_strides,
+                 std::vector<ck::index_t>& input_left_pads,
+                 std::vector<ck::index_t>& input_right_pads)
             : p_in_dev_{p_in_dev},
               p_out_dev_{p_out_dev},
               p_out_indices_dev_{p_out_indices_dev},
@@ -291,17 +290,22 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
     MakeArgumentPointer(const void* p_in_dev,
                         void* p_out_dev,
                         void* p_out_indices_dev,
-                        std::array<ck::index_t, InOutRank>, // Suppose tensor layout = NDHWC
-                        std::array<ck::index_t, InOutRank>, // Suppose tensor layout = NDHWC
-                        std::array<ck::index_t, InOutRank>, // Suppose tensor layout = NDHWC
-                        std::array<ck::index_t, InOutRank> input_lengths,
-                        std::array<ck::index_t, WindowRank> window_lengths,
-                        std::array<ck::index_t, InOutRank> output_lengths,
-                        std::array<ck::index_t, WindowRank> window_strides,
-                        std::array<ck::index_t, WindowRank> input_left_pads,
-                        std::array<ck::index_t, WindowRank> input_right_pads,
-                        std::array<ck::index_t, WindowRank>) override
+                        std::vector<ck::index_t>, // Suppose tensor layout = NDHWC
+                        std::vector<ck::index_t>, // Suppose tensor layout = NDHWC
+                        std::vector<ck::index_t>, // Suppose tensor layout = NDHWC
+                        std::vector<ck::index_t> input_lengths,
+                        std::vector<ck::index_t> window_lengths,
+                        std::vector<ck::index_t> output_lengths,
+                        std::vector<ck::index_t> window_strides,
+                        std::vector<ck::index_t> input_left_pads,
+                        std::vector<ck::index_t> input_right_pads,
+                        std::vector<ck::index_t>) override
     {
+        if(input_lengths.size() != InOutRank || window_lengths.size() != WindowRank ||
+           input_lengths.size() != InOutRank || window_strides.size() != WindowRank ||
+           input_left_pads.size() != WindowRank || input_right_pads.size() != WindowRank)
+            throw std::runtime_error("dimension is incorrect");
+
         index_t N  = input_lengths[0];
         index_t C  = input_lengths[1];
         index_t Di = input_lengths[2];
@@ -311,8 +315,8 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
         index_t Ho = output_lengths[3];
         index_t Wo = output_lengths[4];
 
-        std::array<ck::index_t, WindowRank> input_spatial_lengths  = {Di, Hi, Wi};
-        std::array<ck::index_t, WindowRank> output_spatial_lengths = {Do, Ho, Wo};
+        std::vector<ck::index_t> input_spatial_lengths  = {Di, Hi, Wi};
+        std::vector<ck::index_t> output_spatial_lengths = {Do, Ho, Wo};
 
         return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_dev),
                                           static_cast<OutDataType*>(p_out_dev),

@@ -37,10 +37,10 @@ struct ReferencePoolingFwd : public device::BaseOperator
         Argument(const Tensor<InDataType>& in,
                  Tensor<OutDataType>& out,
                  Tensor<IndexDataType>& out_indices,
-                 const std::array<ck::index_t, WindowRank>& window_spatial_lengths,
-                 const std::array<ck::index_t, WindowRank>& window_strides,
-                 const std::array<ck::index_t, WindowRank>& in_left_pads,
-                 const std::array<ck::index_t, WindowRank>& /*in_right_pads*/)
+                 const std::vector<ck::index_t>& window_spatial_lengths,
+                 const std::vector<ck::index_t>& window_strides,
+                 const std::vector<ck::index_t>& in_left_pads,
+                 const std::vector<ck::index_t>& /*in_right_pads*/)
             : in_(in),
               out_(out),
               out_indices_(out_indices),
@@ -56,9 +56,9 @@ struct ReferencePoolingFwd : public device::BaseOperator
         const Tensor<InDataType>& in_;
         Tensor<OutDataType>& out_;
         Tensor<IndexDataType>& out_indices_;
-        const std::array<ck::index_t, WindowRank>& window_spatial_lengths_;
-        const std::array<ck::index_t, WindowRank>& window_strides_;
-        const std::array<ck::index_t, WindowRank>& in_left_pads_;
+        const std::vector<ck::index_t>& window_spatial_lengths_;
+        const std::vector<ck::index_t>& window_strides_;
+        const std::vector<ck::index_t>& in_left_pads_;
         int reduceLength_;
     };
 
@@ -306,10 +306,10 @@ struct ReferencePoolingFwd : public device::BaseOperator
     static auto MakeArgument(const Tensor<InDataType>& in,
                              Tensor<OutDataType>& out,
                              Tensor<IndexDataType>& out_indices,
-                             const std::array<ck::index_t, WindowRank>& window_spatial_lengths,
-                             const std::array<ck::index_t, WindowRank>& window_strides,
-                             const std::array<ck::index_t, WindowRank>& in_left_pads,
-                             const std::array<ck::index_t, WindowRank>& in_right_pads)
+                             const std::vector<ck::index_t>& window_spatial_lengths,
+                             const std::vector<ck::index_t>& window_strides,
+                             const std::vector<ck::index_t>& in_left_pads,
+                             const std::vector<ck::index_t>& in_right_pads)
     {
         return Argument{in,
                         out,
