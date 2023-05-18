@@ -66,7 +66,7 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
     ck::DataTypeEnum data_type = ck::DataTypeEnum::Half;
     bool do_verification       = true;
     int init_method            = 0;
-    bool do_log                = 0;
+    bool do_log                = false;
     bool time_kernel           = true;
     bool return_index          = false;
 

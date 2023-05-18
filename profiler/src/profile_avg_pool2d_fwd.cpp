@@ -65,7 +65,7 @@ int profile_avg_pool2d_fwd(int argc, char* argv[])
     ck::DataTypeEnum data_type = ck::DataTypeEnum::Half;
     bool do_verification       = true;
     int init_method            = 0;
-    bool do_log                = 0;
+    bool do_log                = false;
     bool time_kernel           = true;
 
     std::vector<index_t> in_length = {2, 32, 30, 30};
