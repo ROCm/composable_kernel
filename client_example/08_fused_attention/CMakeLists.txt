@@ -3,3 +3,6 @@ target_link_libraries(client_fused_attention PRIVATE composable_kernel::device_o
 
 add_executable(client_fused_attention_bias fused_attention_bias.cpp)
 target_link_libraries(client_fused_attention_bias PRIVATE composable_kernel::device_operations)
+
+add_executable(client_fused_attention_instance fused_attention_instance.cpp)
+target_link_libraries(client_fused_attention_instance PRIVATE composable_kernel::device_operations)
