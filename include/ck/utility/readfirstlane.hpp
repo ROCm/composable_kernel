@@ -58,24 +58,24 @@ __device__ auto readfirstlane(const Object& obj)
     alignas(Object) std::byte to_obj[ObjectSize];
 
     auto* const from_obj = reinterpret_cast<const std::byte*>(&obj);
-    static_for<0, ObjectSize, SgprSize>{}([&](auto offset) {
+
+    constexpr std::size_t RemainedSize             = ObjectSize % SgprSize;
+    constexpr std::size_t CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
+    static_for<0, CompleteSgprCopyBoundary, SgprSize>{}([&](auto offset) {
         *reinterpret_cast<Sgpr*>(to_obj + offset) =
             readfirstlane(*reinterpret_cast<const Sgpr*>(from_obj + offset));
     });
 
-    constexpr std::size_t RemainedSize = ObjectSize % SgprSize;
     if constexpr(0 < RemainedSize)
     {
         using Carrier = detail::get_signed_int_t<RemainedSize>;
 
-        constexpr std::size_t offset = SgprSize * math::integer_divide_floor(ObjectSize, SgprSize);
-
-        *reinterpret_cast<Carrier>(to_obj + offset) =
-            readfirstlane(*reinterpret_cast<const Carrier*>(from_obj + offset));
+        *reinterpret_cast<Carrier>(to_obj + CompleteSgprCopyBoundary) =
+            readfirstlane(*reinterpret_cast<const Carrier*>(from_obj + CompleteSgprCopyBoundary));
     }
 
     /// NOTE: Implicitly start object lifetime. It's better to use
-    //        std::start_lifetime_at() in this scenario
+    ///        std::start_lifetime_at() in this scenario
     return *reinterpret_cast<Object*>(to_obj);
 }
 
