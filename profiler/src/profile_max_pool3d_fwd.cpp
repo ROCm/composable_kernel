@@ -100,6 +100,7 @@ int profile_max_pool_fwd(int argc, char* argv[])
     }
 
     using F16                 = ck::half_t;
+    using F32                 = float;
     using I32                 = int32_t;
     constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
 
@@ -118,6 +119,31 @@ int profile_max_pool_fwd(int argc, char* argv[])
                 padding2);
         else
             ck::profiler::profile_pool3d_fwd_impl<F16, F16, F16, I32, ReduceOpId, false, false>(
+                do_verification,
+                init_method,
+                do_log,
+                time_kernel,
+                in_length,
+                wsize,
+                wstride,
+                padding1,
+                padding2);
+    }
+    else if(data_type == ck::DataTypeEnum::Float)
+    {
+        if(return_index)
+            ck::profiler::profile_pool3d_fwd_impl<F32, F32, F32, I32, ReduceOpId, false, true>(
+                do_verification,
+                init_method,
+                do_log,
+                time_kernel,
+                in_length,
+                wsize,
+                wstride,
+                padding1,
+                padding2);
+        else
+            ck::profiler::profile_pool3d_fwd_impl<F32, F32, F32, I32, ReduceOpId, false, false>(
                 do_verification,
                 init_method,
                 do_log,
