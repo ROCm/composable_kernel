@@ -42,24 +42,27 @@ __host__ __device__ f8_t cast_to_f8(float x, uint32_t rng)
     sign     = head >> (we_f32 + wm_f32);
 
     uint32_t signed_inf = (sign << (we_f8 + wm_f8)) + (((1 << we_f8) - 1) << wm_f8);
+    uint32_t drop_mask  = (1 << (wm_f32 - wm_f8)) - 1;
+    int max_exp;
+    int exp_low_cutoff;
 
-    if(negative_zero_nan)
+    if constexpr(negative_zero_nan)
     {
         if((x_bitwise & 0x7F800000) == 0x7F800000)
             return 0x80;
+        max_exp        = (1 << we_f8) - 1;
+        exp_low_cutoff = 0x80 - (1 << (we_f8 - 1));
     }
     else
     {
         if((x_bitwise & 0x7F800000) == 0x7F800000)
             return signed_inf + (mantissa != 0 ? 1 : 0);
+        max_exp        = (1 << we_f8) - 2;
+        exp_low_cutoff = 0x80 - (1 << (we_f8 - 1)) + 1;
     }
 
     if(x_bitwise == 0)
         return 0;
-
-    uint32_t drop_mask       = (1 << (wm_f32 - wm_f8)) - 1;
-    const int max_exp        = (1 << we_f8) - (negative_zero_nan ? 1 : 2);
-    const int exp_low_cutoff = 0x80 - (1 << (we_f8 - 1)) + 1 - (negative_zero_nan ? 1 : 0);
 
     exponent -= exp_low_cutoff - 1;
     if(exponent <= 0)
@@ -134,10 +137,14 @@ __host__ __device__ float cast_from_f8(f8_t x)
     uint32_t mantissa = x & ((1 << wm_f8) - 1);
     int exponent      = (x & 0x7F) >> wm_f8;
 
-    if(negative_zero_nan)
+    int exp_low_cutoff;
+    uint32_t retval;
+
+    if constexpr(negative_zero_nan)
     {
         if(x == 0x80)
             return fNaN;
+        exp_low_cutoff = (1 << (we_f32 - 1)) - (1 << (we_f8 - 1));
     }
     else
     {
@@ -145,11 +152,8 @@ __host__ __device__ float cast_from_f8(f8_t x)
             return fNeg0;
         if(exponent == ((1 << we_f8) - 1))
             return (mantissa == 0) ? (sign ? fNegInf : fInf) : fNaN;
+        exp_low_cutoff = (1 << (we_f32 - 1)) - (1 << (we_f8 - 1)) + 1;
     }
-
-    uint32_t retval;
-    const int exp_low_cutoff =
-        (1 << (we_f32 - 1)) - (1 << (we_f8 - 1)) + 1 - (negative_zero_nan ? 1 : 0);
 
     // subnormal input
     if(exponent == 0)
