@@ -9,8 +9,8 @@
 
 #include "pool3d_fwd_common.hpp"
 
-using InDataType  = ck::half_t;
-using OutDataType = ck::half_t;
+using InDataType      = ck::half_t;
+using OutDataType     = ck::half_t;
 using ComputeDataType = float;
 
 using IndexDataType = int32_t;

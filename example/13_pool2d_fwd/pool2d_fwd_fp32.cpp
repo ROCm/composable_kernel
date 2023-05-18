@@ -9,8 +9,8 @@
 
 #include "pool2d_fwd_common.hpp"
 
-using InDataType  = float;
-using OutDataType = float;
+using InDataType      = float;
+using OutDataType     = float;
 using ComputeDataType = float;
 
 using IndexDataType = int32_t;
