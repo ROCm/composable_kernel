@@ -4,9 +4,9 @@
 #include "gtest/gtest.h"
 #include "ck/utility/data_type.hpp"
 
+using ck::f8_convert_sr;
 using ck::f8_t;
 using ck::type_convert;
-using ck::f8_convert_sr;
 
 TEST(FP8, NumericLimits)
 {
@@ -23,11 +23,15 @@ TEST(FP8, ConvertFP32Nearest)
     // convert 0 float to fp8 and back, check if holds
     ASSERT_NEAR(0.0f, type_convert<float>(type_convert<f8_t>(0.0f)), abs_tol);
     // convert minimal float to fp8 and back, check if holds
-    ASSERT_NEAR(std::numeric_limits<float>::min(), type_convert<float>(type_convert<f8_t>(std::numeric_limits<float>::min())), abs_tol);
+    ASSERT_NEAR(std::numeric_limits<float>::min(),
+                type_convert<float>(type_convert<f8_t>(std::numeric_limits<float>::min())),
+                abs_tol);
     // convert maximal f8_t to float and check if equal to 240.0
     ASSERT_NEAR(240.0f, type_convert<float>(type_convert<f8_t>(240.0f)), abs_tol);
     // convert maximal float to fp8 and back, check if clipped to 240.0
-    ASSERT_NEAR(240.0f, type_convert<float>(type_convert<f8_t>(std::numeric_limits<float>::max())), abs_tol);
+    ASSERT_NEAR(240.0f,
+                type_convert<float>(type_convert<f8_t>(std::numeric_limits<float>::max())),
+                abs_tol);
     // convert inf float to f8_t and check if it is qNan
     ASSERT_NEAR(0x80, type_convert<f8_t>(std::numeric_limits<float>::infinity()), abs_tol);
     // positive float value to fp8 and back, check if holds
@@ -45,11 +49,15 @@ TEST(FP8, ConvertFP32Stochastic)
     // convert 0 float to fp8 and back, check if holds
     ASSERT_NEAR(0.0f, type_convert<float>(f8_convert_sr<f8_t>(0.0f)), abs_tol);
     // convert minimal float to fp8 and back, check if holds
-    ASSERT_NEAR(std::numeric_limits<float>::min(), type_convert<float>(f8_convert_sr<f8_t>(std::numeric_limits<float>::min())), abs_tol);
+    ASSERT_NEAR(std::numeric_limits<float>::min(),
+                type_convert<float>(f8_convert_sr<f8_t>(std::numeric_limits<float>::min())),
+                abs_tol);
     // convert maximal f8_t to float and check if equal to 240.0
     ASSERT_NEAR(240.0f, type_convert<float>(f8_convert_sr<f8_t>(240.0f)), abs_tol);
     // convert maximal float to fp8 and back, check if clipped to 240.0
-    ASSERT_NEAR(240.0f, type_convert<float>(f8_convert_sr<f8_t>(std::numeric_limits<float>::max())), abs_tol);
+    ASSERT_NEAR(240.0f,
+                type_convert<float>(f8_convert_sr<f8_t>(std::numeric_limits<float>::max())),
+                abs_tol);
     // convert inf float to f8_t and check if it is qNan
     ASSERT_NEAR(0x80, f8_convert_sr<f8_t>(std::numeric_limits<float>::infinity()), abs_tol);
     // positive float value to fp8 and back, check if holds
