@@ -1,1 +1,2 @@
 add_executable(client_flash_attention flash_attention.cpp)
+target_link_libraries(client_flash_attention PRIVATE composable_kernel::device_operations)
