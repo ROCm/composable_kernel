@@ -45,7 +45,7 @@ struct maxPoolFwdArgParser
     }
 };
 
-void print_help_max_pool_fwd()
+void print_help_max_pool3d_fwd()
 {
     std::cout << "arg1: data type (0: fp16; 1: fp32)\n"
               << "arg2: verification (0: no; 1: yes)\n"
@@ -61,7 +61,7 @@ void print_help_max_pool_fwd()
               << std::endl;
 }
 
-int profile_max_pool_fwd(int argc, char* argv[])
+int profile_max_pool3d_fwd(int argc, char* argv[])
 {
     ck::DataTypeEnum data_type = ck::DataTypeEnum::Half;
     bool do_verification       = true;
@@ -78,7 +78,7 @@ int profile_max_pool_fwd(int argc, char* argv[])
 
     if(argc != 2 && argc != 30)
     {
-        print_help_max_pool_fwd();
+        print_help_max_pool3d_fwd();
         return 0;
     }
     else if(argc == 30)
@@ -162,4 +162,4 @@ int profile_max_pool_fwd(int argc, char* argv[])
     return 0;
 }
 
-REGISTER_PROFILER_OPERATION("max_pool_fwd", "max_pool fwd", profile_max_pool_fwd);
+REGISTER_PROFILER_OPERATION("max_pool3d_fwd", "max_pool3d fwd", profile_max_pool3d_fwd);

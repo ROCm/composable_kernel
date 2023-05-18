@@ -34,16 +34,6 @@ bool profile_pool3d_fwd_impl(int do_verification,
                              std::vector<index_t> input_left_pads,
                              std::vector<index_t> input_right_pads)
 {
-    ignore = do_verification;
-    ignore = init_method;
-    ignore = do_log;
-    ignore = time_kernel;
-    ignore = in_length;
-    ignore = window_spatial_lengths;
-    ignore = window_strides;
-    ignore = input_left_pads;
-    ignore = input_right_pads;
-
     constexpr index_t InOutRank  = 5;
     constexpr index_t WindowRank = 3;
 
@@ -71,7 +61,7 @@ bool profile_pool3d_fwd_impl(int do_verification,
     }
 
     int Di = in_length[2];
-    int Hi = in_length[2];
+    int Hi = in_length[3];
     int Wi = in_length[4];
     int Do = out_length[2];
     int Ho = out_length[3];
