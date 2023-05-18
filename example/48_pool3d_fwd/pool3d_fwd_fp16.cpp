@@ -11,7 +11,7 @@
 
 using InDataType  = ck::half_t;
 using OutDataType = ck::half_t;
-using AccDataType = float;
+using ComputeDataType = float;
 
 using IndexDataType = int32_t;
 
@@ -53,7 +53,7 @@ int main()
 
     bool pass = pool3d_test<InDataType,
                             OutDataType,
-                            AccDataType,
+                            ComputeDataType,
                             IndexDataType,
                             InLayout,
                             OutLayout,

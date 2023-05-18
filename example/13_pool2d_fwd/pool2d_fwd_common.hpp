@@ -21,7 +21,7 @@
 
 template <typename InDataType,
           typename OutDataType,
-          typename AccDataType,
+          typename ComputeDataType,
           typename IndexDataType,
           typename InLayout,
           typename OutLayout,
@@ -49,7 +49,7 @@ bool pool_test(bool do_verification,
             InDataType,    // InDataType
             OutDataType,   // OutDataType
             IndexDataType, // IndexDataType
-            AccDataType,   // AccDataType
+            ComputeDataType,   // ComputeDataType
             ReduceOpId,
             OutputIndex,
             64, // BlockSize
@@ -156,7 +156,7 @@ bool pool_test(bool do_verification,
                                                             2,
                                                             InDataType,
                                                             OutDataType,
-                                                            AccDataType,
+                                                            ComputeDataType,
                                                             IndexDataType,
                                                             ReduceOpId,
                                                             PropagateNan,

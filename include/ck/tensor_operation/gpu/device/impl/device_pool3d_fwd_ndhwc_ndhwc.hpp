@@ -21,7 +21,7 @@ namespace device {
 template <typename InDataType,
           typename OutDataType,
           typename IndexDataType, // enable if OutputIndex == true
-          typename AccDataType,
+          typename ComputeDataType,
           ck::ReduceTensorOp ReduceOpId,
           bool OutputIndex,
           ck::index_t BlockSize,
@@ -216,7 +216,7 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
             using gridwise_reduce =
                 GridwiseReduction_mk_to_m_threadwise<InDataType,
                                                      OutDataType,
-                                                     AccDataType,
+                                                     ComputeDataType,
                                                      IndexDataType,
                                                      AGridDesc_M_K,
                                                      BGridDesc_M,
@@ -239,7 +239,7 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
                                          false, // don't have index input
                                          InDataType,
                                          OutDataType,
-                                         AccDataType,
+                                         ComputeDataType,
                                          IndexDataType,
                                          AGridDesc_M_K,
                                          BGridDesc_M,

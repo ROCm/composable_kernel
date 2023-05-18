@@ -22,7 +22,7 @@ template <index_t InOutRank,
           index_t WindowRank,
           typename InDataType,
           typename OutDataType,
-          typename AccDataType,
+          typename ComputeDataType,
           typename IndexDataType,
           ck::ReduceTensorOp ReduceOpId,
           bool PropagateNan,
@@ -77,11 +77,11 @@ struct ReferencePoolingFwd : public device::BaseOperator
 
             if constexpr(!OutputIndex)
             {
-                using Accumulation =
-                    ck::detail::AccumulateWithNanCheck<PropagateNan, ReduceOperation, AccDataType>;
+                using Accumulation = ck::detail::
+                    AccumulateWithNanCheck<PropagateNan, ReduceOperation, ComputeDataType>;
 
                 auto f_ncdhw = [&](auto n, auto c, auto do_, auto ho, auto wo) {
-                    auto accuVal = ReduceOperation::template GetIdentityValue<AccDataType>();
+                    auto accuVal = ReduceOperation::template GetIdentityValue<ComputeDataType>();
 
                     for(ck::index_t z = 0; z < arg.window_spatial_lengths_[0]; ++z)
                     {
@@ -100,8 +100,8 @@ struct ReferencePoolingFwd : public device::BaseOperator
                                    wi >= 0 &&
                                    wi < static_cast<ck::index_t>(arg.in_.mDesc.GetLengths()[4]))
                                 {
-                                    AccDataType currVal =
-                                        static_cast<AccDataType>(arg.in_(n, c, di, hi, wi));
+                                    ComputeDataType currVal =
+                                        static_cast<ComputeDataType>(arg.in_(n, c, di, hi, wi));
 
                                     in_elementwise_op(currVal, currVal);
 
@@ -127,11 +127,11 @@ struct ReferencePoolingFwd : public device::BaseOperator
             {
                 using Accumulation = ck::detail::AccumulateWithIndexAndNanCheck<PropagateNan,
                                                                                 ReduceOperation,
-                                                                                AccDataType,
+                                                                                ComputeDataType,
                                                                                 IndexDataType>;
 
                 auto f_ncdhw = [&](auto n, auto c, auto do_, auto ho, auto wo) {
-                    auto accuVal = ReduceOperation::template GetIdentityValue<AccDataType>();
+                    auto accuVal = ReduceOperation::template GetIdentityValue<ComputeDataType>();
                     IndexDataType accuIndex = 0;
 
                     for(ck::index_t z = 0; z < arg.window_spatial_lengths_[0]; ++z)
@@ -151,8 +151,8 @@ struct ReferencePoolingFwd : public device::BaseOperator
                                    wi >= 0 &&
                                    wi < static_cast<ck::index_t>(arg.in_.mDesc.GetLengths()[4]))
                                 {
-                                    AccDataType currVal =
-                                        static_cast<AccDataType>(arg.in_(n, c, di, hi, wi));
+                                    ComputeDataType currVal =
+                                        static_cast<ComputeDataType>(arg.in_(n, c, di, hi, wi));
                                     IndexDataType currIndex =
                                         arg.in_.GetOffsetFromMultiIndex(n, c, di, hi, wi);
 
@@ -194,11 +194,11 @@ struct ReferencePoolingFwd : public device::BaseOperator
 
             if constexpr(!OutputIndex)
             {
-                using Accumulation =
-                    ck::detail::AccumulateWithNanCheck<PropagateNan, ReduceOperation, AccDataType>;
+                using Accumulation = ck::detail::
+                    AccumulateWithNanCheck<PropagateNan, ReduceOperation, ComputeDataType>;
 
                 auto f_nchw = [&](auto n, auto c, auto ho, auto wo) {
-                    auto accuVal = ReduceOperation::template GetIdentityValue<AccDataType>();
+                    auto accuVal = ReduceOperation::template GetIdentityValue<ComputeDataType>();
 
                     for(ck::index_t y = 0; y < arg.window_spatial_lengths_[0]; ++y)
                     {
@@ -211,8 +211,8 @@ struct ReferencePoolingFwd : public device::BaseOperator
                                wi >= 0 &&
                                wi < static_cast<ck::index_t>(arg.in_.mDesc.GetLengths()[3]))
                             {
-                                AccDataType currVal =
-                                    static_cast<AccDataType>(arg.in_(n, c, hi, wi));
+                                ComputeDataType currVal =
+                                    static_cast<ComputeDataType>(arg.in_(n, c, hi, wi));
 
                                 in_elementwise_op(currVal, currVal);
 
@@ -236,11 +236,11 @@ struct ReferencePoolingFwd : public device::BaseOperator
             {
                 using Accumulation = ck::detail::AccumulateWithIndexAndNanCheck<PropagateNan,
                                                                                 ReduceOperation,
-                                                                                AccDataType,
+                                                                                ComputeDataType,
                                                                                 IndexDataType>;
 
                 auto f_nchw = [&](auto n, auto c, auto ho, auto wo) {
-                    auto accuVal = ReduceOperation::template GetIdentityValue<AccDataType>();
+                    auto accuVal = ReduceOperation::template GetIdentityValue<ComputeDataType>();
                     IndexDataType accuIndex = 0;
 
                     for(ck::index_t y = 0; y < arg.window_spatial_lengths_[0]; ++y)
@@ -254,8 +254,8 @@ struct ReferencePoolingFwd : public device::BaseOperator
                                wi >= 0 &&
                                wi < static_cast<ck::index_t>(arg.in_.mDesc.GetLengths()[3]))
                             {
-                                AccDataType currVal =
-                                    static_cast<AccDataType>(arg.in_(n, c, hi, wi));
+                                ComputeDataType currVal =
+                                    static_cast<ComputeDataType>(arg.in_(n, c, hi, wi));
 
                                 IndexDataType currIndex =
                                     arg.in_.GetOffsetFromMultiIndex(n, c, hi, wi);
