@@ -28,7 +28,8 @@ namespace tensor_operation {
 namespace device {
 
 template <typename GridwiseGemm,
-          typename DataType,
+          typename InputDataType,
+          typename OutputDataType,
           typename ZDataType,
           typename LSEDataType,
           typename AElementwiseOperation,
@@ -46,22 +47,23 @@ template <typename GridwiseGemm,
           typename Block2CTileMap,
           typename ComputeBasePtrOfStridedBatch,
           typename C0MatrixMask,
-          bool HasMainKBlockLoop>
+          bool HasMainKBlockLoop,
+          bool Deterministic>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, /*CK_MIN_BLOCK_PER_CU*/ 1)
 #endif
         kernel_batched_multihead_attention_backward_xdl_cshuffle_v1(
-            const DataType* __restrict__ p_a_grid,
-            const DataType* __restrict__ p_b_grid,
+            const InputDataType* __restrict__ p_a_grid,
+            const InputDataType* __restrict__ p_b_grid,
             ZDataType* __restrict__ p_z_grid,
-            const DataType* __restrict__ p_b1_grid,
-            const DataType* __restrict__ p_c_grid,
+            const InputDataType* __restrict__ p_b1_grid,
+            const InputDataType* __restrict__ p_c_grid,
             const LSEDataType* __restrict__ p_lse_grid,
-            const DataType* __restrict__ p_ygrad_grid,
-            DataType* __restrict__ p_qgrad_grid,
-            DataType* __restrict__ p_kgrad_grid,
-            DataType* __restrict__ p_vgrad_grid,
+            const InputDataType* __restrict__ p_ygrad_grid,
+            OutputDataType* __restrict__ p_qgrad_grid,
+            OutputDataType* __restrict__ p_kgrad_grid,
+            OutputDataType* __restrict__ p_vgrad_grid,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const AccElementwiseOperation acc_element_op,
@@ -78,6 +80,7 @@ __global__ void
             const YGradGridDesc_O0_M_O1 ygrad_grid_desc_o0_m_o1,
             const Block2CTileMap block_2_ctile_map,
             const index_t batch_count,
+            const index_t nblock,
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
             const C0MatrixMask c0_matrix_mask,
             const float p_drop,
@@ -109,33 +112,72 @@ __global__ void
     ck::philox ph(seed, global_thread_id, offset);
     ZDataType* z_matrix_ptr = (p_z_grid == nullptr ? nullptr : p_z_grid + z_batch_offset);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
-                                                  p_b_grid + b_batch_offset,
-                                                  z_matrix_ptr,
-                                                  p_b1_grid + b1_batch_offset,
-                                                  p_c_grid + c_batch_offset,
-                                                  p_lse_grid + lse_batch_offset,
-                                                  p_ygrad_grid + c_batch_offset,
-                                                  p_qgrad_grid + a_batch_offset,
-                                                  p_kgrad_grid + b_batch_offset,
-                                                  p_vgrad_grid + b1_batch_offset,
-                                                  p_shared,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  acc_element_op,
-                                                  b1_element_op,
-                                                  c_element_op,
-                                                  a_grid_desc_ak0_m_ak1,
-                                                  b_grid_desc_bk0_n_bk1,
-                                                  c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                                  b1_grid_desc_bk0_n_bk1,
-                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  lse_grid_desc_m,
-                                                  ygrad_grid_desc_o0_m_o1,
-                                                  block_2_ctile_map,
-                                                  c0_matrix_mask,
-                                                  p_drop,
-                                                  ph);
+    if constexpr(Deterministic)
+    {
+        for(index_t i = 0; i < nblock; i++)
+        {
+            GridwiseGemm::template Run<HasMainKBlockLoop>(
+                p_a_grid + a_batch_offset,
+                p_b_grid + b_batch_offset,
+                z_matrix_ptr,
+                p_b1_grid + b1_batch_offset,
+                p_c_grid + c_batch_offset,
+                p_lse_grid + lse_batch_offset,
+                p_ygrad_grid + c_batch_offset,
+                p_qgrad_grid + a_batch_offset,
+                p_kgrad_grid + b_batch_offset,
+                p_vgrad_grid + b1_batch_offset,
+                p_shared,
+                a_element_op,
+                b_element_op,
+                acc_element_op,
+                b1_element_op,
+                c_element_op,
+                a_grid_desc_ak0_m_ak1,
+                b_grid_desc_bk0_n_bk1,
+                c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                b1_grid_desc_bk0_n_bk1,
+                c_grid_desc_mblock_mperblock_nblock_nperblock,
+                lse_grid_desc_m,
+                ygrad_grid_desc_o0_m_o1,
+                block_2_ctile_map,
+                c0_matrix_mask,
+                p_drop,
+                ph,
+                i);
+        }
+    }
+    else
+    {
+        GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
+                                                      p_b_grid + b_batch_offset,
+                                                      z_matrix_ptr,
+                                                      p_b1_grid + b1_batch_offset,
+                                                      p_c_grid + c_batch_offset,
+                                                      p_lse_grid + lse_batch_offset,
+                                                      p_ygrad_grid + c_batch_offset,
+                                                      p_qgrad_grid + a_batch_offset,
+                                                      p_kgrad_grid + b_batch_offset,
+                                                      p_vgrad_grid + b1_batch_offset,
+                                                      p_shared,
+                                                      a_element_op,
+                                                      b_element_op,
+                                                      acc_element_op,
+                                                      b1_element_op,
+                                                      c_element_op,
+                                                      a_grid_desc_ak0_m_ak1,
+                                                      b_grid_desc_bk0_n_bk1,
+                                                      c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                                      b1_grid_desc_bk0_n_bk1,
+                                                      c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                      lse_grid_desc_m,
+                                                      ygrad_grid_desc_o0_m_o1,
+                                                      block_2_ctile_map,
+                                                      c0_matrix_mask,
+                                                      p_drop,
+                                                      ph,
+                                                      0);
+    }
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -168,7 +210,8 @@ template <index_t NumDimG,
           index_t NumDimN,
           index_t NumDimK,
           index_t NumDimO, // NumDimGemm1N
-          typename DataType,
+          typename InputDataType,
+          typename OutputDataType,
           typename GemmDataType,
           typename ZDataType,
           typename LSEDataType,
@@ -228,6 +271,7 @@ template <index_t NumDimG,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           MaskingSpecialization MaskingSpec,
+          bool Deterministic,
           LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
     : public BaseOperator // TODO inherit atten bwd op once API stablizes
@@ -594,7 +638,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1<
-        DataType, // TODO: distinguish A/B datatype
+        InputDataType, // TODO: distinguish A/B datatype
+        OutputDataType,
+        ZDataType,
         GemmDataType,
         GemmAccDataType,
         CShuffleDataType,
@@ -658,22 +704,23 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
         Transform::matrix_padder.PadN,
-        MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle>;
+        MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle,
+        Deterministic>;
 
     // Argument
     struct Argument : public BaseArgument
     {
         Argument(
-            const DataType* p_a_grid,
-            const DataType* p_b_grid,
+            const InputDataType* p_a_grid,
+            const InputDataType* p_b_grid,
             ZDataType* p_z_grid,
-            const DataType* p_b1_grid,
-            const DataType* p_c_grid, // for dS
+            const InputDataType* p_b1_grid,
+            const InputDataType* p_c_grid, // for dS
             const LSEDataType* p_lse_grid,
-            const DataType* p_ygrad_grid,
-            DataType* p_qgrad_grid,
-            DataType* p_kgrad_grid,
-            DataType* p_vgrad_grid,
+            const InputDataType* p_ygrad_grid,
+            OutputDataType* p_qgrad_grid,
+            OutputDataType* p_kgrad_grid,
+            OutputDataType* p_vgrad_grid,
             const std::array<void*, NumAcc0Bias> p_acc0_biases,
             const std::array<void*, NumAcc1Bias> p_acc1_biases,
             const std::vector<index_t>& a_gs_ms_ks_lengths,
@@ -817,16 +864,16 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
         }
 
         // pointers
-        const DataType* p_a_grid_;
-        const DataType* p_b_grid_;
+        const InputDataType* p_a_grid_;
+        const InputDataType* p_b_grid_;
         ZDataType* p_z_grid_;
-        const DataType* p_b1_grid_;
-        const DataType* p_c_grid_;
+        const InputDataType* p_b1_grid_;
+        const InputDataType* p_c_grid_;
         const LSEDataType* p_lse_grid_;
-        const DataType* p_ygrad_grid_;
-        DataType* p_qgrad_grid_;
-        DataType* p_kgrad_grid_;
-        DataType* p_vgrad_grid_;
+        const InputDataType* p_ygrad_grid_;
+        OutputDataType* p_qgrad_grid_;
+        OutputDataType* p_kgrad_grid_;
+        OutputDataType* p_vgrad_grid_;
 
         // tensor descriptor
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
@@ -891,14 +938,17 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             }
 
             const index_t grid_size =
-                arg.block_2_ctile_map_.CalculateGridSize(arg.k_grid_desc_n_k_) * arg.batch_count_;
+                (Deterministic ? 1
+                               : arg.block_2_ctile_map_.CalculateGridSize(arg.k_grid_desc_n_k_)) *
+                arg.batch_count_;
 
             float ave_time = 0;
 
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
                 const auto kernel = kernel_batched_multihead_attention_backward_xdl_cshuffle_v1<
                     GridwiseGemm,
-                    DataType,
+                    InputDataType,
+                    OutputDataType,
                     ZDataType,
                     LSEDataType,
                     AElementwiseOperation,
@@ -916,42 +966,45 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     ComputeBasePtrOfStridedBatch,
                     C0MatrixMask,
-                    has_main_k_block_loop_>;
+                    has_main_k_block_loop_,
+                    Deterministic>;
 
-                return launch_and_time_kernel(stream_config,
-                                              kernel,
-                                              dim3(grid_size),
-                                              dim3(BlockSize),
-                                              0,
-                                              arg.p_a_grid_,
-                                              arg.p_b_grid_,
-                                              arg.p_z_grid_,
-                                              arg.p_b1_grid_,
-                                              arg.p_c_grid_,
-                                              arg.p_lse_grid_,
-                                              arg.p_ygrad_grid_,
-                                              arg.p_qgrad_grid_,
-                                              arg.p_kgrad_grid_,
-                                              arg.p_vgrad_grid_,
-                                              arg.a_element_op_,
-                                              arg.b_element_op_,
-                                              arg.acc_element_op_,
-                                              arg.b1_element_op_,
-                                              arg.c_element_op_,
-                                              arg.a_grid_desc_ak0_m_ak1_,
-                                              arg.b_grid_desc_bk0_n_bk1_,
-                                              arg.c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
-                                              arg.b1_grid_desc_bk0_n_bk1_,
-                                              arg.y_grid_desc_mblock_mperblock_oblock_operblock_,
-                                              arg.lse_grid_desc_m_,
-                                              arg.ygrad_grid_desc_o0_m_o1_,
-                                              arg.block_2_ctile_map_,
-                                              arg.batch_count_,
-                                              arg.compute_base_ptr_of_batch_,
-                                              arg.c0_matrix_mask_,
-                                              arg.p_drop_,
-                                              arg.seed_,
-                                              arg.offset_);
+                return launch_and_time_kernel(
+                    stream_config,
+                    kernel,
+                    dim3(grid_size),
+                    dim3(BlockSize),
+                    0,
+                    arg.p_a_grid_,
+                    arg.p_b_grid_,
+                    arg.p_z_grid_,
+                    arg.p_b1_grid_,
+                    arg.p_c_grid_,
+                    arg.p_lse_grid_,
+                    arg.p_ygrad_grid_,
+                    arg.p_qgrad_grid_,
+                    arg.p_kgrad_grid_,
+                    arg.p_vgrad_grid_,
+                    arg.a_element_op_,
+                    arg.b_element_op_,
+                    arg.acc_element_op_,
+                    arg.b1_element_op_,
+                    arg.c_element_op_,
+                    arg.a_grid_desc_ak0_m_ak1_,
+                    arg.b_grid_desc_bk0_n_bk1_,
+                    arg.c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
+                    arg.b1_grid_desc_bk0_n_bk1_,
+                    arg.y_grid_desc_mblock_mperblock_oblock_operblock_,
+                    arg.lse_grid_desc_m_,
+                    arg.ygrad_grid_desc_o0_m_o1_,
+                    arg.block_2_ctile_map_,
+                    arg.batch_count_,
+                    arg.block_2_ctile_map_.CalculateGridSize(arg.k_grid_desc_n_k_),
+                    arg.compute_base_ptr_of_batch_,
+                    arg.c0_matrix_mask_,
+                    arg.p_drop_,
+                    arg.seed_,
+                    arg.offset_);
             };
 
             // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need
@@ -1061,16 +1114,16 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
     }
 
     static auto MakeArgument(
-        const DataType* p_a,
-        const DataType* p_b,
+        const InputDataType* p_a,
+        const InputDataType* p_b,
         ZDataType* p_z,
-        const DataType* p_b1,
-        const DataType* p_c,
+        const InputDataType* p_b1,
+        const InputDataType* p_c,
         const LSEDataType* p_lse,
-        const DataType* p_ygrad_grid,
-        DataType* p_qgrad_grid,
-        DataType* p_kgrad_grid,
-        DataType* p_vgrad_grid,
+        const InputDataType* p_ygrad_grid,
+        OutputDataType* p_qgrad_grid,
+        OutputDataType* p_kgrad_grid,
+        OutputDataType* p_vgrad_grid,
         const std::array<void*, NumAcc0Bias> p_acc0_biases,
         const std::array<void*, NumAcc1Bias> p_acc1_biases,
         const std::vector<index_t>& a_gs_ms_ks_lengths,
@@ -1176,16 +1229,16 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
         float p_drop,
         std::tuple<unsigned long long, unsigned long long> seeds) // override
     {
-        return std::make_unique<Argument>(static_cast<const DataType*>(p_a),
-                                          static_cast<const DataType*>(p_b),
+        return std::make_unique<Argument>(static_cast<const InputDataType*>(p_a),
+                                          static_cast<const InputDataType*>(p_b),
                                           static_cast<ZDataType*>(p_z),
-                                          static_cast<const DataType*>(p_b1),
-                                          static_cast<const DataType*>(p_c),
+                                          static_cast<const InputDataType*>(p_b1),
+                                          static_cast<const InputDataType*>(p_c),
                                           static_cast<const LSEDataType*>(p_lse),
-                                          static_cast<const DataType*>(p_ygrad_grid),
-                                          static_cast<DataType*>(p_qgrad_grid),
-                                          static_cast<DataType*>(p_kgrad_grid),
-                                          static_cast<DataType*>(p_vgrad_grid),
+                                          static_cast<const InputDataType*>(p_ygrad_grid),
+                                          static_cast<OutputDataType*>(p_qgrad_grid),
+                                          static_cast<OutputDataType*>(p_kgrad_grid),
+                                          static_cast<OutputDataType*>(p_vgrad_grid),
                                           p_acc0_biases, // cast in struct Argument
                                           p_acc1_biases, // cast in struct Argument
                                           a_gs_ms_ks_lengths,
