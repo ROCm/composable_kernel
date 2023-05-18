@@ -31,8 +31,8 @@ using device_pool2d_fwd_nhwc_instances =
         DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<InDataType, OutDataType, IndexDataType, AccDataType, ReduceOpId, OutputIndex, 256, 256, 1, 1, 1, 1>,
         DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<InDataType, OutDataType, IndexDataType, AccDataType, ReduceOpId, OutputIndex, 256, 256, 1, 2, 1, 2>,
         DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<InDataType, OutDataType, IndexDataType, AccDataType, ReduceOpId, OutputIndex, 256, 256, 1, 4, 1, 4>
-                 // clang-format on
-                 >;
+               // clang-format on
+               >;
 
 template <typename InDataType,
           typename OutDataType,
@@ -46,8 +46,8 @@ using device_pool3d_fwd_ndhwc_instances =
         DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C<InDataType, OutDataType, IndexDataType, AccDataType, ReduceOpId, OutputIndex, 256, 256, 1, 1, 1, 1>,
         DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C<InDataType, OutDataType, IndexDataType, AccDataType, ReduceOpId, OutputIndex, 256, 256, 1, 2, 1, 2>,
         DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C<InDataType, OutDataType, IndexDataType, AccDataType, ReduceOpId, OutputIndex, 256, 256, 1, 4, 1, 4>
-                 // clang-format on
-                 >;
+               // clang-format on
+               >;
 
 } // namespace instance
 } // namespace device
