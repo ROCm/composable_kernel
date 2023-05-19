@@ -66,7 +66,7 @@ int main(int argc, char* argv[])
     ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Y) / window_stride_h + 1;
     ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - X) / window_stride_w + 1;
 
-    // Pool API only support the order of NCHW
+    // Pool API only support the order of NCDHW
     std::vector<ck::index_t> in_length              = {N, C, Di, Hi, Wi};
     std::vector<ck::index_t> out_length             = {N, C, Do, Ho, Wo};
     std::vector<ck::index_t> window_spatial_lengths = {Z, Y, X};
@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
     std::size_t in_tensor_size  = N * C * Di * Hi * Wi;
     std::size_t out_tensor_size = N * C * Do * Ho * Wo;
 
-    // tensor layout = NHWC
+    // tensor layout = NDHWC
     std::vector<ck::index_t> in_tensor_stride  = {Di * C * Hi * Wi, 1, C * Hi * Wi, Wi * C, C};
     std::vector<ck::index_t> out_tensor_stride = {Do * C * Ho * Wo, 1, C * Ho * Wo, Wo * C, C};
 
@@ -160,11 +160,12 @@ int main(int argc, char* argv[])
         }
     }
 
-    std::cout << "Best Perf: " << best_ave_time << " ms, " << best_gb_per_sec << " GB/s, "
-              << best_op_name << std::endl;
-
     // run the best intance
+    if(found)
     {
+        std::cout << "Best Perf: " << best_ave_time << " ms, " << best_gb_per_sec << " GB/s, "
+                  << best_op_name << std::endl;
+
         auto& op_ptr = op_ptrs[best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
                   << std::endl;
