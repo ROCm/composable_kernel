@@ -297,15 +297,7 @@ struct GridwiseGemmPipeline_v1<1, false, true>
                                CThreadBuffer& c_thread_buf,
                                index_t num_loop)
     {
-#if 0
-        constexpr auto a_block_origin_idx = generate_sequence_v2(
-            []() constexpr {
-                return Number<0>{};
-            },
-            Number<a_block_desc.GetLengths().GetSize()>{});
-#endif
-
-        constexpr auto a_block_origin_idx = make_tuple(I0, I0, I0, I0, I0, I0);
+        constexpr auto a_block_origin_idx = make_tuple(I0, I0, I0, I0, I0, I0, I0);
         auto a_block_buf_switch           = a_block_buf;
 
         // preload data into LDS
@@ -404,7 +396,7 @@ struct GridwiseGemmPipeline_v1<1, true, false>
                                CThreadBuffer& c_thread_buf,
                                index_t num_loop)
     {
-        constexpr auto b_block_origin_idx = make_tuple(I0, I0, I0, I0, I0, I0);
+        constexpr auto b_block_origin_idx = make_tuple(I0, I0, I0, I0, I0, I0, I0);
         auto b_block_buf_switch           = b_block_buf;
 
         // preload data into LDS

@@ -1387,7 +1387,7 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
 
             // copy data from src_buf into dst_vector
             static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
-                // src_desc error, non constexpr?
+                // src_desc error, non constexpr, caused by merge transform
                 constexpr index_t src_offset = src_desc.CalculateOffset(
                     src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
 
@@ -1396,8 +1396,6 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
 
                 SrcData v_this_row, v_theother_row;
                 // int type temp value due to intrinsic requirement
-                // TODO: This temp value will generate the scratch memory if
-                // IntraRowSwizzlePerm is flase
                 int temp = 0;
 
                 // apply element-wise operation
@@ -1419,7 +1417,10 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
                                                     1,
                                                     0);
                 v_theother_row = type_convert_sp<SrcData>(temp);
-
+                // if (get_thread_local_1d_id() == 0){
+                //                 printf("src_offset:%d, dst_offset for this row: %d, dst_offset
+                //                 for the other row: %d \n",
+                //                         src_offset, dst_offset, dst_offset+DstScalarPerVector);}
                 if(get_thread_local_1d_id() % 32 < 16)
                 {
                     // apply type convert

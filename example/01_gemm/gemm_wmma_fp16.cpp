@@ -37,8 +37,8 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle
            GemmDefault, 
            2,           // Prefetch stage
            128,         // BlockSize
-           128,          // MPerBlock
-           64,         // NPerBlock
+           128,         // MPerBlock
+           64,          // NPerBlock
            64,          // KPerBlock
            8,           // K1
            16,          // MPerWmma

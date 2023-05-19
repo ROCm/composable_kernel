@@ -34,7 +34,7 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
 #endif
         const int nrepeat = 50;
 
-        for(int i = 0; i < nrepeat; ++i)    
+        for(int i = 0; i < nrepeat; ++i)
         {
             kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
         }
