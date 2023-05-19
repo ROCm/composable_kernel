@@ -655,7 +655,7 @@ struct GridwiseGemm_Wmma
             else
             {
                 // Thread-wise copy
-                // KPerBlock/WmmaK -> MRepeat -> MWaves -> WmmaK/K1 -> MPerWmma -> K1
+                // KPerBlock/WmmaK -> MRepeat -> MWaves -> K0PerWmma -> KRow -> MPerWmma -> K1
                 constexpr auto KWmmaPerBlock = KPerBlock / WmmaK;
                 constexpr auto K0PerWmma     = WmmaK/2/K1Value;
                 auto a_block_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ADataType>(

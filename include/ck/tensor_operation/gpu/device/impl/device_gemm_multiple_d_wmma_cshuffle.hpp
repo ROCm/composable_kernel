@@ -87,6 +87,7 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
     static constexpr auto I3 = Number<3>{};
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
+    static constexpr auto I6 = Number<6>{};
     // K1 = Max Vector Access Pixels
     static constexpr auto K1Number = Number<K1>{};
 
@@ -98,8 +99,8 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
     static constexpr auto BEnableLds_auto = MWaves == 1 ? false : true;
 
     // If true, LDS is used unconditionally
-    static constexpr auto AEnableLds_manu = true;
-    static constexpr auto BEnableLds_manu = true;
+    static constexpr auto AEnableLds_manu = false;
+    static constexpr auto BEnableLds_manu = false;
 
     static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu || (NumPrefetch > 1);
     static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu || (NumPrefetch > 1);
@@ -144,18 +145,21 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
         }
         else
         {
-            constexpr auto A_KRow = WmmaK / K1;
-            const auto A_KWmma    = K / WmmaK;
+            constexpr auto A_KRow      = 2;
+            constexpr auto A_K0PerWmma = WmmaK / A_KRow / K1Number;
+            const auto A_KWmma         = K / WmmaK;
 
             const auto M0 = M / MPerBlock;
-
+            // 0   1     0         1                2        3             4        5          6
+            // M - K <-> A_KWmma - MBlock*MRepeat - MWaves - A_K0PerWmma - A_KRow - MPerWmma - A_K1
             return transform_tensor_descriptor(
                 a_grid_desc_m_k,
-                make_tuple(make_unmerge_transform(make_tuple(A_KWmma, Number<A_KRow>{}, K1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(
+                               A_KWmma, Number<A_K0PerWmma>{}, Number<A_KRow>{}, K1Number)),
                            make_unmerge_transform(
                                make_tuple(M0 * MRepeat, Number<MWaves>{}, Number<MPerWmma>{}))),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 3, 5>{}, Sequence<1, 2, 4>{}));
+                make_tuple(Sequence<0, 3, 4, 6>{}, Sequence<1, 2, 5>{}));
         }
     }
 
@@ -195,18 +199,21 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
         }
         else
         {
-            constexpr auto B_KRow = WmmaK / K1;
-            const auto B_KWmma    = K / WmmaK;
+            constexpr auto B_KRow      = 2;
+            constexpr auto B_K0PerWmma = WmmaK / B_KRow / K1Number;
+            const auto B_KWmma         = K / WmmaK;
 
             const auto N0 = N / NPerBlock;
-
+            // 0   1     0         1                2        3             4        5          6
+            // M - K <-> A_KWmma - MBlock*MRepeat - MWaves - A_K0PerWmma - A_KRow - MPerWmma - A_K1
             return transform_tensor_descriptor(
                 b_grid_desc_n_k,
-                make_tuple(make_unmerge_transform(make_tuple(B_KWmma, Number<B_KRow>{}, K1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(
+                               B_KWmma, Number<B_K0PerWmma>{}, Number<B_KRow>{}, K1Number)),
                            make_unmerge_transform(
                                make_tuple(N0 * NRepeat, Number<NWaves>{}, Number<NPerWmma>{}))),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 3, 5>{}, Sequence<1, 2, 4>{}));
+                make_tuple(Sequence<0, 3, 4, 6>{}, Sequence<1, 2, 5>{}));
         }
     }
 
@@ -438,14 +445,11 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
                 else
                 {
                     return arg.a_grid_desc.GetLength(I0) * arg.a_grid_desc.GetLength(I3) *
-                           arg.a_grid_desc.GetLength(I5);
+                           arg.a_grid_desc.GetLength(I4) * arg.a_grid_desc.GetLength(I6);
                 }
             }();
 
-            float ave_time = 0;
-
-            if(GridwiseOp::CalculateHasMainKBlockLoop(K))
-            {
+            auto launch_kernel = [&](auto has_main_k_block_loop) {
                 const auto kernel = kernel_gemm_mupltipe_d_wmma_cshuffle<
                     GridwiseOp,
                     ADataType,
@@ -462,9 +466,9 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
                     BElementwiseOperation,
                     CDEElementwiseOperation,
                     remove_reference_t<typename GridwiseOp::DefaultBlock2CTileMap>,
-                    true>; // Last Option is W/O
+                    has_main_k_block_loop>; // Last Option is W/O
 
-                ave_time =
+                return
                     launch_and_time_kernel(stream_config,
                                            kernel,
                                            dim3(grid_size),
@@ -482,48 +486,16 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
                                            arg.b_element_op_,
                                            arg.cde_element_op_,
                                            arg.block_2_ctile_map_);
+            };
+            
+            if(GridwiseOp::CalculateHasMainKBlockLoop(K))
+            {
+                return launch_kernel(integral_constant<bool, true>{});
             }
             else
             {
-                const auto kernel = kernel_gemm_mupltipe_d_wmma_cshuffle<
-                    GridwiseOp,
-                    ADataType,
-                    BDataType,
-                    typename GridwiseOp::DsGridPointer,
-                    EDataType,
-                    remove_reference_t<typename DeviceOp::AGridDesc>,
-                    remove_reference_t<typename DeviceOp::BGridDesc>,
-                    remove_reference_t<
-                        typename GridwiseOp::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
-                    remove_reference_t<
-                        typename GridwiseOp::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CDEElementwiseOperation,
-                    remove_reference_t<typename GridwiseOp::DefaultBlock2CTileMap>,
-                    false>;
-
-                ave_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_ds_grid_,
-                                           arg.p_e_grid_,
-                                           arg.a_grid_desc,
-                                           arg.b_grid_desc,
-                                           arg.ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                           arg.e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.cde_element_op_,
-                                           arg.block_2_ctile_map_);
+                return launch_kernel(integral_constant<bool, false>{});
             }
-
-            return ave_time;
         }
 
         // polymorphic
