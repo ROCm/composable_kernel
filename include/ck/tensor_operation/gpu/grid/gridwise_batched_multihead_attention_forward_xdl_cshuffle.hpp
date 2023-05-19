@@ -1067,6 +1067,8 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 //        printf("at 1 global_elem_id is %d \n", global_elem_id);
                 //    }
 
+                index_t id_step = Acc0TileIterator::GetNumOfAccess() / n0.value;
+
                 // save z to global
                 if(p_z_grid)
                 {
@@ -1076,7 +1078,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                                                 false,
                                                                 decltype(n0),
                                                                 decltype(i)>(
-                            acc_thread_buf, ph, global_elem_id, z_tenor_buffer);
+                            acc_thread_buf, ph, global_elem_id + i.value * id_step, z_tenor_buffer);
 
                         z_thread_copy_vgpr_to_global.Run(
                             z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
