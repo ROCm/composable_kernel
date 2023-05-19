@@ -69,7 +69,7 @@ struct BlockwiseDropout
         ushort tmp[tmp_size];
         for(int i = 0; i < philox_calls; i++)
         {
-            ph.get_random_8x16((tmp + i * 8), element_global_1d_id);
+            ph.get_random_8x16((tmp + i * 8), element_global_1d_id + i * 8);
         }
 
         block_sync_lds();
@@ -142,7 +142,7 @@ struct BlockwiseDropout
         ushort tmp[tmp_size];
         for(int i = 0; i < philox_calls; i++)
         {
-            ph.get_random_8x16((tmp + i * 8), element_global_1d_id + philox_calls * 8);
+            ph.get_random_8x16((tmp + i * 8), element_global_1d_id + i * 8);
         }
 
         block_sync_lds();
@@ -184,7 +184,7 @@ struct BlockwiseDropout
         ushort tmp[tmp_size];
         for(int i = 0; i < philox_calls; i++)
         {
-            ph.get_random_8x16((tmp + i * 8), element_global_1d_id);
+            ph.get_random_8x16((tmp + i * 8), element_global_1d_id + i * 8);
         }
 
         block_sync_lds();
