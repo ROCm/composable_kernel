@@ -398,21 +398,21 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     has_main_k_block_loop>;
 
-                return  launch_and_time_kernel(stream_config,
-                                                  kernel,
-                                                  dim3(grid_size),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
-                                                  arg.a_grid_desc_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  arg.a_element_op_,
-                                                  arg.b_element_op_,
-                                                  arg.c_element_op_,
-                                                  arg.block_2_ctile_map_);
+                return launch_and_time_kernel(stream_config,
+                                              kernel,
+                                              dim3(grid_size),
+                                              dim3(BlockSize),
+                                              0,
+                                              arg.p_a_grid_,
+                                              arg.p_b_grid_,
+                                              arg.p_c_grid_,
+                                              arg.a_grid_desc_,
+                                              arg.b_grid_desc_k0_n_k1_,
+                                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              arg.a_element_op_,
+                                              arg.b_element_op_,
+                                              arg.c_element_op_,
+                                              arg.block_2_ctile_map_);
             };
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))

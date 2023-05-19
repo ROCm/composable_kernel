@@ -53,8 +53,8 @@ using DeviceConvFwdInstance =
         GemmSpec,   // GemmSpecialization
         1,          // Prefetch stage
         128,        // BlockSize
-        64,        // MPerBlock
-        64,        // NPerBlock
+        64,         // MPerBlock
+        64,         // NPerBlock
         64,         // KPerBlock
         4,          // K1
         16,         // MPerWMMA

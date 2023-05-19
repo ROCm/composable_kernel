@@ -468,26 +468,25 @@ struct DeviceGemmMultipleD_Wmma_CShuffle : public DeviceGemmMultipleD<ALayout,
                     remove_reference_t<typename GridwiseOp::DefaultBlock2CTileMap>,
                     has_main_k_block_loop>; // Last Option is W/O
 
-                return
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_ds_grid_,
-                                           arg.p_e_grid_,
-                                           arg.a_grid_desc,
-                                           arg.b_grid_desc,
-                                           arg.ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                           arg.e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.cde_element_op_,
-                                           arg.block_2_ctile_map_);
+                return launch_and_time_kernel(stream_config,
+                                              kernel,
+                                              dim3(grid_size),
+                                              dim3(BlockSize),
+                                              0,
+                                              arg.p_a_grid_,
+                                              arg.p_b_grid_,
+                                              arg.p_ds_grid_,
+                                              arg.p_e_grid_,
+                                              arg.a_grid_desc,
+                                              arg.b_grid_desc,
+                                              arg.ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              arg.e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              arg.a_element_op_,
+                                              arg.b_element_op_,
+                                              arg.cde_element_op_,
+                                              arg.block_2_ctile_map_);
             };
-            
+
             if(GridwiseOp::CalculateHasMainKBlockLoop(K))
             {
                 return launch_kernel(integral_constant<bool, true>{});

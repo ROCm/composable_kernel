@@ -136,6 +136,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
     static constexpr auto I3 = Number<3>{};
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
+    static constexpr auto I6 = Number<6>{};
 
     static constexpr auto WmmaK = 16;
 
@@ -175,13 +176,15 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
         }
         else
         {
-            return Transform::MakeAGridDescriptor_AKWmma_MBlockRepeat_MWaves_AKRow_MPerWmma_AK1(
-                Transform::MakeAGridDescriptor_M_K(a_gs_ms_ks_lengths_vec, a_gs_ms_ks_strides_vec),
-                Number<WmmaK>{},
-                Number<MRepeat>{},
-                Number<MWaves>{},
-                Number<MPerWmma>{},
-                Number<K1>{});
+            return Transform::
+                MakeAGridDescriptor_AKWmma_MBlockRepeat_MWaves_AK0PerWmma_AKRow_MPerWmma_AK1(
+                    Transform::MakeAGridDescriptor_M_K(a_gs_ms_ks_lengths_vec,
+                                                       a_gs_ms_ks_strides_vec),
+                    Number<WmmaK>{},
+                    Number<MRepeat>{},
+                    Number<MWaves>{},
+                    Number<MPerWmma>{},
+                    Number<K1>{});
         }
     }
 
@@ -197,14 +200,15 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
         }
         else
         {
-            return Transform::MakeB0GridDescriptor_BKWmma_LBlockRepeat_LWaves_BKRow_LPerWmma_BK1(
-                Transform::MakeB0GridDescriptor_N_K(b0_gs_ls_ks_lengths_vec,
-                                                    b0_gs_ls_ks_strides_vec),
-                Number<WmmaK>{},
-                Number<LRepeat>{},
-                Number<LWaves>{},
-                Number<LPerWmma>{},
-                Number<K1>{});
+            return Transform::
+                MakeB0GridDescriptor_BKWmma_LBlockRepeat_LWaves_BK0PerWmma_BKRow_LPerWmma_BK1(
+                    Transform::MakeB0GridDescriptor_N_K(b0_gs_ls_ks_lengths_vec,
+                                                        b0_gs_ls_ks_strides_vec),
+                    Number<WmmaK>{},
+                    Number<LRepeat>{},
+                    Number<LWaves>{},
+                    Number<LPerWmma>{},
+                    Number<K1>{});
         }
     }
 
@@ -220,14 +224,15 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
         }
         else
         {
-            return Transform::MakeB1GridDescriptor_BLWmma_NBlockRepeat_NWaves_BLRow_NPerWmma_BL1(
-                Transform::MakeB1GridDescriptor_N_K(b1_gs_ns_ls_lengths_vec,
-                                                    b1_gs_ns_ls_strides_vec),
-                Number<WmmaK>{},
-                Number<NRepeat>{},
-                Number<NWaves>{},
-                Number<NPerWmma>{},
-                Number<L1>{});
+            return Transform::
+                MakeB1GridDescriptor_BLWmma_NBlockRepeat_NWaves__BL0PerWmma_BLRow_NPerWmma_BL1(
+                    Transform::MakeB1GridDescriptor_N_K(b1_gs_ns_ls_lengths_vec,
+                                                        b1_gs_ns_ls_strides_vec),
+                    Number<WmmaK>{},
+                    Number<NRepeat>{},
+                    Number<NWaves>{},
+                    Number<NPerWmma>{},
+                    Number<L1>{});
         }
     }
 
@@ -521,7 +526,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
                 else
                 {
                     return arg.a_grid_desc.GetLength(I0) * arg.a_grid_desc.GetLength(I3) *
-                           arg.a_grid_desc.GetLength(I5);
+                           arg.a_grid_desc.GetLength(I4) * arg.a_grid_desc.GetLength(I6);
                 }
             }();
 
@@ -826,7 +831,13 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
             << "CSpec" << getTensorSpecializationString(CSpec) << ", "
             << getMaskingSpecializationString(MaskingSpec)
             << ">"
-            << " NumPrefetch: "
+            << " AEnableLds: "
+            << AEnableLds << ", "
+            << "B0EnableLds: "
+            << B0EnableLds << ", "
+            << "B1EnableLds: "
+            << B1EnableLds << ", "
+            << "NumPrefetch: "
             << NumPrefetch << ", "
             << "LoopScheduler: "
             << LoopSchedToString[LoopSched] << ", "
