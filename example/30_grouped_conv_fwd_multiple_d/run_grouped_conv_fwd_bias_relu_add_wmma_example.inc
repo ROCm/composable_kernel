@@ -52,32 +52,32 @@ using DeviceConvFwdInstance =
         ConvSpec,   // ConvForwardSpecialization
         GemmSpec,   // GemmSpecialization
         1,          // Prefetch stage
-        256,        // BlockSize
-        128,        // MPerBlock
-        128,        // NPerBlock
-        32,         // KPerBlock
-        8,          // K1
+        128,        // BlockSize
+        64,        // MPerBlock
+        64,        // NPerBlock
+        64,         // KPerBlock
+        4,          // K1
         16,         // MPerWMMA
         16,         // NPerWMMA
         4,          // MRepeat
-        2,          // NRepeat
-        S<4, 8, 8>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
+        1,          // NRepeat
+        S<4, 8, 4>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>, // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>, // ABlockTransferSrcAccessOrder
         2,          // ABlockTransferSrcVectorDim
         1,          // ABlockTransferSrcScalarPerVector
         1,          // ABlockTransferDstScalarPerVector_AK1
         true,       // ABlockLdsExtraM
-        S<4, 8, 8>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
+        S<4, 8, 4>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
         S<1, 0, 2>, // BBlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>, // BBlockTransferSrcAccessOrder
         2,          // BBlockTransferSrcVectorDim
         1,          // BBlockTransferSrcScalarPerVector
         1,          // BBlockTransferDstScalarPerVector_BK1
         true,       // BBlockLdsExtraN
-        4,
-        2,
-        S<1, 32, 1, 8>,
+        1,
+        1,
+        S<1, 16, 1, 8>,
         8>;
 
 template <ck::index_t NDimSpatial>

@@ -163,6 +163,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
     static constexpr auto I3 = Number<3>{};
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
+    static constexpr auto I6 = Number<6>{};
     // K1 = Max Vector Access Pixels
     static constexpr auto K1Number = Number<K1>{};
 
@@ -232,18 +233,21 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         }
         else
         {
-            constexpr auto A_KRow = WmmaK / K1;
-            const auto A_KWmma    = K / WmmaK;
+            constexpr auto A_KRow      = 2;
+            constexpr auto A_K0PerWmma = WmmaK / A_KRow / K1Number;
+            const auto A_KWmma         = K / WmmaK;
 
             const auto M0 = M / MPerBlock;
-
+            // 0   1     0         1                2        3             4        5          6
+            // M - K <-> A_KWmma - MBlock*MRepeat - MWaves - A_K0PerWmma - A_KRow - MPerWmma - A_K1
             return transform_tensor_descriptor(
                 in_gemmm_gemmk_desc,
-                make_tuple(make_unmerge_transform(make_tuple(A_KWmma, Number<A_KRow>{}, K1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(
+                               A_KWmma, Number<A_K0PerWmma>{}, Number<A_KRow>{}, K1Number)),
                            make_unmerge_transform(
                                make_tuple(M0 * MRepeat, Number<MWaves>{}, Number<MPerWmma>{}))),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 3, 5>{}, Sequence<1, 2, 4>{}));
+                make_tuple(Sequence<0, 3, 4, 6>{}, Sequence<1, 2, 5>{}));
         }
     }
 
@@ -275,18 +279,21 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         }
         else
         {
-            constexpr auto B_KRow = WmmaK / K1;
-            const auto B_KWmma    = K / WmmaK;
+            constexpr auto B_KRow      = 2;
+            constexpr auto B_K0PerWmma = WmmaK / B_KRow / K1Number;
+            const auto B_KWmma         = K / WmmaK;
 
             const auto N0 = N / NPerBlock;
-
+            // 0   1     0         1                2        3             4        5          6
+            // M - K <-> A_KWmma - MBlock*MRepeat - MWaves - A_K0PerWmma - A_KRow - MPerWmma - A_K1
             return transform_tensor_descriptor(
                 wei_gemmn_gemmk_desc,
-                make_tuple(make_unmerge_transform(make_tuple(B_KWmma, Number<B_KRow>{}, K1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(
+                               B_KWmma, Number<B_K0PerWmma>{}, Number<B_KRow>{}, K1Number)),
                            make_unmerge_transform(
                                make_tuple(N0 * NRepeat, Number<NWaves>{}, Number<NPerWmma>{}))),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 3, 5>{}, Sequence<1, 2, 4>{}));
+                make_tuple(Sequence<0, 3, 4, 6>{}, Sequence<1, 2, 5>{}));
         }
     }
 
@@ -556,7 +563,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                 else
                 {
                     return arg.a_grid_desc_.GetLength(I0) * arg.a_grid_desc_.GetLength(I3) *
-                           arg.a_grid_desc_.GetLength(I5);
+                           arg.a_grid_desc_.GetLength(I4) * arg.a_grid_desc_.GetLength(I6);
                 }
             }();
 
@@ -884,9 +891,19 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             << KPerBlock << ", "
             << getConvForwardSpecializationString(ConvForwardSpecialization) << ", "
             << K1 << ", "
+            << MPerWmma << ", "
+            << NPerWmma << ", "
+            << MRepeat << ", "
+            << NRepeat
+            << ">"
+            << " AEnableLds: "
+            << AEnableLds << ", "
+            << "BEnableLds: "
+            << BEnableLds << ", "
+            << "ABlockTransferSrcScalarPerVector: "
             << ABlockTransferSrcScalarPerVector << ", "
-            << BBlockTransferSrcScalarPerVector
-            << ">";
+            << "BBlockTransferSrcScalarPerVector: "
+            << BBlockTransferSrcScalarPerVector;
         // clang-format on
 
         return str.str();
