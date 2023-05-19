@@ -11,7 +11,7 @@
 
 using ck::index_t;
 
-struct maxPoolFwdArgParser
+struct avgPoolFwdArgParser
 {
     std::unordered_map<std::string, std::vector<int>> long_opts = {
         {"length", {}}, {"wsize", {}}, {"wstride", {}}, {"pad1", {}}, {"pad2", {}}};
@@ -90,7 +90,7 @@ int profile_avg_pool2d_fwd(int argc, char* argv[])
         time_kernel     = std::stoi(argv[6]);
 
         // parse the long options
-        maxPoolFwdArgParser arg_parser;
+        avgPoolFwdArgParser arg_parser;
         arg_parser(argc, argv);
         in_length = arg_parser.long_opts["length"];
         wsize     = arg_parser.long_opts["wsize"];
