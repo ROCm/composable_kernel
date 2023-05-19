@@ -14,7 +14,7 @@ using ck::index_t;
 struct maxPoolFwdArgParser
 {
     std::unordered_map<std::string, std::vector<int>> long_opts = {
-        {"length", {}}, {"wsize", {}}, {"wstride", {}}, {"padding1", {}}, {"padding2", {}}};
+        {"length", {}}, {"wsize", {}}, {"wstride", {}}, {"pad1", {}}, {"pad2", {}}};
 
     bool parse_opt(int argc, char* argv[], const std::string& key, int i)
     {
@@ -55,8 +55,10 @@ void print_help_avg_pool2d_fwd()
               << "--length: input tensor length for NDHW(e.g, --length 2 32 30 30) \n"
               << "--wsize: window size for YX (e.g, --wsize 2 2) \n"
               << "--wstride: window stride for HW (e.g, --wstride 2 2) \n"
-              << "--padding1: left side of padding in HW (e.g, --padding1 1 1) \n"
-              << "--padding2: right side of padding in HW (e.g, --padding2 1 1) \n"
+              << "--pad1: left side of padding in HW (e.g, --pad1 1 1) \n"
+              << "--pad2: right side of padding in HW (e.g, --pad2 1 1) \n"
+              << "eg: ckProfiler avg_pool2d_fwd 0 1 2 0 1 0 --length 2 32 30 30 --wsize 2 2 "
+                 "--wstride 2 2 --pad1 1 1 --pad2 1 1"
               << std::endl;
 }
 
@@ -71,15 +73,15 @@ int profile_avg_pool2d_fwd(int argc, char* argv[])
     std::vector<index_t> in_length = {2, 32, 30, 30};
     std::vector<index_t> wsize     = {2, 2};
     std::vector<index_t> wstride   = {2, 2};
-    std::vector<index_t> padding1  = {1, 1};
-    std::vector<index_t> padding2  = {1, 1};
+    std::vector<index_t> pad1      = {1, 1};
+    std::vector<index_t> pad2      = {1, 1};
 
-    if(argc != 2 && argc != 24)
+    if(argc != 2 && argc != 25)
     {
         print_help_avg_pool2d_fwd();
         return 0;
     }
-    else if(argc == 24)
+    else if(argc == 25)
     {
         data_type       = static_cast<ck::DataTypeEnum>(std::stoi(argv[2]));
         do_verification = std::stoi(argv[3]);
@@ -89,11 +91,12 @@ int profile_avg_pool2d_fwd(int argc, char* argv[])
 
         // parse the long options
         maxPoolFwdArgParser arg_parser;
+        arg_parser(argc, argv);
         in_length = arg_parser.long_opts["length"];
         wsize     = arg_parser.long_opts["wsize"];
         wstride   = arg_parser.long_opts["wstride"];
-        padding1  = arg_parser.long_opts["padding1"];
-        padding2  = arg_parser.long_opts["padding2"];
+        pad1      = arg_parser.long_opts["pad1"];
+        pad2      = arg_parser.long_opts["pad2"];
     }
 
     using F16                 = ck::half_t;
@@ -111,8 +114,8 @@ int profile_avg_pool2d_fwd(int argc, char* argv[])
             in_length,
             wsize,
             wstride,
-            padding1,
-            padding2);
+            pad1,
+            pad2);
     }
     else if(data_type == ck::DataTypeEnum::Float)
     {
@@ -124,8 +127,8 @@ int profile_avg_pool2d_fwd(int argc, char* argv[])
             in_length,
             wsize,
             wstride,
-            padding1,
-            padding2);
+            pad1,
+            pad2);
     }
     else
     {
