@@ -3,8 +3,8 @@
 TEST_P(RRR_F16_F16_F16, TinyCases)
 {
     const std::vector<int> Ms{0, 1};
-    const int N = 768;
-    const int K = 544;
+    constexpr int N = 768;
+    constexpr int K = 544;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -18,8 +18,8 @@ TEST_P(RRR_F16_F16_F16, TinyCases)
 TEST_P(RRR_F16_F16_F16, SmallCases)
 {
     const std::vector<int> Ms{2, 1, 3, 4, 5, 0};
-    const int N = 768;
-    const int K = 544;
+    constexpr int N = 768;
+    constexpr int K = 544;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -33,8 +33,8 @@ TEST_P(RRR_F16_F16_F16, SmallCases)
 TEST_P(RRR_F16_F16_F16, MidCases)
 {
     const std::vector<int> Ms{167, 183, 177, 153, 139, 204};
-    const int N = 768;
-    const int K = 544;
+    constexpr int N = 768;
+    constexpr int K = 544;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -48,8 +48,8 @@ TEST_P(RRR_F16_F16_F16, MidCases)
 TEST_P(RRR_F16_F16_F16, Regular)
 {
     const std::vector<int> Ms{64, 128, 256};
-    const int N = 768;
-    const int K = 320;
+    constexpr int N = 768;
+    constexpr int K = 320;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -63,8 +63,8 @@ TEST_P(RRR_F16_F16_F16, Regular)
 TEST_P(RRR_F16_F16_F16, MNKPadded)
 {
     const std::vector<int> Ms{127, 150, 188, 210};
-    const int N = 136;
-    const int K = 280;
+    constexpr int N = 136;
+    constexpr int K = 280;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -78,8 +78,8 @@ TEST_P(RRR_F16_F16_F16, MNKPadded)
 TEST_P(RCR_F16_F16_F16, TinyCases)
 {
     const std::vector<int> Ms{0, 1};
-    const int N = 768;
-    const int K = 544;
+    constexpr int N = 768;
+    constexpr int K = 544;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -92,8 +92,8 @@ TEST_P(RCR_F16_F16_F16, TinyCases)
 TEST_P(RCR_F16_F16_F16, SmallCases)
 {
     const std::vector<int> Ms{2, 1, 3, 4, 5, 0};
-    const int N = 768;
-    const int K = 544;
+    constexpr int N = 768;
+    constexpr int K = 544;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -107,8 +107,8 @@ TEST_P(RCR_F16_F16_F16, SmallCases)
 TEST_P(RCR_F16_F16_F16, MidCases)
 {
     const std::vector<int> Ms{167, 183, 177, 153, 139, 204};
-    const int N = 768;
-    const int K = 544;
+    constexpr int N = 768;
+    constexpr int K = 544;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -122,8 +122,8 @@ TEST_P(RCR_F16_F16_F16, MidCases)
 TEST_P(RCR_F16_F16_F16, Regular)
 {
     const std::vector<int> Ms{32, 64, 128, 256};
-    const int N = 768;
-    const int K = 320;
+    constexpr int N = 768;
+    constexpr int K = 320;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -137,8 +137,8 @@ TEST_P(RCR_F16_F16_F16, Regular)
 TEST_P(RCR_F16_F16_F16, MNKPadded)
 {
     const std::vector<int> Ms{127, 150, 188, 210};
-    const int N = 136;
-    const int K = 280;
+    constexpr int N = 136;
+    constexpr int K = 280;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -152,8 +152,8 @@ TEST_P(RCR_F16_F16_F16, MNKPadded)
 TEST_P(RRR_F16_F16_F16_LargeK, TestLargeKBatch)
 {
     const std::vector<int> Ms{188, 210};
-    const int N = 768;
-    const int K = 4096;
+    constexpr int N = 768;
+    constexpr int K = 4096;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -167,8 +167,8 @@ TEST_P(RRR_F16_F16_F16_LargeK, TestLargeKBatch)
 TEST_P(RCR_F16_F16_F16_LargeK, TestLargeKBatch)
 {
     const std::vector<int> Ms{188, 210};
-    const int N = 768;
-    const int K = 4096;
+    constexpr int N = 768;
+    constexpr int K = 4096;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);

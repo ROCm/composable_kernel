@@ -50,10 +50,10 @@ class TestGroupedGemm : public testing::TestWithParam<int>
     using EDataType = std::tuple_element_t<5, Tuple>;
 
     public:
-    bool verify_     = true;
-    int init_method_ = 0; // decimal value initialization
-    bool log_        = false;
-    bool bench_      = false; // measure kernel performance
+    static constexpr bool verify_     = true;
+    static constexpr int init_method_ = 1; // decimal value initialization
+    static constexpr bool log_        = false;
+    static constexpr bool bench_      = false; // measure kernel performance
 
     void SetUp() override {}
 

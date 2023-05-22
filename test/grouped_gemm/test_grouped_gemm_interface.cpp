@@ -45,8 +45,8 @@ class TestGGemmSplitKInterface_MKNKMN : public ::testing::Test
 TEST_F(TestGGemmSplitKInterface_MKNKMN, TileSize)
 {
     std::vector<int> Ms{128, 256, 188, 512};
-    int N = 256;
-    int K = 128;
+    constexpr int N = 256;
+    constexpr int K = 128;
 
     std::vector<int> Ns(Ms.size(), N);
     std::vector<int> Ks(Ms.size(), K);
@@ -70,8 +70,8 @@ TEST_F(TestGGemmSplitKInterface_MKNKMN, VectorLoadWidth)
     using PaddedGGemmInstance = GGemmInstance<GemmMNKPadding, 32, 8, 4, 8, 8>;
 
     std::vector<int> Ms{128, 256, 256, 512};
-    int N = 256;
-    int K = 512;
+    constexpr int N = 256;
+    constexpr int K = 512;
 
     std::vector<int> Ns(Ms.size(), N);
     std::vector<int> Ks(Ms.size(), K);
@@ -96,9 +96,9 @@ TEST_F(TestGGemmSplitKInterface_MKNKMN, VectorLoadWidth)
 TEST_F(TestGGemmSplitKInterface_MKNKMN, KLoops)
 {
     std::vector<int> Ms{128, 256, 256, 512};
-    int N      = 256;
-    int K      = 128;
-    int kbatch = 4;
+    constexpr int N      = 256;
+    constexpr int K      = 128;
+    constexpr int kbatch = 4;
 
     std::vector<int> Ns(Ms.size(), N);
     std::vector<int> Ks(Ms.size(), K);
@@ -152,8 +152,8 @@ class TestGGemmSplitKInterface_KMKNNM : public ::testing::Test
 TEST_F(TestGGemmSplitKInterface_KMKNNM, TileSize)
 {
     std::vector<int> Ms{128, 256, 188, 512};
-    int N = 256;
-    int K = 128;
+    constexpr int N = 256;
+    constexpr int K = 128;
 
     std::vector<int> Ns(Ms.size(), N);
     std::vector<int> Ks(Ms.size(), K);
@@ -177,8 +177,8 @@ TEST_F(TestGGemmSplitKInterface_KMKNNM, VectorLoadWidth)
     using PaddedGGemmInstance = GGemmInstance<GemmMNKPadding, 32, 8, 2, 8, 4>;
 
     std::vector<int> Ms{128, 256, 256, 512};
-    int N = 256;
-    int K = 512;
+    constexpr int N = 256;
+    constexpr int K = 512;
 
     std::vector<int> Ns(Ms.size(), N);
     std::vector<int> Ks(Ms.size(), K);
