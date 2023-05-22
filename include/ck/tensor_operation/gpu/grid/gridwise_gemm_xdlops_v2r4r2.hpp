@@ -573,18 +573,28 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
               typename Block2CTileMap>
-    __device__ static void Run(const Argument& karg,
+    __device__ static void Run(const FloatAB* p_a_grid,
+                               const FloatAB* p_b_grid,
+                               FloatC* p_c_grid,
+                               index_t M,
+                               index_t N,
+                               index_t K,
+                               index_t StrideA,
+                               index_t StrideB,
+                               index_t StrideC,
+                               index_t MPadded,
+                               index_t NPadded,
+                               index_t KPadded,
+                               index_t K0,
+                               index_t k_batch,
                                void* __restrict__ p_shared_block,
                                const Block2CTileMap& block_2_ctile_map)
     {
-        const FloatAB* p_a_grid          = karg.p_a_grid;
-        const FloatAB* p_b_grid          = karg.p_b_grid;
-        FloatC* p_c_grid                 = karg.p_c_grid;
-        const auto a_b_k0_m_k1_grid_desc = MakeAGridDescriptor_KBatch_K0_M_K1(
-            karg.M, karg.MPadded, karg.K, karg.StrideA, karg.k_batch, karg.K0, karg.KPadded);
-        const auto b_b_k0_n_k1_grid_desc = MakeBGridDescriptor_KBatch_K0_N_K1(
-            karg.K, karg.NPadded, karg.N, karg.StrideB, karg.k_batch, karg.K0, karg.KPadded);
-        const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
+        const auto a_b_k0_m_k1_grid_desc =
+            MakeAGridDescriptor_KBatch_K0_M_K1(M, MPadded, K, StrideA, k_batch, K0, KPadded);
+        const auto b_b_k0_n_k1_grid_desc =
+            MakeBGridDescriptor_KBatch_K0_N_K1(K, NPadded, N, StrideB, k_batch, K0, KPadded);
+        const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(M, N, StrideC);
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
@@ -824,7 +834,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                 b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);
 
                 k0_block_data_begin += K0PerBlock;
-            } while(k0_block_data_begin < (karg.K0 - K0PerBlock));
+            } while(k0_block_data_begin < (K0 - K0PerBlock));
         }
 
         // tail
@@ -1053,6 +1063,31 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                 }
             });
         }
+    }
+
+    template <bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+              typename Block2CTileMap>
+    __device__ static void Run(const Argument& karg,
+                               void* __restrict__ p_shared_block,
+                               const Block2CTileMap& block_2_ctile_map)
+    {
+        Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, Block2CTileMap>(karg.p_a_grid,
+                                                                           karg.p_b_grid,
+                                                                           karg.p_c_grid,
+                                                                           karg.M,
+                                                                           karg.N,
+                                                                           karg.K,
+                                                                           karg.StrideA,
+                                                                           karg.StrideB,
+                                                                           karg.StrideC,
+                                                                           karg.MPadded,
+                                                                           karg.NPadded,
+                                                                           karg.KPadded,
+                                                                           karg.K0,
+                                                                           karg.k_batch,
+                                                                           p_shared_block,
+                                                                           block_2_ctile_map);
     }
 
     static std::string GetTypeString()
