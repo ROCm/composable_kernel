@@ -38,6 +38,7 @@ struct ExecutionConfig final
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = false;
+    bool do_log          = false;
 };
 
 template <ck::index_t... Is>
@@ -55,33 +56,36 @@ parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, ExecutionConfi
     {
         // use default case
     }
-    else if(argc == 4)
+    else if(argc == 5)
     {
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
         config.time_kernel     = std::stoi(argv[3]);
+        config.do_log          = std::stoi(argv[4]);
     }
-    else if(argc == 10)
+    else if(argc == 11)
     {
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
         config.time_kernel     = std::stoi(argv[3]);
+        config.do_log          = std::stoi(argv[4]);
 
-        problem_size.M = std::stoi(argv[4]);
-        problem_size.N = std::stoi(argv[5]);
-        problem_size.K = std::stoi(argv[6]);
+        problem_size.M = std::stoi(argv[5]);
+        problem_size.N = std::stoi(argv[6]);
+        problem_size.K = std::stoi(argv[7]);
 
-        problem_size.StrideA = std::stoi(argv[7]);
-        problem_size.StrideB = std::stoi(argv[8]);
-        problem_size.StrideC = std::stoi(argv[9]);
+        problem_size.StrideA = std::stoi(argv[8]);
+        problem_size.StrideB = std::stoi(argv[9]);
+        problem_size.StrideC = std::stoi(argv[10]);
     }
     else
     {
-        std::cerr << "arg1: verification (0=no, 1=yes)" << std::endl
-                  << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)"
-                  << std::endl
-                  << "arg3: time kernel (0=no, 1=yes)" << std::endl
-                  << "arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC" << std::endl;
+        std::cerr << "arg1: verification (0=no, 1=yes)\n"
+                  << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
+                  << "arg3: time kernel (0=no, 1=yes)\n"
+                  << "arg4: print tensor (0=no, 1=yes)\n"
+                  << "arg5 to 10: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC"
+                  << std::endl;
         return false;
     }
 

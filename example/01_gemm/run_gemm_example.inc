@@ -30,10 +30,31 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 
     switch(config.init_method)
     {
-    case 0: break;
+    case 0:
+        ck::utils::FillConstant<ADataType>{1.f}(a_m_k);
+        ck::utils::FillConstant<BDataType>{0.f}(b_k_n);
+
+        // for (ck::index_t m = 0; m < M; ++m)
+        // {
+        //     for (ck::index_t k = 0; k < K; ++k)
+        //     {
+        //         a_m_k(m, k) = (m * M + k) % 5;
+        //     }
+        // }
+
+        for(ck::index_t n = 0; n < N; ++n)
+        {
+            for(ck::index_t k = 0; k < K; ++k)
+            {
+                if(n == k)
+                    b_k_n(k, n) = n * 2;
+            }
+        }
+
+        break;
     case 1:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k);
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n);
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-1.f, 3.f}(a_m_k);
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-1.f, 3.f}(b_k_n);
         break;
     default:
         ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
@@ -65,6 +86,7 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
+    c_m_n_device_buf.SetZero();
 #endif
 
     auto a_element_op = AElementOp{};
@@ -114,6 +136,7 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
+    bool result = true;
     if(config.do_verification)
     {
         auto ref_gemm    = ReferenceGemmInstance{};
@@ -131,15 +154,25 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 
         c_m_n_device_result = c_m_n_device_result_converted.CopyAsType<CDataType>();
 
-        return ck::utils::check_err(c_m_n_device_result_converted, c_m_n_host_result);
+        result = result && ck::utils::check_err(c_m_n_device_result_converted, c_m_n_host_result);
 #else
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+        result = result && ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
 #endif
     }
 
-    return true;
+    if(config.do_log)
+    {
+        LogRangeAsType<float>(std::cout << "a:\n", a_m_k.mData, ",", 32) << std::endl;
+        LogRangeAsType<float>(std::cout << "b:\n", b_k_n.mData, ",", 32) << std::endl;
+        LogRangeAsType<float>(std::cout << "c_host:\n", c_m_n_host_result.mData, ",", 32)
+            << std::endl;
+        LogRangeAsType<float>(std::cout << "c_device:\n", c_m_n_device_result.mData, ",", 32)
+            << std::endl;
+    }
+
+    return result;
 }
 
 bool run_gemm_example(int argc, char* argv[])
