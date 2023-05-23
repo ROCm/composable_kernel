@@ -1574,8 +1574,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             InMemoryDataOperationEnum::Set,
             1, // DstScalarStrideInVector
             true>{z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                  make_multi_index(block_work_idx[I0], // MBlockId
-                                   0,                  // NBlockId
+                  make_multi_index(0,                  // MBlockId
+                                   block_work_idx[I0], // NBlockId
                                    0,                  // mrepeat
                                    0,                  // nrepeat
                                    wave_id[I0],        // MWaveId
@@ -1995,7 +1995,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                                             decltype(i)>(s_slash_p_thread_buf,
                                                                          ph,
                                                                          global_elem_id +
-                                                                             i.value * id_step,
+                                                                             id_step * i.value,
                                                                          z_tenor_buffer);
 
                     z_thread_copy_vgpr_to_global.Run(
@@ -2053,6 +2053,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
 
                 auto global_elem_id =
                     MRaw * NRaw * g_idx + m_global * NRaw + n_global; // unique element global 1d id
+
+                // index_t id_step = Acc0TileIterator::GetNumOfAccess() / n0.value;
 
                 ignore = z_grid_buf;
                 // P_dropped
@@ -2241,7 +2243,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                 qgrad_grid_desc_m0_o0_m1_o1_m2_o2_o3_o4, Gemm1::c_block_slice_copy_step); // step M
             z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
                 z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                make_multi_index(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
+                make_multi_index(1, 0, 0, 0, 0, 0, 0, 0, 0, 0));
             lse_thread_copy_global_to_vgpr.MoveSrcSliceWindow(
                 lse_grid_desc_mblock_mrepeat_mwave_mperxdl, make_multi_index(1, 0, 0, 0));
             y_threadwise_copy.MoveSrcSliceWindow(y_grid_desc_mblock_mperblock_oblock_operblock,
