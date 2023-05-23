@@ -1,7 +1,8 @@
-add_custom_target(example_grouped_conv_bwd_data)
+if(GPU_TARGETS MATCHES "gfx908" OR GPU_TARGETS MATCHES "gfx90a" OR GPU_TARGETS MATCHES "gfx940")
+   add_custom_target(example_grouped_conv_bwd_data)
+   add_example_executable(example_grouped_conv_bwd_data_fp16 grouped_conv_bwd_data_fp16.cpp)
+   add_example_executable(example_grouped_conv_bwd_data_bias_relu_fp16 grouped_conv_bwd_data_bias_relu_fp16.cpp)
 
-add_example_executable(example_grouped_conv_bwd_data_fp16 grouped_conv_bwd_data_fp16.cpp)
-add_example_executable(example_grouped_conv_bwd_data_bias_relu_fp16 grouped_conv_bwd_data_bias_relu_fp16.cpp)
-
-add_dependencies(example_grouped_conv_bwd_data example_grouped_conv_bwd_data_fp16)
-add_dependencies(example_grouped_conv_bwd_data example_grouped_conv_bwd_data_bias_relu_fp16)
+   add_dependencies(example_grouped_conv_bwd_data example_grouped_conv_bwd_data_fp16)
+   add_dependencies(example_grouped_conv_bwd_data example_grouped_conv_bwd_data_bias_relu_fp16)
+endif()
