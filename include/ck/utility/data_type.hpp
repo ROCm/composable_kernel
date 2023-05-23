@@ -1220,7 +1220,7 @@ inline __device__ f8_t f8_convert_sr<f8_t, float>(float x)
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 42;
-    uint32_t rng                     = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
     return cast_to_f8<float, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(x, rng);
 }
 
@@ -1246,7 +1246,7 @@ inline __device__ f8_t f8_convert_sr<f8_t, half_t>(half_t x)
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 42;
-    uint32_t rng                     = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
     return cast_to_f8<half_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(x,
                                                                                              rng);
 }
