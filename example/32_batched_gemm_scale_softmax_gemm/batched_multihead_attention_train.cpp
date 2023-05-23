@@ -32,7 +32,7 @@ Kernel outputs:
 
 #define PRINT_HOST 0
 #define USING_MASK 0
-#define DIM 64 // DIM should be a multiple of 8.
+#define DIM 32 // DIM should be a multiple of 8.
 
 #include <iostream>
 #include <numeric>
@@ -730,7 +730,7 @@ int run(int argc, char* argv[])
     bool input_permute  = false;
     bool output_permute = false;
 
-    float p_drop                    = 0.0;
+    float p_drop                    = 0.1;
     const unsigned long long seed   = 1;
     const unsigned long long offset = 0;
 
@@ -1040,7 +1040,8 @@ int run(int argc, char* argv[])
             YElementOp{},
             p_drop,
             std::tuple<unsigned long long, unsigned long long>(seed, offset));
-        kgrad_device_buf.SetZero(); // reset global accum buffer and rerun
+        qgrad_device_buf.SetZero(); // reset global accum buffer and rerun
+        kgrad_device_buf.SetZero();
         vgrad_device_buf.SetZero();
         float ave_time_bwd = invoker_bwd.Run(argument_bwd, StreamConfig{nullptr, true});
 
@@ -1149,6 +1150,7 @@ int run(int argc, char* argv[])
             std::ofstream fwd_file("./z_fwd_matrix_txt");
             fwd_file << z_fwd_gs_ms_ns << std::endl;
 
+            qgrad_device_buf.SetZero();
             kgrad_device_buf.SetZero();
             vgrad_device_buf.SetZero();
 

@@ -1525,7 +1525,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             make_naive_tensor_descriptor_packed(make_tuple(I1,   // MBlockId
                                                            I1,   // NBlockID
                                                            m0,   // MRepeat
-                                                           I1,   // NRepeat
+                                                           n0,   // NRepeat
                                                            m1,   // MWaveId
                                                            n1,   // NWaveId
                                                            m2,   // MPerXdl
@@ -1561,7 +1561,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             Sequence<I1, // MBlockId
                      I1, // NBlockId
                      m0, // MRepeat
-                     I1, // NRepeat
+                     n0, // NRepeat
                      m1, // MWaveId
                      n1, // NWaveId
                      m2, // MPerXdl
@@ -1984,33 +1984,54 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                 auto global_elem_id =
                     MRaw * NRaw * g_idx + m_global * NRaw + n_global; // unique element global 1d id
 
-                index_t id_step = Acc0TileIterator::GetNumOfAccess() / n0.value;
+                // if(get_block_1d_id() == 0 && get_thread_local_1d_id()==64){
+                //    printf("global_elem_id is %d \n", global_elem_id);
+                //}
+
+                // index_t id_step = Acc0TileIterator::GetNumOfAccess() / n0.value;
+
+                // if(get_thread_global_1d_id() == 0){
+                //    printf("Acc0TileIterator::GetNumOfAccess() is %d \n",
+                //    Acc0TileIterator::GetNumOfAccess()); printf("n0.value is %d \n", n0.value);
+                //    printf("id_step is %d \n", id_step);
+                //}
+
+                blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf),
+                                                        decltype(z_tenor_buffer),
+                                                        true>(
+                    s_slash_p_thread_buf, ph, global_elem_id, z_tenor_buffer);
+
+                z_thread_copy_vgpr_to_global.Run(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                                 make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                                                 z_tenor_buffer,
+                                                 z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                                 z_grid_buf);
 
                 // P_dropped
-                static_for<0, n0, 1>{}([&](auto i) {
-                    blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf),
-                                                            decltype(z_tenor_buffer),
-                                                            true,
-                                                            decltype(n0),
-                                                            decltype(i)>(s_slash_p_thread_buf,
-                                                                         ph,
-                                                                         global_elem_id +
-                                                                             id_step * i.value,
-                                                                         z_tenor_buffer);
-
-                    z_thread_copy_vgpr_to_global.Run(
-                        z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                        make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                        z_tenor_buffer,
-                        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                        z_grid_buf);
-                    z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
-                        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                        make_multi_index(0, 0, 0, 1, 0, 0, 0, 0, 0, 0));
-                });
-                z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
-                    z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                    make_multi_index(0, 0, 0, -n0.value, 0, 0, 0, 0, 0, 0));
+                // static_for<0, n0, 1>{}([&](auto i) {
+                //    blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf),
+                //                                            decltype(z_tenor_buffer),
+                //                                            true,
+                //                                            decltype(n0),
+                //                                            decltype(i)>(s_slash_p_thread_buf,
+                //                                                         ph,
+                //                                                         global_elem_id + id_step
+                //                                                         * i.value,
+                //                                                         z_tenor_buffer);
+                //
+                //    z_thread_copy_vgpr_to_global.Run(
+                //        z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                //        make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                //        z_tenor_buffer,
+                //        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                //        z_grid_buf);
+                //    z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+                //        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                //        make_multi_index(0, 0, 0, 1, 0, 0, 0, 0, 0, 0));
+                //});
+                // z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+                //    z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                //    make_multi_index(0, 0, 0, -n0.value, 0, 0, 0, 0, 0, 0));
             }
             else
             {
