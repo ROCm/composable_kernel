@@ -887,6 +887,24 @@ struct BlockwiseGemmXdlops_v2
         return xdlops_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m0_n0_m1_n1_m2_n2);
     }
 
+    // transposed XDL output supporting C' = B' * A'
+    template <typename CGridDesc_M_N>
+    __host__ __device__ static constexpr auto
+    MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_N3_N4(const CGridDesc_M_N& c_grid_desc_m_n)
+    {
+        const auto M = c_grid_desc_m_n.GetLength(I0);
+        const auto N = c_grid_desc_m_n.GetLength(I1);
+
+        const auto c_grid_desc_m0_n0_m1_n1_m2_n2 = transform_tensor_descriptor(
+            c_grid_desc_m_n,
+            make_tuple(make_unmerge_transform(make_tuple(M / (MWaves * MPerXDL), MWaves, MPerXDL)),
+                       make_unmerge_transform(make_tuple(N / (NWaves * NPerXDL), NWaves, NPerXDL))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}));
+
+        return xdlops_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_N2_N3_N4(c_grid_desc_m0_n0_m1_n1_m2_n2);
+    }
+
     template <typename CGridDesc_G_M_N>
     __host__ __device__ static constexpr auto
     MakeCGridDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2(const CGridDesc_G_M_N& c_grid_desc_g_m_n)
