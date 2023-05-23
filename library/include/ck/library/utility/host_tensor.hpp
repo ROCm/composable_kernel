@@ -33,9 +33,10 @@ std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
 }
 
 template <typename T, typename Range>
-std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim)
+std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim, int row_size = 16)
 {
     bool first = true;
+    int col    = 0;
     for(auto&& v : range)
     {
         if(first)
@@ -43,6 +44,8 @@ std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim)
         else
             os << delim;
         os << static_cast<T>(v);
+        if((++col % row_size) == 0)
+            os << "\n";
     }
     return os;
 }
