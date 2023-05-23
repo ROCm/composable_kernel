@@ -151,9 +151,7 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
         return make_tuple(in_grid_desc_reducem_reducek, out_grid_desc_reducem);
     }
 
-    using ABGridDescs = decltype(
-        MakeABGridDescriptor_A_M_K_B_M(1, 1, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}));
-
+    using ABGridDescs   = decltype(MakeABGridDescriptor_A_M_K_B_M(1, 1, {}, {}, {}, {}, {}, {}));
     using AGridDesc_M_K = remove_cvref_t<decltype(ABGridDescs{}[I0])>;
     using BGridDesc_M   = remove_cvref_t<decltype(ABGridDescs{}[I1])>;
 
@@ -290,12 +288,12 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
     MakeArgumentPointer(const void* p_in_dev,
                         void* p_out_dev,
                         void* p_out_indices_dev,
-                        std::vector<ck::index_t>, // Suppose tensor layout = NDHWC
-                        std::vector<ck::index_t>, // Suppose tensor layout = NDHWC
-                        std::vector<ck::index_t>, // Suppose tensor layout = NDHWC
                         std::vector<ck::index_t> input_lengths,
                         std::vector<ck::index_t> window_lengths,
                         std::vector<ck::index_t> output_lengths,
+                        std::vector<ck::index_t>, // Suppose tensor layout = NDHWC
+                        std::vector<ck::index_t>, // Suppose tensor layout = NDHWC
+                        std::vector<ck::index_t>, // Suppose tensor layout = NDHWC
                         std::vector<ck::index_t> window_strides,
                         std::vector<ck::index_t> input_left_pads,
                         std::vector<ck::index_t> input_right_pads,
