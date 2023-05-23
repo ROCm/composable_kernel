@@ -18,7 +18,9 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
     // Set split_k = 2 for xdl op, split_k = 1 for dl
     // Dl op doesn't support split_k > 1
     // TODO: Add Dl op split_k > 1 support
-    if(!(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030"))
+    if(!(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030" ||
+         ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
+         ck::get_device_name() == "gfx1102"))
     {
         split_k = 2;
     }
