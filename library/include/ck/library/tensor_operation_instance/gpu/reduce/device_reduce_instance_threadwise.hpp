@@ -90,6 +90,7 @@ void add_device_reduce_instance_threadwise(
                                                             AccElementwiseOp,
                                                             PropagateNan,
                                                             OutputIndex,
+                                                            false,
                                                             false, // HaveIndexInputIfOutputIndex
                                                             cfg1::BlockSize_,
                                                             cfg2::MThreadSliceSize_,
