@@ -1,3 +1,5 @@
-add_test_executable(test_grouped_gemm_fp16 grouped_gemm_fp16.cpp)
-target_link_libraries(test_grouped_gemm_fp16 PRIVATE utility)
-target_link_libraries(test_grouped_gemm_fp16 PRIVATE device_grouped_gemm_instance)
+if(GPU_TARGETS MATCHES "gfx908" OR GPU_TARGETS MATCHES "gfx90a" OR GPU_TARGETS MATCHES "gfx940")
+   add_test_executable(test_grouped_gemm_fp16 grouped_gemm_fp16.cpp)
+   target_link_libraries(test_grouped_gemm_fp16 PRIVATE utility)
+   target_link_libraries(test_grouped_gemm_fp16 PRIVATE device_grouped_gemm_instance)
+endif()
