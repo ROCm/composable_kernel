@@ -99,6 +99,18 @@ struct PassThrough
     {
         y = type_convert<f8_t>(x);
     }
+
+    template <>
+    __host__ __device__ void operator()<half_t, f8_t>(half_t& y, const f8_t& x) const
+    {
+        y = type_convert<half_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<f8_t, half_t>(f8_t& y, const half_t& x) const
+    {
+        y = type_convert<f8_t>(x);
+    }
 };
 
 struct UnaryConvert
