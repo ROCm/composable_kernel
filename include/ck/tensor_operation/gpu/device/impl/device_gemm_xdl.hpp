@@ -135,7 +135,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             if(!GridwiseGemm::CheckValidity(karg))
             {
                 throw std::runtime_error(
-                    "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
+                    "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext has invalid setting");
             }
 
             const auto [gdx, gdy, gdz] = GridwiseGemm::CalculateGridSize(karg.M, karg.N);
