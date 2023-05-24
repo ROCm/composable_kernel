@@ -30,6 +30,7 @@ using F64_Tuple     = ck::Tuple<F64>;
 using F32_Tuple     = ck::Tuple<F32>;
 using I32_Tuple     = ck::Tuple<I32>;
 using I32_F32_Tuple = ck::Tuple<I32, F32>;
+using I8_Tuple      = ck::Tuple<I8>;
 
 // GEMM layout
 using Row = ck::tensor_layout::gemm::RowMajor;
