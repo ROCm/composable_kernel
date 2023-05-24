@@ -4,7 +4,6 @@
 #pragma once
 
 #include "ck/utility/f8_utils.hpp"
-#include "ck/utility/get_id.hpp"
 #include "ck/utility/statically_indexed_array.hpp"
 
 namespace ck {
