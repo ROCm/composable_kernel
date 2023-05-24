@@ -2,7 +2,6 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
-#include <cstdlib>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -10,9 +9,9 @@
 
 #include "pool2d_fwd_common.hpp"
 
-using InDataType  = ck::half_t;
-using OutDataType = ck::half_t;
-using AccDataType = float;
+using InDataType      = ck::half_t;
+using OutDataType     = ck::half_t;
+using ComputeDataType = float;
 
 using IndexDataType = int32_t;
 
@@ -91,7 +90,7 @@ int main(int argc, char* argv[])
 
     bool pass = pool_test<InDataType,
                           OutDataType,
-                          AccDataType,
+                          ComputeDataType,
                           IndexDataType,
                           InLayout,
                           OutLayout,
