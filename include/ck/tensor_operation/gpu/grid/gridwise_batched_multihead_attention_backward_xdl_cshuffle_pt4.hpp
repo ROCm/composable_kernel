@@ -1284,9 +1284,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             __builtin_amdgcn_readfirstlane(block_work_idx_n * NPerBlock);
 
         // 6 GEMM operations are categorized into 3 buckets. SizeK == SizeO == head_dim
-        // S_MNK / dP_MNO Gemm (Gemm0 rcr)
-        // Y_MON / dQ_MKN Gemm (Gemm1 rrr)
-        // dV_NOM / dK_NKM Gemm (Gemm2 crr)
+        // S_MNK  / dP_MNO Gemm (Gemm0 rcr)
+        // dV_NOM / dK_NKM Gemm (Gemm1 rrr)
+        // Y_MON  / dQ_MKN Gemm (Gemm2 crr)
 
         // LDS allocation for Q / K / V / dY
         auto q_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
