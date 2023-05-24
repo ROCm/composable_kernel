@@ -412,6 +412,12 @@ struct Tensor
     }
 
     template <typename... Is>
+    std::size_t GetOffsetFromMultiIndex(Is... is) const
+    {
+        return mDesc.GetOffsetFromMultiIndex(is...);
+    }
+
+    template <typename... Is>
     T& operator()(Is... is)
     {
         return mData[mDesc.GetOffsetFromMultiIndex(is...)];
