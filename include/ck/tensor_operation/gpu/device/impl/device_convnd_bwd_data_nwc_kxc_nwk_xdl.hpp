@@ -1224,26 +1224,21 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
             {
 #if DEBUG_LOG
                 {
-                    std::cout << "arg.a_grid_desc_k0_m_k1_container_{"
+                    std::cout << "arg.a_grid_desc_k0_m_k1{"
                               << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) << ", "
                               << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I1) << ", "
                               << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I2) << "}"
                               << std::endl;
 
-                    std::cout << "arg.b_grid_desc_k0_n_k1_container_{"
+                    std::cout << "arg.b_grid_desc_k0_n_k1{"
                               << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I0) << ", "
                               << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I1) << ", "
                               << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I2) << "}"
                               << std::endl;
 
-                    std::cout << "arg.c_grid_desc_m_n_container_{ "
+                    std::cout << "arg.c_grid_desc_m_n{"
                               << arg.c_grid_desc_m_n_container_[i].GetLength(I0) << ", "
                               << arg.c_grid_desc_m_n_container_[i].GetLength(I1) << "}"
-                              << std::endl;
-
-                    std::cout << "arg.c_grid_desc_m_n_( "
-                              << arg.c_grid_desc_m_n_container_[i].GetLength(I0) << ", "
-                              << arg.c_grid_desc_m_n_container_[i].GetLength(I1) << " ) "
                               << std::endl;
                 }
 #endif
@@ -1253,7 +1248,7 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
                                                 arg.c_grid_desc_m_n_container_[i]))
                 {
                     throw std::runtime_error(
-                        "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v3r1 has invalid setting");
+                        "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
                 }
 
                 const auto [gdx, gdy, gdz] =
