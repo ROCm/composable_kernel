@@ -1193,8 +1193,6 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
         std::vector<AGridDesc_K0_M_K1> a_grid_desc_k0_m_k1_container_;
         std::vector<BGridDesc_K0_N_K1> b_grid_desc_k0_n_k1_container_;
         std::vector<CGridDesc_M_N> c_grid_desc_m_n_container_;
-        index_t M01_;
-        index_t N01_;
         OutElementwiseOperation a_element_op_;
         WeiElementwiseOperation b_element_op_;
         InElementwiseOperation c_element_op_;
