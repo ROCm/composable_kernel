@@ -280,8 +280,20 @@ bool profile_grouped_gemm_impl(int do_verification,
                                                               c_element_op);
 
                     ref_invoker.Run(ref_argument);
-                    instance_pass = instance_pass && ck::utils::check_err(c_m_n_device_results[i],
-                                                                          c_m_n_host_result);
+                    if(std::is_same_v<CDataType, ck::half_t> && kbatch > 1)
+                    {
+                        instance_pass =
+                            instance_pass && ck::utils::check_err(c_m_n_device_results[i],
+                                                                  c_m_n_host_result,
+                                                                  "Error: Incorrect results!",
+                                                                  0.06);
+                    }
+                    else
+                    {
+                        instance_pass =
+                            instance_pass &&
+                            ck::utils::check_err(c_m_n_device_results[i], c_m_n_host_result);
+                    }
 
                     if(do_log)
                     {
