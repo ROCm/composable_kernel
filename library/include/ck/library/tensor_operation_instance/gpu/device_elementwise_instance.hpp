@@ -3,8 +3,7 @@
 
 #pragma once
 
-#include <cstdlib>
-
+#include <vector>
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl.hpp"
