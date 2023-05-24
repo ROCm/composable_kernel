@@ -43,7 +43,7 @@ Kernel outputs:
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle_v1.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle_v3.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_backward_xdl_cshuffle_v2.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_multihead_attention_forward_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
@@ -72,13 +72,14 @@ using Scale       = ck::tensor_operation::element_wise::Scale;
 using QKVElementOp = PassThrough;
 using YElementOp   = PassThrough;
 
+using DataType         = F16;
 using InputDataType    = F16;
 using OutputDataType   = F16;
 using GemmDataType     = F16;
 using AccDataType      = F32;
 using ShuffleDataType  = F32;
 using LSEDataType      = F32;
-using ZDataType        = INT32; // INT32
+using ZDataType        = U16; // INT32
 using Acc0BiasDataType = ck::Tuple<>;
 using Acc1BiasDataType = ck::Tuple<>;
 
@@ -89,7 +90,7 @@ static constexpr ck::index_t NumDimK = 1;
 static constexpr ck::index_t NumDimO = 1;
 // When OutputDataType == F32,      bwd CShuffleBlockTransferScalarPerVector_NPerBlock = 4
 // When OutputDataType == F16/BF16, bwd CShuffleBlockTransferScalarPerVector_NPerBlock = 8
-static constexpr ck::index_t CShuffleBlockTransferScalarPerVector_NPerBlock = 4;
+// static constexpr ck::index_t CShuffleBlockTransferScalarPerVector_NPerBlock = 4;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 #if USING_MASK
@@ -189,8 +190,7 @@ using DeviceGemmInstanceBWD =
         NumDimN,
         NumDimK,
         NumDimO,
-        InputDataType,
-        OutputDataType,
+        DataType,
         GemmDataType,
         ZDataType,
         LSEDataType,
@@ -248,9 +248,8 @@ using DeviceGemmInstanceBWD =
         1,              // CShuffleMXdlPerWavePerShuffle
         1,              // CShuffleNXdlPerWavePerShuffle
         S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        CShuffleBlockTransferScalarPerVector_NPerBlock, // CShuffleBlockTransferScalarPerVector_NPerBlock
-        MaskingSpec,                                    // MaskingSpecialization
-        Deterministic>;
+        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        MaskingSpec>;   // MaskingSpecialization
 #elif(DIM <= 64)
 using DeviceGemmInstanceFWD =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle<
@@ -330,8 +329,7 @@ using DeviceGemmInstanceBWD =
         NumDimN,
         NumDimK,
         NumDimO,
-        InputDataType,
-        OutputDataType,
+        DataType,
         GemmDataType,
         ZDataType,
         LSEDataType,
@@ -352,7 +350,7 @@ using DeviceGemmInstanceBWD =
         1,
         256,
         128,         // MPerBlock
-        128,         // NPerBlock
+        64,          // NPerBlock
         64,          // KPerBlock
         64,          // Gemm1NPerBlock
         32,          // Gemm1KPerBlock
@@ -362,9 +360,9 @@ using DeviceGemmInstanceBWD =
         32,          // MPerXDL
         32,          // NPerXDL
         1,           // MXdlPerWave
-        4,           // NXdlPerWave
+        2,           // NXdlPerWave
         2,           // Gemm1NXdlPerWave
-        2,           // Gemm2NXdlPerWave
+        1,           // Gemm2NXdlPerWave
         S<4, 64, 1>, // ABlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
@@ -387,11 +385,10 @@ using DeviceGemmInstanceBWD =
         2,
         false,
         1,              // CShuffleMXdlPerWavePerShuffle
-        2,              // CShuffleNXdlPerWavePerShuffle
+        1,              // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        CShuffleBlockTransferScalarPerVector_NPerBlock, // CShuffleBlockTransferScalarPerVector_NPerBlock
-        MaskingSpec,                                    // MaskingSpecialization
-        Deterministic>;
+        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        MaskingSpec>;   // MaskingSpecialization
 
 // using DeviceGemmInstanceBWD =
 //     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2<
@@ -723,8 +720,8 @@ int run(int argc, char* argv[])
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
     // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
     // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t M  = 512; // 512
-    ck::index_t N  = 512; // 512
+    ck::index_t M  = 1000; // 512
+    ck::index_t N  = 1000; // 512
     ck::index_t K  = DIM;
     ck::index_t O  = DIM;
     ck::index_t G0 = 4; // 54
@@ -733,7 +730,7 @@ int run(int argc, char* argv[])
     bool input_permute  = false;
     bool output_permute = false;
 
-    float p_drop                    = 0.2;
+    float p_drop                    = 0.1;
     const unsigned long long seed   = 1;
     const unsigned long long offset = 0;
 
@@ -1043,8 +1040,9 @@ int run(int argc, char* argv[])
             YElementOp{},
             p_drop,
             std::tuple<unsigned long long, unsigned long long>(seed, offset));
-        kgrad_device_buf.SetZero(); // reset global accum buffer and rerun
-        vgrad_device_buf.SetZero();
+        qgrad_device_buf.SetZero(); // reset global accum buffer and rerun
+        // kgrad_device_buf.SetZero();
+        // vgrad_device_buf.SetZero();
         float ave_time_bwd = invoker_bwd.Run(argument_bwd, StreamConfig{nullptr, true});
 
         // 5 GEMM ops in total:
@@ -1152,8 +1150,9 @@ int run(int argc, char* argv[])
             std::ofstream fwd_file("./z_fwd_matrix_txt");
             fwd_file << z_fwd_gs_ms_ns << std::endl;
 
-            kgrad_device_buf.SetZero();
-            vgrad_device_buf.SetZero();
+            qgrad_device_buf.SetZero();
+            // kgrad_device_buf.SetZero();
+            // vgrad_device_buf.SetZero();
 
             auto argument_bwd = gemm_bwd.MakeArgument(
                 static_cast<InputDataType*>(q_device_buf.GetDeviceBuffer()),

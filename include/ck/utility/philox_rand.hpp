@@ -84,6 +84,17 @@ class philox
         out_tmp[3] = tmp_ph.w;
     }
 
+    __device__ void get_random_4x16(ushort* out, const unsigned long long subsequence)
+    {
+        uint4 tmp_ph;
+        tmp_ph = get_philox_4x32(subsequence);
+
+        out[0] = static_cast<ushort>(tmp_ph.x);
+        out[1] = static_cast<ushort>(tmp_ph.y);
+        out[2] = static_cast<ushort>(tmp_ph.z);
+        out[3] = static_cast<ushort>(tmp_ph.w);
+    }
+
     private:
     struct ull2
     {

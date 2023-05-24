@@ -85,7 +85,9 @@ __global__ void
             const C0MatrixMask c0_matrix_mask,
             const float p_drop,
             const unsigned long long seed,
-            const unsigned long long offset)
+            const unsigned long long offset,
+            const index_t MRaw,
+            const index_t NRaw)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -178,6 +180,7 @@ __global__ void
                                                       ph,
                                                       0);
     }
+
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -1005,6 +1008,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                     arg.p_drop_,
                     arg.seed_,
                     arg.offset_);
+
             };
 
             // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need
