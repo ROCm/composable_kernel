@@ -64,7 +64,7 @@ int profile_groupnorm(int argc, char* argv[])
     ck::DataTypeEnum data_type  = ck::DataTypeEnum::Half;
     bool do_verification        = false;
     int init_method             = 0;
-    bool do_log                 = 0;
+    bool do_log                 = false;
     bool time_kernel            = 1;
     std::vector<index_t> length = {64, 16, 16, 32, 40};
 
