@@ -25,13 +25,13 @@ template <typename InDataType,
           ck::ReduceTensorOp ReduceOpId,
           bool OutputIndex,
           ck::index_t BlockSize,
-          ck::index_t ReduceMThreadClusterSize,
-          ck::index_t ReduceKThreadClusterSize,
-          ck::index_t ReduceMThreadSliceSize,
-          ck::index_t ReduceKThreadSliceSize,
+          ck::index_t MThreadClusterSize,
+          ck::index_t KThreadClusterSize,
+          ck::index_t MThreadSliceSize,
+          ck::index_t KThreadSliceSize,
           ck::index_t InSrcOutDstVectorSize>
-struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
-    : public DevicePoolFwd<4, 2, InDataType, OutDataType, IndexDataType, ReduceOpId, OutputIndex>
+struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
+    : public DevicePoolFwd<5, 3, InDataType, OutDataType, IndexDataType, ReduceOpId, OutputIndex>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -40,8 +40,8 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
 
-    static constexpr index_t InOutRank  = 4;
-    static constexpr index_t WindowRank = 2;
+    static constexpr index_t InOutRank  = 5;
+    static constexpr index_t WindowRank = 3;
 
     using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
 
@@ -51,14 +51,12 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
     using AccElementwiseOperation =
         typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
 
-    static constexpr index_t InSrcOutDstVectorDim =
-        0; // for NHWC, the dim C is the vector Dim for both input and output in memory, which is
-           // not reduced.
+    // for NDHWC, the dim C is the vector Dim for both input and output in memory, which is not
+    // reduced.
+    static constexpr index_t InSrcOutDstVectorDim = 0;
 
-    static constexpr ck::index_t ReduceM_BlockTileSize =
-        ReduceMThreadClusterSize * ReduceMThreadSliceSize;
-    static constexpr ck::index_t ReduceK_BlockTileSize =
-        ReduceKThreadClusterSize * ReduceKThreadSliceSize;
+    static constexpr ck::index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
+    static constexpr ck::index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
     static auto MakeABGridDescriptor_A_M_K_B_M(ck::index_t N,
                                                ck::index_t C,
@@ -69,77 +67,86 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                                                std::vector<ck::index_t> input_left_pads,
                                                std::vector<ck::index_t> input_right_pads)
     {
-        const index_t Hi = input_spatial_lengths[0];
-        const index_t Wi = input_spatial_lengths[1];
+        const index_t Di = input_spatial_lengths[0];
+        const index_t Hi = input_spatial_lengths[1];
+        const index_t Wi = input_spatial_lengths[2];
 
-        const index_t Ho = output_spatial_lengths[0];
-        const index_t Wo = output_spatial_lengths[1];
+        const index_t Do = output_spatial_lengths[0];
+        const index_t Ho = output_spatial_lengths[1];
+        const index_t Wo = output_spatial_lengths[2];
 
-        const index_t Y = window_spatial_lengths[0];
-        const index_t X = window_spatial_lengths[1];
+        const index_t Z = window_spatial_lengths[0];
+        const index_t Y = window_spatial_lengths[1];
+        const index_t X = window_spatial_lengths[2];
 
-        const index_t ConvStrideH = window_strides[0];
-        const index_t ConvStrideW = window_strides[1];
+        const index_t ConvStrideD = window_strides[0];
+        const index_t ConvStrideH = window_strides[1];
+        const index_t ConvStrideW = window_strides[2];
 
-        const index_t InLeftPadH = input_left_pads[0];
-        const index_t InLeftPadW = input_left_pads[1];
+        const index_t InLeftPadD = input_left_pads[0];
+        const index_t InLeftPadH = input_left_pads[1];
+        const index_t InLeftPadW = input_left_pads[2];
 
-        const index_t InRightPadH = input_right_pads[0];
-        const index_t InRightPadW = input_right_pads[1];
+        const index_t InRightPadD = input_right_pads[0];
+        const index_t InRightPadH = input_right_pads[1];
+        const index_t InRightPadW = input_right_pads[2];
 
-        const index_t ReduceMRaw = N * Ho * Wo * C;
-        const index_t ReduceMPad =
-            math::integer_least_multiple(ReduceMRaw, ReduceM_BlockTileSize) - ReduceMRaw;
+        const index_t MRaw = N * Do * Ho * Wo * C;
+        const index_t MPad = math::integer_least_multiple(MRaw, M_BlockTileSize) - MRaw;
 
-        const index_t ReduceKRaw = Y * X;
-        const index_t ReduceKPad =
-            math::integer_least_multiple(ReduceKRaw, ReduceK_BlockTileSize) - ReduceKRaw;
+        const index_t KRaw = Z * Y * X;
+        const index_t KPad = math::integer_least_multiple(KRaw, K_BlockTileSize) - KRaw;
 
         // A[ReduceM, ReduceK]
-        const auto in_grid_desc_n_hi_wi_c =
-            make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
+        const auto in_grid_desc_n_di_hi_wi_c =
+            make_naive_tensor_descriptor_packed(make_tuple(N, Di, Hi, Wi, C));
 
-        const auto in_grid_desc_n_hip_wip_c = transform_tensor_descriptor(
-            in_grid_desc_n_hi_wi_c,
+        const auto in_grid_desc_n_dip_hip_wip_c = transform_tensor_descriptor(
+            in_grid_desc_n_di_hi_wi_c,
             make_tuple(make_pass_through_transform(N),
+                       make_pad_transform(Di, InLeftPadD, InRightPadD),
                        make_pad_transform(Hi, InLeftPadH, InRightPadH),
                        make_pad_transform(Wi, InLeftPadW, InRightPadW),
                        make_pass_through_transform(C)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
 
-        const auto in_grid_desc_n_y_ho_x_wo_c = transform_tensor_descriptor(
-            in_grid_desc_n_hip_wip_c,
+        const auto in_grid_desc_n_z_do_y_ho_x_wo_c = transform_tensor_descriptor(
+            in_grid_desc_n_dip_hip_wip_c,
             make_tuple(make_pass_through_transform(N),
+                       make_embed_transform(make_tuple(Z, Do), make_tuple(I1, ConvStrideD)),
                        make_embed_transform(make_tuple(Y, Ho), make_tuple(I1, ConvStrideH)),
                        make_embed_transform(make_tuple(X, Wo), make_tuple(I1, ConvStrideW)),
                        make_pass_through_transform(C)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-            make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+            make_tuple(Sequence<0>{},
+                       Sequence<1, 2>{},
+                       Sequence<3, 4>{},
+                       Sequence<5, 6>{},
+                       Sequence<7>{}));
 
-        const auto in_grid_desc_reducemraw_reducekraw =
-            transform_tensor_descriptor(in_grid_desc_n_y_ho_x_wo_c,
-                                        make_tuple(make_merge_transform(make_tuple(N, Ho, Wo, C)),
-                                                   make_merge_transform(make_tuple(Y, X))),
-                                        make_tuple(Sequence<0, 2, 4, 5>{}, Sequence<1, 3>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
+        const auto in_grid_desc_reducemraw_reducekraw = transform_tensor_descriptor(
+            in_grid_desc_n_z_do_y_ho_x_wo_c,
+            make_tuple(make_merge_transform(make_tuple(N, Do, Ho, Wo, C)),
+                       make_merge_transform(make_tuple(Z, Y, X))),
+            make_tuple(Sequence<0, 2, 4, 6, 7>{}, Sequence<1, 3, 5>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         const auto in_grid_desc_reducem_reducek = transform_tensor_descriptor(
             in_grid_desc_reducemraw_reducekraw,
-            make_tuple(make_right_pad_transform(ReduceMRaw, ReduceMPad),
-                       make_right_pad_transform(ReduceKRaw, ReduceKPad)),
+            make_tuple(make_right_pad_transform(MRaw, MPad), make_right_pad_transform(KRaw, KPad)),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         // B[ReduceM]
         const auto out_grid_desc_reducemraw =
-            make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo * C));
+            make_naive_tensor_descriptor_packed(make_tuple(N * Do * Ho * Wo * C));
 
-        const auto out_grid_desc_reducem = transform_tensor_descriptor(
-            out_grid_desc_reducemraw,
-            make_tuple(make_right_pad_transform(ReduceMRaw, ReduceMPad)),
-            make_tuple(Sequence<0>{}),
-            make_tuple(Sequence<0>{}));
+        const auto out_grid_desc_reducem =
+            transform_tensor_descriptor(out_grid_desc_reducemraw,
+                                        make_tuple(make_right_pad_transform(MRaw, MPad)),
+                                        make_tuple(Sequence<0>{}),
+                                        make_tuple(Sequence<0>{}));
 
         return make_tuple(in_grid_desc_reducem_reducek, out_grid_desc_reducem);
     }
@@ -148,7 +155,6 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
     using AGridDesc_M_K = remove_cvref_t<decltype(ABGridDescs{}[I0])>;
     using BGridDesc_M   = remove_cvref_t<decltype(ABGridDescs{}[I1])>;
 
-    // TODO
     struct Argument : public BaseArgument
     {
         Argument(const InDataType* p_in_dev,
@@ -181,9 +187,9 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
             b_grid_desc_m_   = descs[I1];
 
             invariant_lowest_length_ = C;
-            reduce_lowest_length_    = window_spatial_lengths[1];
 
-            int32_t reduceLength = window_spatial_lengths[0] * window_spatial_lengths[1];
+            int32_t reduceLength =
+                window_spatial_lengths[0] * window_spatial_lengths[1] * window_spatial_lengths[2];
 
             std::tie(in_element_op_, acc_element_op_) =
                 reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(reduceLength);
@@ -199,7 +205,6 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
 
         // for checking vector load/store
         ck::index_t invariant_lowest_length_;
-        ck::index_t reduce_lowest_length_;
     };
 
     struct Invoker : public BaseInvoker
@@ -219,8 +224,8 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                                                      InMemoryDataOperationEnum::Set,
                                                      false, // propagate_nan
                                                      BlockSize,
-                                                     ReduceMThreadSliceSize,
-                                                     ReduceKThreadSliceSize,
+                                                     MThreadSliceSize,
+                                                     KThreadSliceSize,
                                                      InSrcOutDstVectorDim,
                                                      InSrcOutDstVectorSize,
                                                      InSrcOutDstVectorSize>;
@@ -239,9 +244,9 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                                          InElementwiseOperation,
                                          AccElementwiseOperation>;
 
-            ck::index_t ReduceM = arg.a_grid_desc_m_k_.GetLength(I0);
+            ck::index_t M = arg.a_grid_desc_m_k_.GetLength(I0);
 
-            const index_t grid_size = (ReduceM / ReduceM_BlockTileSize);
+            const index_t grid_size = (M / M_BlockTileSize);
 
             return launch_and_time_kernel(stream_config,
                                           kernel,
@@ -273,10 +278,10 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
 
         if(pArg->invariant_lowest_length_ % InSrcOutDstVectorSize != 0)
         {
-            return (false);
+            return false;
         }
 
-        return (true);
+        return true;
     }
 
     std::unique_ptr<BaseArgument>
@@ -286,9 +291,9 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                         std::vector<ck::index_t> input_lengths,
                         std::vector<ck::index_t> window_lengths,
                         std::vector<ck::index_t> output_lengths,
-                        std::vector<ck::index_t>, // Suppose tensor layout = NHWC
-                        std::vector<ck::index_t>, // Suppose tensor layout = NHWC
-                        std::vector<ck::index_t>, // Suppose tensor layout = NHWC
+                        std::vector<ck::index_t>, // Suppose tensor layout = NDHWC
+                        std::vector<ck::index_t>, // Suppose tensor layout = NDHWC
+                        std::vector<ck::index_t>, // Suppose tensor layout = NDHWC
                         std::vector<ck::index_t> window_strides,
                         std::vector<ck::index_t> input_left_pads,
                         std::vector<ck::index_t> input_right_pads,
@@ -299,18 +304,20 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
            input_left_pads.size() != WindowRank || input_right_pads.size() != WindowRank)
             throw std::runtime_error("dimension is incorrect");
 
-        if(pooling_dims != std::vector<ck::index_t>{2, 3})
-            throw std::runtime_error("pooling_dims only support {2, 3} in pool2d so far");
+        if(pooling_dims != std::vector<ck::index_t>{2, 3, 4})
+            throw std::runtime_error("pooling_dims only support {2, 3, 4} in pool3d so far");
 
         index_t N  = input_lengths[0];
         index_t C  = input_lengths[1];
-        index_t Hi = input_lengths[2];
-        index_t Wi = input_lengths[3];
-        index_t Ho = output_lengths[2];
-        index_t Wo = output_lengths[3];
+        index_t Di = input_lengths[2];
+        index_t Hi = input_lengths[3];
+        index_t Wi = input_lengths[4];
+        index_t Do = output_lengths[2];
+        index_t Ho = output_lengths[3];
+        index_t Wo = output_lengths[4];
 
-        std::vector<ck::index_t> input_spatial_lengths  = {Hi, Wi};
-        std::vector<ck::index_t> output_spatial_lengths = {Ho, Wo};
+        std::vector<ck::index_t> input_spatial_lengths  = {Di, Hi, Wi};
+        std::vector<ck::index_t> output_spatial_lengths = {Do, Ho, Wo};
 
         return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_dev),
                                           static_cast<OutDataType*>(p_out_dev),
@@ -335,9 +342,9 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<" << BlockSize << ",";
-        str << "M_C" << ReduceMThreadClusterSize << "_S" << ReduceMThreadSliceSize << ",";
-        str << "K_C" << ReduceKThreadClusterSize << "_S" << ReduceKThreadSliceSize << ",";
+        str << "DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C<" << BlockSize << ",";
+        str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
+        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
         str <<"InSrcOutDstVectorSize_" << InSrcOutDstVectorSize << ">";
         // clang-format on
 
