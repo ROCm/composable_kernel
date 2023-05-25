@@ -10,17 +10,18 @@ execute_process(
 )
 
 
-set(JIT_LIB_SOURCE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/device_gemm_multiple_d.hpp
+add_library(jit_library STATIC 
+    src/device_gemm_multiple_d.cpp
+    src/common.cpp
 )
-
-add_library(jit_library STATIC ${JIT_LIB_SOURCE})
 add_library(composable_kernel::jit_library ALIAS jit_library)
 
 set_target_properties(jit_library PROPERTIES LINKER_LANGUAGE CXX)
 
-target_include_directories(jit_library PUBLIC
+target_include_directories(jit_library PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/jit_library/solution_instances>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/embed/ck_headers/include>
 )
 
 target_link_libraries(jit_library PRIVATE ck_headers)
@@ -30,14 +31,7 @@ rocm_install(
     EXPORT jit_libraryTargets
 )
 
-set(INCLUDE_DIRS
-    ${PROJECT_SOURCE_DIR}/include/ck/
-    ${PROJECT_SOURCE_DIR}/library/src/jit_library/include
-    ${PROJECT_SOURCE_DIR}/library/src/jit_library/solution_instances
-    ${CMAKE_CURRENT_BINARY_DIR}/embed/ck_headers/include
-)
-
-rocm_install(DIRECTORY ${INCLUDE_DIRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck)
+rocm_install(DIRECTORY include DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 rocm_install(
     EXPORT jit_libraryTargets
