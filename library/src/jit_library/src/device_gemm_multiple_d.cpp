@@ -1,6 +1,7 @@
 #include "ck/host/device_gemm_multiple_d.hpp"
 #include "ck/host/common.hpp"
-#include "ck/solution_instances/gemm_add_add_fastgelu_instances.hpp"
+#include "gemm_add_add_fastgelu_instances.hpp"
+#include <algorithm>
 #include <unordered_set>
 
 namespace ck {
@@ -120,11 +121,11 @@ Solution Problem::MakeSolution(std::size_t idx, const std::string& arch) const
     auto m_per_block_str = params[m_per_block_idx];
     auto n_per_block_str = params[n_per_block_idx];
     auto k_per_block_str = params[k_per_block_idx];
-    const auto block_size  = std::stoi(block_size_str);
-    const auto m_per_block = std::stoi(m_per_block_str);
-    const auto n_per_block = std::stoi(n_per_block_str);
-    const auto k_per_block = std::stoi(k_per_block_str);
-    const auto grid_size   = GetGridSize(M, N, m_per_block, n_per_block);
+    const std::size_t block_size  = std::stoi(block_size_str);
+    const std::size_t m_per_block = std::stoi(m_per_block_str);
+    const std::size_t n_per_block = std::stoi(n_per_block_str);
+    const std::size_t k_per_block = std::stoi(k_per_block_str);
+    const std::size_t grid_size   = GetGridSize(M, N, m_per_block, n_per_block);
     params[gemm_spec_idx]  = GetGemmSpec(M, N, K, m_per_block, n_per_block, k_per_block);
 
     std::string str = std::accumulate(params.begin() + 1, params.end(), std::string{},
@@ -144,8 +145,8 @@ std::string Problem::GetIncludeHeader() const
 std::vector<Solution> Problem::GetSolutions(const std::string& arch) const
 {
     std::vector<Solution> solutions;
-    const auto num_instances = GetInstances(arch).size();
-    for (auto i = 0; i < num_instances; ++i)
+    const std::size_t num_instances = GetInstances(arch).size();
+    for (std::size_t i = 0; i < num_instances; ++i)
     {
         solutions.push_back(MakeSolution(i, arch));
     }

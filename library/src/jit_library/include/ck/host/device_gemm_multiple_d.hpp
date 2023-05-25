@@ -9,6 +9,7 @@
 #include <sstream>
 #include <iterator>
 #include <numeric>
+#include "ck/host/common.hpp"
 
 
 namespace ck {

@@ -5,10 +5,11 @@ message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${PROJECT_SOURCE_DIR}/build/include)
 
 execute_process(
-    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/util/make_instance_strings.py 
+    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/util/make_instance_strings.py
+        ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu
+        ${CMAKE_CURRENT_BINARY_DIR}/solution_instances
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../tensor_operation_instance/gpu/
 )
-
 
 add_library(jit_library STATIC 
     src/device_gemm_multiple_d.cpp
@@ -21,6 +22,7 @@ set_target_properties(jit_library PROPERTIES LINKER_LANGUAGE CXX)
 target_include_directories(jit_library PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/jit_library/solution_instances>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/solution_instances>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/embed/ck_headers/include>
 )
 
