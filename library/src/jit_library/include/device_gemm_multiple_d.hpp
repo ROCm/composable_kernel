@@ -95,17 +95,18 @@ private:
     auto GetInstances(const std::string& arch) const
     {
         std::vector<std::string> instances;
+        const bool quantize = ADataType == "int8_t" and BDataType == "int8_t";
         if (get_xdlop_archs().find(arch) != get_xdlop_archs().end())
         {
             instance::gemm_add_add_fastgelu_instances all_instances{};
             if(TransA and TransB)
-                instances = all_instances.get_col_col_instances();
+                instances = all_instances.get_col_col_instances(quantize);
             else if(TransA and not TransB)
-                instances = all_instances.get_col_row_instances();
+                instances = all_instances.get_col_row_instances(quantize);
             else if(not TransA and not TransB)
-                instances = all_instances.get_row_row_instances();
+                instances = all_instances.get_row_row_instances(quantize);
             else
-                instances = all_instances.get_row_col_instances();
+                instances = all_instances.get_row_col_instances(quantize);
         }
         return instances;
     }
