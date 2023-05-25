@@ -2,7 +2,6 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
-#include <cstdlib>
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
@@ -10,9 +9,9 @@
 
 #include "pool2d_fwd_common.hpp"
 
-using InDataType  = float;
-using OutDataType = float;
-using AccDataType = float;
+using InDataType      = float;
+using OutDataType     = float;
+using ComputeDataType = float;
 
 using IndexDataType = int32_t;
 
@@ -91,7 +90,7 @@ int main(int argc, char* argv[])
 
     bool pass = pool_test<InDataType,
                           OutDataType,
-                          AccDataType,
+                          ComputeDataType,
                           IndexDataType,
                           InLayout,
                           OutLayout,

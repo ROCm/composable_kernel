@@ -1,0 +1,6 @@
+add_gtest_executable(test_contraction test_contraction.cpp)
+target_link_libraries(test_contraction PRIVATE utility device_contraction_bilinear_instance device_contraction_scale_instance)
+if(GPU_TARGETS MATCHES "gfx908" OR GPU_TARGETS MATCHES "gfx90a" OR GPU_TARGETS MATCHES "gfx940")
+    add_gtest_executable(test_contraction_interface test_contraction_interface.cpp)
+    target_link_libraries(test_contraction_interface PRIVATE utility device_contraction_bilinear_instance device_contraction_scale_instance)
+endif()

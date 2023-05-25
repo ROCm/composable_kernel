@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <cstdlib>
-
+#include <vector>
+#include <memory>
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute.hpp"

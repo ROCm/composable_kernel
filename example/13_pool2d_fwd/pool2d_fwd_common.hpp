@@ -17,115 +17,11 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_pool_fwd.hpp"
 
 template <typename InDataType,
           typename OutDataType,
-          typename AccDataType,
-          typename IndexDataType,
-          ck::ReduceTensorOp ReduceOpId,
-          bool PropagateNan,
-          bool OutputIndex>
-static void pool_host_verify(const Tensor<InDataType>& in,
-                             Tensor<OutDataType>& out,
-                             Tensor<IndexDataType>& out_indices,
-                             const std::array<ck::index_t, 2>& window_spatial_lengths,
-                             const std::array<ck::index_t, 2>& window_strides,
-                             const std::array<ck::index_t, 2>& in_left_pads,
-                             const std::array<ck::index_t, 2>& /*in_right_pads*/)
-{
-    const int32_t reduceLength = window_spatial_lengths[0] * window_spatial_lengths[1];
-
-    using ReduceOperation = typename ck::reduce_binary_operator<ReduceOpId>::opType;
-
-    auto elementwise_ops =
-        ck::reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(reduceLength);
-
-    auto in_elementwise_op  = std::get<0>(elementwise_ops);
-    auto acc_elementwise_op = std::get<1>(elementwise_ops);
-
-    if constexpr(!OutputIndex)
-    {
-        using Accumulation =
-            ck::detail::AccumulateWithNanCheck<PropagateNan, ReduceOperation, AccDataType>;
-
-        auto f_nchw = [&](auto n, auto c, auto ho, auto wo) {
-            auto accuVal = ReduceOperation::template GetIdentityValue<AccDataType>();
-
-            for(ck::index_t y = 0; y < window_spatial_lengths[0]; ++y)
-            {
-                ck::index_t hi = ho * window_strides[0] + y - in_left_pads[0];
-                for(ck::index_t x = 0; x < window_spatial_lengths[1]; ++x)
-                {
-                    ck::index_t wi = wo * window_strides[1] + x - in_left_pads[1];
-                    if(hi >= 0 && hi < static_cast<ck::index_t>(in.mDesc.GetLengths()[2]) &&
-                       wi >= 0 && wi < static_cast<ck::index_t>(in.mDesc.GetLengths()[3]))
-                    {
-                        AccDataType currVal = static_cast<AccDataType>(in(n, c, hi, wi));
-
-                        in_elementwise_op(currVal, currVal);
-
-                        Accumulation::Calculate(accuVal, currVal);
-                    }
-                }
-            }
-
-            acc_elementwise_op(accuVal, accuVal);
-
-            out(n, c, ho, wo) = accuVal;
-        };
-
-        make_ParallelTensorFunctor(f_nchw,
-                                   out.mDesc.GetLengths()[0],
-                                   out.mDesc.GetLengths()[1],
-                                   out.mDesc.GetLengths()[2],
-                                   out.mDesc.GetLengths()[3])(std::thread::hardware_concurrency());
-    }
-    else
-    {
-        using Accumulation = ck::detail::AccumulateWithIndexAndNanCheck<PropagateNan,
-                                                                        ReduceOperation,
-                                                                        AccDataType,
-                                                                        IndexDataType>;
-        auto f_nchw        = [&](auto n, auto c, auto ho, auto wo) {
-            auto accuVal            = ReduceOperation::template GetIdentityValue<AccDataType>();
-            IndexDataType accuIndex = 0;
-
-            for(ck::index_t y = 0; y < window_spatial_lengths[0]; ++y)
-            {
-                ck::index_t hi = ho * window_strides[0] + y - in_left_pads[0];
-                for(ck::index_t x = 0; x < window_spatial_lengths[1]; ++x)
-                {
-                    ck::index_t wi = wo * window_strides[1] + x - in_left_pads[1];
-                    if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
-                       wi < in.mDesc.GetLengths()[3])
-                    {
-                        AccDataType currVal     = static_cast<AccDataType>(in(n, c, hi, wi));
-                        IndexDataType currIndex = y * window_spatial_lengths[1] + x;
-
-                        in_elementwise_op(currVal, currVal);
-
-                        Accumulation::Calculate(accuVal, currVal, accuIndex, currIndex);
-                    }
-                }
-            }
-
-            acc_elementwise_op(accuVal, accuVal);
-
-            out(n, c, ho, wo)         = accuVal;
-            out_indices(n, c, ho, wo) = accuIndex;
-        };
-
-        make_ParallelTensorFunctor(f_nchw,
-                                   out.mDesc.GetLengths()[0],
-                                   out.mDesc.GetLengths()[1],
-                                   out.mDesc.GetLengths()[2],
-                                   out.mDesc.GetLengths()[3])(std::thread::hardware_concurrency());
-    };
-}
-
-template <typename InDataType,
-          typename OutDataType,
-          typename AccDataType,
+          typename ComputeDataType,
           typename IndexDataType,
           typename InLayout,
           typename OutLayout,
@@ -150,9 +46,10 @@ bool pool_test(bool do_verification,
 {
     using DevicePoolFwdInstance =
         ck::tensor_operation::device::DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<
-            InDataType,  // InDataType
-            OutDataType, // OutDataType
-            AccDataType, // AccDataType
+            InDataType,      // InDataType
+            OutDataType,     // OutDataType
+            IndexDataType,   // IndexDataType
+            ComputeDataType, // ComputeDataType
             ReduceOpId,
             OutputIndex,
             64, // BlockSize
@@ -165,10 +62,10 @@ bool pool_test(bool do_verification,
     const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Y) / window_stride_h + 1;
     const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - X) / window_stride_w + 1;
 
-    const std::array<ck::index_t, 2> window_spatial_lengths{{Y, X}};
-    const std::array<ck::index_t, 2> window_strides{{window_stride_h, window_stride_w}};
-    const std::array<ck::index_t, 2> input_left_pads{{in_left_pad_h, in_left_pad_w}};
-    const std::array<ck::index_t, 2> input_right_pads{{in_right_pad_h, in_right_pad_w}};
+    const std::vector<ck::index_t> window_spatial_lengths{Y, X};
+    const std::vector<ck::index_t> window_strides{window_stride_h, window_stride_w};
+    const std::vector<ck::index_t> input_left_pads{in_left_pad_h, in_left_pad_w};
+    const std::vector<ck::index_t> input_right_pads{in_right_pad_h, in_right_pad_w};
 
     // tensor layout
     auto f_host_tensor_descriptor =
@@ -219,14 +116,16 @@ bool pool_test(bool do_verification,
         static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
         static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
         static_cast<IndexDataType*>(out_indices_device_buf.GetDeviceBuffer()),
-        N,
-        C,
-        std::array<ck::index_t, 2>{{Hi, Wi}},
-        std::array<ck::index_t, 2>{{Y, X}},
-        std::array<ck::index_t, 2>{{Ho, Wo}},
+        {N, C, Hi, Wi},
+        {Y, X},
+        {N, C, Ho, Wo},
+        {C * Hi * Wi, 1, Wi * C, C},
+        {C * Ho * Wo, 1, Wo * C, C},
+        {C * Ho * Wo, 1, Wo * C, C},
         window_strides,
         input_left_pads,
-        input_right_pads);
+        input_right_pads,
+        {2, 3});
 
     if(!pool.IsSupportedArgument(argument_ptr.get()))
     {
@@ -252,19 +151,28 @@ bool pool_test(bool do_verification,
 
     if(do_verification)
     {
-        pool_host_verify<InDataType,
-                         OutDataType,
-                         AccDataType,
-                         IndexDataType,
-                         ReduceOpId,
-                         PropagateNan,
-                         OutputIndex>(in_n_c_hi_wi,
-                                      out_n_c_ho_wo_host,
-                                      out_indices_n_c_ho_wo_host,
-                                      window_spatial_lengths,
-                                      window_strides,
-                                      input_left_pads,
-                                      input_right_pads);
+        using ReferencePoolingFwdInstance =
+            ck::tensor_operation::host::ReferencePoolingFwd<4,
+                                                            2,
+                                                            InDataType,
+                                                            OutDataType,
+                                                            ComputeDataType,
+                                                            IndexDataType,
+                                                            ReduceOpId,
+                                                            PropagateNan,
+                                                            OutputIndex>;
+
+        auto ref_pooling          = ReferencePoolingFwdInstance{};
+        auto ref_pooling_invoker  = ref_pooling.MakeInvoker();
+        auto ref_pooling_argument = ref_pooling.MakeArgument(in_n_c_hi_wi,
+                                                             out_n_c_ho_wo_host,
+                                                             out_indices_n_c_ho_wo_host,
+                                                             window_spatial_lengths,
+                                                             window_strides,
+                                                             input_left_pads,
+                                                             input_right_pads);
+
+        ref_pooling_invoker.Run(ref_pooling_argument);
 
         out_device_buf.FromDevice(out_n_c_ho_wo_device.mData.data());
 
