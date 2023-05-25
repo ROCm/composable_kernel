@@ -178,21 +178,46 @@ struct MDiv
         ck::tie(multiplier, shift) = MagicDivision::CalculateMagicNumbers(divisor_);
     }
 
-    __host__ __device__ uint32_t div(uint32_t dividend) const
+    __host__ __device__ uint32_t div(uint32_t dividend_) const
     {
-        return MagicDivision::DoMagicDivision(dividend, multiplier, shift);
+        return MagicDivision::DoMagicDivision(dividend_, multiplier, shift);
     }
 
     __host__ __device__ void
-    divmod(uint32_t dividend, uint32_t& quotient, uint32_t& remainder) const
+    divmod(uint32_t dividend_, uint32_t& quotient_, uint32_t& remainder_) const
     {
-        quotient  = div(dividend);
-        remainder = dividend - (quotient * divisor);
+        quotient_  = div(dividend_);
+        remainder_ = dividend_ - (quotient_ * divisor);
     }
 
-    __host__ __device__ uint32_t operator/(uint32_t dividend) const { return div(dividend); }
-
     __host__ __device__ uint32_t get() const { return divisor; }
+};
+
+struct MDiv2
+{
+    // 1 dword -> 2 dword storage, divisor need compute from runtime
+    uint32_t multiplier;
+    uint32_t shift; // TODO: 8 bit is enough
+
+    // prefer construct on host
+    __host__ __device__ MDiv2(uint32_t divisor_)
+    {
+        ck::tie(multiplier, shift) = MagicDivision::CalculateMagicNumbers(divisor_);
+    }
+
+    __host__ __device__ MDiv2() : multiplier(0), shift(0) {}
+
+    __host__ __device__ uint32_t div(uint32_t dividend_) const
+    {
+        return MagicDivision::DoMagicDivision(dividend_, multiplier, shift);
+    }
+
+    __host__ __device__ void
+    divmod(uint32_t dividend_, uint32_t divisor_, uint32_t& quotient_, uint32_t& remainder_) const
+    {
+        quotient_  = div(dividend_);
+        remainder_ = dividend_ - (quotient_ * divisor_);
+    }
 };
 
 } // namespace ck

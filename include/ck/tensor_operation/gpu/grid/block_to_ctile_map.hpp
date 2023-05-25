@@ -637,43 +637,52 @@ struct BlockToCTileMap_3DGrid_KSplit
     }
 };
 
+enum StreamKReductionStrategy
+{
+    Atomic = 0, // sk block use atomic to do reduction
+    Reduction,  // let some workgroup responsible for doing the reduction operation
+};
+
 template <uint32_t MPerBlock_,
           uint32_t NPerBlock_,
           uint32_t KPerBlock_,
-          uint32_t TileSwizzleSubM_ = 8>
+          StreamKReductionStrategy ReductionStrategy_ = StreamKReductionStrategy::Atomic,
+          uint32_t TileSwizzleSubM_                   = 8>
 struct BlockToCTileMap_GemmStreamK
 {
-    static constexpr uint32_t min_k_iters_per_sk_block = 2;
-    static constexpr uint32_t MPerBlock                = MPerBlock_;
-    static constexpr uint32_t NPerBlock                = NPerBlock_;
-    static constexpr uint32_t KPerBlock                = KPerBlock_;
-    static constexpr uint32_t tile_swizzle_sub_m       = TileSwizzleSubM_;
+    static constexpr uint32_t min_k_iters_per_sk_block          = 2;
+    static constexpr uint32_t MPerBlock                         = MPerBlock_;
+    static constexpr uint32_t NPerBlock                         = NPerBlock_;
+    static constexpr uint32_t KPerBlock                         = KPerBlock_;
+    static constexpr StreamKReductionStrategy ReductionStrategy = ReductionStrategy_;
+    static constexpr uint32_t tile_swizzle_sub_m                = TileSwizzleSubM_;
 
     //--------------------------------------
     // pass to device
     uint32_t sk_num_blocks;
     uint32_t sk_num_big_blocks;
-    uint32_t sk_total_iters;
+    // uint32_t sk_total_iters;
 
     uint32_t dp_start_block_idx;
-    uint32_t dp_iters_per_block;
-    uint32_t dp_num_blocks;
+    // uint32_t dp_iters_per_block;
+    // uint32_t dp_num_blocks;
+
+    uint32_t reduction_start_block_idx;
 
     uint32_t k_iters_per_big_block;
+
+    // uint32_t tiles_cover_big_blocks; // for reduction
+    // uint32_t total_acc_buffers; // for reduction
+
+    MDiv2 n_tiles;
+
     MDiv k_iters_per_tile;
-    MDiv n_tiles;
+
+    MDiv eqav_tiles_big;    // for reduction
+    MDiv eqav_tiles_little; // for reduction
 
     // MDiv tile_swizzle_sub_m_rem;
     //--------------------------------------
-
-    static int env_get_int(const char* var_name, int default_int)
-    {
-        char* v = getenv(var_name);
-        int r   = default_int;
-        if(v)
-            r = atoi(v);
-        return r;
-    }
 
     // prefer construct on host
     BlockToCTileMap_GemmStreamK(uint32_t m,
@@ -727,8 +736,9 @@ struct BlockToCTileMap_GemmStreamK
             sk_tiles     = partial_dispatche_tiles + num_cu;
         }
 
-        dp_iters_per_block = k_iters_per_tile.get();
-        sk_total_iters     = k_iters_per_tile.get() * sk_tiles;
+        uint32_t dp_iters_per_block = k_iters_per_tile.get();
+        uint32_t sk_total_iters     = k_iters_per_tile.get() * sk_tiles;
+        uint32_t dp_num_blocks      = 0;
 
         {
             uint32_t min_sk_tiles = (sk_tiles >= num_cu) ? num_cu : (sk_tiles + 1);
@@ -775,7 +785,6 @@ struct BlockToCTileMap_GemmStreamK
 
             // give a chance to control num of sk blocks
             sk_num_blocks = sk_blocks != 0xffffffff ? sk_blocks : sk_num_blocks;
-            sk_num_blocks = env_get_int("sk_num_blocks", sk_num_blocks);
 
             if(sk_num_blocks == 0)
             {
@@ -807,7 +816,16 @@ struct BlockToCTileMap_GemmStreamK
                 dp_start_block_idx = (sk_num_blocks + num_cu - 1) / num_cu * num_cu;
             }
         }
-        n_tiles = MDiv(math::integer_divide_ceil(n, NPerBlock));
+        n_tiles                   = MDiv2(math::integer_divide_ceil(n, NPerBlock));
+        reduction_start_block_idx = dp_start_block_idx + dp_num_blocks;
+
+        if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction)
+        {
+            uint32_t upper_big    = math::lcm(k_iters_per_big_block, k_iters_per_tile.get());
+            uint32_t upper_little = math::lcm(k_iters_per_big_block - 1, k_iters_per_tile.get());
+            eqav_tiles_big        = MDiv(upper_big / k_iters_per_tile.get());
+            eqav_tiles_little     = MDiv(upper_little / k_iters_per_tile.get());
+        }
 
         // tile_swizzle_sub_m_rem =
         //    MDiv(math::integer_divide_ceil(m, MPerBlock) % tile_swizzle_sub_m);
@@ -831,9 +849,28 @@ struct BlockToCTileMap_GemmStreamK
                k_iters_per_big_block);
     }
 
+    __host__ __device__ uint32_t get_sk_total_iters() const
+    {
+        uint32_t sk_total_iters = sk_num_big_blocks * k_iters_per_big_block +
+                                  (sk_num_blocks - sk_num_big_blocks) * (k_iters_per_big_block - 1);
+        return sk_total_iters;
+    }
+
+    __host__ __device__ uint32_t get_sk_tiles() const
+    {
+        // tiles for sk
+        uint32_t sk_total_iters = get_sk_total_iters();
+        return k_iters_per_tile.div(sk_total_iters);
+    }
+
     __host__ __device__ dim3 get_grid_dims() const
     {
-        return dim3(dp_start_block_idx + dp_num_blocks, 1, 1);
+        if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction)
+        {
+            return dim3(reduction_start_block_idx + get_sk_tiles(), 1, 1);
+        }
+        else
+            return dim3(reduction_start_block_idx, 1, 1);
     }
 
     __device__ uint32_t get_block_idx() const
@@ -858,6 +895,8 @@ struct BlockToCTileMap_GemmStreamK
         }
         else if(block_idx >= dp_start_block_idx)
         {
+            uint32_t sk_total_iters     = get_sk_total_iters();
+            uint32_t dp_iters_per_block = k_iters_per_tile.get();
             iter_start = sk_total_iters + (block_idx - dp_start_block_idx) * dp_iters_per_block;
             iter_end   = iter_start + dp_iters_per_block;
         }
@@ -882,10 +921,11 @@ struct BlockToCTileMap_GemmStreamK
         k_iters_per_tile.divmod(iter, tile_idx, iter_offset);
     }
 
-    __device__ auto tile_to_spatial(uint32_t tile_idx, uint32_t m, uint32_t /*n*/) const
+    __device__ auto tile_to_spatial(uint32_t tile_idx, uint32_t m, uint32_t n) const
     {
         uint32_t m_tile_idx, n_tile_idx;
-        n_tiles.divmod(tile_idx, m_tile_idx, n_tile_idx);
+        uint32_t n_tiles_value = math::integer_divide_ceil(n, NPerBlock);
+        n_tiles.divmod(tile_idx, n_tiles_value, m_tile_idx, n_tile_idx);
         // return make_tuple(m_tile_idx, n_tile_idx);
 
         // swizzle tile
@@ -901,7 +941,7 @@ struct BlockToCTileMap_GemmStreamK
         m_tile_idx_sub0 = m_tile_idx / tile_swizzle_sub_m;
         m_tile_idx_sub1 = m_tile_idx % tile_swizzle_sub_m;
 
-        uint32_t tile_idx_local = n_tile_idx + m_tile_idx_sub1 * n_tiles.get();
+        uint32_t tile_idx_local = n_tile_idx + m_tile_idx_sub1 * n_tiles_value;
 
         uint32_t m_tile_idx_with_adapt, n_tile_idx_with_adapt;
 
@@ -910,6 +950,115 @@ struct BlockToCTileMap_GemmStreamK
         // sub_m_adapt.divmod(tile_idx_local, n_tile_idx_with_adapt, m_tile_idx_with_adapt);
         return make_tuple(m_tile_idx_with_adapt + m_tile_idx_sub0 * tile_swizzle_sub_m,
                           n_tile_idx_with_adapt);
+    }
+
+    // __host__ __device__ uint32_t get_workspace_offset_for_semaphore() const
+    // {
+    //     // workspace contains 2 part, 1) partial reduction buffer 2) semaphore for cross-wg sync
+    //     // we let 1) start from offset:0, 2) start from the end of 1)
+    //     // NOTE: offset is in unit of byte
+    //     return get_total_acc_buffers() *
+    // }
+    __host__ __device__ uint32_t get_workspace_size_for_acc(uint32_t acc_element_bytes) const
+    {
+        static constexpr uint32_t alignment = 128;
+        uint32_t acc_buffer_bytes =
+            MPerBlock * NPerBlock * get_total_acc_buffers() * acc_element_bytes;
+        return (acc_buffer_bytes + alignment - 1) / alignment * alignment;
+    }
+
+    __host__ __device__ uint32_t get_workspace_size_for_semaphore() const
+    {
+        return get_sk_tiles() * sizeof(uint32_t);
+    }
+
+    __host__ __device__ uint32_t get_workspace_size(uint32_t acc_element_bytes) const
+    {
+        return get_workspace_size_for_acc(acc_element_bytes) + get_workspace_size_for_semaphore();
+    }
+
+    __device__ uint32_t get_tile_intersections(uint32_t tiles_, const MDiv& eqav_tiles_) const
+    {
+        uint32_t tile_idx_       = tiles_ == 0 ? 0 : (tiles_ - 1);
+        uint32_t max_eqav_tiles_ = eqav_tiles_.get() - 1;
+        uint32_t quo_, rem_;
+        eqav_tiles_.divmod(tile_idx_, quo_, rem_);
+        return quo_ * max_eqav_tiles_ + rem_;
+        // return tile_idx_ / eqav_tiles_ * max_eqav_tiles_ + (tile_idx_ % eqav_tiles_);
+    }
+
+    __host__ __device__ uint32_t get_tiles_cover_sk_block(uint32_t num_sk_blocks_,
+                                                          uint32_t iters_per_sk_block_) const
+    {
+        return k_iters_per_tile.div(num_sk_blocks_ * iters_per_sk_block_ + k_iters_per_tile.get() -
+                                    1);
+    }
+
+    __host__ __device__ uint32_t get_total_acc_buffers() const
+    {
+        uint32_t tiles_cover_big_blocks =
+            get_tiles_cover_sk_block(sk_num_big_blocks, k_iters_per_big_block);
+        uint32_t tiles_cover_little_blocks =
+            get_tiles_cover_sk_block(sk_num_blocks - sk_num_big_blocks, k_iters_per_big_block - 1);
+
+        uint32_t total_intersec_big =
+            get_tile_intersections(tiles_cover_big_blocks, eqav_tiles_big);
+        uint32_t total_intersec_little =
+            get_tile_intersections(tiles_cover_little_blocks, eqav_tiles_little);
+
+        return sk_num_blocks + total_intersec_big + total_intersec_little;
+    }
+
+    __device__ uint32_t get_acc_buffer_offset_from_tile(uint32_t tile_idx_) const
+    {
+        // TODO: from big to little
+        uint32_t tiles_cover_big_blocks =
+            get_tiles_cover_sk_block(sk_num_big_blocks, k_iters_per_big_block);
+        if(tile_idx_ < tiles_cover_big_blocks)
+        {
+            uint32_t touched_sk_blocks =
+                (tile_idx_ * k_iters_per_tile.get() + k_iters_per_big_block - 1) /
+                k_iters_per_big_block;
+            uint32_t current_intersec = get_tile_intersections(tile_idx_, eqav_tiles_big);
+            return touched_sk_blocks + current_intersec;
+        }
+        else
+        {
+            uint32_t iters_per_little_sk_block = k_iters_per_big_block - 1;
+            uint32_t tile_idx_little_reverse   = get_sk_tiles() - tile_idx_;
+            uint32_t touched_sk_blocks =
+                (tile_idx_little_reverse * k_iters_per_tile.get() + iters_per_little_sk_block - 1) /
+                iters_per_little_sk_block;
+            uint32_t current_intersec =
+                get_tile_intersections(tile_idx_little_reverse, eqav_tiles_little);
+            // printf("reverse tile:%u, %u/%u\n", tile_idx_little_reverse, touched_sk_blocks,
+            // current_intersec);
+            return get_total_acc_buffers() - (touched_sk_blocks + current_intersec);
+        }
+    }
+
+    __device__ uint32_t get_acc_buffer_offset_from_block(uint32_t block_idx_) const
+    {
+        uint32_t iters_per_big_sk_block    = k_iters_per_big_block;
+        uint32_t iters_per_little_sk_block = k_iters_per_big_block - 1;
+        if(block_idx_ < sk_num_big_blocks)
+        {
+            // uint32_t touched_tiles = (block_idx_ * iters_per_big_sk_block + iters - 1) / iters;
+            uint32_t touched_tiles    = k_iters_per_tile.div(block_idx_ * iters_per_big_sk_block +
+                                                          k_iters_per_tile.get() - 1);
+            uint32_t current_intersec = get_tile_intersections(touched_tiles, eqav_tiles_big);
+            return block_idx_ + current_intersec;
+        }
+        else
+        {
+            uint32_t block_idx_little_reverse = sk_num_blocks - block_idx_;
+            // uint32_t touched_tiles = (block_idx_little_reverse * iters_per_little_sk_block +
+            // iters - 1) / iters;
+            uint32_t touched_tiles = k_iters_per_tile.div(
+                block_idx_little_reverse * iters_per_little_sk_block + k_iters_per_tile.get() - 1);
+            uint32_t current_intersec = get_tile_intersections(touched_tiles, eqav_tiles_little);
+            return get_total_acc_buffers() - (block_idx_little_reverse + current_intersec);
+        }
     }
 };
 

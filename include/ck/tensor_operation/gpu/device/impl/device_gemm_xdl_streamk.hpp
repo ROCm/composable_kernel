@@ -141,7 +141,21 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
             const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm>;
 
             // TODO: remove clear buffer for streamk kernels
-            hipGetErrorString(hipMemset(karg.p_c_grid, 0, karg.M * karg.N * sizeof(CDataType)));
+            if constexpr(GridwiseGemm::Block2CTileMap::ReductionStrategy ==
+                         StreamKReductionStrategy::Atomic)
+            {
+                hipGetErrorString(hipMemset(karg.p_c_grid, 0, karg.M * karg.N * sizeof(CDataType)));
+            }
+            else if constexpr(GridwiseGemm::Block2CTileMap::ReductionStrategy ==
+                              StreamKReductionStrategy::Reduction)
+            {
+                char* workspace_semaphore = reinterpret_cast<char*>(karg.p_workspace_);
+                workspace_semaphore =
+                    workspace_semaphore +
+                    karg.block_mapping.get_workspace_size_for_acc(sizeof(GridwiseGemm::FloatAcc));
+                hipGetErrorString(hipMemset(
+                    workspace_semaphore, 0, karg.block_mapping.get_workspace_size_for_semaphore()));
+            }
 
             ave_time = launch_and_time_kernel(stream_config,
                                               kernel,
@@ -151,6 +165,7 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                                               karg.p_a_grid,
                                               karg.p_b_grid,
                                               karg.p_c_grid,
+                                              karg.p_workspace_,
                                               karg.M,
                                               karg.N,
                                               karg.K,
@@ -169,6 +184,27 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
+
+    size_t GetWorkSpaceSize(const BaseArgument* pArg) const override
+    {
+        const Argument* p_arg = dynamic_cast<const Argument*>(pArg);
+        if constexpr(GridwiseGemm::Block2CTileMap::ReductionStrategy ==
+                     StreamKReductionStrategy::Reduction)
+        {
+            return p_arg->block_mapping.get_workspace_size(sizeof(GridwiseGemm::FloatAcc));
+        }
+        else
+        {
+            return 0;
+        }
+    }
+
+    void SetWorkSpacePointer(BaseArgument* pArg, void* p_workspace) const override
+    {
+        Argument* pArg_ = dynamic_cast<Argument*>(pArg);
+
+        pArg_->p_workspace_ = p_workspace;
+    }
 
     static constexpr bool IsValidCompilationParameter()
     {

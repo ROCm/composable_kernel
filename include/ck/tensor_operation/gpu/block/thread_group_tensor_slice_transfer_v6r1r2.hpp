@@ -111,6 +111,16 @@ struct ThreadGroupTensorSliceTransfer_v6r1r2
         }
     }
 
+    __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
+    {
+        threadwise_transfer_.SetSrcSliceOrigin(src_desc, src_slice_origin_idx);
+    }
+
+    __device__ void SetDstSliceOrigin(const DstDesc& dst_desc, const Index& dst_slice_origin_idx)
+    {
+        threadwise_transfer_.SetDstSliceOrigin(dst_desc, dst_slice_origin_idx);
+    }
+
     private:
     static constexpr auto thread_cluster_desc_ =
         make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
