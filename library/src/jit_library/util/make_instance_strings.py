@@ -154,9 +154,9 @@ def get_int8_instances(src, file, template_name):
                 for key in aliases:
                     new_line = new_line.replace(key, aliases[key])
                 
-                versions.append(new_line.replace("GemmPipeline", "ck:PipelineVersion::v1").replace("GemmLoopScheduler", "ck::LoopScheduler::Default"))
-                versions.append(new_line.replace("GemmPipeline", "ck:PipelineVersion::v1").replace("GemmLoopScheduler", "ck::LoopScheduler::Interwave"))
-                versions.append(new_line.replace("GemmPipeline", "ck:PipelineVersion::v2").replace("GemmLoopScheduler", "ck::LoopScheduler::Default"))
+                versions.append(new_line.replace("GemmPipeline", "ck::PipelineVersion::v1").replace("GemmLoopScheduler", "ck::LoopScheduler::Default"))
+                versions.append(new_line.replace("GemmPipeline", "ck::PipelineVersion::v1").replace("GemmLoopScheduler", "ck::LoopScheduler::Interwave"))
+                versions.append(new_line.replace("GemmPipeline", "ck::PipelineVersion::v2").replace("GemmLoopScheduler", "ck::LoopScheduler::Default"))
                 if "ck::tensor_layout::gemm::RowMajor ck::tensor_layout::gemm::RowMajor" in new_line:
                     instances["row_row"].extend(versions)
                 elif "ck::tensor_layout::gemm::RowMajor ck::tensor_layout::gemm::ColumnMajor" in new_line:

@@ -82,6 +82,7 @@ struct Problem
 
     static const index_t ds_layout_idx   = 3;
     static const index_t ds_data_type_idx = 9;
+    static const index_t e_data_type_idx = 10;
     static const index_t a_elementwise_op_idx = 11;
     static const index_t b_elementwise_op_idx = 12;
     static const index_t ds_elementwise_op_idx = 13;
@@ -146,12 +147,26 @@ private:
         std::istringstream iss(template_str);
         std::vector<std::string> params(std::istream_iterator<std::string>{iss},
                                         std::istream_iterator<std::string>());
+        
+        if (ADataType == "int8_t" and BDataType == "int8_t")
+        {
+            // Change CBlockTransfer ScalarPerVector if Ds contains other types
+            if (std::any_of(DsDataType.begin(), DsDataType.end(), [](auto t) { return t == "ck::half_t"; }))
+            {
+                params[params.size() - 3] = "8";
+            }
+            if (std::any_of(DsDataType.begin(), DsDataType.end(), [](auto t) { return t == "float"; }))
+            {
+                params[params.size() - 3] = "4";
+            }
+        }
 
         params[a_elementwise_op_idx] = AElementOp;
         params[b_elementwise_op_idx] = BElementOp;
         params[ds_layout_idx] = MakeLayoutTuple(DsLayout);
         params[ds_data_type_idx] = MakeTypeTuple(DsDataType);
         params[ds_elementwise_op_idx] = CDEElementOp;
+        params[e_data_type_idx] = EDataType;
         auto block_size_str = params[block_size_idx];
         auto m_per_block_str = params[m_per_block_idx];
         auto n_per_block_str = params[n_per_block_idx];
