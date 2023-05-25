@@ -59,8 +59,7 @@ private:
 
     std::string MakeTypeTuple(const std::vector<std::string>& types) const;
 
-    Solution MakeSolution(std::size_t idx, const std::string& arch) const
-;
+    Solution MakeSolution(std::size_t idx, const std::string& arch) const;
 
 public:
     std::string GetIncludeHeader() const;
