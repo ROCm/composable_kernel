@@ -136,6 +136,23 @@ Solution Problem::MakeSolution(std::size_t idx, const std::string& arch) const
     return Solution{str, block_size, grid_size};
 }
 
+std::string Problem::GetIncludeHeader() const
+{
+    return instance::gemm_add_add_fastgelu_instances{}.get_include_header();
+}
+
+std::vector<Solution> Problem::GetSolutions(const std::string& arch) const
+{
+    std::vector<Solution> solutions;
+    const auto num_instances = GetInstances(arch).size();
+    for (auto i = 0; i < num_instances; ++i)
+    {
+        solutions.push_back(MakeSolution(i, arch));
+    }
+
+    return solutions;
+}
+
 
 } // namespace device_gemm_multiple_d
 } // namespace host

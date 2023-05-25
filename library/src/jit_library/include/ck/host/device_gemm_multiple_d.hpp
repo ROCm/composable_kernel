@@ -63,27 +63,9 @@ private:
 ;
 
 public:
-    auto GetHeaders() const
-    {
-        return ck_headers();
-    }
+    std::string GetIncludeHeader() const;
 
-    std::string GetIncludeHeader() const
-    {
-        return instance::gemm_add_add_fastgelu_instances{}.get_include_header();
-    }
-
-    std::vector<Solution> GetSolutions(const std::string& arch) const
-    {
-        std::vector<Solution> solutions;
-        const auto num_instances = GetInstances(arch).size();
-        for (auto i = 0; i < num_instances; ++i)
-        {
-            solutions.push_back(MakeSolution(i, arch));
-        }
-
-        return solutions;
-    }
+    std::vector<Solution> GetSolutions(const std::string& arch) const;
 };
 
 } // namespace device_gemm_multiple_d
