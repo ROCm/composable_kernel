@@ -10,6 +10,13 @@
 namespace ck {
 namespace host {
 
+struct Solution
+{
+    std::string template_str;
+    std::size_t block_size;
+    std::size_t grid_size;
+};
+
 enum class DataType {
     Half,
     Float,

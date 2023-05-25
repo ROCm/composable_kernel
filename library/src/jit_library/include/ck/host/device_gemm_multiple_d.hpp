@@ -15,14 +15,6 @@ namespace ck {
 namespace host {
 namespace device_gemm_multiple_d {
 
-
-struct Solution
-{
-    std::string template_str;
-    std::size_t block_size;
-    std::size_t grid_size;
-};
-
 struct Problem
 {
     std::size_t M = 0;
