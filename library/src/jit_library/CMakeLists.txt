@@ -2,7 +2,7 @@ include(Embed)
 file(GLOB_RECURSE KERNEL_FILES ${CONFIGURE_DEPENDS}
     ${PROJECT_SOURCE_DIR}/include/ck/*.hpp)
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
-add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${PROJECT_SOURCE_DIR}/build/include)
+add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${PROJECT_SOURCE_DIR}/include)
 
 execute_process(
     COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/util/make_instance_strings.py
