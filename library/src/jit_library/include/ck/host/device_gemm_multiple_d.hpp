@@ -24,11 +24,11 @@ struct Problem
     bool TransA = false;
     bool TransB = false;
     bool TransE = false;
-    std::vector<bool> DsLayout = {};
-    std::string ADataType = "ck::half_t";
-    std::string BDataType = "ck::half_t";
-    std::string EDataType = "ck::half_t";
-    std::vector<std::string> DsDataType = {};
+    std::vector<bool> DsTrans = {};
+    DataType ADataType = DataType::Half;
+    DataType BDataType = DataType::Half;
+    DataType EDataType = DataType::Half;
+    std::vector<DataType> DsDataType = {};
     std::string AElementOp = "ck::tensor_operation::element_wise::PassThrough";
     std::string BElementOp = "ck::tensor_operation::element_wise::PassThrough";
     std::string CDEElementOp = "ck::Tuple<>";
@@ -45,19 +45,14 @@ struct Problem
     static const std::size_t n_per_block_idx = 18;
     static const std::size_t k_per_block_idx = 19;
 
-private:
-    std::vector<std::string> GetInstances(const std::string& arch) const;
-
-    std::string MakeLayoutTuple(const std::vector<bool>& layouts) const;
-
-    std::string MakeTypeTuple(const std::vector<std::string>& types) const;
-
-    Solution MakeSolution(std::size_t idx, const std::string& arch) const;
-
-public:
     std::string GetIncludeHeader() const;
 
     std::vector<Solution> GetSolutions(const std::string& arch) const;
+
+private:
+    std::vector<std::string> GetInstances(const std::string& arch) const;
+
+    Solution MakeSolution(std::size_t idx, const std::string& arch) const;
 };
 
 } // namespace device_gemm_multiple_d

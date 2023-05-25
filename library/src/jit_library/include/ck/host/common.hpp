@@ -24,6 +24,8 @@ enum class DataType {
     Int32
 };
 
+std::string ToString(DataType dt);
+
 std::unordered_map<std::string, std::pair<const char*,const char*>> GetHeaders();
 
 std::size_t integer_divide_ceil(std::size_t x, std::size_t y);

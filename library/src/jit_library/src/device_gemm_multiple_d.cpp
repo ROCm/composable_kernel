@@ -46,7 +46,7 @@ const std::unordered_set<std::string>& get_xdlop_archs()
 std::vector<std::string> Problem::GetInstances(const std::string& arch) const
 {
     std::vector<std::string> instances;
-    const bool quantize = ADataType == "int8_t" and BDataType == "int8_t";
+    const bool quantize = ADataType == DataType::Int8 and BDataType == DataType::Int8;
     if (get_xdlop_archs().find(arch) != get_xdlop_archs().end())
     {
         instance::gemm_add_add_fastgelu_instances all_instances{};
@@ -62,7 +62,7 @@ std::vector<std::string> Problem::GetInstances(const std::string& arch) const
     return instances;
 }
 
-std::string Problem::MakeLayoutTuple(const std::vector<bool>& layouts) const
+std::string MakeLayoutTuple(const std::vector<bool>& layouts)
 {
     std::string layout_tuple = "ck::Tuple<";
     auto it = layouts.begin();
@@ -77,13 +77,13 @@ std::string Problem::MakeLayoutTuple(const std::vector<bool>& layouts) const
     return layout_tuple + ">";
 }
 
-std::string Problem::MakeTypeTuple(const std::vector<std::string>& types) const
+std::string MakeTypeTuple(const std::vector<DataType>& types)
 {
     std::string type_tuple = "ck::Tuple<";
     auto it = types.begin();
     while(it != types.end())
     {
-        type_tuple += *it;
+        type_tuple += ToString(*it);
         it = std::next(it);
         if (it != types.end())
             type_tuple += ", ";
@@ -98,14 +98,14 @@ Solution Problem::MakeSolution(std::size_t idx, const std::string& arch) const
     std::vector<std::string> params(std::istream_iterator<std::string>{iss},
                                     std::istream_iterator<std::string>());
     
-    if (ADataType == "int8_t" and BDataType == "int8_t")
+    if (ADataType == DataType::Int8 and BDataType == DataType::Int8)
     {
         // Change CBlockTransfer ScalarPerVector if Ds contains other types
-        if (std::any_of(DsDataType.begin(), DsDataType.end(), [](auto t) { return t == "ck::half_t"; }))
+        if (std::any_of(DsDataType.begin(), DsDataType.end(), [](auto t) { return t == DataType::Half; }))
         {
             params[params.size() - 3] = "8";
         }
-        if (std::any_of(DsDataType.begin(), DsDataType.end(), [](auto t) { return t == "float"; }))
+        if (std::any_of(DsDataType.begin(), DsDataType.end(), [](auto t) { return t == DataType::Float; }))
         {
             params[params.size() - 3] = "4";
         }
@@ -113,10 +113,10 @@ Solution Problem::MakeSolution(std::size_t idx, const std::string& arch) const
 
     params[a_elementwise_op_idx] = AElementOp;
     params[b_elementwise_op_idx] = BElementOp;
-    params[ds_layout_idx] = MakeLayoutTuple(DsLayout);
+    params[ds_layout_idx] = MakeLayoutTuple(DsTrans);
     params[ds_data_type_idx] = MakeTypeTuple(DsDataType);
     params[ds_elementwise_op_idx] = CDEElementOp;
-    params[e_data_type_idx] = EDataType;
+    params[e_data_type_idx] = ToString(EDataType);
     auto block_size_str = params[block_size_idx];
     auto m_per_block_str = params[m_per_block_idx];
     auto n_per_block_str = params[n_per_block_idx];
