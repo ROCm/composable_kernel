@@ -380,14 +380,19 @@ struct DynamicBuffer
     __host__ __device__ static constexpr bool IsDynamicBuffer() { return true; }
 };
 
-template <AddressSpaceEnum BufferAddressSpace, typename T, typename ElementSpaceSize>
+template <AddressSpaceEnum BufferAddressSpace,
+          amd_buffer_coherence_bits coherence = amd_buffer_coherence_bits::default_coherence,
+          typename T,
+          typename ElementSpaceSize>
 __host__ __device__ constexpr auto make_dynamic_buffer(T* p, ElementSpaceSize element_space_size)
 {
-    return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, true>{p, element_space_size};
+    return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, true, coherence>{
+        p, element_space_size};
 }
 
 template <
     AddressSpaceEnum BufferAddressSpace,
+    amd_buffer_coherence_bits coherence = amd_buffer_coherence_bits::default_coherence,
     typename T,
     typename ElementSpaceSize,
     typename X,
@@ -395,7 +400,7 @@ template <
 __host__ __device__ constexpr auto
 make_dynamic_buffer(T* p, ElementSpaceSize element_space_size, X invalid_element_value)
 {
-    return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, false>{
+    return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, false, coherence>{
         p, element_space_size, invalid_element_value};
 }
 
