@@ -792,13 +792,13 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
 
         __host__ __device__ static constexpr auto GetABlockSliceLengths_M0_K0_M1_K1_M2_K2()
         {
-            // perform manual unmerge: m -> m_repeat, m_waves, m_per_xdl
+            // perform manual unmerge: n -> n_repeat, n_waves, n_per_xdl
             constexpr index_t k  = Gemm2Params::Sum_K - 1;
             constexpr index_t k2 = k % NPerXdl;
             constexpr index_t k1 = k / NPerXdl % Gemm0NWaves;
             constexpr index_t k0 = k / NPerXdl / Gemm0NWaves % NXdlPerWave;
 
-            // perform manual unmerge: n -> n_repeat, n_waves, n_per_xdl
+            // perform manual unmerge: m -> m_repeat, m_waves, m_per_xdl
             constexpr index_t m  = Gemm2Params::Gemm2_M - 1;
             constexpr index_t m2 = m % MPerXdl;
             constexpr index_t m1 = m / MPerXdl % Gemm0MWaves;
@@ -1284,7 +1284,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             __builtin_amdgcn_readfirstlane(block_work_idx_n * NPerBlock);
 
         // 6 GEMM operations are categorized into 3 buckets. SizeK == SizeO == head_dim
-        // S_MNK  / dP_MNO Gemm (Gemm0 rcr)
+        // S_MNK  / dP_MNO Gemm (Gemm0 rcc)
         // dV_NOM / dK_NKM Gemm (Gemm1 rrr)
         // Y_MON  / dQ_MKN Gemm (Gemm2 crr)
 
@@ -1347,7 +1347,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                 tensor_operation::element_wise::PassThrough{});
 
         //
-        // set up S / dP Gemm (type 1 rcr)
+        // set up S / dP Gemm (type 1 rcc)
         //
 
         // S: blockwise gemm
