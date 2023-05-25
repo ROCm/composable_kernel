@@ -52,9 +52,10 @@ struct DynamicBuffer
     __host__ __device__ constexpr T& operator()(index_t i) { return p_data_[i]; }
 
     template <typename X,
+              amd_buffer_coherence_bits coherence = amd_buffer_coherence_bits::default_coherence,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+                                 bool>::type      = false>
     __host__ __device__ constexpr auto Get(index_t i, bool is_valid_element) const
     {
         // X contains multiple T
@@ -77,13 +78,16 @@ struct DynamicBuffer
 
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
-                return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>, t_per_x>(
+                return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>,
+                                                                   t_per_x,
+                                                                   coherence>(
                     p_data_, i, is_valid_element, element_space_size_);
             }
             else
             {
                 return amd_buffer_load_invalid_element_return_customized_value<remove_cvref_t<T>,
-                                                                               t_per_x>(
+                                                                               t_per_x,
+                                                                               coherence>(
                     p_data_, i, is_valid_element, element_space_size_, invalid_element_value_);
             }
         }
@@ -144,9 +148,10 @@ struct DynamicBuffer
     }
 
     template <typename X,
+              amd_buffer_coherence_bits coherence = amd_buffer_coherence_bits::default_coherence,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+                                 bool>::type      = false>
     __host__ __device__ void Set(index_t i, bool is_valid_element, const X& x)
     {
         // X contains multiple T
@@ -173,7 +178,7 @@ struct DynamicBuffer
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
-            amd_buffer_store<remove_cvref_t<T>, t_per_x>(
+            amd_buffer_store<remove_cvref_t<T>, t_per_x, coherence>(
                 x, p_data_, i, is_valid_element, element_space_size_);
         }
         else if constexpr(GetAddressSpace() == AddressSpaceEnum::Lds &&
