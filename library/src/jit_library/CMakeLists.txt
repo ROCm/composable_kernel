@@ -33,7 +33,7 @@ rocm_install(
     EXPORT jit_libraryTargets
 )
 
-rocm_install(DIRECTORY include DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+rocm_install(DIRECTORY include/ck DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 rocm_install(
     EXPORT jit_libraryTargets
