@@ -27,7 +27,7 @@ find_program(EMBED_OBJCOPY objcopy)
 function(generate_embed_source EMBED_NAME)
     set(options)
     set(oneValueArgs SRC HEADER RELATIVE)
-    set(multiValueArgs OBJECTS SYMBOLS)
+    set(multiValueArgs OBJECTS SYMBOLS FILES)
 
     cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -44,6 +44,7 @@ function(generate_embed_source EMBED_NAME)
     foreach(idx RANGE ${LEN})
         list(GET PARSE_SYMBOLS ${idx} SYMBOL)
         list(GET PARSE_OBJECTS ${idx} OBJECT)
+        list(GET PARSE_FILES ${idx} FILE)
         set(START_SYMBOL "_binary_${SYMBOL}_start")
         set(END_SYMBOL "_binary_${SYMBOL}_end")
         string(APPEND EXTERNS "
@@ -52,8 +53,7 @@ function(generate_embed_source EMBED_NAME)
         ")
 
         
-        file(RELATIVE_PATH BASE_NAME ${PARSE_RELATIVE} "${OBJECT}")
-        string(REGEX REPLACE ".[A-Za-z0-9_]$" "" BASE_NAME ${BASE_NAME})
+        file(RELATIVE_PATH BASE_NAME ${PARSE_RELATIVE} "${FILE}")
 
         string(APPEND INIT_KERNELS "
             { \"${BASE_NAME}\", { ${START_SYMBOL}, ${END_SYMBOL}} },
@@ -121,7 +121,7 @@ function(add_embed_library EMBED_NAME)
         list(APPEND SYMBOLS ${OUTPUT_SYMBOL})
     endforeach()
     message(STATUS "Generating embedding library ${EMBED_NAME}")
-    generate_embed_source(${EMBED_NAME} SRC ${SRC_FILE} HEADER ${HEADER_FILE} OBJECTS ${OUTPUT_FILES} SYMBOLS ${SYMBOLS} RELATIVE ${PARSE_RELATIVE})
+    generate_embed_source(${EMBED_NAME} SRC ${SRC_FILE} HEADER ${HEADER_FILE} OBJECTS ${OUTPUT_FILES} SYMBOLS ${SYMBOLS} RELATIVE ${PARSE_RELATIVE} FILES ${PARSE_UNPARSED_ARGUMENTS})
     add_library(${EMBED_NAME} STATIC ${OUTPUT_FILES} "${SRC_FILE}")
     target_include_directories(${EMBED_NAME} PUBLIC "$<BUILD_INTERFACE:${EMBED_DIR}/include>")
     target_compile_options(${EMBED_NAME} PRIVATE -Wno-reserved-identifier)

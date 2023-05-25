@@ -1,7 +1,8 @@
 include(Embed)
-file(GLOB_RECURSE KERNEL_FILES ${CONFIGURE_DEPENDS}
+file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS
     ${PROJECT_SOURCE_DIR}/include/ck/*.hpp)
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
+message(STATUS "RELATIVE: ${PROJECT_SOURCE_DIR}/include")
 add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${PROJECT_SOURCE_DIR}/include)
 
 execute_process(
