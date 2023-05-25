@@ -9,7 +9,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
-#include "ck/tensor_operation/gpu/device/device_pool2d_fwd.hpp"
+#include "ck/tensor_operation/gpu/device/device_pool_fwd.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_threadwise.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -20,16 +20,18 @@ namespace device {
 
 template <typename InDataType,
           typename OutDataType,
-          typename AccDataType,
+          typename IndexDataType, // enable if OutputIndex == true
+          typename ComputeDataType,
           ck::ReduceTensorOp ReduceOpId,
-          bool OuputIndex,
+          bool OutputIndex,
           ck::index_t BlockSize,
           ck::index_t ReduceMThreadClusterSize,
           ck::index_t ReduceKThreadClusterSize,
           ck::index_t ReduceMThreadSliceSize,
           ck::index_t ReduceKThreadSliceSize,
           ck::index_t InSrcOutDstVectorSize>
-struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd<ReduceOpId>
+struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
+    : public DevicePoolFwd<4, 2, InDataType, OutDataType, IndexDataType, ReduceOpId, OutputIndex>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -38,7 +40,8 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
 
-    using IndexDataType = int32_t;
+    static constexpr index_t InOutRank  = 4;
+    static constexpr index_t WindowRank = 2;
 
     using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
 
@@ -59,12 +62,12 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
 
     static auto MakeABGridDescriptor_A_M_K_B_M(ck::index_t N,
                                                ck::index_t C,
-                                               std::array<ck::index_t, 2> input_spatial_lengths,
-                                               std::array<ck::index_t, 2> window_spatial_lengths,
-                                               std::array<ck::index_t, 2> output_spatial_lengths,
-                                               std::array<ck::index_t, 2> window_strides,
-                                               std::array<ck::index_t, 2> input_left_pads,
-                                               std::array<ck::index_t, 2> input_right_pads)
+                                               std::vector<ck::index_t> input_spatial_lengths,
+                                               std::vector<ck::index_t> window_spatial_lengths,
+                                               std::vector<ck::index_t> output_spatial_lengths,
+                                               std::vector<ck::index_t> window_strides,
+                                               std::vector<ck::index_t> input_left_pads,
+                                               std::vector<ck::index_t> input_right_pads)
     {
         const index_t Hi = input_spatial_lengths[0];
         const index_t Wi = input_spatial_lengths[1];
@@ -141,9 +144,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
         return make_tuple(in_grid_desc_reducem_reducek, out_grid_desc_reducem);
     }
 
-    using ABGridDescs = decltype(
-        MakeABGridDescriptor_A_M_K_B_M(1, 1, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}));
-
+    using ABGridDescs   = decltype(MakeABGridDescriptor_A_M_K_B_M(1, 1, {}, {}, {}, {}, {}, {}));
     using AGridDesc_M_K = remove_cvref_t<decltype(ABGridDescs{}[I0])>;
     using BGridDesc_M   = remove_cvref_t<decltype(ABGridDescs{}[I1])>;
 
@@ -152,15 +153,15 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
     {
         Argument(const InDataType* p_in_dev,
                  OutDataType* p_out_dev,
-                 int* p_out_indices_dev,
+                 IndexDataType* p_out_indices_dev,
                  ck::index_t N,
                  ck::index_t C,
-                 std::array<ck::index_t, 2>& input_spatial_lengths,
-                 std::array<ck::index_t, 2>& window_spatial_lengths,
-                 std::array<ck::index_t, 2>& output_spatial_lengths,
-                 std::array<ck::index_t, 2>& window_strides,
-                 std::array<ck::index_t, 2>& input_left_pads,
-                 std::array<ck::index_t, 2>& input_right_pads)
+                 std::vector<ck::index_t>& input_spatial_lengths,
+                 std::vector<ck::index_t>& window_spatial_lengths,
+                 std::vector<ck::index_t>& output_spatial_lengths,
+                 std::vector<ck::index_t>& window_strides,
+                 std::vector<ck::index_t>& input_left_pads,
+                 std::vector<ck::index_t>& input_right_pads)
             : p_in_dev_{p_in_dev},
               p_out_dev_{p_out_dev},
               p_out_indices_dev_{p_out_indices_dev},
@@ -190,7 +191,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
 
         const InDataType* p_in_dev_;
         OutDataType* p_out_dev_;
-        int* p_out_indices_dev_;
+        IndexDataType* p_out_indices_dev_;
         AGridDesc_M_K a_grid_desc_m_k_;
         BGridDesc_M b_grid_desc_m_;
         InElementwiseOperation in_element_op_;
@@ -208,7 +209,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
             using gridwise_reduce =
                 GridwiseReduction_mk_to_m_threadwise<InDataType,
                                                      OutDataType,
-                                                     AccDataType,
+                                                     ComputeDataType,
                                                      IndexDataType,
                                                      AGridDesc_M_K,
                                                      BGridDesc_M,
@@ -224,17 +225,19 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
                                                      InSrcOutDstVectorSize,
                                                      InSrcOutDstVectorSize>;
 
-            const auto kernel = kernel_reduce_threadwise<gridwise_reduce,
-                                                         OuputIndex,
-                                                         false, // don't have index input
-                                                         InDataType,
-                                                         OutDataType,
-                                                         AccDataType,
-                                                         IndexDataType,
-                                                         AGridDesc_M_K,
-                                                         BGridDesc_M,
-                                                         InElementwiseOperation,
-                                                         AccElementwiseOperation>;
+            const auto kernel =
+                kernel_reduce_threadwise<gridwise_reduce,
+                                         OutputIndex,
+                                         true,  // pooling need to return global index
+                                         false, // don't have index input
+                                         InDataType,
+                                         OutDataType,
+                                         ComputeDataType,
+                                         IndexDataType,
+                                         AGridDesc_M_K,
+                                         BGridDesc_M,
+                                         InElementwiseOperation,
+                                         AccElementwiseOperation>;
 
             ck::index_t ReduceM = arg.a_grid_desc_m_k_.GetLength(I0);
 
@@ -280,22 +283,42 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
     MakeArgumentPointer(const void* p_in_dev,
                         void* p_out_dev,
                         void* p_out_indices_dev,
-                        ck::index_t N,
-                        ck::index_t C,
-                        std::array<ck::index_t, 2> input_spatial_lengths,
-                        std::array<ck::index_t, 2> window_spatial_lengths,
-                        std::array<ck::index_t, 2> output_spatial_lengths,
-                        std::array<ck::index_t, 2> window_strides,
-                        std::array<ck::index_t, 2> input_left_pads,
-                        std::array<ck::index_t, 2> input_right_pads) override
+                        std::vector<ck::index_t> input_lengths,
+                        std::vector<ck::index_t> window_lengths,
+                        std::vector<ck::index_t> output_lengths,
+                        std::vector<ck::index_t>, // Suppose tensor layout = NHWC
+                        std::vector<ck::index_t>, // Suppose tensor layout = NHWC
+                        std::vector<ck::index_t>, // Suppose tensor layout = NHWC
+                        std::vector<ck::index_t> window_strides,
+                        std::vector<ck::index_t> input_left_pads,
+                        std::vector<ck::index_t> input_right_pads,
+                        std::vector<ck::index_t> pooling_dims) override
     {
+        if(input_lengths.size() != InOutRank || window_lengths.size() != WindowRank ||
+           input_lengths.size() != InOutRank || window_strides.size() != WindowRank ||
+           input_left_pads.size() != WindowRank || input_right_pads.size() != WindowRank)
+            throw std::runtime_error("dimension is incorrect");
+
+        if(pooling_dims != std::vector<ck::index_t>{2, 3})
+            throw std::runtime_error("pooling_dims only support {2, 3} in pool2d so far");
+
+        index_t N  = input_lengths[0];
+        index_t C  = input_lengths[1];
+        index_t Hi = input_lengths[2];
+        index_t Wi = input_lengths[3];
+        index_t Ho = output_lengths[2];
+        index_t Wo = output_lengths[3];
+
+        std::vector<ck::index_t> input_spatial_lengths  = {Hi, Wi};
+        std::vector<ck::index_t> output_spatial_lengths = {Ho, Wo};
+
         return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_dev),
                                           static_cast<OutDataType*>(p_out_dev),
-                                          static_cast<int*>(p_out_indices_dev),
+                                          static_cast<IndexDataType*>(p_out_indices_dev),
                                           N,
                                           C,
                                           input_spatial_lengths,
-                                          window_spatial_lengths,
+                                          window_lengths,
                                           output_spatial_lengths,
                                           window_strides,
                                           input_left_pads,
