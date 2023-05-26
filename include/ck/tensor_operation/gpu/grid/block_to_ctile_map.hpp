@@ -977,7 +977,8 @@ struct BlockToCTileMap_GemmStreamK
         return get_workspace_size_for_acc(acc_element_bytes) + get_workspace_size_for_semaphore();
     }
 
-    __device__ uint32_t get_tile_intersections(uint32_t tiles_, const MDiv& eqav_tiles_) const
+    __host__ __device__ uint32_t get_tile_intersections(uint32_t tiles_,
+                                                        const MDiv& eqav_tiles_) const
     {
         uint32_t tile_idx_       = tiles_ == 0 ? 0 : (tiles_ - 1);
         uint32_t max_eqav_tiles_ = eqav_tiles_.get() - 1;

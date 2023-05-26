@@ -75,7 +75,10 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
 
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk<
         BlockSize,
-        BlockToCTileMap_GemmStreamK<MPerBlock, NPerBlock, K0PerBlock * K1>,
+        BlockToCTileMap_GemmStreamK<MPerBlock,
+                                    NPerBlock,
+                                    K0PerBlock * K1,
+                                    StreamKReductionStrategy::Reduction>,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
@@ -151,8 +154,8 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
             {
                 char* workspace_semaphore = reinterpret_cast<char*>(karg.p_workspace_);
                 workspace_semaphore =
-                    workspace_semaphore +
-                    karg.block_mapping.get_workspace_size_for_acc(sizeof(GridwiseGemm::FloatAcc));
+                    workspace_semaphore + karg.block_mapping.get_workspace_size_for_acc(
+                                              sizeof(typename GridwiseGemm::FloatAcc));
                 hipGetErrorString(hipMemset(
                     workspace_semaphore, 0, karg.block_mapping.get_workspace_size_for_semaphore()));
             }
@@ -191,7 +194,7 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
         if constexpr(GridwiseGemm::Block2CTileMap::ReductionStrategy ==
                      StreamKReductionStrategy::Reduction)
         {
-            return p_arg->block_mapping.get_workspace_size(sizeof(GridwiseGemm::FloatAcc));
+            return p_arg->block_mapping.get_workspace_size(sizeof(typename GridwiseGemm::FloatAcc));
         }
         else
         {
