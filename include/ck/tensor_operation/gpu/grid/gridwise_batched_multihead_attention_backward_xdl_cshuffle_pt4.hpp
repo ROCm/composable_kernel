@@ -2100,20 +2100,21 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             qgrad_thread_buf.Clear();
             static_for<0, num_gemm2_loop, 1>{}([&](auto gemm2_loop_idx) { // gemm dQ
                 // load VGrad Gemm A
-                const auto p_slice_idx =
+                const auto sgrad_slice_idx =
                     Gemm2::ASrcBlockSliceWindowIterator::GetIndexTupleOfNumber(gemm2_loop_idx);
                 constexpr auto mwave_range = make_tuple(
-                    p_slice_idx[I2],
-                    p_slice_idx[I2] + Gemm2Params::ABlockSliceLengths_M0_K0_M1_K1::At(I2));
+                    sgrad_slice_idx[I2],
+                    sgrad_slice_idx[I2] + Gemm2Params::ABlockSliceLengths_M0_K0_M1_K1::At(I2));
                 constexpr auto nwave_range = make_tuple(
-                    p_slice_idx[I3],
-                    p_slice_idx[I3] + Gemm2Params::ABlockSliceLengths_M0_K0_M1_K1::At(I3));
+                    sgrad_slice_idx[I3],
+                    sgrad_slice_idx[I3] + Gemm2Params::ABlockSliceLengths_M0_K0_M1_K1::At(I3));
 
                 if(gemm2_a_copy_subgroup.IsBelong(mwave_range, nwave_range))
                 {
                     qgrad_gemm_tile_sgrad_thread_copy_vgpr_to_lds.Run(
                         Gemm2::a_src_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                        make_tuple(p_slice_idx[I0], p_slice_idx[I1], I0, I0, I0, I0, I0, I0),
+                        make_tuple(
+                            sgrad_slice_idx[I0], sgrad_slice_idx[I1], I0, I0, I0, I0, I0, I0),
                         sgrad_thread_buf,
                         Gemm2::a_block_desc_m0_k0_m1_k1_m2_m3_m4_k2,
                         gemm2_a_block_buf);
