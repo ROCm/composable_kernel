@@ -14,7 +14,7 @@
 namespace ck {
 namespace detail {
 
-template <size_t Size>
+template <unsigned Size>
 struct get_unsigned_int;
 
 template <>
@@ -35,7 +35,7 @@ struct get_unsigned_int<4>
     using type = uint32_t;
 };
 
-template <size_t Size>
+template <unsigned Size>
 using get_unsigned_int_t = typename get_unsigned_int<Size>::type;
 
 } // namespace detail
@@ -50,8 +50,8 @@ template <
     typename = std::enable_if_t<std::is_class_v<Object> && std::is_trivially_copyable_v<Object>>>
 __device__ auto readfirstlane(const Object& obj)
 {
-    constexpr size_t SgprSize   = 4;
-    constexpr size_t ObjectSize = sizeof(Object);
+    constexpr unsigned SgprSize   = 4;
+    constexpr unsigned ObjectSize = sizeof(Object);
 
     using Sgpr = detail::get_unsigned_int_t<SgprSize>;
 
@@ -59,8 +59,8 @@ __device__ auto readfirstlane(const Object& obj)
 
     auto* const from_obj = reinterpret_cast<const std::byte*>(&obj);
 
-    constexpr size_t RemainedSize             = ObjectSize % SgprSize;
-    constexpr size_t CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
+    constexpr unsigned RemainedSize             = ObjectSize % SgprSize;
+    constexpr unsigned CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
     static_for<0, CompleteSgprCopyBoundary, SgprSize>{}([&](auto offset) {
         *reinterpret_cast<Sgpr*>(to_obj + offset) =
             readfirstlane(*reinterpret_cast<const Sgpr*>(from_obj + offset));
@@ -74,8 +74,8 @@ __device__ auto readfirstlane(const Object& obj)
             readfirstlane(*reinterpret_cast<const Carrier*>(from_obj + CompleteSgprCopyBoundary));
     }
 
-    /// NOTE: Implicitly start object lifetime. It's better to use
-    ///        std::start_lifetime_at() in this scenario
+    /// NOTE: Implicitly start object lifetime. It's better to use std::start_lifetime_at() in this
+    /// scenario
     return *reinterpret_cast<Object*>(to_obj);
 }
 
