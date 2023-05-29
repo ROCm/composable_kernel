@@ -188,6 +188,20 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
+             ck::get_device_name() == "gfx940"))
+        {
+            return false;
+        }
+
+        if((arg.K % AK1 != 0 || arg.K % BK1 != 0) && !(GemmSpec == GemmSpecialization::MKPadding ||
+                                                       GemmSpec == GemmSpecialization::NKPadding ||
+                                                       GemmSpec == GemmSpecialization::MNKPadding ||
+                                                       GemmSpec == GemmSpecialization::KPadding))
+        {
+            return false;
+        }
+
         return GridwiseGemm::CheckValidity(arg);
     }
 
