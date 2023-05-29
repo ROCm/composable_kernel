@@ -62,10 +62,11 @@ __device__ auto readfirstlane(const Object& obj)
 
     constexpr Size RemainedSize             = ObjectSize % SgprSize;
     constexpr Size CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
-    static_for<0, CompleteSgprCopyBoundary, SgprSize>{}([&](auto offset) {
+    for(Size offset = 0; offset < CompleteSgprCopyBoundary; offset += SgprSize)
+    {
         *reinterpret_cast<Sgpr*>(to_obj + offset) =
             readfirstlane(*reinterpret_cast<const Sgpr*>(from_obj + offset));
-    });
+    }
 
     if constexpr(0 < RemainedSize)
     {
