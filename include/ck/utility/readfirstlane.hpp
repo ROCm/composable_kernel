@@ -14,33 +14,33 @@
 namespace ck {
 namespace detail {
 
-template <std::size_t Size>
-struct get_signed_int;
+template <unsigned Size>
+struct get_unsigned_int;
 
 template <>
-struct get_signed_int<1>
+struct get_unsigned_int<1>
 {
-    using type = std::int8_t;
+    using type = uint8_t;
 };
 
 template <>
-struct get_signed_int<2>
+struct get_unsigned_int<2>
 {
-    using type = std::int16_t;
+    using type = uint16_t;
 };
 
 template <>
-struct get_signed_int<4>
+struct get_unsigned_int<4>
 {
-    using type = std::int32_t;
+    using type = uint32_t;
 };
 
-template <std::size_t Size>
-using get_signed_int_t = typename get_signed_int<Size>::type;
+template <unsigned Size>
+using get_unsigned_int_t = typename get_unsigned_int<Size>::type;
 
 } // namespace detail
 
-__device__ inline std::int32_t readfirstlane(std::int32_t value)
+__device__ inline int32_t readfirstlane(int32_t value)
 {
     return __builtin_amdgcn_readfirstlane(value);
 }
@@ -50,17 +50,17 @@ template <
     typename = std::enable_if_t<std::is_class_v<Object> && std::is_trivially_copyable_v<Object>>>
 __device__ auto readfirstlane(const Object& obj)
 {
-    constexpr std::size_t SgprSize   = 4;
-    constexpr std::size_t ObjectSize = sizeof(Object);
+    constexpr unsigned SgprSize   = 4;
+    constexpr unsigned ObjectSize = sizeof(Object);
 
-    using Sgpr = detail::get_signed_int_t<SgprSize>;
+    using Sgpr = detail::get_unsigned_int_t<SgprSize>;
 
     alignas(Object) std::byte to_obj[ObjectSize];
 
     auto* const from_obj = reinterpret_cast<const std::byte*>(&obj);
 
-    constexpr std::size_t RemainedSize             = ObjectSize % SgprSize;
-    constexpr std::size_t CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
+    constexpr unsigned RemainedSize             = ObjectSize % SgprSize;
+    constexpr unsigned CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
     static_for<0, CompleteSgprCopyBoundary, SgprSize>{}([&](auto offset) {
         *reinterpret_cast<Sgpr*>(to_obj + offset) =
             readfirstlane(*reinterpret_cast<const Sgpr*>(from_obj + offset));
@@ -68,14 +68,14 @@ __device__ auto readfirstlane(const Object& obj)
 
     if constexpr(0 < RemainedSize)
     {
-        using Carrier = detail::get_signed_int_t<RemainedSize>;
+        using Carrier = detail::get_unsigned_int_t<RemainedSize>;
 
         *reinterpret_cast<Carrier>(to_obj + CompleteSgprCopyBoundary) =
             readfirstlane(*reinterpret_cast<const Carrier*>(from_obj + CompleteSgprCopyBoundary));
     }
 
-    /// NOTE: Implicitly start object lifetime. It's better to use
-    ///        std::start_lifetime_at() in this scenario
+    /// NOTE: Implicitly start object lifetime. It's better to use std::start_lifetime_at() in this
+    /// scenario
     return *reinterpret_cast<Object*>(to_obj);
 }
 
