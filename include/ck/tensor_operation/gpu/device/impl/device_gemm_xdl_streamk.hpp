@@ -148,6 +148,22 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                          StreamKReductionStrategy::Atomic)
             {
                 hipGetErrorString(hipMemset(karg.p_c_grid, 0, karg.M * karg.N * sizeof(CDataType)));
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  grid_dims,
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  karg.p_a_grid,
+                                                  karg.p_b_grid,
+                                                  karg.p_c_grid,
+                                                  karg.p_workspace_,
+                                                  karg.M,
+                                                  karg.N,
+                                                  karg.K,
+                                                  karg.StrideA,
+                                                  karg.StrideB,
+                                                  karg.StrideC,
+                                                  karg.block_mapping);
             }
             else if constexpr(GridwiseGemm::Block2CTileMap::ReductionStrategy ==
                               StreamKReductionStrategy::Reduction)
@@ -156,26 +172,31 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                 workspace_semaphore =
                     workspace_semaphore + karg.block_mapping.get_workspace_size_for_acc(
                                               sizeof(typename GridwiseGemm::FloatAcc));
-                hipGetErrorString(hipMemset(
-                    workspace_semaphore, 0, karg.block_mapping.get_workspace_size_for_semaphore()));
-            }
+                auto preprocess = [&]() {
+                    hipGetErrorString(
+                        hipMemset(workspace_semaphore,
+                                  0,
+                                  karg.block_mapping.get_workspace_size_for_semaphore()));
+                };
 
-            ave_time = launch_and_time_kernel(stream_config,
-                                              kernel,
-                                              grid_dims,
-                                              dim3(BlockSize),
-                                              0,
-                                              karg.p_a_grid,
-                                              karg.p_b_grid,
-                                              karg.p_c_grid,
-                                              karg.p_workspace_,
-                                              karg.M,
-                                              karg.N,
-                                              karg.K,
-                                              karg.StrideA,
-                                              karg.StrideB,
-                                              karg.StrideC,
-                                              karg.block_mapping);
+                ave_time = launch_and_time_kernel_with_preprocess(stream_config,
+                                                                  preprocess,
+                                                                  kernel,
+                                                                  grid_dims,
+                                                                  dim3(BlockSize),
+                                                                  0,
+                                                                  karg.p_a_grid,
+                                                                  karg.p_b_grid,
+                                                                  karg.p_c_grid,
+                                                                  karg.p_workspace_,
+                                                                  karg.M,
+                                                                  karg.N,
+                                                                  karg.K,
+                                                                  karg.StrideA,
+                                                                  karg.StrideB,
+                                                                  karg.StrideC,
+                                                                  karg.block_mapping);
+            }
 
             return ave_time;
         }

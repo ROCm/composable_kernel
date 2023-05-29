@@ -23,7 +23,7 @@ namespace ck {
 template <typename GridwiseGemm>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, 1)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
         kernel_gemm_xdlops_streamk(const typename GridwiseGemm::FloatAB* p_a_grid,
                                    const typename GridwiseGemm::FloatAB* p_b_grid,
@@ -978,7 +978,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                     Sequence<0, 1, 2, 3>,                       // typename DimAccessOrder,
                     3,                                          // index_t VectorDim,
                     CBlockTransferScalarPerVector_NWaveNPerXDL, // index_t ScalarPerVector,
-                    true,  // bool ThreadTransferSrcResetCoordinateAfterRun,
+                    false, // bool ThreadTransferSrcResetCoordinateAfterRun,
                     false> // bool ThreadTransferDstResetCoordinateAfterRun
                     {c_block_desc_mblock_mpershuffle_nblock_npershuffle,
                      make_multi_index(0, 0, 0, 0),
@@ -1007,8 +1007,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                     Sequence<0, 1, 2, 3>,                       // typename DimAccessOrder,
                     3,                                          // index_t VectorDim,
                     CBlockTransferScalarPerVector_NWaveNPerXDL, // index_t ScalarPerVector,
-                    false, // bool ThreadTransferSrcResetCoordinateAfterRun,
-                    false> // bool ThreadTransferDstResetCoordinateAfterRun
+                    false, // bool ThreadTransferSrcResetCoordinateAfterRun, => need to be false,
+                           // othre wise has scratch
+                    false> // bool ThreadTransferDstResetCoordinateAfterRun, => need to be false,
+                           // othre wise has scratch
                     {c_block_desc_mblock_mpershuffle_nblock_npershuffle,
                      make_multi_index(0, 0, 0, 0),
                      c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
@@ -1049,6 +1051,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
 
                         // make sure it's safe to do ds_read
                         block_sync_lds();
+
+                        c_block_copy_lds_to_global.SetSrcSliceOrigin(
+                            c_block_desc_mblock_mpershuffle_nblock_npershuffle,
+                            make_tuple(0, 0, 0, 0));
 
                         // LDS to global
                         if(is_dp_block)
