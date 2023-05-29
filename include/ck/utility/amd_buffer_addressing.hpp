@@ -685,12 +685,12 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
                                                 dst_wave_buffer_resource,
                                                 dst_thread_addr_offset,
                                                 dst_wave_addr_offset,
-                                                0);
+                                                static_cast<index_t>(coherence));
             llvm_amdgcn_raw_buffer_store_fp32x4(tmp.AsType<float4_t>()[Number<1>{}],
                                                 dst_wave_buffer_resource,
                                                 dst_thread_addr_offset,
                                                 dst_wave_addr_offset + 4 * sizeof(float),
-                                                0);
+                                                static_cast<index_t>(coherence));
         }
     }
     else if constexpr(is_same<T, half_t>::value)

@@ -155,6 +155,13 @@ bool profile_gemm_streamk_impl(int do_verification,
                                         b_element_op,
                                         c_element_op,
                                         NumSKBlocks);
+        DeviceMem workspace;
+        std::size_t workspace_size = op_ptr->GetWorkSpaceSize(argument_ptr);
+        if(workspace_size != 0)
+        {
+            workspace.Realloc(workspace_size);
+            op_ptr->SetWorkSpacePointer(argument_ptr, workspace.GetDeviceBuffer());
+        }
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

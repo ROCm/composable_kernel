@@ -833,7 +833,8 @@ struct BlockToCTileMap_GemmStreamK
         printf("cu:%d, occupancy:%d, grids:%d, num_tiles:%d, dp_tiles:%d, sk_num_big_blocks:%d, "
                "sk_num_blocks:%d, "
                "sk_total_iters:%d, dp_start_block_idx:%d, dp_iters_per_block:%d, dp_num_blocks:%d, "
-               "k_iters_per_tile:%d, k_iters_per_big_block:%d\n",
+               "k_iters_per_tile:%d, k_iters_per_big_block:%d, reduction_start_block_idx:%u, "
+               "sk_tiles:%u, workspace(acc float):%u\n",
                num_cu,
                occupancy,
                get_grid_dims().x,
@@ -846,7 +847,10 @@ struct BlockToCTileMap_GemmStreamK
                dp_iters_per_block,
                dp_num_blocks,
                k_iters_per_tile.get(),
-               k_iters_per_big_block);
+               k_iters_per_big_block,
+               reduction_start_block_idx,
+               get_sk_tiles(),
+               get_workspace_size(sizeof(float)));
     }
 
     __host__ __device__ uint32_t get_sk_total_iters() const

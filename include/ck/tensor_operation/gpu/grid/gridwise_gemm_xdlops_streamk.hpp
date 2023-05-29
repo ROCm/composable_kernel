@@ -23,27 +23,25 @@ namespace ck {
 template <typename GridwiseGemm>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, 1)
 #endif
-    // kernel_gemm_xdlops_streamk(typename GridwiseGemm::Argument karg)
-    kernel_gemm_xdlops_streamk(const typename GridwiseGemm::FloatAB* p_a_grid,
-                               const typename GridwiseGemm::FloatAB* p_b_grid,
-                               typename GridwiseGemm::FloatC* p_c_grid,
-                               void* p_workspace,
-                               index_t M,
-                               index_t N,
-                               index_t K,
-                               index_t StrideA,
-                               index_t StrideB,
-                               index_t StrideC,
-                               typename GridwiseGemm::Block2CTileMap block_mapping)
+        kernel_gemm_xdlops_streamk(const typename GridwiseGemm::FloatAB* p_a_grid,
+                                   const typename GridwiseGemm::FloatAB* p_b_grid,
+                                   typename GridwiseGemm::FloatC* p_c_grid,
+                                   void* p_workspace,
+                                   index_t M,
+                                   index_t N,
+                                   index_t K,
+                                   index_t StrideA,
+                                   index_t StrideB,
+                                   index_t StrideC,
+                                   typename GridwiseGemm::Block2CTileMap block_mapping)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
 
     __shared__ uint8_t p_shared[shared_size];
 
-    // GridwiseGemm::Run(karg, static_cast<void*>(p_shared));
     GridwiseGemm::Run(p_a_grid,
                       p_b_grid,
                       p_c_grid,
@@ -549,6 +547,11 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
             {
                 // descriptors
                 constexpr auto cluster_length_reduce = GetClusterLengthReduction();
+                constexpr auto reduce_desc = make_cluster_descriptor(cluster_length_reduce);
+                const auto reduce_thread_cluster_idx =
+                    reduce_desc.CalculateBottomIndex(make_multi_index(get_thread_local_1d_id()));
+                const auto thread_m_cluster_id = reduce_thread_cluster_idx[I0];
+                const auto thread_n_cluster_id = reduce_thread_cluster_idx[I1];
 
                 constexpr auto MReduceIters =
                     math::integer_divide_ceil(Number<MPerBlock>{}, cluster_length_reduce.At(I0));
@@ -560,13 +563,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                 //     make_tuple(Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{}));
 
                 constexpr auto acc_thread_buf_load_desc = make_naive_tensor_descriptor_packed(
-                    make_tuple(Number<1>{}, Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{}));
+                    make_tuple(I1, Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{}));
 
                 constexpr auto acc_thread_buf_store_desc = make_naive_tensor_descriptor_packed(
-                    make_tuple(Number<1>{},
-                               Number<1>{},
-                               Number<1>{},
-                               Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{}));
+                    make_tuple(I1, I1, I1, Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{}));
 
                 constexpr auto c_partial_acc_block_m_n = GetPartialAccBlockDescriptor();
 
@@ -627,7 +627,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                     CBlockTransferScalarPerVector_NWaveNPerXDL,              // SrcScalarPerVector,
                     1,    // SrcScalarStrideInVector,
                     false // SrcResetCoordinateAfterRun,
-                    >{c_partial_acc_block_m_n, make_multi_index(0, 0)};
+                    >{c_partial_acc_block_m_n,
+                      make_multi_index(thread_m_cluster_id,
+                                       thread_n_cluster_id *
+                                           CBlockTransferScalarPerVector_NWaveNPerXDL)};
 
                 auto acc_store = ThreadwiseTensorSliceTransfer_v1r3<
                     FloatAcc,                                                // SrcData,
@@ -635,18 +638,19 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                     decltype(acc_thread_buf_store_desc),                     // SrcDesc,
                     decltype(c_grid_desc_mblock_mperblock_nblock_nperblock), // DstDesc,
                     CElementwiseOperation, // ElementwiseOperation,
-                    Sequence<0, 0, 0, CBlockTransferScalarPerVector_NWaveNPerXDL>, // SliceLengths,
+                    Sequence<1, 1, 1, CBlockTransferScalarPerVector_NWaveNPerXDL>, // SliceLengths,
                     Sequence<0, 1, 2, 3>,                       // DimAccessOrder,
-                    2,                                          // DstVectorDim,
+                    3,                                          // DstVectorDim,
                     CBlockTransferScalarPerVector_NWaveNPerXDL, // DstScalarPerVector,
                     InMemoryDataOperationEnum::Set, // InMemoryDataOperationEnum DstInMemOp,
-                    3,                              // DstScalarStrideInVector,
+                    1,                              // DstScalarStrideInVector,
                     false                           // DstResetCoordinateAfterRun,
                     >{c_grid_desc_mblock_mperblock_nblock_nperblock,
                       make_multi_index(__builtin_amdgcn_readfirstlane(spatial_idx[I0]),
-                                       0,
+                                       thread_m_cluster_id,
                                        __builtin_amdgcn_readfirstlane(spatial_idx[I1]),
-                                       0),
+                                       thread_n_cluster_id *
+                                           CBlockTransferScalarPerVector_NWaveNPerXDL),
                       CElementwiseOperation{}};
 
                 // block synchronization
@@ -659,9 +663,12 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                     static_for<0, NReduceIters, 1>{}([&](auto i_n_reduce) {
                         for(auto i = tile_acc_offset_start; i < tile_acc_offset_end; i++)
                         {
-                            auto c_partial_acc_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                                static_cast<FloatAcc*>(p_workspace) + i,
-                                c_partial_acc_block_m_n.GetElementSpaceSize());
+                            auto c_partial_acc_buf =
+                                make_dynamic_buffer<AddressSpaceEnum::Global,
+                                                    amd_buffer_coherence_bits::glc>(
+                                    reinterpret_cast<FloatAcc*>(p_workspace) +
+                                        i * c_partial_acc_block_m_n.GetElementSpaceSize(),
+                                    c_partial_acc_block_m_n.GetElementSpaceSize());
 
                             acc_load.Run(c_partial_acc_block_m_n,
                                          c_partial_acc_buf,
@@ -850,12 +857,14 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                     GetCBlockDescriptor_MShuffleRepeat_MPerShuffle_NShuffleRepeat_NPerShuffle();
 
                 auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                    static_cast<FloatCShuffle*>(p_shared_block),
+                    reinterpret_cast<FloatCShuffle*>(p_shared_block),
                     c_block_desc_mblock_mpershuffle_nblock_npershuffle.GetElementSpaceSize());
 
-                auto c_partial_acc_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                    static_cast<FloatAcc*>(p_workspace) + block_acc_offset,
-                    c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle.GetElementSpaceSize());
+                auto c_partial_acc_buf =
+                    make_dynamic_buffer<AddressSpaceEnum::Global, amd_buffer_coherence_bits::glc>(
+                        reinterpret_cast<FloatAcc*>(p_workspace) + block_acc_offset,
+                        c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle
+                            .GetElementSpaceSize());
 
                 constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 = transform_tensor_descriptor(
                     c_block_desc_mblock_mpershuffle_nblock_npershuffle,
@@ -983,8 +992,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                     Sequence<0, 1, 2, 3>,                       // typename DimAccessOrder,
                     3,                                          // index_t VectorDim,
                     CBlockTransferScalarPerVector_NWaveNPerXDL, // index_t ScalarPerVector,
-                    true,  // bool ThreadTransferSrcResetCoordinateAfterRun,
-                    false> // bool ThreadTransferDstResetCoordinateAfterRun
+                    true, // bool ThreadTransferSrcResetCoordinateAfterRun,
+                    true> // bool ThreadTransferDstResetCoordinateAfterRun
                     {c_block_desc_mblock_mpershuffle_nblock_npershuffle,
                      make_multi_index(0, 0, 0, 0),
                      c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
