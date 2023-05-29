@@ -668,7 +668,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                 using Accumulation = ck::detail::
                     AccumulateWithNanCheck<false /*PropagateNan*/, reduce::Add, FloatAcc>;
 
-                static_for<0, MReduceIters, 1>{}([&](auto i_m_reduce) {
+                // static_for<0, MReduceIters, 1>{}([&](auto i_m_reduce) {
+                for(int i_m = 0; i_m < MReduceIters; i_m++)
+                {
                     static_for<0, NReduceIters, 1>{}([&](auto i_n_reduce) {
                         acc_buf.Clear();
                         for(auto i = tile_acc_offset_start; i < tile_acc_offset_end; i++)
@@ -721,14 +723,15 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                             }
                         }
                     });
-                    if constexpr(i_m_reduce != MReduceIters - 1)
+                    // if constexpr(i_m_reduce != MReduceIters - 1)
                     {
                         acc_load.MoveSrcSliceWindow(c_partial_acc_block_m_n,
                                                     partial_acc_load_step_m);
                         acc_store.MoveDstSliceWindow(c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                      partial_acc_store_step_m);
                     }
-                });
+                }
+                //});
                 return;
             }
         }
@@ -1004,8 +1007,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                     Sequence<0, 1, 2, 3>,                       // typename DimAccessOrder,
                     3,                                          // index_t VectorDim,
                     CBlockTransferScalarPerVector_NWaveNPerXDL, // index_t ScalarPerVector,
-                    true, // bool ThreadTransferSrcResetCoordinateAfterRun,
-                    true> // bool ThreadTransferDstResetCoordinateAfterRun
+                    false, // bool ThreadTransferSrcResetCoordinateAfterRun,
+                    false> // bool ThreadTransferDstResetCoordinateAfterRun
                     {c_block_desc_mblock_mpershuffle_nblock_npershuffle,
                      make_multi_index(0, 0, 0, 0),
                      c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
@@ -1062,6 +1065,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                                          StreamKReductionStrategy::Reduction)
                             {
                                 // constexpr offset
+                                c_block_copy_lds_to_partial_acc.SetSrcSliceOrigin(
+                                    c_block_desc_mblock_mpershuffle_nblock_npershuffle,
+                                    make_tuple(0, 0, 0, 0));
+
                                 c_block_copy_lds_to_partial_acc.SetDstSliceOrigin(
                                     c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
                                     make_tuple(mxdlperwave.value, 0, nxdlperwave.value, 0));
