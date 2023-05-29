@@ -4,7 +4,7 @@
 #pragma once
 
 #include <cstdlib>
-
+#include <vector>
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_reduce.hpp"
