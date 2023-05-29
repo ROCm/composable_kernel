@@ -14,33 +14,33 @@
 namespace ck {
 namespace detail {
 
-template <std::size_t Size>
+template <size_t Size>
 struct get_unsigned_int;
 
 template <>
 struct get_unsigned_int<1>
 {
-    using type = std::uint8_t;
+    using type = uint8_t;
 };
 
 template <>
 struct get_unsigned_int<2>
 {
-    using type = std::uint16_t;
+    using type = uint16_t;
 };
 
 template <>
 struct get_unsigned_int<4>
 {
-    using type = std::uint32_t;
+    using type = uint32_t;
 };
 
-template <std::size_t Size>
+template <size_t Size>
 using get_unsigned_int_t = typename get_unsigned_int<Size>::type;
 
 } // namespace detail
 
-__device__ inline std::int32_t readfirstlane(std::int32_t value)
+__device__ inline int32_t readfirstlane(int32_t value)
 {
     return __builtin_amdgcn_readfirstlane(value);
 }
@@ -50,8 +50,8 @@ template <
     typename = std::enable_if_t<std::is_class_v<Object> && std::is_trivially_copyable_v<Object>>>
 __device__ auto readfirstlane(const Object& obj)
 {
-    constexpr std::size_t SgprSize   = 4;
-    constexpr std::size_t ObjectSize = sizeof(Object);
+    constexpr size_t SgprSize   = 4;
+    constexpr size_t ObjectSize = sizeof(Object);
 
     using Sgpr = detail::get_unsigned_int_t<SgprSize>;
 
@@ -59,8 +59,8 @@ __device__ auto readfirstlane(const Object& obj)
 
     auto* const from_obj = reinterpret_cast<const std::byte*>(&obj);
 
-    constexpr std::size_t RemainedSize             = ObjectSize % SgprSize;
-    constexpr std::size_t CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
+    constexpr size_t RemainedSize             = ObjectSize % SgprSize;
+    constexpr size_t CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
     static_for<0, CompleteSgprCopyBoundary, SgprSize>{}([&](auto offset) {
         *reinterpret_cast<Sgpr*>(to_obj + offset) =
             readfirstlane(*reinterpret_cast<const Sgpr*>(from_obj + offset));
