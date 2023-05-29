@@ -50,8 +50,9 @@ template <
     typename = std::enable_if_t<std::is_class_v<Object> && std::is_trivially_copyable_v<Object>>>
 __device__ auto readfirstlane(const Object& obj)
 {
-    constexpr unsigned SgprSize   = 4;
-    constexpr unsigned ObjectSize = sizeof(Object);
+    using Size                = unsigned;
+    constexpr Size SgprSize   = 4;
+    constexpr Size ObjectSize = sizeof(Object);
 
     using Sgpr = detail::get_unsigned_int_t<SgprSize>;
 
@@ -59,12 +60,13 @@ __device__ auto readfirstlane(const Object& obj)
 
     auto* const from_obj = reinterpret_cast<const std::byte*>(&obj);
 
-    constexpr unsigned RemainedSize             = ObjectSize % SgprSize;
-    constexpr unsigned CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
-    static_for<0, CompleteSgprCopyBoundary, SgprSize>{}([&](auto offset) {
+    constexpr Size RemainedSize             = ObjectSize % SgprSize;
+    constexpr Size CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
+    for(Size offset = 0; offset < CompleteSgprCopyBoundary; offset += SgprSize)
+    {
         *reinterpret_cast<Sgpr*>(to_obj + offset) =
             readfirstlane(*reinterpret_cast<const Sgpr*>(from_obj + offset));
-    });
+    }
 
     if constexpr(0 < RemainedSize)
     {
