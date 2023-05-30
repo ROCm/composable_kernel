@@ -44,7 +44,8 @@ __global__ void
             const CGridDescriptor_M0_N0_M1_N1_M2_N2_N3_N4 c_grid_desc_M0_N0_M1_N1_M2_N2_N3_N4,
             const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
+     defined(__gfx940__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -109,9 +110,6 @@ template <typename FloatAB,
           index_t BBlockTransferDstScalarPerVector_BK1,
           bool BThreadTransferSrcResetCoordinateAfterRun,
           index_t BBlockLdsExtraN,
-          // typename CThreadTransferDstAccessOrder,
-          // index_t CThreadTransferDstVectorDim,
-          // index_t CThreadTransferDstScalarPerVector,
           LoopScheduler LoopSched,
           PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_v1
@@ -267,8 +265,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_v1
                                                      NXdlPerWave,
                                                      KPack,
                                                      true>; // TransposeC
-                                                            // KPack    // A MMaTileKStride
-                                                            // KPack>;  // B MMaTileKStride
+                                                     // A MMaTileKStride
+                                                     // B MMaTileKStride
 
         return BlockwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_N3_N4(c_grid_desc_m_n);
     }
@@ -312,14 +310,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_v1
         const auto block_work_idx =
             block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
-        // if(!block_2_ctile_map.ValidCTileIndex(
-        //        block_work_idx,
-        //        // FIX: Need here C tile dims {Mblock, NBlock} and M0, N0 is sth different.
-        //        make_tuple(c_grid_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I0),
-        //                   c_grid_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I1))))
-        // {
-        //     return;
-        // }
+        if(!block_2_ctile_map.ValidCTileIndex(
+               block_work_idx,
+               make_tuple(a_grid_desc_ak0_m_ak1.GetLength(I1) / MPerBlock,
+                          b_grid_desc_bk0_n_bk1.GetLength(I1) / NPerBlock)))
+        {
+            return;
+        }
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
@@ -426,8 +423,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_v1
             NXdlPerWave,
             KPack,
             true>{}; // TransposeC
-        // KPack,    // A MMaTileKStride
-        // KPack>{}; // B MMaTileKStride
+        // A MMaTileKStride
+        // B MMaTileKStride
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
@@ -517,12 +514,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_v1
                 n_thread_data_on_grid_to_n0_n1_n2_n3_n4_adaptor.CalculateBottomIndex(
                     make_multi_index(n_thread_data_on_grid));
 
-            // if(threadIdx.x == 0
-            //    // || threadIdx.x == 15
-            //    // || threadIdx.x == 33
-            //    // || threadIdx.x == 60
-            //    )
-            // {
             auto c_thread_copy = ThreadwiseTensorSliceTransfer_v1r3<
                 FloatGemmAcc,
                 FloatC,
@@ -551,50 +542,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_v1
                               c_thread_buf,
                               c_grid_desc_m0_n0_m1_n1_m2_n2_n3_n4,
                               c_grid_buf);
-            // }
-            // TODO: how SpaceFillingCurve works ?
-
-            // space filling curve for threadwise C in VGPR
-            // constexpr auto sfc_c_global =
-            //     SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
-            //                       Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-            //                       Sequence<CShuffleMXdlPerWavePerShuffle,
-            //                                CShuffleNXdlPerWavePerShuffle,
-            //                                1,
-            //                                1,
-            //                                M2,
-            //                                1,
-            //                                M4,
-            //                                1>>{};
-
-            // // space filling curve for shuffled blockwise C in global mem
-            // constexpr auto sfc_c_global =
-            //     SpaceFillingCurve<Sequence<1, MPerBlock, 1, NPerBlock>,
-            //                       Sequence<0, 2, 1, 3>,
-            //                       Sequence<1,
-            //                                CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
-            //                                1,
-            //                                CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
-
-            // constexpr index_t num_access = sfc_c_vgpr.GetNumOfAccess();
-
-            // static_for<0, num_access, 1>{}([&](auto access_id) {
-            //     // each thread write its data from VGPR to global
-            //     c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-            //                                   sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
-            //                                   c_thread_buf,
-            //                                   c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-            //                                   c_shuffle_block_buf);
-
-            //     if constexpr(access_id < num_access - 1)
-            //     {
-            //         constexpr auto c_global_step = sfc_c_global.GetForwardStep(access_id);
-
-            //         // move on C
-            //         c_shuffle_block_copy_lds_to_global.MoveDstSliceWindow(
-            //             c_grid_desc_mblock_mperblock_nblock_nperblock, c_global_step);
-            //     }
-            // });
         }
     }
 };
