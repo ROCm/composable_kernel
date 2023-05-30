@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -45,7 +45,7 @@ __global__ void
             const Block2CTileMap block_2_ctile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-     defined(__gfx940__))
+    defined(__gfx940__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -265,8 +265,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_v1
                                                      NXdlPerWave,
                                                      KPack,
                                                      true>; // TransposeC
-                                                     // A MMaTileKStride
-                                                     // B MMaTileKStride
+                                                            // A MMaTileKStride
+                                                            // B MMaTileKStride
 
         return BlockwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_N3_N4(c_grid_desc_m_n);
     }
