@@ -14,7 +14,7 @@ namespace device {
 namespace instance {
 
 void add_device_softmax_f16_f16_rank4_reduce1_instances(
-    std::vector<DeviceSoftmaxPtr<F16, F32, F16, PassThrough, PassThrough, 4>>& instances);
+    std::vector<DeviceSoftmaxPtr<F16, F32, F16, PassThrough, PassThrough, 4, 1>>& instances);
 
 } // namespace instance
 } // namespace device

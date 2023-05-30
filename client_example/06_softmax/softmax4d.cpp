@@ -53,8 +53,13 @@ int main(int argc, char* argv[])
     SimpleDeviceMem in(sizeof(InDataType) * num_elements);
     SimpleDeviceMem out(sizeof(OutDataType) * num_elements);
 
-    using DeviceOp = ck::tensor_operation::device::
-        DeviceSoftmax<InDataType, AccDataType, OutDataType, PassThrough, PassThrough, Rank>;
+    using DeviceOp = ck::tensor_operation::device::DeviceSoftmax<InDataType,
+                                                                 AccDataType,
+                                                                 OutDataType,
+                                                                 PassThrough,
+                                                                 PassThrough,
+                                                                 Rank,
+                                                                 NumReduceDim>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
@@ -73,11 +78,6 @@ int main(int argc, char* argv[])
     for(int i = 0; i < op_ptrs.size(); ++i)
     {
         auto& op_ptr = op_ptrs[i];
-
-        if(op_ptr->GetRank() != Rank || op_ptr->GetNumReduceDim() != NumReduceDim)
-        {
-            continue;
-        }
 
         auto argument_ptr   = op_ptr->MakeArgumentPointer(in_lengths,
                                                         in_strides,
