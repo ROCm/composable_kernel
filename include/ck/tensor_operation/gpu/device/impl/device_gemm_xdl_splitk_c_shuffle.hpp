@@ -73,6 +73,11 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
+    // TODO: should be exposed as Tparams.
+    static constexpr index_t NumGemmKPrefetchStage = 1;
+    static constexpr LoopScheduler LoopSched       = make_default_loop_scheduler();
+    static constexpr PipelineVersion PipelineVer   = PipelineVersion::v2;
+
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
@@ -85,6 +90,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
         BElementwiseOperation,
         CElementwiseOperation,
         GemmSpec,
+        NumGemmKPrefetchStage,
         MPerBlock,
         NPerBlock,
         K0PerBlock,
@@ -112,7 +118,9 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
         CBlockTransferScalarPerVector_NWaveNPerXDL,
-        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        LoopSched,
+        PipelineVer>;
 
     using Argument              = typename GridwiseGemm::Argument;
     using DefaultBlock2CTileMap = typename GridwiseGemm::DefaultBlock2CTileMap;
@@ -257,7 +265,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                         StrideC,
                         GridwiseGemm::CalculateMPadded(M),
                         GridwiseGemm::CalculateNPadded(N),
-                        GridwiseGemm::CalculateKPadded(K),
+                        GridwiseGemm::CalculateKPadded(K, KBatch),
                         GridwiseGemm::CalculateK0(K, KBatch),
                         KBatch};
     }
@@ -290,7 +298,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                           StrideC,
                                           GridwiseGemm::CalculateMPadded(M),
                                           GridwiseGemm::CalculateNPadded(N),
-                                          GridwiseGemm::CalculateKPadded(K),
+                                          GridwiseGemm::CalculateKPadded(K, KBatch),
                                           GridwiseGemm::CalculateK0(K, KBatch),
                                           KBatch);
     }

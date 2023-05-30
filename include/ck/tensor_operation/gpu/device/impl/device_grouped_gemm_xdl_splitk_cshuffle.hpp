@@ -85,7 +85,7 @@ template <typename ALayout,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
           GemmSpecialization GemmSpec,
-          ck::index_t NumPrefetch,
+          ck::index_t NumGemmKPrefetchStage,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -152,6 +152,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         BElementwiseOperation,
         CDEElementwiseOperation,
         GemmSpec,
+        NumGemmKPrefetchStage,
         MPerBlock,
         NPerBlock,
         K0PerBlock,
@@ -179,7 +180,9 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CDEBlockTransferScalarPerVector_NPerBlock,
-        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
+        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        LoopSched,
+        PipelineVersion::v2>;
 
     using CGridDesc_M_N = typename GridwiseGemm::CGridDesc_M_N;
     using Block2ETileMapKSplit =
@@ -265,8 +268,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 const index_t k_padded = GridwiseGemm::CalculateKPadded(K, K_BATCH);
                 const index_t k0       = GridwiseGemm::CalculateK0(K, K_BATCH);
 
-                const auto c_grid_desc_m_n =
-                    GridwiseGemm::MakeCGridDescriptor_M_N(M, N, m_padded, n_padded, stride_c);
+                const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(M, N, stride_c);
 
                 const auto local_b2c_tile_map =
                     Block2ETileMapKSplit{c_grid_desc_m_n, B2E_M01, K_BATCH};
@@ -319,8 +321,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 const index_t k_padded = GridwiseGemm::CalculateKPadded(karg.K, K_BATCH);
                 const index_t k0       = GridwiseGemm::CalculateK0(karg.K, K_BATCH);
 
-                const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(
-                    karg.M, karg.N, karg.MPadded, karg.NPadded, karg.StrideC);
+                const auto c_grid_desc_m_n =
+                    GridwiseGemm::MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
 
                 const auto local_b2c_tile_map =
                     Block2ETileMapKSplit{c_grid_desc_m_n, B2E_M01, K_BATCH};
@@ -501,6 +503,11 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         if((ck::type_convert<ck::index_t>(arg.gemm_kernel_args_.size()) +
             arg.skipped_group_count_) != arg.group_count_)
         {
+#if DEBUG_LOG
+            std::cout << "The group count is not equal to sum of skipped groups "
+                         "and kernel args size!"
+                      << std::endl;
+#endif // DEBUG_LOG
             return false;
         }
 
@@ -509,14 +516,15 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         {
             const auto& a        = arg.gemm_kernel_args_[i].karg_;
             bool group_arg_valid = GridwiseGemm::CheckValidity(a);
-#if DEBUG_LOG
             if(not group_arg_valid)
             {
-                std::cout << "[" << __func__ << "] group id: " << i << " is not supported!\n";
+#if DEBUG_LOG
+                std::cout << "[" << __func__ << "] group id: " << i
+                          << " has invalid GridwiseGemm settings!" << std::endl;
                 a.Print();
-            }
 #endif // DEBUG_LOG
-            supported &= group_arg_valid;
+            }
+            supported = supported && group_arg_valid;
         }
         return supported;
     }
