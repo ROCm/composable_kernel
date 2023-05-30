@@ -118,277 +118,11 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         return PadDescriptor_M_1d(desc_m, gridSize, blockSize);
     }
 
-    static auto MakeAGridDescriptor_AK0_M_AK1(index_t MRaw, index_t KRaw, index_t StrideA)
-    {
-        const auto a_grid_desc_mraw_kraw = [&]() {
-            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
-                                                    make_tuple(StrideA, I1));
-            }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
-                                                    make_tuple(I1, StrideA));
-            }
-        }();
-
-        const auto M = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
-        const auto K = math::integer_divide_ceil(KRaw, KPerBlock) * KPerBlock;
-
-        const auto MPad = M - MRaw;
-        const auto KPad = K - KRaw;
-
-        if constexpr(GemmSpec == GemmSpecialization::MKPadding ||
-                     GemmSpec == GemmSpecialization::MNKPadding)
-        {
-            // pad both M and K
-            assert(K % AK1 == 0);
-
-            const auto AK0 = K / AK1;
-
-            const auto a_grid_desc_m_k =
-                transform_tensor_descriptor(a_grid_desc_mraw_kraw,
-                                            make_tuple(make_right_pad_transform(MRaw, MPad),
-                                                       make_right_pad_transform(KRaw, KPad)),
-                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-            const auto a_grid_desc_ak0_m_ak1 =
-                transform_tensor_descriptor(a_grid_desc_m_k,
-                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
-                                                       make_pass_through_transform(M)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return a_grid_desc_ak0_m_ak1;
-        }
-        else if constexpr(GemmSpec == GemmSpecialization::MPadding ||
-                          GemmSpec == GemmSpecialization::MNPadding)
-        {
-            // pad M, but not K
-            assert(KRaw % AK1 == 0);
-
-            const auto AK0 = KRaw / AK1;
-
-            const auto a_grid_desc_ak0_m_ak1 =
-                transform_tensor_descriptor(a_grid_desc_mraw_kraw,
-                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
-                                                       make_right_pad_transform(MRaw, MPad)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return a_grid_desc_ak0_m_ak1;
-        }
-        else if constexpr(GemmSpec == GemmSpecialization::KPadding ||
-                          GemmSpec == GemmSpecialization::NKPadding)
-        {
-            // pad K, but not M
-            assert(K % AK1 == 0);
-
-            const auto AK0 = K / AK1;
-
-            const auto a_grid_desc_m_k = transform_tensor_descriptor(
-                a_grid_desc_mraw_kraw,
-                make_tuple(make_pass_through_transform(MRaw), make_right_pad_transform(KRaw, KPad)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-            const auto a_grid_desc_ak0_m_ak1 =
-                transform_tensor_descriptor(a_grid_desc_m_k,
-                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
-                                                       make_pass_through_transform(MRaw)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return a_grid_desc_ak0_m_ak1;
-        }
-        else
-        {
-            // not pad M or K
-            assert(KRaw % AK1 == 0);
-
-            const auto AK0 = KRaw / AK1;
-
-            const auto a_grid_desc_ak0_m_ak1 =
-                transform_tensor_descriptor(a_grid_desc_mraw_kraw,
-                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
-                                                       make_pass_through_transform(MRaw)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return a_grid_desc_ak0_m_ak1;
-        }
-    }
-
-    static auto MakeBGridDescriptor_BK0_N_BK1(index_t KRaw, index_t NRaw, index_t StrideB)
-    {
-        const auto b_grid_desc_nraw_kraw = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
-                                                    make_tuple(I1, StrideB));
-            }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
-                                                    make_tuple(StrideB, I1));
-            }
-        }();
-
-        const auto N = math::integer_divide_ceil(NRaw, NPerBlock) * NPerBlock;
-        const auto K = math::integer_divide_ceil(KRaw, KPerBlock) * KPerBlock;
-
-        const auto NPad = N - NRaw;
-        const auto KPad = K - KRaw;
-
-        if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
-                     GemmSpec == GemmSpecialization::MNKPadding)
-        {
-            // pad both N and K
-            assert(K % BK1 == 0);
-
-            const auto BK0 = K / BK1;
-
-            const auto b_grid_desc_n_k =
-                transform_tensor_descriptor(b_grid_desc_nraw_kraw,
-                                            make_tuple(make_right_pad_transform(NRaw, NPad),
-                                                       make_right_pad_transform(KRaw, KPad)),
-                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-            const auto b_grid_desc_bk0_n_bk1 =
-                transform_tensor_descriptor(b_grid_desc_n_k,
-                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                       make_pass_through_transform(N)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return b_grid_desc_bk0_n_bk1;
-        }
-        else if constexpr(GemmSpec == GemmSpecialization::NPadding ||
-                          GemmSpec == GemmSpecialization::MNPadding)
-        {
-            // pad N, but not K
-            assert(KRaw % BK1 == 0);
-
-            const auto BK0 = KRaw / BK1;
-
-            const auto b_grid_desc_bk0_n_bk1 =
-                transform_tensor_descriptor(b_grid_desc_nraw_kraw,
-                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                       make_right_pad_transform(NRaw, NPad)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return b_grid_desc_bk0_n_bk1;
-        }
-        else if constexpr(GemmSpec == GemmSpecialization::KPadding ||
-                          GemmSpec == GemmSpecialization::MKPadding)
-        {
-            // pad K, but not N
-            assert(K % BK1 == 0);
-
-            const auto BK0 = K / BK1;
-
-            const auto b_grid_desc_n_k = transform_tensor_descriptor(
-                b_grid_desc_nraw_kraw,
-                make_tuple(make_pass_through_transform(NRaw), make_right_pad_transform(KRaw, KPad)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-            const auto b_grid_desc_bk0_n_bk1 =
-                transform_tensor_descriptor(b_grid_desc_n_k,
-                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                       make_pass_through_transform(NRaw)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return b_grid_desc_bk0_n_bk1;
-        }
-        else
-        {
-            // not pad N or K
-            assert(KRaw % BK1 == 0);
-
-            const auto BK0 = KRaw / BK1;
-
-            const auto b_grid_desc_bk0_n_bk1 =
-                transform_tensor_descriptor(b_grid_desc_nraw_kraw,
-                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                       make_pass_through_transform(NRaw)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return b_grid_desc_bk0_n_bk1;
-        }
-    }
-
-    static auto MakeCGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideC)
-    {
-        const auto c_grid_desc_mraw_nraw = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
-                                                    make_tuple(StrideC, I1));
-            }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
-                                                    make_tuple(I1, StrideC));
-            }
-        }();
-
-        const auto M = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
-        const auto N = math::integer_divide_ceil(NRaw, NPerBlock) * NPerBlock;
-
-        const auto MPad = M - MRaw;
-        const auto NPad = N - NRaw;
-
-        if constexpr(GemmSpec == GemmSpecialization::MNPadding ||
-                     GemmSpec == GemmSpecialization::MNKPadding)
-        {
-            // pad M and N
-            return transform_tensor_descriptor(c_grid_desc_mraw_nraw,
-                                               make_tuple(make_right_pad_transform(MRaw, MPad),
-                                                          make_right_pad_transform(NRaw, NPad)),
-                                               make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                               make_tuple(Sequence<0>{}, Sequence<1>{}));
-        }
-        else if constexpr(GemmSpec == GemmSpecialization::MPadding ||
-                          GemmSpec == GemmSpecialization::MKPadding)
-        {
-            // pad M, but not N
-            return transform_tensor_descriptor(
-                c_grid_desc_mraw_nraw,
-                make_tuple(make_right_pad_transform(MRaw, MPad), make_pass_through_transform(NRaw)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
-        }
-        else if constexpr(GemmSpec == GemmSpecialization::NPadding ||
-                          GemmSpec == GemmSpecialization::NKPadding)
-        {
-            // pad N, but not M
-            return transform_tensor_descriptor(
-                c_grid_desc_mraw_nraw,
-                make_tuple(make_pass_through_transform(MRaw), make_right_pad_transform(NRaw, NPad)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
-        }
-        else
-        {
-            // not pad M or N
-            return c_grid_desc_mraw_nraw;
-        }
-    }
-
-    using AGridDesc_AK0_M_AK1 = decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1));
-    using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
-    using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
-    using CGridDesc_M         = decltype(MakeDescriptor_M({1, 1}, {1, 1}, 1, 1));
-
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
+        ALayout,
+        BLayout,
+        CLayout,
         ADataType, // TODO: distinguish A/B datatype
         GemmAccDataType,
         CShuffleDataType,
@@ -396,10 +130,8 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
+        GemmSpec,
         InMemoryDataOperationEnum::Set,
-        AGridDesc_AK0_M_AK1,
-        BGridDesc_BK0_N_BK1,
-        CGridDesc_M_N,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,
@@ -433,108 +165,82 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
 
-    // Argument
-    struct Argument : public BaseArgument
-    {
-        Argument(const ADataType* p_a_grid_real,
-                 const ADataType* p_a_grid_imag,
-                 const BDataType* p_b_grid_real,
-                 const BDataType* p_b_grid_imag,
-                 CDataType* p_c_grid_real,
-                 CDataType* p_c_grid_imag,
-                 CDataType* p_workspace,
-                 index_t MRaw,
-                 index_t NRaw,
-                 index_t KRaw,
-                 index_t StrideA,
-                 index_t StrideB,
-                 index_t StrideC,
-                 AElementwiseOperation a_element_op,
-                 BElementwiseOperation b_element_op,
-                 CElementwiseOperation c_element_op)
-            : p_a_grid_real_{p_a_grid_real},
-              p_a_grid_imag_{p_a_grid_imag},
-              p_b_grid_real_{p_b_grid_real},
-              p_b_grid_imag_{p_b_grid_imag},
-              p_c_grid_real_{p_c_grid_real},
-              p_c_grid_imag_{p_c_grid_imag},
-              p_aux_grid_{p_workspace},
-              a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA)},
-              b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
-              c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC)},
-              c_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
-              a_element_op_{a_element_op},
-              b_element_op_{b_element_op},
-              c_element_op_{c_element_op}
-        {
-            if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
-                                           b_grid_desc_bk0_n_bk1_,
-                                           c_grid_desc_m_n_,
-                                           block_2_ctile_map_))
-            {
-                c_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                    GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        c_grid_desc_m_n_);
-            }
+    using CGridDesc_M = decltype(MakeDescriptor_M({1, 1}, {1, 1}, 1, 1));
 
-            const index_t grid_size = block_2_ctile_map_.CalculateGridSize(c_grid_desc_m_n_);
+    // Argument
+    struct Argument : public tensor_operation::device::BaseArgument, public GridwiseGemm::Problem
+    {
+        using Problem = typename GridwiseGemm::Problem;
+
+        Argument(const ADataType* p_a_grid_real_,
+                 const ADataType* p_a_grid_imag_,
+                 const BDataType* p_b_grid_real_,
+                 const BDataType* p_b_grid_imag_,
+                 CDataType* p_c_grid_real_,
+                 CDataType* p_c_grid_imag_,
+                 CDataType* p_workspace,
+                 index_t M_,
+                 index_t N_,
+                 index_t K_,
+                 index_t StrideA_,
+                 index_t StrideB_,
+                 index_t StrideC_)
+            : Problem{M_, N_, K_, StrideA_, StrideB_, StrideC_},
+              p_a_grid_real{p_a_grid_real_},
+              p_a_grid_imag{p_a_grid_imag_},
+              p_b_grid_real{p_b_grid_real_},
+              p_b_grid_imag{p_b_grid_imag_},
+              p_c_grid_real{p_c_grid_real_},
+              p_c_grid_imag{p_c_grid_imag_},
+              p_aux_grid{p_workspace}
+        {
+            const index_t grid_size = std::get<1>(GridwiseGemm::CalculateGridSize(M_, N_));
 
             if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
             {
-                c_grid_desc_m_ =
-                    DeviceOp::MakeDescriptor_M({MRaw, NRaw}, {StrideC, I1}, grid_size, BlockSize);
+                c_grid_desc_m =
+                    DeviceOp::MakeDescriptor_M({M_, N_}, {StrideC_, I1}, grid_size, BlockSize);
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
             {
-                c_grid_desc_m_ =
-                    DeviceOp::MakeDescriptor_M({MRaw, NRaw}, {I1, StrideC}, grid_size, BlockSize);
+                c_grid_desc_m =
+                    DeviceOp::MakeDescriptor_M({M_, N_}, {I1, StrideC_}, grid_size, BlockSize);
             }
 
-            p_aux_2_grid_ = p_workspace + c_grid_desc_m_n_.GetElementSpaceSize();
+            p_aux_2_grid = p_workspace + GetCElementSpaceSize(M_, N_, StrideC_);
         }
 
         //  private:
-        const ADataType* p_a_grid_real_;
-        const ADataType* p_a_grid_imag_;
-        const BDataType* p_b_grid_real_;
-        const BDataType* p_b_grid_imag_;
-        CDataType* p_c_grid_real_;
-        CDataType* p_c_grid_imag_;
-        CDataType* p_aux_grid_;
-        CDataType* p_aux_2_grid_;
-        AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
-        BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
-        CGridDesc_M_N c_grid_desc_m_n_;
-        CGridDesc_M c_grid_desc_m_;
-        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            c_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
-        AElementwiseOperation a_element_op_;
-        BElementwiseOperation b_element_op_;
-        CElementwiseOperation c_element_op_;
+        const ADataType* p_a_grid_real;
+        const ADataType* p_a_grid_imag;
+        const BDataType* p_b_grid_real;
+        const BDataType* p_b_grid_imag;
+        CDataType* p_c_grid_real;
+        CDataType* p_c_grid_imag;
+        CDataType* p_aux_grid;
+        CDataType* p_aux_2_grid;
+        CGridDesc_M c_grid_desc_m;
     };
 
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceOp::Argument;
-
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
-                                            arg.b_grid_desc_bk0_n_bk1_,
-                                            arg.c_grid_desc_m_n_,
-                                            arg.block_2_ctile_map_))
+            if(stream_config.log_level_ > 0)
+            {
+                arg.Print();
+            }
+
+            if(!GridwiseGemm::CheckValidity(arg))
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
 
-            const index_t grid_size =
-                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
+            index_t gdx, gdy, gdz;
+            std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.M, arg.N);
 
-            const auto K =
-                arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
+            const auto K = GridwiseGemm::CalculateAK0(arg.K) * AK1;
 
             float ave_time = 0;
 
@@ -578,224 +284,148 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                const auto kernel = kernel_gemm_xdl_cshuffle_v1<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
-                    DeviceOp::AGridDesc_AK0_M_AK1,
-                    DeviceOp::BGridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::DefaultBlock2CTileMap,
-                    true>;
+                const auto kernel =
+                    kernel_gemm_xdl_cshuffle_v1<GridwiseGemm, ADataType, CDataType, true>;
 
-                ave_time +=
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_real_,
-                                           arg.p_b_grid_real_,
-                                           arg.p_aux_grid_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.block_2_ctile_map_);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   arg.p_a_grid_real,
+                                                   arg.p_b_grid_real,
+                                                   arg.p_aux_grid,
+                                                   arg);
 
-                ave_time +=
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_imag_,
-                                           arg.p_b_grid_imag_,
-                                           arg.p_aux_2_grid_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.block_2_ctile_map_);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   arg.p_a_grid_imag,
+                                                   arg.p_b_grid_imag,
+                                                   arg.p_aux_2_grid,
+                                                   arg);
 
                 // c_real = aux - aux_2
                 ave_time += launch_and_time_kernel(
                     stream_config,
                     subtract_kernel,
-                    dim3(grid_size),
+                    dim3(gdx, gdy, gdz),
                     dim3(BlockSize),
                     0,
-                    make_tuple(arg.c_grid_desc_m_, arg.c_grid_desc_m_),
-                    make_tuple(arg.c_grid_desc_m_),
-                    make_tuple(const_cast<const CDataType*>(arg.p_aux_grid_),
-                               const_cast<const CDataType*>(arg.p_aux_2_grid_)),
-                    make_tuple(arg.p_c_grid_real_),
+                    make_tuple(arg.c_grid_desc_m, arg.c_grid_desc_m),
+                    make_tuple(arg.c_grid_desc_m),
+                    make_tuple(const_cast<const CDataType*>(arg.p_aux_grid),
+                               const_cast<const CDataType*>(arg.p_aux_2_grid)),
+                    make_tuple(arg.p_c_grid_real),
                     Subtract{});
 
-                ave_time +=
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_real_,
-                                           arg.p_b_grid_imag_,
-                                           arg.p_aux_grid_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.block_2_ctile_map_);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   arg.p_a_grid_real,
+                                                   arg.p_b_grid_imag,
+                                                   arg.p_aux_grid,
+                                                   arg);
 
-                ave_time +=
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_imag_,
-                                           arg.p_b_grid_real_,
-                                           arg.p_aux_2_grid_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.block_2_ctile_map_);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   arg.p_a_grid_imag,
+                                                   arg.p_b_grid_real,
+                                                   arg.p_aux_2_grid,
+                                                   arg);
 
                 // c_imag = aux + aux_2
                 ave_time += launch_and_time_kernel(
                     stream_config,
                     add_kernel,
-                    dim3(grid_size),
+                    dim3(gdx, gdy, gdz),
                     dim3(BlockSize),
                     0,
-                    make_tuple(arg.c_grid_desc_m_, arg.c_grid_desc_m_),
-                    make_tuple(arg.c_grid_desc_m_),
-                    make_tuple(const_cast<const CDataType*>(arg.p_aux_grid_),
-                               const_cast<const CDataType*>(arg.p_aux_2_grid_)),
-                    make_tuple(arg.p_c_grid_imag_),
+                    make_tuple(arg.c_grid_desc_m, arg.c_grid_desc_m),
+                    make_tuple(arg.c_grid_desc_m),
+                    make_tuple(const_cast<const CDataType*>(arg.p_aux_grid),
+                               const_cast<const CDataType*>(arg.p_aux_2_grid)),
+                    make_tuple(arg.p_c_grid_imag),
                     Add{});
             }
             else
             {
-                const auto kernel = kernel_gemm_xdl_cshuffle_v1<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
-                    DeviceOp::AGridDesc_AK0_M_AK1,
-                    DeviceOp::BGridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::DefaultBlock2CTileMap,
-                    false>;
+                const auto kernel =
+                    kernel_gemm_xdl_cshuffle_v1<GridwiseGemm, ADataType, CDataType, false>;
 
-                ave_time +=
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_real_,
-                                           arg.p_b_grid_real_,
-                                           arg.p_aux_grid_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.block_2_ctile_map_);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   arg.p_a_grid_real,
+                                                   arg.p_b_grid_real,
+                                                   arg.p_aux_grid,
+                                                   arg);
 
-                ave_time +=
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_imag_,
-                                           arg.p_b_grid_imag_,
-                                           arg.p_aux_2_grid_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.block_2_ctile_map_);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   arg.p_a_grid_imag,
+                                                   arg.p_b_grid_imag,
+                                                   arg.p_aux_2_grid,
+                                                   arg);
 
                 // c_real = aux - aux_2
                 ave_time += launch_and_time_kernel(
                     stream_config,
                     subtract_kernel,
-                    dim3(grid_size),
+                    dim3(gdx, gdy, gdz),
                     dim3(BlockSize),
                     0,
-                    make_tuple(arg.c_grid_desc_m_, arg.c_grid_desc_m_),
-                    make_tuple(arg.c_grid_desc_m_),
-                    make_tuple(const_cast<const CDataType*>(arg.p_aux_grid_),
-                               const_cast<const CDataType*>(arg.p_aux_2_grid_)),
-                    make_tuple(arg.p_c_grid_real_),
+                    make_tuple(arg.c_grid_desc_m, arg.c_grid_desc_m),
+                    make_tuple(arg.c_grid_desc_m),
+                    make_tuple(const_cast<const CDataType*>(arg.p_aux_grid),
+                               const_cast<const CDataType*>(arg.p_aux_2_grid)),
+                    make_tuple(arg.p_c_grid_real),
                     Subtract{});
 
-                ave_time +=
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_real_,
-                                           arg.p_b_grid_imag_,
-                                           arg.p_aux_grid_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.block_2_ctile_map_);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   arg.p_a_grid_real,
+                                                   arg.p_b_grid_imag,
+                                                   arg.p_aux_grid,
+                                                   arg);
 
-                ave_time +=
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_imag_,
-                                           arg.p_b_grid_real_,
-                                           arg.p_aux_2_grid_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.block_2_ctile_map_);
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   kernel,
+                                                   dim3(gdx, gdy, gdz),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   arg.p_a_grid_imag,
+                                                   arg.p_b_grid_real,
+                                                   arg.p_aux_2_grid,
+                                                   arg);
 
                 // c_imag = aux + aux_2
                 ave_time += launch_and_time_kernel(
                     stream_config,
                     add_kernel,
-                    dim3(grid_size),
+                    dim3(gdx, gdy, gdz),
                     dim3(BlockSize),
                     0,
-                    make_tuple(arg.c_grid_desc_m_, arg.c_grid_desc_m_),
-                    make_tuple(arg.c_grid_desc_m_),
-                    make_tuple(const_cast<const CDataType*>(arg.p_aux_grid_),
-                               const_cast<const CDataType*>(arg.p_aux_2_grid_)),
-                    make_tuple(arg.p_c_grid_imag_),
+                    make_tuple(arg.c_grid_desc_m, arg.c_grid_desc_m),
+                    make_tuple(arg.c_grid_desc_m),
+                    make_tuple(const_cast<const CDataType*>(arg.p_aux_grid),
+                               const_cast<const CDataType*>(arg.p_aux_2_grid)),
+                    make_tuple(arg.p_c_grid_imag),
                     Add{});
             }
 
@@ -818,10 +448,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_m_n_,
-                                           arg.block_2_ctile_map_);
+        return GridwiseGemm::CheckValidity(arg);
     }
 
     // polymorphic
@@ -837,15 +464,15 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                              CDataType* p_c_real,
                              CDataType* p_c_imag,
                              CDataType* p_workspace,
-                             index_t MRaw,
-                             index_t NRaw,
-                             index_t KRaw,
+                             index_t M,
+                             index_t N,
+                             index_t K,
                              index_t StrideA,
                              index_t StrideB,
                              index_t StrideC,
-                             AElementwiseOperation a_element_op,
-                             BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op)
+                             AElementwiseOperation,
+                             BElementwiseOperation,
+                             CElementwiseOperation)
     {
         return Argument{p_a_real,
                         p_a_imag,
@@ -854,15 +481,12 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                         p_c_real,
                         p_c_imag,
                         p_workspace,
-                        MRaw,
-                        NRaw,
-                        KRaw,
+                        M,
+                        N,
+                        K,
                         StrideA,
                         StrideB,
-                        StrideC,
-                        a_element_op,
-                        b_element_op,
-                        c_element_op};
+                        StrideC};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -875,15 +499,15 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                       void* p_c_real,
                                                       void* p_c_imag,
                                                       void* p_workspace,
-                                                      index_t MRaw,
-                                                      index_t NRaw,
-                                                      index_t KRaw,
+                                                      index_t M,
+                                                      index_t N,
+                                                      index_t K,
                                                       index_t StrideA,
                                                       index_t StrideB,
                                                       index_t StrideC,
-                                                      AElementwiseOperation a_element_op,
-                                                      BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op,
+                                                      AElementwiseOperation,
+                                                      BElementwiseOperation,
+                                                      CElementwiseOperation,
                                                       index_t /* KBatch */ = 1) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a_real),
@@ -893,15 +517,12 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                           static_cast<CDataType*>(p_c_real),
                                           static_cast<CDataType*>(p_c_imag),
                                           static_cast<CDataType*>(p_workspace),
-                                          MRaw,
-                                          NRaw,
-                                          KRaw,
+                                          M,
+                                          N,
+                                          K,
                                           StrideA,
                                           StrideB,
-                                          StrideC,
-                                          a_element_op,
-                                          b_element_op,
-                                          c_element_op);
+                                          StrideC);
     }
 
     // polymorphic
@@ -930,16 +551,22 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         return str.str();
     }
 
-    std::size_t GetWorkspaceSize(index_t MRaw,
-                                 index_t NRaw,
-                                 [[maybe_unused]] index_t KRaw,
+    static std::size_t GetCElementSpaceSize(index_t M, index_t N, index_t StrideC)
+    {
+        const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(
+            M, GridwiseGemm::CalculateMPadded(M), N, GridwiseGemm::CalculateNPadded(N), StrideC);
+
+        return c_grid_desc_m_n.GetElementSpaceSize();
+    }
+
+    std::size_t GetWorkspaceSize(index_t M,
+                                 index_t N,
+                                 [[maybe_unused]] index_t K,
                                  [[maybe_unused]] index_t StrideA,
                                  [[maybe_unused]] index_t StrideB,
                                  index_t StrideC) override
     {
-        const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC);
-
-        return 2 * sizeof(CDataType) * c_grid_desc_m_n.GetElementSpaceSize();
+        return 2 * sizeof(CDataType) * GetCElementSpaceSize(M, N, StrideC);
     }
 };
 
