@@ -695,7 +695,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
         B1BlockTransferSrcVectorDim,
         B1BlockTransferSrcScalarPerVector,
         B1BlockTransferDstScalarPerVector_BK1,
-        false,
+        true,
         B1BlockLdsExtraN,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,

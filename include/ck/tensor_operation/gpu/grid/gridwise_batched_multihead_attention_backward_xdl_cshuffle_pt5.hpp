@@ -1090,23 +1090,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
             return q_grid_desc_m0_k_m1;
         }
-
-        // // C position
-        // template <typename KGridDesc_K0_N_K1_>
-        // __device__ static auto MakeKGradGridDesc_N_K(const KGridDesc_K0_N_K1_&
-        // k_grid_desc_k0_n_k1)
-        // {
-        //     const auto K_K0 = k_grid_desc_k0_n_k1.GetLength(I0);
-        //     const auto N    = k_grid_desc_k0_n_k1.GetLength(I1);
-        //     const auto K_K1 = k_grid_desc_k0_n_k1.GetLength(I2);
-
-        //     return transform_tensor_descriptor(
-        //         k_grid_desc_k0_n_k1,
-        //         make_tuple(make_pass_through_transform(N),
-        //                    make_merge_transform_v3_division_mod(make_tuple(K_K0, K_K1))),
-        //         make_tuple(Sequence<1>{}, Sequence<0, 2>{}),
-        //         make_tuple(Sequence<0>{}, Sequence<1>{}));
-        // }
     };
 
     struct SharedMemTrait
@@ -1380,6 +1363,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                 make_multi_index(0, 0, 0),
                 tensor_operation::element_wise::PassThrough{});
 
+        const auto vgrad_gemm_tile_ygrad_block_next_copy_step =
+            make_multi_index(MPerBlock / B1K1, 0, 0);
+
         // dV: blockwise gemm
         auto vgrad_blockwise_gemm =
             typename Gemm1::BlockwiseGemm{make_tuple(0, 0, 0, 0)}; // A_origin
@@ -1409,6 +1395,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                                // b_block_desc_bn0_k_bn1
                 make_multi_index(0, 0, 0),
                 tensor_operation::element_wise::PassThrough{});
+
+        const auto kgrad_gemm_tile_q_block_next_copy_step =
+            make_multi_index(MPerBlock / B1K1, 0, 0);
 
         // dK: blockwise gemm
         auto kgrad_blockwise_gemm =
@@ -1744,6 +1733,10 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                 qgrad_thread_copy_vgpr_to_global.MoveDstSliceWindow(
                     qgrad_grid_desc_m0_o0_m1_o1_m2_o2_o3_o4,
                     Gemm2::c_block_slice_copy_step); // step M
+                kgrad_gemm_tile_q_blockwise_copy.MoveSrcSliceWindow(
+                    q_grid_desc_m0_k_m1, kgrad_gemm_tile_q_block_next_copy_step); // step M
+                vgrad_gemm_tile_ygrad_blockwise_copy.MoveSrcSliceWindow(
+                    ygrad_grid_desc_m0_o_m1, vgrad_gemm_tile_ygrad_block_next_copy_step); // step M
                 lse_thread_copy_global_to_vgpr.MoveSrcSliceWindow(
                     lse_grid_desc_mb_m0_m1_m2_m3_m4, make_multi_index(1, 0, 0, 0, 0, 0));
                 yygrad_threadwise_copy.MoveSrcSliceWindow(
