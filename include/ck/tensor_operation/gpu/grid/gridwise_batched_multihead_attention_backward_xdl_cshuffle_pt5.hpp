@@ -457,7 +457,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
     __host__ __device__ static constexpr auto
     MakeDefaultBlock2CTileMap(const KGridDesc_N_K& k_grid_desc_n_k)
     {
-        return BlockToCTileMap_M00_N0_M01Adapt<NPerBlock, KPerBlock, KGridDesc_N_K>(
+        return BlockToCTileMap_M00_N0_M01Adapt<NPerBlock, Gemm1NPerBlock, KGridDesc_N_K>(
             k_grid_desc_n_k);
     }
 
