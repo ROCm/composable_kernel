@@ -262,12 +262,12 @@ struct wmma_type<WmmaInstr::wmma_i32_16x16x16_iu8,
 
     template <index_t MPerWmma,
               index_t NPerWmma,
-              bool neg_a,
-              bool neg_b,
-              bool clamp,
               class FloatA,
               class FloatB,
-              class FloatC>
+              class FloatC,
+              bool neg_a = false,
+              bool neg_b = false,
+              bool clamp = false>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
         if constexpr(wave_size == 32)

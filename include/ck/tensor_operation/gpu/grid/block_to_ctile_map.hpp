@@ -109,30 +109,37 @@ struct BlockToCTileMap_M00_N0_M01
 
 // Rows of column-vectors
 // This C-tile map dynamically adjusts M01 when C-tile index is out of range
-template <index_t MPerBlock, index_t NPerBlock, typename CGridDesc_M_N>
-struct BlockToCTileMap_M00_N0_M01Adapt
+template <index_t MPerBlock, index_t NPerBlock, typename CGridDesc_M_N = void>
+struct BlockToCTileMap_M00_N0_M01Adapt;
+
+template <index_t MPerBlock, index_t NPerBlock>
+struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
-    static constexpr auto I2 = Number<2>{};
-    static constexpr auto I3 = Number<3>{};
 
     __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt() = default;
 
-    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(const CGridDesc_M_N& c_grid_desc_m_n,
-                                                        index_t M01 = 8)
-        : M01_(M01), c_grid_desc_m_n_(c_grid_desc_m_n)
+    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(const BlockToCTileMap_M00_N0_M01Adapt&) =
+        default;
+    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(BlockToCTileMap_M00_N0_M01Adapt&&) =
+        default;
+    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt&
+    operator=(const BlockToCTileMap_M00_N0_M01Adapt&) = default;
+    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt&
+    operator=(BlockToCTileMap_M00_N0_M01Adapt&&) = default;
+
+    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(index_t M, index_t N, index_t M01 = 8)
+        : M_(M), N_(N), M01_(M01)
     {
     }
 
-    __host__ constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
+    __host__ static constexpr index_t CalculateGridSize(index_t M, index_t N)
     {
-        const auto M0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I0), MPerBlock);
-        const auto N0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I1), NPerBlock);
+        const auto M0 = math::integer_divide_ceil(M, MPerBlock);
+        const auto N0 = math::integer_divide_ceil(N, NPerBlock);
 
-        const index_t grid_size = M0 * N0;
-
-        return grid_size;
+        return M0 * N0;
     }
 
     template <typename TopIdx>
@@ -140,8 +147,8 @@ struct BlockToCTileMap_M00_N0_M01Adapt
     {
         auto block_1d_id = idx_top[I0];
 
-        const auto M0 = math::integer_divide_ceil(c_grid_desc_m_n_.GetLength(I0), MPerBlock);
-        const auto N0 = math::integer_divide_ceil(c_grid_desc_m_n_.GetLength(I1), NPerBlock);
+        const auto M0 = math::integer_divide_ceil(M_, MPerBlock);
+        const auto N0 = math::integer_divide_ceil(N_, NPerBlock);
 
         block_1d_id = block_1d_id % (M0 * N0); // swallow batch index
 
@@ -209,11 +216,36 @@ struct BlockToCTileMap_M00_N0_M01Adapt
         return true; // always valid provided that user gets grid size from CalculateGridSize()
     }
 
-    __host__ bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const { return true; }
-
     private:
+    index_t M_;
+    index_t N_;
     index_t M01_;
-    CGridDesc_M_N c_grid_desc_m_n_;
+};
+
+template <index_t MPerBlock, index_t NPerBlock, typename CGridDesc_M_N>
+struct BlockToCTileMap_M00_N0_M01Adapt : BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
+{
+    using Parent = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>;
+
+    using Parent::I0;
+    using Parent::I1;
+
+    using Parent::Parent;
+    using Parent::operator=;
+
+    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(const CGridDesc_M_N& c_grid_desc_m_n,
+                                                        index_t M01 = 8)
+        : Parent(c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1), M01)
+    {
+    }
+
+    __host__ static constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n)
+    {
+        return Parent::CalculateGridSize(c_grid_desc_m_n.GetLength(I0),
+                                         c_grid_desc_m_n.GetLength(I1));
+    }
+
+    __host__ bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const { return true; }
 };
 
 // 2D slices of column-vectors in 3D space
