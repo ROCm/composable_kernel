@@ -508,12 +508,12 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         return true;
     }
 
-    __host__ __device__ static auto GetKPad(index_t K, index_t KBatch)
-    {
-        const index_t K0   = math::integer_divide_ceil(K, K1 * K0PerBlock * KBatch) * K0PerBlock;
-        const index_t KPad = KBatch * K0 * K1;
-        return KPad;
-    }
+    // __host__ __device__ static auto GetKPad(index_t K, index_t KBatch)
+    // {
+    //     const index_t K0   = math::integer_divide_ceil(K, K1 * K0PerBlock * KBatch) * K0PerBlock;
+    //     const index_t KPad = KBatch * K0 * K1;
+    //     return KPad;
+    // }
 
     __host__ __device__ static constexpr bool CalculateHasMainK0BlockLoop(index_t K0)
     {
