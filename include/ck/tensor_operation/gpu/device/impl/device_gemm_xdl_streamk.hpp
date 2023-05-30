@@ -168,10 +168,9 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
             else if constexpr(GridwiseGemm::Block2CTileMap::ReductionStrategy ==
                               StreamKReductionStrategy::Reduction)
             {
-                char* workspace_semaphore = reinterpret_cast<char*>(karg.p_workspace_);
-                workspace_semaphore =
-                    workspace_semaphore + karg.block_mapping.get_workspace_size_for_acc(
-                                              sizeof(typename GridwiseGemm::FloatAcc));
+                char* workspace_semaphore = reinterpret_cast<char*>(karg.p_workspace_) +
+                                            karg.block_mapping.get_workspace_size_for_acc(
+                                                sizeof(typename GridwiseGemm::FloatAcc));
                 auto preprocess = [&]() {
                     hipGetErrorString(
                         hipMemset(workspace_semaphore,
