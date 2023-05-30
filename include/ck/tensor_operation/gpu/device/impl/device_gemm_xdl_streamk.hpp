@@ -173,9 +173,10 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                                                 sizeof(typename GridwiseGemm::FloatAcc));
                 auto preprocess = [&]() {
                     hipGetErrorString(
-                        hipMemset(workspace_semaphore,
-                                  0,
-                                  karg.block_mapping.get_workspace_size_for_semaphore()));
+                        hipMemsetAsync(workspace_semaphore,
+                                       0,
+                                       karg.block_mapping.get_workspace_size_for_semaphore(),
+                                       stream_config.stream_id_));
                 };
 
                 ave_time = launch_and_time_kernel_with_preprocess(stream_config,
