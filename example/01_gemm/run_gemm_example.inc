@@ -99,6 +99,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
 #endif
+    DeviceMem workspace;
 
     auto a_element_op = AElementOp{};
     auto b_element_op = BElementOp{};
@@ -182,7 +183,29 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             return true;
         }
 
+        std::size_t workspace_size = gemm.GetWorkSpaceSize(&argument);
+        if(workspace_size != 0)
+        {
+            workspace.Realloc(workspace_size);
+            gemm.SetWorkSpacePointer(&argument, workspace.GetDeviceBuffer());
+        }
+
         ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+
+#if 0
+        // TODO!!!!!
+        if(workspace_size != 0){
+            float * ws_ptr = reinterpret_cast<float*>(malloc(workspace_size));
+            size_t ws_dwords = workspace_size / sizeof(float);
+            workspace.FromDevice(ws_ptr);
+
+            for(size_t i = 0; i < ws_dwords; i++) {
+                uint32_t rere = reinterpret_cast<uint32_t*>(ws_ptr)[i];
+                printf("%4lu : %f(0x%08x)\n", i, ws_ptr[i], rere);
+            }
+            free(ws_ptr);
+        }
+#endif
     }
 
     std::size_t flop = 2_uz * M * N * K;
