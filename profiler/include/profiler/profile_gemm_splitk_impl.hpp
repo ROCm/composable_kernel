@@ -246,9 +246,9 @@ bool profile_gemm_splitk_impl(int do_verification,
     }
 
     std::cout << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA
-              << " StrideB = " << StrideB << " StrideC = " << StrideC << " : " << best_ave_time
-              << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
-              << best_op_name << std::endl;
+              << " StrideB = " << StrideB << " StrideC = " << StrideC << " KBatch = " << KBatch
+              << " : " << best_ave_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec
+              << " GB/s, " << best_op_name << std::endl;
 
     return pass;
 }

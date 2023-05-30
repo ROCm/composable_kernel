@@ -8,14 +8,14 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
+#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 
 namespace ck {
 
@@ -55,6 +55,7 @@ template <index_t BlockSize,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           tensor_operation::device::GemmSpecialization GemmSpec,
+          index_t NumGemmKPrefetchStage,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t K0PerBlock,
@@ -82,7 +83,9 @@ template <index_t BlockSize,
           index_t CShuffleMRepeatPerShuffle,
           index_t CShuffleNRepeatPerShuffle,
           index_t CBlockTransferScalarPerVector_NWaveNPerXDL,
-          typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>
+          typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+          LoopScheduler LoopSched     = make_default_loop_scheduler(),
+          PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 {
     static constexpr auto I0 = Number<0>{};
@@ -99,7 +102,14 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     static constexpr auto M01 = 1;
     static constexpr auto N01 = 1;
 
+    static constexpr auto gemm_padder =
+        tensor_operation::device::GemmPadder<GemmSpec, index_t, index_t, index_t>{
+            MPerBlock, NPerBlock, K1* K0PerBlock};
+
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
+
+    using GridwiseGemmPipe = remove_cvref_t<decltype(
+        GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
     struct Argument : public ck::tensor_operation::device::BaseArgument
     {
@@ -176,12 +186,12 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     // prefer this to be called on host
     __host__ __device__ static auto CalculateMPadded(index_t M)
     {
-        return (M + MPerBlock - 1) / MPerBlock * MPerBlock;
+        return math::integer_least_multiple(M, MPerBlock);
     }
 
     __host__ __device__ static auto CalculateNPadded(index_t N)
     {
-        return (N + NPerBlock - 1) / NPerBlock * NPerBlock;
+        return math::integer_least_multiple(N, NPerBlock);
     }
 
     __host__ __device__ static auto CalculateK0(index_t K, index_t K_Batch = 1)
@@ -295,8 +305,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         }
     }
 
-    __host__ __device__ static auto
-    MakeCGridDescriptor_M_N(index_t M, index_t N, index_t MPad, index_t NPad, index_t StrideC)
+    __host__ __device__ static auto MakeCGridDescriptor_M_N(index_t M, index_t N, index_t StrideC)
     {
         const auto c_grid_desc_m_n = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
@@ -309,22 +318,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             }
         }();
 
-        if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding)
-        {
-            return transform_tensor_descriptor(c_grid_desc_m_n,
-                                               make_tuple(make_right_pad_transform(M, MPad - M),
-                                                          make_right_pad_transform(N, NPad - N)),
-                                               make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                               make_tuple(Sequence<0>{}, Sequence<1>{}));
-        }
-        else
-        {
-            return transform_tensor_descriptor(
-                c_grid_desc_m_n,
-                make_tuple(make_pass_through_transform(M), make_pass_through_transform(N)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
-        }
+        return gemm_padder.PadCDescriptor_M_N(c_grid_desc_m_n);
     }
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
@@ -383,7 +377,15 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
         {
             if(!(karg.M % MPerBlock == 0))
+            {
+#if DEBUG_LOG
+                std::cout << "Arg M value is not a multiple of MPerBlock! M: " << karg.M << " "
+                          << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                          << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
+            }
         }
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
@@ -391,40 +393,116 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
         {
             if(!(karg.N % NPerBlock == 0))
+            {
+#if DEBUG_LOG
+                std::cout << "Arg N value is not a multiple of NPerBlock! N: " << karg.N << " "
+                          << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                          << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
+            }
         }
 
         if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
             if(karg.K % ABlockTransferSrcScalarPerVector != 0)
+            {
+#if DEBUG_LOG
+                std::cout << "Arg K (" << karg.K
+                          << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
+                          << ABlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
+            }
         }
         else
         {
             if(karg.M % ABlockTransferSrcScalarPerVector != 0)
+            {
+#if DEBUG_LOG
+                std::cout << "Arg M (" << karg.M
+                          << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
+                          << ABlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
+            }
         }
 
         if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
         {
             if(karg.N % BBlockTransferSrcScalarPerVector != 0)
+            {
+#if DEBUG_LOG
+                std::cout << "Arg N (" << karg.N
+                          << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
+                          << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
+            }
         }
         else
         {
             if(karg.K % BBlockTransferSrcScalarPerVector != 0)
+            {
+#if DEBUG_LOG
+                std::cout << "Arg K (" << karg.K
+                          << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
+                          << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
+            }
         }
 
         if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
         {
             if(karg.N % CBlockTransferScalarPerVector_NWaveNPerXDL != 0)
+            {
+#if DEBUG_LOG
+                std::cout
+                    << "Arg N (" << karg.N
+                    << ") value is not a multiple of CBlockTransferScalarPerVector_NWaveNPerXDL ("
+                    << CBlockTransferScalarPerVector_NWaveNPerXDL << " )! " << __FILE__ << ":"
+                    << __LINE__ << ", in function: " << __func__ << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
+            }
         }
         else
         {
             if(karg.M % CBlockTransferScalarPerVector_NWaveNPerXDL != 0)
+            {
+#if DEBUG_LOG
+                std::cout
+                    << "Arg M (" << karg.M
+                    << ") value is not a multiple of CBlockTransferScalarPerVector_NWaveNPerXDL ("
+                    << CBlockTransferScalarPerVector_NWaveNPerXDL << " )! " << __FILE__ << ":"
+                    << __LINE__ << ", in function: " << __func__ << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
+            }
+        }
+
+        const auto num_k_loop = karg.K0 / K0PerBlock;
+        if(!GridwiseGemmPipe::IsSupported(num_k_loop))
+        {
+#if DEBUG_LOG
+            std::cout << "The number of k loops (" << num_k_loop
+                      << ") value is not supported by GridwiseGemm Pipeline."
+                      << " K0: " << karg.K0 << ", K0PerBlock: " << K0PerBlock << " " << __FILE__
+                      << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+#endif // DEBUG_LOG
+            return false;
         }
 
         return true;
@@ -439,9 +517,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
     __host__ __device__ static constexpr bool CalculateHasMainK0BlockLoop(index_t K0)
     {
-        const bool has_main_k0_block_loop = K0 > K0PerBlock;
-
-        return has_main_k0_block_loop;
+        const index_t num_loop = K0 / K0PerBlock;
+        return GridwiseGemmPipe::CalculateHasMainLoop(num_loop);
     }
 
     template <typename CGridDesc>
@@ -490,7 +567,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         return BlockToCTileMap_3DGrid_KSplit<MPerBlock, NPerBlock>();
     }
 
-    using CGridDesc_M_N         = remove_cvref_t<decltype(MakeCGridDescriptor_M_N(1, 1, 1, 1, 1))>;
+    using CGridDesc_M_N         = remove_cvref_t<decltype(MakeCGridDescriptor_M_N(1, 1, 1))>;
     using DefaultBlock2CTileMap = remove_cvref_t<decltype(MakeDefaultBlock2CTileMap())>;
 
     template <bool HasMainKBlockLoop,
@@ -507,8 +584,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             karg.M, karg.MPadded, karg.K, karg.StrideA, karg.k_batch, karg.K0, karg.KPadded);
         const auto b_b_k0_n_k1_grid_desc = MakeBGridDescriptor_KBatch_K0_N_K1(
             karg.K, karg.NPadded, karg.N, karg.StrideB, karg.k_batch, karg.K0, karg.KPadded);
-        const auto c_grid_desc_m_n =
-            MakeCGridDescriptor_M_N(karg.M, karg.N, karg.MPadded, karg.NPadded, karg.StrideC);
+        const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
@@ -680,20 +756,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
-#if 1
-        auto blockwise_gemm =
-            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                FloatAB,
-                                                                FloatAcc,
-                                                                decltype(a_k0_m_k1_block_desc),
-                                                                decltype(b_k0_n_k1_block_desc),
-                                                                MPerXDL,
-                                                                NPerXDL,
-                                                                MRepeat,
-                                                                NRepeat,
-                                                                K1>{};
-#else
-        auto blockwise_gemm = BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<
+
+        auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
             FloatAB,
             FloatAcc,
@@ -703,9 +767,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             NPerXDL,
             MRepeat,
             NRepeat,
-            K1>{};
-
-#endif
+            K1,
+            LoopSched>();
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
@@ -761,7 +824,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                 b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);
 
                 k0_block_data_begin += K0PerBlock;
-            } while(k0_block_data_begin < (K0 - K0PerBlock));
+            } while(k0_block_data_begin < (karg.K0 - K0PerBlock));
         }
 
         // tail
@@ -772,12 +835,11 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         }
 #else
         // gridwise GEMM pipeline
-        const auto gridwise_gemm_pipeline =
-            GridwiseGemmPipeline_Selector<PipelineVersion::v2, 1, LoopScheduler::Default>();
-
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_b_k0_m_k1_grid_desc.GetLength(I1) * a_b_k0_m_k1_grid_desc.GetLength(I3)) /
             (K0PerBlock * K1));
+
+        const auto gridwise_gemm_pipeline = GridwiseGemmPipe{};
 
         gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_b_k0_m_k1_grid_desc,
                                                                a_b_k0_m_k1_block_desc,
@@ -992,24 +1054,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             });
         }
     }
-
-    template <typename Layout>
-    struct LStr
-    {
-        static std::string Get() { return ""; }
-    };
-
-    template <>
-    struct LStr<ck::tensor_layout::gemm::RowMajor>
-    {
-        static std::string Get() { return "R"; }
-    };
-
-    template <>
-    struct LStr<ck::tensor_layout::gemm::ColumnMajor>
-    {
-        static std::string Get() { return "C"; }
-    };
 
     static std::string GetTypeString()
     {
