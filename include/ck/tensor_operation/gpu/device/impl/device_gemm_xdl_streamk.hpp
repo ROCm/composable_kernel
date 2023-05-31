@@ -78,7 +78,7 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
         BlockToCTileMap_GemmStreamK<MPerBlock,
                                     NPerBlock,
                                     K0PerBlock * K1,
-                                    StreamKReductionStrategy::Reduction>,
+                                    StreamKReductionStrategy::Atomic>,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,

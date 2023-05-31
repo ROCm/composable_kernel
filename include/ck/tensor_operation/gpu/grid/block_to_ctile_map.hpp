@@ -693,23 +693,11 @@ struct BlockToCTileMap_GemmStreamK
     // pass to device
     uint32_t sk_num_blocks;
     uint32_t sk_num_big_blocks;
-    // uint32_t sk_total_iters;
-
     uint32_t dp_start_block_idx;
-    // uint32_t dp_iters_per_block;
-    // uint32_t dp_num_blocks;
-
     uint32_t reduction_start_block_idx;
-
     uint32_t k_iters_per_big_block;
-
-    // uint32_t tiles_cover_big_blocks; // for reduction
-    // uint32_t total_acc_buffers; // for reduction
-
     MDiv2 n_tiles;
-
     MDiv k_iters_per_tile;
-
     MDiv eqav_tiles_big;    // for reduction
     MDiv eqav_tiles_little; // for reduction
 
@@ -859,9 +847,7 @@ struct BlockToCTileMap_GemmStreamK
             eqav_tiles_little     = MDiv(upper_little / k_iters_per_tile.get());
         }
 
-        // tile_swizzle_sub_m_rem =
-        //    MDiv(math::integer_divide_ceil(m, MPerBlock) % tile_swizzle_sub_m);
-
+#if 0
         printf("cu:%d, occupancy:%d, grids:%d, num_tiles:%d, dp_tiles:%d, sk_num_big_blocks:%d, "
                "sk_num_blocks:%d, "
                "sk_total_iters:%d, dp_start_block_idx:%d, dp_iters_per_block:%d, dp_num_blocks:%d, "
@@ -883,6 +869,7 @@ struct BlockToCTileMap_GemmStreamK
                reduction_start_block_idx,
                get_sk_tiles(),
                get_workspace_size(sizeof(float)));
+#endif
     }
 
     __host__ __device__ uint32_t get_sk_total_iters() const
@@ -962,7 +949,6 @@ struct BlockToCTileMap_GemmStreamK
         uint32_t m_tile_idx, n_tile_idx;
         uint32_t n_tiles_value = math::integer_divide_ceil(n, NPerBlock);
         n_tiles.divmod(tile_idx, n_tiles_value, m_tile_idx, n_tile_idx);
-        // return make_tuple(m_tile_idx, n_tile_idx);
 
         // swizzle tile
         uint32_t m_tiles = math::integer_divide_ceil(m, MPerBlock);
@@ -983,18 +969,10 @@ struct BlockToCTileMap_GemmStreamK
 
         n_tile_idx_with_adapt = tile_idx_local / sub_m_adapt;
         m_tile_idx_with_adapt = tile_idx_local % sub_m_adapt;
-        // sub_m_adapt.divmod(tile_idx_local, n_tile_idx_with_adapt, m_tile_idx_with_adapt);
         return make_tuple(m_tile_idx_with_adapt + m_tile_idx_sub0 * tile_swizzle_sub_m,
                           n_tile_idx_with_adapt);
     }
 
-    // __host__ __device__ uint32_t get_workspace_offset_for_semaphore() const
-    // {
-    //     // workspace contains 2 part, 1) partial reduction buffer 2) semaphore for cross-wg sync
-    //     // we let 1) start from offset:0, 2) start from the end of 1)
-    //     // NOTE: offset is in unit of byte
-    //     return get_total_acc_buffers() *
-    // }
     __host__ __device__ uint32_t get_workspace_size_for_acc(uint32_t acc_element_bytes) const
     {
         static constexpr uint32_t alignment = 128;
@@ -1021,7 +999,6 @@ struct BlockToCTileMap_GemmStreamK
         uint32_t quo_, rem_;
         eqav_tiles_.divmod(tile_idx_, quo_, rem_);
         return quo_ * max_eqav_tiles_ + rem_;
-        // return tile_idx_ / eqav_tiles_ * max_eqav_tiles_ + (tile_idx_ % eqav_tiles_);
     }
 
     __host__ __device__ uint32_t get_tiles_cover_sk_block(uint32_t num_sk_blocks_,
@@ -1068,8 +1045,6 @@ struct BlockToCTileMap_GemmStreamK
                 iters_per_little_sk_block;
             uint32_t current_intersec =
                 get_tile_intersections(tile_idx_little_reverse, eqav_tiles_little);
-            // printf("reverse tile:%u, %u/%u\n", tile_idx_little_reverse, touched_sk_blocks,
-            // current_intersec);
             return get_total_acc_buffers() - (touched_sk_blocks + current_intersec);
         }
     }
@@ -1080,7 +1055,6 @@ struct BlockToCTileMap_GemmStreamK
         uint32_t iters_per_little_sk_block = k_iters_per_big_block - 1;
         if(block_idx_ < sk_num_big_blocks)
         {
-            // uint32_t touched_tiles = (block_idx_ * iters_per_big_sk_block + iters - 1) / iters;
             uint32_t touched_tiles    = k_iters_per_tile.div(block_idx_ * iters_per_big_sk_block +
                                                           k_iters_per_tile.get() - 1);
             uint32_t current_intersec = get_tile_intersections(touched_tiles, eqav_tiles_big);
@@ -1089,9 +1063,7 @@ struct BlockToCTileMap_GemmStreamK
         else
         {
             uint32_t block_idx_little_reverse = sk_num_blocks - block_idx_;
-            // uint32_t touched_tiles = (block_idx_little_reverse * iters_per_little_sk_block +
-            // iters - 1) / iters;
-            uint32_t touched_tiles = k_iters_per_tile.div(
+            uint32_t touched_tiles            = k_iters_per_tile.div(
                 block_idx_little_reverse * iters_per_little_sk_block + k_iters_per_tile.get() - 1);
             uint32_t current_intersec = get_tile_intersections(touched_tiles, eqav_tiles_little);
             return get_total_acc_buffers() - (block_idx_little_reverse + current_intersec);

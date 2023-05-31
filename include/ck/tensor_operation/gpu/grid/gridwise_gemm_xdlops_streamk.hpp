@@ -478,8 +478,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
-        // ignore = p_workspace;   // TODO: for reduction
-
         // lds max alignment
         constexpr auto max_lds_align = K1;
 
@@ -531,9 +529,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
         uint32_t iter_start, iter_end;
         block_mapping.get_block_itr(block_idx, iter_start, iter_end);
         uint32_t total_iter_length = iter_end - iter_start;
-        // if(threadIdx.x == 0)
-        //     printf("xxx bid:%d, is_sk_block:%d, is_dp_block:%d\n", static_cast<int>(blockIdx.x),
-        //     is_sk_block, is_dp_block);
+
         if(is_padding_block)
             return;
 
@@ -654,14 +650,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
 
 #if 0
                 if(threadIdx.x == 0) {
-                // if(reduction_idx == 0){
-                    // printf("(cluster red:%d,%d)bid:%d, rid:%d, os:%d-%d(%d), spatial:%d-%d, tid:%d, %d, %d\n",
-                    //     cluster_length_reduce.At(I0).value,
-                    //     cluster_length_reduce.At(I1).value, static_cast<int>(blockIdx.x),
-                    //     reduction_idx, tile_acc_offset_start, tile_acc_offset_end,
-                    //     tile_acc_offset_end - tile_acc_offset_start, spatial_idx[I0],
-                    //     spatial_idx[I1], static_cast<int>(threadIdx.x), thread_m_cluster_id,
-                    //     thread_n_cluster_id);
                     printf("bid:%d, rid:%d, os:%d,%d, spatial:%d,%d\n", static_cast<int>(blockIdx.x),
                         reduction_idx, __builtin_amdgcn_readfirstlane(tile_acc_offset_start), __builtin_amdgcn_readfirstlane(tile_acc_offset_end),
                         __builtin_amdgcn_readfirstlane(spatial_idx[I0]),
@@ -672,7 +660,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                 using Accumulation = ck::detail::
                     AccumulateWithNanCheck<false /*PropagateNan*/, reduce::Add, FloatAcc>;
 
-                // static_for<0, MReduceIters, 1>{}([&](auto i_m_reduce) {
                 for(int i_m = 0; i_m < MReduceIters; i_m++)
                 {
                     static_for<0, NReduceIters, 1>{}([&](auto i_n_reduce) {
@@ -731,7 +718,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                             }
                         }
                     });
-                    // if constexpr(i_m_reduce != MReduceIters - 1)
                     {
                         acc_load.MoveSrcSliceWindow(c_partial_acc_block_m_n,
                                                     partial_acc_load_step_m);
@@ -739,7 +725,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                                                      partial_acc_store_step_m);
                     }
                 }
-                //});
                 return;
             }
         }
@@ -766,14 +751,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
 
             const index_t k0_block_data_idx_on_grid =
                 __builtin_amdgcn_readfirstlane(iter_offset * K0PerBlock);
-
-            // if(threadIdx.x == 0)
-            //     printf("[%s], bid:%d, block_idx:%d, tile_idx:%d(%d, %d, %d), iter_start:%d(%d |
-            //     %d), iter_end:%d, len:%d\n",
-            //         is_sk_block ? "sk_block" : (is_dp_block ? "dp_block" : "other "),
-            //         static_cast<int>(blockIdx.x), block_idx, tile_idx, m_block_data_idx_on_grid,
-            //         n_block_data_idx_on_grid, k0_block_data_idx_on_grid, iter_end -
-            //         current_iter_length, iter_offset, iter_start, iter_end, current_iter_length);
 
             // A matrix blockwise copy
             auto a_blockwise_copy =
