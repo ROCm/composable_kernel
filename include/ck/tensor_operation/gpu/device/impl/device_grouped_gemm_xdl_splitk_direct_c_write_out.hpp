@@ -256,10 +256,7 @@ struct DeviceGroupedGemmXdlSplitKDirectCWriteOut
                 const index_t stride_b = gemm_descs[i].stride_B_;
                 const index_t stride_c = gemm_descs[i].stride_C_;
 
-                const index_t m_padded = GridwiseGemm::CalculateMPadded(M);
-                const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
-                const index_t k_padded = GridwiseGemm::CalculateKPadded(K, K_BATCH);
-                const index_t k0       = GridwiseGemm::CalculateK0(K, K_BATCH);
+                const index_t k0 = GridwiseGemm::CalculateK0(K, K_BATCH);
 
                 const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(M, N, stride_c);
 
@@ -285,9 +282,6 @@ struct DeviceGroupedGemmXdlSplitKDirectCWriteOut
                                            stride_a,
                                            stride_b,
                                            stride_c,
-                                           m_padded,
-                                           n_padded,
-                                           k_padded,
                                            k0,
                                            K_BATCH};
 
@@ -311,8 +305,7 @@ struct DeviceGroupedGemmXdlSplitKDirectCWriteOut
 
                 auto& karg = gemm_kernel_args_[i].karg_;
 
-                const index_t k_padded = GridwiseGemm::CalculateKPadded(karg.K, K_BATCH);
-                const index_t k0       = GridwiseGemm::CalculateK0(karg.K, K_BATCH);
+                const index_t k0 = GridwiseGemm::CalculateK0(karg.K, K_BATCH);
 
                 const auto c_grid_desc_m_n =
                     GridwiseGemm::MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
@@ -330,7 +323,6 @@ struct DeviceGroupedGemmXdlSplitKDirectCWriteOut
                 auto grouped_block_2_ctile_map =
                     GroupedGemmBlock2ETileMap(local_b2c_tile_map, block_start);
 
-                karg.KPadded                            = k_padded;
                 karg.K0                                 = k0;
                 karg.k_batch                            = K_BATCH;
                 gemm_kernel_args_[i].block_2_ctile_map_ = grouped_block_2_ctile_map;
