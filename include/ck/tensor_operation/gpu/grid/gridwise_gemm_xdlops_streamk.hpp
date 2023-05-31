@@ -681,7 +681,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                         {
                             auto c_partial_acc_buf =
                                 make_dynamic_buffer<AddressSpaceEnum::Global,
-                                                    amd_buffer_coherence_bits::glc>(
+                                                    AmdBufferCoherenceEnum::GLC>(
                                     reinterpret_cast<FloatAcc*>(p_workspace) +
                                         i * c_partial_acc_block_m_n.GetElementSpaceSize(),
                                     c_partial_acc_block_m_n.GetElementSpaceSize());
@@ -884,7 +884,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                     c_block_desc_mblock_mpershuffle_nblock_npershuffle.GetElementSpaceSize());
 
                 auto c_partial_acc_buf =
-                    make_dynamic_buffer<AddressSpaceEnum::Global, amd_buffer_coherence_bits::glc>(
+                    make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::GLC>(
                         reinterpret_cast<FloatAcc*>(p_workspace) + block_acc_offset,
                         c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle
                             .GetElementSpaceSize());
