@@ -67,11 +67,13 @@ __global__ void
 
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    const auto a_grid_desc_k0_m_k1 = amd_wave_read_first_lane(GridwiseGemm::MakeAGridDescriptor_K0_M_K1(
-        karg.M, karg.MPadded, karg.K, karg.K0, karg.StrideA));
-    const auto b_grid_desc_k0_n_k1 = amd_wave_read_first_lane(GridwiseGemm::MakeBGridDescriptor_K0_N_K1(
-        karg.K, karg.N, karg.NPadded, karg.K0, karg.StrideB));
-    const auto c_grid_desc_m_n     = amd_wave_read_first_lane(GridwiseGemm::MakeCGridDescriptor_M_N(
+    const auto a_grid_desc_k0_m_k1 =
+        amd_wave_read_first_lane(GridwiseGemm::MakeAGridDescriptor_K0_M_K1(
+            karg.M, karg.MPadded, karg.K, karg.K0, karg.StrideA));
+    const auto b_grid_desc_k0_n_k1 =
+        amd_wave_read_first_lane(GridwiseGemm::MakeBGridDescriptor_K0_N_K1(
+            karg.K, karg.N, karg.NPadded, karg.K0, karg.StrideB));
+    const auto c_grid_desc_m_n = amd_wave_read_first_lane(GridwiseGemm::MakeCGridDescriptor_M_N(
         karg.M, karg.MPadded, karg.N, karg.NPadded, karg.StrideC));
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(karg.p_a_grid + a_batch_offset,
