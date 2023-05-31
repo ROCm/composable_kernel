@@ -33,6 +33,7 @@
 #include "ck/utility/debug.hpp"
 
 #include "ck/utility/amd_buffer_addressing.hpp"
+#include "ck/utility/amd_wave_read_first_lane.hpp"
 #include "ck/utility/generic_memory_space_atomic.hpp"
 #include "ck/utility/get_id.hpp"
 #include "ck/utility/thread_group.hpp"
