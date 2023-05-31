@@ -287,17 +287,21 @@ llvm_amdgcn_raw_buffer_atomic_max_fp64(double vdata,
                                        int glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fmax.f64");
 
 // memory coherency bit for buffer store/load instruction
-enum struct amd_buffer_coherence_bits
+// check ISA manual for each GFX target
+// e.g. for
+// https://www.amd.com/system/files/TechDocs/instinct-mi200-cdna2-instruction-set-architecture.pdf,
+// page 67~68
+enum struct AmdBufferCoherenceEnum
 {
-    default_coherence = 0, // default value
-    glc               = 1,
-    slc               = 2,
-    glc_slc           = 3,
+    DefaultCoherence = 0, // default value
+    GLC              = 1,
+    SLC              = 2,
+    GLC_SLC          = 3,
 };
 
 template <typename T,
           index_t N,
-          amd_buffer_coherence_bits coherence = amd_buffer_coherence_bits::default_coherence>
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
 __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_wave_buffer_resource,
                                                                  index_t src_thread_addr_offset,
                                                                  index_t src_wave_addr_offset)
@@ -617,7 +621,7 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
 
 template <typename T,
           index_t N,
-          amd_buffer_coherence_bits coherence = amd_buffer_coherence_bits::default_coherence>
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
 __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src_thread_data,
                                       int32x4_t dst_wave_buffer_resource,
                                       index_t dst_thread_addr_offset,
@@ -1104,7 +1108,7 @@ __device__ void amd_buffer_atomic_max_impl(const typename vector_type<T, N>::typ
 // It is user's responsibility to make sure that is true.
 template <typename T,
           index_t N,
-          amd_buffer_coherence_bits coherence = amd_buffer_coherence_bits::default_coherence>
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
 __device__ typename vector_type_maker<T, N>::type::type
 amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
                                             index_t src_thread_element_offset,
@@ -1140,7 +1144,7 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
 // It is user's responsibility to make sure that is true.
 template <typename T,
           index_t N,
-          amd_buffer_coherence_bits coherence = amd_buffer_coherence_bits::default_coherence>
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
 __device__ typename vector_type_maker<T, N>::type::type
 amd_buffer_load_invalid_element_return_customized_value(const T* p_src_wave,
                                                         index_t src_thread_element_offset,
@@ -1170,7 +1174,7 @@ amd_buffer_load_invalid_element_return_customized_value(const T* p_src_wave,
 // It is user's responsibility to make sure that is true.
 template <typename T,
           index_t N,
-          amd_buffer_coherence_bits coherence = amd_buffer_coherence_bits::default_coherence>
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
 __device__ void amd_buffer_store(const typename vector_type_maker<T, N>::type::type src_thread_data,
                                  T* p_dst_wave,
                                  const index_t dst_thread_element_offset,
