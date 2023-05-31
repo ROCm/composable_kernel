@@ -4,7 +4,7 @@
 #pragma once
 
 #include <vector>
-
+#include <memory>
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
