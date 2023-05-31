@@ -40,7 +40,7 @@ using get_unsigned_int_t = typename get_unsigned_int<Size>::type;
 
 } // namespace detail
 
-__device__ inline int32_t readfirstlane(int32_t value)
+__device__ inline int32_t amd_wave_read_first_lane(int32_t value)
 {
     return __builtin_amdgcn_readfirstlane(value);
 }
@@ -48,7 +48,7 @@ __device__ inline int32_t readfirstlane(int32_t value)
 template <
     typename Object,
     typename = std::enable_if_t<std::is_class_v<Object> && std::is_trivially_copyable_v<Object>>>
-__device__ auto readfirstlane(const Object& obj)
+__device__ auto amd_wave_read_first_lane(const Object& obj)
 {
     using Size                = unsigned;
     constexpr Size SgprSize   = 4;
@@ -65,7 +65,7 @@ __device__ auto readfirstlane(const Object& obj)
     for(Size offset = 0; offset < CompleteSgprCopyBoundary; offset += SgprSize)
     {
         *reinterpret_cast<Sgpr*>(to_obj + offset) =
-            readfirstlane(*reinterpret_cast<const Sgpr*>(from_obj + offset));
+            amd_wave_read_first_lane(*reinterpret_cast<const Sgpr*>(from_obj + offset));
     }
 
     if constexpr(0 < RemainedSize)
@@ -73,7 +73,7 @@ __device__ auto readfirstlane(const Object& obj)
         using Carrier = detail::get_unsigned_int_t<RemainedSize>;
 
         *reinterpret_cast<Carrier>(to_obj + CompleteSgprCopyBoundary) =
-            readfirstlane(*reinterpret_cast<const Carrier*>(from_obj + CompleteSgprCopyBoundary));
+            amd_wave_read_first_lane(*reinterpret_cast<const Carrier*>(from_obj + CompleteSgprCopyBoundary));
     }
 
     /// NOTE: Implicitly start object lifetime. It's better to use std::start_lifetime_at() in this
