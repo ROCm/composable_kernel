@@ -756,9 +756,9 @@ struct BlockToCTileMap_GemmStreamK
             sk_tiles     = partial_dispatche_tiles + num_cu;
         }
 
-        uint32_t dp_iters_per_block = k_iters_per_tile.get();
-        uint32_t sk_total_iters     = k_iters_per_tile.get() * sk_tiles;
-        uint32_t dp_num_blocks      = 0;
+        // uint32_t dp_iters_per_block = k_iters_per_tile.get();
+        uint32_t sk_total_iters = k_iters_per_tile.get() * sk_tiles;
+        uint32_t dp_num_blocks  = 0;
 
         {
             uint32_t min_sk_tiles = (sk_tiles >= num_cu) ? num_cu : (sk_tiles + 1);
