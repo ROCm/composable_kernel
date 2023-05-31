@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_elementwise_normalization_impl.hpp"
