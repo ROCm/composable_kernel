@@ -54,16 +54,15 @@ __device__ auto amd_wave_read_first_lane(const Object& obj)
     constexpr Size SgprSize   = 4;
     constexpr Size ObjectSize = sizeof(Object);
 
-    using Sgpr = detail::get_unsigned_int_t<SgprSize>;
-
-    alignas(Object) std::byte to_obj[ObjectSize];
-
     auto* const from_obj = reinterpret_cast<const std::byte*>(&obj);
+    alignas(Object) std::byte to_obj[ObjectSize];
 
     constexpr Size RemainedSize             = ObjectSize % SgprSize;
     constexpr Size CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
     for(Size offset = 0; offset < CompleteSgprCopyBoundary; offset += SgprSize)
     {
+        using Sgpr = detail::get_unsigned_int_t<SgprSize>;
+
         *reinterpret_cast<Sgpr*>(to_obj + offset) =
             amd_wave_read_first_lane(*reinterpret_cast<const Sgpr*>(from_obj + offset));
     }
@@ -72,8 +71,8 @@ __device__ auto amd_wave_read_first_lane(const Object& obj)
     {
         using Carrier = detail::get_unsigned_int_t<RemainedSize>;
 
-        *reinterpret_cast<Carrier>(to_obj + CompleteSgprCopyBoundary) =
-            amd_wave_read_first_lane(*reinterpret_cast<const Carrier*>(from_obj + CompleteSgprCopyBoundary));
+        *reinterpret_cast<Carrier>(to_obj + CompleteSgprCopyBoundary) = amd_wave_read_first_lane(
+            *reinterpret_cast<const Carrier*>(from_obj + CompleteSgprCopyBoundary));
     }
 
     /// NOTE: Implicitly start object lifetime. It's better to use std::start_lifetime_at() in this
