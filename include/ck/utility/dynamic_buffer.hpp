@@ -20,7 +20,7 @@ template <AddressSpaceEnum BufferAddressSpace,
           typename T,
           typename ElementSpaceSize,
           bool InvalidElementUseNumericalZeroValue,
-          amd_buffer_coherence_bits coherence = amd_buffer_coherence_bits::default_coherence>
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
 struct DynamicBuffer
 {
     using type = T;
@@ -381,7 +381,7 @@ struct DynamicBuffer
 };
 
 template <AddressSpaceEnum BufferAddressSpace,
-          amd_buffer_coherence_bits coherence = amd_buffer_coherence_bits::default_coherence,
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
           typename T,
           typename ElementSpaceSize>
 __host__ __device__ constexpr auto make_dynamic_buffer(T* p, ElementSpaceSize element_space_size)
@@ -392,7 +392,7 @@ __host__ __device__ constexpr auto make_dynamic_buffer(T* p, ElementSpaceSize el
 
 template <
     AddressSpaceEnum BufferAddressSpace,
-    amd_buffer_coherence_bits coherence = amd_buffer_coherence_bits::default_coherence,
+    AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
     typename T,
     typename ElementSpaceSize,
     typename X,
