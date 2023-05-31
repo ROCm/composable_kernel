@@ -533,10 +533,10 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                 // D0 pointer
                 p_d0s_grid_(i) = static_cast<const D0DataType*>(p_acc0_biases[i]);
                 // for  check
-                d0s_mz_nz_strides_[i].push_back(
-                    acc0_biases_gs_ms_ns_strides[i][NumDimG + NumDimM - 1]);
-                d0s_mz_nz_strides_[i].push_back(
-                    acc0_biases_gs_ms_ns_strides[i][NumDimG + NumDimM + NumDimN - 1]);
+                d0s_nl_ns_lengths_strides_[i].push_back(
+                    acc0_biases_gs_ms_ns_lengths[i][NumDimG + NumDimM]);
+                d0s_nl_ns_lengths_strides_[i].push_back(
+                    acc0_biases_gs_ms_ns_strides[i][NumDimG + NumDimM]);
             });
 
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
@@ -615,7 +615,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         std::vector<index_t> b_nz_kz_strides_;
         std::vector<index_t> b1_nz_kz_strides_;
         std::vector<index_t> c_mz_gemm1nz_strides_;
-        std::array<std::vector<ck::index_t>, NumD0Tensor> d0s_mz_nz_strides_;
+        std::array<std::vector<ck::index_t>, NumD0Tensor> d0s_nl_ns_lengths_strides_;
 
         index_t batch_count_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
@@ -782,14 +782,15 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         }
         for(int i = 0; i < NumD0Tensor; i++)
         {
-            if(arg.d0s_mz_nz_strides_[i][1] > D0sTransferSrcScalarPerVector &&
-               arg.d0s_mz_nz_strides_[i][1] % D0sTransferSrcScalarPerVector != 0)
+            if(arg.d0s_nl_ns_lengths_strides_[i][1] == 1 &&
+               arg.d0s_nl_ns_lengths_strides_[i][0] % D0sTransferSrcScalarPerVector != 0)
             {
+                std::cout << "first" << std::endl;
                 return false;
             }
-            if(arg.d0s_mz_nz_strides_[i][1] < D0sTransferSrcScalarPerVector &&
-               1 != D0sTransferSrcScalarPerVector)
+            if(arg.d0s_nl_ns_lengths_strides_[i][1] != 1 && D0sTransferSrcScalarPerVector != 1)
             {
+                std::cout << "second" << std::endl;
                 return false;
             }
         }
