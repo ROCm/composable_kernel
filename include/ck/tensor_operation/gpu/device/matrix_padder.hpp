@@ -125,6 +125,30 @@ struct GemmGemmPadder
     OPerTileType OPerTile_;
 };
 
+template <GemmSpecialization GemmSpec>
+struct GemmPadM
+{
+    static constexpr bool PadM =
+        (GemmSpec == GemmSpecialization::MPadding || GemmSpec == GemmSpecialization::MNPadding ||
+         GemmSpec == GemmSpecialization::MKPadding || GemmSpec == GemmSpecialization::MNKPadding);
+};
+
+template <GemmSpecialization GemmSpec>
+struct GemmPadN
+{
+    static constexpr bool PadN =
+        (GemmSpec == GemmSpecialization::NPadding || GemmSpec == GemmSpecialization::MNPadding ||
+         GemmSpec == GemmSpecialization::NKPadding || GemmSpec == GemmSpecialization::MNKPadding);
+};
+
+template <GemmSpecialization GemmSpec>
+struct GemmPadK
+{
+    static constexpr bool PadK =
+        (GemmSpec == GemmSpecialization::KPadding || GemmSpec == GemmSpecialization::MKPadding ||
+         GemmSpec == GemmSpecialization::NKPadding || GemmSpec == GemmSpecialization::MNKPadding);
+};
+
 // M/N/KPerTileType could be index_t or Number<>
 template <GemmSpecialization GemmSpec,
           typename MPerTileType,
@@ -132,15 +156,9 @@ template <GemmSpecialization GemmSpec,
           typename KPerTileType>
 struct GemmPadder
 {
-    static constexpr bool PadM =
-        (GemmSpec == GemmSpecialization::MPadding || GemmSpec == GemmSpecialization::MNPadding ||
-         GemmSpec == GemmSpecialization::MKPadding || GemmSpec == GemmSpecialization::MNKPadding);
-    static constexpr bool PadN =
-        (GemmSpec == GemmSpecialization::NPadding || GemmSpec == GemmSpecialization::MNPadding ||
-         GemmSpec == GemmSpecialization::NKPadding || GemmSpec == GemmSpecialization::MNKPadding);
-    static constexpr bool PadK =
-        (GemmSpec == GemmSpecialization::KPadding || GemmSpec == GemmSpecialization::MKPadding ||
-         GemmSpec == GemmSpecialization::NKPadding || GemmSpec == GemmSpecialization::MNKPadding);
+    static constexpr bool PadM = GemmPadM<GemmSpec>::PadM;
+    static constexpr bool PadN = GemmPadN<GemmSpec>::PadN;
+    static constexpr bool PadK = GemmPadK<GemmSpec>::PadK;
 
     template <typename ADesc_MRaw_KRaw>
     __host__ __device__ constexpr auto
