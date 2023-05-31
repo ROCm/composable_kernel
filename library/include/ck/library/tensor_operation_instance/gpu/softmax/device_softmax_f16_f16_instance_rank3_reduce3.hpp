@@ -16,6 +16,9 @@ namespace instance {
 void add_device_softmax_f16_f16_rank3_reduce3_instances(
     std::vector<DeviceSoftmaxPtr<F16, F32, F16, PassThrough, PassThrough, 3, 3>>& instances);
 
+void get_device_softmax_f16_f16_rank3_reduce3_instance(
+    DeviceSoftmaxPtr<F16, F32, F16, PassThrough, PassThrough, 3, 3>& instance);
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

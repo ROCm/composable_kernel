@@ -19,6 +19,12 @@ void add_device_softmax_f32_f32_rank3_reduce3_instances(
     add_device_operation_instances(instances, device_softmax_f32_f32_instances<3, 3>{});
 }
 
+void get_device_softmax_f32_f32_rank3_reduce3_generic_instance(
+    DeviceSoftmaxPtr<F32, F32, F32, PassThrough, PassThrough, 3, 3>& instance)
+{
+    get_first_device_operation_instance(instance, device_softmax_f32_f32_instances<3, 3>{});
+}
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
