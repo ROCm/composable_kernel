@@ -80,7 +80,8 @@ template <typename FloatAB,
           LoopScheduler LoopSched,
           bool PadN,
           bool MaskOutUpperTriangle,
-          PipelineVersion PipelineVer = PipelineVersion::v1>
+          int D0sTransferSrcScalarPerVector = 4,
+          PipelineVersion PipelineVer       = PipelineVersion::v1>
 struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
 {
     static_assert(LoopSched == LoopScheduler::Default,
@@ -658,7 +659,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                     Sequence<I1, I1, I1, I1, I1, I1, I1, I1, I1, n4>,
                     Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
                     9,
-                    n4,
+                    D0sTransferSrcScalarPerVector,
                     1,
                     false>(d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
                            make_multi_index(block_work_idx[I0], // MBlockId
