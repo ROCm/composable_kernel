@@ -7,7 +7,6 @@
 #include "ck/utility/functional2.hpp"
 #include "ck/utility/math.hpp"
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -44,24 +43,36 @@ struct get_carrier<3>
         public:
         __device__ inline carrier(value_type value) noexcept
         {
-            std::copy_n(reinterpret_cast<const std::byte*>(&value), bytes.size(), bytes.data());
+            auto from = reinterpret_cast<const std::byte*>(&value);
+            for(auto to = bytes.begin(); to != bytes.end(); ++to, ++from)
+            {
+                *to = *from;
+            }
         }
 
         // method to trigger template substitution failure
         __device__ inline carrier& operator=(const carrier& other) noexcept
         {
-            std::copy_n(other.bytes.data(), bytes.size(), bytes.data());
+            auto from = other.bytes.begin();
+            for(auto to = bytes.begin(); to != bytes.end(); ++to, ++from)
+            {
+                *to = *from;
+            }
 
             return *this;
         }
 
         __device__ inline operator value_type() const noexcept
         {
-            std::array<std::byte, sizeof(value_type)> value;
+            std::byte result[sizeof(value_type)];
 
-            std::copy_n(bytes.data(), bytes.size(), value.data());
+            auto to = result;
+            for(auto from = bytes.begin(); from != bytes.end(); ++to, ++from)
+            {
+                *to = *from;
+            }
 
-            return *reinterpret_cast<const value_type*>(value.data());
+            return *reinterpret_cast<const value_type*>(result);
         }
     };
 };
