@@ -8,9 +8,11 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_multi_d.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/batched_gemm.hpp"
+#include "ck/library/tensor_operation_instance/gpu/batched_gemm_multi_d.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -27,7 +29,11 @@ template <typename ADataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
+          typename CLayout,
+          typename AElementOp,
+          typename BElementOp,
+          typename CElementOp,
+          typename DeviceOp>
 bool profile_batched_gemm_impl(int do_verification,
                                int init_method,
                                bool do_log,
@@ -88,10 +94,6 @@ bool profile_batched_gemm_impl(int do_verification,
         b_g_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
     }
 
-    using AElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using BElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using CElementOp = ck::tensor_operation::element_wise::PassThrough;
-
     const auto a_element_op = AElementOp{};
     const auto b_element_op = BElementOp{};
     const auto c_element_op = CElementOp{};
@@ -124,16 +126,6 @@ bool profile_batched_gemm_impl(int do_verification,
     b_device_buf.ToDevice(b_g_k_n.mData.data());
     c_device_buf.ToDevice(c_g_m_n_device_result.mData.data());
 
-    using DeviceOp = ck::tensor_operation::device::DeviceBatchedGemm<ALayout,
-                                                                     BLayout,
-                                                                     CLayout,
-                                                                     ADataType,
-                                                                     BDataType,
-                                                                     CDataType,
-                                                                     AElementOp,
-                                                                     BElementOp,
-                                                                     CElementOp>;
-
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
@@ -148,23 +140,61 @@ bool profile_batched_gemm_impl(int do_verification,
     // profile device op instances
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr =
-            op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                        static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                        M,
-                                        N,
-                                        K,
-                                        StrideA,
-                                        StrideB,
-                                        StrideC,
-                                        BatchStrideA,
-                                        BatchStrideB,
-                                        BatchStrideC,
-                                        BatchCount,
-                                        ck::tensor_operation::element_wise::PassThrough{},
-                                        ck::tensor_operation::element_wise::PassThrough{},
-                                        ck::tensor_operation::element_wise::PassThrough{});
+        std::unique_ptr<tensor_operation::device::BaseArgument> argument_ptr;
+        if constexpr(std::is_same<
+                         DeviceOp,
+                         ck::tensor_operation::device::DeviceBatchedGemm<ALayout,
+                                                                         BLayout,
+                                                                         CLayout,
+                                                                         ADataType,
+                                                                         BDataType,
+                                                                         CDataType,
+                                                                         AElementOp,
+                                                                         BElementOp,
+                                                                         CElementOp>>::value)
+        {
+
+            argument_ptr =
+                op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                                            static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+                                            static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                                            M,
+                                            N,
+                                            K,
+                                            StrideA,
+                                            StrideB,
+                                            StrideC,
+                                            BatchStrideA,
+                                            BatchStrideB,
+                                            BatchStrideC,
+                                            BatchCount,
+                                            ck::tensor_operation::element_wise::PassThrough{},
+                                            ck::tensor_operation::element_wise::PassThrough{},
+                                            ck::tensor_operation::element_wise::PassThrough{});
+        }
+        else
+        {
+            argument_ptr =
+                op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                                            static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+                                            {},
+                                            static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                                            M,
+                                            N,
+                                            K,
+                                            BatchCount,
+                                            StrideA,
+                                            StrideB,
+                                            {},
+                                            StrideC,
+                                            BatchStrideA,
+                                            BatchStrideB,
+                                            {},
+                                            BatchStrideC,
+                                            ck::tensor_operation::element_wise::PassThrough{},
+                                            ck::tensor_operation::element_wise::PassThrough{},
+                                            ck::tensor_operation::element_wise::PassThrough{});
+        }
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
