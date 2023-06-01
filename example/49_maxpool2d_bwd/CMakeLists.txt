@@ -1,0 +1,1 @@
+add_example_executable(example_maxpool2d_bwd_fp32 maxpool2d_bwd_fp32.cpp)
