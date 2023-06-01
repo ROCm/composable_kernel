@@ -42,25 +42,23 @@ struct get_carrier<3>
         static_assert(sizeof(bytes) <= sizeof(value_type));
 
         public:
-        inline carrier(value_type value) noexcept
+        __device__ inline carrier(value_type value) noexcept
         {
-            auto const from = reinterpret_cast<const std::byte*>(&value);
-            std::copy_n(from, bytes.size(), bytes.data());
+            std::copy_n(reinterpret_cast<const std::byte*>(&value), bytes.size(), bytes.data());
         }
 
         // method to trigger template substitution failure
-        inline carrier& operator=(const carrier& other) noexcept
+        __device__ inline carrier& operator=(const carrier& other) noexcept
         {
             std::copy_n(other.bytes.data(), bytes.size(), bytes.data());
             return *this;
         }
 
-        inline operator value_type() const noexcept
+        __device__ inline operator value_type() const noexcept
         {
             value_type value{};
 
-            auto const to = reinterpret_cast<std::byte*>(&value);
-            std::copy_n(bytes.data(), bytes.size(), to);
+            std::copy_n(bytes.data(), bytes.size(), reinterpret_cast<std::byte*>(&value));
 
             return value;
         }
