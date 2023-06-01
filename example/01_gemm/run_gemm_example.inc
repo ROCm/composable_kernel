@@ -30,28 +30,7 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 
     switch(config.init_method)
     {
-    case 0:
-        ck::utils::FillConstant<ADataType>{1.f}(a_m_k);
-        ck::utils::FillConstant<BDataType>{0.f}(b_k_n);
-
-        // for (ck::index_t m = 0; m < M; ++m)
-        // {
-        //     for (ck::index_t k = 0; k < K; ++k)
-        //     {
-        //         a_m_k(m, k) = (m * M + k) % 5;
-        //     }
-        // }
-
-        for(ck::index_t n = 0; n < N; ++n)
-        {
-            for(ck::index_t k = 0; k < K; ++k)
-            {
-                if(n == k)
-                    b_k_n(k, n) = n * 2;
-            }
-        }
-
-        break;
+    case 0: break;
     case 1:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{-1.f, 3.f}(a_m_k);
         ck::utils::FillUniformDistributionIntegerValue<BDataType>{-1.f, 3.f}(b_k_n);
