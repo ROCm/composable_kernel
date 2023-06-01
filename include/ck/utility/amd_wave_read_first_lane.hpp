@@ -72,8 +72,8 @@ struct get_carrier<4>
     using type = uint32_t;
 };
 
-template <unsigned Size>
-using get_carrier_t = typename get_carrier<Size>::type;
+template <unsigned SizeInBytes>
+using get_carrier_t = typename get_carrier<SizeInBytes>::type;
 
 } // namespace detail
 
