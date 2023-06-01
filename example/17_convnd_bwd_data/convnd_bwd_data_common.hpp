@@ -81,32 +81,33 @@ int run_conv_bwd_data(bool do_verification,
     in_device_buf.SetZero();
 
     // do GEMM
-    auto conv     = DeviceConvNdBwdDataInstance{};
-    auto invoker  = conv.MakeInvoker();
-    auto argument = conv.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-                                      static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-                                      static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                                      conv_param.N_,
-                                      conv_param.K_,
-                                      conv_param.C_,
-                                      conv_param.input_spatial_lengths_,
-                                      conv_param.filter_spatial_lengths_,
-                                      conv_param.GetOutputSpatialLengths(),
-                                      conv_param.conv_filter_strides_,
-                                      conv_param.conv_filter_dilations_,
-                                      conv_param.input_left_pads_,
-                                      conv_param.input_right_pads_,
-                                      in_element_op,
-                                      wei_element_op,
-                                      out_element_op);
+    auto conv    = DeviceConvNdBwdDataInstance{};
+    auto invoker = conv.MakeInvoker();
+    auto argument =
+        conv.MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+                                 static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+                                 static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+                                 conv_param.N_,
+                                 conv_param.K_,
+                                 conv_param.C_,
+                                 conv_param.input_spatial_lengths_,
+                                 conv_param.filter_spatial_lengths_,
+                                 conv_param.GetOutputSpatialLengths(),
+                                 conv_param.conv_filter_strides_,
+                                 conv_param.conv_filter_dilations_,
+                                 conv_param.input_left_pads_,
+                                 conv_param.input_right_pads_,
+                                 in_element_op,
+                                 wei_element_op,
+                                 out_element_op);
 
-    if(!conv.IsSupportedArgument(argument))
+    if(!conv.IsSupportedArgument(argument.get()))
     {
         std::cout << "Not support,please check parameters or device";
         return 0;
     }
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+    float ave_time = invoker.Run(argument.get(), StreamConfig{nullptr, time_kernel});
 
     std::size_t flop      = conv_param.GetFlops();
     std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
