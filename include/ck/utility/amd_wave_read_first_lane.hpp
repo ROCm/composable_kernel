@@ -7,6 +7,8 @@
 #include "ck/utility/functional2.hpp"
 #include "ck/utility/math.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
@@ -14,7 +16,7 @@
 namespace ck {
 namespace detail {
 
-template <unsigned Size>
+template <unsigned SizeInBytes>
 struct get_carrier;
 
 template <>
@@ -28,6 +30,43 @@ struct get_carrier<2>
 {
     using type = uint16_t;
 };
+
+template <>
+struct get_carrier<3>
+{
+    using type = class carrier
+    {
+        using value_type = uint32_t;
+
+        std::array<std::byte, 3> bytes;
+        static_assert(sizeof(bytes) <= sizeof(value_type));
+
+        public:
+        inline carrier(value_type value) noexcept
+        {
+            auto const from = reinterpret_cast<const std::byte*>(&value);
+            std::copy_n(from, bytes.size(), bytes.data());
+        }
+
+        // method to trigger template substitution failure
+        inline carrier& operator=(const carrier& other) noexcept
+        {
+            std::copy_n(other.bytes.data(), bytes.size(), bytes.data());
+            return *this;
+        }
+
+        inline operator value_type() const noexcept
+        {
+            value_type value{};
+
+            auto const to = reinterpret_cast<std::byte*>(&value);
+            std::copy_n(bytes.data(), bytes.size(), to);
+
+            return value;
+        }
+    };
+};
+static_assert(sizeof(get_carrier<3>::type) == 3);
 
 template <>
 struct get_carrier<4>
