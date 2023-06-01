@@ -1,4 +1,4 @@
-import argparse, re, json, os
+import argparse, re, json, os, sys
 
 out_file = """// SPDX-License-Identifier: MIT 
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
@@ -10,8 +10,7 @@ out_file = """// SPDX-License-Identifier: MIT
 #include <memory>
 
 namespace ck {{
-namespace tensor_operation {{
-namespace device {{
+namespace host {{
 namespace instance {{
 
 struct {op_name}_instances
@@ -87,8 +86,7 @@ struct {op_name}_instances
 }};
 
 }} // namespace instance
-}} // namespace device
-}} // namespace tensor_operation
+}} // namespace host
 }} // namespace ck
 """
 
@@ -172,8 +170,7 @@ def get_int8_instances(src, file, template_name):
     instances["col_row"][-1] = instances["col_row"][-1][:-1]
     return instances
 
-def parse_instances(source):
-    out_dir = os.path.join(source, "../../../src/jit_library/solution_instances")
+def parse_instances(source, out_dir):
     aliases = {"F16_F16_Tuple": "ck::Tuple<F16,F16>",
                "Row_Row_Tuple": "ck::Tuple<Row,Row>",
                "Empty_Tuple": "ck::Tuple<>",
@@ -273,9 +270,9 @@ def parse_instances(source):
                                 int8_row_col_instances="\n".join(int8_instances["row_col"]),
                                 include_header=include_header))
 
-def run():
-    source = "/code/composable_kernel/library/src/tensor_operation_instance/gpu"
-    parse_instances(source)
+def run(args):
+    parse_instances(args[0], args[1])
 
 if __name__ == '__main__':
-    run()
+    run(sys.argv[1:])
+    
