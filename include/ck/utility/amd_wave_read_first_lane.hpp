@@ -51,16 +51,17 @@ struct get_carrier<3>
         __device__ inline carrier& operator=(const carrier& other) noexcept
         {
             std::copy_n(other.bytes.data(), bytes.size(), bytes.data());
+
             return *this;
         }
 
         __device__ inline operator value_type() const noexcept
         {
-            value_type value{};
+            std::array<std::byte, sizeof(value_type)> value;
 
-            std::copy_n(bytes.data(), bytes.size(), reinterpret_cast<std::byte*>(&value));
+            std::copy_n(bytes.data(), bytes.size(), value.data());
 
-            return value;
+            return *reinterpret_cast<const value_type*>(value.data());
         }
     };
 };
