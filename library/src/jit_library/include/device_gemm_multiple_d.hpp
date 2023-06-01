@@ -151,11 +151,13 @@ private:
         if (ADataType == "int8_t" and BDataType == "int8_t")
         {
             // Change CBlockTransfer ScalarPerVector if Ds contains other types
-            if (std::any_of(DsDataType.begin(), DsDataType.end(), [](auto t) { return t == "ck::half_t"; }))
+            if (std::any_of(DsDataType.begin(), DsDataType.end(), [](auto t) { return t == "ck::half_t"; })
+                or EDataType == "ck::half_t")
             {
                 params[params.size() - 3] = "8";
             }
-            if (std::any_of(DsDataType.begin(), DsDataType.end(), [](auto t) { return t == "float"; }))
+            if (std::any_of(DsDataType.begin(), DsDataType.end(), [](auto t) { return t == "float"; })
+                or EDataType == "float")
             {
                 params[params.size() - 3] = "4";
             }
