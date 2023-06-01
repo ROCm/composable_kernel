@@ -71,7 +71,7 @@ __device__ auto amd_wave_read_first_lane(const Object& obj)
     {
         using Carrier = detail::get_unsigned_int_t<RemainedSize>;
 
-        *reinterpret_cast<Carrier>(to_obj + CompleteSgprCopyBoundary) = amd_wave_read_first_lane(
+        *reinterpret_cast<Carrier*>(to_obj + CompleteSgprCopyBoundary) = amd_wave_read_first_lane(
             *reinterpret_cast<const Carrier*>(from_obj + CompleteSgprCopyBoundary));
     }
 
