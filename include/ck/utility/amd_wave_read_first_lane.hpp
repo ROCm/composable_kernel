@@ -15,28 +15,28 @@ namespace ck {
 namespace detail {
 
 template <unsigned Size>
-struct get_unsigned_int;
+struct get_carrier;
 
 template <>
-struct get_unsigned_int<1>
+struct get_carrier<1>
 {
     using type = uint8_t;
 };
 
 template <>
-struct get_unsigned_int<2>
+struct get_carrier<2>
 {
     using type = uint16_t;
 };
 
 template <>
-struct get_unsigned_int<4>
+struct get_carrier<4>
 {
     using type = uint32_t;
 };
 
 template <unsigned Size>
-using get_unsigned_int_t = typename get_unsigned_int<Size>::type;
+using get_carrier_t = typename get_carrier<Size>::type;
 
 } // namespace detail
 
@@ -61,7 +61,7 @@ __device__ auto amd_wave_read_first_lane(const Object& obj)
     constexpr Size CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
     for(Size offset = 0; offset < CompleteSgprCopyBoundary; offset += SgprSize)
     {
-        using Sgpr = detail::get_unsigned_int_t<SgprSize>;
+        using Sgpr = detail::get_carrier_t<SgprSize>;
 
         *reinterpret_cast<Sgpr*>(to_obj + offset) =
             amd_wave_read_first_lane(*reinterpret_cast<const Sgpr*>(from_obj + offset));
@@ -69,7 +69,7 @@ __device__ auto amd_wave_read_first_lane(const Object& obj)
 
     if constexpr(0 < RemainedSize)
     {
-        using Carrier = detail::get_unsigned_int_t<RemainedSize>;
+        using Carrier = detail::get_carrier_t<RemainedSize>;
 
         *reinterpret_cast<Carrier*>(to_obj + CompleteSgprCopyBoundary) = amd_wave_read_first_lane(
             *reinterpret_cast<const Carrier*>(from_obj + CompleteSgprCopyBoundary));
