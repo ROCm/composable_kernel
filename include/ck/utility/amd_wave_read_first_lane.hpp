@@ -40,24 +40,34 @@ struct get_carrier<3>
         std::array<std::byte, 3> bytes;
         static_assert(sizeof(bytes) <= sizeof(value_type));
 
+        // replacement of host std::copy_n()
+        template <typename InputIterator, typename Size, typename OutputIterator>
+        __device__ static OutputIterator copy_n(InputIterator from, Size size, OutputIterator to)
+        {
+            if(0 < size)
+            {
+                *to = *from;
+                ++to;
+                for(Size count = 1; count < size; ++count)
+                {
+                    *to = *++from;
+                    ++to;
+                }
+            }
+
+            return to;
+        }
+
         public:
         __device__ carrier(value_type value) noexcept
         {
-            auto from = reinterpret_cast<const std::byte*>(&value);
-            for(auto to = bytes.begin(); to != bytes.end(); ++to, ++from)
-            {
-                *to = *from;
-            }
+            copy_n(reinterpret_cast<const std::byte*>(&value), bytes.size(), bytes.begin());
         }
 
         // method to trigger template substitution failure
         __device__ carrier& operator=(const carrier& other) noexcept
         {
-            auto from = other.bytes.begin();
-            for(auto to = bytes.begin(); to != bytes.end(); ++to, ++from)
-            {
-                *to = *from;
-            }
+            copy_n(other.bytes.begin(), bytes.size(), bytes.begin());
 
             return *this;
         }
@@ -66,11 +76,7 @@ struct get_carrier<3>
         {
             std::byte result[sizeof(value_type)];
 
-            auto to = result;
-            for(auto from = bytes.begin(); from != bytes.end(); ++to, ++from)
-            {
-                *to = *from;
-            }
+            copy_n(bytes.begin(), bytes.size(), result);
 
             return *reinterpret_cast<const value_type*>(result);
         }
