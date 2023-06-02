@@ -27,24 +27,18 @@ int main()
     bool time_kernel     = false;
 
     // Pool shape
-    constexpr ck::index_t N               = 1;
-    constexpr ck::index_t C               = 1;
-    constexpr ck::index_t Y               = 2;
-    constexpr ck::index_t X               = 2;
-    constexpr ck::index_t Hi              = 31;
-    constexpr ck::index_t Wi              = 31;
-    constexpr ck::index_t window_stride_h = 2;
-    constexpr ck::index_t window_stride_w = 2;
-    constexpr ck::index_t in_left_pad_h   = 0;
-    constexpr ck::index_t in_left_pad_w   = 0;
-    constexpr ck::index_t in_right_pad_h  = 1;
-    constexpr ck::index_t in_right_pad_w  = 1;
-
-    constexpr bool WindowOverlap                  = Y > window_stride_h || X > window_stride_w;
-    constexpr ck::InMemoryDataOperationEnum MemOp = WindowOverlap
-                                                        ? ck::InMemoryDataOperationEnum::AtomicAdd
-                                                        : ck::InMemoryDataOperationEnum::Set;
-    std::cout << "WindowOverlap = " << WindowOverlap << std::endl;
+    ck::index_t N               = 1;
+    ck::index_t C               = 1;
+    ck::index_t Y               = 2;
+    ck::index_t X               = 2;
+    ck::index_t Hi              = 31;
+    ck::index_t Wi              = 31;
+    ck::index_t window_stride_h = 2;
+    ck::index_t window_stride_w = 2;
+    ck::index_t in_left_pad_h   = 0;
+    ck::index_t in_left_pad_w   = 0;
+    ck::index_t in_right_pad_h  = 1;
+    ck::index_t in_right_pad_w  = 1;
 
     bool pass = maxpool_bwd_test<InDataType,
                                  OutDataType,
@@ -54,22 +48,20 @@ int main()
                                  DOutDataType,
                                  InLayout,
                                  OutLayout,
-                                 ck::ReduceTensorOp::MAX,
-                                 PropagateNan,
-                                 MemOp>(do_verification,
-                                                time_kernel,
-                                                N,
-                                                C,
-                                                Y,
-                                                X,
-                                                Hi,
-                                                Wi,
-                                                window_stride_h,
-                                                window_stride_w,
-                                                in_left_pad_h,
-                                                in_left_pad_w,
-                                                in_right_pad_h,
-                                                in_right_pad_w);
+                                 PropagateNan>(do_verification,
+                                               time_kernel,
+                                               N,
+                                               C,
+                                               Y,
+                                               X,
+                                               Hi,
+                                               Wi,
+                                               window_stride_h,
+                                               window_stride_w,
+                                               in_left_pad_h,
+                                               in_left_pad_w,
+                                               in_right_pad_h,
+                                               in_right_pad_w);
 
     return (pass ? 0 : 1);
 }

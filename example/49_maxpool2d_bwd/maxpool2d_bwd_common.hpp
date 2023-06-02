@@ -10,7 +10,7 @@
 #include "ck/utility/reduction_functions_accumulate.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_nhwc_nhwc.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_put_element_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_index_pool_bwd_impl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -29,9 +29,7 @@ template <typename InDataType,
           typename DOutDataType,
           typename InLayout,
           typename OutLayout,
-          ck::ReduceTensorOp ReduceOpId,
-          bool PropagateNan,
-          ck::InMemoryDataOperationEnum Memop>
+          bool PropagateNan>
 bool maxpool_bwd_test(bool do_verification,
                       bool time_kernel,
                       ck::index_t N,
@@ -55,7 +53,7 @@ bool maxpool_bwd_test(bool do_verification,
             OutDataType,     // OutDataType
             IndexDataType,   // IndexDataType
             ComputeDataType, // ComputeDataType
-            ReduceOpId,
+            ck::ReduceTensorOp::MAX,
             true, // OutputIndex
             64,   // BlockSize
             64,   // ReduceMThreadClusterSize
@@ -65,7 +63,7 @@ bool maxpool_bwd_test(bool do_verification,
             1>;   // InSrcOutDstVectorSize
 
     using DeviceMaxPoolBwdInstance = ck::tensor_operation::device::
-        DevicePutElementImpl<DOutDataType, IndexDataType, DInDataType, PassThrough, Memop, 4>;
+        DeviceIndexPoolBwdImpl<DOutDataType, IndexDataType, DInDataType, 4>;
 
     const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Y) / window_stride_h + 1;
     const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - X) / window_stride_w + 1;
@@ -140,7 +138,7 @@ bool maxpool_bwd_test(bool do_verification,
         static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
         static_cast<IndexDataType*>(indices_device_buf.GetDeviceBuffer()),
         {N, C, Hi, Wi},
-        {Y, X},
+        window_spatial_lengths,
         {N, C, Ho, Wo},
         {C * Hi * Wi, 1, Wi * C, C},
         {C * Ho * Wo, 1, Wo * C, C},
@@ -167,7 +165,8 @@ bool maxpool_bwd_test(bool do_verification,
         static_cast<DInDataType*>(din_device_buf.GetDeviceBuffer()),
         dout_n_c_ho_wo.mDesc.GetElementSpaceSize(),
         din_n_c_hi_wi_device.mDesc.GetElementSpaceSize(),
-        PassThrough{});
+        window_spatial_lengths,
+        window_strides);
 
     if(!pool_bwd.IsSupportedArgument(pool_bwd_argument_ptr.get()))
     {
@@ -192,7 +191,7 @@ bool maxpool_bwd_test(bool do_verification,
                                                             OutDataType,
                                                             ComputeDataType,
                                                             IndexDataType,
-                                                            ReduceOpId,
+                                                            ck::ReduceTensorOp::MAX,
                                                             PropagateNan,
                                                             true>;
 

@@ -96,8 +96,7 @@ struct DevicePutElementImpl
                                                       InDataType,
                                                       IndexDataType,
                                                       OutDataType,
-                                                      ElementwiseOperation,
-                                                      MemOp>;
+                                                      ElementwiseOperation>;
 
             float elapsed_time = launch_and_time_kernel(stream_config,
                                                         kernel,

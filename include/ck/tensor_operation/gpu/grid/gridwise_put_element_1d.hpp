@@ -14,8 +14,7 @@ template <typename GridwisePutElementwise1dFunctor,
           typename InDataType,
           typename IndexDataType,
           typename OutDataType,
-          typename ElementwiseOperation,
-          InMemoryDataOperationEnum MemOp>
+          typename ElementwiseOperation>
 __global__ void kernel_put_element_1d(const InGrid1dDesc in_grid_1d_desc,
                                       const InDataType* __restrict__ p_in_global,
                                       const IndexDataType* __restrict__ p_indices_global,
