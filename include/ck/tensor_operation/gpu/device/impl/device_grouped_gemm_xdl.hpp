@@ -549,10 +549,11 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
             }
 
             hipGetErrorString(
-                hipMemcpy(arg.p_workspace_,
-                          arg.gemm_desc_kernel_arg_.data(),
-                          arg.gemm_desc_kernel_arg_.size() * sizeof(GemmBiasTransKernelArg),
-                          hipMemcpyHostToDevice));
+                hipMemcpyWithStream(arg.p_workspace_,
+                                    arg.gemm_desc_kernel_arg_.data(),
+                                    arg.gemm_desc_kernel_arg_.size() * sizeof(GemmBiasTransKernelArg),
+                                    hipMemcpyHostToDevice,
+                                    stream_config.stream_id_));
 
             float ave_time = 0;
 
