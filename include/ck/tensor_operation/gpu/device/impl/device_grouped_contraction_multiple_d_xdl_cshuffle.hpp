@@ -655,7 +655,7 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
             hipGetErrorString(hipMemcpyWithStream(arg.p_workspace_,
                                                   arg.contraction_multi_d_kernel_args_.data(),
                                                   arg.contraction_multi_d_kernel_args_.size() *
-                                                  sizeof(ContractionMultiDKernelArg),
+                                                      sizeof(ContractionMultiDKernelArg),
                                                   hipMemcpyHostToDevice,
                                                   stream_config.stream_id_));
 
