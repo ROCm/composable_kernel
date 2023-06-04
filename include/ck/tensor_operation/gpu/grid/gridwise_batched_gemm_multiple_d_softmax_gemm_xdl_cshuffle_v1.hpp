@@ -622,13 +622,13 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
         constexpr auto d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
             make_naive_tensor_descriptor_packed(make_tuple(I1,   // MBlockId
                                                            I1,   // NBlockID
-                                                           I1,   // MRepeat
-                                                           I1,   // NRepeat
-                                                           I1,   // MWaveId
-                                                           I1,   // NWaveId
-                                                           I1,   // MPerXdl
-                                                           I1,   // NGroupNum
-                                                           I1,   // NInputNum
+                                                           m0,   // MRepeat
+                                                           n0,   // NRepeat
+                                                           m1,   // MWaveId
+                                                           n1,   // NWaveId
+                                                           m2,   // MPerXdl
+                                                           n2,   // NGroupNum
+                                                           n3,   // NInputNum
                                                            n4)); // registerNum
 
         auto d0s_thread_buf = generate_tuple(
@@ -656,7 +656,16 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                     D0DataType,
                     decltype(d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i]),
                     decltype(d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5),
-                    Sequence<I1, I1, I1, I1, I1, I1, I1, I1, I1, n4>,
+                    Sequence<I1, // MBlockId
+                             I1, // NBlockID
+                             m0, // MRepeat
+                             n0, // NRepeat
+                             m1, // MWaveId
+                             n1, // NWaveId
+                             m2, // MPerXdl
+                             n2, // NGroupNum
+                             n3, // NInputNum
+                             n4>,
                     Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
                     9,
                     D0sTransferSrcScalarPerVector,
@@ -885,18 +894,19 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
             // multiple d
             if constexpr(NumD0Tensor)
             {
-                static_for<0, MXdlPerWave, 1>{}([&](auto mr) {
-                    static_for<0, NXdlPerWave, 1>{}([&](auto nr) {
-                        static_for<0, n2, 1>{}([&](auto groupid) {
-                            static_for<0, NumD0Tensor, 1>{}([&](auto i) {
-                                d0s_threadwise_copy(i).Run(
-                                    d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
-                                    d0s_grid_buf[i],
-                                    d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                    make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                                    d0s_thread_buf(i));
-                            });
+                static_assert(NXdlPerWave == n0);
+                static_assert(MXdlPerWave == m0);
 
+                static_for<0, NumD0Tensor, 1>{}([&](auto i) {
+                    d0s_threadwise_copy(i).Run(d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
+                                               d0s_grid_buf[i],
+                                               d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                               make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                                               d0s_thread_buf(i));
+                });
+                static_for<0, m0, 1>{}([&](auto mr) {
+                    static_for<0, n0, 1>{}([&](auto nr) {
+                        static_for<0, n2, 1>{}([&](auto groupid) {
                             static_for<0, n4, 1>{}([&](auto i) {
                                 constexpr index_t c_offset = acc0_thread_desc.CalculateOffset(
                                     make_tuple(mr, nr, groupid, i));
@@ -905,7 +915,9 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                                 const auto src_data_refs = generate_tie(
                                     // return type should be lvalue
                                     [&](auto iSrc) -> const auto& {
-                                        return d0s_thread_buf[iSrc][i];
+                                        return d0s_thread_buf[iSrc][mr * n0 * n4 * n2 +
+                                                                    nr * n4 * n2 + groupid * n4 +
+                                                                    i];
                                     },
                                     Number<NumD0Tensor>{});
 
@@ -919,28 +931,13 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
 
                                 unpack2(c0de_element_op, dst_data_refs, src_data_refs);
                             });
-                            static_for<0, NumD0Tensor, 1>{}([&](auto i) {
-                                d0s_threadwise_copy(i).MoveSrcSliceWindow(
-                                    d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
-                                    make_multi_index(0, 0, 0, 0, 0, 0, 0, 1, 0, 0));
-                            });
                         });
-                        static_for<0, NumD0Tensor, 1>{}([&](auto i) {
-                            d0s_threadwise_copy(i).MoveSrcSliceWindow(
-                                d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
-                                make_multi_index(0, 0, 0, 1, 0, 0, 0, -n2.value, 0, 0));
-                        });
-                    });
-                    static_for<0, NumD0Tensor, 1>{}([&](auto i) {
-                        d0s_threadwise_copy(i).MoveSrcSliceWindow(
-                            d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
-                            make_multi_index(0, 0, 1, -NXdlPerWave, 0, 0, 0, 0, 0, 0));
                     });
                 });
                 static_for<0, NumD0Tensor, 1>{}([&](auto i) {
                     d0s_threadwise_copy(i).MoveSrcSliceWindow(
                         d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
-                        make_multi_index(0, 1, -MXdlPerWave, 0, 0, 0, 0, 0, 0, 0));
+                        make_multi_index(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
                 });
             }
             else
