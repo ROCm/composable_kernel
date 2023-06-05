@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef CK_BLOCKWISE_GEMM_DLOPS_V2R2_HPP
 #define CK_BLOCKWISE_GEMM_DLOPS_V2R2_HPP
