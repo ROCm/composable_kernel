@@ -141,6 +141,7 @@ bool profile_batched_gemm_impl(int do_verification,
     for(auto& op_ptr : op_ptrs)
     {
         std::unique_ptr<tensor_operation::device::BaseArgument> argument_ptr;
+        // true branch for multi d dl kernel
         if constexpr(std::is_same<
                          DeviceOp,
                          ck::tensor_operation::device::DeviceBatchedGemm<ALayout,

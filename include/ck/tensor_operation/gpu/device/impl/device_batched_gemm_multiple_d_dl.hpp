@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -201,8 +201,6 @@ struct DeviceBatchedGemmMultipleD_Dl : public DeviceBatchedGemmMultiD<ALayout,
 
     static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
     {
-        assert(K % K1 == 0);
-
         const index_t K0 = K / K1;
 
         const auto a_grid_desc_m_k = [&]() {
@@ -240,8 +238,6 @@ struct DeviceBatchedGemmMultipleD_Dl : public DeviceBatchedGemmMultiD<ALayout,
 
     static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
     {
-        assert(K % K1 == 0);
-
         const index_t K0 = K / K1;
 
         const auto b_grid_desc_k_n = [&]() {
@@ -649,6 +645,8 @@ struct DeviceBatchedGemmMultipleD_Dl : public DeviceBatchedGemmMultiD<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        assert(arg.K % K1 == 0);
+
         if(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx908" ||
            ck::get_device_name() == "gfx90a" || ck::get_device_name() == "gfx1030" ||
            ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx1100" ||
