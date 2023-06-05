@@ -645,9 +645,6 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
         const auto wave_id     = GetGemm0WaveIdx();
         const auto wave_m_n_id = GetGemm0WaveMNIdx(wave_id[I2]); // I2: 0~63
 
-        constexpr auto acc0_thread_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<MXdlPerWave>{}, Number<NXdlPerWave>{}, n2, n4));
-
         auto d0s_threadwise_copy = generate_tuple(
             [&](auto i) {
                 using D0DataType = remove_cvref_t<tuple_element_t<i.value, D0sDataType>>;
@@ -904,35 +901,20 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                                                make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
                                                d0s_thread_buf(i));
                 });
-                static_for<0, m0, 1>{}([&](auto mr) {
-                    static_for<0, n0, 1>{}([&](auto nr) {
-                        static_for<0, n2, 1>{}([&](auto groupid) {
-                            static_for<0, n4, 1>{}([&](auto i) {
-                                constexpr index_t c_offset = acc0_thread_desc.CalculateOffset(
-                                    make_tuple(mr, nr, groupid, i));
+                static_for<0, m0 * n0 * n2 * n4, 1>{}([&](auto i) {
+                    // get reference to src data
+                    const auto src_data_refs = generate_tie(
+                        // return type should be lvalue
+                        [&](auto iSrc) -> const auto& { return d0s_thread_buf[iSrc][i]; },
+                        Number<NumD0Tensor>{});
 
-                                // get reference to src data
-                                const auto src_data_refs = generate_tie(
-                                    // return type should be lvalue
-                                    [&](auto iSrc) -> const auto& {
-                                        return d0s_thread_buf[iSrc][mr * n0 * n4 * n2 +
-                                                                    nr * n4 * n2 + groupid * n4 +
-                                                                    i];
-                                    },
-                                    Number<NumD0Tensor>{});
+                    // get reference to dst data
+                    auto dst_data_refs = generate_tie(
+                        // return type should be lvalue
+                        [&](auto) -> auto& { return acc_thread_buf(i); },
+                        Number<2>{});
 
-                                // get reference to dst data
-                                auto dst_data_refs = generate_tie(
-                                    // return type should be lvalue
-                                    [&](auto) -> auto& {
-                                        return acc_thread_buf(Number<c_offset>{});
-                                    },
-                                    Number<2>{});
-
-                                unpack2(c0de_element_op, dst_data_refs, src_data_refs);
-                            });
-                        });
-                    });
+                    unpack2(c0de_element_op, dst_data_refs, src_data_refs);
                 });
                 static_for<0, NumD0Tensor, 1>{}([&](auto i) {
                     d0s_threadwise_copy(i).MoveSrcSliceWindow(
