@@ -406,10 +406,12 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 }
             }
 
-            hip_check_error(hipMemcpy(arg.p_workspace_,
-                                      arg.gemm_kernel_args_.data(),
-                                      arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
-                                      hipMemcpyHostToDevice));
+            hip_check_error(
+                hipMemcpyWithStream(arg.p_workspace_,
+                                    arg.gemm_kernel_args_.data(),
+                                    arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
+                                    hipMemcpyHostToDevice,
+                                    stream_config.stream_id_));
 
             float ave_time = 0;
 

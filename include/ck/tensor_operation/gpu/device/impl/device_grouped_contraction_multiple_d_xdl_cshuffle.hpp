@@ -652,11 +652,12 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
                 }
             }
 
-            hipGetErrorString(hipMemcpy(arg.p_workspace_,
-                                        arg.contraction_multi_d_kernel_args_.data(),
-                                        arg.contraction_multi_d_kernel_args_.size() *
-                                            sizeof(ContractionMultiDKernelArg),
-                                        hipMemcpyHostToDevice));
+            hipGetErrorString(hipMemcpyWithStream(arg.p_workspace_,
+                                                  arg.contraction_multi_d_kernel_args_.data(),
+                                                  arg.contraction_multi_d_kernel_args_.size() *
+                                                      sizeof(ContractionMultiDKernelArg),
+                                                  hipMemcpyHostToDevice,
+                                                  stream_config.stream_id_));
 
             float ave_time = 0;
 
