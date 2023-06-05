@@ -29,20 +29,6 @@ void add_device_operation_instances(std::vector<std::unique_ptr<BaseOp>>& op_ins
     });
 }
 
-template <typename BaseOp, typename NewOpInstances>
-void get_first_device_operation_instance(std::unique_ptr<BaseOp>& op_instance,
-                                         const NewOpInstances& new_op_instances)
-{
-    const auto first_op_instance = std::get<0>(new_op_instances);
-
-    using FirstOpInstance = remove_cvref_t<decltype(first_op_instance)>;
-
-    static_assert(std::is_base_of_v<BaseOp, FirstOpInstance>,
-                  "wrong! FirstOpInstance should be derived from BaseOp");
-
-    op_instance = std::make_unique<FirstOpInstance>(first_op_instance);
-}
-
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

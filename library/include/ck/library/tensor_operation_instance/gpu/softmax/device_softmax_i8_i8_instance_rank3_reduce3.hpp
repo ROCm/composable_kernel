@@ -16,9 +16,6 @@ namespace instance {
 void add_device_softmax_i8_i8_rank3_reduce3_instances(
     std::vector<DeviceSoftmaxPtr<I8, F32, I8, PassThrough, PassThrough, 3, 3>>& instances);
 
-void get_device_softmax_i8_i8_rank3_reduce3_generic_instance(
-    DeviceSoftmaxPtr<I8, F32, I8, PassThrough, PassThrough, 3, 3>& instance);
-
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
