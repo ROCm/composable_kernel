@@ -213,7 +213,7 @@ bool maxpool_bwd_test(bool do_verification,
         ref_pooling_fwd_invoker.Run(ref_pooling_fwd_argument);
 
         using ReferencePoolingBwdInstance = ck::tensor_operation::host::
-            ReferenceMaxPoolBwd<DOutDataType, IndexDataType, DInDataType, PassThrough>;
+            ReferenceMaxPoolBwd<DOutDataType, IndexDataType, float, DInDataType, PassThrough>;
 
         auto ref_pooling_bwd          = ReferencePoolingBwdInstance{};
         auto ref_pooling_bwd_invoker  = ref_pooling_bwd.MakeInvoker();

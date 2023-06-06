@@ -21,6 +21,7 @@ using namespace std;
 
 template <typename DOutDataType,
           typename IndexDataType,
+          typename ConputeDataType,
           typename DInDataType,
           typename ElementwiseOperation>
 struct ReferenceMaxPoolBwd : public device::BaseOperator
@@ -49,13 +50,17 @@ struct ReferenceMaxPoolBwd : public device::BaseOperator
         {
             int din_length  = arg.din_.GetElementSpaceSize();
             int dout_length = arg.dout_.GetElementSpaceSize();
+            std::vector<ConputeDataType> buf(din_length);
 
             for(int i = 0; i < dout_length; ++i)
             {
                 int index = arg.indices_.mData[i];
                 if(index >= 0 && index < din_length)
-                    arg.din_.mData[index] += arg.dout_.mData[i];
+                    buf[index] += ck::type_convert<ConputeDataType>(arg.dout_.mData[i]);
             }
+
+            for(int i = 0; i < din_length; ++i)
+                arg.din_.mData[i] = ck::type_convert<DInDataType>(buf[i]);
             return 0;
         }
 
