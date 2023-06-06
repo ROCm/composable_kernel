@@ -5,7 +5,6 @@
 #include <gtest/gtest.h>
 
 #include "profiler/profile_batched_gemm_impl.hpp"
-
 #include "ck/library/tensor_operation_instance/gpu/batched_gemm_multi_d.hpp"
 
 namespace {
@@ -17,22 +16,21 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 using Empty_Tuple = ck::Tuple<>;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-} // namespace
 
 template <typename Tuple>
 class TestBatchedGemmMultiD : public ::testing::Test
 {
     protected:
-    using ALayout  = std::tuple_element_t<0, Tuple>;
-    using BLayout  = std::tuple_element_t<1, Tuple>;
-    using CLayout  = std::tuple_element_t<2, Tuple>;
-    using DataType = std::tuple_element_t<3, Tuple>;
+    using ALayout = std::tuple_element_t<0, Tuple>;
+    using BLayout = std::tuple_element_t<1, Tuple>;
+    using CLayout = std::tuple_element_t<2, Tuple>;
 
     static constexpr int M          = 512;
     static constexpr int N          = 256;
     static constexpr int K          = 128;
     static constexpr int BatchCount = 3;
 
+    template <typename DataType>
     void Run()
     {
         using namespace ck::tensor_operation::device;
@@ -63,29 +61,14 @@ class TestBatchedGemmMultiD : public ::testing::Test
     }
 };
 
-template <typename Tuple>
-class TestBatchedGemmMultiDF16 : public TestBatchedGemmMultiD<Tuple>
-{
-};
+using KernelTypes = ::testing::Types<std::tuple<Row, Row, Row>,
+                                     std::tuple<Row, Col, Row>,
+                                     std::tuple<Col, Row, Row>,
+                                     std::tuple<Col, Col, Row>>;
+} // namespace
 
-template <typename Tuple>
-class TestBatchedGemmMultiDI8 : public TestBatchedGemmMultiD<Tuple>
-{
-};
+TYPED_TEST_SUITE(TestBatchedGemmMultiD, KernelTypes);
 
-using F16KernelTypes = ::testing::Types<std::tuple<Row, Row, Row, F16>,
-                                        std::tuple<Row, Col, Row, F16>,
-                                        std::tuple<Col, Row, Row, F16>,
-                                        std::tuple<Col, Col, Row, F16>>;
+TYPED_TEST(TestBatchedGemmMultiD, f16) { this->template Run<F16>(); }
 
-using I8KernelTypes = ::testing::Types<std::tuple<Row, Row, Row, int8_t>,
-                                       std::tuple<Row, Col, Row, int8_t>,
-                                       std::tuple<Col, Row, Row, int8_t>,
-                                       std::tuple<Col, Col, Row, int8_t>>;
-
-TYPED_TEST_SUITE(TestBatchedGemmMultiDF16, F16KernelTypes);
-TYPED_TEST_SUITE(TestBatchedGemmMultiDI8, I8KernelTypes);
-
-TYPED_TEST(TestBatchedGemmMultiDF16, bilinear) { this->Run(); }
-
-TYPED_TEST(TestBatchedGemmMultiDI8, scale) { this->Run(); }
+TYPED_TEST(TestBatchedGemmMultiD, int8) { this->template Run<int8_t>(); }

@@ -645,15 +645,19 @@ struct DeviceBatchedGemmMultipleD_Dl : public DeviceBatchedGemmMultiD<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        assert(arg.K % K1 == 0);
-
         if(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx908" ||
            ck::get_device_name() == "gfx90a" || ck::get_device_name() == "gfx1030" ||
            ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx1100" ||
            ck::get_device_name() == "gfx1101" || ck::get_device_name() == "gfx1102")
         {
-            return GridwiseGemm::CheckValidity(
-                arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.e_grid_desc_m_n_);
+            bool pass = true;
+            pass      = pass && arg.K % K1 == 0;
+
+            pass = pass && GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
+                                                       arg.b_grid_desc_k0_n_k1_,
+                                                       arg.e_grid_desc_m_n_);
+
+            return pass;
         }
         else
         {
