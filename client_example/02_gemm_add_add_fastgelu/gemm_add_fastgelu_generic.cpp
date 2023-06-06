@@ -18,7 +18,7 @@ using F32 = float;
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
 
 using AElementOp   = PassThrough;
