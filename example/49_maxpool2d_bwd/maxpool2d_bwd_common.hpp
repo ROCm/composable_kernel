@@ -174,6 +174,12 @@ bool maxpool_bwd_test(bool do_verification,
                                  "not support this problem");
     }
 
+    size_t pool_bwd_workspace_sz = pool_bwd.GetWorkSpaceSize(pool_bwd_argument_ptr.get());
+    DeviceMem pool_bwd_workspace_device_buf(pool_bwd_workspace_sz);
+    pool_bwd_workspace_device_buf.SetZero();
+    pool_bwd.SetWorkSpacePointer(pool_bwd_argument_ptr.get(),
+                                 pool_bwd_workspace_device_buf.GetDeviceBuffer());
+
     float ave_time_bwd =
         pool_bwd_invoker_ptr->Run(pool_bwd_argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
@@ -204,7 +210,6 @@ bool maxpool_bwd_test(bool do_verification,
                                                                      window_strides,
                                                                      input_left_pads,
                                                                      input_right_pads);
-
         ref_pooling_fwd_invoker.Run(ref_pooling_fwd_argument);
 
         using ReferencePoolingBwdInstance = ck::tensor_operation::host::

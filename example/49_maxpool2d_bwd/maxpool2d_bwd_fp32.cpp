@@ -9,8 +9,8 @@
 
 #include "maxpool2d_bwd_common.hpp"
 
-using InDataType      = float;
-using OutDataType     = float;
+using InDataType      = ck::half_t;
+using OutDataType     = ck::half_t;
 using IndexDataType   = int32_t;
 using ComputeDataType = float;
 using DInDataType     = float;
@@ -29,12 +29,12 @@ int main()
     // Pool shape
     ck::index_t N               = 1;
     ck::index_t C               = 1;
-    ck::index_t Y               = 2;
-    ck::index_t X               = 2;
+    ck::index_t Y               = 3;
+    ck::index_t X               = 3;
     ck::index_t Hi              = 31;
     ck::index_t Wi              = 31;
-    ck::index_t window_stride_h = 2;
-    ck::index_t window_stride_w = 2;
+    ck::index_t window_stride_h = 1;
+    ck::index_t window_stride_w = 1;
     ck::index_t in_left_pad_h   = 0;
     ck::index_t in_left_pad_w   = 0;
     ck::index_t in_right_pad_h  = 1;
