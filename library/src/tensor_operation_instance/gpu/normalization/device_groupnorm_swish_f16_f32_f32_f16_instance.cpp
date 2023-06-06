@@ -15,6 +15,8 @@ void add_device_normalization_rank_5_3_swish_f16_f32_f32_f16_instances(
         instances)
 {
     add_device_operation_instances(instances,
+                                   device_normalization_f16_f32_f32_f16_generic_instance<Swish, 5, 3>{});
+    add_device_operation_instances(instances,
                                    device_normalization_f16_f32_f32_f16_instances<Swish, 5, 3>{});
 }
 
