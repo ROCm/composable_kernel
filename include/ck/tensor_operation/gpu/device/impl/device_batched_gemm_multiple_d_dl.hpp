@@ -449,6 +449,7 @@ struct DeviceBatchedGemmMultipleD_Dl : public DeviceBatchedGemmMultiD<ALayout,
               p_b_grid_{static_cast<const BDataType*>(p_b_grid)},
               p_ds_grid_{},
               p_e_grid_{static_cast<EDataType*>(p_e_grid)},
+              K_(K),
               Batch_(Batch),
               a_grid_desc_k0_m0_m1_k1_{},
               b_grid_desc_k0_n0_n1_k1_{},
@@ -500,6 +501,8 @@ struct DeviceBatchedGemmMultipleD_Dl : public DeviceBatchedGemmMultiD<ALayout,
         const BDataType* p_b_grid_;
         typename GridwiseGemm::DsGridPointer p_ds_grid_;
         EDataType* p_e_grid_;
+
+        index_t K_;
 
         // Batch
         index_t Batch_;
@@ -651,7 +654,7 @@ struct DeviceBatchedGemmMultipleD_Dl : public DeviceBatchedGemmMultiD<ALayout,
            ck::get_device_name() == "gfx1101" || ck::get_device_name() == "gfx1102")
         {
             bool pass = true;
-            pass      = pass && arg.K % K1 == 0;
+            pass      = pass && arg.K_ % K1 == 0;
 
             pass = pass && GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                                        arg.b_grid_desc_k0_n_k1_,
