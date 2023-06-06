@@ -9,6 +9,7 @@ RUN set -xe
 ARG DEB_ROCM_REPO=http://repo.radeon.com/rocm/apt/.apt_$ROCMVERSION/
 RUN useradd -rm -d /home/jenkins -s /bin/bash -u 1004 jenkins
 # Add rocm repository
+RUN chmod 1777 /tmp
 RUN apt-get update
 RUN apt-get install -y --allow-unauthenticated apt-utils wget gnupg2 curl
 RUN --mount=type=ssh if [ "$ROCMVERSION" != "5.6" ]; then \
@@ -21,8 +22,8 @@ RUN --mount=type=ssh if [ "$ROCMVERSION" != "5.6" ]; then \
     elif [ "$ROCMVERSION" = "5.6" ] && [ "$compiler_version" = "rc3" ]; then \
          sh -c "wget http://artifactory-cdn.amd.com/artifactory/list/amdgpu-deb/amdgpu-install-internal_5.6-20.04-1_all.deb" && \
          apt update && apt-get install -y ./amdgpu-install-internal_5.6-20.04-1_all.deb && \
-         sh -c ''echo deb [arch=amd64 trusted=yes] http://compute-artifactory.amd.com/artifactory/list/rocm-release-archive-20.04-deb/ 5.6 rel-45  > /etc/apt/sources.list.d/rocm-build.list' && \
-         amdgpu-repo --amdgpu-build=1602498 ; \
+         sh -c 'echo deb [arch=amd64 trusted=yes] http://compute-artifactory.amd.com/artifactory/list/rocm-release-archive-20.04-deb/ 5.6 rel-45  > /etc/apt/sources.list.d/rocm-build.list' && \
+         amdgpu-repo --amdgpu-build=1602498; \
     fi
 RUN amdgpu-install -y --usecase=rocm --no-dkms
 
