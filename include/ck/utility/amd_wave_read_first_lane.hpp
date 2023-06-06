@@ -58,16 +58,16 @@ struct get_carrier<3>
             return to;
         }
 
-        public:
-        __device__ carrier(value_type value) noexcept
-        {
-            copy_n(reinterpret_cast<const std::byte*>(&value), bytes.size(), bytes.begin());
-        }
-
         // method to trigger template substitution failure
-        __device__ carrier& operator=(const carrier& other) noexcept
+        carrier(const carrier& other) noexcept
         {
             copy_n(other.bytes.begin(), bytes.size(), bytes.begin());
+        }
+
+        public:
+        __device__ carrier& operator=(value_type value) noexcept
+        {
+            copy_n(reinterpret_cast<const std::byte*>(&value), bytes.size(), bytes.begin());
 
             return *this;
         }
