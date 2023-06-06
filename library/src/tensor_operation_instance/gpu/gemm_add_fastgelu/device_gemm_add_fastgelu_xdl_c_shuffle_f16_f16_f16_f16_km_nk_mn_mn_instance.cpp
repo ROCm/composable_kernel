@@ -135,7 +135,8 @@ void add_device_gemm_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_km_nk_mn_mn_inst
                                                     AddFastGelu>>>& instances)
 {
     add_device_operation_instances(
-        instances, device_gemm_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_km_nk_mn_mn_generic_instance{});
+        instances,
+        device_gemm_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_km_nk_mn_mn_generic_instance{});
     add_device_operation_instances(
         instances, device_gemm_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_km_nk_mn_mn_instances{});
     add_device_operation_instances(
