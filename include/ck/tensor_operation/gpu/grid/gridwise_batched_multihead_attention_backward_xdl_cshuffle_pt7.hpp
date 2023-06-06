@@ -1473,7 +1473,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                              I0,
                              I0,
                              I0);
-        ;
 
         auto qgrad_thread_copy_vgpr_to_global = typename Gemm2::template CBlockwiseCopy<
             decltype(qgrad_grid_desc_m0_o0_m1_o1_m2_o2_o3_o4),
