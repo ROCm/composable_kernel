@@ -249,6 +249,8 @@ include_directories(BEFORE
     ${HIP_INCLUDE_DIRS}
 )
 
+add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+
 if (NOT CK_BUILD_JIT_LIB)
     SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
     if(BUILD_DEV)
@@ -257,7 +259,7 @@ if (NOT CK_BUILD_JIT_LIB)
     endif()
     message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
-    add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+    
 
     file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp")
     file(GLOB dir_list RELATIVE ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/*)
@@ -286,7 +288,6 @@ if (NOT CK_BUILD_JIT_LIB)
 
     
     add_subdirectory(example)
-    add_subdirectory(test)
     add_subdirectory(profiler)
 
 else()
@@ -297,7 +298,9 @@ else()
     
 endif()
 
+
 add_subdirectory(library)
+add_subdirectory(test)
 
 #Create an interface target for the include only files and call it "composablekernels"
 include(CMakePackageConfigHelpers)
