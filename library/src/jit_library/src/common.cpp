@@ -1,6 +1,7 @@
 
 #include "ck/host/common.hpp"
 #include "ck_headers.hpp"
+#include <stdexcept>
 
 namespace ck {
 namespace host {
