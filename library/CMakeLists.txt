@@ -1,5 +1,7 @@
 if (CK_BUILD_JIT_LIB)
+    remove_definitions(-Wglobal-constructors)
     add_subdirectory(src/jit_library)   
+    add_definitions(-Wglobal-constructors)
 else()
     add_subdirectory(src/tensor_operation_instance/gpu)
     add_subdirectory(src/utility)
