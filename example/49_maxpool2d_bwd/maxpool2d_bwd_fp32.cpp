@@ -9,8 +9,8 @@
 
 #include "maxpool2d_bwd_common.hpp"
 
-using InDataType      = ck::half_t;
-using OutDataType     = ck::half_t;
+using InDataType      = float;
+using OutDataType     = float;
 using IndexDataType   = int32_t;
 using ComputeDataType = float;
 using DInDataType     = float;
