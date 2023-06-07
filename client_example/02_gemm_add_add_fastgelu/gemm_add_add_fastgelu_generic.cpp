@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <vector>
 #include <iostream>
+#include <stdexcept>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -162,6 +163,11 @@ int main(int argc, char* argv[])
     if(op_ptr->IsSupportedArgument(argument_ptr.get()))
     {
         invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
+    }
+    else
+    {
+        throw std::runtime_error(
+            "Generic instance should be suitable for various input lengths/strides");
     }
 
     std::cout << "Done" << std::endl;
