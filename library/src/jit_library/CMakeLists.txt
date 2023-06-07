@@ -20,7 +20,7 @@ add_library(composable_kernel::jit_library ALIAS jit_library)
 
 set_target_properties(jit_library PROPERTIES LINKER_LANGUAGE CXX)
 
-target_include_directories(jit_library PRIVATE
+target_include_directories(jit_library SYSTEM PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/jit_library/solution_instances>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/solution_instances>

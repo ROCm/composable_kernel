@@ -1,7 +1,5 @@
 if (CK_BUILD_JIT_LIB)
-    string(REPLACE "-Werror;" "" CMAKE_COMPILER_WARNINGS "${CMAKE_COMPILER_WARNINGS}")
-    add_subdirectory(src/jit_library)   
-    set(CMAKE_COMPILER_WARNINGS "${CMAKE_COMPILER_WARNINGS};-Werror")
+    add_subdirectory(src/jit_library)
 else()
     add_subdirectory(src/tensor_operation_instance/gpu)
     add_subdirectory(src/utility)
