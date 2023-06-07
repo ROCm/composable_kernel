@@ -10,4 +10,6 @@ add_instance_library(device_grouped_conv2d_fwd_instance
    #dl
    device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f16_instance.cpp
    device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f32_instance.cpp
+   # WMMA
+   device_grouped_conv2d_fwd_wmma_gnhwc_gkyxc_gnhwk_f16_instance.cpp
 )
