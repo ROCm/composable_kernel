@@ -120,23 +120,25 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
 
     __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt() = default;
 
-    __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(const BlockToCTileMap_M00_N0_M01Adapt&) =
-        default;
-    __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(BlockToCTileMap_M00_N0_M01Adapt&&) =
-        default;
+    __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(
+        const BlockToCTileMap_M00_N0_M01Adapt&) = default;
+    __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(
+        BlockToCTileMap_M00_N0_M01Adapt&&) = default;
     __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt&
     operator=(const BlockToCTileMap_M00_N0_M01Adapt&) = default;
     __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt&
     operator=(BlockToCTileMap_M00_N0_M01Adapt&&) = default;
 
-    __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(index_t M, index_t N, index_t M01 = 8)
+    __host__
+        __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(index_t M, index_t N, index_t M01 = 8)
         : M_(M), N_(N), M01_(M01)
     {
     }
 
     template <typename CGridDesc_M_N>
-    __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(const CGridDesc_M_N& c_grid_desc_m_n,
-                                                        index_t M01 = 8)
+    __host__
+        __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(const CGridDesc_M_N& c_grid_desc_m_n,
+                                                             index_t M01 = 8)
         : BlockToCTileMap_M00_N0_M01Adapt(
               c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1), M01)
     {
@@ -151,13 +153,15 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
     }
 
     template <typename CGridDesc_M_N>
-    __host__ __device__ static constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n)
+    __host__ __device__ static constexpr index_t
+    CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n)
     {
         return CalculateGridSize(c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1));
     }
 
     template <typename CGridDesc_M_N>
-    __host__ __device__ constexpr bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const
+    __host__ __device__ constexpr bool
+    CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const
     {
         return true;
     }
@@ -231,7 +235,7 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
 
     template <typename CTileIdx, typename CTileDim>
     __host__ __device__ constexpr bool ValidCTileIndex(const CTileIdx& /* c_tile_idx */,
-                                             const CTileDim& /* c_tile_dim */) const
+                                                       const CTileDim& /* c_tile_dim */) const
     {
         return true; // always valid provided that user gets grid size from CalculateGridSize()
     }

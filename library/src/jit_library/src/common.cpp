@@ -8,16 +8,17 @@ namespace host {
 
 std::string ToString(DataType dt)
 {
-    switch (dt) {
-        case DataType::Float: return "float";
-        case DataType::Half: return "ck::half_t";
-        case DataType::Int8: return "int8_t";
-        case DataType::Int32: return "int32_t";
+    switch(dt)
+    {
+    case DataType::Float: return "float";
+    case DataType::Half: return "ck::half_t";
+    case DataType::Int8: return "int8_t";
+    case DataType::Int32: return "int32_t";
     }
     throw std::runtime_error("Incorrect data type");
 }
 
-std::unordered_map<std::string, std::pair<const char*,const char*>> GetHeaders()
+std::unordered_map<std::string, std::pair<const char*, const char*>> GetHeaders()
 {
     return ck_headers();
 }
