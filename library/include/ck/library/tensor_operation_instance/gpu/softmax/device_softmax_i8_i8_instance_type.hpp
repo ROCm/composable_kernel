@@ -17,7 +17,6 @@ template <index_t Rank, index_t Reduce>
 using device_softmax_i8_i8_instances = std::tuple<
     // clang-format off
     //                InDataType, AccDataType, OutDataType, InElementwiseOp, AccElementwiseOp, Rank, NumReduceDim, BlockSize, MThreadClusterSize, KThreadClusterSize, MThreadSliceSize, KThreadSliceSize, InSrcVectorDim, InSrcVectorSize, OutDstVectorSize>
-    // fallback kernel
     DeviceSoftmaxImpl<        I8,         F32,          I8,     PassThrough,      PassThrough, Rank,       Reduce,       256,                  8,                 32,                1,               16,              1,               1,              1>,
     DeviceSoftmaxImpl<        I8,         F32,          I8,     PassThrough,      PassThrough, Rank,       Reduce,       256,                  8,                 32,                1,               16,              1,              16,             16>,
     DeviceSoftmaxImpl<        I8,         F32,          I8,     PassThrough,      PassThrough, Rank,       Reduce,       256,                  4,                 64,                1,               16,              1,              16,             16>,
@@ -31,6 +30,13 @@ using device_softmax_i8_i8_instances = std::tuple<
     // InSrcVectorDim is 0 since we want to coalesce reads on M dimension
     DeviceSoftmaxImpl<        I8,         F32,          I8,     PassThrough,      PassThrough, Rank,       Reduce,       256,                  8,                 32,                8,                8,              0,               1,              1>,
     DeviceSoftmaxImpl<        I8,         F32,          I8,     PassThrough,      PassThrough, Rank,       Reduce,       256,                 32,                  8,               32,                8,              0,              16,              8>
+    // clang-format on
+    >;
+
+template <index_t Rank, index_t Reduce>
+using device_softmax_i8_i8_generic_instance = std::tuple<
+    // clang-format off
+    DeviceSoftmaxImpl<        I8,         F32,          I8,     PassThrough,      PassThrough, Rank,       Reduce,        64,                  8,                  8,                1,                1,              1,               1,              1>
     // clang-format on
     >;
 

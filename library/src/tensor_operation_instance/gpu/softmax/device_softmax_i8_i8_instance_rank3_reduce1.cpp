@@ -16,6 +16,7 @@ namespace instance {
 void add_device_softmax_i8_i8_rank3_reduce1_instances(
     std::vector<DeviceSoftmaxPtr<I8, F32, I8, PassThrough, PassThrough, 3, 1>>& instances)
 {
+    add_device_operation_instances(instances, device_softmax_i8_i8_generic_instance<3, 1>{});
     add_device_operation_instances(instances, device_softmax_i8_i8_instances<3, 1>{});
 }
 
