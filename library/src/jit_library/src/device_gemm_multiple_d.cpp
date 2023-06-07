@@ -101,12 +101,12 @@ Solution Problem::MakeSolution(std::size_t idx, const std::string& arch) const
     if(ADataType == DataType::Int8 and BDataType == DataType::Int8)
     {
         // Change CBlockTransfer ScalarPerVector if Ds contains other types
-        if(std::any_of(
+        if(EDataType == DataType::Half or std::any_of(
                DsDataType.begin(), DsDataType.end(), [](auto t) { return t == DataType::Half; }))
         {
             params[params.size() - 3] = "8";
         }
-        if(std::any_of(
+        if(EDataType == DataType::Float or std::any_of(
                DsDataType.begin(), DsDataType.end(), [](auto t) { return t == DataType::Float; }))
         {
             params[params.size() - 3] = "4";
