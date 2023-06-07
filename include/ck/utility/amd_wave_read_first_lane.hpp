@@ -59,7 +59,7 @@ struct get_carrier<3>
         }
 
         // method to trigger template substitution failure
-        carrier(const carrier& other) noexcept
+        __device__ carrier(const carrier& other) noexcept
         {
             copy_n(other.bytes.begin(), bytes.size(), bytes.begin());
         }
