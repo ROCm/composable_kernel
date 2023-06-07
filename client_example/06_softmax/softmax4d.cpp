@@ -64,6 +64,24 @@ int main(int argc, char* argv[])
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
 
+    auto& generic_op_ptr = op_ptrs[0];
+
+    auto generic_argument_ptr = generic_op_ptr->MakeArgumentPointer(in_lengths,
+                                                                    in_strides,
+                                                                    reduce_dims,
+                                                                    alpha,
+                                                                    beta,
+                                                                    in.GetDeviceBuffer(),
+                                                                    out.GetDeviceBuffer(),
+                                                                    PassThrough{},
+                                                                    PassThrough{});
+
+    if(!generic_op_ptr->IsSupportedArgument(generic_argument_ptr.get()))
+    {
+        throw std::runtime_error(
+            "The generic kernel instance should be able to support any input shapes");
+    };
+
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     std::string best_op_name;
