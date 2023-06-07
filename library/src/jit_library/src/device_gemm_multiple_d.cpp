@@ -49,7 +49,7 @@ std::vector<std::string> Problem::GetInstances(const std::string& arch) const
     const bool quantize = ADataType == DataType::Int8 and BDataType == DataType::Int8;
     if (get_xdlop_archs().find(arch) != get_xdlop_archs().end())
     {
-        ck::tensor_operation::device::instance::gemm_add_add_fastgelu_instances all_instances{};
+        ck::instance::gemm_add_add_fastgelu_instances all_instances{};
         if(TransA and TransB)
             instances = all_instances.get_col_col_instances(quantize);
         else if(TransA and not TransB)
@@ -139,7 +139,7 @@ Solution Problem::MakeSolution(std::size_t idx, const std::string& arch) const
 
 std::string Problem::GetIncludeHeader() const
 {
-    return ck::tensor_operation::device::instance::gemm_add_add_fastgelu_instances{}.get_include_header();
+    return ck::instance::gemm_add_add_fastgelu_instances{}.get_include_header();
 }
 
 std::vector<Solution> Problem::GetSolutions(const std::string& arch) const
