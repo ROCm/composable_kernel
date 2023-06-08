@@ -16,9 +16,6 @@ using ComputeDataType = float;
 using DInDataType     = float;
 using DOutDataType    = float;
 
-using InLayout  = ck::tensor_layout::convolution::NHWC;
-using OutLayout = ck::tensor_layout::convolution::NHWC;
-
 static constexpr bool PropagateNan = false;
 
 int main()
@@ -29,16 +26,16 @@ int main()
     // Pool shape
     ck::index_t N               = 1;
     ck::index_t C               = 1;
-    ck::index_t Y               = 3;
-    ck::index_t X               = 3;
-    ck::index_t Hi              = 31;
-    ck::index_t Wi              = 31;
-    ck::index_t window_stride_h = 1;
-    ck::index_t window_stride_w = 1;
+    ck::index_t Y               = 2;
+    ck::index_t X               = 2;
+    ck::index_t Hi              = 32;
+    ck::index_t Wi              = 32;
+    ck::index_t window_stride_h = 2;
+    ck::index_t window_stride_w = 2;
     ck::index_t in_left_pad_h   = 0;
     ck::index_t in_left_pad_w   = 0;
-    ck::index_t in_right_pad_h  = 1;
-    ck::index_t in_right_pad_w  = 1;
+    ck::index_t in_right_pad_h  = 0;
+    ck::index_t in_right_pad_w  = 0;
 
     bool pass = maxpool_bwd_test<InDataType,
                                  OutDataType,
@@ -46,8 +43,6 @@ int main()
                                  ComputeDataType,
                                  DInDataType,
                                  DOutDataType,
-                                 InLayout,
-                                 OutLayout,
                                  PropagateNan>(do_verification,
                                                time_kernel,
                                                N,

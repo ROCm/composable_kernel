@@ -27,8 +27,6 @@ template <typename InDataType,
           typename ComputeDataType,
           typename DInDataType,
           typename DOutDataType,
-          typename InLayout,
-          typename OutLayout,
           bool PropagateNan>
 bool maxpool_bwd_test(bool do_verification,
                       bool time_kernel,
@@ -73,41 +71,30 @@ bool maxpool_bwd_test(bool do_verification,
     const std::vector<ck::index_t> input_left_pads{in_left_pad_h, in_left_pad_w};
     const std::vector<ck::index_t> input_right_pads{in_right_pad_h, in_right_pad_w};
 
-    // tensor layout
     auto f_host_tensor_descriptor =
-        [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W, auto layout) {
+        [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W) {
             using namespace ck::literals;
-
-            if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NCHW>::value)
-            {
-                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, H * W, W, 1_uz});
-            }
-            else if constexpr(ck::is_same<decltype(layout),
-                                          ck::tensor_layout::convolution::NHWC>::value)
-            {
-                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, 1_uz, W * C_, C_});
-            }
+            // reference need Tensor with NCHW order
+            return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, 1_uz, W * C_, C_});
         };
 
     // in
-    Tensor<InDataType> in_n_c_hi_wi(f_host_tensor_descriptor(N, C, Hi, Wi, InLayout{}));
+    Tensor<InDataType> in_n_c_hi_wi(f_host_tensor_descriptor(N, C, Hi, Wi));
 
     // out
-    Tensor<OutDataType> out_n_c_ho_wo_host(f_host_tensor_descriptor(N, C, Ho, Wo, OutLayout{}));
-    Tensor<OutDataType> out_n_c_ho_wo_device(f_host_tensor_descriptor(N, C, Ho, Wo, OutLayout{}));
+    Tensor<OutDataType> out_n_c_ho_wo_host(f_host_tensor_descriptor(N, C, Ho, Wo));
+    Tensor<OutDataType> out_n_c_ho_wo_device(f_host_tensor_descriptor(N, C, Ho, Wo));
 
     // indices
-    Tensor<IndexDataType> indices_n_c_ho_wo_device(
-        f_host_tensor_descriptor(N, C, Ho, Wo, OutLayout{}));
-    Tensor<IndexDataType> indices_n_c_ho_wo_host(
-        f_host_tensor_descriptor(N, C, Ho, Wo, OutLayout{}));
+    Tensor<IndexDataType> indices_n_c_ho_wo_device(f_host_tensor_descriptor(N, C, Ho, Wo));
+    Tensor<IndexDataType> indices_n_c_ho_wo_host(f_host_tensor_descriptor(N, C, Ho, Wo));
 
     // dout
-    Tensor<DOutDataType> dout_n_c_ho_wo(f_host_tensor_descriptor(N, C, Ho, Wo, OutLayout{}));
+    Tensor<DOutDataType> dout_n_c_ho_wo(f_host_tensor_descriptor(N, C, Ho, Wo));
 
     // din
-    Tensor<DInDataType> din_n_c_hi_wi_host(f_host_tensor_descriptor(N, C, Hi, Wi, InLayout{}));
-    Tensor<DInDataType> din_n_c_hi_wi_device(f_host_tensor_descriptor(N, C, Hi, Wi, InLayout{}));
+    Tensor<DInDataType> din_n_c_hi_wi_host(f_host_tensor_descriptor(N, C, Hi, Wi));
+    Tensor<DInDataType> din_n_c_hi_wi_device(f_host_tensor_descriptor(N, C, Hi, Wi));
 
     std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi.mDesc << std::endl;
     std::cout << "out_n_c_ho_wo: " << out_n_c_ho_wo_host.mDesc << std::endl;
@@ -212,8 +199,12 @@ bool maxpool_bwd_test(bool do_verification,
                                                                      input_right_pads);
         ref_pooling_fwd_invoker.Run(ref_pooling_fwd_argument);
 
-        using ReferencePoolingBwdInstance = ck::tensor_operation::host::
-            ReferenceMaxPoolBwd<DOutDataType, IndexDataType, float, DInDataType, PassThrough>;
+        using ReferencePoolingBwdInstance =
+            ck::tensor_operation::host::ReferenceMaxPoolBwd<DOutDataType,
+                                                            IndexDataType,
+                                                            ComputeDataType,
+                                                            DInDataType,
+                                                            PassThrough>;
 
         auto ref_pooling_bwd          = ReferencePoolingBwdInstance{};
         auto ref_pooling_bwd_invoker  = ref_pooling_bwd.MakeInvoker();
