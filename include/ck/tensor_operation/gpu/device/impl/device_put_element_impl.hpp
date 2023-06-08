@@ -121,8 +121,12 @@ struct DevicePutElementImpl
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
-        // TODO
-        ignore = pArg;
+        index_t input_length = pArg->in_grid_desc_.GetTransforms()[I0].GetUpperLengths()[I0];
+
+        if(input_length % InVectorSize != 0)
+        {
+            return false;
+        }
         return true;
     }
 
