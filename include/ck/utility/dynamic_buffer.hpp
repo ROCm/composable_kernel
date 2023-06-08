@@ -19,7 +19,8 @@ namespace ck {
 template <AddressSpaceEnum BufferAddressSpace,
           typename T,
           typename ElementSpaceSize,
-          bool InvalidElementUseNumericalZeroValue>
+          bool InvalidElementUseNumericalZeroValue,
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
 struct DynamicBuffer
 {
     using type = T;
@@ -77,13 +78,16 @@ struct DynamicBuffer
 
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
-                return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>, t_per_x>(
+                return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>,
+                                                                   t_per_x,
+                                                                   coherence>(
                     p_data_, i, is_valid_element, element_space_size_);
             }
             else
             {
                 return amd_buffer_load_invalid_element_return_customized_value<remove_cvref_t<T>,
-                                                                               t_per_x>(
+                                                                               t_per_x,
+                                                                               coherence>(
                     p_data_, i, is_valid_element, element_space_size_, invalid_element_value_);
             }
         }
@@ -173,7 +177,7 @@ struct DynamicBuffer
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
-            amd_buffer_store<remove_cvref_t<T>, t_per_x>(
+            amd_buffer_store<remove_cvref_t<T>, t_per_x, coherence>(
                 x, p_data_, i, is_valid_element, element_space_size_);
         }
         else if constexpr(GetAddressSpace() == AddressSpaceEnum::Lds &&
@@ -376,14 +380,19 @@ struct DynamicBuffer
     __host__ __device__ static constexpr bool IsDynamicBuffer() { return true; }
 };
 
-template <AddressSpaceEnum BufferAddressSpace, typename T, typename ElementSpaceSize>
+template <AddressSpaceEnum BufferAddressSpace,
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
+          typename T,
+          typename ElementSpaceSize>
 __host__ __device__ constexpr auto make_dynamic_buffer(T* p, ElementSpaceSize element_space_size)
 {
-    return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, true>{p, element_space_size};
+    return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, true, coherence>{
+        p, element_space_size};
 }
 
 template <
     AddressSpaceEnum BufferAddressSpace,
+    AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
     typename T,
     typename ElementSpaceSize,
     typename X,
@@ -391,7 +400,7 @@ template <
 __host__ __device__ constexpr auto
 make_dynamic_buffer(T* p, ElementSpaceSize element_space_size, X invalid_element_value)
 {
-    return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, false>{
+    return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, false, coherence>{
         p, element_space_size, invalid_element_value};
 }
 
