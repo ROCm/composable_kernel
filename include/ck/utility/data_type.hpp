@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "ck/utility/f8_utils.hpp"
 #include "ck/utility/statically_indexed_array.hpp"
 #include "ck/utility/type_convert.hpp"
 

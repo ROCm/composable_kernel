@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include "ck/utility/statically_indexed_array.hpp"
-
 namespace ck {
 
 using f8_t   = uint8_t;
