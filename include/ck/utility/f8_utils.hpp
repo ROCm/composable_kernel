@@ -17,6 +17,12 @@ enum class f8_rounding_mode
     stochastic
 };
 
+} // namespace ck
+
+namespace ck::utils {
+
+namespace {
+
 template <typename T, bool negative_zero_nan, bool clip, bool stoch>
 __host__ __device__ f8_t run_cast_to_f8(T x, uint32_t rng)
 {
@@ -127,17 +133,6 @@ __host__ __device__ f8_t run_cast_to_f8(T x, uint32_t rng)
     return (sign << (f8_exp + f8_mant)) | (exponent << f8_mant) | mantissa;
 }
 
-template <typename T, bool negative_zero_nan, bool clip, bool stoch>
-__host__ __device__ f8_t cast_to_f8(T x, uint32_t rng)
-{
-    // check datatype
-    constexpr bool is_half  = std::is_same<T, half_t>::value;
-    constexpr bool is_float = std::is_same<T, float>::value;
-    static_assert(is_half || is_float, "Only half and float can be casted to f8.");
-
-    return run_cast_to_f8<T, negative_zero_nan, clip, stoch>(x, rng);
-}
-
 template <typename T, bool negative_zero_nan>
 __host__ __device__ T run_cast_from_f8(f8_t x)
 {
@@ -225,6 +220,19 @@ __host__ __device__ T run_cast_from_f8(f8_t x)
     return *(reinterpret_cast<const T*>(&retval));
 }
 
+} // namespace
+
+template <typename T, bool negative_zero_nan, bool clip, bool stoch>
+__host__ __device__ f8_t cast_to_f8(T x, uint32_t rng)
+{
+    // check datatype
+    constexpr bool is_half  = std::is_same<T, half_t>::value;
+    constexpr bool is_float = std::is_same<T, float>::value;
+    static_assert(is_half || is_float, "Only half and float can be casted to f8.");
+
+    return run_cast_to_f8<T, negative_zero_nan, clip, stoch>(x, rng);
+}
+
 template <typename T, bool negative_zero_nan>
 __host__ __device__ T cast_from_f8(f8_t x)
 {
@@ -240,4 +248,4 @@ __host__ __device__ T cast_from_f8(f8_t x)
     return run_cast_from_f8<T, negative_zero_nan>(x);
 }
 
-} // namespace ck
+} // namespace ck::utils
