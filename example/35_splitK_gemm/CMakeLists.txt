@@ -1,4 +1,5 @@
-if(GPU_TARGETS MATCHES "gfx908" OR GPU_TARGETS MATCHES "gfx90a" OR GPU_TARGETS MATCHES "gfx940")
+list(APPEND gpu_list gfx908 gfx90a gfx940 gfx941 gfx942)
+if(GPU_TARGETS IN_LIST gpu_list)
    add_custom_target(example_splitK_gemm_xdl)
    add_example_executable(example_splitK_gemm_xdl_fp32 splitK_gemm_xdl_fp32.cpp)
    add_example_executable(example_splitK_gemm_xdl_fp16 splitK_gemm_xdl_fp16.cpp)

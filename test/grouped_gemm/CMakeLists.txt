@@ -1,4 +1,5 @@
-if(GPU_TARGETS MATCHES "gfx908" OR GPU_TARGETS MATCHES "gfx90a" OR GPU_TARGETS MATCHES "gfx940")
+list(APPEND gpu_list gfx908 gfx90a gfx940 gfx941 gfx942)
+if(GPU_TARGETS IN_LIST gpu_list)
    add_custom_target(test_grouped_gemm)
    add_gtest_executable(test_grouped_gemm_splitk test_grouped_gemm_splitk.cpp)
    add_gtest_executable(test_grouped_gemm_interface test_grouped_gemm_interface.cpp)

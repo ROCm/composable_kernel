@@ -1,4 +1,5 @@
-if(GPU_TARGETS MATCHES "gfx908" OR GPU_TARGETS MATCHES "gfx90a" OR GPU_TARGETS MATCHES "gfx940")
+list(APPEND gpu_list gfx908 gfx90a gfx940 gfx941 gfx942)
+if(GPU_TARGETS IN_LIST gpu_list)
    add_custom_target(test_gemm_layernorm)
    add_gtest_executable(test_gemm_add_relu_add_layernorm_fp16 test_gemm_add_relu_add_layernorm_fp16.cpp)
    target_link_libraries(test_gemm_add_relu_add_layernorm_fp16 PRIVATE utility device_gemm_add_relu_add_layernorm_instance)

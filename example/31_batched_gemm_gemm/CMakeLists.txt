@@ -1,8 +1,10 @@
-if(GPU_TARGETS MATCHES "gfx908" OR GPU_TARGETS MATCHES "gfx90a" OR GPU_TARGETS MATCHES "gfx940")
+list(APPEND gpu_list1 gfx908 gfx90a gfx940 gfx941 gfx942)
+list(APPEND gpu_list2 gfx940 gfx941 gfx942)
+if(GPU_TARGETS IN_LIST gpu_list1)
    add_example_executable(example_batched_gemm_gemm_xdl_fp32 batched_gemm_gemm_xdl_fp32.cpp)
    add_example_executable(example_batched_gemm_gemm_xdl_fp16 batched_gemm_gemm_xdl_fp16.cpp)
    add_example_executable(example_batched_gemm_gemm_xdl_bf16 batched_gemm_gemm_xdl_bf16.cpp)
-   if(NOT GPU_TARGETS MATCHES "gfx940")
+   if(NOT GPU_TARGETS IN_LIST gpu_list2)
       add_example_executable(example_batched_gemm_gemm_xdl_int8 batched_gemm_gemm_xdl_int8.cpp)
    endif()
 

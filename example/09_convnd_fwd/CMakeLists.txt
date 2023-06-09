@@ -1,4 +1,5 @@
-if(GPU_TARGETS MATCHES "gfx908" OR GPU_TARGETS MATCHES "gfx90a" OR GPU_TARGETS MATCHES "gfx940")
+list(APPEND gpu_list gfx908 gfx90a gfx940 gfx941 gfx942)
+if(GPU_TARGETS IN_LIST gpu_list)
     add_example_executable(example_convnd_fwd_xdl_fp32 convnd_fwd_xdl_fp32.cpp)
     add_example_executable(example_convnd_fwd_xdl_fp16 convnd_fwd_xdl_fp16.cpp)
     add_example_executable(example_convnd_fwd_xdl_bf16 convnd_fwd_xdl_bf16.cpp)
@@ -9,4 +10,3 @@ endif()
 add_example_executable(example_convnd_fwd_dl_fp16 convnd_fwd_dl_fp16.cpp)
 add_example_executable(example_convnd_fwd_dl_fp32 convnd_fwd_dl_fp32.cpp)
 add_example_executable(example_convnd_fwd_dl_int8 convnd_fwd_dl_int8.cpp)
-
