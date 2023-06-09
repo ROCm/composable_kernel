@@ -11,6 +11,8 @@ using f8_t   = uint8_t;
 using half_t = _Float16;
 
 // fp8 rounding modes
+// use standard for rounding to nearest, the faster one
+// use stochastic for stochastic rounding, helps to avoid error accumulation
 enum class f8_rounding_mode
 {
     standard,
