@@ -209,15 +209,8 @@ __host__ __device__ T run_cast_from_f8(f8_t x)
         // guaranteed mantissa!=0 since cases 0x0 and 0x80 are handled above
         int sh = 1 + __builtin_clz(mantissa) - ((1 + type_exp + type_mant) - f8_mant);
         mantissa <<= sh;
-        exponent += 1 - sh;
-        /*
-        exponent++;
-        while(mantissa<(1<<wm)) {
-        mantissa <<= 1;
-        exponent--;
-        }
-        */
         mantissa &= ((1 << f8_mant) - 1);
+        exponent += 1 - sh;
     }
     exponent += exp_low_cutoff - 1;
     mantissa <<= type_mant - f8_mant;
