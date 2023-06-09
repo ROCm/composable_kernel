@@ -18,14 +18,14 @@ RUN --mount=type=ssh if [ "$ROCMVERSION" != "5.6" ]; then \
     elif [ "$ROCMVERSION" = "5.6" ] && [ "$compiler_version" = "" ]; then \
          sh -c "wget http://artifactory-cdn.amd.com/artifactory/list/amdgpu-deb/amd-nonfree-radeon_20.04-1_all.deb" && \
          apt update && apt-get install -y ./amd-nonfree-radeon_20.04-1_all.deb && \
-         amdgpu-repo --amdgpu-build=1567752 --rocm-build=compute-rocm-dkms-no-npi-hipclang/11914; \
-    elif [ "$ROCMVERSION" = "5.6" ] && [ "$compiler_version" = "rc3" ]; then \
+         amdgpu-repo --amdgpu-build=1567752 --rocm-build=compute-rocm-dkms-no-npi-hipclang/11914 && \
+         amdgpu-install -y --usecase=rocm --no-dkms; \
+    elif [ "$ROCMVERSION" = "5.6" ] && [ "$compiler_version" = "rc3" ] || [ "$compiler_version" = "amd-stg-open" ]; then \
          sh -c "wget http://artifactory-cdn.amd.com/artifactory/list/amdgpu-deb/amdgpu-install-internal_5.6-20.04-1_all.deb" && \
          apt update && apt-get install -y ./amdgpu-install-internal_5.6-20.04-1_all.deb && \
          sh -c 'echo deb [arch=amd64 trusted=yes] http://compute-artifactory.amd.com/artifactory/list/rocm-release-archive-20.04-deb/ 5.6 rel-45  > /etc/apt/sources.list.d/rocm-build.list' && \
-         amdgpu-repo --amdgpu-build=1602498; \
+         amdgpu-repo --amdgpu-build=1602498 && amdgpu-install -y --usecase=rocm --no-dkms; \
     fi
-RUN amdgpu-install -y --usecase=rocm --no-dkms
 
 RUN wget --no-check-certificate -qO - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | apt-key add -
 RUN sh -c "echo deb http://mirrors.kernel.org/ubuntu focal main universe | tee -a /etc/apt/sources.list"
