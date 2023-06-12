@@ -76,3 +76,30 @@ e_m_n: dim 4, lengths {128, 128, 128, 128}, strides {2097152, 16384, 128, 1}
 ....
 Best Perf: 211.405 ms, 41.6077 TFlops, 15.2372 GB/s
 ```
+
+## Profile batched gemm multiple D kernels
+```bash
+#arg1: tensor operation (batched_gemm_multi_d=Batched GEMM multi D);
+#arg2: data type (0: fp16; 1: int8)
+#arg3: matrix layout (0: A[g, m, k] * B[g, k, n] = C[g, m, n];
+#                     1: A[g, m, k] * B[g, n, k] = C[g, m, n];
+#                     2: A[g, k, m] * B[g, k, n] = C[g, m, n];
+#                     3: A[g, k, m] * B[g, n, k] = C[g, m, n])
+#arg4: verification (0: no; 1: yes)
+#arg5: initialization (0: no init; 1: integer value; 2: decimal value)
+#arg6: print tensor value (0: no; 1: yes)
+#arg7: time kernel (0=n0, 1=yes)
+#arg8 to 17: M, N, K, StrideA, StrideB, StrideC, BatchStrideA, BatchStrideB, BatchStrideC, BatchCount
+
+################                   op  datatype  layout  verify  init  log  time    M    N    K StrideA StrideB StrideC BatchStrideA BatchStrideB BatchStrideC BatchCount
+./bin/ckProfiler batched_gemm_multi_d         0       1       0     0    0     1 4096 4096 4096    4096    4096    4096     16777216     16777216     16777216         16
+```
+
+Result (Radeon RX 6800 XT)
+```bash
+arg.a_grid_desc_k0_m0_m1_k1_{2048, 4096, 2}
+arg.b_grid_desc_k0_n0_n1_k1_{2048, 4096, 2}
+arg.e_grid_desc_m_n_{ 4096, 4096}
+....
+Best Perf: 58.0306 ms, 37.8942 TFlops, 27.7545 GB/s
+```
