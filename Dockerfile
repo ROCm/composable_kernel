@@ -12,7 +12,7 @@ RUN useradd -rm -d /home/jenkins -s /bin/bash -u 1004 jenkins
 RUN chmod 1777 /tmp
 RUN apt-get update
 RUN apt-get install -y --allow-unauthenticated apt-utils wget gnupg2 curl
-RUN --mount=type=ssh if [ "$ROCMVERSION" != "5.6" ]; then \
+RUN if [ "$ROCMVERSION" != "5.6" ]; then \
         wget -qO - http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - && \
         sh -c "echo deb [arch=amd64] $DEB_ROCM_REPO ubuntu main > /etc/apt/sources.list.d/rocm.list"; \
     elif [ "$ROCMVERSION" = "5.6" ] && [ "$compiler_version" = "" ]; then \
@@ -105,7 +105,7 @@ ENV compiler_commit=$compiler_commit
 RUN sh -c "echo compiler version = '$compiler_version'"
 RUN sh -c "echo compiler commit = '$compiler_commit'"
 
-RUN --mount=type=ssh if [ "$compiler_version" = "amd-stg-open" ] && [ "$compiler_commit" = "" ]; then \
+RUN if [ "$compiler_version" = "amd-stg-open" ] && [ "$compiler_commit" = "" ]; then \
         git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
         cd llvm-project && mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" ../llvm && \
@@ -113,7 +113,7 @@ RUN --mount=type=ssh if [ "$compiler_version" = "amd-stg-open" ] && [ "$compiler
     else echo "using the release compiler"; \
     fi
 
-RUN --mount=type=ssh if [ "$compiler_version" = "amd-stg-open" ] && [ "$compiler_commit" != "" ]; then \
+RUN if [ "$compiler_version" = "amd-stg-open" ] && [ "$compiler_commit" != "" ]; then \
         git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
         cd llvm-project && git checkout "$compiler_commit" && echo "checking out commit $compiler_commit" && mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" ../llvm && \
