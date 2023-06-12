@@ -1,6 +1,6 @@
 list(APPEND gpu_list gfx908 gfx90a gfx940 gfx941 gfx942)
 set(target 0)
-foreach(gpu in GPU_TARGETS)
+foreach(gpu IN LISTS GPU_TARGETS)
  if(gpu IN_LIST gpu_list AND target EQUAL 0)
    add_test_executable(test_batched_gemm_reduce_fp16 batched_gemm_reduce_fp16.cpp)
    target_link_libraries(test_batched_gemm_reduce_fp16 PRIVATE utility)

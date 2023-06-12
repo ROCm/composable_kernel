@@ -2,7 +2,7 @@ list(APPEND gpu_list1 gfx908 gfx90a gfx940 gfx941 gfx942)
 list(APPEND gpu_list2 gfx1100 gfx1101 gfx1102)
 
 set(target 0)
-foreach(gpu in GPU_TARGETS)
+foreach(gpu IN LISTS GPU_TARGETS)
  if(gpu IN_LIST gpu_list1 AND target EQUAL 0)
    add_custom_target(example_grouped_conv_fwd_multiple_d)
 
@@ -27,7 +27,7 @@ foreach(gpu in GPU_TARGETS)
 endforeach()
 
 set(target 0)
-foreach(gpu in GPU_TARGETS)
+foreach(gpu IN LISTS GPU_TARGETS)
  if(gpu IN_LIST gpu_list2 AND target EQUAL 0)
    add_example_executable(example_grouped_conv_fwd_bias_relu_add_wmma_fp16 grouped_conv_fwd_bias_relu_add_wmma_fp16.cpp)
    add_example_executable(example_grouped_conv_fwd_bias_relu_add_wmma_int8 grouped_conv_fwd_bias_relu_add_wmma_int8.cpp)
