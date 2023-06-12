@@ -72,7 +72,7 @@ int main(int argc, char* argv[])
 
         StrideA = std::stoi(argv[4]);
         StrideB = std::stoi(argv[5]);
-        StrideE = std::stoi(argv[8]);
+        StrideE = std::stoi(argv[6]);
     }
     else
     {
