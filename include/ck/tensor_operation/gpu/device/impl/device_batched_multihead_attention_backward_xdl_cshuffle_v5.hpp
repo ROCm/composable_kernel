@@ -284,16 +284,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
     // TODO: implement bias combination
     static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
 
-#if 0
-    // TODO: use alias
-    static constexpr index_t NumDimGemm0M = NumDimM;
-    static constexpr index_t NumDimGemm0N = NumDimN;
-    static constexpr index_t NumDimGemm0K = NumDimK;
-    static constexpr index_t NumDimGemm1M = NumDimM;
-    static constexpr index_t NumDimGemm1N = NumDimO;
-    static constexpr index_t NumDimGemm1K = NumDimN;
-#endif
-
     using DeviceOp = DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2;
 
     static constexpr auto I0 = Number<0>{};
@@ -1011,7 +1001,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
             // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need
             // to concern Gemm0's loop
-#if 1
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
                 ave_time = launch_kernel(integral_constant<bool, true>{});
@@ -1020,7 +1009,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             {
                 ave_time = launch_kernel(integral_constant<bool, false>{});
             }
-#endif
+
             return ave_time;
         }
 
@@ -1040,10 +1029,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-#if 0
-        arg.Print();
-#endif
-
         if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
         {
             return false;
