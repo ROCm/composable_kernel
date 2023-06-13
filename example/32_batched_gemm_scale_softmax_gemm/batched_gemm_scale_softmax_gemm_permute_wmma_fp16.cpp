@@ -70,7 +70,7 @@ static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecial
 // clang-format off
 // #define CK_MHA_USE_WAVE_1
 // #define CK_MHA_USE_WAVE_2
-#define CK_MHA_USE_WAVE_4
+// #define CK_MHA_USE_WAVE_4
 #define CK_MHA_USE_WAVE_8
 using DeviceMHAFactory = 
     std::tuple<

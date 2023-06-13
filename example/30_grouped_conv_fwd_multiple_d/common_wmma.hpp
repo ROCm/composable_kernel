@@ -39,7 +39,7 @@ using S = ck::Sequence<Is...>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto ConvSpec =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC;
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
