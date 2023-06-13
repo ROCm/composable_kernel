@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "ck/utility/number.hpp"
 #include "ck/utility/statically_indexed_array.hpp"
 #include "ck/utility/type.hpp"
 #ifdef __HIPCC_RTC__
@@ -18,14 +17,15 @@ using int32_t  = signed int;
 using uint32_t = unsigned int;
 using int64_t  = signed long long;
 using uint64_t = unsigned long long;
-using byte = unsigned char;
+using std::byte = unsigned char;
 #include <limits> // std::numeric_limits
 
 #else
 #include <cstdint> // int8_t, int16_t
-#include <cstddef>
 #include <cmath>   // float_t
 #endif
+#else
+#include <cstddef>
 #endif // __HIPCC_RTC__
 namespace ck {
 

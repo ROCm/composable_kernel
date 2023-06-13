@@ -52,8 +52,8 @@ __device__ auto amd_wave_read_first_lane(const Object& obj)
     constexpr Size SgprSize   = 4;
     constexpr Size ObjectSize = sizeof(Object);
 
-    auto* const from_obj = reinterpret_cast<const byte*>(&obj);
-    alignas(Object) byte to_obj[ObjectSize];
+    auto* const from_obj = reinterpret_cast<const std::byte*>(&obj);
+    alignas(Object) std::byte to_obj[ObjectSize];
 
     constexpr Size RemainedSize             = ObjectSize % SgprSize;
     constexpr Size CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
