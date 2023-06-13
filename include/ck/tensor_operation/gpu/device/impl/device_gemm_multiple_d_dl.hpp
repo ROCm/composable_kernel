@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -50,8 +50,9 @@ __global__ void
             const CGridDesc_M0_M10_M11_N0_N10_N11 e_grid_desc_m0_m10_m11_n0_n10_n11,
             const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) || \
-    defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx1030__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) ||             \
+    defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx1030__) || defined(__gfx1100__) || \
+    defined(__gfx1101__) || defined(__gfx1102__))
 
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(ABDataType);
@@ -553,7 +554,8 @@ struct DeviceGemmMultipleD_Dl : public DeviceGemmMultipleD<ALayout,
     {
         if(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx908" ||
            ck::get_device_name() == "gfx90a" || ck::get_device_name() == "gfx1030" ||
-           ck::get_device_name() == "gfx940")
+           ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx1100" ||
+           ck::get_device_name() == "gfx1101" || ck::get_device_name() == "gfx1102")
         {
             return GridwiseGemm::CheckValidity(
                 arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.e_grid_desc_m_n_);

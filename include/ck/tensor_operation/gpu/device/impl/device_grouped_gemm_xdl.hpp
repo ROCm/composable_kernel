@@ -1,6 +1,6 @@
 #pragma once
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -548,11 +548,12 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 }
             }
 
-            hipGetErrorString(
-                hipMemcpy(arg.p_workspace_,
-                          arg.gemm_desc_kernel_arg_.data(),
-                          arg.gemm_desc_kernel_arg_.size() * sizeof(GemmBiasTransKernelArg),
-                          hipMemcpyHostToDevice));
+            hipGetErrorString(hipMemcpyWithStream(arg.p_workspace_,
+                                                  arg.gemm_desc_kernel_arg_.data(),
+                                                  arg.gemm_desc_kernel_arg_.size() *
+                                                      sizeof(GemmBiasTransKernelArg),
+                                                  hipMemcpyHostToDevice,
+                                                  stream_config.stream_id_));
 
             float ave_time = 0;
 
