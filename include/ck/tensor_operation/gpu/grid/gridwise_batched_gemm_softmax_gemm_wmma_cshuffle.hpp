@@ -18,102 +18,6 @@
 
 namespace ck {
 
-template <typename GridwiseOp,
-          typename ADataType,
-          typename B0DataType,
-          typename B1DataType,
-          typename CDataType,
-          typename AGridDesc,
-          typename B0GridDesc,
-          typename B1GridDesc,
-          typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-          typename AElementwiseOperation,
-          typename B0ElementwiseOperation,
-          typename AccElementwiseOperation,
-          typename B1ElementwiseOperation,
-          typename CElementwiseOperation,
-          typename ComputeBasePtrOfStridedBatch,
-          typename C0MatrixMask,
-          typename Block2CTileMap,
-          bool HasMainKBlockLoop>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
-#endif
-        kernel_batched_gemm_softmax_gemm_wmma_cshuffle(
-            const ADataType* __restrict__ p_a_grid,
-            const B0DataType* __restrict__ p_b0_grid,
-            const B1DataType* __restrict__ p_b1_grid,
-            CDataType* __restrict__ p_c_grid,
-            const AGridDesc a_grid_desc,
-            const B0GridDesc b0_grid_desc,
-            const B1GridDesc b1_grid_desc,
-            const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                c_grid_desc_mblock_mperblock_nblock_nperblock,
-            const AElementwiseOperation a_element_op,
-            const B0ElementwiseOperation b0_element_op,
-            const AccElementwiseOperation acc_element_op,
-            const B1ElementwiseOperation b1_element_op,
-            const CElementwiseOperation c_element_op,
-            const index_t batch_count,
-            const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
-            const C0MatrixMask c0_matrix_mask,
-            const Block2CTileMap block_2_ctile_map)
-{
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__) || defined(__gfx1101__) || \
-    defined(__gfx1102__))
-    __shared__ char p_shared[GridwiseOp::GetSharedMemoryNumberOfByte()];
-
-    const index_t num_blocks_per_batch =
-        __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
-    const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
-
-    const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetABasePtr(g_idx)));
-    const long_index_t b0_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetB0BasePtr(g_idx)));
-    const long_index_t b1_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetB1BasePtr(g_idx)));
-    const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetCBasePtr(g_idx)));
-
-    GridwiseOp::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
-                                                p_b0_grid + b0_batch_offset,
-                                                p_b1_grid + b1_batch_offset,
-                                                p_c_grid + c_batch_offset,
-                                                p_shared,
-                                                a_grid_desc,
-                                                b0_grid_desc,
-                                                b1_grid_desc,
-                                                c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                a_element_op,
-                                                b0_element_op,
-                                                acc_element_op,
-                                                b1_element_op,
-                                                c_element_op,
-                                                c0_matrix_mask,
-                                                block_2_ctile_map);
-#else
-    ignore = p_a_grid;
-    ignore = p_b0_grid;
-    ignore = p_b1_grid;
-    ignore = p_c_grid;
-    ignore = a_grid_desc;
-    ignore = b0_grid_desc;
-    ignore = b1_grid_desc;
-    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore = a_element_op;
-    ignore = b0_element_op;
-    ignore = acc_element_op;
-    ignore = b1_element_op;
-    ignore = c_element_op;
-    ignore = batch_count;
-    ignore = compute_base_ptr_of_batch;
-    ignore = c0_matrix_mask;
-    ignore = block_2_ctile_map;
-#endif // end of if (defined(__gfx1100__))
-}
-
 // Gemm0: A [M x K] x B0 [K x L] = Acc [M x L]
 // Gemm1: Acc [M x L] x B1 [L x N] = C [M x N]
 template <typename ADataType,
@@ -136,7 +40,8 @@ template <typename ADataType,
           index_t MPerBlock,
           index_t LPerBlock,
           index_t KPerBlock,
-          index_t K1Value,
+          index_t AK1Value,
+          index_t BK1Value,
           index_t NPerBlock,
           index_t LTilePerBlock,
           index_t L1Value,
@@ -194,9 +99,9 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
-    static constexpr auto AK1 = Number<K1Value>{};
-    static constexpr auto BK0 = Number<KPerBlock / K1Value>{};
-    static constexpr auto BK1 = Number<K1Value>{};
+    static constexpr auto AK1 = Number<AK1Value>{};
+    static constexpr auto BK0 = Number<KPerBlock / BK1Value>{};
+    static constexpr auto BK1 = Number<BK1Value>{};
 
     static constexpr auto L0PerBlock = LTilePerBlock / L1Value;
     static constexpr auto AL0        = Number<L0PerBlock / 2>{};
@@ -714,7 +619,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
 
     __host__ __device__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)
     {
-        const index_t num_loop = K / KPerBlock;
+        const index_t num_loop = math::integer_divide_ceil(K, KPerBlock);
 
         return GridwiseGemmPipe::CalculateHasMainLoop(num_loop);
     }
@@ -887,7 +792,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
                 // Thread-wise copy
                 // KPerBlock/WmmaK -> MRepeat -> MWaves -> WmmaK/K1 -> MPerWmma -> K1
                 constexpr auto KWmmaPerBlock = KPerBlock / WmmaK;
-                constexpr auto K0PerWmma     = WmmaK/2/K1Value;
+                constexpr auto K0PerWmma     = WmmaK/2/AK1Value;
                 auto a_block_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ADataType>(
                     a_block_desc.GetElementSpaceSize());
                 
@@ -903,7 +808,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
                                                               Number<K0PerWmma>{},
                                                               I1,
                                                               I1,
-                                                              Number<K1Value>{}>,
+                                                              Number<AK1Value>{}>,
                                                      Sequence<0, 1, 2, 3, 4, 5, 6>,
                                                      6,
                                                      ABlockTransferSrcScalarPerVector,
@@ -966,7 +871,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
                 // Thread-wise copy
                 // KPerBlock/WmmaK -> LRepeat -> LWaves -> KRow -> LPerWmma -> K1
                 constexpr auto KWmmaPerBlock = KPerBlock / WmmaK;
-                constexpr auto K0PerWmma     = WmmaK/2/K1Value;
+                constexpr auto K0PerWmma     = WmmaK/2/BK1Value;
                 auto b0_block_buf = make_static_buffer<AddressSpaceEnum::Vgpr, B0DataType>(
                     b0_block_desc.GetElementSpaceSize());
                 
@@ -982,7 +887,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
                                                               Number<K0PerWmma>{},
                                                               I1,
                                                               I1,
-                                                              Number<K1Value>{}>,
+                                                              Number<AK1Value>{}>,
                                                      Sequence<0, 1, 2, 3, 4, 5, 6>,
                                                      6,
                                                      B0BlockTransferSrcScalarPerVector,
@@ -1009,7 +914,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
 
 /*******************************************************************************/
         // Gemm0
-        constexpr auto KPack = math::integer_least_multiple(K1Value, WmmaK);
+        constexpr auto KPack = math::integer_least_multiple(math::integer_least_multiple(AK1Value,BK1Value), WmmaK);
 
         auto blockwise_gemm0 = BlockwiseGemmWMMA<
             BlockSize,
