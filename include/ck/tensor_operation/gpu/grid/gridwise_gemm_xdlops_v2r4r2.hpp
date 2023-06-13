@@ -1090,6 +1090,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                                                            block_2_ctile_map);
     }
 
+    static constexpr auto GetMPerBlock() { return MPerBlock; }
+
+    static constexpr auto GetNPerBlock() { return NPerBlock; }
+
     static std::string GetTypeString()
     {
         auto str = std::stringstream();
