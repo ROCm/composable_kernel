@@ -6,10 +6,8 @@
 #include "ck/ck.hpp"
 #include "ck/utility/functional2.hpp"
 #include "ck/utility/math.hpp"
-
-#include <cstddef>
-#include <cstdint>
-#include <type_traits>
+#include "ck/utility/type.hpp"
+#include "ck/utility/data_type.hpp"
 
 namespace ck {
 namespace detail {
@@ -47,15 +45,15 @@ __device__ inline int32_t amd_wave_read_first_lane(int32_t value)
 
 template <
     typename Object,
-    typename = std::enable_if_t<std::is_class_v<Object> && std::is_trivially_copyable_v<Object>>>
+    typename = std::enable_if_t<std::is_class<Object>::value && std::is_trivially_copyable<Object>::value>>
 __device__ auto amd_wave_read_first_lane(const Object& obj)
 {
     using Size                = unsigned;
     constexpr Size SgprSize   = 4;
     constexpr Size ObjectSize = sizeof(Object);
 
-    auto* const from_obj = reinterpret_cast<const std::byte*>(&obj);
-    alignas(Object) std::byte to_obj[ObjectSize];
+    auto* const from_obj = reinterpret_cast<const byte*>(&obj);
+    alignas(Object) byte to_obj[ObjectSize];
 
     constexpr Size RemainedSize             = ObjectSize % SgprSize;
     constexpr Size CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
