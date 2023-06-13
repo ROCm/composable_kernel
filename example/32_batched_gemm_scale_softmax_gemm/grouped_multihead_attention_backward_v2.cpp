@@ -24,7 +24,7 @@ Kernel outputs:
 */
 
 #define USING_MASK 0
-#define DIM 64 // DIM should be a multiple of 8.
+#define DIM 128 // DIM should be a multiple of 8.
 
 #include <iostream>
 #include <numeric>
@@ -475,9 +475,9 @@ int run(int argc, char* argv[])
             break;
         case 4:
             q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
-            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
-            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
-            ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<InputDataType>{2});
+            k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
+            v_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
+            ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
             break;
         case 5:
             q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
