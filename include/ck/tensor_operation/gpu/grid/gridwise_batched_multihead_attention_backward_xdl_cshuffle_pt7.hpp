@@ -1785,6 +1785,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                                     make_tuple(I0, I0, I0, I0, I0, I0),
                                                     y_dot_ygrad_thread_buf);
 
+            block_sync_lds();
+
             lse_thread_copy_global_to_vgpr.Run(lse_grid_desc_mb_m0_m1_m2_m3_m4,
                                                lse_grid_buf,
                                                lse_thread_desc_mb_m0_m1_m2_m3_m4,
