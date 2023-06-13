@@ -68,8 +68,8 @@ static constexpr auto TensorSpecB1 = ck::tensor_operation::device::TensorSpecial
 static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecialization::Default;
 
 // clang-format off
-// #define CK_MHA_USE_WAVE_1
-// #define CK_MHA_USE_WAVE_2
+#define CK_MHA_USE_WAVE_1
+#define CK_MHA_USE_WAVE_2
 #define CK_MHA_USE_WAVE_4
 #define CK_MHA_USE_WAVE_8
 using DeviceMHAFactory = 
@@ -210,7 +210,7 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2, 8, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 64, 1, 2>, 8,             
+            1, 1, S<1, 64, 1, 2>, 8,           
             MaskingSpec>,
 #endif
 #ifdef CK_MHA_USE_WAVE_8
@@ -283,6 +283,6 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 B1ElementOp,
                                                                                 CElementOp>;
 
-#include "run_batched_gemm_scale_softmax_gemm_permute.inc"
+#include "run_self_attention.inc"
 
 int main(int argc, char* argv[]) { return run(argc, argv); }

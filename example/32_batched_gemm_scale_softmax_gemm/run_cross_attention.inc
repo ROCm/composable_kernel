@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 int run(int argc, char* argv[])
 {
@@ -9,16 +9,16 @@ int run(int argc, char* argv[])
 
     // GEMM shape for A/B0/B1/C
     // C_g_m_o = A_g_m_k * B0_g_k_n * B1_g_n_o
-    ck::index_t M = 120;
-    ck::index_t N = 1000;
-    ck::index_t K = 64;
-    ck::index_t O = 128;
+    ck::index_t M = 256;
+    ck::index_t N = 64;
+    ck::index_t K = 80;
+    ck::index_t O = 80;
 
     // Output shape C[G0, M, G1, O]. Batch dim, outer dim, inner dim must match GEMM shape
     // C_g0_g1_m_o = reshape(C_g_m_o, [g0, g1, m, o])
     // C_g0_m_g1_o = permute(C_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t G0 = 7;
-    ck::index_t G1 = 13;
+    ck::index_t G0 = 2;
+    ck::index_t G1 = 8;
 
     float alpha = 1;
 
@@ -158,15 +158,22 @@ int run(int argc, char* argv[])
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_gs_ms_ks.mDesc.GetElementSpaceSize());
-    DeviceMem b0_device_buf(sizeof(B0DataType) * b0_gs_ns_ks.mDesc.GetElementSpaceSize());
-    DeviceMem b1_device_buf(sizeof(B1DataType) * b1_gs_os_ns.mDesc.GetElementSpaceSize());
+    std::vector<ck::index_t> kv_gs_ns_ks_lengths{G0, G1, N, 2, K};
+    std::vector<ck::index_t> kv_gs_ns_ks_strides = std::vector<ck::index_t>{
+        N * G1 * 2 * K, 2 * K, G1 * 2 * K, K, 1}; // kv layout [G0, M, G1, 2, K]
+    Tensor<ADataType> kv_gs_ns_ks(kv_gs_ns_ks_lengths, kv_gs_ns_ks_strides);
+    // merge kv into a packed pointer send to device
+    b0_gs_ns_ks.ForEach(
+        [&](auto& self, auto idx) { kv_gs_ns_ks(idx[0], idx[1], idx[2], 0, idx[3]) = self(idx); });
+    b1_gs_os_ns.ForEach(
+        [&](auto& self, auto idx) { kv_gs_ns_ks(idx[0], idx[1], idx[3], 1, idx[2]) = self(idx); });
+    DeviceMem q_device_buf(sizeof(ADataType) * a_gs_ms_ks.mDesc.GetElementSpaceSize());
+    DeviceMem kv_device_buf(sizeof(B0DataType) * b0_gs_ns_ks.mDesc.GetElementSpaceSize() +
+                            sizeof(B1DataType) * b1_gs_os_ns.mDesc.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(CDataType) *
                            c_gs_ms_os_device_result.mDesc.GetElementSpaceSize());
-
-    a_device_buf.ToDevice(a_gs_ms_ks.mData.data());
-    b0_device_buf.ToDevice(b0_gs_ns_ks.mData.data());
-    b1_device_buf.ToDevice(b1_gs_os_ns.mData.data());
+    q_device_buf.ToDevice(a_gs_ms_ks.mData.data());
+    kv_device_buf.ToDevice(kv_gs_ns_ks.mData.data());
 
     auto a_element_op    = AElementOp{};
     auto b0_element_op   = B0ElementOp{};
@@ -186,27 +193,24 @@ int run(int argc, char* argv[])
 
         using DeviceMHAInstance = ck::remove_cvref_t<decltype(device_conv_mha_instance)>;
         auto gemm               = DeviceMHAInstance{};
-        auto invoker            = gemm.MakeInvoker();
-        auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                          static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
-                                          static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
-                                          static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                          M,
-                                          N,
-                                          K,
-                                          O,
-                                          G0,
-                                          G1,
-                                          alpha,
-                                          input_permute,
-                                          output_permute);
+        auto invoker            = gemm.MakeCrossAttnInvoker();
+        auto argument =
+            gemm.MakeCrossAttnArgument(static_cast<ADataType*>(q_device_buf.GetDeviceBuffer()),
+                                       static_cast<B0DataType*>(kv_device_buf.GetDeviceBuffer()),
+                                       static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                                       G0,
+                                       M,
+                                       N,
+                                       G1,
+                                       K,
+                                       alpha);
 
-        if(!gemm.IsSupportedArgument(argument))
-        {
-            std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+        // if(!gemm.IsSupportedArgument(argument))
+        // {
+        //     std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
-            // return 0;
-        }
+        //     return 0;
+        // }
 
         ck::index_t BatchCount = G0 * G1;
 
