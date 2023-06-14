@@ -1796,39 +1796,40 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                 s_slash_p_thread_buf,
                 num_k_block_main_loop);
 
+            // 8d thread_desc in thread scope
+            constexpr auto c_thread_lengths =
+                s_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2().GetLengths();
+
+            // 8d block_desc in block scope
+            constexpr auto c_block_lengths =
+                s_blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2().GetLengths();
+
+            constexpr auto M0 = c_block_lengths[I0];
+            constexpr auto N0 = c_block_lengths[I1];
+            constexpr auto M1 = c_block_lengths[I2];
+            constexpr auto N1 = c_block_lengths[I3];
+            constexpr auto M2 = c_block_lengths[I4];
+            constexpr auto M3 = c_block_lengths[I5];
+            constexpr auto M4 = c_block_lengths[I6];
+            constexpr auto N2 = c_block_lengths[I7];
+
+            // works like multi-dimension static_for (static_ford), but provides both the linear
+            // index as well as n-d index
+            using Acc0TileIterator = SpaceFillingCurve<
+                decltype(c_thread_lengths),
+                typename arithmetic_sequence_gen<0, c_thread_lengths.Size(), 1>::type,
+                typename uniform_sequence_gen<c_thread_lengths.Size(), 1>::type,
+                false>; // SnakeCurved
+
+            constexpr auto block_idx_to_m_n_adaptor = make_single_stage_tensor_adaptor(
+                make_tuple(make_unmerge_transform(make_tuple(M0, M1, M2, M3, M4)),
+                           make_unmerge_transform(make_tuple(N0, N1, N2))),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2, 4, 5, 6>{}, Sequence<1, 3, 7>{}));
+
             // do MNK padding or upper triangular masking
             if constexpr(MaskOutUpperTriangle || PadN)
             {
-                // 8d thread_desc in thread scope
-                constexpr auto c_thread_lengths =
-                    s_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2().GetLengths();
-
-                // 8d block_desc in block scope
-                constexpr auto c_block_lengths =
-                    s_blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2().GetLengths();
-
-                constexpr auto M0 = c_block_lengths[I0];
-                constexpr auto N0 = c_block_lengths[I1];
-                constexpr auto M1 = c_block_lengths[I2];
-                constexpr auto N1 = c_block_lengths[I3];
-                constexpr auto M2 = c_block_lengths[I4];
-                constexpr auto M3 = c_block_lengths[I5];
-                constexpr auto M4 = c_block_lengths[I6];
-                constexpr auto N2 = c_block_lengths[I7];
-
-                // works like multi-dimension static_for (static_ford), but provides both the linear
-                // index as well as n-d index
-                using Acc0TileIterator = SpaceFillingCurve<
-                    decltype(c_thread_lengths),
-                    typename arithmetic_sequence_gen<0, c_thread_lengths.Size(), 1>::type,
-                    typename uniform_sequence_gen<c_thread_lengths.Size(), 1>::type,
-                    false>; // SnakeCurved
-
-                constexpr auto block_idx_to_m_n_adaptor = make_single_stage_tensor_adaptor(
-                    make_tuple(make_unmerge_transform(make_tuple(M0, M1, M2, M3, M4)),
-                               make_unmerge_transform(make_tuple(N0, N1, N2))),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}),
-                    make_tuple(Sequence<0, 2, 4, 5, 6>{}, Sequence<1, 3, 7>{}));
 
                 static_for<0, Acc0TileIterator::GetNumOfAccess(), 1>{}([&](auto i) {
                     auto acc0_thread_idx = Acc0TileIterator::GetIndex(i) + acc0_thread_origin;
@@ -1860,36 +1861,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             // save z to global
             if(p_z_grid)
             {
-                // P_dropped
-                constexpr auto c_thread_lengths =
-                    s_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2().GetLengths();
-
-                // 8d block_desc in block scope
-                constexpr auto c_block_lengths =
-                    s_blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2().GetLengths();
-
-                constexpr auto M0 = c_block_lengths[I0];
-                constexpr auto N0 = c_block_lengths[I1];
-                constexpr auto M1 = c_block_lengths[I2];
-                constexpr auto N1 = c_block_lengths[I3];
-                constexpr auto M2 = c_block_lengths[I4];
-                constexpr auto M3 = c_block_lengths[I5];
-                constexpr auto M4 = c_block_lengths[I6];
-                constexpr auto N2 = c_block_lengths[I7];
-
-                // works like multi-dimension static_for (static_ford), but provides both the linear
-                // index as well as n-d index
-                using Acc0TileIterator = SpaceFillingCurve<
-                    decltype(c_thread_lengths),
-                    typename arithmetic_sequence_gen<0, c_thread_lengths.Size(), 1>::type,
-                    typename uniform_sequence_gen<c_thread_lengths.Size(), 1>::type,
-                    false>; // SnakeCurved
-
-                constexpr auto block_idx_to_m_n_adaptor = make_single_stage_tensor_adaptor(
-                    make_tuple(make_unmerge_transform(make_tuple(M0, M1, M2, M3, M4)),
-                               make_unmerge_transform(make_tuple(N0, N1, N2))),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}),
-                    make_tuple(Sequence<0, 2, 4, 5, 6>{}, Sequence<1, 3, 7>{}));
 
                 auto acc0_thread_idx = Acc0TileIterator::GetIndex(I0) + acc0_thread_origin;
                 auto m_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
@@ -1917,52 +1888,12 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             else
             {
                 ignore = z_grid_buf;
-                // 8d thread_desc in thread scope
-                constexpr auto c_thread_lengths =
-                    s_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2().GetLengths();
 
-                // 8d block_desc in block scope
-                constexpr auto c_block_lengths =
-                    s_blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2().GetLengths();
-
-                constexpr auto M0 = c_block_lengths[I0];
-                constexpr auto N0 = c_block_lengths[I1];
-                constexpr auto M1 = c_block_lengths[I2];
-                constexpr auto N1 = c_block_lengths[I3];
-                constexpr auto M2 = c_block_lengths[I4];
-                constexpr auto M3 = c_block_lengths[I5];
-                constexpr auto M4 = c_block_lengths[I6];
-                constexpr auto N2 = c_block_lengths[I7];
-
-                // works like multi-dimension static_for (static_ford), but provides both the linear
-                // index as well as n-d index
-                using Acc0TileIterator = SpaceFillingCurve<
-                    decltype(c_thread_lengths),
-                    typename arithmetic_sequence_gen<0, c_thread_lengths.Size(), 1>::type,
-                    typename uniform_sequence_gen<c_thread_lengths.Size(), 1>::type,
-                    false>; // SnakeCurved
-
-                constexpr auto block_idx_to_m_n_adaptor = make_single_stage_tensor_adaptor(
-                    make_tuple(make_unmerge_transform(make_tuple(M0, M1, M2, M3, M4)),
-                               make_unmerge_transform(make_tuple(N0, N1, N2))),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}),
-                    make_tuple(Sequence<0, 2, 4, 5, 6>{}, Sequence<1, 3, 7>{}));
-
-                // if(get_thread_global_1d_id()==0){
-                //    printf("tid 0 m_global & n_global is %d & %d \n", m_global , n_global);
-                //}
                 auto acc0_thread_idx = Acc0TileIterator::GetIndex(I0) + acc0_thread_origin;
                 auto m_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
                 auto n_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
                 auto m_global = m_local + m_block_data_idx_on_grid;
                 auto n_global = n_local + n_block_data_idx_on_grid;
-
-                // if(get_thread_global_1d_id()==0){
-                //     printf("tid 0 m_global & n_global is %d & %d \n", m_global , n_global);
-                // }
-                // if(get_thread_global_1d_id()==32){
-                //     printf("tid 32 m_global & n_global is %d & %d \n", m_global , n_global);
-                // }
 
                 auto global_elem_id_raw =
                     MRaw * NRaw * g_idx + m_global * NRaw + n_global; // unique element global 1d id
