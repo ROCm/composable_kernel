@@ -16,7 +16,7 @@
 #include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_multihead_attention_backward_xdl_cshuffle_pt6.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_multihead_attention_backward_xdl_cshuffle_pt4.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -39,7 +39,7 @@ template <typename GridwiseGemm,
           typename CElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
-          typename ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
+          typename ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3,
           typename B1GridDesc_BK0_N_BK1,
           typename YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock,
           typename LSEGridDescriptor_M,
@@ -71,7 +71,7 @@ __global__ void
             const CElementwiseOperation c_element_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-            const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
+            const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3
                 c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
             const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
             const YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
@@ -85,7 +85,9 @@ __global__ void
             const C0MatrixMask c0_matrix_mask,
             const float p_drop,
             const unsigned long long seed,
-            const unsigned long long offset)
+            const unsigned long long offset,
+            const index_t MRaw,
+            const index_t NRaw)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -144,6 +146,9 @@ __global__ void
                 c0_matrix_mask,
                 p_drop,
                 ph,
+                g_idx,
+                MRaw,
+                NRaw,
                 i);
         }
     }
@@ -176,6 +181,9 @@ __global__ void
                                                       c0_matrix_mask,
                                                       p_drop,
                                                       ph,
+                                                      g_idx,
+                                                      MRaw,
+                                                      NRaw,
                                                       0);
     }
 #else
@@ -277,6 +285,16 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
 
     // TODO: implement bias combination
     static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
+
+#if 0
+    // TODO: use alias
+    static constexpr index_t NumDimGemm0M = NumDimM;
+    static constexpr index_t NumDimGemm0N = NumDimN;
+    static constexpr index_t NumDimGemm0K = NumDimK;
+    static constexpr index_t NumDimGemm1M = NumDimM;
+    static constexpr index_t NumDimGemm1N = NumDimO;
+    static constexpr index_t NumDimGemm1K = NumDimN;
+#endif
 
     using DeviceOp = DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1;
 
@@ -808,8 +826,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             seed_   = std::get<0>(seeds);
             offset_ = std::get<1>(seeds);
 
-            c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
-                GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(z_grid_desc_m_n_);
+            c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_ =
+                GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3(z_grid_desc_m_n_);
             // Print();
         }
 
@@ -869,8 +887,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
         typename GridwiseGemm::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
             y_grid_desc_mblock_mperblock_oblock_operblock_;
 
-        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
-            c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
+        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3
+            c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_;
 
         // block-to-c-tile map
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
@@ -933,7 +951,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                     CElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
+                    typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3,
                     DeviceOp::B1GridDesc_BK0_N_BK1,
                     typename GridwiseGemm::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock,
                     DeviceOp::LSEGridDesc_M,
@@ -967,7 +985,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                     arg.c_element_op_,
                     arg.a_grid_desc_ak0_m_ak1_,
                     arg.b_grid_desc_bk0_n_bk1_,
-                    arg.c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
+                    arg.c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_,
                     arg.b1_grid_desc_bk0_n_bk1_,
                     arg.y_grid_desc_mblock_mperblock_oblock_operblock_,
                     arg.lse_grid_desc_m_,
@@ -979,11 +997,24 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                     arg.c0_matrix_mask_,
                     arg.p_drop_,
                     arg.seed_,
-                    arg.offset_);
+                    arg.offset_,
+                    arg.raw_lengths_mz_nz_kz_gemm1nz_[0],
+                    arg.raw_lengths_mz_nz_kz_gemm1nz_[1]);
             };
 
+            // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need
+            // to concern Gemm0's loop
+#if 1
+            // if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
+            // {
+            //     ave_time = launch_kernel(integral_constant<bool, true>{});
+            // }
+            // else
+            // {
+            //     ave_time = launch_kernel(integral_constant<bool, false>{});
+            // }
             ave_time = launch_kernel(integral_constant<bool, false>{});
-
+#endif
             return ave_time;
         }
 
@@ -1003,6 +1034,10 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+#if 0
+        arg.Print();
+#endif
+
         if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
         {
             return false;
