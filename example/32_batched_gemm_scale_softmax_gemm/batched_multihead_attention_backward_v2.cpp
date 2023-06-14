@@ -98,9 +98,9 @@ static constexpr auto TensorSpecY   = ck::tensor_operation::device::TensorSpecia
 static constexpr bool Deterministic = false;
 
 // DIM should be a multiple of 8.
-// If      DIM <= 32 , ues prototype1 1st template.
-// If 32 < DIM <= 64 , ues prototype1 2nd template.
-// If 64 < DIM <= 128, ues prototype2 2nd template.
+// If      DIM <= 32 , ues prototype1.
+// If 32 < DIM <= 64 , ues prototype1.
+// If 64 < DIM <= 128, ues prototype2.
 #if(DIM <= 32)
 // clang-format off
 using DeviceGemmInstance =
