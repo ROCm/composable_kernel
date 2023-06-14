@@ -16,7 +16,7 @@
 #include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_multihead_attention_backward_xdl_cshuffle_pt4.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_multihead_attention_backward_xdl_cshuffle_pt6.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -285,16 +285,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
 
     // TODO: implement bias combination
     static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
-
-#if 0
-    // TODO: use alias
-    static constexpr index_t NumDimGemm0M = NumDimM;
-    static constexpr index_t NumDimGemm0N = NumDimN;
-    static constexpr index_t NumDimGemm0K = NumDimK;
-    static constexpr index_t NumDimGemm1M = NumDimM;
-    static constexpr index_t NumDimGemm1N = NumDimO;
-    static constexpr index_t NumDimGemm1K = NumDimN;
-#endif
 
     using DeviceOp = DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1;
 
@@ -1002,19 +992,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                     arg.raw_lengths_mz_nz_kz_gemm1nz_[1]);
             };
 
-            // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need
-            // to concern Gemm0's loop
-#if 1
-            // if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
-            // {
-            //     ave_time = launch_kernel(integral_constant<bool, true>{});
-            // }
-            // else
-            // {
-            //     ave_time = launch_kernel(integral_constant<bool, false>{});
-            // }
             ave_time = launch_kernel(integral_constant<bool, false>{});
-#endif
+
             return ave_time;
         }
 
@@ -1034,9 +1013,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-#if 0
-        arg.Print();
-#endif
 
         if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
         {
