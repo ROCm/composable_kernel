@@ -10,7 +10,7 @@
 #include "profiler/profile_batched_gemm_impl.hpp"
 #include "profiler_operation_registry.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/batched_gemm.hpp"
+#include "ck/library/tensor_operation_instance/gpu/batched_gemm_multi_d.hpp"
 
 enum struct GemmMatrixLayout
 {
@@ -22,22 +22,20 @@ enum struct GemmMatrixLayout
 
 enum struct GemmDataType
 {
-    F32_F32_F32,    // 0
-    F16_F16_F16,    // 1
-    BF16_BF16_BF16, // 2
-    INT8_INT8_INT8, // 3
+    F16_F16_F16,    // 0
+    INT8_INT8_INT8, // 1
 };
 
-#define OP_NAME "batched_gemm"
-#define OP_DESC "Batched GEMM"
+#define OP_NAME "batched_gemm_multi_d"
+#define OP_DESC "Batched GEMM multi D"
 
-int profile_batched_gemm(int argc, char* argv[])
+int profile_batched_gemm_multi_d(int argc, char* argv[])
 {
     if(argc != 18)
     {
         // clang-format off
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
-        printf("arg2: data type (0: fp32; 1: fp16, 2: bf16, 3: int8)\n");
+        printf("arg2: data type (0: fp16; 1: int8)\n");
         printf("arg3: matrix layout (0: A[g, m, k] * B[g, k, n] = C[g, m, n];\n");
         printf("                     1: A[g, m, k] * B[g, n, k] = C[g, m, n];\n");
         printf("                     2: A[g, k, m] * B[g, k, n] = C[g, m, n];\n");
@@ -72,9 +70,7 @@ int profile_batched_gemm(int argc, char* argv[])
 
     const int BatchCount = std::stoi(argv[17]);
 
-    using F32  = float;
     using F16  = ck::half_t;
-    using BF16 = ck::bhalf_t;
     using INT8 = int8_t;
 
     using Row = ck::tensor_layout::gemm::RowMajor;
@@ -82,13 +78,15 @@ int profile_batched_gemm(int argc, char* argv[])
 
     auto profile =
         [&](auto a_type, auto b_type, auto c_type, auto a_layout, auto b_layout, auto c_layout) {
-            using ADataType = decltype(a_type);
-            using BDataType = decltype(b_type);
-            using CDataType = decltype(c_type);
+            using ADataType  = decltype(a_type);
+            using BDataType  = decltype(b_type);
+            using CDataType  = decltype(c_type);
+            using DsDataType = ck::Tuple<>;
 
-            using ALayout = decltype(a_layout);
-            using BLayout = decltype(b_layout);
-            using CLayout = decltype(c_layout);
+            using ALayout  = decltype(a_layout);
+            using BLayout  = decltype(b_layout);
+            using CLayout  = decltype(c_layout);
+            using DsLayout = ck::Tuple<>;
 
             const int DefaultStrideA = ck::is_same_v<ALayout, Row> ? K : M;
             const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
@@ -110,15 +108,17 @@ int profile_batched_gemm(int argc, char* argv[])
             using BElementOp = ck::tensor_operation::element_wise::PassThrough;
             using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-            using DeviceOp = ck::tensor_operation::device::DeviceBatchedGemm<ALayout,
-                                                                             BLayout,
-                                                                             CLayout,
-                                                                             ADataType,
-                                                                             BDataType,
-                                                                             CDataType,
-                                                                             AElementOp,
-                                                                             BElementOp,
-                                                                             CElementOp>;
+            using DeviceOp = ck::tensor_operation::device::DeviceBatchedGemmMultiD<ALayout,
+                                                                                   BLayout,
+                                                                                   DsLayout,
+                                                                                   CLayout,
+                                                                                   ADataType,
+                                                                                   BDataType,
+                                                                                   DsDataType,
+                                                                                   CDataType,
+                                                                                   AElementOp,
+                                                                                   BElementOp,
+                                                                                   CElementOp>;
 
             bool pass = ck::profiler::profile_batched_gemm_impl<ADataType,
                                                                 BDataType,
@@ -147,23 +147,7 @@ int profile_batched_gemm(int argc, char* argv[])
             return pass ? 0 : 1;
         };
 
-    if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
-    {
-        return profile(F32{}, F32{}, F32{}, Row{}, Row{}, Row{});
-    }
-    else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_NK_MN)
-    {
-        return profile(F32{}, F32{}, F32{}, Row{}, Col{}, Row{});
-    }
-    else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::KM_KN_MN)
-    {
-        return profile(F32{}, F32{}, F32{}, Col{}, Row{}, Row{});
-    }
-    else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::KM_NK_MN)
-    {
-        return profile(F32{}, F32{}, F32{}, Col{}, Col{}, Row{});
-    }
-    else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
+    if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(F16{}, F16{}, F16{}, Row{}, Row{}, Row{});
     }
@@ -178,22 +162,6 @@ int profile_batched_gemm(int argc, char* argv[])
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
         return profile(F16{}, F16{}, F16{}, Col{}, Col{}, Row{});
-    }
-    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
-    {
-        return profile(BF16{}, BF16{}, BF16{}, Row{}, Row{}, Row{});
-    }
-    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
-    {
-        return profile(BF16{}, BF16{}, BF16{}, Row{}, Col{}, Row{});
-    }
-    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_KN_MN)
-    {
-        return profile(BF16{}, BF16{}, BF16{}, Col{}, Row{}, Row{});
-    }
-    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_NK_MN)
-    {
-        return profile(BF16{}, BF16{}, BF16{}, Col{}, Col{}, Row{});
     }
     else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::MK_KN_MN)
     {
@@ -219,4 +187,4 @@ int profile_batched_gemm(int argc, char* argv[])
     }
 }
 
-REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_batched_gemm);
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_batched_gemm_multi_d);

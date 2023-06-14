@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <vector>
 #include <iostream>
+#include <stdexcept>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -127,107 +128,42 @@ int main(int argc, char* argv[])
     const auto b_element_op   = BElementOp{};
     const auto cde_element_op = CDEElementOp{};
 
-    std::string best_op_name;
-    bool found            = false;
-    int best_op_id        = -1;
-    float best_ave_time   = 0;
-    float best_tflops     = 0;
-    float best_gb_per_sec = 0;
+    // get generic instance
+    auto& op_ptr = op_ptrs[0];
 
-    // profile device operation instances
-    std::cout << "Run all instances and do timing" << std::endl;
+    std::cout << "Run the generic instance without timing: " << op_ptr->GetTypeString()
+              << std::endl;
 
-    for(int i = 0; i < op_ptrs.size(); ++i)
+    // run the generic instance
+    auto argument_ptr =
+        op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
+                                    b_device_buf.GetDeviceBuffer(),
+                                    std::array<const void*, 1>{d0_m_n_device_buf.GetDeviceBuffer()},
+                                    e_device_buf.GetDeviceBuffer(),
+                                    M,
+                                    N,
+                                    K,
+                                    StrideA,
+                                    StrideB,
+                                    std::array<ck::index_t, 1>{StrideD0},
+                                    StrideE,
+                                    a_element_op,
+                                    b_element_op,
+                                    cde_element_op);
+
+    auto invoker_ptr = op_ptr->MakeInvokerPointer();
+
+    if(op_ptr->IsSupportedArgument(argument_ptr.get()))
     {
-        auto& op_ptr = op_ptrs[i];
-
-        auto argument_ptr = op_ptr->MakeArgumentPointer(
-            a_device_buf.GetDeviceBuffer(),
-            b_device_buf.GetDeviceBuffer(),
-            std::array<const void*, 1>{d0_m_n_device_buf.GetDeviceBuffer()},
-            e_device_buf.GetDeviceBuffer(),
-            M,
-            N,
-            K,
-            StrideA,
-            StrideB,
-            std::array<ck::index_t, 1>{StrideD0},
-            StrideE,
-            a_element_op,
-            b_element_op,
-            cde_element_op);
-
-        auto invoker_ptr = op_ptr->MakeInvokerPointer();
-
-        std::string op_name = op_ptr->GetTypeString();
-
-        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
-        {
-            float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
-
-            std::size_t flop = std::size_t(2) * M * N * K;
-
-            std::size_t num_btype =
-                sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(EDataType) * M * N;
-
-            float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-            float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-            std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
-                      << gb_per_sec << " GB/s, " << op_name << std::endl;
-
-            if(tflops > best_tflops)
-            {
-                found           = true;
-                best_op_id      = i;
-                best_op_name    = op_name;
-                best_tflops     = tflops;
-                best_ave_time   = ave_time;
-                best_gb_per_sec = gb_per_sec;
-            }
-        }
-        else
-        {
-            std::cout << op_name << " does not support this problem" << std::endl;
-        }
+        invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
+    }
+    else
+    {
+        throw std::runtime_error(
+            "Generic instance should be suitable for various input lengths/strides");
     }
 
-    std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
-              << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
-
-    // run the best intance
-    {
-        auto& op_ptr = op_ptrs[best_op_id];
-
-        std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
-                  << std::endl;
-
-        auto argument_ptr = op_ptr->MakeArgumentPointer(
-            a_device_buf.GetDeviceBuffer(),
-            b_device_buf.GetDeviceBuffer(),
-            std::array<const void*, 1>{d0_m_n_device_buf.GetDeviceBuffer()},
-            e_device_buf.GetDeviceBuffer(),
-            M,
-            N,
-            K,
-            StrideA,
-            StrideB,
-            std::array<ck::index_t, 1>{StrideD0},
-            StrideE,
-            a_element_op,
-            b_element_op,
-            cde_element_op);
-
-        auto invoker_ptr = op_ptr->MakeInvokerPointer();
-
-        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
-        {
-            invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
-        }
-
-        std::cout << "Done" << std::endl;
-    }
+    std::cout << "Done" << std::endl;
 
     return 0;
 }
