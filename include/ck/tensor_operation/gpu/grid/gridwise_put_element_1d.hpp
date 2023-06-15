@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "ck/tensor_description/cluster_descriptor.hpp"
 #include "ck/utility/data_type.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 
