@@ -8,7 +8,6 @@
 
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/device/device_index_pool_bwd.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_put_element_1d.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_1d.hpp"
