@@ -116,7 +116,6 @@ bool maxpool_bwd_test(bool do_verification,
 
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
     dout_device_buf.ToDevice(dout_n_c_ho_wo.mData.data());
-    din_device_buf.SetZero();
 
     auto pool_fwd              = DevicePoolFwdInstance{};
     auto pool_fwd_invoker_ptr  = pool_fwd.MakeInvokerPointer();
