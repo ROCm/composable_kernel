@@ -13,6 +13,7 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 
 #include "ck/host_utility/kernel_launch.hpp"
+#include "ck/host_utility/stream_utility.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -171,10 +172,7 @@ struct DeviceElementwise2dImpl : public DeviceElementwise<InDataTypeTuple,
               inStridesArray_(inStridesArray),
               outStridesArray_(outStridesArray),
               elementwise_op_(elementwise_op),
-              blockSize_(256),
-              gridSize_(120), // FIXME - Calculate the grid size by number of CU in the future
-              num_threads_m_((gridSize_ * blockSize_) / 16),
-              num_threads_n_(16)
+              blockSize_(256)
         {
             static_assert(NumDim_m > 0, "");
             static_assert(NumDim_n > 0, "");
@@ -192,34 +190,10 @@ struct DeviceElementwise2dImpl : public DeviceElementwise<InDataTypeTuple,
                     return static_cast<DataType*>(out_dev_buffers[I.value]);
                 },
                 Number<NumOutput>{});
-
-            in_grid_2d_desc_tuple_ = generate_tuple(
-                [&](auto I) {
-                    return MakeDescriptor_MN(lengths,
-                                             inStridesArray[I.value],
-                                             gridSize_,
-                                             blockSize_,
-                                             num_threads_m_,
-                                             num_threads_n_);
-                },
-                Number<NumInput>{});
-
-            out_grid_2d_desc_tuple_ = generate_tuple(
-                [&](auto I) {
-                    return MakeDescriptor_MN(lengths,
-                                             outStridesArray[I.value],
-                                             gridSize_,
-                                             blockSize_,
-                                             num_threads_m_,
-                                             num_threads_n_);
-                },
-                Number<NumOutput>{});
         }
 
         InDataTypePointerTuple in_dev_buffers_;
         OutDataTypePointerTuple out_dev_buffers_;
-        InGrid2dDescTuple in_grid_2d_desc_tuple_;
-        OutGrid2dDescTuple out_grid_2d_desc_tuple_;
 
         std::array<index_t, NumDim> lengths_;
         std::array<std::array<index_t, NumDim>, NumInput> inStridesArray_;
@@ -227,15 +201,38 @@ struct DeviceElementwise2dImpl : public DeviceElementwise<InDataTypeTuple,
 
         ElementwiseOperation elementwise_op_;
         index_t blockSize_;
-        index_t gridSize_;
-        index_t num_threads_m_;
-        index_t num_threads_n_;
     };
 
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+            index_t gridSize      = getAvailableComputeUnitCount(stream_config);
+            index_t num_threads_m = (gridSize * arg.blockSize_) / 16;
+            index_t num_threads_n = 16;
+
+            auto in_grid_2d_desc_tuple = generate_tuple(
+                [&](auto I) {
+                    return MakeDescriptor_MN(arg.lengths_,
+                                             arg.inStridesArray_[I.value],
+                                             gridSize,
+                                             arg.blockSize_,
+                                             num_threads_m,
+                                             num_threads_n);
+                },
+                Number<NumInput>{});
+
+            auto out_grid_2d_desc_tuple = generate_tuple(
+                [&](auto I) {
+                    return MakeDescriptor_MN(arg.lengths_,
+                                             arg.outStridesArray_[I.value],
+                                             gridSize,
+                                             arg.blockSize_,
+                                             num_threads_m,
+                                             num_threads_n);
+                },
+                Number<NumOutput>{});
+
             const auto kernel = kernel_elementwise_2d<GridwiseElementwise,
                                                       InGrid2dDescTuple,
                                                       OutGrid2dDescTuple,
@@ -245,16 +242,16 @@ struct DeviceElementwise2dImpl : public DeviceElementwise<InDataTypeTuple,
 
             float elapsed_time = launch_and_time_kernel(stream_config,
                                                         kernel,
-                                                        dim3(arg.gridSize_),
+                                                        dim3(gridSize),
                                                         dim3(arg.blockSize_),
                                                         0,
-                                                        arg.in_grid_2d_desc_tuple_,
-                                                        arg.out_grid_2d_desc_tuple_,
+                                                        in_grid_2d_desc_tuple,
+                                                        out_grid_2d_desc_tuple,
                                                         arg.in_dev_buffers_,
                                                         arg.out_dev_buffers_,
                                                         arg.elementwise_op_,
-                                                        arg.num_threads_m_,
-                                                        arg.num_threads_n_);
+                                                        num_threads_m,
+                                                        num_threads_n);
             return elapsed_time;
         }
 
