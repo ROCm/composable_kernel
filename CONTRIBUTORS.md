@@ -4,7 +4,7 @@ This is the list of developers and contributors to Composable Kernel library
 
 
 ## Developers
-[Chao Liu](https://github.com/asroy), [Jing Zhang](https://github.com/zjing14), 2018-2022
+[Chao Liu](https://github.com/asroy), [Jing Zhang](https://github.com/zjing14), 2018-2023
 
 [Letao Qin](https://github.com/ltqin), [Qianfeng Zhang](https://github.com/qianfengz), [Liang Huang](https://github.com/carlushuang), [Shaojie Wang](https://github.com/shaojiewang), 2019-2022
 
