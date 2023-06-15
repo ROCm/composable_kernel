@@ -13,6 +13,7 @@
 
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/span.hpp"
+#include "ck/utility/type_convert.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/ranges.hpp"

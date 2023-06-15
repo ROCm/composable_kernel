@@ -6,6 +6,7 @@
 #include "ck/ck.hpp"
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type.hpp"
+#include "ck/utility/type_convert.hpp"
 
 namespace ck {
 

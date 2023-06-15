@@ -6,6 +6,7 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/math.hpp"
 #include "ck/utility/math_v2.hpp"
+#include "ck/utility/type_convert.hpp"
 
 namespace ck {
 namespace tensor_operation {

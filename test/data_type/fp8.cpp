@@ -3,6 +3,7 @@
 
 #include "gtest/gtest.h"
 #include "ck/utility/data_type.hpp"
+#include "ck/utility/type_convert.hpp"
 
 using ck::f8_convert_sr;
 using ck::f8_t;

@@ -3,16 +3,10 @@
 
 #pragma once
 
-#include "ck/utility/f8_utils.hpp"
+#include "ck/utility/data_type.hpp"
 #include "ck/utility/random_gen.hpp"
 
 namespace ck {
-
-using bhalf_t = ushort;
-using half_t  = _Float16;
-#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-using int4_t = _BitInt(4);
-#endif
 
 // Convert X to Y
 template <typename Y, typename X>
