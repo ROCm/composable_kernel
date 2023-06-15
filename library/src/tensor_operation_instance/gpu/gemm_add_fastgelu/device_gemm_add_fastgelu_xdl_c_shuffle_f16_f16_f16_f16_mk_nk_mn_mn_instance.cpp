@@ -21,6 +21,17 @@ static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecial
 // e = elementwise((a * b), d0, d1)
 // outout: e[m, n]
 // input: a[m, k], b[n, k], d0[m, n], d1[m ,n]
+using device_gemm_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_mk_nk_mn_mn_generic_instance =
+    std::tuple<
+        // clang-format off
+        //##############################|      A|      B|            Ds|      E| AData| BData| AccData| CShuffle|        DsData| EData|           A|           B|            CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|          LoopScheduler|                    Pipeline|
+        //##############################| Layout| Layout|        Layout| Layout|  Type|  Type|    Type| DataType|          Type|  Type| Elementwise| Elementwise|    Elementwise| Specialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|                       |                            |
+        //##############################|       |       |              |       |      |      |        |         |              |      |   Operation|   Operation|      Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|                       |                            |
+        //##############################|       |       |              |       |      |      |        |         |              |      |            |            |               |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                       |                            |
+        // pipeline v1, 1 wave
+        DeviceGemmMultipleD_Xdl_CShuffle<    Row,    Col,     Row_Tuple,    Row,   F16,   F16,     F32,      F32,     F16_Tuple,   F16, PassThrough, PassThrough,    AddFastGelu, GemmMNKPadding,        1,    64,    16,    16,    32,   8,   8,   16,   16,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              8,         1,           1,           1,               S<1, 16, 1, 4>,               1, LoopScheduler::Default,        PipelineVersion::v1>
+        // clang-format on
+        >;
 using device_gemm_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_mk_nk_mn_mn_instances = std::tuple<
     // clang-format off
         //##############################|      A|      B|        Ds|      E| AData| BData| AccData| CShuffle|    DsData| EData|           A|           B|            CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|          LoopScheduler|                    Pipeline|
@@ -114,6 +125,9 @@ void add_device_gemm_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_mk_nk_mn_mn_inst
                                                     PassThrough,
                                                     AddFastGelu>>>& instances)
 {
+    add_device_operation_instances(
+        instances,
+        device_gemm_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_mk_nk_mn_mn_generic_instance{});
     add_device_operation_instances(
         instances, device_gemm_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_mk_nk_mn_mn_instances{});
     add_device_operation_instances(
