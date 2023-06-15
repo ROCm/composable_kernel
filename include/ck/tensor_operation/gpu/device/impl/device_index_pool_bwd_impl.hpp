@@ -244,6 +244,7 @@ struct DeviceIndexPoolBwdImpl : public DeviceIndexPoolBwd<DOutDataType, IndexDat
         }
     };
 
+    // User need to set the value of workspace to zero
     size_t GetWorkSpaceSize(const BaseArgument* pArg) const override
     {
         const Argument* pArg_ = dynamic_cast<const Argument*>(pArg);
