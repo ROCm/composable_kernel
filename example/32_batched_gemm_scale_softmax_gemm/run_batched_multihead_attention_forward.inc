@@ -20,15 +20,10 @@ int run(int argc, char* argv[])
     ck::index_t G0 = 7;
     ck::index_t G1 = 13;
 
-    float alpha = 1;
-
     bool input_permute  = false;
     bool output_permute = true;
 
     float p_drop                    = 0.1;
-    float p_dropout                 = 1 - p_drop;
-    uint16_t p_dropout_in_16bits    = uint16_t(std::floor(p_dropout * 65535.0));
-    float rp_dropout                = 1.0 / p_dropout;
     const unsigned long long seed   = 1;
     const unsigned long long offset = 0;
 
@@ -55,7 +50,7 @@ int run(int argc, char* argv[])
         G0 = std::stoi(argv[8]);
         G1 = std::stoi(argv[9]);
 
-        alpha = std::stof(argv[10]);
+        p_drop = std::stof(argv[10]);
 
         input_permute  = std::stoi(argv[11]);
         output_permute = std::stoi(argv[12]);
@@ -70,6 +65,11 @@ int run(int argc, char* argv[])
         printf("arg11 to 12: input / output permute\n");
         exit(0);
     }
+
+    float p_dropout               = 1 - p_drop;
+    ZDataType p_dropout_in_16bits = ZDataType(std::floor(p_dropout * 65535.0));
+    float rp_dropout              = 1.0 / p_dropout;
+    float alpha                   = 1.f / std::sqrt(K);
 
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
     std::vector<ck::index_t> a_gs_ms_ks_strides =

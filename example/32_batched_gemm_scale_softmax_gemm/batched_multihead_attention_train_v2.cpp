@@ -1033,8 +1033,6 @@ int run(int argc, char* argv[])
             std::tuple<unsigned long long, unsigned long long>(seed, offset));
 
         qgrad_device_buf.SetZero();
-        // kgrad_device_buf.SetZero(); // reset global accum buffer and rerun
-        // vgrad_device_buf.SetZero();
         float ave_time_bwd = invoker_bwd.Run(argument_bwd, StreamConfig{nullptr, true});
 
         // 5 GEMM ops in total:
@@ -1143,8 +1141,6 @@ int run(int argc, char* argv[])
             fwd_file << z_fwd_gs_ms_ns << std::endl;
 
             qgrad_device_buf.SetZero();
-            // kgrad_device_buf.SetZero();
-            // vgrad_device_buf.SetZero();
 
             auto argument_bwd = gemm_bwd.MakeArgument(
                 static_cast<InputDataType*>(q_device_buf.GetDeviceBuffer()),
