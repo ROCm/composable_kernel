@@ -49,32 +49,32 @@ using DeviceConvFwdInstance =
         InElementOp,
         WeiElementOp,
         OutElementOp,
-        ConvSpec,   // ConvForwardSpecialization
-        GemmSpec,   // GemmSpecialization
-        1,          // Prefetch stage
-        128,        // BlockSize
-        64,         // MPerBlock
-        64,         // NPerBlock
-        64,         // KPerBlock
-        8,          // K1
-        16,         // MPerWMMA
-        16,         // NPerWMMA
-        4,          // MRepeat
-        1,          // NRepeat
+        ConvSpec,    // ConvForwardSpecialization
+        GemmSpec,    // GemmSpecialization
+        1,           // Prefetch stage
+        128,         // BlockSize
+        64,          // MPerBlock
+        64,          // NPerBlock
+        64,          // KPerBlock
+        8,           // K1
+        16,          // MPerWMMA
+        16,          // NPerWMMA
+        4,           // MRepeat
+        1,           // NRepeat
         S<4, 32, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
-        S<1, 0, 2>, // ABlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>, // ABlockTransferSrcAccessOrder
-        2,          // ABlockTransferSrcVectorDim
-        8,          // ABlockTransferSrcScalarPerVector
-        8,          // ABlockTransferDstScalarPerVector_AK1
-        true,       // ABlockLdsExtraM
+        S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
+        2,           // ABlockTransferSrcVectorDim
+        8,           // ABlockTransferSrcScalarPerVector
+        8,           // ABlockTransferDstScalarPerVector_AK1
+        true,        // ABlockLdsExtraM
         S<4, 32, 1>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
-        S<1, 0, 2>, // BBlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>, // BBlockTransferSrcAccessOrder
-        2,          // BBlockTransferSrcVectorDim
-        8,          // BBlockTransferSrcScalarPerVector
-        8,          // BBlockTransferDstScalarPerVector_BK1
-        true,       // BBlockLdsExtraN
+        S<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,  // BBlockTransferSrcAccessOrder
+        2,           // BBlockTransferSrcVectorDim
+        8,           // BBlockTransferSrcScalarPerVector
+        8,           // BBlockTransferDstScalarPerVector_BK1
+        true,        // BBlockLdsExtraN
         1,
         1,
         S<1, 16, 1, 8>,
@@ -279,8 +279,9 @@ bool run_grouped_conv_fwd_bias_relu_add_example(int argc, char* argv[])
     switch(conv_param.num_dim_spatial_)
     {
     // case 1: return run_grouped_conv_fwd_bias_relu_add<1>(config, conv_param);
-    case 2: return run_grouped_conv_fwd_bias_relu_add<2>(config, conv_param);
-    // case 3: return run_grouped_conv_fwd_bias_relu_add<3>(config, conv_param);
+    case 2:
+        return run_grouped_conv_fwd_bias_relu_add<2>(config, conv_param);
+        // case 3: return run_grouped_conv_fwd_bias_relu_add<3>(config, conv_param);
     }
 
     return false;

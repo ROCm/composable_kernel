@@ -67,9 +67,8 @@ static constexpr auto TensorSpecB0 = ck::tensor_operation::device::TensorSpecial
 static constexpr auto TensorSpecB1 = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecialization::Default;
 
-using  DeviceMHAFactory = 
-std::tuple<
-    ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle<
+using DeviceMHAFactory =
+    std::tuple<ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -138,8 +137,8 @@ std::tuple<
         2,              // CShuffleNWmmaPerWavePerShuffle
         S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-        MaskingSpec>   // MaskingSpecialization
-    >;
+        MaskingSpec>    // MaskingSpecialization
+               >;
 // Ref Gemm0: fp16 in, fp32 out
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                                 B0DataType,
