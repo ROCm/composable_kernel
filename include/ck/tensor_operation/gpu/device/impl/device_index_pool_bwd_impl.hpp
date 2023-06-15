@@ -281,6 +281,8 @@ struct DeviceIndexPoolBwdImpl : public DeviceIndexPoolBwd<DOutDataType, IndexDat
                         std::vector<ck::index_t> window_lengths,
                         std::vector<ck::index_t> window_strides) override
     {
+        // Assume p_dout, p_indices, p_din are packed memory space, dout_length and din_length are
+        // physical size of the packed tensor
         return std::make_unique<Argument>(static_cast<const DOutDataType*>(p_dout),
                                           static_cast<const IndexDataType*>(p_indices),
                                           static_cast<DInDataType*>(p_din),
