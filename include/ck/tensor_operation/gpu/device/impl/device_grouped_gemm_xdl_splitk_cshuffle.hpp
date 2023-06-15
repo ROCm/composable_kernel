@@ -114,7 +114,8 @@ template <typename ALayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched = make_default_loop_scheduler(),
+          LoopScheduler LoopSched     = make_default_loop_scheduler(),
+          PipelineVersion PipelineVer = PipelineVersion::v2,
           // Current implementation does not support multiple D fusions.
           enable_if_t<AK1 == BK1 && is_same_v<DsLayout, ck::Tuple<>> &&
                           is_same_v<DsDataType, ck::Tuple<>>,
@@ -182,7 +183,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         CDEBlockTransferScalarPerVector_NPerBlock,
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         LoopSched,
-        PipelineVersion::v2>;
+        PipelineVer>;
 
     using CGridDesc_M_N = typename GridwiseGemm::CGridDesc_M_N;
     using Block2ETileMapKSplit =
