@@ -173,6 +173,14 @@ struct DeviceIndexPoolBwdImpl : public DeviceIndexPoolBwd<DOutDataType, IndexDat
                     if(arg.p_workspace_ == nullptr)
                         throw std::runtime_error("wrong! WorkSpace pointer has not been set");
 
+                    index_t din_length_raw =
+                        arg.din_grid_desc_.GetTransforms()[I0].GetUpperLengths()[I0];
+
+                    hip_check_error(
+                        hipMemset(arg.p_workspace_,
+                                  0,
+                                  din_length_raw * sizeof(DInDataType_AutomicAddPreCast)));
+
                     const auto put_kernel = kernel_put_element_1d<GridwisePutElementAtomicAdd,
                                                                   InOutGrid1dDesc,
                                                                   DOutDataType,
@@ -244,7 +252,6 @@ struct DeviceIndexPoolBwdImpl : public DeviceIndexPoolBwd<DOutDataType, IndexDat
         }
     };
 
-    // User need to set the value of workspace to zero
     size_t GetWorkSpaceSize(const BaseArgument* pArg) const override
     {
         const Argument* pArg_ = dynamic_cast<const Argument*>(pArg);

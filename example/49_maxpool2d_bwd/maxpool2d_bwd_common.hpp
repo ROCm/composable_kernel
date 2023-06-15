@@ -163,9 +163,6 @@ bool maxpool_bwd_test(bool do_verification,
 
     size_t pool_bwd_workspace_sz = pool_bwd.GetWorkSpaceSize(pool_bwd_argument_ptr.get());
     DeviceMem pool_bwd_workspace_device_buf(pool_bwd_workspace_sz);
-    // similar to din_device_buf.SetZero()
-    // we need to set workspace to be zero
-    pool_bwd_workspace_device_buf.SetZero();
     pool_bwd.SetWorkSpacePointer(pool_bwd_argument_ptr.get(),
                                  pool_bwd_workspace_device_buf.GetDeviceBuffer());
 
