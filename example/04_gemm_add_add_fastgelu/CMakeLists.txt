@@ -1,4 +1,7 @@
-if(GPU_TARGETS MATCHES "gfx908" OR GPU_TARGETS MATCHES "gfx90a" OR GPU_TARGETS MATCHES "gfx940")
+list(APPEND gpu_list gfx908 gfx90a gfx940 gfx941 gfx942)
+set(target 0)
+foreach(gpu IN LISTS GPU_TARGETS)
+ if(gpu IN_LIST gpu_list AND target EQUAL 0)
     add_custom_target(example_gemm_add_add_fastgelu_xdl)
 
     add_example_executable(example_gemm_add_add_fastgelu_xdl_bf16 gemm_add_add_fastgelu_xdl_bf16.cpp)
@@ -16,4 +19,6 @@ if(GPU_TARGETS MATCHES "gfx908" OR GPU_TARGETS MATCHES "gfx90a" OR GPU_TARGETS M
         add_dependencies(example_gemm_add_add_fastgelu_xdl example_gemm_add_add_fastgelu_xdl_int4)
     endif(USE_BITINT_EXTENSION_INT4)
     add_dependencies(example_gemm_add_add_fastgelu_xdl example_gemm_add_add_fastgelu_xdl_int8)
-endif()
+   set(target 1)
+ endif()
+endforeach()

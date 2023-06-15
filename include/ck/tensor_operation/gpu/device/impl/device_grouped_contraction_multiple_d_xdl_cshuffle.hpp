@@ -38,7 +38,7 @@ __global__ void
             const CDEElementwiseOperation cde_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__))
+    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();
@@ -706,7 +706,8 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
-             ck::get_device_name() == "gfx940"))
+             ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
+             ck::get_device_name() == "gfx942"))
         {
             return false;
         }

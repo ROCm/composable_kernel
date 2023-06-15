@@ -1,4 +1,7 @@
-if(GPU_TARGETS MATCHES "gfx908" OR GPU_TARGETS MATCHES "gfx90a" OR GPU_TARGETS MATCHES "gfx940")
+list(APPEND gpu_list gfx908 gfx90a gfx940 gfx941 gfx942)
+set(target 0)
+foreach(gpu IN LISTS GPU_TARGETS)
+ if(gpu IN_LIST gpu_list AND target EQUAL 0)
    add_custom_target(test_grouped_gemm)
    add_gtest_executable(test_grouped_gemm_splitk test_grouped_gemm_splitk.cpp)
    add_gtest_executable(test_grouped_gemm_interface test_grouped_gemm_interface.cpp)
@@ -6,4 +9,6 @@ if(GPU_TARGETS MATCHES "gfx908" OR GPU_TARGETS MATCHES "gfx90a" OR GPU_TARGETS M
    target_link_libraries(test_grouped_gemm_interface PRIVATE utility device_grouped_gemm_instance)
    
    add_dependencies(test_grouped_gemm test_grouped_gemm_splitk test_grouped_gemm_interface)
-endif()
+   set(target 1)
+ endif()
+endforeach()
