@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -245,11 +245,11 @@ void add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_int8_instances(
                                                               PassThrough,
                                                               PassThrough>>>& instances);
 
-// grouped conv3d forward, NDHWGC/KZYXGC/NDHWGK
-void add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_bf16_instances(
+// grouped conv3d forward, NDHWGC/GKZYXC/NDHWGK
+void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
                                                               NDHWGC,
-                                                              KZYXGC,
+                                                              GKZYXC,
                                                               Empty_Tuple,
                                                               NDHWGK,
                                                               BF16,
@@ -260,10 +260,10 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_bf16_instances(
                                                               PassThrough,
                                                               PassThrough>>>& instances);
 
-void add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_f16_instances(
+void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
                                                               NDHWGC,
-                                                              KZYXGC,
+                                                              GKZYXC,
                                                               Empty_Tuple,
                                                               NDHWGK,
                                                               F16,
@@ -274,10 +274,10 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_f16_instances(
                                                               PassThrough,
                                                               PassThrough>>>& instances);
 
-void add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_f32_instances(
+void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
                                                               NDHWGC,
-                                                              KZYXGC,
+                                                              GKZYXC,
                                                               Empty_Tuple,
                                                               NDHWGK,
                                                               F32,
@@ -288,10 +288,10 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_f32_instances(
                                                               PassThrough,
                                                               PassThrough>>>& instances);
 
-void add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_int8_instances(
+void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
                                                               NDHWGC,
-                                                              KZYXGC,
+                                                              GKZYXC,
                                                               Empty_Tuple,
                                                               NDHWGK,
                                                               int8_t,
@@ -433,28 +433,28 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             }
         }
         else if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NDHWGC> &&
-                          is_same_v<WeiLayout, KZYXGC> && is_same_v<OutLayout, NDHWGK>)
+                          is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, NDHWGK>)
         {
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_f32_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances(op_ptrs);
             }
             else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
                               is_same_v<OutDataType, half_t>)
             {
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_f16_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances(op_ptrs);
             }
             else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
                               is_same_v<WeiDataType, ck::bhalf_t> &&
                               is_same_v<OutDataType, ck::bhalf_t>)
             {
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_bf16_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_instances(op_ptrs);
             }
             else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
                               is_same_v<OutDataType, int8_t>)
             {
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_kzyxgc_ndhwgk_int8_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_int8_instances(op_ptrs);
             }
         }
 

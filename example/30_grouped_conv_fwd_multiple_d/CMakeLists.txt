@@ -1,4 +1,9 @@
-if(GPU_TARGETS MATCHES "gfx908" OR GPU_TARGETS MATCHES "gfx90a" OR GPU_TARGETS MATCHES "gfx940")
+list(APPEND gpu_list1 gfx908 gfx90a gfx940 gfx941 gfx942)
+list(APPEND gpu_list2 gfx1100 gfx1101 gfx1102)
+
+set(target 0)
+foreach(gpu IN LISTS GPU_TARGETS)
+ if(gpu IN_LIST gpu_list1 AND target EQUAL 0)
    add_custom_target(example_grouped_conv_fwd_multiple_d)
 
    add_example_executable(example_grouped_conv_fwd_bias_relu_add_xdl_fp16 grouped_conv_fwd_bias_relu_add_xdl_fp16.cpp)
@@ -17,7 +22,15 @@ if(GPU_TARGETS MATCHES "gfx908" OR GPU_TARGETS MATCHES "gfx90a" OR GPU_TARGETS M
    endif() # USE_BITINT_EXTENSION_INT4
    add_example_executable(example_grouped_conv_fwd_xdl_fp16 grouped_conv_fwd_xdl_fp16.cpp)
    add_dependencies(example_grouped_conv_fwd_multiple_d example_grouped_conv_fwd_xdl_fp16)
-endif()
-if(GPU_TARGETS MATCHES "gfx1100" OR GPU_TARGETS MATCHES "gfx1101" OR GPU_TARGETS MATCHES "gfx1102")
-  add_example_executable(example_grouped_conv_fwd_bias_relu_add_wmma_fp16 grouped_conv_fwd_bias_relu_add_wmma_fp16.cpp)
-endif()
+   set(target 1)
+ endif()
+endforeach()
+
+set(target 0)
+foreach(gpu IN LISTS GPU_TARGETS)
+ if(gpu IN_LIST gpu_list2 AND target EQUAL 0)
+   add_example_executable(example_grouped_conv_fwd_bias_relu_add_wmma_fp16 grouped_conv_fwd_bias_relu_add_wmma_fp16.cpp)
+   add_example_executable(example_grouped_conv_fwd_bias_relu_add_wmma_int8 grouped_conv_fwd_bias_relu_add_wmma_int8.cpp)
+   set(target 1)
+ endif()
+endforeach()

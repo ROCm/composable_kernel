@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <vector>
@@ -121,7 +121,8 @@ using DeviceOpInstance =
         2,              // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-        MaskingSpec>;   // MaskingSpecialization
+        MaskingSpec,    // MaskingSpecialization
+        1>;
 
 // Ref Gemm0: fp16 in, fp32 out
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,

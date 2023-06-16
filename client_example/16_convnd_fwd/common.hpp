@@ -141,14 +141,10 @@ bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + NumNonSpatialD
                 std::next(rbegin(in_strides)),
                 std::next(rbegin(in_strides), NumDimSpatial + 1));
 
-    std::rotate(
-        std::next(rbegin(wei_lengths)), std::next(rbegin(wei_lengths), 2), rend(wei_lengths));
     std::rotate(rbegin(wei_lengths),
                 std::next(rbegin(wei_lengths)),
                 std::next(rbegin(wei_lengths), NumDimSpatial + 1));
 
-    std::rotate(
-        std::next(rbegin(wei_strides)), std::next(rbegin(wei_strides), 2), rend(wei_strides));
     std::rotate(rbegin(wei_strides),
                 std::next(rbegin(wei_strides)),
                 std::next(rbegin(wei_strides), NumDimSpatial + 1));
