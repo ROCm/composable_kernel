@@ -133,6 +133,13 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             make_tuple(Sequence<0, 2, 4, 6, 7, 8>{}, Sequence<1, 3, 5, 9>{}));
     }
 
+    __host__ __device__ static constexpr auto GetPaddedSize(const index_t size)
+    {
+        constexpr auto mfma = MfmaSelector<GemmDataType, MPerXdl, NPerXdl>::selected_mfma;
+        constexpr auto M5   = mfma.group_size;
+        return index_t(ceil(float(size) / M5) * M5);
+    }
+
     __device__ static auto GetGemm0WaveIdx()
     {
         const index_t thread_id = get_thread_local_1d_id();
@@ -1956,12 +1963,12 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                     MRaw * NRaw * g_idx + m_global * NRaw + n_global; // unique element global 1d id
 
                 auto global_elem_id =
-                    (global_elem_id_raw % 4) * MRaw + int(global_elem_id_raw / 4) * 4;
+                    (global_elem_id_raw % M4) * NRaw + int(global_elem_id_raw / M4) * M4;
 
                 blockwise_dropout.template ApplyDropoutAttnBwdSaveZ<decltype(s_slash_p_thread_buf),
                                                                     decltype(z_tenor_buffer),
                                                                     true>(
-                    s_slash_p_thread_buf, ph, global_elem_id, z_tenor_buffer, MRaw);
+                    s_slash_p_thread_buf, ph, global_elem_id, z_tenor_buffer, NRaw);
 
                 z_thread_copy_vgpr_to_global.Run(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                                                  make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
@@ -1983,12 +1990,12 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                     MRaw * NRaw * g_idx + m_global * NRaw + n_global; // unique element global 1d id
 
                 auto global_elem_id =
-                    (global_elem_id_raw % 4) * MRaw + int(global_elem_id_raw / 4) * 4;
+                    (global_elem_id_raw % M4) * NRaw + int(global_elem_id_raw / M4) * M4;
 
                 // P_dropped
                 blockwise_dropout
                     .template ApplyDropoutAttnBwd<decltype(s_slash_p_thread_buf), true>(
-                        s_slash_p_thread_buf, ph, global_elem_id, MRaw);
+                        s_slash_p_thread_buf, ph, global_elem_id, NRaw);
             }
 
             block_sync_lds(); // wait for gemm1 LDS read

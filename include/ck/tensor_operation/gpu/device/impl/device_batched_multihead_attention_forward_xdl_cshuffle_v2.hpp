@@ -648,6 +648,9 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
             z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
                 GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(z_grid_desc_m_n_);
 
+            m_raw_padded_ = GridwiseGemm::GetPaddedSize(raw_lengths_mz_nz_kz_gemm1nz_[0]);
+            n_raw_padded_ = GridwiseGemm::GetPaddedSize(raw_lengths_mz_nz_kz_gemm1nz_[1]);
+
             if(p_lse_grid == nullptr)
             {
                 is_lse_storing_ = false;
@@ -728,6 +731,9 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
         bool is_dropout_;
 
         bool is_lse_storing_ = true;
+
+        index_t m_raw_padded_;
+        index_t n_raw_padded_;
     };
 
     // Invoker
@@ -813,8 +819,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                         arg.p_dropout_rescale_,
                         arg.seed_,
                         arg.offset_,
-                        arg.raw_lengths_mz_nz_kz_gemm1nz_[0],
-                        arg.raw_lengths_mz_nz_kz_gemm1nz_[1]);
+                        arg.m_raw_padded_,
+                        arg.n_raw_padded_);
                 };
 
             // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need

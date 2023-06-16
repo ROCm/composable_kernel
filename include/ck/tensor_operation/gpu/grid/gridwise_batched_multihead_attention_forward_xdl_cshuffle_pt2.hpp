@@ -143,6 +143,13 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             make_tuple(Sequence<0, 2, 4, 6>{}, Sequence<1, 3, 5, 7, 8, 9>{}));
     }
 
+    __host__ __device__ static constexpr auto GetPaddedSize(const index_t size)
+    {
+        constexpr auto mfma = MfmaSelector<FloatGemm, MPerXdl, NPerXdl>::selected_mfma;
+        constexpr auto N5   = mfma.group_size;
+        return index_t(ceil(float(size) / N5) * N5);
+    }
+
     __device__ static auto GetGemm0WaveIdx()
     {
         const index_t thread_id = get_thread_local_1d_id();
