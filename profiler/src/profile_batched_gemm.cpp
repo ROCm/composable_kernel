@@ -10,6 +10,8 @@
 #include "profiler/profile_batched_gemm_impl.hpp"
 #include "profiler_operation_registry.hpp"
 
+#include "ck/library/tensor_operation_instance/gpu/batched_gemm.hpp"
+
 enum struct GemmMatrixLayout
 {
     MK_KN_MN, // 0
@@ -78,55 +80,72 @@ int profile_batched_gemm(int argc, char* argv[])
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-    auto profile = [&](auto a_type,
-                       auto b_type,
-                       auto c_type,
-                       auto a_layout,
-                       auto b_layout,
-                       auto c_layout) {
-        using ADataType = decltype(a_type);
-        using BDataType = decltype(b_type);
-        using CDataType = decltype(c_type);
+    auto profile =
+        [&](auto a_type, auto b_type, auto c_type, auto a_layout, auto b_layout, auto c_layout) {
+            using ADataType = decltype(a_type);
+            using BDataType = decltype(b_type);
+            using CDataType = decltype(c_type);
 
-        using ALayout = decltype(a_layout);
-        using BLayout = decltype(b_layout);
-        using CLayout = decltype(c_layout);
+            using ALayout = decltype(a_layout);
+            using BLayout = decltype(b_layout);
+            using CLayout = decltype(c_layout);
 
-        const int DefaultStrideA = ck::is_same_v<ALayout, Row> ? K : M;
-        const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
-        const int DefaultStrideC = ck::is_same_v<CLayout, Row> ? N : M;
+            const int DefaultStrideA = ck::is_same_v<ALayout, Row> ? K : M;
+            const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
+            const int DefaultStrideC = ck::is_same_v<CLayout, Row> ? N : M;
 
-        const int StrideA_ = (StrideA < 0) ? DefaultStrideA : StrideA;
-        const int StrideB_ = (StrideB < 0) ? DefaultStrideB : StrideB;
-        const int StrideC_ = (StrideC < 0) ? DefaultStrideC : StrideC;
+            const int StrideA_ = (StrideA < 0) ? DefaultStrideA : StrideA;
+            const int StrideB_ = (StrideB < 0) ? DefaultStrideB : StrideB;
+            const int StrideC_ = (StrideC < 0) ? DefaultStrideC : StrideC;
 
-        const int DefaultBatchStrideA = (ck::is_same_v<ALayout, Row> ? M : K) * StrideA_;
-        const int DefaultBatchStrideB = (ck::is_same_v<BLayout, Row> ? K : N) * StrideB_;
-        const int DefaultBatchStrideC = (ck::is_same_v<CLayout, Row> ? M : N) * StrideC_;
+            const int DefaultBatchStrideA = (ck::is_same_v<ALayout, Row> ? M : K) * StrideA_;
+            const int DefaultBatchStrideB = (ck::is_same_v<BLayout, Row> ? K : N) * StrideB_;
+            const int DefaultBatchStrideC = (ck::is_same_v<CLayout, Row> ? M : N) * StrideC_;
 
-        const int BatchStrideA_ = (BatchStrideA < 0) ? DefaultBatchStrideA : BatchStrideA;
-        const int BatchStrideB_ = (BatchStrideB < 0) ? DefaultBatchStrideB : BatchStrideB;
-        const int BatchStrideC_ = (BatchStrideC < 0) ? DefaultBatchStrideC : BatchStrideC;
+            const int BatchStrideA_ = (BatchStrideA < 0) ? DefaultBatchStrideA : BatchStrideA;
+            const int BatchStrideB_ = (BatchStrideB < 0) ? DefaultBatchStrideB : BatchStrideB;
+            const int BatchStrideC_ = (BatchStrideC < 0) ? DefaultBatchStrideC : BatchStrideC;
 
-        bool pass = ck::profiler::
-            profile_batched_gemm_impl<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout>(
-                do_verification,
-                init_method,
-                do_log,
-                time_kernel,
-                M,
-                N,
-                K,
-                BatchStrideA_,
-                BatchStrideB_,
-                BatchStrideC_,
-                StrideA_,
-                StrideB_,
-                StrideC_,
-                BatchCount);
+            using AElementOp = ck::tensor_operation::element_wise::PassThrough;
+            using BElementOp = ck::tensor_operation::element_wise::PassThrough;
+            using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-        return pass ? 0 : 1;
-    };
+            using DeviceOp = ck::tensor_operation::device::DeviceBatchedGemm<ALayout,
+                                                                             BLayout,
+                                                                             CLayout,
+                                                                             ADataType,
+                                                                             BDataType,
+                                                                             CDataType,
+                                                                             AElementOp,
+                                                                             BElementOp,
+                                                                             CElementOp>;
+
+            bool pass = ck::profiler::profile_batched_gemm_impl<ADataType,
+                                                                BDataType,
+                                                                CDataType,
+                                                                ALayout,
+                                                                BLayout,
+                                                                CLayout,
+                                                                AElementOp,
+                                                                BElementOp,
+                                                                CElementOp,
+                                                                DeviceOp>(do_verification,
+                                                                          init_method,
+                                                                          do_log,
+                                                                          time_kernel,
+                                                                          M,
+                                                                          N,
+                                                                          K,
+                                                                          BatchStrideA_,
+                                                                          BatchStrideB_,
+                                                                          BatchStrideC_,
+                                                                          StrideA_,
+                                                                          StrideB_,
+                                                                          StrideC_,
+                                                                          BatchCount);
+
+            return pass ? 0 : 1;
+        };
 
     if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
