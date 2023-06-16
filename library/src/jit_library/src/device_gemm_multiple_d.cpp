@@ -111,6 +111,11 @@ Solution Problem::MakeSolution(std::size_t idx, const std::string& arch) const
         {
             params[params.size() - 3] = "4";
         }
+        if(EDataType == DataType::Int32 or std::any_of(
+               DsDataType.begin(), DsDataType.end(), [](auto t) { return t == DataType::Int32; }))
+        {
+            params[params.size() - 3] = "4";
+        }
     }
 
     params[a_elementwise_op_idx]  = AElementOp;
