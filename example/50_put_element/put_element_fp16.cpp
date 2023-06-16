@@ -84,5 +84,5 @@ int main()
         pass = ck::utils::check_err(y, y_host);
     }
 
-    return pass;
+    return (pass ? 0 : 1);
 }
