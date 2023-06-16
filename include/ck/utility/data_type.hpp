@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "ck/utility/f8_utils.hpp"
 #include "ck/utility/statically_indexed_array.hpp"
 
 namespace ck {
@@ -13,6 +12,7 @@ using half_t  = _Float16;
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 using int4_t = _BitInt(4);
 #endif
+using f8_t = uint8_t;
 
 // vector_type
 template <typename T, index_t N>

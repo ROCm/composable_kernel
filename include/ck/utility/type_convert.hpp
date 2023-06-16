@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/utility/data_type.hpp"
+#include "ck/utility/f8_utils.hpp"
 #include "ck/utility/random_gen.hpp"
 
 namespace ck {
