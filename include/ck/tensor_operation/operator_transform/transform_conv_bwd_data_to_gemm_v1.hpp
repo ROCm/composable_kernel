@@ -13,6 +13,57 @@
 namespace ck {
 namespace tensor_operation {
 
+namespace {
+template <
+    index_t NDimSpatial,
+    typename ALayout,
+    ck::tensor_operation::device::ConvolutionBackwardDataSpecialization ConvBwdDataSpecialization>
+constexpr auto
+make_out_n_ho_wo_k_grid_desc(const index_t N,
+                             const index_t Ho,
+                             const index_t Wo,
+                             const index_t K,
+                             const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_strides)
+{
+
+    if constexpr(is_same_v<ALayout, tensor_layout::convolution::NHWGK>)
+    {
+        const index_t NStride  = out_g_n_k_wos_strides[1];
+        const index_t HiStride = out_g_n_k_wos_strides[3];
+        const index_t WiStride = out_g_n_k_wos_strides[4];
+        const auto CStride     = Number<1>{};
+        if constexpr(ConvBwdDataSpecialization ==
+                     ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
+                         Filter1x1Stride1Pad0)
+        {
+
+            return make_naive_tensor_descriptor(make_tuple(N * Ho * Wo, K),
+                                                make_tuple(WiStride, CStride));
+        }
+        else
+        {
+            return make_naive_tensor_descriptor(make_tuple(N, Ho, Wo, K),
+                                                make_tuple(NStride, HiStride, WiStride, CStride));
+        }
+    }
+    else
+    {
+        // assume packed
+        if constexpr(ConvBwdDataSpecialization ==
+                     ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
+                         Filter1x1Stride1Pad0)
+        {
+            return make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo, K));
+        }
+        else
+        {
+            return make_naive_tensor_descriptor_packed(make_tuple(N, Ho, Wo, K));
+        }
+    }
+}
+
+} // namespace
+
 template <
     index_t NDimSpatial,
     ck::tensor_operation::device::ConvolutionBackwardDataSpecialization ConvBwdDataSpecialization,
@@ -29,11 +80,12 @@ struct TransformConvBwdDataToGemm_v1
 
     template <typename ALayout,
               typename std::enable_if<NDimSpatial == 2 &&
-                                          is_same_v<ALayout, tensor_layout::convolution::GNHWK>,
+                                          (is_same_v<ALayout, tensor_layout::convolution::GNHWK> ||
+                                           is_same_v<ALayout, tensor_layout::convolution::NHWGK>),
                                       bool>::type = false>
     static auto MakeADescriptor_AK0_M_AK1(
         const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths,
-        const std::array<index_t, NDimSpatial + 3>& /* out_g_n_k_wos_strides */,
+        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_strides,
         const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths,
         const std::array<index_t, NDimSpatial + 3>& /* wei_g_k_c_xs_strides */,
         const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
@@ -70,9 +122,9 @@ struct TransformConvBwdDataToGemm_v1
 
         const index_t AK0 = K / AK1;
 
-        // assume packed
         const auto out_n_ho_wo_k_grid_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(N, Ho, Wo, K));
+            make_out_n_ho_wo_k_grid_desc<NDimSpatial, ALayout, ConvBwdDataSpecialization>(
+                N, Ho, Wo, K, out_g_n_k_wos_strides);
 
         if constexpr(ConvBwdDataSpecialization ==
                      ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
@@ -80,7 +132,7 @@ struct TransformConvBwdDataToGemm_v1
         {
             // A: output tensor
             const auto out_gemmak0_gemmmraw_gemmak1_grid_desc = transform_tensor_descriptor(
-                make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo, K)),
+                out_n_ho_wo_k_grid_desc,
                 make_tuple(make_pass_through_transform(N * Ho * Wo),
                            make_unmerge_transform(make_tuple(AK0, AK1))),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),

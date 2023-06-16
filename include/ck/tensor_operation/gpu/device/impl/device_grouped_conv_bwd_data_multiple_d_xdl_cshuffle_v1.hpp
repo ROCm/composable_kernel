@@ -807,7 +807,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         }
 
         // vector load for A matrix from global memory to LDS
-        if constexpr(is_same_v<ALayout, tensor_layout::convolution::GNHWK>)
+        if constexpr(is_same_v<ALayout, tensor_layout::convolution::GNHWK> ||
+                     is_same_v<ALayout, tensor_layout::convolution::NHWGK>)
         {
             if(!(ABlockTransferSrcVectorDim == 2 && ConvK % ABlockTransferSrcScalarPerVector == 0))
             {
@@ -862,7 +863,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         }
 
         // vector store for E
-        if constexpr(is_same_v<ELayout, tensor_layout::convolution::GNHWC>)
+        if constexpr(is_same_v<ELayout, tensor_layout::convolution::GNHWC> ||
+                     is_same_v<ELayout, tensor_layout::convolution::NHWGC>)
         {
             // vector store C matrix into global memory
             if(!(ConvC % CDEBlockTransferScalarPerVector_NPerBlock == 0))
@@ -876,7 +878,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         }
 
         // Gridwise GEMM size
-        for(std::size_t i = 0; i < arg.a_grid_desc_ak0_m_ak1_container_.size(); i++)
+        for(index_t i = 0; i < arg.num_gemm_; i++)
         {
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_container_[i],
                                             arg.b_grid_desc_n_k_container_[i],
