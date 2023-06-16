@@ -7,8 +7,6 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
-#include "ck/utility/reduction_functions_accumulate.hpp"
-#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_nhwc_nhwc.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_index_pool_bwd_impl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
