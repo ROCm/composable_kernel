@@ -8,11 +8,11 @@
 
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/device/device_put_element.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_put_element_1d.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
+#include "ck/host_utility/stream_utility.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -70,27 +70,28 @@ struct DevicePutElementImpl
             : p_input_{p_input},
               p_indices_{p_indices},
               p_output_{p_output},
+              input_length_raw_{input_length},
               elementwise_op_{elementwise_op},
-              blockSize_{256},
-              gridSize_{104} // FIXME - Calculate the grid size by number of CU in the future
+              blockSize_{256}
         {
-            in_grid_desc_ = MakeDescriptor_M(input_length, gridSize_, blockSize_);
         }
 
         const InDataType* p_input_;
         const IndexDataType* p_indices_;
         OutDataType* p_output_;
+        index_t input_length_raw_;
         ElementwiseOperation elementwise_op_;
         index_t blockSize_;
-        index_t gridSize_;
-
-        InGrid1dDesc in_grid_desc_;
     };
 
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+            index_t gridSize = getAvailableComputeUnitCount(stream_config);
+            InGrid1dDesc in_grid_desc =
+                MakeDescriptor_M(arg.input_length_raw_, gridSize, arg.blockSize_);
+
             const auto kernel = kernel_put_element_1d<GridwisePutElement,
                                                       InGrid1dDesc,
                                                       InDataType,
@@ -100,10 +101,10 @@ struct DevicePutElementImpl
 
             float elapsed_time = launch_and_time_kernel(stream_config,
                                                         kernel,
-                                                        dim3(arg.gridSize_),
+                                                        dim3(gridSize),
                                                         dim3(arg.blockSize_),
                                                         0,
-                                                        arg.in_grid_desc_,
+                                                        in_grid_desc,
                                                         arg.p_input_,
                                                         arg.p_indices_,
                                                         arg.p_output_,
@@ -121,9 +122,8 @@ struct DevicePutElementImpl
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
-        index_t input_length = pArg->in_grid_desc_.GetTransforms()[I0].GetUpperLengths()[I0];
 
-        if(input_length % InVectorSize != 0)
+        if(pArg->input_length_raw_ % InVectorSize != 0)
         {
             return false;
         }

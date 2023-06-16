@@ -6,11 +6,8 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
-#include <algorithm>
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
-#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
-#include "ck/utility/reduction_functions_accumulate.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 
@@ -50,7 +47,7 @@ struct ReferenceMaxPoolBwd : public device::BaseOperator
         {
             int din_length  = arg.din_.GetElementSpaceSize();
             int dout_length = arg.dout_.GetElementSpaceSize();
-            std::vector<ConputeDataType> buf(din_length);
+            std::vector<ConputeDataType> buf(din_length, 0);
 
             for(int i = 0; i < dout_length; ++i)
             {
