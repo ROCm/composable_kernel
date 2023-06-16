@@ -463,9 +463,8 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                const ushort p_dropout_in_16bits,
                                FloatGemmAcc p_dropout_rescale,
                                ck::philox& ph,
-                               const index_t g_idx,
-                               const index_t MRaw,
-                               const index_t NRaw,
+                               const index_t z_random_matrix_offset,
+                               const index_t raw_n_padded,
                                const index_t block_idx_m)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -1197,8 +1196,8 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 auto m_global = m_local + m_block_data_idx_on_grid;
                 auto n_global = n_local + n_block_data_idx_on_grid;
 
-                auto global_elem_id =
-                    MRaw * NRaw * g_idx + m_global * NRaw + n_global; // unique element global 1d id
+                auto global_elem_id = z_random_matrix_offset + m_global * raw_n_padded +
+                                      n_global; // unique element global 1d id
 
                 // index_t id_step = Acc0TileIterator::GetNumOfAccess() / n0.value;
 
