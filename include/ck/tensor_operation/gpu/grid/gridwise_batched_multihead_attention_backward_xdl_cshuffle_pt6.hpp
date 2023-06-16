@@ -1254,9 +1254,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                const C0MatrixMask& c0_matrix_mask,
                                const float p_drop,
                                ck::philox& ph,
-                               const index_t g_idx,
-                               const index_t MRaw,
-                               const index_t NRaw,
+                               const index_t z_random_matrix_offset,
+                               const index_t raw_n_padded,
                                const index_t block_idx_n)
     {
         const FloatGemmAcc p_dropout  = type_convert<FloatGemmAcc>(1.0f - p_drop);
@@ -1959,16 +1958,16 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                 auto m_global = m_local + m_block_data_idx_on_grid;
                 auto n_global = n_local + n_block_data_idx_on_grid;
 
-                auto global_elem_id_raw =
-                    MRaw * NRaw * g_idx + m_global * NRaw + n_global; // unique element global 1d id
+                auto global_elem_id_raw = z_random_matrix_offset + m_global * raw_n_padded +
+                                          n_global; // unique element global 1d id
 
                 auto global_elem_id =
-                    (global_elem_id_raw % M4) * NRaw + int(global_elem_id_raw / M4) * M4;
+                    (global_elem_id_raw % M4) * raw_n_padded + int(global_elem_id_raw / M4) * M4;
 
                 blockwise_dropout.template ApplyDropoutAttnBwdSaveZ<decltype(s_slash_p_thread_buf),
                                                                     decltype(z_tenor_buffer),
                                                                     true>(
-                    s_slash_p_thread_buf, ph, global_elem_id, z_tenor_buffer, NRaw);
+                    s_slash_p_thread_buf, ph, global_elem_id, z_tenor_buffer, raw_n_padded);
 
                 z_thread_copy_vgpr_to_global.Run(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                                                  make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
@@ -1986,16 +1985,16 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                 auto m_global = m_local + m_block_data_idx_on_grid;
                 auto n_global = n_local + n_block_data_idx_on_grid;
 
-                auto global_elem_id_raw =
-                    MRaw * NRaw * g_idx + m_global * NRaw + n_global; // unique element global 1d id
+                auto global_elem_id_raw = z_random_matrix_offset + m_global * raw_n_padded +
+                                          n_global; // unique element global 1d id
 
                 auto global_elem_id =
-                    (global_elem_id_raw % M4) * NRaw + int(global_elem_id_raw / M4) * M4;
+                    (global_elem_id_raw % M4) * raw_n_padded + int(global_elem_id_raw / M4) * M4;
 
                 // P_dropped
                 blockwise_dropout
                     .template ApplyDropoutAttnBwd<decltype(s_slash_p_thread_buf), true>(
-                        s_slash_p_thread_buf, ph, global_elem_id, NRaw);
+                        s_slash_p_thread_buf, ph, global_elem_id, raw_n_padded);
             }
 
             block_sync_lds(); // wait for gemm1 LDS read

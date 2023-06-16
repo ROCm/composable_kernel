@@ -86,8 +86,8 @@ __global__ void
             const float p_drop,
             const unsigned long long seed,
             const unsigned long long offset,
-            const index_t MRaw,
-            const index_t NRaw)
+            const index_t raw_m_padded,
+            const index_t raw_n_padded)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -110,9 +110,10 @@ __global__ void
     const long_index_t lse_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetLSEBasePtr(g_idx)));
 
-    const index_t global_thread_id = get_thread_global_1d_id();
-    ck::philox ph(seed, global_thread_id, offset);
+    ck::philox ph(seed, 0, offset);
     ZDataType* z_matrix_ptr = (p_z_grid == nullptr ? nullptr : p_z_grid + z_batch_offset);
+
+    const index_t z_random_matrix_offset = g_idx * raw_m_padded * raw_n_padded;
 
     if constexpr(Deterministic)
     {
@@ -146,9 +147,8 @@ __global__ void
                 c0_matrix_mask,
                 p_drop,
                 ph,
-                g_idx,
-                MRaw,
-                NRaw,
+                z_random_matrix_offset,
+                raw_n_padded,
                 i);
         }
     }
@@ -181,9 +181,8 @@ __global__ void
                                                       c0_matrix_mask,
                                                       p_drop,
                                                       ph,
-                                                      g_idx,
-                                                      MRaw,
-                                                      NRaw,
+                                                      z_random_matrix_offset,
+                                                      raw_n_padded,
                                                       0);
     }
 #else
