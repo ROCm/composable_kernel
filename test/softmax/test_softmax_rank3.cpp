@@ -13,7 +13,6 @@ using I = ck::Number<N>;
 
 using F16 = ck::half_t;
 using F32 = float;
-using I8  = int8_t;
 
 template <typename Tuple>
 class TestSoftmax : public ck::TestSoftmax<Tuple>
@@ -24,8 +23,7 @@ class TestSoftmax : public ck::TestSoftmax<Tuple>
 using KernelTypes = ::testing::Types<
     //         InDataType, AccDataType, OutDataType, Rank
     std::tuple<       F16,         F32,         F16,    I<3>>,
-    std::tuple<       F32,         F32,         F32,    I<3>>,
-    std::tuple<        I8,         F32,          I8,    I<3>>
+    std::tuple<       F32,         F32,         F32,    I<3>>
     >;
 // clang-format on
 

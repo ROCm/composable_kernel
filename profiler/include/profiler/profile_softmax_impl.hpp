@@ -40,7 +40,11 @@ template <> std::string type_to_string<int8_t>()  { return "int8"; }
 template <> std::string type_to_string<int32_t>() { return "int32"; }
 // clang-format on
 
-template <typename InDataType, typename AccDataType, typename OutDataType, index_t Rank>
+template <typename InDataType,
+          typename AccDataType,
+          typename OutDataType,
+          index_t Rank,
+          index_t NumReduceDim>
 bool profile_softmax_impl(int do_verification,
                           int init_method,
                           bool do_log,
@@ -54,7 +58,13 @@ bool profile_softmax_impl(int do_verification,
     if(Rank != in_length.size())
     {
         throw std::runtime_error("Input tensor rank is different from template argument Rank!");
-    }
+    };
+
+    if(NumReduceDim != reduce_dims.size())
+    {
+        throw std::runtime_error(
+            "Input reduce_dims rank is different from template argument NumReduceDim!");
+    };
 
     Tensor<InDataType> in = in_strides.empty() ? Tensor<InDataType>(in_length)
                                                : Tensor<InDataType>(in_length, in_strides);
@@ -92,8 +102,13 @@ bool profile_softmax_impl(int do_verification,
 
     // add device softmax instances
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-    using DeviceOp    = tensor_operation::device::
-        DeviceSoftmax<InDataType, AccDataType, OutDataType, PassThrough, PassThrough, Rank>;
+    using DeviceOp    = tensor_operation::device::DeviceSoftmax<InDataType,
+                                                             AccDataType,
+                                                             OutDataType,
+                                                             PassThrough,
+                                                             PassThrough,
+                                                             Rank,
+                                                             NumReduceDim>;
 
     // get device op instances
     const auto instances = tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -112,13 +127,6 @@ bool profile_softmax_impl(int do_verification,
 
     for(auto& inst_ptr : instances)
     {
-        // Is this user's responsibility to check if problem mismatches kernel instance (ie. rank 3
-        // problem to rank 4 kernel) other than invoking IsSupportedArgument()?
-        if(!(inst_ptr->GetNumReduceDim() == static_cast<index_t>(reduce_dims.size())))
-        {
-            continue;
-        }
-
         auto argument_ptr = inst_ptr->MakeArgumentPointer(in_tensor_lengths,
                                                           in_tensor_strides,
                                                           reduce_dims,
