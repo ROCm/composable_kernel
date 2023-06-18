@@ -25,12 +25,11 @@ using Pass        = ck::tensor_operation::element_wise::PassThrough;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
-using ConvBackwardDataSpecialization = ck::tensor_operation::device::ConvolutionBackwardDataSpecialization;
+using ConvBackwardDataSpecialization =
+    ck::tensor_operation::device::ConvolutionBackwardDataSpecialization;
 
-static constexpr auto ConvBwdDataDefault =
-    ConvBackwardDataSpecialization::Default;
-static constexpr auto Filter1x1Stride1Pad0 =
-    ConvBackwardDataSpecialization::Filter1x1Stride1Pad0;
+static constexpr auto ConvBwdDataDefault   = ConvBackwardDataSpecialization::Default;
+static constexpr auto Filter1x1Stride1Pad0 = ConvBackwardDataSpecialization::Filter1x1Stride1Pad0;
 
 template <typename Tuple, ConvBackwardDataSpecialization ConvSpec>
 class TestGroupedConvndBwdData : public ::testing::Test
@@ -126,7 +125,6 @@ using GKYXC = ck::tensor_layout::convolution::GKYXC;
 using GNHWK = ck::tensor_layout::convolution::GNHWK;
 using NHWGK = ck::tensor_layout::convolution::NHWGK;
 
-
 using KernelTypes =
     ::testing::Types<std::tuple<GNHWK, GKYXC, GNHWC>, std::tuple<NHWGK, GKYXC, NHWGC>>;
 
@@ -136,7 +134,8 @@ class TestGroupedConvndBwdDataDefault : public TestGroupedConvndBwdData<Tuple, C
 };
 
 template <typename Tuple>
-class TestGroupedConvndBwdDataFilter1x1 : public TestGroupedConvndBwdData<Tuple, Filter1x1Stride1Pad0>
+class TestGroupedConvndBwdDataFilter1x1
+    : public TestGroupedConvndBwdData<Tuple, Filter1x1Stride1Pad0>
 {
 };
 
@@ -156,20 +155,20 @@ TYPED_TEST(TestGroupedConvndBwdDataFilter1x1, SpecializationCheck)
     this->conv_param  = {2, 2, 4, 192, 192, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {0, 0}, {0, 0}};
     bool is_supported = this->template Run<2>();
     EXPECT_FALSE(is_supported);
-    
+
     // Check strides 2,2 instead of 1,1
-    this->conv_param  = {2, 2, 4, 192, 192, {1, 1}, {28, 28}, {2, 2}, {1, 1}, {0, 0}, {0, 0}};
-    is_supported = this->template Run<2>();
+    this->conv_param = {2, 2, 4, 192, 192, {1, 1}, {28, 28}, {2, 2}, {1, 1}, {0, 0}, {0, 0}};
+    is_supported     = this->template Run<2>();
     EXPECT_FALSE(is_supported);
 
     // Check with pad
-    this->conv_param  = {2, 2, 4, 192, 192, {1, 1}, {28, 28}, {1, 1}, {1, 1}, {1, 1}, {1, 1}};
-    is_supported = this->template Run<2>();
+    this->conv_param = {2, 2, 4, 192, 192, {1, 1}, {28, 28}, {1, 1}, {1, 1}, {1, 1}, {1, 1}};
+    is_supported     = this->template Run<2>();
     EXPECT_FALSE(is_supported);
 
     // Supported version
-    this->conv_param  = {2, 2, 4, 192, 192, {1, 1}, {28, 28}, {1, 1}, {1, 1}, {0, 0}, {0, 0}};
-    is_supported = this->template Run<2>();
+    this->conv_param = {2, 2, 4, 192, 192, {1, 1}, {28, 28}, {1, 1}, {1, 1}, {0, 0}, {0, 0}};
+    is_supported     = this->template Run<2>();
     EXPECT_TRUE(is_supported);
 }
 
@@ -180,7 +179,7 @@ TYPED_TEST(TestGroupedConvndBwdDataDefault, VectorLoadCheck)
     bool is_supported = this->template Run<2>();
     EXPECT_FALSE(is_supported);
     // vector load for B, E, Ds
-    this->conv_param  = {2, 2, 128, 128, 257, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}};
-    is_supported = this->template Run<2>();
+    this->conv_param = {2, 2, 128, 128, 257, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}};
+    is_supported     = this->template Run<2>();
     EXPECT_FALSE(is_supported);
 }
