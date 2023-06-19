@@ -252,16 +252,16 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         B1Spec,
         CSpec>;
 
-    static auto MakeAGridDescriptor_AK0_M_AK1(const std::vector<index_t>& a_gs_ms_ks_lengths_vec,
-                                              const std::vector<index_t>& a_gs_ms_ks_strides_vec)
+    static auto MakeAGridDescriptor_AK0_M_AK1(const std::array<index_t, NumDimG + NumDimM + NumDimN>& a_gs_ms_ks_lengths_vec,
+                                              const std::array<index_t, NumDimG + NumDimM + NumDimN>& a_gs_ms_ks_strides_vec)
     {
         return Transform::MakeAGridDescriptor_AK0_M_AK1(
             Transform::MakeAGridDescriptor_M_K(a_gs_ms_ks_lengths_vec, a_gs_ms_ks_strides_vec),
             Number<AK1>{});
     }
 
-    static auto MakeBGridDescriptor_BK0_N_BK1(const std::vector<index_t>& b_gs_ns_ks_lengths_vec,
-                                              const std::vector<index_t>& b_gs_ns_ks_strides_vec)
+    static auto MakeBGridDescriptor_BK0_N_BK1(const std::array<index_t, NumDimG + NumDimM + NumDimN>& b_gs_ns_ks_lengths_vec,
+                                              const std::array<index_t, NumDimG + NumDimM + NumDimN>& b_gs_ns_ks_strides_vec)
     {
         return Transform::MakeB0GridDescriptor_BK0_N_BK1(
             Transform::MakeB0GridDescriptor_N_K(b_gs_ns_ks_lengths_vec, b_gs_ns_ks_strides_vec),
@@ -269,8 +269,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     }
 
     static auto
-    MakeB1GridDescriptor_BK0_N_BK1(const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_lengths_vec,
-                                   const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides_vec)
+    MakeB1GridDescriptor_BK0_N_BK1(const std::array<index_t, NumDimG + NumDimM + NumDimN>& b1_gs_gemm1ns_gemm1ks_lengths_vec,
+                                   const std::array<index_t, NumDimG + NumDimM + NumDimN>& b1_gs_gemm1ns_gemm1ks_strides_vec)
     {
         return Transform::MakeB1GridDescriptor_BK0_N_BK1(
             Transform::MakeB1GridDescriptor_N_K(b1_gs_gemm1ns_gemm1ks_lengths_vec,
@@ -453,14 +453,14 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             CDataType* p_c_grid,
             const std::array<void*, NumD0Tensor> p_acc0_biases,
             const std::array<void*, NumD1Tensor> p_acc1_biases,
-            const std::vector<index_t>& a_gs_ms_ks_lengths,
-            const std::vector<index_t>& a_gs_ms_ks_strides,
-            const std::vector<index_t>& b_gs_ns_ks_lengths,
-            const std::vector<index_t>& b_gs_ns_ks_strides,
-            const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
-            const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
-            const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
-            const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+            const std::array<index_t, NumDimG + NumDimM + NumDimN>& a_gs_ms_ks_lengths,
+            const std::array<index_t, NumDimG + NumDimM + NumDimN>& a_gs_ms_ks_strides,
+            const std::array<index_t, NumDimG + NumDimM + NumDimN>& b_gs_ns_ks_lengths,
+            const std::array<index_t, NumDimG + NumDimM + NumDimN>& b_gs_ns_ks_strides,
+            const std::array<index_t, NumDimG + NumDimM + NumDimN>& b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
+            const std::array<index_t, NumDimG + NumDimM + NumDimN>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
+            const std::array<index_t, NumDimG + NumDimM + NumDimN>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
+            const std::array<index_t, NumDimG + NumDimM + NumDimN>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
             const std::array<std::vector<ck::index_t>, NumD0Tensor>& acc0_biases_gs_ms_ns_lengths,
             const std::array<std::vector<ck::index_t>, NumD0Tensor>& acc0_biases_gs_ms_ns_strides,
             const std::array<std::vector<ck::index_t>, NumD1Tensor>&
@@ -835,20 +835,48 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         B1ElementwiseOperation b1_element_op,
         C1DEElementwiseOperation c1de_element_op)
     {
+        constexpr auto dimension = NumDimG + NumDimM + NumDimN;
+        
+        std::array<index_t, dimension> a_gs_ms_ks_lengths_{};
+        std::array<index_t, dimension> a_gs_ms_ks_strides_{};
+        std::array<index_t, dimension> b_gs_ns_ks_lengths_{};
+        std::array<index_t, dimension> b_gs_ns_ks_strides_{};
+        std::array<index_t, dimension> b1_gs_gemm1ns_gemm1ks_lengths_{}; // b1_gs_os_ns_lengths
+        std::array<index_t, dimension> b1_gs_gemm1ns_gemm1ks_strides_{}; // b1_gs_os_ns_strides
+        std::array<index_t, dimension> c_gs_ms_gemm1ns_lengths_{};       // c_gs_ms_os_lengths
+        std::array<index_t, dimension> c_gs_ms_gemm1ns_strides_{};       // c_gs_ms_os_strides
+
+        std::copy(a_gs_ms_ks_lengths.begin(), a_gs_ms_ks_lengths.begin()+dimension, a_gs_ms_ks_lengths_.begin());
+        std::copy(a_gs_ms_ks_strides.begin(), a_gs_ms_ks_strides.begin()+dimension, a_gs_ms_ks_strides_.begin());
+        std::copy(b_gs_ns_ks_lengths.begin(), b_gs_ns_ks_lengths.begin()+dimension, b_gs_ns_ks_lengths_.begin());
+        std::copy(b_gs_ns_ks_strides.begin(), b_gs_ns_ks_strides.begin()+dimension, b_gs_ns_ks_strides_.begin());
+        std::copy(b1_gs_gemm1ns_gemm1ks_lengths.begin(),
+                  b1_gs_gemm1ns_gemm1ks_lengths.begin()+dimension,
+                  b1_gs_gemm1ns_gemm1ks_lengths_.begin()); // b1_gs_os_ns_lengths
+        std::copy(b1_gs_gemm1ns_gemm1ks_strides.begin(),
+                  b1_gs_gemm1ns_gemm1ks_strides.begin()+dimension,
+                  b1_gs_gemm1ns_gemm1ks_strides_.begin()); // b1_gs_os_ns_strides
+        std::copy(c_gs_ms_gemm1ns_lengths.begin(),
+                  c_gs_ms_gemm1ns_lengths.begin()+dimension,
+                  c_gs_ms_gemm1ns_lengths_.begin()); // c_gs_ms_os_lengths
+        std::copy(c_gs_ms_gemm1ns_strides.begin(),
+                  c_gs_ms_gemm1ns_strides.begin()+dimension,
+                  c_gs_ms_gemm1ns_strides_.begin()); // c_gs_ms_os_strides
+
         return Argument{p_a,
                         p_b,
                         p_b1,
                         p_c,
                         p_acc0_biases,
                         p_acc1_biases,
-                        a_gs_ms_ks_lengths,
-                        a_gs_ms_ks_strides,
-                        b_gs_ns_ks_lengths,
-                        b_gs_ns_ks_strides,
-                        b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
-                        b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
-                        c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
-                        c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+                        a_gs_ms_ks_lengths_,
+                        a_gs_ms_ks_strides_,
+                        b_gs_ns_ks_lengths_,
+                        b_gs_ns_ks_strides_,
+                        b1_gs_gemm1ns_gemm1ks_lengths_, // b1_gs_os_ns_lengths
+                        b1_gs_gemm1ns_gemm1ks_strides_, // b1_gs_os_ns_strides
+                        c_gs_ms_gemm1ns_lengths_,       // c_gs_ms_os_lengths
+                        c_gs_ms_gemm1ns_strides_,       // c_gs_ms_os_strides
                         acc0_biases_gs_ms_ns_lengths,
                         acc0_biases_gs_ms_ns_strides,
                         acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
@@ -891,20 +919,48 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         B1ElementwiseOperation b1_element_op,
         C1DEElementwiseOperation c1de_element_op) override
     {
+        constexpr auto dimension = NumDimG + NumDimM + NumDimN;
+
+        std::array<index_t, dimension> a_gs_ms_ks_lengths_{};
+        std::array<index_t, dimension> a_gs_ms_ks_strides_{};
+        std::array<index_t, dimension> b_gs_ns_ks_lengths_{};
+        std::array<index_t, dimension> b_gs_ns_ks_strides_{};
+        std::array<index_t, dimension> b1_gs_gemm1ns_gemm1ks_lengths_{}; // b1_gs_os_ns_lengths
+        std::array<index_t, dimension> b1_gs_gemm1ns_gemm1ks_strides_{}; // b1_gs_os_ns_strides
+        std::array<index_t, dimension> c_gs_ms_gemm1ns_lengths_{};       // c_gs_ms_os_lengths
+        std::array<index_t, dimension> c_gs_ms_gemm1ns_strides_{};       // c_gs_ms_os_strides
+
+        std::copy(a_gs_ms_ks_lengths.begin(), a_gs_ms_ks_lengths.begin()+dimension, a_gs_ms_ks_lengths_.begin());
+        std::copy(a_gs_ms_ks_strides.begin(), a_gs_ms_ks_strides.begin()+dimension, a_gs_ms_ks_strides_.begin());
+        std::copy(b_gs_ns_ks_lengths.begin(), b_gs_ns_ks_lengths.begin()+dimension, b_gs_ns_ks_lengths_.begin());
+        std::copy(b_gs_ns_ks_strides.begin(), b_gs_ns_ks_strides.begin()+dimension, b_gs_ns_ks_strides_.begin());
+        std::copy(b1_gs_gemm1ns_gemm1ks_lengths.begin(),
+                  b1_gs_gemm1ns_gemm1ks_lengths.begin()+dimension,
+                  b1_gs_gemm1ns_gemm1ks_lengths_.begin()); // b1_gs_os_ns_lengths
+        std::copy(b1_gs_gemm1ns_gemm1ks_strides.begin(),
+                  b1_gs_gemm1ns_gemm1ks_strides.begin()+dimension,
+                  b1_gs_gemm1ns_gemm1ks_strides_.begin()); // b1_gs_os_ns_strides
+        std::copy(c_gs_ms_gemm1ns_lengths.begin(),
+                  c_gs_ms_gemm1ns_lengths.begin()+dimension,
+                  c_gs_ms_gemm1ns_lengths_.begin()); // c_gs_ms_os_lengths
+        std::copy(c_gs_ms_gemm1ns_strides.begin(),
+                  c_gs_ms_gemm1ns_strides.begin()+dimension,
+                  c_gs_ms_gemm1ns_strides_.begin()); // c_gs_ms_os_strides
+
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<const B1DataType*>(p_b1),
                                           static_cast<CDataType*>(p_c),
                                           p_acc0_biases, // cast in struct Argument
                                           p_acc1_biases, // cast in struct Argument
-                                          a_gs_ms_ks_lengths,
-                                          a_gs_ms_ks_strides,
-                                          b_gs_ns_ks_lengths,
-                                          b_gs_ns_ks_strides,
-                                          b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
-                                          b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
-                                          c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
-                                          c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+                                          a_gs_ms_ks_lengths_,
+                                          a_gs_ms_ks_strides_,
+                                          b_gs_ns_ks_lengths_,
+                                          b_gs_ns_ks_strides_,
+                                          b1_gs_gemm1ns_gemm1ks_lengths_, // b1_gs_os_ns_lengths
+                                          b1_gs_gemm1ns_gemm1ks_strides_, // b1_gs_os_ns_strides
+                                          c_gs_ms_gemm1ns_lengths_,       // c_gs_ms_os_lengths
+                                          c_gs_ms_gemm1ns_strides_,       // c_gs_ms_os_strides
                                           acc0_biases_gs_ms_ns_lengths,
                                           acc0_biases_gs_ms_ns_strides,
                                           acc1_biases_gs_ms_gemm1ns_lengths,

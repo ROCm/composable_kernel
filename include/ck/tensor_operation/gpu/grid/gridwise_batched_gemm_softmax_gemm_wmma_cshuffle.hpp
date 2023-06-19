@@ -119,10 +119,10 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
 
     using GridwiseGemmPipe =
         remove_cvref_t<decltype(GridwiseGemmPipeline_Selector<PipelineVer,
-                                                              AEnableLds,
-                                                              B0EnableLds,
                                                               NumGemmKPrefetchStage,
-                                                              LoopSched>())>;
+                                                              LoopSched,
+                                                              AEnableLds,
+                                                              B0EnableLds>())>;
 
     __host__ __device__ static constexpr auto MakeABlockDescriptor()
     {

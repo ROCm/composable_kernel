@@ -15,10 +15,10 @@ enum struct PipelineVersion
 };
 
 template <PipelineVersion PipelineVer,
-          bool AEnableLds         = true,
-          bool BEnableLds         = true,
           index_t NumPrefetch     = 1,
-          LoopScheduler LoopSched = LoopScheduler::Default>
+          LoopScheduler LoopSched = LoopScheduler::Default,
+          bool AEnableLds         = true,
+          bool BEnableLds         = true>
 constexpr auto GridwiseGemmPipeline_Selector()
 {
     if constexpr(PipelineVer == PipelineVersion::v1)

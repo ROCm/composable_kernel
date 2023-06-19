@@ -327,6 +327,6 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 B1ElementOp,
                                                                                 CElementOp>;
 
-#include "run_cross_attention.inc"
+#include "run_cross_attention_wmma.inc"
 
 int main(int argc, char* argv[]) { return run(argc, argv); }
