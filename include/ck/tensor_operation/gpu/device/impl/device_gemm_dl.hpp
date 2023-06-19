@@ -208,9 +208,10 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
                                      AccDataType,
                                      CDataType,
                                      InMemoryDataOperationEnum::Set,
-                                     AGridDesc_K0_M_K1,
-                                     BGridDesc_K0_N_K1,
-                                     CGridDesc_M_N,
+				     ALayout,
+				     BLayout,
+				     CLayout,
+				     GemmSpec,
                                      MPerBlock,
                                      NPerBlock,
                                      K0PerBlock,
@@ -267,6 +268,12 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
+	      M_{M},
+	      N_{N},
+	      K_{K},
+	      StrideA_{StrideA},
+	      StrideB_{StrideB},
+	      StrideC_{StrideC},
               a_grid_desc_k0_m0_m1_k1_{},
               b_grid_desc_k0_n0_n1_k1_{},
               c_grid_desc_m0_m10_m11_n0_n10_n11_{},
@@ -299,6 +306,9 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
+
+	index_t M_, N_, K_;
+	index_t StrideA_, StrideB_, StrideC_;
 
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
@@ -361,6 +371,7 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
 
             float ave_time = 0;
 
+#if 0
             if(has_main_k_block_loop && has_double_tail_k_block_loop)
             {
                 const auto kernel =
@@ -465,7 +476,104 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
                                                   arg.c_grid_desc_m0_m10_m11_n0_n10_n11_,
                                                   arg.block_2_ctile_map_);
             }
+#else
+            if(has_main_k_block_loop && has_double_tail_k_block_loop)
+            {
+                const auto kernel =
+                    kernel_gemm_dl_v1r3<GridwiseGemm,
+                                        ADataType,
+                                        CDataType,
+                                        true,
+                                        true>;
 
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3(grid_size),
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  arg.p_a_grid_,
+                                                  arg.p_b_grid_,
+                                                  arg.p_c_grid_,
+						  arg.M_,
+						  arg.N_,
+						  arg.K_,
+						  arg.StrideA_,
+						  arg.StrideB_,
+						  arg.StrideC_);
+            }
+            else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
+            {
+                const auto kernel =
+                    kernel_gemm_dl_v1r3<GridwiseGemm,
+                                        ADataType,
+                                        CDataType,
+                                        true,
+                                        false>;
+
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3(grid_size),
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  arg.p_a_grid_,
+                                                  arg.p_b_grid_,
+                                                  arg.p_c_grid_,
+						  arg.M_,
+						  arg.N_,
+						  arg.K_,
+						  arg.StrideA_,
+						  arg.StrideB_,
+						  arg.StrideC_);
+            }
+            else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
+            {
+                const auto kernel =
+                    kernel_gemm_dl_v1r3<GridwiseGemm,
+                                        ADataType,
+                                        CDataType,
+                                        false,
+                                        true>;
+
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3(grid_size),
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  arg.p_a_grid_,
+                                                  arg.p_b_grid_,
+                                                  arg.p_c_grid_,
+						  arg.M_,
+						  arg.N_,
+						  arg.K_,
+						  arg.StrideA_,
+						  arg.StrideB_,
+						  arg.StrideC_);
+            }
+            else
+            {
+                const auto kernel =
+                    kernel_gemm_dl_v1r3<GridwiseGemm,
+                                        ADataType,
+                                        CDataType,
+                                        false,
+                                        false>;
+
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3(grid_size),
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  arg.p_a_grid_,
+                                                  arg.p_b_grid_,
+                                                  arg.p_c_grid_,
+						  arg.M_,
+						  arg.N_,
+						  arg.K_,
+						  arg.StrideA_,
+						  arg.StrideB_,
+						  arg.StrideC_);
+            }
+#endif
             return ave_time;
         }
 
