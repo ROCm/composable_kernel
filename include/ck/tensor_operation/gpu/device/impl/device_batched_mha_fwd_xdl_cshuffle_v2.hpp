@@ -14,7 +14,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_multihead_attention_forward_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_fwd_xdl_cshuffle_v2.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -79,7 +79,9 @@ __global__ void
             const ushort p_dropout_in_16bits,
             const GemmAccDataType p_dropout_rescale,
             const unsigned long long seed,
-            const unsigned long long offset)
+            const unsigned long long offset,
+            const index_t raw_m_padded,
+            const index_t raw_n_padded)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -100,8 +102,10 @@ __global__ void
     const long_index_t lse_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetLSEBasePtr(g_idx)));
 
-    const index_t global_thread_id = get_thread_global_1d_id();
-    ck::philox ph(seed, global_thread_id, offset);
+    // const index_t global_thread_id = get_thread_global_1d_id();
+    ck::philox ph(seed, 0, offset);
+
+    const index_t z_random_matrix_offset = g_idx * raw_m_padded * raw_n_padded;
 
     if constexpr(Deterministic)
     {
@@ -131,6 +135,8 @@ __global__ void
                 p_dropout_in_16bits,
                 p_dropout_rescale,
                 ph,
+                z_random_matrix_offset,
+                raw_n_padded,
                 i);
         }
     }
@@ -160,6 +166,8 @@ __global__ void
             p_dropout_in_16bits,
             p_dropout_rescale,
             ph,
+            z_random_matrix_offset,
+            raw_n_padded,
             0);
     }
 #else
@@ -640,6 +648,9 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
             z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
                 GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(z_grid_desc_m_n_);
 
+            m_raw_padded_ = GridwiseGemm::GetPaddedSize(raw_lengths_mz_nz_kz_gemm1nz_[0]);
+            n_raw_padded_ = GridwiseGemm::GetPaddedSize(raw_lengths_mz_nz_kz_gemm1nz_[1]);
+
             if(p_lse_grid == nullptr)
             {
                 is_lse_storing_ = false;
@@ -685,6 +696,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
         ZGridDesc_G_M_N z_grid_desc_g_m_n_;
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
+
         typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
             z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
 
@@ -719,6 +731,9 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
         bool is_dropout_;
 
         bool is_lse_storing_ = true;
+
+        index_t m_raw_padded_;
+        index_t n_raw_padded_;
     };
 
     // Invoker
@@ -803,7 +818,9 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
                         arg.p_dropout_in_16bits_,
                         arg.p_dropout_rescale_,
                         arg.seed_,
-                        arg.offset_);
+                        arg.offset_,
+                        arg.m_raw_padded_,
+                        arg.n_raw_padded_);
                 };
 
             // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need
