@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -90,6 +90,7 @@ void add_device_reduce_instance_threadwise(
                                                             AccElementwiseOp,
                                                             PropagateNan,
                                                             OutputIndex,
+                                                            false,
                                                             false, // HaveIndexInputIfOutputIndex
                                                             cfg1::BlockSize_,
                                                             cfg2::MThreadSliceSize_,

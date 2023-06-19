@@ -1,6 +1,6 @@
 #pragma once
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -39,7 +39,7 @@ __global__ void
                                 const CDEElementwiseOperation c_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__))
+    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();
@@ -548,11 +548,12 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 }
             }
 
-            hipGetErrorString(
-                hipMemcpy(arg.p_workspace_,
-                          arg.gemm_desc_kernel_arg_.data(),
-                          arg.gemm_desc_kernel_arg_.size() * sizeof(GemmBiasTransKernelArg),
-                          hipMemcpyHostToDevice));
+            hipGetErrorString(hipMemcpyWithStream(arg.p_workspace_,
+                                                  arg.gemm_desc_kernel_arg_.data(),
+                                                  arg.gemm_desc_kernel_arg_.size() *
+                                                      sizeof(GemmBiasTransKernelArg),
+                                                  hipMemcpyHostToDevice,
+                                                  stream_config.stream_id_));
 
             float ave_time = 0;
 

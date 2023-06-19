@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -44,6 +44,13 @@ using device_normalization_f16_instances =
         >;
 
 template <typename OutElementwise, index_t Rank, index_t Reduce>
+using device_normalization_f16_generic_instance = std::tuple<
+    // clang-format off
+        DeviceNormalizationImpl<F16, F16, F16, F32, F16, OutElementwise, Rank, Reduce, 64, 1, 64, 1, 1, 1, 1, 1, 1, 1, 1, 1>
+    // clang-format on
+    >;
+
+template <typename OutElementwise, index_t Rank, index_t Reduce>
 using device_normalization_f32_instances = std::tuple<
     // clang-format off
         // XDataType, GammaDataType, BetaDataType, ComputeDataType, YDataType, Rank, NumReduceDim, BlockSize, MThreadClusterSize, KThreadClusterSize, MThreadSliceSize, KThreadSliceSize, XYSrcVectorDim, XSrcVectorSize, GammaSrcVectorSize, BetaSrcVectorSize, YDstVectorSize>
@@ -70,6 +77,13 @@ using device_normalization_f32_instances = std::tuple<
     >;
 
 template <typename OutElementwise, index_t Rank, index_t Reduce>
+using device_normalization_f32_generic_instance = std::tuple<
+    // clang-format off
+        DeviceNormalizationImpl<F32, F32, F32, F32, F32, OutElementwise, Rank, Reduce, 64, 1, 64, 1, 1, 1, 1, 1, 1, 1, 1, 1>
+    // clang-format on
+    >;
+
+template <typename OutElementwise, index_t Rank, index_t Reduce>
 using device_normalization_f16_f32_f32_f16_instances = std::tuple<
     // clang-format off
         // XDataType, GammaDataType, BetaDataType, ComputeDataType, YDataType, Rank, NumReduceDim, BlockSize, MThreadClusterSize, KThreadClusterSize, MThreadSliceSize, KThreadSliceSize, XYSrcVectorDim, XSrcVectorSize, GammaSrcVectorSize, BetaSrcVectorSize, YDstVectorSize>
@@ -92,6 +106,13 @@ using device_normalization_f16_f32_f32_f16_instances = std::tuple<
         DeviceNormalizationImpl<F16, F32, F32, F32, F16, OutElementwise, Rank, Reduce, 512, 1, 512, 2, 8, 1, 4, 1, 4, 1, 4, 4>,
         DeviceNormalizationImpl<F16, F32, F32, F32, F16, OutElementwise, Rank, Reduce, 1024, 1, 1024, 1, 4, 1, 4, 1, 4, 1, 4, 4>,
         DeviceNormalizationImpl<F16, F32, F32, F32, F16, OutElementwise, Rank, Reduce, 1024, 1, 1024, 1, 8, 1, 4, 1, 4, 1, 4, 4>
+    // clang-format on
+    >;
+
+template <typename OutElementwise, index_t Rank, index_t Reduce>
+using device_normalization_f16_f32_f32_f16_generic_instance = std::tuple<
+    // clang-format off
+        DeviceNormalizationImpl<F16, F32, F32, F32, F16, OutElementwise, Rank, Reduce, 64, 1, 64, 1, 1, 1, 1, 1, 1, 1, 1, 1>
     // clang-format on
     >;
 
