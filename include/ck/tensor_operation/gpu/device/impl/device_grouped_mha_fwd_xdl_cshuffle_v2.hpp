@@ -132,6 +132,9 @@ __global__ void
                 p_dropout_in_16bits,
                 p_dropout_rescale,
                 ph,
+                arg_ptr[group_id].z_random_matrix_offset_ +
+                    g_idx * arg_ptr[group_id].raw_m_padded_ * arg_ptr[group_id].raw_n_padded_,
+                arg_ptr[group_id].raw_n_padded_,
                 i);
         }
     }
@@ -165,6 +168,9 @@ __global__ void
             p_dropout_in_16bits,
             p_dropout_rescale,
             ph,
+            arg_ptr[group_id].z_random_matrix_offset_ +
+                g_idx * arg_ptr[group_id].raw_m_padded_ * arg_ptr[group_id].raw_n_padded_,
+            arg_ptr[group_id].raw_n_padded_,
             0);
     }
 #else
@@ -567,6 +573,9 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
         Block2CTileMap block_2_ctile_map_;
 
         index_t block_start_, block_end_;
+
+        index_t z_random_matrix_offset_;
+        index_t raw_m_padded_, raw_n_padded_;
     };
 
     struct GroupDeviceArg
@@ -625,6 +634,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
             }
 
             grid_size_ = 0;
+
+            index_t z_random_matrix_offset = 0;
 
             for(std::size_t i = 0; i < group_count_; i++)
             {
@@ -712,6 +723,11 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
                         "match that in template argument");
                 }
 
+                const auto raw_m_padded = GridwiseGemm::GetPaddedSize(
+                    problem_desc.a_gs_ms_ks_lengths[NumDimG + NumDimM - 1]);
+                const auto raw_n_padded = GridwiseGemm::GetPaddedSize(
+                    problem_desc.b0_gs_ns_ks_lengths[NumDimG + NumDimN - 1]);
+
                 group_kernel_args_.push_back({p_a_grid,
                                               p_b_grid,
                                               p_b1_grid,
@@ -730,7 +746,13 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
                                               c0_matrix_mask,
                                               block_2_ctile_map,
                                               BlockStart,
-                                              BlockEnd});
+                                              BlockEnd,
+                                              z_random_matrix_offset,
+                                              raw_m_padded,
+                                              raw_n_padded});
+
+                z_random_matrix_offset =
+                    z_random_matrix_offset + raw_m_padded * raw_n_padded * batch_count;
 
                 group_device_args_.push_back(
                     {{problem_desc.a_gs_ms_ks_lengths[NumDimG + NumDimM - 1],
