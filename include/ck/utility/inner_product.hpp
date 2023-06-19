@@ -3,6 +3,7 @@
 
 #pragma once
 #include "data_type.hpp"
+#include "type_convert.hpp"
 
 namespace ck {
 
