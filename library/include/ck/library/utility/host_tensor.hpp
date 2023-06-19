@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -409,6 +409,12 @@ struct Tensor
         }
         default: throw std::runtime_error("unspported dimension");
         }
+    }
+
+    template <typename... Is>
+    std::size_t GetOffsetFromMultiIndex(Is... is) const
+    {
+        return mDesc.GetOffsetFromMultiIndex(is...);
     }
 
     template <typename... Is>
