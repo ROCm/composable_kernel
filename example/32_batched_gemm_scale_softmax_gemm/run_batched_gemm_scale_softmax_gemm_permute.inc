@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 int run(int argc, char* argv[])
 {
@@ -117,41 +117,6 @@ int run(int argc, char* argv[])
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
         break;
-    case 4: // A, B0, B1 1
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
-        break;
-    case 5: // Rand: b1 b0; unit: a
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
-        break;
-    case 6: // Rand: a b0 ; unit: B1
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
-        break;
-    case 7: // Rand: a b1 ; unit: b0
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
-        break;
-    case 8: // Rand: a ; unit: b0 b1
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
-        break;
-    case 9: // Rand: b0 ; unit: a b1
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
-        break;
-    case 10: // Rand: b1 ; unit: a b0
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
-        break;
     default:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_Sequential<2>{});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
@@ -175,166 +140,139 @@ int run(int argc, char* argv[])
     auto c_element_op    = CElementOp{};
 
     // do GEMM
-    float best_perf         = .0;
-    float best_time         = .0;
-    int not_pass            = 0;
-    std::string best_kernel = "";
-    printf("Verification: %s\n", do_verification ? "ON" : "OFF");
     // TODO ANT: replace array with vector?
-    ck::static_for<0, std::tuple_size_v<DeviceMHAFactory>, 1>{}([&](auto i) -> void {
-        const auto device_conv_mha_instance = std::get<i>(DeviceMHAFactory{});
+    auto gemm     = DeviceGemmInstance{};
+    auto invoker  = gemm.MakeInvoker();
+    auto argument = gemm.MakeArgument(
+        static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+        static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
+        static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
+        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+        {}, // std::array<void*, 1> p_acc0_biases;
+        {}, // std::array<void*, 1> p_acc1_biases;
+        a_gs_ms_ks_lengths,
+        a_gs_ms_ks_strides,
+        b0_gs_ns_ks_lengths,
+        b0_gs_ns_ks_strides,
+        b1_gs_os_ns_lengths,
+        b1_gs_os_ns_strides,
+        c_gs_ms_os_lengths,
+        c_gs_ms_os_strides,
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+        a_element_op,
+        b0_element_op,
+        acc0_element_op,
+        b1_element_op,
+        c_element_op);
 
-        using DeviceMHAInstance = ck::remove_cvref_t<decltype(device_conv_mha_instance)>;
-        auto gemm               = DeviceMHAInstance{};
-        auto invoker            = gemm.MakeInvoker();
-        auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                          static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
-                                          static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
-                                          static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                          M,
-                                          N,
-                                          K,
-                                          O,
-                                          G0,
-                                          G1,
-                                          alpha,
-                                          input_permute,
-                                          output_permute);
+    if(!gemm.IsSupportedArgument(argument))
+    {
+        std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
-        if(!gemm.IsSupportedArgument(argument))
+        return 0;
+    }
+
+    ck::index_t BatchCount = G0 * G1;
+
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+
+    std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
+    std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
+                             sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O) *
+                            BatchCount;
+
+    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << gemm.GetTypeString() << std::endl;
+
+    if(do_verification)
+    {
+        c_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
+
+        Tensor<ADataType> a_g_m_k({BatchCount, M, K});
+        Tensor<B0DataType> b0_g_k_n({BatchCount, K, N});
+        Tensor<B1DataType> b1_g_n_o({BatchCount, N, O});
+        Tensor<AccDataType> acc0_g_m_n({BatchCount, M, N});        // scratch object after gemm0
+        Tensor<ADataType> a1_g_m_n({BatchCount, M, N});            // scratch object after softmax
+        Tensor<CDataType> c_g_m_o_host_result({BatchCount, M, O}); // scratch object after gemm1
+
+        // permute
+        a_gs_ms_ks.ForEach([&](auto& self, auto idx) {
+            a_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        });
+        b0_gs_ns_ks.ForEach([&](auto& self, auto idx) {
+            b0_g_k_n(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+        });
+        b1_gs_os_ns.ForEach([&](auto& self, auto idx) {
+            b1_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+        });
+
+        // gemm 0
+        auto ref_gemm0          = ReferenceGemm0Instance{};
+        auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();
+        auto ref_gemm0_argument = ref_gemm0.MakeArgument(
+            a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, acc0_element_op);
+
+        ref_gemm0_invoker.Run(ref_gemm0_argument);
+
+        // masking
+        const auto mask = DeviceGemmInstance::C0MatrixMask(N);
+        acc0_g_m_n.ForEach([&](auto& self, auto idx) {
+            if(mask.IsMaskedElement(idx[1], idx[2]))
+                self(idx) = -ck::NumericLimits<float>::Infinity();
+        });
+
+        // softmax
+        auto ref_softmax          = ReferenceSoftmaxInstance{};
+        auto ref_softmax_invoker  = ref_softmax.MakeInvoker();
+        auto ref_softmax_argument = ref_softmax.MakeArgument(acc0_g_m_n, a1_g_m_n, 1, 0, {2});
+
+        ref_softmax_invoker.Run(ref_softmax_argument);
+
+        // gemm1
+        auto ref_gemm1          = ReferenceGemm1Instance{};
+        auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
+        auto ref_gemm1_argument = ref_gemm1.MakeArgument(
+            a1_g_m_n, b1_g_n_o, c_g_m_o_host_result, PassThrough{}, b1_element_op, c_element_op);
+
+        ref_gemm1_invoker.Run(ref_gemm1_argument);
+
+        // permute
+        c_gs_ms_os_host_result.ForEach([&](auto& self, auto idx) {
+            const size_t& g0 = idx[0];
+            const size_t& g1 = idx[1];
+
+            const size_t g = g0 * G1 + g1;
+
+            self(idx) = c_g_m_o_host_result(g, idx[2], idx[3]);
+        });
+
+        // default absolute error and relative error is 0.001
+        double rtol = 1e-3;
+        double atol = 1e-3;
+
+        // when BF16 is taken, set absolute error and relative error to 0.01
+        if(std::is_same_v<ADataType, ck::bhalf_t> && std::is_same_v<B0DataType, ck::bhalf_t> &&
+           std::is_same_v<B1DataType, ck::bhalf_t> && std::is_same_v<CDataType, ck::bhalf_t>)
         {
-            std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
-
-            // return 0;
+            rtol = 1e-2;
+            atol = 1e-2;
         }
 
-        ck::index_t BatchCount = G0 * G1;
+        return ck::utils::check_err(c_gs_ms_os_device_result.mData,
+                                    c_gs_ms_os_host_result.mData,
+                                    "Error: Incorrect results!",
+                                    rtol,
+                                    atol)
+                   ? 0
+                   : 1;
+    }
 
-        float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
-
-        std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
-        std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
-                                 sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O) *
-                                BatchCount;
-
-        float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-        float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s, " << gemm.GetTypeString() << std::endl;
-        if(tflops > best_perf)
-        {
-            best_perf   = tflops;
-            best_time   = ave_time * 1000;
-            best_kernel = gemm.GetTypeString();
-        }
-        if(do_verification)
-        {
-            c_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
-
-            Tensor<ADataType> a_g_m_k({BatchCount, M, K});
-            Tensor<B0DataType> b0_g_k_n({BatchCount, K, N});
-            Tensor<B1DataType> b1_g_n_o({BatchCount, N, O});
-            Tensor<Acc0DataType> acc0_g_m_n({BatchCount, M, N}); // scratch object after gemm0
-            Tensor<ADataType> a1_g_m_n({BatchCount, M, N});      // scratch object after softmax
-            Tensor<CDataType> c_g_m_o_host_result({BatchCount, M, O}); // scratch object after gemm1
-
-            // permute
-            a_gs_ms_ks.ForEach([&](auto& self, auto idx) {
-                a_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
-            });
-            b0_gs_ns_ks.ForEach([&](auto& self, auto idx) {
-                b0_g_k_n(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
-            });
-            b1_gs_os_ns.ForEach([&](auto& self, auto idx) {
-                b1_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
-            });
-
-            // gemm 0
-            auto ref_gemm0          = ReferenceGemm0Instance{};
-            auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();
-            auto ref_gemm0_argument = ref_gemm0.MakeArgument(
-                a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, acc0_element_op);
-
-            ref_gemm0_invoker.Run(ref_gemm0_argument);
-
-            // masking
-            const auto mask = typename DeviceMHAInstance::C0MatrixMask(N);
-            acc0_g_m_n.ForEach([&](auto& self, auto idx) {
-                if(mask.IsMaskedElement(idx[1], idx[2]))
-                    self(idx) = -ck::NumericLimits<float>::Infinity();
-            });
-
-            // softmax
-            auto ref_softmax          = ReferenceSoftmaxInstance{};
-            auto ref_softmax_invoker  = ref_softmax.MakeInvoker();
-            auto ref_softmax_argument = ref_softmax.MakeArgument(acc0_g_m_n, a1_g_m_n, 1, 0, {2});
-
-            ref_softmax_invoker.Run(ref_softmax_argument);
-
-            // gemm1
-            auto ref_gemm1          = ReferenceGemm1Instance{};
-            auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
-            auto ref_gemm1_argument = ref_gemm1.MakeArgument(a1_g_m_n,
-                                                             b1_g_n_o,
-                                                             c_g_m_o_host_result,
-                                                             PassThrough{},
-                                                             b1_element_op,
-                                                             c_element_op);
-
-            ref_gemm1_invoker.Run(ref_gemm1_argument);
-
-            // permute
-            c_gs_ms_os_host_result.ForEach([&](auto& self, auto idx) {
-                const size_t& g0 = idx[0];
-                const size_t& g1 = idx[1];
-
-                const size_t g = g0 * G1 + g1;
-
-                self(idx) = c_g_m_o_host_result(g, idx[2], idx[3]);
-            });
-
-            // default absolute error and relative error is 0.001
-            double rtol = 1e-3;
-            double atol = 1e-3;
-
-            // when BF16 is taken, set absolute error and relative error to 0.01
-            if(std::is_same_v<ADataType, ck::bhalf_t> && std::is_same_v<B0DataType, ck::bhalf_t> &&
-               std::is_same_v<B1DataType, ck::bhalf_t> && std::is_same_v<CDataType, ck::bhalf_t>)
-            {
-                rtol = 1e-2;
-                atol = 1e-2;
-            }
-
-            bool this_run_verification = ck::utils::check_err(c_gs_ms_os_device_result.mData,
-                                                              c_gs_ms_os_host_result.mData,
-                                                              "Error: Incorrect results!",
-                                                              rtol,
-                                                              atol);
-            printf("Verification: %s, Pass: %s\n",
-                   do_verification ? "ON" : "OFF",
-                   this_run_verification ? "YES" : "NO");
-
-            if(!this_run_verification)
-            {
-                not_pass = 1;
-                printf("%d th MHA instance verification Failed \n", i.value);
-            }
-        }
-    });
-    std::cout << "---------------------------------------------------------------------------------"
-                 "-----------"
-              << std::endl;
-    std::cout << "Problem Size: BatchCount: " << G0 << ", HeadNum: " << G1 << ", M: " << M
-              << ", N: " << N << ", K: " << K << ", O: " << O << std::endl;
-    std::cout << "---------------------------------------------------------------------------------"
-                 "-----------"
-              << std::endl;
-    std::cout << "Best kernel: " << best_kernel << " , " << best_perf << " TFlops , " << best_time
-              << " us" << std::endl;
-    std::cout << "---------------------------------------------------------------------------------"
-                 "-----------"
-              << std::endl;
-    return not_pass;
+    return 0;
 }
