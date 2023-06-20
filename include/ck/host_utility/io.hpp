@@ -9,6 +9,8 @@
 #include <iterator>
 
 #include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/utility/sequence.hpp"
+#include "ck/utility/functional2.hpp"
 
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
@@ -35,6 +37,16 @@ std::ostream& operator<<(std::ostream& os, const ck::TensorDescriptor<Ts...>& de
 
     os << desc.GetLength(ck::Number<nDim - 1>{});
 
+    os << "}";
+
+    return os;
+}
+
+template <ck::index_t... Is>
+std::ostream& operator<<(std::ostream& os, const ck::Sequence<Is...>& seq)
+{
+    os << "{";
+    ck::static_for<0, seq.Size(), 1>{}([&](auto i) { os << seq.At(i).value << ", "; });
     os << "}";
 
     return os;
