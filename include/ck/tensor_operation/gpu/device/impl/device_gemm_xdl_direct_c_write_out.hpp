@@ -12,7 +12,8 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_direct_c_write_out.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_direct_c_write_out_roofline.hpp"
+// #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_direct_c_write_out.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -56,6 +57,9 @@ template <typename ALayout,
           index_t BBlockTransferSrcScalarPerVector,
           index_t BBlockTransferDstScalarPerVector_BK1,
           bool BBlockLdsExtraN,
+          typename CThreadTransferDstAccessOrder,
+          index_t CThreadTransferDstVectorDim,
+          index_t CThreadTransferDstScalarPerVector,
           LoopScheduler LoopSched     = make_default_loop_scheduler(),
           PipelineVersion PipelineVer = PipelineVersion::v2>
 struct DeviceGemm_Xdl_DirectCWriteOut : public DeviceGemm<ALayout,
@@ -381,6 +385,9 @@ struct DeviceGemm_Xdl_DirectCWriteOut : public DeviceGemm<ALayout,
                                            BBlockTransferDstScalarPerVector_BK1,
                                            false,
                                            BBlockLdsExtraN,
+                                           CThreadTransferDstAccessOrder,
+                                           CThreadTransferDstVectorDim,
+                                           CThreadTransferDstScalarPerVector,
                                            LoopSched,
                                            PipelineVer>;
 

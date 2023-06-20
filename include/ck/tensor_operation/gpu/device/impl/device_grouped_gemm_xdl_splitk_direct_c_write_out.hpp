@@ -17,7 +17,8 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_splitk.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_splitk_direct_c_write_out.hpp"
+// #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_splitk_direct_c_write_out.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_splitk_direct_c_write_out_roofline.hpp"
 
 namespace ck {
 namespace tensor_operation {

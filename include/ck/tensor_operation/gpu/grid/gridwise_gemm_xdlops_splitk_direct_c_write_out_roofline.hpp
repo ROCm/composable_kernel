@@ -751,8 +751,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_splitk_direct_c_write_out
             // N3 - mfma_instr.num_input_blks
             // N4 - mfma_instr.group_size
             // {M0, N0, 1, 1, 1, 4, 1, 4}
-            // constexpr auto c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 =
-            //     blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
 
             // c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4 is only used to get lengths
             constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4 =
