@@ -46,7 +46,7 @@ make_out_n_ho_wo_k_grid_desc(const index_t N,
                                                 make_tuple(NStride, HiStride, WiStride, CStride));
         }
     }
-    else
+    else if constexpr(is_same_v<ALayout, tensor_layout::convolution::GNHWK>)
     {
         // assume packed
         if constexpr(ConvBwdDataSpecialization ==
@@ -59,6 +59,10 @@ make_out_n_ho_wo_k_grid_desc(const index_t N,
         {
             return make_naive_tensor_descriptor_packed(make_tuple(N, Ho, Wo, K));
         }
+    }
+    else
+    {
+        throw std::runtime_error("wrong! unsupported layout");
     }
 }
 

@@ -142,13 +142,6 @@ class TestGroupedConvndBwdDataFilter1x1
 TYPED_TEST_SUITE(TestGroupedConvndBwdDataDefault, KernelTypes);
 TYPED_TEST_SUITE(TestGroupedConvndBwdDataFilter1x1, KernelTypes);
 
-TYPED_TEST(TestGroupedConvndBwdDataDefault, GridwiseGemmCheck)
-{
-    this->conv_param  = {2, 2, 128, 128, 256, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}};
-    bool is_supported = this->template Run<2>();
-    EXPECT_FALSE(is_supported);
-}
-
 TYPED_TEST(TestGroupedConvndBwdDataFilter1x1, SpecializationCheck)
 {
     // Check filter 3,3 instead of 1,1

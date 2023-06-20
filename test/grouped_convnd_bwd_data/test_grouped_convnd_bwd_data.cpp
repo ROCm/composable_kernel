@@ -25,24 +25,24 @@ class TestGroupedConvndBwdData : public ::testing::Test
     template <ck::index_t NDimSpatial>
     void Run()
     {
+        EXPECT_FALSE(conv_params.empty());
+        bool pass = true;
         for(auto& param : conv_params)
         {
-            bool pass;
-            EXPECT_FALSE(conv_params.empty());
-            pass = ck::profiler::profile_grouped_conv_bwd_data_impl<NDimSpatial,
-                                                                    OutLayout,
-                                                                    WeiLayout,
-                                                                    InLayout,
-                                                                    DataType,
-                                                                    DataType,
-                                                                    DataType>(
-                true,  // do_verification
-                1,     // init_method: integer value
-                false, // do_log
-                false, // time_kernel
-                param);
-            EXPECT_TRUE(pass);
+            pass = pass && ck::profiler::profile_grouped_conv_bwd_data_impl<NDimSpatial,
+                                                                            OutLayout,
+                                                                            WeiLayout,
+                                                                            InLayout,
+                                                                            DataType,
+                                                                            DataType,
+                                                                            DataType>(
+                               true,  // do_verification
+                               1,     // init_method: integer value
+                               false, // do_log
+                               false, // time_kernel
+                               param);
         }
+        EXPECT_TRUE(pass);
     }
 };
 
