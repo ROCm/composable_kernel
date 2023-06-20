@@ -18,7 +18,7 @@
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_softmax_gemm_wmma_cshuffle.hpp"
-#include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
+#include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm_arraybase.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -572,7 +572,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
     static constexpr auto B0EnableLds = B0EnableLds_auto || B0EnableLds_manu || (NumPrefetch > 1);
     static constexpr auto B1EnableLds = B1EnableLds_auto || B1EnableLds_manu || (NumPrefetch > 1);
 
-    using Transform = TransformBatchedContractionContractionToBatchedGemmGemm<
+    using Transform = TransformBatchedContractionContractionToBatchedGemmGemm_Wmma<
         Sequence<NumDimG, NumDimM, NumDimL, NumDimK, NumDimN>,
         Sequence<MPerBlock, LPerBlock, KPerBlock, NPerBlock>,
         GemmSpec,

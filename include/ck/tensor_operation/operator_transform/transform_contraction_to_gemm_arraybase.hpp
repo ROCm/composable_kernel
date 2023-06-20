@@ -16,14 +16,15 @@ template <index_t NumDimG,
           index_t NumDimM,
           index_t NumDimN,
           device::TensorSpecialization TensorSpec>
-static auto MakeGridDescriptorPair(const std::vector<index_t>& gs_ms_ns_lengths_vec,
-                                   const std::vector<index_t>& gs_ms_ns_strides_vec)
+__host__ __device__ static auto
+MakeGridDescriptorPair(const std::array<index_t, NumDimG + NumDimM + NumDimN>& gs_ms_ns_lengths_vec,
+                       const std::array<index_t, NumDimG + NumDimM + NumDimN>& gs_ms_ns_strides_vec)
 {
-    if(!(gs_ms_ns_lengths_vec.size() == NumDimG + NumDimM + NumDimN &&
-         gs_ms_ns_strides_vec.size() == NumDimG + NumDimM + NumDimN))
-    {
-        throw std::runtime_error("wrong! dimension must match input lengths");
-    }
+    // if(!(gs_ms_ns_lengths_vec.size() == NumDimG + NumDimM + NumDimN &&
+    //      gs_ms_ns_strides_vec.size() == NumDimG + NumDimM + NumDimN))
+    // {
+    //     throw std::runtime_error("wrong! dimension must match input lengths");
+    // }
 
     const auto to_tuple = [&](auto& vec, auto start, auto end) {
         return generate_tuple([&](auto i) { return vec[start + i]; }, Number<end - start>{});
@@ -117,7 +118,7 @@ template <typename NumDims_G_M_N_K_O, // Sequence<>
           device::TensorSpecialization B0Spec,
           device::TensorSpecialization B1Spec,
           device::TensorSpecialization CSpec>
-struct TransformBatchedContractionContractionToBatchedGemmGemm
+struct TransformBatchedContractionContractionToBatchedGemmGemm_Wmma
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -143,21 +144,24 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm
     //
     // A
     //
-    static auto MakeAGridDescriptorPair(const std::vector<index_t>& a_gs_ms_ks_lengths_vec,
-                                        const std::vector<index_t>& a_gs_ms_ks_strides_vec)
+    __host__ __device__ static auto MakeAGridDescriptorPair(
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& a_gs_ms_ks_lengths_vec,
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& a_gs_ms_ks_strides_vec)
     {
         return MakeGridDescriptorPair<NumDimG, NumDimM, NumDimK, ASpec>(a_gs_ms_ks_lengths_vec,
                                                                         a_gs_ms_ks_strides_vec);
     }
 
     // TODO: rename to G_MRaw_KRaw
-    static auto MakeAGridDescriptor_G_M_K(const std::vector<index_t>& a_gs_ms_ks_lengths_vec,
-                                          const std::vector<index_t>& a_gs_ms_ks_strides_vec)
+    __host__ __device__ static auto MakeAGridDescriptor_G_M_K(
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& a_gs_ms_ks_lengths_vec,
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& a_gs_ms_ks_strides_vec)
     {
         return MakeAGridDescriptorPair(a_gs_ms_ks_lengths_vec, a_gs_ms_ks_strides_vec).first;
     }
-    static auto MakeAGridDescriptor_M_K(const std::vector<index_t>& a_gs_ms_ks_lengths_vec,
-                                        const std::vector<index_t>& a_gs_ms_ks_strides_vec)
+    __host__ __device__ static auto MakeAGridDescriptor_M_K(
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& a_gs_ms_ks_lengths_vec,
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& a_gs_ms_ks_strides_vec)
     {
         return matrix_padder.PadADescriptor_M_K(
             MakeAGridDescriptorPair(a_gs_ms_ks_lengths_vec, a_gs_ms_ks_strides_vec).second);
@@ -179,24 +183,57 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm
                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
+    template <typename AGridDesc_M_K,
+              typename WmmaK,
+              typename MRepeat,
+              typename MWaves,
+              typename MPerWmma,
+              typename AK1>
+    __host__ __device__ static constexpr auto
+    MakeAGridDescriptor_AKWmma_MBlockRepeat_MWaves_AK0PerWmma_AKRow_MPerWmma_AK1(
+        const AGridDesc_M_K& a_grid_desc_m_k,
+        const WmmaK&,
+        const MRepeat&,
+        const MWaves&,
+        const MPerWmma&,
+        const AK1&)
+    {
+        const auto M0             = a_grid_desc_m_k.GetLength(I0) / MPerBlock;
+        const auto K              = a_grid_desc_m_k.GetLength(I1);
+        const auto AKWmma         = K / WmmaK{};
+        constexpr auto AKRow      = 2;
+        constexpr auto AK0PerWmma = WmmaK{} / AKRow / AK1{};
+
+        return transform_tensor_descriptor(
+            a_grid_desc_m_k,
+            make_tuple(make_unmerge_transform(
+                           make_tuple(AKWmma, Number<AK0PerWmma>{}, Number<AKRow>{}, AK1{})),
+                       make_unmerge_transform(make_tuple(M0 * MRepeat{}, MWaves{}, MPerWmma{}))),
+            make_tuple(Sequence<1>{}, Sequence<0>{}),
+            make_tuple(Sequence<0, 3, 4, 6>{}, Sequence<1, 2, 5>{}));
+    }
+
     //
     // B (alias of B0)
     //
-    static auto MakeB0GridDescriptorPair(const std::vector<index_t>& b0_gs_ns_ks_lengths_vec,
-                                         const std::vector<index_t>& b0_gs_ns_ks_strides_vec)
+    __host__ __device__ static auto MakeB0GridDescriptorPair(
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b0_gs_ns_ks_lengths_vec,
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b0_gs_ns_ks_strides_vec)
     {
         return MakeGridDescriptorPair<NumDimG, NumDimN, NumDimK, B0Spec>(b0_gs_ns_ks_lengths_vec,
                                                                          b0_gs_ns_ks_strides_vec);
     }
 
     // TODO: rename to G_MRaw_NRaw
-    static auto MakeB0GridDescriptor_G_N_K(const std::vector<index_t>& b0_gs_ns_ks_lengths_vec,
-                                           const std::vector<index_t>& b0_gs_ns_ks_strides_vec)
+    __host__ __device__ static auto MakeB0GridDescriptor_G_N_K(
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b0_gs_ns_ks_lengths_vec,
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b0_gs_ns_ks_strides_vec)
     {
         return MakeB0GridDescriptorPair(b0_gs_ns_ks_lengths_vec, b0_gs_ns_ks_strides_vec).first;
     }
-    static auto MakeB0GridDescriptor_N_K(const std::vector<index_t>& b0_gs_ns_ks_lengths_vec,
-                                         const std::vector<index_t>& b0_gs_ns_ks_strides_vec)
+    __host__ __device__ static auto MakeB0GridDescriptor_N_K(
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b0_gs_ns_ks_lengths_vec,
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b0_gs_ns_ks_strides_vec)
     {
         // alias of matrix_padder.PadB0Descriptor_N_K
         return matrix_padder.PadBDescriptor_N_K(
@@ -219,24 +256,57 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm
                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
+    template <typename BGridDesc_L_K,
+              typename WmmaK,
+              typename LRepeat,
+              typename LWaves,
+              typename LPerWmma,
+              typename BK1>
+    __host__ __device__ static constexpr auto
+    MakeB0GridDescriptor_BKWmma_LBlockRepeat_LWaves_BK0PerWmma_BKRow_LPerWmma_BK1(
+        const BGridDesc_L_K& b_grid_desc_l_k,
+        const WmmaK&,
+        const LRepeat&,
+        const LWaves&,
+        const LPerWmma&,
+        const BK1&)
+    {
+        const auto L0             = b_grid_desc_l_k.GetLength(I0) / NPerBlock;
+        const auto K              = b_grid_desc_l_k.GetLength(I1);
+        const auto BKWmma         = K / WmmaK{};
+        constexpr auto BKRow      = 2;
+        constexpr auto BK0PerWmma = WmmaK{} / BKRow / BK1{};
+
+        return transform_tensor_descriptor(
+            b_grid_desc_l_k,
+            make_tuple(make_unmerge_transform(
+                           make_tuple(BKWmma, Number<BK0PerWmma>{}, Number<BKRow>{}, BK1{})),
+                       make_unmerge_transform(make_tuple(L0 * LRepeat{}, LWaves{}, LPerWmma{}))),
+            make_tuple(Sequence<1>{}, Sequence<0>{}),
+            make_tuple(Sequence<0, 3, 4, 6>{}, Sequence<1, 2, 5>{}));
+    }
+
     //
     // B1
     //
-    static auto MakeB1GridDescriptorPair(const std::vector<index_t>& b1_gs_os_ns_lengths_vec,
-                                         const std::vector<index_t>& b1_gs_os_ns_strides_vec)
+    __host__ __device__ static auto MakeB1GridDescriptorPair(
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b1_gs_os_ns_lengths_vec,
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b1_gs_os_ns_strides_vec)
     {
         return MakeGridDescriptorPair<NumDimG, NumDimO, NumDimN, B1Spec>(b1_gs_os_ns_lengths_vec,
                                                                          b1_gs_os_ns_strides_vec);
     }
 
     // TODO: rename to G_NRaw_KRaw
-    static auto MakeB1GridDescriptor_G_N_K(const std::vector<index_t>& b1_gs_os_ns_lengths_vec,
-                                           const std::vector<index_t>& b1_gs_os_ns_strides_vec)
+    __host__ __device__ static auto MakeB1GridDescriptor_G_N_K(
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b1_gs_os_ns_lengths_vec,
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b1_gs_os_ns_strides_vec)
     {
         return MakeB1GridDescriptorPair(b1_gs_os_ns_lengths_vec, b1_gs_os_ns_strides_vec).first;
     }
-    static auto MakeB1GridDescriptor_N_K(const std::vector<index_t>& b1_gs_os_ns_lengths_vec,
-                                         const std::vector<index_t>& b1_gs_os_ns_strides_vec)
+    __host__ __device__ static auto MakeB1GridDescriptor_N_K(
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b1_gs_os_ns_lengths_vec,
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b1_gs_os_ns_strides_vec)
     {
         // alias of matrix_padder.PadB1Descriptor_O_N
         return matrix_padder.PadB1Descriptor_N_K(
@@ -260,24 +330,57 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
+    template <typename BGridDesc_N_L,
+              typename WmmaL,
+              typename NRepeat,
+              typename NWaves,
+              typename NPerWmma,
+              typename BL1>
+    __host__ __device__ static constexpr auto
+    MakeB1GridDescriptor_BLWmma_NBlockRepeat_NWaves__BL0PerWmma_BLRow_NPerWmma_BL1(
+        const BGridDesc_N_L& b_grid_desc_n_l,
+        const WmmaL&,
+        const NRepeat&,
+        const NWaves&,
+        const NPerWmma&,
+        const BL1&)
+    {
+        const auto N0             = b_grid_desc_n_l.GetLength(I0) / OPerBlock;
+        const auto L              = b_grid_desc_n_l.GetLength(I1);
+        const auto BLWmma         = L / WmmaL{};
+        constexpr auto BLRow      = 2;
+        constexpr auto BL0PerWmma = WmmaL{} / BLRow / BL1{};
+
+        return transform_tensor_descriptor(
+            b_grid_desc_n_l,
+            make_tuple(make_unmerge_transform(
+                           make_tuple(BLWmma, Number<BL0PerWmma>{}, Number<BLRow>{}, BL1{})),
+                       make_unmerge_transform(make_tuple(N0 * NRepeat{}, NWaves{}, NPerWmma{}))),
+            make_tuple(Sequence<1>{}, Sequence<0>{}),
+            make_tuple(Sequence<0, 3, 4, 6>{}, Sequence<1, 2, 5>{}));
+    }
+
     //
     // C
     //
-    static auto MakeCGridDescriptorPair(const std::vector<index_t>& c_gs_ms_os_lengths_vec,
-                                        const std::vector<index_t>& c_gs_ms_os_strides_vec)
+    __host__ __device__ static auto MakeCGridDescriptorPair(
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& c_gs_ms_os_lengths_vec,
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& c_gs_ms_os_strides_vec)
     {
         return MakeGridDescriptorPair<NumDimG, NumDimM, NumDimO, CSpec>(c_gs_ms_os_lengths_vec,
                                                                         c_gs_ms_os_strides_vec);
     }
 
     // TODO: rename to G_MRaw_NRaw
-    static auto MakeCGridDescriptor_G_M_N(const std::vector<index_t>& c_gs_ms_os_lengths_vec,
-                                          const std::vector<index_t>& c_gs_ms_os_strides_vec)
+    __host__ __device__ static auto MakeCGridDescriptor_G_M_N(
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& c_gs_ms_os_lengths_vec,
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& c_gs_ms_os_strides_vec)
     {
         return MakeCGridDescriptorPair(c_gs_ms_os_lengths_vec, c_gs_ms_os_strides_vec).first;
     }
-    static auto MakeCGridDescriptor_M_N(const std::vector<index_t>& c_gs_ms_os_lengths_vec,
-                                        const std::vector<index_t>& c_gs_ms_os_strides_vec)
+    __host__ __device__ static auto MakeCGridDescriptor_M_N(
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& c_gs_ms_os_lengths_vec,
+        const std::array<index_t, NumDimG + NumDimM + NumDimN>& c_gs_ms_os_strides_vec)
     {
         return matrix_padder.PadCDescriptor_M_N(
             MakeCGridDescriptorPair(c_gs_ms_os_lengths_vec, c_gs_ms_os_strides_vec).second);
