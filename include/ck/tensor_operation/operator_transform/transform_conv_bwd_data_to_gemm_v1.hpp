@@ -62,7 +62,7 @@ make_out_n_ho_wo_k_grid_desc(const index_t N,
     }
     else
     {
-        throw std::runtime_error("wrong! unsupported layout");
+        throw std::runtime_error("wrong! unsupported layout: " + ALayout::name());
     }
 }
 
