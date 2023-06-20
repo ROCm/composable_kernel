@@ -786,12 +786,10 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             if(arg.d0s_nl_ns_lengths_strides_[i][1] == 1 &&
                arg.d0s_nl_ns_lengths_strides_[i][0] % D0sTransferSrcScalarPerVector != 0)
             {
-                std::cout << "first" << std::endl;
                 return false;
             }
             if(arg.d0s_nl_ns_lengths_strides_[i][1] != 1 && D0sTransferSrcScalarPerVector != 1)
             {
-                std::cout << "second" << std::endl;
                 return false;
             }
         }
