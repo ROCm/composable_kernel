@@ -68,7 +68,7 @@ __global__ void
             const C0MatrixMask c0_matrix_mask)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__))
+    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -197,7 +197,8 @@ template <index_t NumDimG,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           MaskingSpecialization MaskingSpec,
-          LoopScheduler LoopSched = LoopScheduler::Default>
+          int D0sTransferSrcScalarPerVector = 4,
+          LoopScheduler LoopSched           = LoopScheduler::Default>
 struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     : public DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
                                                  NumDimM,
@@ -438,7 +439,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
         Transform::matrix_padder.PadN,
-        MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle>;
+        MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle,
+        D0sTransferSrcScalarPerVector>;
 
     // Argument
     // FIXME: constness
@@ -530,6 +532,11 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                 using D0DataType = remove_cvref_t<tuple_element_t<i.value, D0sDataType>>;
                 // D0 pointer
                 p_d0s_grid_(i) = static_cast<const D0DataType*>(p_acc0_biases[i]);
+                // for  check
+                d0s_nl_ns_lengths_strides_[i].push_back(
+                    acc0_biases_gs_ms_ns_lengths[i][NumDimG + NumDimM]);
+                d0s_nl_ns_lengths_strides_[i].push_back(
+                    acc0_biases_gs_ms_ns_strides[i][NumDimG + NumDimM]);
             });
 
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
@@ -608,6 +615,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         std::vector<index_t> b_nz_kz_strides_;
         std::vector<index_t> b1_nz_kz_strides_;
         std::vector<index_t> c_mz_gemm1nz_strides_;
+        std::array<std::vector<ck::index_t>, NumD0Tensor> d0s_nl_ns_lengths_strides_;
 
         index_t batch_count_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
@@ -716,7 +724,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
 #endif
 
         if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
-             ck::get_device_name() == "gfx940"))
+             ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
+             ck::get_device_name() == "gfx942"))
         {
             return false;
         }
@@ -771,6 +780,18 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
              c_stride_lowest == 1))
         {
             return false;
+        }
+        for(int i = 0; i < NumD0Tensor; i++)
+        {
+            if(arg.d0s_nl_ns_lengths_strides_[i][1] == 1 &&
+               arg.d0s_nl_ns_lengths_strides_[i][0] % D0sTransferSrcScalarPerVector != 0)
+            {
+                return false;
+            }
+            if(arg.d0s_nl_ns_lengths_strides_[i][1] != 1 && D0sTransferSrcScalarPerVector != 1)
+            {
+                return false;
+            }
         }
 
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
