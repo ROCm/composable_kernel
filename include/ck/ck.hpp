@@ -173,6 +173,10 @@
 
 // workaround: compiler issue on gfx908
 #define CK_WORKAROUND_SWDEV_388832 1
+
+// workaround: Grouped Conv2d_bwd_data fails for already implemented instance
+#define CK_WORKAROUND_SWDEV_3318619 0
+
 // flag to enable (1) or disable (0) the debugging output in some kernels
 #define DEBUG_LOG 0
 

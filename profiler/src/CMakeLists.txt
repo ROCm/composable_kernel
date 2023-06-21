@@ -35,6 +35,7 @@ set(PROFILER_SOURCES
     profile_contraction_bilinear.cpp
     profile_contraction_scale.cpp
     profile_batched_gemm_multi_d.cpp
+    profile_grouped_conv_bwd_data.cpp
 )
 
 set(PROFILER_EXECUTABLE ckProfiler)
@@ -79,4 +80,5 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_bilinear
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_scale_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_pool_fwd_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_multi_d_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv2d_bwd_data_instance)
 rocm_install(TARGETS ${PROFILER_EXECUTABLE} COMPONENT profiler)
