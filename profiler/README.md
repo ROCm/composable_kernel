@@ -102,4 +102,42 @@ arg.b_grid_desc_k0_n0_n1_k1_{2048, 4096, 2}
 arg.e_grid_desc_m_n_{ 4096, 4096}
 ....
 Best Perf: 58.0306 ms, 37.8942 TFlops, 27.7545 GB/s
+## Profile grouped convolution backward data kernels
+```bash
+# arg1: tensor operation (grouped_conv_bwd_data: Grouped Convolution Backward Data)
+# arg2: data type (0: Output fp32, Weight fp32, Input fp32
+#                  1: Output fp16, Weight fp16, Input fp16
+#                  2: Output bf16, Weight bf16, Input bf16
+# arg3: tensor layout (0: Output[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Input[G, N, Ho, Wo, K]
+#                      1: Output[N, Hi, Wi, G, C], Weight[G, K, Y, X, C], Input[N, Ho, Wo, G, K])
+# arg4: verification (0: no, 1: yes)
+# arg5: initialization (0: no init, 1: integer value, 2: decimal value)
+# arg6: print tensor value (0: no; 1: yes)
+# arg7: time kernel (0: no, 1: yes)
+# Following arguments (depending on number of spatial dims):
+#  Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
+#  G, N, K, C, 
+#  <filter spatial dimensions>, (ie Y, X for 2D)
+#  <input image spatial dimensions>, (ie Hi, Wi for 2D)
+#  <strides>, (ie Sy, Sx for 2D)
+#  <dilations>, (ie Dy, Dx for 2D)
+#  <left padding>, (ie LeftPy, LeftPx for 2D)
+#  <right padding>, (ie RightPy, RightPx for 2D)
+
+ ################                   op   datatype  layout  verify  init  log  time  Ndims  G  N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx
+./bin/ckProfiler grouped_conv_bwd_data          1       0       1     1    0     1      2 32  4 192 192  3  3  28  28   1   1   1   1       1       1        1        1
+
+ ```
+
+Result (MI100, FP16, GNHWC_GKYXC_GNHWK)
+```
+out: dim 5, lengths {32, 4, 192, 28, 28}, strides {602112, 150528, 1, 5376, 192}
+wei: dim 5, lengths {32, 192, 192, 3, 3}, strides {331776, 1728, 1, 576, 192}
+in: dim 5, lengths {32, 4, 192, 28, 28}, strides {602112, 150528, 1, 5376, 192}
+....
+Best configuration parameters:
+name: DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1<256, 128, 256, 32, 8, 2, Default, 32, 32, 2, 4, 8, 4, 1, 1>
+avg_time: 0.768321
+tflops: 86.6679
+GB/s: 127.947
 ```
