@@ -3,7 +3,7 @@
 
 #include "common.hpp"
 
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_gnwc_gkxc_gnwk_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle.hpp"
 
 using InDataType  = F16;
 using WeiDataType = F16;
@@ -16,8 +16,20 @@ using OutElementOp = PassThrough;
 
 template <ck::index_t NDimSpatial>
 using DeviceConvBwdWeightInstance =
-    ck::tensor_operation::device::DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Xdl_CShuffle<
-        NDimSpatial,          // NDimSpatial
+    ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffle<
+        NDimSpatial, // NDimSpatial
+        ck::tuple_element_t<NDimSpatial - 1,
+                            ck::Tuple<ck::tensor_layout::convolution::GNWC,
+                                      ck::tensor_layout::convolution::GNHWC,
+                                      ck::tensor_layout::convolution::GNDHWC>>,
+        ck::tuple_element_t<NDimSpatial - 1,
+                            ck::Tuple<ck::tensor_layout::convolution::GKXC,
+                                      ck::tensor_layout::convolution::GKYXC,
+                                      ck::tensor_layout::convolution::GKZYXC>>,
+        ck::tuple_element_t<NDimSpatial - 1,
+                            ck::Tuple<ck::tensor_layout::convolution::GNWK,
+                                      ck::tensor_layout::convolution::GNHWK,
+                                      ck::tensor_layout::convolution::GNDHWK>>,
         InDataType,           // InDataType
         WeiDataType,          // WeiDataType
         OutDataType,          // OutDataType

@@ -10,15 +10,15 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-// Compilation parameters for in[g, n, hi, wi, c] * wei[g, k, y, x, c] = out[g, n, ho, wo, k]
-void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f32_instances(
+// Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
+void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           GNHWC,
+                                                           NHWGC,
                                                            GKYXC,
-                                                           GNHWK,
-                                                           F32,
-                                                           F32,
-                                                           F32,
+                                                           NHWGK,
+                                                           F16,
+                                                           F16,
+                                                           F16,
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances)
@@ -26,18 +26,18 @@ void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f32_instances(
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv2d_bwd_weight_xdl_c_shuffle_f32_default_instances<
-            GNHWC,
+        device_grouped_conv2d_bwd_weight_xdl_c_shuffle_f16_default_instances<
+            NHWGC,
             GKYXC,
-            GNHWK,
+            NHWGK,
             ConvBwdWeightDefault>{});
     // 2. Filter1x1Stride1Pad0
     add_device_operation_instances(
         instances,
-        device_grouped_conv2d_bwd_weight_xdl_c_shuffle_f32_default_instances<
-            GNHWC,
+        device_grouped_conv2d_bwd_weight_xdl_c_shuffle_f16_default_instances<
+            NHWGC,
             GKYXC,
-            GNHWK,
+            NHWGK,
             ConvBwdWeightFilter1x1Stride1Pad0>{});
 }
 

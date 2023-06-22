@@ -10,12 +10,12 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-// Compilation parameters for in[g, n, hi, wi, c] * wei[g, k, y, x, c] = out[g, n, ho, wo, k]
-void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_instances(
+// Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
+void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_bf16_f32_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           GNHWC,
+                                                           NHWGC,
                                                            GKYXC,
-                                                           GNHWK,
+                                                           NHWGK,
                                                            BF16,
                                                            F32,
                                                            BF16,
@@ -26,16 +26,16 @@ void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_in
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv2d_bwd_weight_xdl_c_shuffle_bf16_instances<GNHWC,
+        device_grouped_conv2d_bwd_weight_xdl_c_shuffle_bf16_instances<NHWGC,
                                                                       GKYXC,
-                                                                      GNHWK,
+                                                                      NHWGK,
                                                                       ConvBwdWeightDefault>{});
     // 2. Filter1x1Stride1Pad0
     add_device_operation_instances(instances,
                                    device_grouped_conv2d_bwd_weight_xdl_c_shuffle_bf16_instances<
-                                       GNHWC,
+                                       NHWGC,
                                        GKYXC,
-                                       GNHWK,
+                                       NHWGK,
                                        ConvBwdWeightFilter1x1Stride1Pad0>{});
 }
 

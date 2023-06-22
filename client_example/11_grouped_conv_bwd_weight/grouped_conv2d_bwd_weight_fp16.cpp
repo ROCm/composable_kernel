@@ -25,6 +25,10 @@ static constexpr ck::index_t Hi            = 28;
 static constexpr ck::index_t Wi            = 28;
 static constexpr ck::index_t Ho            = 28;
 static constexpr ck::index_t Wo            = 28;
+static constexpr std::array<ck::index_t, NDimSpatial + 3> input_strides{
+    G * N * Hi * Wi * C, N* Hi* Wi* C, Hi* Wi* C, Wi* C, C, 1};
+static constexpr std::array<ck::index_t, NDimSpatial + 3> output_strides{
+    G * N * Ho * Wo * K, N* Ho* Wo* K, Ho* Wo* K, Wo* K, K, 1};
 
 int main()
 {
@@ -34,8 +38,19 @@ int main()
                                        OutDataType,
                                        InLayout,
                                        WeiLayout,
-                                       OutLayout>(
-               G, N, K, C, {Hi, Wi}, {Y, X}, {Ho, Wo}, {1, 1}, {1, 1}, {1, 1}, {1, 1})
+                                       OutLayout>(G,
+                                                  N,
+                                                  K,
+                                                  C,
+                                                  {Hi, Wi},
+                                                  {Y, X},
+                                                  {Ho, Wo},
+                                                  input_strides,
+                                                  output_strides,
+                                                  {1, 1},
+                                                  {1, 1},
+                                                  {1, 1},
+                                                  {1, 1})
                ? EXIT_SUCCESS
                : EXIT_FAILURE;
 }
