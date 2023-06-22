@@ -114,8 +114,8 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<XDataType,
 
     static auto MakeMeanVarCountOutputMG2dDescriptor(int invariantLength, int blkGroupSize)
     {
-        const auto grid_desc_m_g =
-            make_naive_tensor_descriptor_packed(make_tuple(invariantLength, blkGroupSize));
+        const auto grid_desc_m_g = make_naive_tensor_descriptor(
+            make_tuple(invariantLength, blkGroupSize), make_tuple(1, invariantLength));
 
         const auto mPad =
             math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
@@ -132,9 +132,9 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<XDataType,
 
     static auto MakeMeanVarCountInputMK2dDescriptor(int invariantLength, int blkGroupSize)
     {
-        const auto reduceLength = blkGroupSize;
-        const auto grid_desc_m_k =
-            make_naive_tensor_descriptor_packed(make_tuple(invariantLength, reduceLength));
+        const auto reduceLength  = blkGroupSize;
+        const auto grid_desc_m_k = make_naive_tensor_descriptor(
+            make_tuple(invariantLength, reduceLength), make_tuple(1, invariantLength));
 
         const auto mPad =
             math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
@@ -441,9 +441,6 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<XDataType,
                                                                    BiasSrcVectorSize,
                                                                    MeanVarSrcDstVectorSize>;
 
-                index_t numMeanVarCountBlockTileIteration =
-                    (arg.blkGroupSize_ + KThreadClusterSize - 1) / KThreadClusterSize;
-
                 const auto kern_multiblock_welford_first_half =
                     kernel_multiblock_welford_first_half<GridwiseMultiblockWelfordFirstHalf_,
                                                          XDataType,
@@ -496,7 +493,6 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<XDataType,
                                            arg.mean_var_grid_desc_m_,
                                            arg.blkGroupSize_,
                                            arg.numBlockTileIteration_,
-                                           numMeanVarCountBlockTileIteration,
                                            arg.epsilon_,
                                            static_cast<MeanVarDataType*>(arg.workspace_mean_),
                                            static_cast<MeanVarDataType*>(arg.workspace_variance_),
