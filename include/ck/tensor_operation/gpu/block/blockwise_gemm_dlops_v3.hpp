@@ -51,8 +51,8 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
     __device__ BlockwiseGemmDlops_km_kn_m0m1n0n1_v3()
         : c_thread_origin_data_idx_{CalculateCThreadOriginOnBlock_BM0_BM1_BN0_BN1(
               get_thread_local_1d_id())},
-          a_thread_copy_{make_tuple(0, c_thread_origin_data_idx_[I1] * MPerThread, 0)},
-          b_thread_copy_{make_tuple(0, c_thread_origin_data_idx_[I3] * NPerThread, 0)}
+          a_thread_copy_{make_tuple(0, c_thread_origin_data_idx_[I0] * MPerThread, 0)},
+          b_thread_copy_{make_tuple(0, c_thread_origin_data_idx_[I2] * NPerThread, 0)}
     {
         static_assert(ABlockDesc_K0_M_K1::IsKnownAtCompileTime() &&
                           BBlockDesc_K0_N_K1::IsKnownAtCompileTime(),
@@ -79,7 +79,7 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
     {
         constexpr auto c_threadid_to_m0_m1_n0_n1_thread_cluster_adaptor =
             make_single_stage_tensor_adaptor(
-                make_tuple(make_merge_transform(make_tuple(I1, M0, I1, N0))),
+                make_tuple(make_merge_transform(make_tuple(M0, I1, N0, I1))),
                 make_tuple(Sequence<0, 1, 2, 3>{}),
                 make_tuple(Sequence<0>{}));
 
