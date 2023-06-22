@@ -489,6 +489,88 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         }
     };
 
+    static constexpr bool IsSupported(index_t MRaw_, index_t NRaw_, index_t KRaw_)
+    {
+        // check vector load/store
+        using Row = ck::tensor_layout::gemm::RowMajor;
+        using Col = ck::tensor_layout::gemm::ColumnMajor;
+
+        // check vector load of A
+        if constexpr(is_same_v<ALayout, Row> && ABlockTransferSrcVectorDim == 2)
+        {
+            if(arg.KRaw_ % ABlockTransferSrcScalarPerVector != 0)
+            {
+                return false;
+            }
+        }
+        else if constexpr(is_same_v<ALayout, Col> && ABlockTransferSrcVectorDim == 1)
+        {
+            // FIXME: not rigorous
+            if(arg.MRaw_ % ABlockTransferSrcScalarPerVector != 0)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+
+        // check vector laod of B
+        if constexpr(is_same_v<BLayout, Col> && BBlockTransferSrcVectorDim == 2)
+        {
+            if(arg.KRaw_ % BBlockTransferSrcScalarPerVector != 0)
+            {
+                return false;
+            }
+        }
+        else if constexpr(is_same_v<BLayout, Row> && BBlockTransferSrcVectorDim == 1)
+        {
+            // FIXME: not rigorous
+            if(arg.NRaw_ % BBlockTransferSrcScalarPerVector != 0)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+
+        // check vector load of Ds
+        // only support RowMajor for now
+        bool all_valid = true;
+
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+
+            if constexpr(!is_same_v<DLayout, Row>)
+            {
+                all_valid = false;
+            }
+        });
+
+        if(!all_valid)
+        {
+            return false;
+        }
+
+        // check vector store of E
+        // only support RowMajor for now
+        if constexpr(is_same_v<ELayout, Row>)
+        {
+            if(arg.NRaw_ % CDEBlockTransferScalarPerVector_NPerBlock != 0)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+        return true;
+    }
+
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
@@ -761,7 +843,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                       },
                       ds),
                   DeviceOp::matrix_padder.PadCDescriptor_M_N(e),
-                  block_2_etile_map)}
+                  block_2_etile_map) and IsSupported(e.GetLength(I0), e.GetLength(I1), a.GetLength(I1))}
         {
         }
     };
