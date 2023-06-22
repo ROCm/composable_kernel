@@ -641,16 +641,16 @@ struct MfmaSelector
 #endif
 
     template <>
-        static constexpr auto GetMfma<f8_t, 32, 32>()
-        {
-            return MfmaInstr::mfma_f32_32x32x16f8f8;
-        }
+    static constexpr auto GetMfma<f8_t, 32, 32>()
+    {
+        return MfmaInstr::mfma_f32_32x32x16f8f8;
+    }
 
-        template <>
-        static constexpr auto GetMfma<f8_t, 16, 16>()
-        {
-            return MfmaInstr::mfma_f32_16x16x32f8f8;
-        }
+    template <>
+    static constexpr auto GetMfma<f8_t, 16, 16>()
+    {
+        return MfmaInstr::mfma_f32_16x16x32f8f8;
+    }
 
     static constexpr auto selected_mfma = mfma_type<GetMfma<base_type, MPerXdlops, NPerXdlops>()>{};
 
