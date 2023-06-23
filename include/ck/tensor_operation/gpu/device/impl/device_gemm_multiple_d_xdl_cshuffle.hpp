@@ -733,11 +733,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock ds_grid_desc_mblock_mperblock_nblock_nperblock;
         EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock e_grid_desc_mblock_mperblock_nblock_nperblock;
         Block2ETileMap block_2_etile_map;
-
-        // for checking vector load/store
-        index_t MRaw;
-        index_t NRaw;
-        index_t KRaw;
         
         // element-wise op
         AElementwiseOperation a_element_op;
@@ -772,9 +767,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                   DeviceOp::matrix_padder.PadCDescriptor_M_N(e))},
               has_main_k_block_loop{GridwiseGemm::CalculateHasMainKBlockLoop(
                   a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2))},
-              MRaw{e.GetLength(I0)},
-              NRaw{e.GetLength(I1)},
-              KRaw{a.GetLength(I1)},
               a_element_op{a_element_op_},
               b_element_op{b_element_op_},
               cde_element_op{cde_element_op_},
@@ -788,7 +780,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                                ds),
                            DeviceOp::matrix_padder.PadCDescriptor_M_N(e),
                            block_2_etile_map) and
-                       IsSupported(MRaw, NRaw, KRaw)}
+                       IsSupported(e.GetLength(I0), e.GetLength(I1), a.GetLength(I1))}
         {
         }
 
