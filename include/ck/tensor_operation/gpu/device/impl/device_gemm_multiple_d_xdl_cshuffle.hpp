@@ -498,7 +498,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         // check vector load of A
         if constexpr(is_same_v<ALayout, Row> && ABlockTransferSrcVectorDim == 2)
         {
-            if(arg.KRaw_ % ABlockTransferSrcScalarPerVector != 0)
+            if(KRaw_ % ABlockTransferSrcScalarPerVector != 0)
             {
                 return false;
             }
@@ -506,7 +506,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         else if constexpr(is_same_v<ALayout, Col> && ABlockTransferSrcVectorDim == 1)
         {
             // FIXME: not rigorous
-            if(arg.MRaw_ % ABlockTransferSrcScalarPerVector != 0)
+            if(MRaw_ % ABlockTransferSrcScalarPerVector != 0)
             {
                 return false;
             }
@@ -519,7 +519,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         // check vector laod of B
         if constexpr(is_same_v<BLayout, Col> && BBlockTransferSrcVectorDim == 2)
         {
-            if(arg.KRaw_ % BBlockTransferSrcScalarPerVector != 0)
+            if(KRaw_ % BBlockTransferSrcScalarPerVector != 0)
             {
                 return false;
             }
@@ -527,7 +527,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         else if constexpr(is_same_v<BLayout, Row> && BBlockTransferSrcVectorDim == 1)
         {
             // FIXME: not rigorous
-            if(arg.NRaw_ % BBlockTransferSrcScalarPerVector != 0)
+            if(NRaw_ % BBlockTransferSrcScalarPerVector != 0)
             {
                 return false;
             }
@@ -559,7 +559,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         // only support RowMajor for now
         if constexpr(is_same_v<ELayout, Row>)
         {
-            if(arg.NRaw_ % CDEBlockTransferScalarPerVector_NPerBlock != 0)
+            if(NRaw_ % CDEBlockTransferScalarPerVector_NPerBlock != 0)
             {
                 return false;
             }
