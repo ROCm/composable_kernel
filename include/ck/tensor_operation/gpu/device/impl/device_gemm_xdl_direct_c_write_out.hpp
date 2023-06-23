@@ -6,13 +6,16 @@
 #include <iostream>
 #include <sstream>
 
+#include "ck/host_utility/io.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_direct_c_write_out_roofline.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_direct_c_write_out_roofline_warp_raked.hpp"
+// #include
+// "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_direct_c_write_out_roofline_thread_raked.hpp"
 // #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_direct_c_write_out.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -656,13 +659,20 @@ struct DeviceGemm_Xdl_DirectCWriteOut : public DeviceGemm<ALayout,
     // polymorphic
     std::string GetTypeString() const override
     {
-        auto str = std::stringstream();
+        auto str = std::stringstream{};
 
         std::map<LoopScheduler, std::string> LoopSchedToString{
             {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
 
         std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
                                                                        {PipelineVersion::v2, "v2"}};
+
+        auto c_thr_dst_access_order_str = std::ostringstream{};
+        c_thr_dst_access_order_str << "{";
+        ck::static_for<0, CThreadTransferDstAccessOrder::Size(), 1>{}([&](auto i) {
+            c_thr_dst_access_order_str << CThreadTransferDstAccessOrder::At(i).value << ", ";
+        });
+        c_thr_dst_access_order_str << "}";
 
         // clang-format off
         str << "DeviceGemm_Xdl_DirectCWriteOut"
@@ -672,12 +682,15 @@ struct DeviceGemm_Xdl_DirectCWriteOut : public DeviceGemm<ALayout,
             << NPerBlock << ", "
             << KPerBlock << ", "
             << AK1 << ", "
-            << BK1
+            << BK1 << ", "
+            << c_thr_dst_access_order_str.str() << ", "
+            << CThreadTransferDstVectorDim << ", "
+            << CThreadTransferDstScalarPerVector << ", "
             << ">"
             << " LoopScheduler: "
-            << LoopSchedToString[LoopSched] << ", "
+            << LoopSchedToString[LoopSched] << "; "
             << "PipelineVersion: "
-            << PipelineVersionToString[PipelineVer];;
+            << PipelineVersionToString[PipelineVer];
         // clang-format on
 
         return str.str();
