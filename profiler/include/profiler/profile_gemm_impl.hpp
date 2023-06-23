@@ -173,8 +173,8 @@ int profile_gemm_impl(int do_verification,
 
             float gb_per_sec = num_btype / 1.E6 / avg_time;
 
-            std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops << " TFlops, "
-                      << gb_per_sec << " GB/s, " << op_name << std::endl;
+            std::cout << std::setw(10) << avg_time << "; " << tflops << "; " << gb_per_sec << "; "
+                      << op_name << std::endl;
 
             if(tflops > best_tflops)
             {
