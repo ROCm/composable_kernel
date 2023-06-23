@@ -72,6 +72,13 @@ struct ThreadwiseTensorSliceTransfer_v1r3
 
     using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
+    template <index_t... Ids>
+    __device__ static bool is_thread_local_1d_id_idx()
+    {
+        const auto tid = get_thread_local_1d_id();
+        return ((tid == Ids) || ...);
+    }
+
     __device__ constexpr ThreadwiseTensorSliceTransfer_v1r3(const DstDesc& dst_desc,
                                                             const Index& dst_slice_origin_idx,
                                                             const ElementwiseOperation& element_op)
@@ -154,6 +161,21 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                 dst_coord_.GetOffset(),
                 is_dst_valid,
                 dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
+
+            // if (get_block_1d_id() == 0 && is_thread_local_1d_id_idx<3,69>())
+            // {
+            //     printf("tid: %d, dst_coord_: [%d, %d, %d, %d, %d, %d, %d, %d]\n",
+            //            get_thread_local_1d_id(),
+            //            dst_coord_.GetIndex()[Number<0>{}],
+            //            dst_coord_.GetIndex()[Number<1>{}],
+            //            dst_coord_.GetIndex()[Number<2>{}],
+            //            dst_coord_.GetIndex()[Number<3>{}],
+            //            dst_coord_.GetIndex()[Number<4>{}],
+            //            dst_coord_.GetIndex()[Number<5>{}],
+            //            dst_coord_.GetIndex()[Number<6>{}],
+            //            dst_coord_.GetIndex()[Number<7>{}]
+            //            );
+            // }
 
             if constexpr(idx_1d.value != num_access - 1)
             {
