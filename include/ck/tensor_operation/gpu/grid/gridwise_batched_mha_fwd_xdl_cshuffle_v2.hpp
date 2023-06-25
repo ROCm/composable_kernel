@@ -879,7 +879,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                                            m2,   // MPerXdl
                                                            n2,   // NGroupNum
                                                            n3,   // NInputNum
-                                                           n4)); // registerNum
+                                                           n4)); // RegisterNum
 
         constexpr auto z_thread_shuffle_desc_m0_n0_m1_n1_m2_n2_n3_m3_n4 = // for blockwise copy
             make_naive_tensor_descriptor_packed(make_tuple(m0,            // MRepeat
@@ -889,7 +889,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                                            m2,            // MPerXdl
                                                            n2,            // NGroupNum
                                                            n3,            // NInputNum
-                                                           n4,            // registerNum
+                                                           n4,            // RegisterNum
                                                            I1));          // I1
 
         constexpr auto z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
@@ -902,7 +902,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                                            m2,   // MPerXdl
                                                            n2,   // NGroupNum
                                                            n3,   // NInputNum
-                                                           n4)); // registerNum
+                                                           n4)); // RegisterNum
 
         constexpr auto z_block_desc_m0_n0_m1_n1_m2_n2_n3_n4 =
             blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
@@ -974,7 +974,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                                         m2,  // MPerXdl
                                                         n2,  // NGroupNum
                                                         n3,  // NInputNum
-                                                        n4>, // registerNum
+                                                        n4>, // RegisterNum
                                                Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
                                                7, // DstVectorDim
                                                1, // DstScalarPerVector
@@ -982,12 +982,12 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                                1, // DstScalarStrideInVector
                                                true>{
                 z_block_desc_m0_n0_m1_n1_m2_n2_n3_n4,
-                make_multi_index(0,               // mrepeat
-                                 0,               // nrepeat
+                make_multi_index(0,               // MRepeat
+                                 0,               // NRepeat
                                  wave_id[I0],     // MWaveId
                                  wave_id[I1],     // NWaveId
                                  wave_m_n_id[I1], // MPerXdl
-                                 0,               // group
+                                 0,               // NGroupIndex
                                  wave_m_n_id[I0], // NInputIndex
                                  0),
                 tensor_operation::element_wise::PassThrough{}};
@@ -1003,8 +1003,8 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             1,
             1,
             true>{z_block_shuffle_desc_m0_n0_m1_n1_m2_n2_n3_m3_n4,
-                  make_multi_index(0,           // mrepeat
-                                   0,           // nrepeat
+                  make_multi_index(0,           // MRepeat
+                                   0,           // NRepeat
                                    wave_id[I0], // MWaveId
                                    wave_id[I1], // NWaveId
                                    wave_m_n_id[I1] / ZN4,
