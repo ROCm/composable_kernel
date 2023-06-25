@@ -65,16 +65,12 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         ck::utils::FillConstant<BDataType>{static_cast<BDataType>(1.f)}(b_k_n);
         break;
     case 1:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{
-            static_cast<ADataType>(-5.f), static_cast<ADataType>(5.f)}(a_m_k);
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{
-            static_cast<BDataType>(-5.f), static_cast<BDataType>(5.f)}(b_k_n);
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k);
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n);
         break;
     default:
-        ck::utils::FillUniformDistribution<ADataType>{static_cast<ADataType>(-1.f),
-                                                      static_cast<ADataType>(1.f)}(a_m_k);
-        ck::utils::FillUniformDistribution<BDataType>{static_cast<BDataType>(-1.f),
-                                                      static_cast<BDataType>(1.f)}(b_k_n);
+        ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
+        ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
     }
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
