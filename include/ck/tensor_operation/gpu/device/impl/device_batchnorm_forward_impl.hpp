@@ -112,7 +112,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<XDataType,
         return (grid_desc_m_k_padded);
     };
 
-    static auto MakeMeanVarCountMG2dDescriptor(int invariantLength, int blkGroupSize)
+    static auto MakeMeanVarCountOutputMG2dDescriptor(int invariantLength, int blkGroupSize)
     {
         const auto grid_desc_m_g = make_naive_tensor_descriptor(
             make_tuple(invariantLength, blkGroupSize), make_tuple(1, invariantLength));
@@ -130,7 +130,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<XDataType,
         return (grid_desc_m_g_padded);
     };
 
-    static auto MakeMeanVarCountMK2dDescriptor(int invariantLength, int blkGroupSize)
+    static auto MakeMeanVarCountInputMK2dDescriptor(int invariantLength, int blkGroupSize)
     {
         const auto reduceLength  = blkGroupSize;
         const auto grid_desc_m_k = make_naive_tensor_descriptor(
@@ -410,12 +410,12 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<XDataType,
                     arg.blkGroupSize_, arg.numBlockTileIteration_, arg.reduce_length_);
 
                 const auto mean_var_count_grid_desc_m_g =
-                    DeviceBatchNormFwdImpl::MakeMeanVarCountMG2dDescriptor(arg.invariant_length_,
-                                                                           arg.blkGroupSize_);
+                    DeviceBatchNormFwdImpl::MakeMeanVarCountOutputMG2dDescriptor(
+                        arg.invariant_length_, arg.blkGroupSize_);
 
                 const auto mean_var_count_grid_desc_m_k =
-                    DeviceBatchNormFwdImpl::MakeMeanVarCountMK2dDescriptor(arg.invariant_length_,
-                                                                           arg.blkGroupSize_);
+                    DeviceBatchNormFwdImpl::MakeMeanVarCountInputMK2dDescriptor(
+                        arg.invariant_length_, arg.blkGroupSize_);
 
                 using MeanVarCountGridDesc_M_G = decltype(mean_var_count_grid_desc_m_g);
                 using MeanVarCountGridDesc_M_K = decltype(mean_var_count_grid_desc_m_k);
