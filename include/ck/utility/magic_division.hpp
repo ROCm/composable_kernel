@@ -167,15 +167,21 @@ struct MDiv
     // prefer construct on host
     __host__ __device__ MDiv(uint32_t divisor_) : divisor(divisor_)
     {
-        ck::tie(multiplier, shift) = MagicDivision::CalculateMagicNumbers(divisor_);
+        auto tmp = MagicDivision::CalculateMagicNumbers(divisor_);
+
+        multiplier = tmp[Number<0>{}];
+        shift      = tmp[Number<1>{}];
     }
 
     __host__ __device__ MDiv() : divisor(0), multiplier(0), shift(0) {}
 
     __host__ __device__ void update(uint32_t divisor_)
     {
-        divisor                    = divisor_;
-        ck::tie(multiplier, shift) = MagicDivision::CalculateMagicNumbers(divisor_);
+        divisor  = divisor_;
+        auto tmp = MagicDivision::CalculateMagicNumbers(divisor_);
+
+        multiplier = tmp[Number<0>{}];
+        shift      = tmp[Number<1>{}];
     }
 
     __host__ __device__ uint32_t div(uint32_t dividend_) const
@@ -202,7 +208,10 @@ struct MDiv2
     // prefer construct on host
     __host__ __device__ MDiv2(uint32_t divisor_)
     {
-        ck::tie(multiplier, shift) = MagicDivision::CalculateMagicNumbers(divisor_);
+        auto tmp = MagicDivision::CalculateMagicNumbers(divisor_);
+
+        multiplier = tmp[Number<0>{}];
+        shift      = tmp[Number<1>{}];
     }
 
     __host__ __device__ MDiv2() : multiplier(0), shift(0) {}
