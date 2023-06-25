@@ -141,11 +141,11 @@ struct GridwiseGemm_Wmma
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     using GridwiseGemmPipe =
-        remove_cvref_t<decltype(GridwiseGemmPipeline_Selector<PipelineVer,
-                                                              AEnableLds,
-                                                              BEnableLds,
+        remove_cvref_t<decltype(GridwiseGemmPipeline_Selector<PipelineVer,,
                                                               NumGemmKPrefetchStage,
-                                                              LoopSched>())>;
+                                                              LoopSched,
+                                                              AEnableLds,
+                                                              BEnableLds>())>;
 
     // Describe how data store to (LDS/VGPR) buffer from Global memory
     __host__ __device__ static constexpr auto MakeABlockDescriptor()

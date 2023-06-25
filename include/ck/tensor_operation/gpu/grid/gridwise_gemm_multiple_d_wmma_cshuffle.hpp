@@ -349,10 +349,10 @@ struct GridwiseGemmMultipleD_Wmma
 
     using GridwiseGemmPipe =
         remove_cvref_t<decltype(GridwiseGemmPipeline_Selector<PipelineVer,
-                                                              AEnableLds,
-                                                              BEnableLds,
                                                               NumGemmKPrefetchStage,
-                                                              LoopSched>())>;
+                                                              LoopSched,
+                                                              AEnableLds,
+                                                              BEnableLds>())>;
 
     // Describe how data store to (LDS/VGPR) buffer from Global memory
     __host__ __device__ static constexpr auto MakeABlockDescriptor()
