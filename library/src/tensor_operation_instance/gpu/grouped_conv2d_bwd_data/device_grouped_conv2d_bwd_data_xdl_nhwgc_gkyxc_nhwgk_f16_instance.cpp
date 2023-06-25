@@ -8,13 +8,13 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-// Compilation parameters for out[g, n, hi, wi, c] * wei[g, k, y, x, c] = in[g, n, ho, wo, k]
-void add_device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instances(
+// Compilation parameters for out[n, hi, wi, g, c] * wei[g, k, y, x, c] = in[n, ho, wo, g, k]
+void add_device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
-                                                                  GNHWK,
+                                                                  NHWGK,
                                                                   GKYXC,
                                                                   Empty_Tuple,
-                                                                  GNHWC,
+                                                                  NHWGC,
                                                                   F16,
                                                                   F16,
                                                                   Empty_Tuple,
@@ -26,18 +26,18 @@ void add_device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instances(
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv2d_bwd_data_xdl_f16_instances<GNHWK,
+        device_grouped_conv2d_bwd_data_xdl_f16_instances<NHWGK,
                                                          GKYXC,
                                                          Empty_Tuple,
-                                                         GNHWC,
+                                                         NHWGC,
                                                          ConvBwdDataDefault>{});
     // 2. Filter1x1Stride1Pad0
     add_device_operation_instances(
         instances,
-        device_grouped_conv2d_bwd_data_xdl_f16_instances<GNHWK,
+        device_grouped_conv2d_bwd_data_xdl_f16_instances<NHWGK,
                                                          GKYXC,
                                                          Empty_Tuple,
-                                                         GNHWC,
+                                                         NHWGC,
                                                          ConvBwdDataFilter1x1Stride1Pad0>{});
 }
 
