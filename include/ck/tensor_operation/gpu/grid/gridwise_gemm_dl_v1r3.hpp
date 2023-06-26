@@ -121,19 +121,11 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
             make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
 
         // TODO: check alignment
-        // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_k_n = make_naive_tensor_descriptor_aligned(
-            make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
-
-        // TODO: check alignment
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_aligned_space_size =
             math::integer_least_multiple(a_block_desc_k_m.GetElementSpaceSize(), max_lds_align);
 
-        constexpr auto b_block_aligned_space_size =
-            math::integer_least_multiple(b_block_desc_k_n.GetElementSpaceSize(), max_lds_align);
-
-        return 2 * (a_block_aligned_space_size + b_block_aligned_space_size) * sizeof(FloatAB);
+        return 2 * (a_block_aligned_space_size) * sizeof(FloatAB);
     }
 
     __host__ __device__ static constexpr index_t CalculateGridSize(index_t M, index_t N)
@@ -397,6 +389,7 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
             p_a_grid, a_grid_desc_k0_m0_m1_k1.GetElementSpaceSize());
         const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid, b_grid_desc_k0_n0_n1_k1.GetElementSpaceSize());
+        ignore          = b_global_buf;
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_m0_m10_m11_n0_n10_n11.GetElementSpaceSize());
 
@@ -426,25 +419,12 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
             make_tuple(Number<K0PerBlock>{}, I1, Number<MPerBlock>{}, K1), max_lds_align);
 
         // TODO: check alignment
-        // B matrix in LDS memory, dst of blockwise copy
-        //   be careful of LDS alignment
-        constexpr auto b_block_desc_k0_n0_n1_k1 = make_naive_tensor_descriptor_aligned(
-            make_tuple(Number<K0PerBlock>{}, I1, Number<NPerBlock>{}, K1), max_lds_align);
-
-        // TODO: check alignment
         // A matrix in LDS memory, for blockwise GEMM
         constexpr auto a_k0_m_k1_block_desc = make_naive_tensor_descriptor_aligned(
             make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
 
-        // TODO: check alignment
-        // B matrix in LDS memory, for blockwise GEMM
-        constexpr auto b_k0_n_k1_block_desc = make_naive_tensor_descriptor_aligned(
-            make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
-
         static_assert(a_block_desc_k0_m0_m1_k1.GetElementSpaceSize() ==
                           a_k0_m_k1_block_desc.GetElementSpaceSize() &&
-                      b_block_desc_k0_n0_n1_k1.GetElementSpaceSize() ==
-                          b_k0_n_k1_block_desc.GetElementSpaceSize() &&
                       "wrong!");
 
         // A matrix blockwise copy
@@ -471,45 +451,36 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
                   a_block_desc_k0_m0_m1_k1,
                   make_multi_index(0, 0, 0, 0));
 
-        // B matrix blockwise copy
-        auto b_blockwise_copy = BlockwiseTensorSliceTransfer_v5r1<
-            BlockSize,
-            InMemoryDataOperationEnum::Set,
-            Sequence<K0PerBlock, 1, NPerBlock, K1.value>,
-            BBlockTransferThreadSliceLengths_K0_N0_N1_K1,
-            BBlockTransferThreadClusterLengths_K0_N0_N1_K1,
-            BBlockTransferThreadClusterArrangeOrder,
-            FloatAB,
-            FloatAB,
-            remove_reference_t<decltype(b_grid_desc_k0_n0_n1_k1)>,
-            decltype(b_block_desc_k0_n0_n1_k1),
-            BBlockTransferSrcAccessOrder,
-            Sequence<0, 1, 2, 3>,
-            BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1, // SrcVectorTensorLengths
-            BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1, // DstVectorTensorLengths
-            BBlockTransferSrcVectorTensorContiguousDimOrder,  // SrcVectorTensorContiguousDimOrder
-            Sequence<0, 1, 2, 3>,                             // DstVectorTensorContiguousDimOrder
-            false,
-            true>(b_grid_desc_k0_n0_n1_k1,
-                  make_multi_index(0, in0, 0, 0),
-                  b_block_desc_k0_n0_n1_k1,
-                  make_multi_index(0, 0, 0, 0));
+        static constexpr auto b_thread_desc_k0_n0_n1_k1 = make_naive_tensor_descriptor_packed(
+            make_tuple(Number<K0PerBlock>{}, I1, Number<NPerThread>{}, Number<K1>{}));
 
-        // GEMM definition
-        //   c_mtx += transpose(a_mtx) * b_mtx
-        //     a_mtx[K0PerBlock, MPerBlock] is in LDS
-        //     b_mtx[KPerBlocl, NPerBlock] is in LDS
-        //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
-        //       register
+        auto b_threadwise_copy =
+            ThreadwiseTensorSliceTransfer_v2<FloatAB,
+                                             FloatAB,
+                                             remove_reference_t<decltype(b_grid_desc_k0_n0_n1_k1)>,
+                                             decltype(b_thread_desc_k0_n0_n1_k1),
+                                             Sequence<K0PerBlock, 1, NPerThread, K1.value>,
+                                             Sequence<0, 1, 2, 3>, // BBlockTransferSrcAccessOrder,
+                                             3,
+                                             K1,
+                                             1,
+                                             false,
+                                             true>(
+                b_grid_desc_k0_n0_n1_k1,
+                make_multi_index(0, in0, get_thread_local_1d_id() * NPerThread, 0));
+
+        static constexpr auto b_k0_n_k1_thread_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(Number<K0PerBlock>{}, Number<NPerThread>{}, Number<K1>{}));
+
         const auto blockwise_gemm =
             BlockwiseGemmDlops_km_kn_m0m1n0n1_v3<BlockSize,
                                                  FloatAB,
                                                  FloatAB,
                                                  FloatAcc,
                                                  decltype(a_k0_m_k1_block_desc),
-                                                 decltype(b_k0_n_k1_block_desc),
+                                                 decltype(b_k0_n_k1_thread_desc),
                                                  MPerThread,
-                                                 NPerThread,
+                                                 NPerBlock,
                                                  KPerThread>{};
 
         constexpr auto c_m10_m11_n10_n11_thread_tensor_lengths =
@@ -522,11 +493,13 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
         constexpr auto a_block_aligned_space_size = math::integer_least_multiple(
             a_block_desc_k0_m0_m1_k1.GetElementSpaceSize(), max_lds_align);
 
-        constexpr auto b_block_aligned_space_size = math::integer_least_multiple(
-            b_block_desc_k0_n0_n1_k1.GetElementSpaceSize(), max_lds_align);
-
         FloatAB* p_a_block_double = p_shared_block;
-        FloatAB* p_b_block_double = p_shared_block + 2 * a_block_aligned_space_size;
+
+        auto b_thread_odd_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
+            b_k0_n_k1_thread_desc.GetElementSpaceSize());
+
+        auto b_thread_even_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
+            b_k0_n_k1_thread_desc.GetElementSpaceSize());
 
         // register allocation for output
         auto c_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAcc>(
@@ -535,28 +508,26 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
         // Initialize C
         c_thread_buf.Clear();
 
-        constexpr auto a_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0, 0);
+        constexpr auto a_block_slice_copy_step  = make_multi_index(K0PerBlock, 0, 0, 0);
+        constexpr auto b_thread_slice_copy_step = make_multi_index(K0PerBlock, 0, 0, 0);
 
         auto a_block_even_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             p_a_block_double, a_block_desc_k0_m0_m1_k1.GetElementSpaceSize());
-        auto b_block_even_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            p_b_block_double, b_block_desc_k0_n0_n1_k1.GetElementSpaceSize());
 
         auto a_block_odd_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             p_a_block_double + a_block_aligned_space_size,
             a_block_desc_k0_m0_m1_k1.GetElementSpaceSize());
-        auto b_block_odd_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            p_b_block_double + b_block_aligned_space_size,
-            b_block_desc_k0_n0_n1_k1.GetElementSpaceSize());
 
         // LDS double buffer: preload data into LDS
         {
             a_blockwise_copy.RunRead(a_grid_desc_k0_m0_m1_k1, a_global_buf);
-            b_blockwise_copy.RunRead(b_grid_desc_k0_n0_n1_k1, b_global_buf);
-
             a_blockwise_copy.RunWrite(a_block_desc_k0_m0_m1_k1, a_block_even_buf);
-            b_blockwise_copy.RunWrite(b_block_desc_k0_n0_n1_k1, b_block_even_buf);
+
+            b_threadwise_copy.Run(b_grid_desc_k0_n0_n1_k1,
+                                  b_global_buf,
+                                  b_thread_desc_k0_n0_n1_k1,
+                                  make_tuple(I0, I0, I0, I0),
+                                  b_thread_even_buf);
         }
 
         if constexpr(HasMainKBlockLoop)
@@ -572,40 +543,50 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
                 // even iteration
                 a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m0_m1_k1,
                                                     a_block_slice_copy_step);
-                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n0_n1_k1,
-                                                    b_block_slice_copy_step);
+
+                b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n0_n1_k1,
+                                                     b_thread_slice_copy_step);
 
                 // LDS doubel buffer: load next data from device mem
                 a_blockwise_copy.RunRead(a_grid_desc_k0_m0_m1_k1, a_global_buf);
-                b_blockwise_copy.RunRead(b_grid_desc_k0_n0_n1_k1, b_global_buf);
+
+                b_threadwise_copy.Run(b_grid_desc_k0_n0_n1_k1,
+                                      b_global_buf,
+                                      b_thread_desc_k0_n0_n1_k1,
+                                      make_tuple(I0, I0, I0, I0),
+                                      b_thread_odd_buf);
 
                 block_sync_lds();
 
                 // LDS double buffer: GEMM on current data
-                blockwise_gemm.Run(a_block_even_buf, b_block_even_buf, c_thread_buf);
+                blockwise_gemm.Run(a_block_even_buf, b_thread_even_buf, c_thread_buf);
 
                 // LDS double buffer: store next data to LDS
                 a_blockwise_copy.RunWrite(a_block_desc_k0_m0_m1_k1, a_block_odd_buf);
-                b_blockwise_copy.RunWrite(b_block_desc_k0_n0_n1_k1, b_block_odd_buf);
 
                 // odd iteration
                 a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m0_m1_k1,
                                                     a_block_slice_copy_step);
-                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n0_n1_k1,
-                                                    b_block_slice_copy_step);
+
+                b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n0_n1_k1,
+                                                     b_thread_slice_copy_step);
 
                 // LDS doubel buffer: load next data from device mem
                 a_blockwise_copy.RunRead(a_grid_desc_k0_m0_m1_k1, a_global_buf);
-                b_blockwise_copy.RunRead(b_grid_desc_k0_n0_n1_k1, b_global_buf);
+
+                b_threadwise_copy.Run(b_grid_desc_k0_n0_n1_k1,
+                                      b_global_buf,
+                                      b_thread_desc_k0_n0_n1_k1,
+                                      make_tuple(I0, I0, I0, I0),
+                                      b_thread_even_buf);
 
                 block_sync_lds();
 
                 // LDS double buffer: GEMM on current data
-                blockwise_gemm.Run(a_block_odd_buf, b_block_odd_buf, c_thread_buf);
+                blockwise_gemm.Run(a_block_odd_buf, b_thread_odd_buf, c_thread_buf);
 
                 // LDS double buffer: store next data to LDS
                 a_blockwise_copy.RunWrite(a_block_desc_k0_m0_m1_k1, a_block_even_buf);
-                b_blockwise_copy.RunWrite(b_block_desc_k0_n0_n1_k1, b_block_even_buf);
 
                 k_block_data_begin += 2 * K0PerBlock;
             } while(k_block_data_begin < K0 - 2 * K0PerBlock);
@@ -615,32 +596,37 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
         if constexpr(HasDoubleTailKBlockLoop) // if has 2 iteration left
         {
             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m0_m1_k1, a_block_slice_copy_step);
-            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n0_n1_k1, b_block_slice_copy_step);
+
+            b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n0_n1_k1, b_thread_slice_copy_step);
 
             block_sync_lds();
 
             // LDS double buffer: load last data from device mem
             a_blockwise_copy.RunRead(a_grid_desc_k0_m0_m1_k1, a_global_buf);
-            b_blockwise_copy.RunRead(b_grid_desc_k0_n0_n1_k1, b_global_buf);
+
+            b_threadwise_copy.Run(b_grid_desc_k0_n0_n1_k1,
+                                  b_global_buf,
+                                  b_thread_desc_k0_n0_n1_k1,
+                                  make_tuple(I0, I0, I0, I0),
+                                  b_thread_odd_buf);
 
             // LDS double buffer: GEMM on 2nd-last data
-            blockwise_gemm.Run(a_block_even_buf, b_block_even_buf, c_thread_buf);
+            blockwise_gemm.Run(a_block_even_buf, b_thread_even_buf, c_thread_buf);
 
             // LDS double buffer: store last data to LDS
             a_blockwise_copy.RunWrite(a_block_desc_k0_m0_m1_k1, a_block_odd_buf);
-            b_blockwise_copy.RunWrite(b_block_desc_k0_n0_n1_k1, b_block_odd_buf);
 
             block_sync_lds();
 
             // LDS double buffer: GEMM on last data
-            blockwise_gemm.Run(a_block_odd_buf, b_block_odd_buf, c_thread_buf);
+            blockwise_gemm.Run(a_block_odd_buf, b_thread_odd_buf, c_thread_buf);
         }
         else // if has 1 iteration left
         {
             __syncthreads();
 
             // LDS double buffer: GEMM on last data
-            blockwise_gemm.Run(a_block_even_buf, b_block_even_buf, c_thread_buf);
+            blockwise_gemm.Run(a_block_even_buf, b_thread_even_buf, c_thread_buf);
         }
 
         // output: register to global memory

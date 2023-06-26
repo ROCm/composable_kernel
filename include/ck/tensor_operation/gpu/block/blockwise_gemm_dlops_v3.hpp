@@ -14,9 +14,9 @@ template <index_t BlockSize,
           typename FloatB,
           typename FloatC,
           typename ABlockDesc_K0_M_K1,
-          typename BBlockDesc_K0_N_K1,
+          typename BThreadDesc_K0_N_K1,
           index_t MPerThread,
-          index_t NPerThread,
+          index_t NPerBlock,
           index_t K0PerLoop>
 struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
 {
@@ -32,10 +32,12 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
     static constexpr auto M  = ABlockDesc_K0_M_K1{}.GetLength(I1);
     static constexpr auto K1 = ABlockDesc_K0_M_K1{}.GetLength(I2);
 
-    static constexpr auto N = BBlockDesc_K0_N_K1{}.GetLength(I1);
+    static constexpr auto NPerThread = BThreadDesc_K0_N_K1{}.GetLength(I1);
 
     static constexpr auto M0 = M / MPerThread;
     static constexpr auto M1 = MPerThread;
+
+    static constexpr auto N  = NPerBlock;
     static constexpr auto N0 = N / NPerThread;
     static constexpr auto N1 = NPerThread;
 
@@ -51,15 +53,14 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
     __device__ BlockwiseGemmDlops_km_kn_m0m1n0n1_v3()
         : c_thread_origin_data_idx_{CalculateCThreadOriginOnBlock_BM0_BM1_BN0_BN1(
               get_thread_local_1d_id())},
-          a_thread_copy_{make_tuple(0, c_thread_origin_data_idx_[I0] * MPerThread, 0)},
-          b_thread_copy_{make_tuple(0, c_thread_origin_data_idx_[I2] * NPerThread, 0)}
+          a_thread_copy_{make_tuple(0, c_thread_origin_data_idx_[I0] * MPerThread, 0)}
     {
         static_assert(ABlockDesc_K0_M_K1::IsKnownAtCompileTime() &&
-                          BBlockDesc_K0_N_K1::IsKnownAtCompileTime(),
+                          BThreadDesc_K0_N_K1::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
-        static_assert(ABlockDesc_K0_M_K1{}.GetLength(I0) == BBlockDesc_K0_N_K1{}.GetLength(I0) &&
-                          ABlockDesc_K0_M_K1{}.GetLength(I2) == BBlockDesc_K0_N_K1{}.GetLength(I2),
+        static_assert(ABlockDesc_K0_M_K1{}.GetLength(I0) == BThreadDesc_K0_N_K1{}.GetLength(I0) &&
+                          ABlockDesc_K0_M_K1{}.GetLength(I2) == BThreadDesc_K0_N_K1{}.GetLength(I2),
                       "wrong! E dimension not consistent\n");
 
         static_assert(K0 % K0PerLoop == 0, "");
@@ -90,26 +91,22 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
         return c_m0_m1_n0_n1_thread_cluster_idx;
     }
 
-    template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
+    template <typename ABlockBuffer, typename BThreadBuffer, typename CThreadBuffer>
     __device__ void Run(const ABlockBuffer& a_block_buf,
-                        const BBlockBuffer& b_block_buf,
+                        const BThreadBuffer& b_thread_buf,
                         CThreadBuffer& c_thread_buf) const
     {
         static_assert(
             is_same<remove_cvref_t<typename ABlockBuffer::type>, remove_cvref_t<FloatA>>::value &&
-            is_same<remove_cvref_t<typename BBlockBuffer::type>, remove_cvref_t<FloatB>>::value &&
+            is_same<remove_cvref_t<typename BThreadBuffer::type>, remove_cvref_t<FloatB>>::value &&
             is_same<remove_cvref_t<typename CThreadBuffer::type>, remove_cvref_t<FloatC>>::value &&
             "wrong! inconsistent type");
 
         constexpr auto a_block_mtx = ABlockDesc_K0_M_K1{};
-        constexpr auto b_block_mtx = BBlockDesc_K0_N_K1{};
 
         // thread A buffer for GEMM
         StaticBuffer<AddressSpaceEnum::Vgpr, FloatA, a_thread_mtx_.GetElementSpaceSize(), true>
             a_thread_buf;
-
-        StaticBuffer<AddressSpaceEnum::Vgpr, FloatB, b_thread_mtx_.GetElementSpaceSize(), true>
-            b_thread_buf;
 
         constexpr auto threadwise_gemm = ThreadwiseGemmDlops_km_kn_mn_v3<FloatA,
                                                                          FloatB,
@@ -126,17 +123,10 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
                                make_tuple(I0, I0, I0),
                                a_thread_buf);
 
-            b_thread_copy_.Run(b_block_mtx,
-                               make_tuple(k0_begin, I0, I0),
-                               b_block_buf,
-                               b_thread_mtx_,
-                               make_tuple(I0, I0, I0),
-                               b_thread_buf);
-
             threadwise_gemm.Run(a_thread_buf,
                                 make_tuple(I0, I0, I0),
                                 b_thread_buf,
-                                make_tuple(I0, I0, I0),
+                                make_tuple(k0_begin, I0, I0),
                                 c_thread_buf,
                                 make_tuple(I0, I0, I0, I0));
         });
@@ -153,20 +143,9 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
                                                          K1,
                                                          K1>;
 
-    using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatB,
-                                                         FloatB,
-                                                         BBlockDesc_K0_N_K1,
-                                                         decltype(b_thread_mtx_),
-                                                         Sequence<K0PerLoop, NPerThread, K1>,
-                                                         Sequence<0, 1, 2>,
-                                                         2,
-                                                         K1,
-                                                         K1>;
-
     CIndex c_thread_origin_data_idx_;
 
     AThreadCopy a_thread_copy_;
-    BThreadCopy b_thread_copy_;
 };
 
 } // namespace ck
