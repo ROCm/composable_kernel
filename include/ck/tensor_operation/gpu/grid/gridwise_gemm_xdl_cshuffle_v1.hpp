@@ -81,6 +81,7 @@ template <typename ALayout,
           index_t NPerXdl,
           index_t MXdlPerWave,
           index_t NXdlPerWave,
+          index_t Block2CTileMapM01,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -705,7 +706,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         const CElementwiseOperation c_element_op{};
 
         // divide block work by [M, N]
-        const auto block_2_ctile_map = Block2CTileMap{problem.M, problem.N};
+        const auto block_2_ctile_map = Block2CTileMap{problem.M, problem.N, Block2CTileMapM01};
 
         const auto block_work_idx =
             block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));

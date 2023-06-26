@@ -51,6 +51,7 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
      32,                         // index_t NPerXDL
      4,                          // index_t MXdlPerWave
      2,                          // index_t NXdlPerWave
+     8,                          // index_t Block2CTileMapM01
      S<4, 64, 1>,                // typename ABlockTransferThreadClusterLengths_AK0_M_AK1
      S<1, 0, 2>,                 // typename ABlockTransferThreadClusterArrangeOrder
      S<1, 0, 2>,                 // typename ABlockTransferSrcAccessOrder
