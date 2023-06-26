@@ -489,7 +489,8 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<XDataType,
 
                 // It is found that gfx1030 does not support the GLC enabled vector load/store,
                 // so using the two-kernel method for gfx1030
-                if(!(ck::get_device_name() == "gfx1030"))
+                // Profiler on gfx908 could hang even though it works when running examples
+                if(!(ck::get_device_name() == "gfx1030" || ck::get_device_name() == "gfx908"))
                 {
                     const auto kern_multiblock_batchnorm_fwd_ =
                         kernel_multiblock_batchnorm_forward<GridwiseMultiblockBatchNormForward_,
