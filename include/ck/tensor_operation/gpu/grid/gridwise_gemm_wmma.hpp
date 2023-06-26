@@ -141,7 +141,7 @@ struct GridwiseGemm_Wmma
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     using GridwiseGemmPipe =
-        remove_cvref_t<decltype(GridwiseGemmPipeline_Selector<PipelineVer,,
+        remove_cvref_t<decltype(GridwiseGemmPipeline_Selector<PipelineVer,
                                                               NumGemmKPrefetchStage,
                                                               LoopSched,
                                                               AEnableLds,
