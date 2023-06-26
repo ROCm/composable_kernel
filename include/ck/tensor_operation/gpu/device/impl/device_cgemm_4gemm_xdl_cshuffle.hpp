@@ -546,7 +546,12 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
             << NPerBlock << ", "
             << KPerBlock << ", "
             << AK1 << ", "
-            << BK1
+            << BK1 << ", "
+            << MPerXDL << ", "
+            << NPerXDL << ", "
+            << MXdlPerWave << ", "
+            << NXdlPerWave << ", "
+            << Block2CTileMapM01
             << ">";
         // clang-format on
 

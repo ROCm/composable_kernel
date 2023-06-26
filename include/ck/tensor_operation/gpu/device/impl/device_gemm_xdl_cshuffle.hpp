@@ -287,6 +287,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
             << NPerXDL << ", "
             << MXdlPerWave << ", "
             << NXdlPerWave << ", "
+            << Block2CTileMapM01 << ", "
             << ABlockTransferSrcScalarPerVector << ", "
             << BBlockTransferSrcScalarPerVector << ", "
             << CShuffleMXdlPerWavePerShuffle << ", "
