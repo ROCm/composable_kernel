@@ -20,29 +20,6 @@ __device__ index_t get_thread_global_1d_id() { return blockIdx.x * blockDim.x + 
 
 __device__ index_t get_warp_local_1d_id() { return threadIdx.x / get_warp_size(); }
 
-// get_wave_id() does the same thing as get_warp_local_1d_id(), except that
-// it tries to save the result in sgpr
-#if defined(__gfx90a__)
-static __device__ inline index_t get_wave_id()
-{
-    int thread_id = threadIdx.x;
-    int tmp_int;
-    int wave_id;
-    constexpr index_t shift = get_shift<warpSize>();
-
-    // clang-format off
-    __asm__ volatile("v_lshrrev_b32 %1, %3, %2                       \n\
-                      v_readfirstlane_b32 %0, %1"
-                      : "=s"(wave_id), "=v"(tmp_int)
-                      : "v"(thread_id), "i"(shift));
-    // clang-format on
-
-    return wave_id;
-};
-#else
-static __device__ inline index_t get_wave_id() { return get_warp_local_1d_id(); };
-#endif
-
 __device__ index_t get_block_1d_id() { return blockIdx.x; }
 
 __device__ index_t get_grid_size() { return gridDim.x; }
