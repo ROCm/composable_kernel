@@ -285,6 +285,7 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030" ||
+           ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
            ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
            ck::get_device_name() == "gfx1102")
         {
