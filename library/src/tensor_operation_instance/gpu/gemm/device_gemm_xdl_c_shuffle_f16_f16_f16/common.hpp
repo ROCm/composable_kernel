@@ -27,7 +27,35 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
-static constexpr index_t BlockMapM01 = 8;
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename ADataType,
+          typename BDataType,
+          typename CDataType>
+class DeviceGemm_Xdl_CShuffle_Appenders final
+{
+    ~DeviceGemm_Xdl_CShuffle_Appenders() = delete;
+
+    using IDeviceGemm = DeviceGemm<ALayout,
+                                   BLayout,
+                                   CLayout,
+                                   ADataType,
+                                   BDataType,
+                                   CDataType,
+                                   PassThrough,
+                                   PassThrough,
+                                   PassThrough>;
+    using Appender    = std::function<void(std::vector<std::unique_ptr<IDeviceGemm>>&)>;
+    using Appenders   = std::vector<Appender>;
+
+    public:
+    static Appenders& Get()
+    {
+        static Appenders appenders;
+        return appenders;
+    }
+};
 
 } // namespace instance
 } // namespace device

@@ -1,6 +1,7 @@
 file(GLOB DEVICE_GEMM_XDL_CSHUFFLE_F16_F16_F16_INST_SRCS "device_gemm_xdl_c_shuffle_f16_f16_f16/*.cpp")
 
-add_instance_library(device_gemm_instance
+set(INSTANCE_NAME device_gemm_instance)
+add_instance_library(${INSTANCE_NAME}
    device_gemm_xdl_f64_f64_f64_mk_kn_mn_instance.cpp
    device_gemm_xdl_f64_f64_f64_mk_nk_mn_instance.cpp
    device_gemm_xdl_f64_f64_f64_km_kn_mn_instance.cpp
@@ -47,3 +48,5 @@ add_instance_library(device_gemm_instance
    device_gemm_dl_i8_i8_i8_km_nk_mn_instance.cpp
    device_gemm_dl_i8_i8_i8_km_nk_mn_irregular_instance.cpp
 )
+
+target_compile_options(${INSTANCE_NAME} PRIVATE -Wno-global-constructors)
