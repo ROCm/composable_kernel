@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -130,7 +130,8 @@ __global__ void
             const Block2ETileMap block_2_ctile_map,
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
+    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -458,7 +459,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
               p_ds_grid_{},
               p_e_grid_{static_cast<EDataType*>(p_e)},
               num_group_{a_g_n_k_wos_lengths[0]},
-              num_gemm_{},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op},
@@ -506,9 +506,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
             const auto YTilde = ConvStrideH / GcdStrideDilationH;
             const auto XTilde = ConvStrideW / GcdStrideDilationW;
-
-            // number of GEMM
-            num_gemm_ = YTilde * XTilde;
 
             for(index_t i_ytilde = 0; i_ytilde < YTilde; ++i_ytilde)
             {
@@ -625,7 +622,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
         void Print() const
         {
-            for(index_t i = 0; i < num_gemm_; i++)
+            for(std::size_t i = 0; i < a_grid_desc_ak0_m_ak1_container_.size(); i++)
             {
                 std::cout << "a_grid_desc_ak0_m_ak1_container_"
                           << a_grid_desc_ak0_m_ak1_container_[i] << std::endl;
@@ -653,7 +650,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
         // tensor descriptor for problem definition
         index_t num_group_;
-        index_t num_gemm_;
         std::vector<AGridDesc_M_K> a_grid_desc_m_k_container_;
         std::vector<BGridDesc_N_K> b_grid_desc_n_k_container_;
         std::vector<DsGridDesc_M_N> ds_grid_desc_m_n_container_;
@@ -707,7 +703,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
             float ave_time = 0;
 
-            for(index_t i = 0; i < arg.num_gemm_; i++)
+            for(std::size_t i = 0; i < arg.a_grid_desc_ak0_m_ak1_container_.size(); i++)
             {
                 if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_container_[i],
                                                 arg.b_grid_desc_n_k_container_[i],
@@ -806,7 +802,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         }
 
         // vector load for A matrix from global memory to LDS
-        if constexpr(is_same_v<ALayout, tensor_layout::convolution::GNHWK>)
+        if constexpr(is_same_v<ALayout, tensor_layout::convolution::GNHWK> ||
+                     is_same_v<ALayout, tensor_layout::convolution::NHWGK>)
         {
             if(!(ABlockTransferSrcVectorDim == 2 && ConvK % ABlockTransferSrcScalarPerVector == 0))
             {
@@ -861,7 +858,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         }
 
         // vector store for E
-        if constexpr(is_same_v<ELayout, tensor_layout::convolution::GNHWC>)
+        if constexpr(is_same_v<ELayout, tensor_layout::convolution::GNHWC> ||
+                     is_same_v<ELayout, tensor_layout::convolution::NHWGC>)
         {
             // vector store C matrix into global memory
             if(!(ConvC % CDEBlockTransferScalarPerVector_NPerBlock == 0))

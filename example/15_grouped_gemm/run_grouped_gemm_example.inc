@@ -147,6 +147,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 #else
         a_tensors_device[i]->ToDevice(a_tensors[i].mData.data());
         b_tensors_device[i]->ToDevice(b_tensors[i].mData.data());
+        c_tensors_device[i]->SetZero();
 #endif
 
         p_a.push_back(a_tensors_device[i]->GetDeviceBuffer());

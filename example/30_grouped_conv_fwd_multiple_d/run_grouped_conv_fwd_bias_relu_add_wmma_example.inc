@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 template <typename BiasLay, typename ResidualLay>
 struct LayoutSetting
@@ -74,8 +74,8 @@ using DeviceConvFwdInstance =
         8,           // BBlockTransferSrcScalarPerVector
         8,           // BBlockTransferDstScalarPerVector_BK1
         true,        // BBlockLdsExtraN
-        1,
-        1,
+        4,
+        2,
         S<1, 32, 1, 8>,
         8>;
 

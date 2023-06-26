@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_dl_multiple_d_nhwc_kyxc_nhwk.hpp"
@@ -74,6 +74,11 @@ using DeviceGroupedConvNDFwdInstance =
         5,                   // CThreadTransferSrcDstVectorDim
         4>;                  // CThreadTransferDstScalarPerVector
 
-#include "run_conv2d_fwd_bias_relu_perlayer_quantization_example.inc"
+#include "run_conv2d_fwd_bias_perlayer_quantization_example.inc"
 
-int main() { run_conv2d_fwd_bias_relu_perlayer_quantization_example(); }
+int main()
+{
+    float requant_scale       = 0.5f;
+    const auto out_element_op = OutElementOp{requant_scale, ActivationOp{}};
+    run_conv2d_fwd_bias_perlayer_quantization_example(out_element_op);
+}

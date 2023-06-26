@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/math.hpp"
 #include "ck/utility/math_v2.hpp"
+#include "ck/utility/type_convert.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -57,6 +58,12 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<bhalf_t, half_t>(bhalf_t& y, const half_t& x) const
+    {
+        y = type_convert<bhalf_t>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<int8_t, int8_t>(int8_t& y, const int8_t& x) const
     {
         y = x;
@@ -75,6 +82,36 @@ struct PassThrough
         y = x;
     }
 #endif
+
+    template <>
+    __host__ __device__ void operator()<f8_t, f8_t>(f8_t& y, const f8_t& x) const
+    {
+        y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<float, f8_t>(float& y, const f8_t& x) const
+    {
+        y = type_convert<float>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<f8_t, float>(f8_t& y, const float& x) const
+    {
+        y = type_convert<f8_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<half_t, f8_t>(half_t& y, const f8_t& x) const
+    {
+        y = type_convert<half_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<f8_t, half_t>(f8_t& y, const half_t& x) const
+    {
+        y = type_convert<f8_t>(x);
+    }
 };
 
 struct UnaryConvert
@@ -83,6 +120,40 @@ struct UnaryConvert
     __host__ __device__ void operator()(Y& y, const X& x) const
     {
         y = type_convert<Y>(x);
+    }
+};
+
+struct ConvertBF16RTN
+{
+    // convert to bf16 using round to nearest (rtn)
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const
+    {
+        // check Y datatype
+        static_assert(is_same<Y, bhalf_t>::value, "Data type is not supported by this operation!");
+
+        // check X datatype
+        static_assert(is_same<X, float>::value || is_same<X, half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = bf16_convert_rtn<Y>(x);
+    }
+};
+
+struct ConvertF8SR
+{
+    // convert to fp8 using stochastic rounding (SR)
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const
+    {
+        // check Y datatype
+        static_assert(is_same<Y, f8_t>::value, "Data type is not supported by this operation!");
+
+        // check X datatype
+        static_assert(is_same<X, float>::value || is_same<X, half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = f8_convert_sr<Y>(x);
     }
 };
 
@@ -316,8 +387,36 @@ struct Sigmoid
 
         y = 1 / (ck::type_convert<T>(1) + exp(-x));
     };
+};
 
-    int32_t divider_ = 1;
+struct TanH
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::tanh(x);
+    };
+};
+
+struct Swish
+{
+    Swish(float beta = 1.0f) : beta_(beta) {}
+
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = x / (ck::type_convert<T>(1) + ck::math::exp(-beta_ * x));
+    };
+
+    float beta_ = 1.0f;
 };
 
 } // namespace element_wise

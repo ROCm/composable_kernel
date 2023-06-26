@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -31,20 +31,21 @@
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_BUFFER_RESOURCE_3RD_DWORD -1
 #elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx908__) || \
-    defined(__gfx90a__) // for GPU code
+    defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) ||                          \
+    defined(__gfx942__) // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
 #elif defined(__gfx1030__) // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
 #elif defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) // for GPU code
-#define CK_BUFFER_RESOURCE_3RD_DWORD 0x10020000
+#define CK_BUFFER_RESOURCE_3RD_DWORD 0x31004000
 #endif
 
 // FMA instruction
 #ifndef __HIP_DEVICE_COMPILE__                   // for host code, define nothing
 #elif defined(__gfx803__) || defined(__gfx900__) // for GPU code
 #define CK_USE_AMD_V_MAC_F32
-#elif defined(__gfx906__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx1030__) // for GPU code
+#elif defined(__gfx906__) || defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx1030__) || \
+    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) // for GPU code
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8
@@ -53,12 +54,17 @@
 // MFMA instruction
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_MFMA
-#elif defined(__gfx908__) || defined(__gfx90a__) // for GPU code
+#elif defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
+    defined(__gfx942__) // for GPU code
 #define CK_USE_AMD_MFMA
 #endif
 
-#if defined(__gfx90a__)
+#if(defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
 #define CK_USE_AMD_MFMA_BF16_1K_OP
+#endif
+
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#define CK_USE_AMD_MFMA_GFX940
 #endif
 
 // WMMA instruction
@@ -80,13 +86,15 @@
 // buffer atomic add: floating point
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
-#elif defined(__gfx908__) || defined(__gfx90a__) // for GPU code
+#elif defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
+    defined(__gfx942__) // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #else // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
 #endif
 
-#if defined(__gfx90a__) // for GPU code
+#if(defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
+    defined(__gfx942__)) // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64 1
 #else
 #define CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64 0
@@ -165,8 +173,20 @@
 
 // workaround: compiler issue on gfx908
 #define CK_WORKAROUND_SWDEV_388832 1
+
+// workaround: Grouped Conv2d_bwd_data fails for already implemented instance
+#define CK_WORKAROUND_SWDEV_3318619 0
+
 // flag to enable (1) or disable (0) the debugging output in some kernels
 #define DEBUG_LOG 0
+
+// denorm test fix, required to work around dissue
+#ifndef CK_WORKAROUND_DENORM_FIX
+#define CK_WORKAROUND_DENORM_FIX 0
+#elif
+// enable only on MI200
+#define CK_WORKAROUND_DENORM_FIX = CK_WORKAROUND_DENORM_FIX && defined(__gfx90a__)
+#endif // CK_WORKAROUND_DENORM_FIX
 
 namespace ck {
 

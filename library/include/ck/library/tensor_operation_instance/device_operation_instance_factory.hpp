@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -26,6 +26,7 @@ using Empty_Tuple = ck::Tuple<>;
 using F16_Tuple     = ck::Tuple<F16>;
 using F16_F16_Tuple = ck::Tuple<F16, F16>;
 
+using F64_Tuple     = ck::Tuple<F64>;
 using F32_Tuple     = ck::Tuple<F32>;
 using I32_Tuple     = ck::Tuple<I32>;
 using I32_F32_Tuple = ck::Tuple<I32, F32>;
@@ -85,6 +86,7 @@ using GK_GK_Tuple = ck::Tuple<GK, GK>;
 // pointwise functor
 using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
 using Relu           = ck::tensor_operation::element_wise::Relu;
+using TanH           = ck::tensor_operation::element_wise::TanH;
 using Scale          = ck::tensor_operation::element_wise::Scale;
 using Bilinear       = ck::tensor_operation::element_wise::Bilinear;
 using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
@@ -94,6 +96,7 @@ using FastGelu       = ck::tensor_operation::element_wise::FastGelu;
 using AddMultiply    = ck::tensor_operation::element_wise::AddMultiply;
 using ScaleAdd       = ck::tensor_operation::element_wise::ScaleAdd;
 using Gelu           = ck::tensor_operation::element_wise::Gelu;
+using Swish          = ck::tensor_operation::element_wise::Swish;
 
 template <typename Activation>
 using Activation_Mul_Clamp = ck::tensor_operation::element_wise::Activation_Mul_Clamp<Activation>;
@@ -103,11 +106,19 @@ using Add_Activation_Mul_Clamp =
     ck::tensor_operation::element_wise::Add_Activation_Mul_Clamp<Activation>;
 
 template <typename Activation>
+using Add_Mul_Activation_Mul_Clamp =
+    ck::tensor_operation::element_wise::Add_Mul_Activation_Mul_Clamp<Activation>;
+
+template <typename Activation>
 using Activation_Mul2_Clamp = ck::tensor_operation::element_wise::Activation_Mul2_Clamp<Activation>;
 
 template <typename Activation>
 using Add_Activation_Mul2_Clamp =
     ck::tensor_operation::element_wise::Add_Activation_Mul2_Clamp<Activation>;
+
+template <typename Activation>
+using Add_Mul2_Activation_Mul_Clamp =
+    ck::tensor_operation::element_wise::Add_Mul2_Activation_Mul_Clamp<Activation>;
 
 template <typename DeviceOp, typename Tag = void>
 struct DeviceOperationInstanceFactory;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,8 +10,7 @@
 #include "ck/tensor_operation/gpu/device/device_normalization.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_normalization_selector.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_set_buffer_value.hpp"
+#include "ck/tensor_operation/gpu/grid/normalization/gridwise_normalization_selector.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -20,6 +19,10 @@ namespace tensor_operation {
 namespace device {
 
 // Y = Normalization(X, Beta, Gamma)
+// M: Invarient length
+// K: Reduce length (Calculate mean and variance along K dimension)
+// eg. Length = [N, C, H, W], reduce dim = [C, H, W]
+// Then, M = N, K = C * H * W
 template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
@@ -68,7 +71,6 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
 
     static auto MakeSrc2dDescriptor(const std::vector<index_t>& inLengths,
                                     const std::vector<index_t>& inStrides,
-                                    int blkGroupSize,
                                     int numBlockTileIteration)
     {
         constexpr index_t NumInvariantDim  = Rank - NumReduceDim;
@@ -117,10 +119,9 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
         const auto invariantLength = in_grid_desc_m_k.GetLength(Number<0>{});
         const auto reduceLength    = in_grid_desc_m_k.GetLength(Number<1>{});
 
-        const int reduceSizePerBlock = K_BlockTileSize * numBlockTileIteration;
         const auto inPad_M =
             math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
-        const auto inPad_K = reduceSizePerBlock * blkGroupSize - reduceLength;
+        const auto inPad_K = K_BlockTileSize * numBlockTileIteration - reduceLength;
 
         auto in_grid_desc_m_k_padded = transform_tensor_descriptor(
             in_grid_desc_m_k,
@@ -132,7 +133,7 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
         return (in_grid_desc_m_k_padded);
     };
 
-    using GridDesc_M_K = decltype(MakeSrc2dDescriptor({1}, {1}, 1, 1));
+    using GridDesc_M_K = decltype(MakeSrc2dDescriptor({1}, {1}, 1));
 
     struct Argument : public BaseArgument
     {
@@ -162,26 +163,22 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
             gammaStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(gammaStrides, reduceDims);
             betaStrides_  = shuffle_tensor_dimensions<Rank, NumReduceDim>(betaStrides, reduceDims);
 
-            long_index_t invariant_total_length;
-            long_index_t reduce_total_length;
+            long_index_t invariant_length;
+            long_index_t reduce_length;
 
-            std::tie(invariant_total_length, reduce_total_length) =
+            std::tie(invariant_length, reduce_length) =
                 get_2d_lengths<Rank, NumReduceDim>(Lengths_);
 
-            blkGroupSize_          = 1;
-            numBlockTileIteration_ = (reduce_total_length + K_BlockTileSize - 1) / K_BlockTileSize;
+            numBlockTileIteration_ = math::integer_divide_ceil(reduce_length, K_BlockTileSize);
 
-            gridSize_ = math::integer_least_multiple(invariant_total_length, M_BlockTileSize) /
-                        M_BlockTileSize * blkGroupSize_;
+            gridSize_ = math::integer_divide_ceil(invariant_length, M_BlockTileSize);
 
-            x_grid_desc_m_k_ =
-                MakeSrc2dDescriptor(Lengths_, xStrides_, blkGroupSize_, numBlockTileIteration_);
+            x_grid_desc_m_k_ = MakeSrc2dDescriptor(Lengths_, xStrides_, numBlockTileIteration_);
             gamma_grid_desc_m_k_ =
-                MakeSrc2dDescriptor(Lengths_, gammaStrides_, blkGroupSize_, numBlockTileIteration_);
+                MakeSrc2dDescriptor(Lengths_, gammaStrides_, numBlockTileIteration_);
             beta_grid_desc_m_k_ =
-                MakeSrc2dDescriptor(Lengths_, betaStrides_, blkGroupSize_, numBlockTileIteration_);
-            y_grid_desc_m_k_ =
-                MakeSrc2dDescriptor(Lengths_, yStrides_, blkGroupSize_, numBlockTileIteration_);
+                MakeSrc2dDescriptor(Lengths_, betaStrides_, numBlockTileIteration_);
+            y_grid_desc_m_k_ = MakeSrc2dDescriptor(Lengths_, yStrides_, numBlockTileIteration_);
 
             isSweeponce_ =
                 x_grid_desc_m_k_.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
@@ -202,7 +199,6 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
 
         YElementwiseOperation y_elementwise_op_;
 
-        int blkGroupSize_;
         int numBlockTileIteration_;
         size_t gridSize_;
 
@@ -286,6 +282,9 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
 
                 if(p_arg_->invariant_lowest_length % XSrcVectorSize != 0)
                     return false;
+
+                if(p_arg_->invariant_lowest_length % YDstVectorSize != 0)
+                    return false;
             };
         }
         else
@@ -295,12 +294,12 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
 
             if(p_arg_->Lengths_[Rank - 1] % XSrcVectorSize != 0)
                 return false;
-        };
 
-        if(p_arg_->Lengths_[Rank - 1] % YDstVectorSize != 0)
-        {
-            return false;
-        }
+            if(p_arg_->Lengths_[Rank - 1] % YDstVectorSize != 0)
+            {
+                return false;
+            }
+        };
 
         // if fastest dim is not reduced
         if constexpr(GammaSrcVectorDim == 0)

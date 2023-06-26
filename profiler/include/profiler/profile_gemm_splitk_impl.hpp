@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -72,8 +72,8 @@ bool profile_gemm_splitk_impl(int do_verification,
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-1, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-1, 2});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -94,7 +94,7 @@ bool profile_gemm_splitk_impl(int do_verification,
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
-    c_device_buf.ToDevice(c_m_n_device_result.mData.data());
+    c_device_buf.SetZero();
 
     using DeviceOp = ck::tensor_operation::device::DeviceGemmSplitK<ALayout,
                                                                     BLayout,
@@ -246,9 +246,9 @@ bool profile_gemm_splitk_impl(int do_verification,
     }
 
     std::cout << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA
-              << " StrideB = " << StrideB << " StrideC = " << StrideC << " : " << best_ave_time
-              << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
-              << best_op_name << std::endl;
+              << " StrideB = " << StrideB << " StrideC = " << StrideC << " KBatch = " << KBatch
+              << " : " << best_ave_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec
+              << " GB/s, " << best_op_name << std::endl;
 
     return pass;
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -43,7 +43,8 @@ __global__ void
             const B1ElementwiseOperation b1_element_op,
             const CElementwiseOperation c_element_op)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
+    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();
@@ -610,10 +611,12 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                 some_has_main_k_block_loop |= y;
             }
 
-            hipGetErrorString(hipMemcpy(arg.p_workspace_,
-                                        arg.group_kernel_args_.data(),
-                                        arg.group_kernel_args_.size() * sizeof(GroupKernelArg),
-                                        hipMemcpyHostToDevice));
+            hipGetErrorString(
+                hipMemcpyWithStream(arg.p_workspace_,
+                                    arg.group_kernel_args_.data(),
+                                    arg.group_kernel_args_.size() * sizeof(GroupKernelArg),
+                                    hipMemcpyHostToDevice,
+                                    stream_config.stream_id_));
 
             float ave_time = 0;
 
@@ -678,7 +681,9 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
+        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
+             ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
+             ck::get_device_name() == "gfx942"))
         {
             return false;
         }

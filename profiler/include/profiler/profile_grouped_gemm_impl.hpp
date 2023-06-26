@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,6 +8,7 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_gemm_splitk.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_gemm.hpp"
@@ -18,6 +19,7 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
+#include "ck/library/utility/fill.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
@@ -39,9 +41,9 @@ bool profile_grouped_gemm_impl(int do_verification,
                                const std::vector<int>& Ks,
                                const std::vector<int>& StrideAs,
                                const std::vector<int>& StrideBs,
-                               const std::vector<int>& StrideCs)
+                               const std::vector<int>& StrideCs,
+                               int kbatch = 1)
 {
-
     bool pass = true;
 
     auto f_host_tensor_descriptor =
@@ -79,11 +81,11 @@ bool profile_grouped_gemm_impl(int do_verification,
 
         c_m_n_device_results.push_back(
             Tensor<CDataType>(f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{})));
-
+#if DEBUG_LOG
         std::cout << "group: " << i << " a_m_k[" << i << "]:" << a_m_k[i].mDesc << ", b_k_n[" << i
                   << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
                   << "]:" << c_m_n_device_results[i].mDesc << std::endl;
-
+#endif // DEBUG_LOG
         std::size_t num_thread = 1;
         switch(init_method)
         {
@@ -96,8 +98,6 @@ bool profile_grouped_gemm_impl(int do_verification,
             a_m_k[i].GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0}, num_thread);
             b_k_n[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
         }
-
-        c_m_n_device_results[i].GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
     }
 
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -132,13 +132,12 @@ bool profile_grouped_gemm_impl(int do_verification,
             std::make_unique<DeviceMem>(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpaceSize()));
         b_device_buf.emplace_back(
             std::make_unique<DeviceMem>(sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpaceSize()));
-
         c_device_buf.emplace_back(std::make_unique<DeviceMem>(
             sizeof(CDataType) * c_m_n_device_results[i].mDesc.GetElementSpaceSize()));
 
         a_device_buf[i]->ToDevice(a_m_k[i].mData.data());
         b_device_buf[i]->ToDevice(b_k_n[i].mData.data());
-        c_device_buf[i]->ToDevice(c_m_n_device_results[i].mData.data());
+        c_device_buf[i]->SetZero();
 
         gemm_descs.push_back({Ms[i], Ns[i], Ks[i], StrideAs[i], StrideBs[i], StrideCs[i], {}});
 
@@ -192,43 +191,71 @@ bool profile_grouped_gemm_impl(int do_verification,
         DeviceMem gemm_desc_workspace(gemm_ptr->GetWorkSpaceSize(argument_ptr.get()));
 
         gemm_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
+        std::string gemm_name = gemm_ptr->GetTypeString();
+
+        if(kbatch > 1)
+        {
+            using DeviceOpSplitK =
+                ck::tensor_operation::device::DeviceGroupedGemmSplitK<ALayout,
+                                                                      BLayout,
+                                                                      ck::Tuple<>,
+                                                                      CLayout,
+                                                                      ADataType,
+                                                                      BDataType,
+                                                                      ck::Tuple<>,
+                                                                      CDataType,
+                                                                      AElementOp,
+                                                                      BElementOp,
+                                                                      CElementOp>;
+
+            if(dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get()) != nullptr)
+            {
+                dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get())
+                    ->SetKBatchSize(argument_ptr.get(), kbatch);
+            }
+        }
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            std::string gemm_name = gemm_ptr->GetTypeString();
 
             float ave_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
-            std::size_t flop = 0, num_btype = 0;
-            for(std::size_t i = 0; i < gemm_descs.size(); i++)
+            if(time_kernel)
             {
-                flop += std::size_t(2) * Ms[i] * Ns[i] * Ks[i];
+                std::size_t flop = 0, num_btype = 0;
+                for(std::size_t i = 0; i < gemm_descs.size(); i++)
+                {
+                    flop += std::size_t(2) * Ms[i] * Ns[i] * Ks[i];
 
-                num_btype += sizeof(ADataType) * Ms[i] * Ks[i] + sizeof(BDataType) * Ks[i] * Ns[i] +
-                             sizeof(CDataType) * Ms[i] * Ns[i];
-            }
+                    num_btype += sizeof(ADataType) * Ms[i] * Ks[i] +
+                                 sizeof(BDataType) * Ks[i] * Ns[i] +
+                                 sizeof(CDataType) * Ms[i] * Ns[i];
+                }
 
-            float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+                float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
-            float gb_per_sec = num_btype / 1.E6 / ave_time;
-            std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
-                      << gb_per_sec << " GB/s, " << gemm_name << std::endl;
+                float gb_per_sec = num_btype / 1.E6 / ave_time;
+                std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
+                          << " TFlops, " << gb_per_sec << " GB/s, " << gemm_name << std::endl;
 
-            if(tflops > best_tflops)
-            {
-                best_gemm_name  = gemm_name;
-                best_tflops     = tflops;
-                best_ave_time   = ave_time;
-                best_gb_per_sec = gb_per_sec;
+                if(tflops > best_tflops)
+                {
+                    best_gemm_name  = gemm_name;
+                    best_tflops     = tflops;
+                    best_ave_time   = ave_time;
+                    best_gb_per_sec = gb_per_sec;
+                }
             }
 
             if(do_verification)
             {
+                bool instance_pass = true;
                 for(std::size_t i = 0; i < gemm_descs.size(); i++)
                 {
 
                     c_device_buf[i]->FromDevice(c_m_n_device_results[i].mData.data());
+                    c_device_buf[i]->SetZero();
 
                     Tensor<CDataType> c_m_n_host_result(
                         f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{}));
@@ -253,7 +280,20 @@ bool profile_grouped_gemm_impl(int do_verification,
                                                               c_element_op);
 
                     ref_invoker.Run(ref_argument);
-                    pass = pass && ck::utils::check_err(c_m_n_device_results[i], c_m_n_host_result);
+                    if(std::is_same_v<CDataType, ck::half_t> && kbatch > 1)
+                    {
+                        instance_pass =
+                            instance_pass && ck::utils::check_err(c_m_n_device_results[i],
+                                                                  c_m_n_host_result,
+                                                                  "Error: Incorrect results!",
+                                                                  0.06);
+                    }
+                    else
+                    {
+                        instance_pass =
+                            instance_pass &&
+                            ck::utils::check_err(c_m_n_device_results[i], c_m_n_host_result);
+                    }
 
                     if(do_log)
                     {
@@ -268,16 +308,25 @@ bool profile_grouped_gemm_impl(int do_verification,
                             << std::endl;
                     }
                 }
+
+                std::cout << "Instance: " << gemm_name << " verification "
+                          << (instance_pass ? "SUCCEED" : "FAILED") << std::endl;
+
+                pass = pass && instance_pass;
             }
         }
         else
         {
-            std::cout << "does not support this GEMM problem" << std::endl;
+            std::cout << "Instance: " << gemm_name << ", does not support this GEMM problem"
+                      << std::endl;
         }
     }
 
-    std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
-              << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
+    if(time_kernel)
+    {
+        std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
+                  << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
+    }
 
     return pass;
 }

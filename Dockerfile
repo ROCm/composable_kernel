@@ -1,30 +1,41 @@
 FROM ubuntu:20.04
-
-ARG ROCMVERSION=5.3
-ARG compiler_version="release"
+ARG DEBIAN_FRONTEND=noninteractive
+ARG ROCMVERSION=5.6
+ARG compiler_version=""
 ARG compiler_commit=""
 
 RUN set -xe
 
 ARG DEB_ROCM_REPO=http://repo.radeon.com/rocm/apt/.apt_$ROCMVERSION/
 RUN useradd -rm -d /home/jenkins -s /bin/bash -u 1004 jenkins
-RUN useradd -rm -d /home/manitera -s /bin/bash -u 1002 manitera
 # Add rocm repository
+RUN chmod 1777 /tmp
 RUN apt-get update
-RUN apt-get install -y wget gnupg
-RUN wget -qO - http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
-RUN sh -c "echo deb [arch=amd64] $DEB_ROCM_REPO ubuntu main > /etc/apt/sources.list.d/rocm.list"
+RUN apt-get install -y --allow-unauthenticated apt-utils wget gnupg2 curl
+RUN if [ "$ROCMVERSION" != "5.6" ]; then \
+        wget -qO - http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - && \
+        sh -c "echo deb [arch=amd64] $DEB_ROCM_REPO ubuntu main > /etc/apt/sources.list.d/rocm.list"; \
+    elif [ "$ROCMVERSION" = "5.6" ] && [ "$compiler_version" = "" ]; then \
+         sh -c "wget http://artifactory-cdn.amd.com/artifactory/list/amdgpu-deb/amd-nonfree-radeon_20.04-1_all.deb" && \
+         apt update && apt-get install -y ./amd-nonfree-radeon_20.04-1_all.deb && \
+         amdgpu-repo --amdgpu-build=1567752 --rocm-build=compute-rocm-dkms-no-npi-hipclang/11914 && \
+         amdgpu-install -y --usecase=rocm --no-dkms; \
+    elif [ "$ROCMVERSION" = "5.6" ] && [ "$compiler_version" = "rc3" ] || [ "$compiler_version" = "amd-stg-open" ]; then \
+         sh -c "wget http://artifactory-cdn.amd.com/artifactory/list/amdgpu-deb/amdgpu-install-internal_5.6-20.04-1_all.deb" && \
+         apt update && apt-get install -y ./amdgpu-install-internal_5.6-20.04-1_all.deb && \
+         sh -c 'echo deb [arch=amd64 trusted=yes] http://compute-artifactory.amd.com/artifactory/list/rocm-release-archive-20.04-deb/ 5.6 rel-45  > /etc/apt/sources.list.d/rocm-build.list' && \
+         amdgpu-repo --amdgpu-build=1602498 && amdgpu-install -y --usecase=rocm --no-dkms; \
+    fi
+
 RUN wget --no-check-certificate -qO - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | apt-key add -
 RUN sh -c "echo deb http://mirrors.kernel.org/ubuntu focal main universe | tee -a /etc/apt/sources.list"
+RUN curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/trusted.gpg.d/rocm-keyring.gpg
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
-    apt-utils \
     build-essential \
     ccache \
-    cmake-data \
     cmake \
-    curl \
     git \
     hip-rocclr \
     jq \
@@ -34,23 +45,30 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libpthread-stubs0-dev \
     llvm-amdgpu \
     pkg-config \
-    python \
     python3 \
-    python-dev \
     python3-dev \
     python3-pip \
     sshpass \
     software-properties-common \
-    rocm-dev \
-    rocm-device-libs \
-    rocm-cmake \
     vim \
+    nano \
     zlib1g-dev \
     openssh-server \
     clang-format-10 \
     kmod && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+#Install latest version of cmake
+RUN apt purge --auto-remove -y cmake
+RUN apt update
+RUN apt install -y software-properties-common lsb-release
+RUN apt clean all
+RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
+RUN apt-add-repository "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
+RUN apt install -y kitware-archive-keyring
+RUN rm /etc/apt/trusted.gpg.d/kitware.gpg
+RUN apt install -y cmake
 
 # Setup ubsan environment to printstacktrace
 RUN ln -s /usr/bin/llvm-symbolizer-3.8 /usr/local/bin/llvm-symbolizer
@@ -87,12 +105,7 @@ ENV compiler_commit=$compiler_commit
 RUN sh -c "echo compiler version = '$compiler_version'"
 RUN sh -c "echo compiler commit = '$compiler_commit'"
 
-RUN --mount=type=ssh if [ "$compiler_version" = "amd-stg-open" ]; then \
-        sed -i '/$HIP_CLANG_TARGET = chomp($HIP_CLANG_TARGET);/c\    chomp($HIP_CLANG_TARGET);' /opt/rocm/hip/bin/hipcc.pl && \
-        sed -i '/$HIP_CLANG_TARGET = chomp($HIP_CLANG_TARGET);/c\    chomp($HIP_CLANG_TARGET);' /opt/rocm/bin/hipcc.pl; \
-    fi
-
-RUN --mount=type=ssh if [ "$compiler_version" != "release" ] && [ "$compiler_commit" = "" ]; then \
+RUN if [ "$compiler_version" = "amd-stg-open" ] && [ "$compiler_commit" = "" ]; then \
         git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
         cd llvm-project && mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" ../llvm && \
@@ -100,7 +113,7 @@ RUN --mount=type=ssh if [ "$compiler_version" != "release" ] && [ "$compiler_com
     else echo "using the release compiler"; \
     fi
 
-RUN --mount=type=ssh if [ "$compiler_version" != "release" ] && [ "$compiler_commit" != "" ]; then \
+RUN if [ "$compiler_version" = "amd-stg-open" ] && [ "$compiler_commit" != "" ]; then \
         git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
         cd llvm-project && git checkout "$compiler_commit" && echo "checking out commit $compiler_commit" && mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" ../llvm && \

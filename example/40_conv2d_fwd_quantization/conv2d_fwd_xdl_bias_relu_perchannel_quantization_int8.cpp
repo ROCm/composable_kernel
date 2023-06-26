@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_d_xdl_cshuffle.hpp"
@@ -80,6 +80,10 @@ using DeviceGroupedConvNDFwdInstance =
         S<1, 64, 1, 4>,
         8>;
 
-#include "run_conv2d_fwd_bias_relu_perchannel_quantization_example.inc"
+#include "run_conv2d_fwd_bias_perchannel_quantization_example.inc"
 
-int main() { run_conv2d_fwd_bias_relu_perchannel_quantization_example(); };
+int main()
+{
+    const auto out_element_op = OutElementOp{ActivationOp{}};
+    run_conv2d_fwd_bias_perchannel_quantization_example(out_element_op);
+};
