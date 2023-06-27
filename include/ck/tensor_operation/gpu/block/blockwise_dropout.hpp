@@ -122,7 +122,7 @@ struct BlockwiseDropout
         });
     }
 
-    template <typename CThreadBuffer, bool using_sign_bit = false>
+    template <typename CThreadBuffer, typename Offset, bool using_sign_bit = false>
     __host__ __device__ void ApplyDropoutAttnBwd(CThreadBuffer& in_thread_buf,
                                                  ck::philox& ph,
                                                  index_t element_global_1d_id,
@@ -143,7 +143,7 @@ struct BlockwiseDropout
         ushort tmp[tmp_size];
         for(int i = 0; i < philox_calls; i++)
         {
-            ph.get_random_4x16((tmp + i * 4), element_global_1d_id + i * 8 * MRaw);
+            ph.get_random_4x16((tmp + i * 4), element_global_1d_id + i * Offset{} * MRaw);
         }
 
         block_sync_lds();
@@ -159,7 +159,10 @@ struct BlockwiseDropout
         });
     }
 
-    template <typename CThreadBuffer, typename ZThreadBuffer, bool using_sign_bit = false>
+    template <typename CThreadBuffer,
+              typename ZThreadBuffer,
+              typename Offset,
+              bool using_sign_bit = false>
     __host__ __device__ void ApplyDropoutAttnBwdSaveZ(CThreadBuffer& in_thread_buf,
                                                       ck::philox& ph,
                                                       index_t element_global_1d_id,
@@ -181,7 +184,7 @@ struct BlockwiseDropout
         ushort tmp[tmp_size];
         for(int i = 0; i < philox_calls; i++)
         {
-            ph.get_random_4x16((tmp + i * 4), element_global_1d_id + i * 8 * MRaw);
+            ph.get_random_4x16((tmp + i * 4), element_global_1d_id + i * Offset{} * MRaw);
         }
 
         block_sync_lds();

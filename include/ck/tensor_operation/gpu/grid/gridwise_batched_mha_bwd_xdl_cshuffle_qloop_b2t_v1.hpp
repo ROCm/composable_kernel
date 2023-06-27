@@ -135,9 +135,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
 
     __host__ __device__ static constexpr auto GetPaddedSize(const index_t size)
     {
-        constexpr auto mfma = MfmaSelector<GemmDataType, MPerXdl, NPerXdl>::selected_mfma;
-        constexpr auto M5   = mfma.group_size;
-        return index_t(ceil(float(size) / M5) * M5);
+        constexpr auto mfma       = MfmaSelector<GemmDataType, MPerXdl, NPerXdl>::selected_mfma;
+        constexpr auto group_size = mfma.group_size;
+        return math::integer_divide_ceil(size, group_size) * group_size;
     }
 
     __device__ static auto GetGemm0WaveIdx()
@@ -1613,21 +1613,18 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                                            n1,   // NWaveId
                                                            m2,   // MGroupNum
                                                            m3,   // MInputNum
-                                                           m4,   // registerNum
+                                                           m4,   // RegisterNum
                                                            n2)); // NPerXdl
 
         StaticBuffer<AddressSpaceEnum::Vgpr,
-                     unsigned short,
+                     ushort,
                      z_thread_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3.GetElementSpaceSize(),
                      true>
             z_tenor_buffer;
         z_tenor_buffer.Clear();
 
-        // z matrix global desc
-        // ignore = p_z_tmp_grid;
-        auto z_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>( // tmp buffer for shuffle
-            p_z_grid,
-            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3.GetElementSpaceSize());
+        auto z_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_z_grid, z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3.GetElementSpaceSize());
 
         const auto wave_id     = GetGemm0WaveIdx();
         const auto wave_m_n_id = GetGemm0WaveMNIdx(wave_id[I2]); // I2: 0~63
@@ -1656,14 +1653,14 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             true>{z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                   make_multi_index(num_gemm0_m_block_outer_loop - 1, // MBlockId
                                    block_work_idx_n,                 // NBlockId
-                                   0,                                // mrepeat
-                                   0,                                // nrepeat
+                                   0,                                // MRepeat
+                                   0,                                // NRepeat
                                    wave_id[I0],                      // MWaveId
                                    wave_id[I1],                      // NWaveId
                                    0,                                // MPerXdl
-                                   wave_m_n_id[I0],                  // group
-                                   0,                                // NInputIndex
-                                   wave_m_n_id[I1]),
+                                   wave_m_n_id[I0],                  //
+                                   0,                                //
+                                   wave_m_n_id[I1]),                 // NPerXdl
                   tensor_operation::element_wise::PassThrough{}};
 
         //
@@ -1948,6 +1945,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             // scaling is already performed in the preceding statements with s_element_op
             blockwise_softmax.RunWithPreCalcStats(s_slash_p_thread_buf, lse_thread_buf);
 
+            constexpr auto position_offset = M3 * M4;
             // save z to global
             if(p_z_grid)
             {
@@ -1962,10 +1960,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                           n_global; // unique element global 1d id
 
                 auto global_elem_id =
-                    (global_elem_id_raw % M4) * raw_n_padded + int(global_elem_id_raw / M4) * M4;
+                    (global_elem_id_raw % M4) * raw_n_padded + (global_elem_id_raw / M4) * M4;
 
                 blockwise_dropout.template ApplyDropoutAttnBwdSaveZ<decltype(s_slash_p_thread_buf),
                                                                     decltype(z_tenor_buffer),
+                                                                    decltype(position_offset),
                                                                     true>(
                     s_slash_p_thread_buf, ph, global_elem_id, z_tenor_buffer, raw_n_padded);
 
@@ -1989,12 +1988,13 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                           n_global; // unique element global 1d id
 
                 auto global_elem_id =
-                    (global_elem_id_raw % M4) * raw_n_padded + int(global_elem_id_raw / M4) * M4;
+                    (global_elem_id_raw % M4) * raw_n_padded + (global_elem_id_raw / M4) * M4;
 
                 // P_dropped
-                blockwise_dropout
-                    .template ApplyDropoutAttnBwd<decltype(s_slash_p_thread_buf), true>(
-                        s_slash_p_thread_buf, ph, global_elem_id, raw_n_padded);
+                blockwise_dropout.template ApplyDropoutAttnBwd<decltype(s_slash_p_thread_buf),
+                                                               decltype(position_offset),
+                                                               true>(
+                    s_slash_p_thread_buf, ph, global_elem_id, raw_n_padded);
             }
 
             block_sync_lds(); // wait for gemm1 LDS read

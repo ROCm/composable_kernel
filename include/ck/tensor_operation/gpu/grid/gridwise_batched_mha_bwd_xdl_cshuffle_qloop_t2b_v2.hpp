@@ -1925,42 +1925,17 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                     make_tuple(Sequence<0>{}, Sequence<1>{}),
                     make_tuple(Sequence<0, 2, 4, 5, 6>{}, Sequence<1, 3, 7>{}));
 
-                // if(get_thread_global_1d_id()==0){
-                //    printf("tid 0 m_global & n_global is %d & %d \n", m_global , n_global);
-                //}
                 auto acc0_thread_idx = Acc0TileIterator::GetIndex(I0) + acc0_thread_origin;
                 auto m_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
                 auto n_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
                 auto m_global = m_local + m_block_data_idx_on_grid;
                 auto n_global = n_local + n_block_data_idx_on_grid;
 
-                // if(get_thread_global_1d_id()==0){
-                //     printf("tid 0 m_global & n_global is %d & %d \n", m_global , n_global);
-                // }
-                // if(get_thread_global_1d_id()==32){
-                //     printf("tid 32 m_global & n_global is %d & %d \n", m_global , n_global);
-                // }
-
                 auto global_elem_id_raw =
                     MRaw * NRaw * g_idx + m_global * NRaw + n_global; // unique element global 1d id
 
                 auto global_elem_id =
                     (global_elem_id_raw % 4) * MRaw + int(global_elem_id_raw / 4) * 4;
-
-                // if(get_block_1d_id() == 0 && get_thread_local_1d_id()==64){
-                //    printf("global_elem_id is %d \n", global_elem_id);
-                //}
-
-                // index_t id_step = Acc0TileIterator::GetNumOfAccess() / n0.value;
-
-                // if(get_thread_global_1d_id() == 0){
-                //    printf("Acc0TileIterator::GetNumOfAccess() is %d \n",
-                //    Acc0TileIterator::GetNumOfAccess()); printf("n0.value is %d \n", n0.value);
-                //    printf("id_step is %d \n", id_step);
-                //}
-
-                // dropout
-                // z_tenor_buffer_tmp -> z_grid_buf_tmp -> shuffle -> z_tenor_buffer -> z_grid_buf
 
                 blockwise_dropout.template ApplyDropoutAttnBwdSaveZ<decltype(s_slash_p_thread_buf),
                                                                     decltype(z_tenor_buffer),
@@ -2007,21 +1982,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                     make_tuple(Sequence<0>{}, Sequence<1>{}),
                     make_tuple(Sequence<0, 2, 4, 5, 6>{}, Sequence<1, 3, 7>{}));
 
-                // if(get_thread_global_1d_id()==0){
-                //    printf("tid 0 m_global & n_global is %d & %d \n", m_global , n_global);
-                //}
                 auto acc0_thread_idx = Acc0TileIterator::GetIndex(I0) + acc0_thread_origin;
                 auto m_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
                 auto n_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
                 auto m_global = m_local + m_block_data_idx_on_grid;
                 auto n_global = n_local + n_block_data_idx_on_grid;
-
-                // if(get_thread_global_1d_id()==0){
-                //     printf("tid 0 m_global & n_global is %d & %d \n", m_global , n_global);
-                // }
-                // if(get_thread_global_1d_id()==32){
-                //     printf("tid 32 m_global & n_global is %d & %d \n", m_global , n_global);
-                // }
 
                 auto global_elem_id_raw =
                     MRaw * NRaw * g_idx + m_global * NRaw + n_global; // unique element global 1d id
