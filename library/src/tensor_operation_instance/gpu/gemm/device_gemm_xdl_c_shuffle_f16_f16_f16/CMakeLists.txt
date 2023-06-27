@@ -1,21 +1,26 @@
 target_sources(${INSTANCE_NAME} PRIVATE 
   km_kn_mn_instance.cpp
-  km_kn_mn_inst_def_1_stg_blkm_16.cpp
-  km_kn_mn_inst_def_1_stg_blkm_4.cpp
+  km_kn_mn_inst_def_1_stg_blkm_3.cpp
+  km_kn_mn_inst_def_1_stg_blkm_7.cpp
   km_kn_mn_inst_def_1_stg_blkm_8.cpp
+  km_kn_mn_inst_def_1_stg_blkm_16.cpp
   km_nk_mn_instance.cpp
-  km_nk_mn_inst_def_1_stg_blkm_16.cpp
-  km_nk_mn_inst_def_1_stg_blkm_4.cpp
+  km_nk_mn_inst_def_1_stg_blkm_3.cpp
+  km_nk_mn_inst_def_1_stg_blkm_7.cpp
   km_nk_mn_inst_def_1_stg_blkm_8.cpp
+  km_nk_mn_inst_def_1_stg_blkm_16.cpp
   mk_kn_mn_instance.cpp
-  mk_kn_mn_inst_def_1_stg_blkm_16.cpp
-  mk_kn_mn_inst_def_1_stg_blkm_4.cpp
+  mk_kn_mn_inst_def_1_stg_blkm_3.cpp
+  mk_kn_mn_inst_def_1_stg_blkm_7.cpp
   mk_kn_mn_inst_def_1_stg_blkm_8.cpp
+  mk_kn_mn_inst_def_1_stg_blkm_16.cpp
   mk_nk_mn_instance.cpp
-  mk_nk_mn_inst_def_1_stg_blkm_16.cpp
-  mk_nk_mn_inst_def_1_stg_blkm_4.cpp
+  mk_nk_mn_inst_def_1_stg_blkm_3.cpp
+  mk_nk_mn_inst_def_1_stg_blkm_7.cpp
   mk_nk_mn_inst_def_1_stg_blkm_8.cpp
-  mk_nk_mn_inst_def_2_stg_blkm_16.cpp
-  mk_nk_mn_inst_def_2_stg_blkm_4.cpp
+  mk_nk_mn_inst_def_1_stg_blkm_16.cpp
+  mk_nk_mn_inst_def_2_stg_blkm_3.cpp
+  mk_nk_mn_inst_def_2_stg_blkm_7.cpp
   mk_nk_mn_inst_def_2_stg_blkm_8.cpp
+  mk_nk_mn_inst_def_2_stg_blkm_16.cpp
 )

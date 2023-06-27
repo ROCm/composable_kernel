@@ -3,7 +3,7 @@
 
 #include "common.hpp"
 
-static constexpr ck::index_t NumStage    = 1;
-static constexpr ck::index_t BlockMapM01 = 4;
+static constexpr ck::index_t NumStage    = 2;
+static constexpr ck::index_t BlockMapM01 = 7;
 
-#include "km_nk_mn_inst_def.inc"
+#include "mk_nk_mn_inst_def.inc"

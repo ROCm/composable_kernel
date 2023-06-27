@@ -4,6 +4,6 @@
 #include "common.hpp"
 
 static constexpr ck::index_t NumStage    = 1;
-static constexpr ck::index_t BlockMapM01 = 4;
+static constexpr ck::index_t BlockMapM01 = 3;
 
 #include "mk_nk_mn_inst_def.inc"
