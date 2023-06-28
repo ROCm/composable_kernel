@@ -51,9 +51,13 @@ struct GridwiseGemmPipeline_v2
                                CThreadBuffer& c_thread_buf,
                                index_t num_loop)
     {
+        __builtin_amdgcn_sched_barrier(0);
+
         // global read 0
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
         b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
+
+        __builtin_amdgcn_sched_barrier(0);
 
         // move to 1
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
@@ -62,15 +66,21 @@ struct GridwiseGemmPipeline_v2
         // Initialize C
         c_thread_buf.Clear();
 
+        __builtin_amdgcn_sched_barrier(0);
+
         // LDS write 0
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
         // global Read 1
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
 
+        __builtin_amdgcn_sched_barrier(0);
+
         // LDS write 0
         b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
         // global Read 1
         b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
+
+        __builtin_amdgcn_sched_barrier(0);
 
         // main body
         if constexpr(HasMainLoop)
@@ -90,15 +100,21 @@ struct GridwiseGemmPipeline_v2
                 a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
+                __builtin_amdgcn_sched_barrier(0);
+
                 // LDS write i + 1
                 a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
                 // global read i + 2
                 a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
 
+                __builtin_amdgcn_sched_barrier(0);
+
                 // LDS write i + 1
                 b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
                 // global read i + 2
                 b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
+
+                __builtin_amdgcn_sched_barrier(0);
 
                 ++i;
             } while(i < (num_loop - 2));
