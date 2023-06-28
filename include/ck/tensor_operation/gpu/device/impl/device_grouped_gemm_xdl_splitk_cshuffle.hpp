@@ -330,10 +330,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                            k0,
                                            K_BATCH};
 
-                gemm_kernel_args_.emplace_back(std::move(karg),
-                                               // std::move(grouped_block_2_ctile_map),
-                                               block_start,
-                                               block_end);
+                gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
             }
         }
 
@@ -371,10 +368,9 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 auto grouped_block_2_ctile_map =
                     GroupedGemmBlock2ETileMap(local_b2c_tile_map, block_start);
 
-                karg.KPadded = k_padded;
-                karg.K0      = k0;
-                karg.k_batch = K_BATCH;
-                // gemm_kernel_args_[i].block_2_ctile_map_ = grouped_block_2_ctile_map;
+                karg.KPadded                      = k_padded;
+                karg.K0                           = k0;
+                karg.k_batch                      = K_BATCH;
                 gemm_kernel_args_[i].block_start_ = block_start;
                 gemm_kernel_args_[i].block_end_   = block_end;
             }
@@ -650,7 +646,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
     {
         return SetKBatchSize(*dynamic_cast<Argument*>(p_arg), kbatch);
     }
-}; // namespace device
+};
 
 } // namespace device
 } // namespace tensor_operation
