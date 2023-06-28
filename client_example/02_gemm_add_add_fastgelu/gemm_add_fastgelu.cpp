@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iomanip>
 #include <vector>
@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
         StrideA  = std::stoi(argv[4]);
         StrideB  = std::stoi(argv[5]);
         StrideD0 = std::stoi(argv[6]);
-        StrideE  = std::stoi(argv[8]);
+        StrideE  = std::stoi(argv[7]);
     }
     else
     {

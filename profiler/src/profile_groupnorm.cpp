@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <vector>
@@ -64,7 +64,7 @@ int profile_groupnorm(int argc, char* argv[])
     ck::DataTypeEnum data_type  = ck::DataTypeEnum::Half;
     bool do_verification        = false;
     int init_method             = 0;
-    bool do_log                 = 0;
+    bool do_log                 = false;
     bool time_kernel            = 1;
     std::vector<index_t> length = {64, 16, 16, 32, 40};
 

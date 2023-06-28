@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -23,7 +23,6 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-
 template <typename GridwiseGemm,
           typename GemmDesc,
           bool HasMainKBlockLoop,
@@ -36,7 +35,7 @@ __global__ void
                                        const index_t group_count)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__))
+    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
     __shared__ uint8_t p_shared[shared_size];
 
@@ -85,7 +84,8 @@ __global__ void
 
     const auto c_grid_desc_m_n    = GridwiseGemm::MakeCGridDescriptor_M_N(M, N, StrideC);
     const auto local_b2c_tile_map = Block2ETileMapKSplit{c_grid_desc_m_n, B2E_M01, k_batch};
-    const auto block_2_ctile_map  = GroupedGemmBlock2ETileMap(local_b2c_tile_map, gemm_desc_ptr[group_id].block_start_);
+    const auto block_2_ctile_map =
+        GroupedGemmBlock2ETileMap(local_b2c_tile_map, gemm_desc_ptr[group_id].block_start_);
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation>(
         gemm_desc_ptr[group_id].karg_.p_a_grid,
@@ -237,12 +237,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         index_t block_start_, block_end_;
 
         GemmTransKernelArg() = default;
-        GemmTransKernelArg(KernelArgument&& karg,
-                           index_t block_start,
-                           index_t block_end)
-            : karg_{karg},
-              block_start_{block_start},
-              block_end_{block_end}
+        GemmTransKernelArg(KernelArgument&& karg, index_t block_start, index_t block_end)
+            : karg_{karg}, block_start_{block_start}, block_end_{block_end}
         {
         }
     };
@@ -444,10 +440,13 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 }
             }
 
-            hip_check_error(hipMemcpy(arg.p_workspace_,
-                                      arg.gemm_kernel_args_.data(),
-                                      arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
-                                      hipMemcpyHostToDevice));
+            hip_check_error(
+                hipMemcpyWithStream(arg.p_workspace_,
+                                    arg.gemm_kernel_args_.data(),
+                                    arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
+                                    hipMemcpyHostToDevice,
+                                    stream_config.stream_id_));
+
             float ave_time = 0;
 
             const auto Run = [&](const auto& kernel) {
@@ -468,8 +467,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                            dim3(BlockSize),
                                            0,
                                            cast_pointer_to_constant_address_space(arg.p_workspace_),
-                                           arg.gemm_kernel_args_.size()
-                    );
+                                           arg.gemm_kernel_args_.size());
             };
 
             if(all_have_main_k0_block_loop)

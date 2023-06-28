@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -31,7 +31,7 @@ __global__ void
                                              const Block2CTileMap& b2c_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__))
+    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
 
     __shared__ uint8_t p_shared[shared_size];
@@ -834,7 +834,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                 b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);
 
                 k0_block_data_begin += K0PerBlock;
-            } while(k0_block_data_begin < (K0 - K0PerBlock));
+            } while(k0_block_data_begin < (karg.K0 - K0PerBlock));
         }
 
         // tail

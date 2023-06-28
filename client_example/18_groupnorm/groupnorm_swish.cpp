@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iomanip>
 #include <vector>
@@ -72,6 +72,30 @@ int main(int argc, char* argv[])
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
+    const auto& generic_op_ptr = op_ptrs[0];
+
+    auto generic_argument_ptr =
+        generic_op_ptr->MakeArgumentPointer({N, H, W, G, C},    // lengths
+                                            xy_strides,         // xStrides
+                                            gamma_beta_strides, // gammaStrides
+                                            gamma_beta_strides, // betaStrides
+                                            xy_strides,         // yStrides
+                                            {1, 2, 4},          // reduceDims
+                                            1e-6,
+                                            x_device_buf.GetDeviceBuffer(),
+                                            gamma_device_buf.GetDeviceBuffer(),
+                                            beta_device_buf.GetDeviceBuffer(),
+                                            y_device_buf.GetDeviceBuffer(),
+                                            nullptr,
+                                            nullptr,
+                                            Swish{});
+
+    if(!generic_op_ptr->IsSupportedArgument(generic_argument_ptr.get()))
+    {
+        throw std::runtime_error(
+            "The generic kernel instance should be able to support any input shapes");
+    };
+
     std::string best_op_name;
     bool found            = false;
     int best_op_id        = -1;
@@ -131,11 +155,12 @@ int main(int argc, char* argv[])
         }
     }
 
-    std::cout << "Best Perf: " << best_ave_time << " ms, " << best_gb_per_sec << " GB/s, "
-              << best_op_name << std::endl;
-
     // run the best intance
+    if(found)
     {
+        std::cout << "Best Perf: " << best_ave_time << " ms, " << best_gb_per_sec << " GB/s, "
+                  << best_op_name << std::endl;
+
         auto& op_ptr = op_ptrs[best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
                   << std::endl;
