@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -134,12 +134,32 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
     {
     }
 
+    template <typename CGridDesc_M_N>
+    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(const CGridDesc_M_N& c_grid_desc_m_n,
+                                                        index_t M01 = 8)
+        : BlockToCTileMap_M00_N0_M01Adapt(
+              c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1), M01)
+    {
+    }
+
     __host__ static constexpr index_t CalculateGridSize(index_t M, index_t N)
     {
         const auto M0 = math::integer_divide_ceil(M, MPerBlock);
         const auto N0 = math::integer_divide_ceil(N, NPerBlock);
 
         return M0 * N0;
+    }
+
+    template <typename CGridDesc_M_N>
+    __host__ static constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n)
+    {
+        return CalculateGridSize(c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1));
+    }
+
+    template <typename CGridDesc_M_N>
+    __host__ bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const
+    {
+        return true;
     }
 
     template <typename TopIdx>
@@ -222,30 +242,12 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
     index_t M01_;
 };
 
+// keep the redundant type argument for backward compatibility
 template <index_t MPerBlock, index_t NPerBlock, typename CGridDesc_M_N>
 struct BlockToCTileMap_M00_N0_M01Adapt : BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
 {
-    using Parent = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>;
-
-    using Parent::I0;
-    using Parent::I1;
-
-    using Parent::Parent;
-    using Parent::operator=;
-
-    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(const CGridDesc_M_N& c_grid_desc_m_n,
-                                                        index_t M01 = 8)
-        : Parent(c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1), M01)
-    {
-    }
-
-    __host__ static constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n)
-    {
-        return Parent::CalculateGridSize(c_grid_desc_m_n.GetLength(I0),
-                                         c_grid_desc_m_n.GetLength(I1));
-    }
-
-    __host__ bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const { return true; }
+    using BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>::
+        BlockToCTileMap_M00_N0_M01Adapt;
 };
 
 // 2D slices of column-vectors in 3D space

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -136,7 +136,7 @@ __global__ void
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx1030__) ||           \
     defined(__gfx90a__) || defined(__gfx908__) || defined(__gfx940__) || defined(__gfx1100__) || \
-    defined(__gfx1101__) || defined(__gfx1102__))
+    defined(__gfx1101__) || defined(__gfx1102__) || defined(__gfx941__) || defined(__gfx942__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -713,7 +713,8 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
         if(!(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030" ||
              ck::get_device_name() == "gfx90a" || ck::get_device_name() == "gfx908" ||
              ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx1100" ||
-             ck::get_device_name() == "gfx1101" || ck::get_device_name() == "gfx1102"))
+             ck::get_device_name() == "gfx1101" || ck::get_device_name() == "gfx1102" ||
+             ck::get_device_name() == "gfx941" || ck::get_device_name() == "gfx942"))
         {
             return false;
         }
