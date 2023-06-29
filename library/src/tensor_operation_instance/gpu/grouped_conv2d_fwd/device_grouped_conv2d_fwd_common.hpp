@@ -17,6 +17,8 @@ namespace instance {
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
+using I8   = int8_t;
+using I32  = int32_t;
 
 using Empty_Tuple = ck::Tuple<>;
 
