@@ -25,6 +25,9 @@ namespace device {
 
 template <typename GridwiseGemm,
           typename GemmDesc,
+          typename FloatA,
+          typename FloatB,
+          typename FloatC,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation>
 __global__ void
@@ -77,15 +80,16 @@ __global__ void
     }
 #endif
 
-    const auto p_a_grid = gemm_desc_ptr[group_id].p_a_grid;
-    const auto p_b_grid = gemm_desc_ptr[group_id].p_b_grid;
-    const auto p_c_grid = gemm_desc_ptr[group_id].p_c_grid;
-    const auto M        = gemm_desc_ptr[group_id].M;
-    const auto N        = gemm_desc_ptr[group_id].N;
-    const auto K        = gemm_desc_ptr[group_id].K;
-    const auto StrideA  = gemm_desc_ptr[group_id].StrideA;
-    const auto StrideB  = gemm_desc_ptr[group_id].StrideB;
-    const auto StrideC  = gemm_desc_ptr[group_id].StrideC;
+    const auto p_a_grid = reinterpret_cast<const FloatA*>(gemm_desc_ptr[group_id].p_a_grid);
+    const auto p_b_grid = reinterpret_cast<const FloatB*>(gemm_desc_ptr[group_id].p_b_grid);
+    const auto p_c_grid = reinterpret_cast<FloatC*>(gemm_desc_ptr[group_id].p_c_grid);
+
+    const auto M       = gemm_desc_ptr[group_id].M;
+    const auto N       = gemm_desc_ptr[group_id].N;
+    const auto K       = gemm_desc_ptr[group_id].K;
+    const auto StrideA = gemm_desc_ptr[group_id].StrideA;
+    const auto StrideB = gemm_desc_ptr[group_id].StrideB;
+    const auto StrideC = gemm_desc_ptr[group_id].StrideC;
 
     const auto MPadded = GridwiseGemm::CalculateMPadded(M);
     const auto NPadded = GridwiseGemm::CalculateNPadded(N);
@@ -400,9 +404,9 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
     {
         struct SimpleGemmArgument
         {
-            const ADataType* p_a_grid;
-            const BDataType* p_b_grid;
-            EDataType* p_c_grid;
+            const void* p_a_grid;
+            const void* p_b_grid;
+            void* p_c_grid;
 
             index_t M;
             index_t N;
@@ -517,6 +521,9 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     const auto kernel =
                         kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
                                                        GemmArgumentType,
+                                                       ADataType,
+                                                       BDataType,
+                                                       EDataType,
                                                        true,
                                                        InMemoryDataOperationEnum::AtomicAdd>;
 
@@ -527,6 +534,9 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     const auto kernel =
                         kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
                                                        GemmArgumentType,
+                                                       ADataType,
+                                                       BDataType,
+                                                       EDataType,
                                                        true,
                                                        InMemoryDataOperationEnum::Set>;
 
@@ -540,6 +550,9 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     const auto kernel =
                         kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
                                                        GemmArgumentType,
+                                                       ADataType,
+                                                       BDataType,
+                                                       EDataType,
                                                        false,
                                                        InMemoryDataOperationEnum::AtomicAdd>;
 
@@ -550,6 +563,9 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     const auto kernel =
                         kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
                                                        GemmArgumentType,
+                                                       ADataType,
+                                                       BDataType,
+                                                       EDataType,
                                                        false,
                                                        InMemoryDataOperationEnum::Set>;
 
