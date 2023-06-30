@@ -61,10 +61,12 @@ __global__ void
         group_id = index_t((left + right) / 2);
     }
 
+    LocalBlockToCTileMap<typename GemmDesc::B2CType> local_b2c{
+        gemm_desc_ptr[group_id].block_2_ctile_map_,
+        block_id - gemm_desc_ptr[group_id].block_start_};
+
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation>(
-        gemm_desc_ptr[group_id].karg_,
-        static_cast<void*>(p_shared),
-        gemm_desc_ptr[group_id].block_2_ctile_map_);
+        gemm_desc_ptr[group_id].karg_, static_cast<void*>(p_shared), local_b2c);
 #else
     ignore = gemm_descs_const;
     ignore = group_count;
@@ -189,18 +191,20 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>;
     // Block2CTileMap configuration parameter.
     static constexpr index_t B2E_M01 = 8;
-    using GroupedGemmBlock2ETileMap  = OffsettedBlockToCTileMap<Block2ETileMapKSplit>;
-    using KernelArgument             = typename GridwiseGemm::Argument;
+    // using GroupedGemmBlock2ETileMap  = LocalBlockToCTileMap<Block2ETileMapKSplit>;
+    using KernelArgument = typename GridwiseGemm::Argument;
 
     struct GemmTransKernelArg
     {
+        using B2CType = Block2ETileMapKSplit;
+
         KernelArgument karg_;
-        GroupedGemmBlock2ETileMap block_2_ctile_map_;
+        Block2ETileMapKSplit block_2_ctile_map_;
         index_t block_start_, block_end_;
 
         GemmTransKernelArg() = default;
         GemmTransKernelArg(KernelArgument&& karg,
-                           GroupedGemmBlock2ETileMap&& b2c_map,
+                           Block2ETileMapKSplit&& b2c_map,
                            index_t block_start,
                            index_t block_end)
             : karg_{karg},
@@ -270,18 +274,13 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
                 const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(M, N, stride_c);
 
-                const auto local_b2c_tile_map =
-                    Block2ETileMapKSplit{c_grid_desc_m_n, B2E_M01, K_BATCH};
+                auto local_b2c_tile_map = Block2ETileMapKSplit{c_grid_desc_m_n, B2E_M01, K_BATCH};
                 const index_t grid_size_grp = local_b2c_tile_map.CalculateGridSize(c_grid_desc_m_n);
 
                 const index_t block_start = grid_size_;
                 const index_t block_end   = grid_size_ + grid_size_grp;
 
                 grid_size_ += grid_size_grp;
-
-                // block-to-e-tile map
-                auto grouped_block_2_ctile_map =
-                    GroupedGemmBlock2ETileMap(local_b2c_tile_map, block_start);
 
                 auto karg = KernelArgument{type_convert<const ADataType*>(p_As[i]),
                                            type_convert<const BDataType*>(p_Bs[i]),
@@ -299,7 +298,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                            K_BATCH};
 
                 gemm_kernel_args_.emplace_back(
-                    std::move(karg), std::move(grouped_block_2_ctile_map), block_start, block_end);
+                    std::move(karg), std::move(local_b2c_tile_map), block_start, block_end);
             }
         }
 
@@ -324,8 +323,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 const auto c_grid_desc_m_n =
                     GridwiseGemm::MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
 
-                const auto local_b2c_tile_map =
-                    Block2ETileMapKSplit{c_grid_desc_m_n, B2E_M01, K_BATCH};
+                auto local_b2c_tile_map = Block2ETileMapKSplit{c_grid_desc_m_n, B2E_M01, K_BATCH};
                 const index_t grid_size_grp = local_b2c_tile_map.CalculateGridSize(c_grid_desc_m_n);
 
                 const index_t block_start = grid_size_;
@@ -333,14 +331,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
                 grid_size_ += grid_size_grp;
 
-                // block-to-e-tile map
-                auto grouped_block_2_ctile_map =
-                    GroupedGemmBlock2ETileMap(local_b2c_tile_map, block_start);
-
                 karg.KPadded                            = k_padded;
                 karg.K0                                 = k0;
                 karg.k_batch                            = K_BATCH;
-                gemm_kernel_args_[i].block_2_ctile_map_ = grouped_block_2_ctile_map;
+                gemm_kernel_args_[i].block_2_ctile_map_ = local_b2c_tile_map;
                 gemm_kernel_args_[i].block_start_       = block_start;
                 gemm_kernel_args_[i].block_end_         = block_end;
             }

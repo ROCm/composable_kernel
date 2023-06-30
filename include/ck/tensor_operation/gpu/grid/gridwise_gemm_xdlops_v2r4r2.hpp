@@ -27,8 +27,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_v2r4r2_simplified(typename GridwiseGemm::Argument karg,
-                                             const Block2CTileMap& b2c_map)
+        kernel_gemm_xdlops_v2r4r2_simplified(typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
@@ -36,11 +35,12 @@ __global__ void
 
     __shared__ uint8_t p_shared[shared_size];
 
+    Block2CTileMap b2c_map{get_block_1d_id()};
+
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation>(
         karg, static_cast<void*>(p_shared), b2c_map);
 #else
     ignore = karg;
-    ignore = b2c_map;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -601,7 +601,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
         // divide block work by [KBatch, M, N]
         const auto block_work_idx =
-            block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
+            // block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
+            block_2_ctile_map.CalculateBottomIndex();
 
         if(!block_2_ctile_map.ValidCTileIndex(
                block_work_idx,
