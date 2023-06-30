@@ -144,7 +144,7 @@ template <typename ALayout,
           typename DsDataType,
           typename EDataType,
           typename AElementwiseOperation,
-          typename BElementwiseOperation,
+          ypename BElementwiseOperation,
           typename CDEElementwiseOperation,
           GemmSpecialization GemmSpec,
           ck::index_t NumGemmKPrefetchStage,
@@ -415,6 +415,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             index_t StrideB;
             index_t StrideC;
 
+	    //do not need after loop M implemented
             index_t block_start_;
             index_t block_end_;
         };
