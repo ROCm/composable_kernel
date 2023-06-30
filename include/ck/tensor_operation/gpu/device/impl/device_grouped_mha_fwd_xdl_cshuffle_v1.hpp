@@ -39,7 +39,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v2(
+        kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v1(
             const void CK_CONSTANT_ADDRESS_SPACE* group_kernel_args,
             const index_t group_count,
             const AElementwiseOperation a_element_op,
@@ -250,7 +250,7 @@ template <index_t NumDimG,
           MaskingSpecialization MaskingSpec,
           bool Deterministic,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
+struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V1
     : public DeviceGroupedMultiheadAttentionForward<NumDimG,
                                                     NumDimM,
                                                     NumDimN,
@@ -290,7 +290,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
     static constexpr index_t NumDimGemm1K = NumDimN;
 #endif
 
-    using DeviceOp    = DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle;
+    using DeviceOp    = DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V1;
     using ProblemDesc = typename DeviceGroupedMultiheadAttentionForward<NumDimG,
                                                                         NumDimM,
                                                                         NumDimN,
@@ -813,7 +813,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
             auto launch_kernel =
                 [&](auto has_main_k_block_loop_, auto is_dropout_, auto is_lse_storing_) {
                     const auto kernel =
-                        kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v2<GridwiseGemm,
+                        kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v1<GridwiseGemm,
                                                                          GemmAccDataType,
                                                                          GroupKernelArg,
                                                                          AElementwiseOperation,
@@ -1123,7 +1123,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle"
+        str << "DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V1"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

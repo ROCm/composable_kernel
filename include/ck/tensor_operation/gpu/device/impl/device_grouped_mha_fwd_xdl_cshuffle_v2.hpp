@@ -256,7 +256,7 @@ template <index_t NumDimG,
           MaskingSpecialization MaskingSpec,
           bool Deterministic,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
+struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
     : public DeviceGroupedMultiheadAttentionForward<NumDimG,
                                                     NumDimM,
                                                     NumDimN,
@@ -296,7 +296,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
     static constexpr index_t NumDimGemm1K = NumDimN;
 #endif
 
-    using DeviceOp    = DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle;
+    using DeviceOp    = DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2;
     using ProblemDesc = typename DeviceGroupedMultiheadAttentionForward<NumDimG,
                                                                         NumDimM,
                                                                         NumDimN,
@@ -1145,7 +1145,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle"
+        str << "DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

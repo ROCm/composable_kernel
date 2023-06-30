@@ -54,7 +54,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, /*CK_MIN_BLOCK_PER_CU*/ 1)
 #endif
-        kernel_batched_multihead_attention_backward_xdl_cshuffle_v1(
+        kernel_batched_multihead_attention_backward_kloop_xdl_cshuffle_v1(
             const InputDataType* __restrict__ p_a_grid,
             const InputDataType* __restrict__ p_b_grid,
             ZDataType* __restrict__ p_z_grid,
@@ -277,7 +277,7 @@ template <index_t NumDimG,
           MaskingSpecialization MaskingSpec,
           bool Deterministic,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
+struct DeviceBatchedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V1
     : public BaseOperator // TODO inherit atten bwd op once API stablizes
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
@@ -299,7 +299,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
     static constexpr index_t NumDimGemm1K = NumDimN;
 #endif
 
-    using DeviceOp = DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1;
+    using DeviceOp = DeviceBatchedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V1;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -949,30 +949,31 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
             float ave_time = 0;
 
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
-                const auto kernel = kernel_batched_multihead_attention_backward_xdl_cshuffle_v1<
-                    GridwiseGemm,
-                    InputDataType,
-                    OutputDataType,
-                    ZDataType,
-                    LSEDataType,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    AccElementwiseOperation,
-                    B1ElementwiseOperation,
-                    CElementwiseOperation,
-                    DeviceOp::AGridDesc_AK0_M_AK1,
-                    DeviceOp::BGridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
-                    DeviceOp::B1GridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock,
-                    DeviceOp::LSEGridDesc_M,
-                    DeviceOp::VGradGridDesc_N_O,
-                    DeviceOp::YGradGridDesc_O0_M_O1,
-                    typename GridwiseGemm::DefaultBlock2CTileMap,
-                    ComputeBasePtrOfStridedBatch,
-                    C0MatrixMask,
-                    has_main_k_block_loop_,
-                    Deterministic>;
+                const auto kernel =
+                    kernel_batched_multihead_attention_backward_kloop_xdl_cshuffle_v1<
+                        GridwiseGemm,
+                        InputDataType,
+                        OutputDataType,
+                        ZDataType,
+                        LSEDataType,
+                        AElementwiseOperation,
+                        BElementwiseOperation,
+                        AccElementwiseOperation,
+                        B1ElementwiseOperation,
+                        CElementwiseOperation,
+                        DeviceOp::AGridDesc_AK0_M_AK1,
+                        DeviceOp::BGridDesc_BK0_N_BK1,
+                        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
+                        DeviceOp::B1GridDesc_BK0_N_BK1,
+                        typename GridwiseGemm::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock,
+                        DeviceOp::LSEGridDesc_M,
+                        DeviceOp::VGradGridDesc_N_O,
+                        DeviceOp::YGradGridDesc_O0_M_O1,
+                        typename GridwiseGemm::DefaultBlock2CTileMap,
+                        ComputeBasePtrOfStridedBatch,
+                        C0MatrixMask,
+                        has_main_k_block_loop_,
+                        Deterministic>;
 
                 return launch_and_time_kernel(
                     stream_config,
@@ -1284,7 +1285,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1"
+        str << "DeviceBatchedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V1"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

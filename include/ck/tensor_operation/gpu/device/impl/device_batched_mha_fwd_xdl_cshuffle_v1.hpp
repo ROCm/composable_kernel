@@ -51,7 +51,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_multiheadattention_forward_xdl_cshuffle(
+        kernel_batched_multiheadattention_forward_xdl_cshuffle_v1(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             const FloatAB* __restrict__ p_b1_grid,
@@ -255,7 +255,7 @@ template <index_t NumDimG,
           MaskingSpecialization MaskingSpec,
           bool Deterministic,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
+struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V1
     : public DeviceBatchedMultiheadAttentionForward<NumDimG,
                                                     NumDimM,
                                                     NumDimN,
@@ -295,7 +295,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
     static constexpr index_t NumDimGemm1K = NumDimN;
 #endif
 
-    using DeviceOp = DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle;
+    using DeviceOp = DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V1;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -746,7 +746,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
 
             auto launch_kernel =
                 [&](auto has_main_k_block_loop_, auto is_dropout_, auto is_lse_storing_) {
-                    const auto kernel = kernel_batched_multiheadattention_forward_xdl_cshuffle<
+                    const auto kernel = kernel_batched_multiheadattention_forward_xdl_cshuffle_v1<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
@@ -1116,7 +1116,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle"
+        str << "DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V1"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
