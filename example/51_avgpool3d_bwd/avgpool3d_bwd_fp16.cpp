@@ -1,27 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <cstdlib>
-#include <initializer_list>
 #include <iostream>
-#include <numeric>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_avgpool3d_bwd_impl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/reference_tensor_operation/cpu/reference_avgpool_bwd.hpp"
-#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
-#include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_avgpool_bwd.hpp"
 
-using DOutDataType = float;
-using DInDataType  = float;
+using DOutDataType    = float;
+using DInDataType     = float;
+using ComputeDataType = float;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -38,6 +33,17 @@ bool pool3d_bwd_test(bool do_verification,
                      std::vector<ck::index_t> dinput_left_pads,
                      std::vector<ck::index_t> dinput_right_pads)
 {
+    using DevicePoolBwdInstance =
+        ck::tensor_operation::device::DeviceAvgPool3dBwdImpl<DOutDataType,
+                                                             DInDataType,
+                                                             ComputeDataType, // ComputeDataType
+                                                             64,              // BlockSize
+                                                             64, // ReduceMThreadClusterSize
+                                                             1,  // ReduceKThreadClusterSize
+                                                             1,  // ReduceMThreadSliceSize
+                                                             1,  // ReduceKThreadSliceSize
+                                                             1>; // InSrcOutDstVectorSize
+
     auto OutSpatialLength = [&](auto InSpatialLength, int index) {
         ck::index_t left_pad   = dinput_left_pads[index];
         ck::index_t right_pad  = dinput_right_pads[index];
@@ -50,14 +56,52 @@ bool pool3d_bwd_test(bool do_verification,
     ck::index_t Ho = OutSpatialLength(Hi, 1);
     ck::index_t Wo = OutSpatialLength(Wi, 1);
 
-    Tensor<DOutDataType> dout(HostTensorDescriptor({N, C, Do, Ho, Wo}));
-    Tensor<DInDataType> din_dev(HostTensorDescriptor({N, C, Di, Hi, Wi}));
-    Tensor<DInDataType> din_host(HostTensorDescriptor({N, C, Di, Hi, Wi}));
+    auto f_host_tensor_descriptor =
+        [](std::size_t N_, std::size_t C_, std::size_t D, std::size_t H, std::size_t W) {
+            using namespace ck::literals;
+            return HostTensorDescriptor({N_, C_, D, H, W},
+                                        {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_});
+        };
+
+    Tensor<DOutDataType> dout(f_host_tensor_descriptor(N, C, Do, Ho, Wo));
+    Tensor<DInDataType> din_dev(f_host_tensor_descriptor(N, C, Di, Hi, Wi));
+    Tensor<DInDataType> din_host(f_host_tensor_descriptor(N, C, Di, Hi, Wi));
 
     std::cout << "dout: " << dout.mDesc << std::endl;
     std::cout << "din_host: " << din_host.mDesc << std::endl;
 
     dout.GenerateTensorValue(GeneratorTensor_3<DOutDataType>{0.0, 1.0});
+
+    DeviceMem dout_device_buf(sizeof(DOutDataType) * dout.mDesc.GetElementSpaceSize());
+    DeviceMem din_device_buf(sizeof(DInDataType) * din_dev.mDesc.GetElementSpaceSize());
+
+    dout_device_buf.ToDevice(dout.mData.data());
+
+    auto pool        = DevicePoolBwdInstance{};
+    auto invoker_ptr = pool.MakeInvokerPointer();
+    auto argument_ptr =
+        pool.MakeArgumentPointer(static_cast<DOutDataType*>(dout_device_buf.GetDeviceBuffer()),
+                                 static_cast<DInDataType*>(din_device_buf.GetDeviceBuffer()),
+                                 {N, C, Do, Ho, Wo},
+                                 {N, C, Di, Hi, Wi},
+                                 window_lengths,
+                                 {Do * C * Ho * Wo, 1, C * Ho * Wo, Wo * C, C},
+                                 {Di * C * Hi * Wi, 1, C * Hi * Wi, Wi * C, C},
+                                 window_strides,
+                                 window_dilations,
+                                 dinput_left_pads,
+                                 dinput_right_pads);
+
+    if(!pool.IsSupportedArgument(argument_ptr.get()))
+    {
+        throw std::runtime_error("wrong! device_op with the specified compilation parameters does "
+                                 "not support this problem");
+    }
+
+    float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+    std::cout << "Perf: " << ave_time << std::endl;
+
+    bool pass = true;
 
     if(do_verification)
     {
@@ -75,11 +119,12 @@ bool pool3d_bwd_test(bool do_verification,
                                                   dinput_right_pads);
 
         ref_invoker.Run(ref_argument);
+
+        din_device_buf.FromDevice(din_dev.mData.data());
+        pass = ck::utils::check_err(din_dev, din_host);
     }
 
-    // TODO - full example
-    ck::ignore = time_kernel;
-    return 0;
+    return pass;
 }
 
 int main()
