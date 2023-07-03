@@ -917,7 +917,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         {
             block_sync_lds();
         }
-        
+
         do
         {
             auto n_block_data_idx_on_grid =
