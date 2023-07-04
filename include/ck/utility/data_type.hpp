@@ -965,6 +965,19 @@ inline __host__ __device__ constexpr float type_convert<float, bhalf_t>(bhalf_t 
 }
 
 // convert fp32 to bfp16
+#if FLASH_ATTENTION_INTERNAL_USE_RTZ
+template <>
+inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float x)
+{
+    union
+    {
+        float fp32;
+        uint32_t int32;
+    } u = {static_cast<float>(x)};
+
+    return uint16_t(u.int32 >> 16);
+}
+#else
 template <>
 inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float x)
 {
@@ -1007,6 +1020,7 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
 
     return uint16_t(u.int32 >> 16);
 }
+#endif
 
 // convert fp16 to bf16
 template <>
