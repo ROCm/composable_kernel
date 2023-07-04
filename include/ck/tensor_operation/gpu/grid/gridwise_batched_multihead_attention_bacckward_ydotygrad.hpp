@@ -36,6 +36,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
     static constexpr auto I4 = Number<4>{};
 
     static constexpr auto WaveSize = 64;
+    static_assert(BlockSize == MPerBlock, "BlockSize must be same with MPerBlock");
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2CTileMap>
@@ -46,7 +47,15 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
         {
             return false;
         }
-
+        const auto M = c_grid_desc_m_n.GetLength(I0);
+        if(M < MPerBlock)
+        {
+            return false;
+        }
+        if(M % MPerBlock != 0)
+        {
+            return false;
+        }
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
     }

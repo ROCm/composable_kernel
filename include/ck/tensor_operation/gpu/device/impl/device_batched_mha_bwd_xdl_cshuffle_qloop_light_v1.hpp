@@ -284,6 +284,7 @@ template <index_t NumDimG,
           typename GemmDataType,
           typename ZDataType,
           typename LSEDataType,
+          typename DDataType,
           typename Acc0BiasDataType,
           typename Acc1BiasDataType,
           typename GemmAccDataType,
@@ -314,6 +315,7 @@ template <index_t NumDimG,
           index_t NXdlPerWave,
           index_t Gemm1NXdlPerWave,
           index_t Gemm2NXdlPerWave,
+          index_t DKPerBlock,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -347,8 +349,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
     // TODO: implement bias combination
     static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
 
-    using DeviceOp  = DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1;
-    using DDataType = GemmAccDataType;
+    using DeviceOp = DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -764,7 +765,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                                             DGridDesc_M,
                                                             BlockSize,
                                                             BlockSize,
-                                                            32>;
+                                                            DKPerBlock>;
     // Argument
     struct Argument : public BaseArgument
     {
@@ -1161,7 +1162,10 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
         }
 
         // TODO: Check if tensor specialization & strides mismatch
-
+        if(!GridwiseYDotYGrad::CheckValidity(arg.y_grid_desc_m_o_, arg.d_block_2_ctile_map_))
+        {
+            return false;
+        }
         // Check if C permute dimension matches GEMM + GEMM shape
         const index_t c_g      = arg.c_grid_desc_g_m_n_.GetLength(I0); // unpadded
         const index_t c_m      = arg.y_grid_desc_m_o_.GetLength(I0);
