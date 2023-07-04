@@ -1231,7 +1231,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                const InputDataType* __restrict__ p_k_grid,
                                ZDataType* __restrict__ p_z_grid,
                                const InputDataType* __restrict__ p_v_grid,
-                               const InputDataType* __restrict__ p_y_grid,
                                const FloatLSE* __restrict__ p_lse_grid,
                                const FloatD* __restrict__ p_d_grid,
                                const InputDataType* __restrict__ p_ygrad_grid,
@@ -1262,7 +1261,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                const index_t raw_n_padded,
                                const index_t block_idx_n)
     {
-        ignore                        = p_y_grid;
         const FloatGemmAcc p_dropout  = type_convert<FloatGemmAcc>(1.0f - p_drop);
         const FloatGemmAcc rp_dropout = type_convert<FloatGemmAcc>(1.0f / p_dropout);
         const ushort p_dropout_in_16bits =
