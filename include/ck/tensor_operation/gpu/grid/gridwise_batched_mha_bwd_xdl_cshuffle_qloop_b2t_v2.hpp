@@ -2044,6 +2044,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                     sgrad_slice_idx[I3],
                     sgrad_slice_idx[I3] + Gemm2Params::ABlockSliceLengths_M0_K0_M1_K1::At(I3));
 
+                block_sync_lds(); // sync before write
                 if(gemm2_a_copy_subgroup.IsBelong(mwave_range, nwave_range))
                 {
                     qgrad_gemm_tile_sgrad_thread_copy_vgpr_to_lds.Run(
@@ -2060,7 +2061,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                 qgrad_gemm_tile_k_blockwise_copy.MoveSrcSliceWindow(k_grid_desc_n0_k_n1,
                                                                     Gemm2::b_block_slice_copy_step);
 
-                block_sync_lds(); // sync before write
                 qgrad_gemm_tile_k_blockwise_copy.RunWrite(Gemm2::b_block_desc_k0_n_k1,
                                                           gemm2_b_block_buf);
 
