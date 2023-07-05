@@ -406,9 +406,7 @@ struct GridwiseMultiblockBatchNormForward
             count_thread_buf(I) = 0;
         });
 
-        constexpr index_t K_BlockTileSize_2 = KThreadClusterSize * 1;
-
-        constexpr auto mean_var_count_read_fwd_step_m_k = make_multi_index(0, K_BlockTileSize_2);
+        constexpr auto mean_var_count_read_fwd_step_m_k = make_multi_index(0, KThreadClusterSize);
 
         int32_t reducedSize = 0;
         while(reducedSize < blkgroup_size)
@@ -438,7 +436,7 @@ struct GridwiseMultiblockBatchNormForward
                                     var_thread_buf,
                                     count_thread_buf);
 
-            reducedSize += K_BlockTileSize_2;
+            reducedSize += KThreadClusterSize;
 
             threadwise_mean_var_load_m_k.MoveSrcSliceWindow(mean_var_count_grid_desc_m_k,
                                                             mean_var_count_read_fwd_step_m_k);
