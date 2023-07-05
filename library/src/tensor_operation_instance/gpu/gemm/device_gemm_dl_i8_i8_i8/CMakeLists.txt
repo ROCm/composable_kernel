@@ -1,0 +1,10 @@
+target_sources(${INSTANCE_LIBRARY_NAME} PRIVATE
+  device_gemm_dl_i8_i8_i8_km_kn_mn_instance.cpp
+  device_gemm_dl_i8_i8_i8_km_kn_mn_irregular_instance.cpp
+  device_gemm_dl_i8_i8_i8_km_nk_mn_instance.cpp
+  device_gemm_dl_i8_i8_i8_km_nk_mn_irregular_instance.cpp
+  device_gemm_dl_i8_i8_i8_mk_kn_mn_instance.cpp
+  device_gemm_dl_i8_i8_i8_mk_kn_mn_irregular_instance.cpp
+  device_gemm_dl_i8_i8_i8_mk_nk_mn_instance.cpp
+  device_gemm_dl_i8_i8_i8_mk_nk_mn_irregular_instance.cpp
+)
