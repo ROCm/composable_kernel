@@ -194,8 +194,6 @@ struct GridwiseMultiblockBatchNormForward
     {
         using ck::math::sqrt;
 
-        (void)p_control;
-
         const index_t blkgroup_size = mean_var_count_grid_desc_m_g.GetLength(I1);
 
         const index_t thread_local_id = get_thread_local_1d_id();
