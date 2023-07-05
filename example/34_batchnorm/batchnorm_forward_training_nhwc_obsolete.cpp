@@ -579,8 +579,8 @@ int main(int argc, char* argv[])
                                                             2,
                                                             false, // don't time kernel
                                                             {128, 16, 6, 512},
-                                                            false,
-                                                            false,
+                                                            true,
+                                                            true,
                                                             averageFactor,
                                                             epsilon);
 
@@ -588,8 +588,8 @@ int main(int argc, char* argv[])
                                                                      2,
                                                                      false, // don't time kernel
                                                                      {128, 16, 3, 1024},
-                                                                     false,
-                                                                     false,
+                                                                     true,
+                                                                     true,
                                                                      averageFactor,
                                                                      epsilon);
     };
