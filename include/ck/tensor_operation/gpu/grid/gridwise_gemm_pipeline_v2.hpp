@@ -79,9 +79,9 @@ struct GridwiseGemmPipeline_v2
 
             do
             {
-                #if CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT
+#if CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT
                 __builtin_amdgcn_iglp_opt(CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT);
-                #endif
+#endif
 
                 block_sync_lds();
 

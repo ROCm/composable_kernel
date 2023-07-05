@@ -29,7 +29,7 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
 #if CK_USE_WAVES_PER_EU
-    __attribute__((amdgpu_waves_per_eu(CK_MIN_WAVES_PER_EU, CK_MAX_WAVES_PER_EU)))
+        __attribute__((amdgpu_waves_per_eu(CK_MIN_WAVES_PER_EU, CK_MAX_WAVES_PER_EU)))
 #endif
         kernel_gemm_xdlops_v2r3(const FloatAB* __restrict__ p_a_grid,
                                 const FloatAB* __restrict__ p_b_grid,
@@ -65,7 +65,7 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
 #if CK_USE_WAVES_PER_EU
-    __attribute__((amdgpu_waves_per_eu(CK_MIN_WAVES_PER_EU, CK_MAX_WAVES_PER_EU)))
+        __attribute__((amdgpu_waves_per_eu(CK_MIN_WAVES_PER_EU, CK_MAX_WAVES_PER_EU)))
 #endif
         kernel_gemm_xdlops_v2r3(const typename GridwiseGemm::Argument karg)
 {
