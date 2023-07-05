@@ -805,7 +805,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
     }
 
     template <class Desc, class DsPointer>
-    __device__ static void Run(Desc desc,
+    __device__ static void Run(const Desc& desc,
                                const ADataType* __restrict__ p_a_grid,
                                const BDataType* __restrict__ p_b_grid,
                                DsPointer p_ds_grid,
