@@ -85,10 +85,9 @@ add_instance_library(${INSTANCE_LIBRARY_NAME}
 set(ENABLE_PIPELINE_V2_OPT ON)
 
 if (ENABLE_PIPELINE_V2_OPT)
-message("[POYENC] ENABLE_PIPELINE_V2_OPT")
-
 # layout=NT
 set_source_files_properties(device_gemm_xdl_f16_f16_f16/km_kn_mn_default_pipeline_v2_opt_instance.cpp PROPERTIES
+  COMPILE_OPTIONS ";;"
   COMPILE_DEFINITIONS ";CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT=1;CK_USE_WAVES_PER_EU=1;CK_MIN_WAVES_PER_EU=1;CK_MAX_WAVES_PER_EU=1;")
 # layout=NN
 set_source_files_properties(device_gemm_xdl_f16_f16_f16/km_nk_mn_default_pipeline_v2_opt_instance.cpp PROPERTIES
@@ -103,4 +102,3 @@ set_source_files_properties(device_gemm_xdl_f16_f16_f16/mk_nk_mn_default_pipelin
   COMPILE_OPTIONS ";-mllvm;-amdgpu-enable-max-ilp-scheduling-strategy;"
   COMPILE_DEFINITIONS ";CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT=1;CK_USE_WAVES_PER_EU=1;CK_MIN_WAVES_PER_EU=1;CK_MAX_WAVES_PER_EU=1;")
 endif()
-
