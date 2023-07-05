@@ -364,7 +364,7 @@ struct intrin_mfma_f32_32x32x16f8f8<32, 32>
     template <class FloatC>
     __device__ static void Run(const f8x8_t& reg_a, const f8x8_t& reg_b, FloatC& reg_c)
     {
-#if defined(__gfx940__)
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
         reg_c.template AsType<float16_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_f32_32x32x16_fp8_fp8(
                 bit_cast<long>(reg_a),
@@ -396,7 +396,7 @@ struct intrin_mfma_f32_16x16x32f8f8<16, 16>
     template <class FloatC>
     __device__ static void Run(const f8x8_t& reg_a, const f8x8_t& reg_b, FloatC& reg_c)
     {
-#if defined(__gfx940__)
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
         reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x32_fp8_fp8(
             bit_cast<long>(reg_a),
             bit_cast<long>(reg_b),
