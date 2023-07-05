@@ -25,9 +25,9 @@ static constexpr ck::index_t Hi            = 28;
 static constexpr ck::index_t Wi            = 28;
 static constexpr ck::index_t Ho            = 28;
 static constexpr ck::index_t Wo            = 28;
-static constexpr std::array<ck::index_t, NDimSpatial + 3> input_strides{
+static constexpr std::array<ck::index_t, NumDimSpatial + 3> input_strides{
     G * N * Hi * Wi * C, N* Hi* Wi* C, Hi* Wi* C, Wi* C, C, 1};
-static constexpr std::array<ck::index_t, NDimSpatial + 3> output_strides{
+static constexpr std::array<ck::index_t, NumDimSpatial + 3> output_strides{
     G * N * Ho * Wo * K, N* Ho* Wo* K, Ho* Wo* K, Wo* K, K, 1};
 
 int main()
