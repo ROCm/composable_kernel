@@ -29,8 +29,7 @@ using Instances =
         >;
 
 void add_device_gemm_xdl_f16_f16_f16_km_nk_mn_default_pipeline_v1_instances(
-    OwnerList<InstanceNN>&
-        instances)
+    OwnerList<InstanceNN>& instances)
 {
     add_device_operation_instances(instances, Instances{});
 }

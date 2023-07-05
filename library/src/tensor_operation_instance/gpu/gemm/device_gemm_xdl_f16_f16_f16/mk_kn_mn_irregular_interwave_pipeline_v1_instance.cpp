@@ -10,7 +10,7 @@ namespace instance {
 
 // irregular tile size
 using Instances = std::tuple<
-    // clang-format off
+// clang-format off
 #if CK_EXPERIMENTAL_INTER_WAVE_INSTANCES        
         // pipeline v1, 2 waves
         //###########| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer| NumPrefetch|          LoopScheduler|                     Pipeline|
@@ -23,8 +23,7 @@ using Instances = std::tuple<
     >;
 
 void add_device_gemm_xdl_f16_f16_f16_mk_kn_mn_irregular_interwave_pipeline_v1_instances(
-        OwnerList<InstanceTT>&
-        instances)
+    OwnerList<InstanceTT>& instances)
 {
     add_device_operation_instances(instances, Instances{});
 }

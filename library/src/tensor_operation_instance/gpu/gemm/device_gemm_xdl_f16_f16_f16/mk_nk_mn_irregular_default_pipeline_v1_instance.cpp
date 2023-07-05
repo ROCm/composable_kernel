@@ -23,8 +23,7 @@ using Instances = std::tuple<
     >;
 
 void add_device_gemm_xdl_f16_f16_f16_mk_nk_mn_irregular_default_pipeline_v1_instances(
-    OwnerList<InstanceTN>&
-        instances)
+    OwnerList<InstanceTN>& instances)
 {
     add_device_operation_instances(instances, Instances{});
 }

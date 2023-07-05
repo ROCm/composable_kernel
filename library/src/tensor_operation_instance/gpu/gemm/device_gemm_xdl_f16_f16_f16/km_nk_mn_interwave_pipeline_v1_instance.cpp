@@ -11,7 +11,7 @@ namespace instance {
 // Compilation parameters for a[k, m] * b[n, k] = c[m, n]
 using Instances =
     std::tuple<
-        // clang-format off
+// clang-format off
 #if CK_EXPERIMENTAL_INTER_WAVE_INSTANCES        
         // pipeline v1, 2 waves
         //##########| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer| NumPrefetch|          LoopScheduler|                     Pipeline|
@@ -31,8 +31,7 @@ using Instances =
         >;
 
 void add_device_gemm_xdl_f16_f16_f16_km_nk_mn_interwave_pipeline_v1_instances(
-    OwnerList<InstanceNN>&
-        instances)
+    OwnerList<InstanceNN>& instances)
 {
     add_device_operation_instances(instances, Instances{});
 }

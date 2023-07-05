@@ -8,7 +8,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using Instance = InstanceTT;
+using Instance  = InstanceTT;
 using Instances = OwnerList<Instance>;
 
 void add_device_gemm_xdl_f16_f16_f16_mk_kn_mn_default_pipeline_v1_instances(Instances&);
