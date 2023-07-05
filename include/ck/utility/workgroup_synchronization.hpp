@@ -9,7 +9,11 @@ namespace ck {
 // Initialization flag of Barrier object, can be any value except for zero
 static constexpr int BarrierInitFlag = 0x7856;
 
-// only the first thread-block in the synchronizaton group is supposed to call this function
+// 1) only the first thread-block in the synchronizaton group is supposed to call this function. It
+// is the responsibility of the user to ensure the two integer values in p_control_bits are zeros
+// before calling gms_init().
+// 2) Aftercalling gms_reset(), the two integer values in p_control_bits will be zeros, so no
+// repetitious initialization of p_control_bits buffer is required
 static __device__ void gms_init(int NumWarps, int* p_control_bits)
 {
     union
@@ -57,7 +61,9 @@ static __device__ void gms_barrier(int* p_control_bits)
     };
 };
 
-// only the first thread-block in the synchronizaton group is supposed to call this function
+// 1) Only the first thread-block in the synchronizaton group is supposed to call this function.
+// 2) Aftercalling gms_reset(), the two integer values in p_control_bits will be zeros, so no
+// repetitious initialization of p_control_bits buffer is required
 static __device__ void gms_reset(int* p_control_bits)
 {
     // reset the barrier object
