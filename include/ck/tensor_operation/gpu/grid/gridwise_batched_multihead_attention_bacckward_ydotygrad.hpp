@@ -135,8 +135,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
         return MPerBlock * sizeof(FloatD);
     }
 
-    __device__ static void test() {}
-    template <typename Block2CTileMap>
     __device__ static void Run(const InputDataType* __restrict__ p_y_grid,
                                const InputDataType* __restrict__ p_ygrad_grid,
                                FloatD* __restrict__ p_d_grid,
@@ -144,7 +142,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
                                const YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock&
                                    y_grid_desc_mblock_mperblock_oblock_operblock,
                                const DGridDesc_M& d_grid_desc_m,
-                               const Block2CTileMap& block_2_ctile_map)
+                               const DefaultBlock2CTileMap& block_2_ctile_map)
     {
         const auto y_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_y_grid, y_grid_desc_mblock_mperblock_oblock_operblock.GetElementSpaceSize());
