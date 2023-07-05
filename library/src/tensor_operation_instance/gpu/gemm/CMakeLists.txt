@@ -2,8 +2,8 @@ set(INSTANCE_LIBRARY_NAME device_gemm_instance)
 
 add_instance_library(${INSTANCE_LIBRARY_NAME})
 
-add_subdirectory(device_gemm_dl_f32_f32_f32)
 add_subdirectory(device_gemm_dl_f16_f16_f16)
+add_subdirectory(device_gemm_dl_f32_f32_f32)
 add_subdirectory(device_gemm_dl_i8_i8_i8)
 add_subdirectory(device_gemm_xdl_c_shuffle_bf16_bf16_bf16)
 add_subdirectory(device_gemm_xdl_c_shuffle_f16_f16_f16)
