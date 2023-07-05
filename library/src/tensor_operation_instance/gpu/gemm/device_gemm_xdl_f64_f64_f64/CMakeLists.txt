@@ -1,6 +1,0 @@
-target_sources(${INSTANCE_LIBRARY_NAME} PRIVATE
-  device_gemm_xdl_f64_f64_f64_km_kn_mn_instance.cpp
-  device_gemm_xdl_f64_f64_f64_km_nk_mn_instance.cpp
-  device_gemm_xdl_f64_f64_f64_mk_kn_mn_instance.cpp
-  device_gemm_xdl_f64_f64_f64_mk_nk_mn_instance.cpp
-)
