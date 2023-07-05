@@ -82,7 +82,7 @@ add_instance_library(${INSTANCE_LIBRARY_NAME}
   device_gemm_xdl_f64_f64_f64_mk_nk_mn_instance.cpp 
 )
 
-set(ENABLE_PIPELINE_V2_OPT ON)
+set(ENABLE_PIPELINE_V2_OPT OFF)
 
 if (ENABLE_PIPELINE_V2_OPT)
 # layout=NT
