@@ -4,7 +4,6 @@
 #pragma once
 
 #include "ck/ck.hpp"
-#include "ck/utility/get_shift.hpp"
 
 namespace ck {
 
