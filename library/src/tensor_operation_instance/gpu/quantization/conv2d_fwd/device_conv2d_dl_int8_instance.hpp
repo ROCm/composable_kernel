@@ -4,7 +4,7 @@
 #pragma once
 
 #include "conv2d_quantization_common.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_dl_multiple_d_nhwc_kyxc_nhwk.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_dl_multiple_d_nhwc_kyxc_nhwk.hpp"
 
 namespace ck {
 namespace tensor_operation {
