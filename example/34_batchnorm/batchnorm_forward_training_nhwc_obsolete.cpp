@@ -16,7 +16,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_forward.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_batchnorm_forward_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batchnorm_forward_impl_obsolete.hpp"
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
