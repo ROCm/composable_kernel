@@ -37,7 +37,6 @@ __global__ void
             const void CK_CONSTANT_ADDRESS_SPACE* group_kernel_args, const index_t group_count)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     const index_t block_id = get_block_1d_id();
     const auto arg_ptr     = reinterpret_cast<const GroupKernelArg*>(
         cast_pointer_to_generic_address_space(group_kernel_args));
@@ -73,7 +72,6 @@ __global__ void
     GridwiseGemm::Run(arg_ptr[group_id].p_c_grid_ + c_batch_offset,
                       arg_ptr[group_id].p_ygrad_grid_ + c_batch_offset,
                       arg_ptr[group_id].p_d_grid_ + d_batch_offset,
-                      static_cast<void*>(p_shared),
                       arg_ptr[group_id].d_y_grid_desc_mblock_mperblock_nblock_nperblock_,
                       arg_ptr[group_id].d_grid_desc_m_,
                       arg_ptr[group_id].d_block_2_ctile_map_);

@@ -51,7 +51,6 @@ __global__ void
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -67,7 +66,6 @@ __global__ void
     GridwiseGemm::Run(p_y_grid + c_batch_offset,
                       p_ygrad_grid + c_batch_offset,
                       p_d_grid + d_batch_offset,
-                      p_shared,
                       c_grid_desc_mblock_mperblock_nblock_nperblock,
                       d_grid_desc_m,
                       block_2_ctile_map);
@@ -759,8 +757,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
     // GridwiseYDotYGrad
     using GridwiseYDotYGrad =
         GridwiseBatchedMultiheadAttentionBackward_YDotYGrad<InputDataType, // TODO: distinguish A/B
-                                                                           // datatype
-                                                            DDataType,
+                                                            DDataType,     // datatype
                                                             YGridDesc_M_O,
                                                             DGridDesc_M,
                                                             BlockSize,

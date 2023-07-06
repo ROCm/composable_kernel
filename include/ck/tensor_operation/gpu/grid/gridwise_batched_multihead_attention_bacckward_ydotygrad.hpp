@@ -136,15 +136,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
     };
     using YDotYGrad_M_O = YDotYGrad_M_O_<BlockSize, MPerBlock, NPerBlock>;
 
-    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
-    {
-        return MPerBlock * sizeof(FloatD);
-    }
-
     __device__ static void Run(const InputDataType* __restrict__ p_y_grid,
                                const InputDataType* __restrict__ p_ygrad_grid,
                                FloatD* __restrict__ p_d_grid,
-                               void* __restrict__ p_shared,
                                const YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                    y_grid_desc_mblock_mperblock_nblock_nperblock,
                                const DGridDesc_M& d_grid_desc_m,
@@ -213,12 +207,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
         auto y_thread_buf                 = typename YDotYGrad_M_O::SrcBufType{};
         auto ygrad_thread_buf             = typename YDotYGrad_M_O::SrcBufType{};
         auto y_dot_ygrad_thread_accum_buf = typename YDotYGrad_M_O::DstBufType{};
-        auto y_dot_ygrad_block_accum_buf =
-            make_dynamic_buffer<AddressSpaceEnum::Lds>(static_cast<FloatD*>(p_shared), MPerBlock);
 
         // clear accum buffers
         y_dot_ygrad_thread_accum_buf.Clear();
-        y_dot_ygrad_block_accum_buf.Clear();
 
         index_t oblock_idx = 0;
         do
