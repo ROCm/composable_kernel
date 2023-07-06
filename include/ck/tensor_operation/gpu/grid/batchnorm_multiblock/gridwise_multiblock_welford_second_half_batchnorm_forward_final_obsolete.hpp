@@ -33,7 +33,6 @@ __global__ void kernel_welford_second_half_batchnorm_forward_final(
     const MeanVarGridDesc_M mean_var_grid_desc_m,
     index_t blkgroup_size,
     index_t num_xy_k_block_tile_iteration,
-    index_t num_mean_var_count_k_block_tile_iteration,
     AccDataType epsilon,
     const MeanVarDataType* const __restrict__ p_in_welford_mean,
     const MeanVarDataType* const __restrict__ p_in_welford_variance,
@@ -59,7 +58,6 @@ __global__ void kernel_welford_second_half_batchnorm_forward_final(
                                                          mean_var_grid_desc_m,
                                                          blkgroup_size,
                                                          num_xy_k_block_tile_iteration,
-                                                         num_mean_var_count_k_block_tile_iteration,
                                                          epsilon,
                                                          p_in_welford_mean,
                                                          p_in_welford_variance,
@@ -152,7 +150,6 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
                                const MeanVarGridDesc_M& mean_var_grid_desc_m,
                                index_t blkgroup_size,
                                index_t num_xy_k_block_tile_iteration,
-                               index_t num_mean_var_count_k_block_tile_iteration,
                                AccDataType epsilon,
                                const MeanVarDataType* const __restrict__ p_in_welford_mean,
                                const MeanVarDataType* const __restrict__ p_in_welford_variance,
@@ -223,7 +220,7 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
                                              decltype(thread_buffer_desc_m_1),
                                              ThreadBufferLengths_M_1,
                                              Sequence<0, 1>,
-                                             1,
+                                             0,
                                              1,
                                              1,
                                              true>(
@@ -239,7 +236,7 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
                                              decltype(thread_buffer_desc_m_1),
                                              ThreadBufferLengths_M_1,
                                              Sequence<0, 1>,
-                                             1,
+                                             0,
                                              1,
                                              1,
                                              true>(
@@ -257,9 +254,6 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
         const auto welford_count_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_welford_count, mean_var_count_grid_desc_m_k.GetElementSpaceSize());
 
-        constexpr auto mean_var_count_thread_copy_step_m_k =
-            make_multi_index(0, KThreadClusterSize * 1);
-
         // Step 1: do final welford reduction to get mean and variance
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
@@ -268,8 +262,11 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
             welford_count_thread_buf(I) = 0;
         });
 
-        for(index_t reducedTiles = 0; reducedTiles < num_mean_var_count_k_block_tile_iteration;
-            ++reducedTiles)
+        constexpr auto mean_var_count_thread_copy_step_m_k =
+            make_multi_index(0, KThreadClusterSize);
+
+        int32_t reducedSize = 0;
+        while(reducedSize < blkgroup_size)
         {
             threadwise_mean_var_load_m_k.Run(mean_var_count_grid_desc_m_k,
                                              welford_mean_global_val_buf,
@@ -295,6 +292,8 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
                                    welford_mean_thread_buf,
                                    welford_var_thread_buf,
                                    welford_count_thread_buf);
+
+            reducedSize += KThreadClusterSize;
 
             threadwise_mean_var_load_m_k.MoveSrcSliceWindow(mean_var_count_grid_desc_m_k,
                                                             mean_var_count_thread_copy_step_m_k);
