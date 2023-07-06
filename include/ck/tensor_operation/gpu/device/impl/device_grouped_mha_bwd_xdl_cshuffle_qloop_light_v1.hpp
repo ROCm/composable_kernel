@@ -74,7 +74,7 @@ __global__ void
                       arg_ptr[group_id].p_ygrad_grid_ + c_batch_offset,
                       arg_ptr[group_id].p_d_grid_ + d_batch_offset,
                       static_cast<void*>(p_shared),
-                      arg_ptr[group_id].d_y_grid_desc_mblock_mperblock_oblock_operblock_,
+                      arg_ptr[group_id].d_y_grid_desc_mblock_mperblock_nblock_nperblock_,
                       arg_ptr[group_id].d_grid_desc_m_,
                       arg_ptr[group_id].d_block_2_ctile_map_);
 #else
@@ -311,7 +311,7 @@ template <index_t NumDimG,
           MaskingSpecialization MaskingSpec,
           bool Deterministic,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1
+struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
     : public BaseOperator // TODO inherit atten bwd op once API stablizes
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
@@ -323,7 +323,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1
     // TODO: implement bias combination
     static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
 
-    using DeviceOp = DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1;
+    using DeviceOp = DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1;
     struct ProblemDesc
     {
         std::vector<index_t> a_gs_ms_ks_lengths;
@@ -638,7 +638,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1
     };
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1<
+    using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1<
         InputDataType, // TODO: distinguish A/B datatype
         OutputDataType,
         ZDataType,
@@ -758,8 +758,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1
         DDataType* p_d_grid_;
         DGridDesc_M d_grid_desc_m_;
         typename GridwiseYDotYGrad::DefaultBlock2CTileMap d_block_2_ctile_map_;
-        typename GridwiseYDotYGrad::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
-            d_y_grid_desc_mblock_mperblock_oblock_operblock_;
+        typename GridwiseYDotYGrad::YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            d_y_grid_desc_mblock_mperblock_nblock_nperblock_;
         index_t d_num_blocks_per_batch_;
         index_t d_block_start_, d_block_end_;
     };
@@ -950,7 +950,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1
 
                 const auto d_block_2_ctile_map =
                     GridwiseYDotYGrad::MakeDefaultBlock2CTileMap(y_grid_desc_m_o);
-                const auto d_y_grid_desc_mblock_mperblock_oblock_operblock =
+                const auto d_y_grid_desc_mblock_mperblock_nblock_nperblock =
                     GridwiseYDotYGrad::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         y_grid_desc_m_o);
 
@@ -992,7 +992,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                               p_d_grid,
                                               d_grid_desc_m,
                                               d_block_2_ctile_map,
-                                              d_y_grid_desc_mblock_mperblock_oblock_operblock,
+                                              d_y_grid_desc_mblock_mperblock_nblock_nperblock,
                                               d_num_blocks_per_batch,
                                               d_block_start,
                                               d_block_end});
@@ -1164,9 +1164,15 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1
 
         for(index_t i = 0; i < arg.group_count_; i++)
         {
+
             // TODO: Check if tensor specialization & strides mismatch
             const auto& kernel_arg = arg.group_kernel_args_[i];
             const auto& device_arg = arg.group_device_args_[i];
+            if(!GridwiseYDotYGrad::CheckValidity(kernel_arg.y_grid_desc_m_o_,
+                                                 kernel_arg.d_block_2_ctile_map_))
+            {
+                return false;
+            }
             // Check if C permute dimension matches GEMM + GEMM shape
             const index_t c_g       = device_arg.c_grid_desc_g_m_n_.GetLength(I0); // unpadded
             const index_t c_m       = kernel_arg.y_grid_desc_m_o_.GetLength(I0);
@@ -1334,7 +1340,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1"
+        str << "DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

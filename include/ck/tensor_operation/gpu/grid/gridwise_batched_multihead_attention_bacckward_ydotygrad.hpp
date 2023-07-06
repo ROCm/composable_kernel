@@ -47,15 +47,21 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
         {
             return false;
         }
-        const auto M = c_grid_desc_m_n.GetLength(I0);
-        if(M < MPerBlock)
+        // const auto M = c_grid_desc_m_n.GetLength(I0);
+        const auto N = c_grid_desc_m_n.GetLength(I1);
+        if(N < NPerBlock)
         {
             return false;
         }
-        if(M % MPerBlock != 0)
-        {
-            return false;
-        }
+        // std::cout << "m: " << M <<" n: " << N << std::endl;
+        // if(M < MPerBlock)
+        // {
+        //     return false;
+        // }
+        // if(M % MPerBlock != 0)
+        // {
+        //     return false;
+        // }
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
     }
@@ -69,14 +75,14 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
         const auto MBlock = M / MPerBlock;
         const auto NBlock = N / NPerBlock;
 
-        const auto y_grid_desc_mblock_mperblock_oblock_operblock = transform_tensor_descriptor(
+        const auto y_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
             c_grid_desc_m_n,
             make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{})),
                        make_unmerge_transform(make_tuple(NBlock, Number<NPerBlock>{}))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
 
-        return y_grid_desc_mblock_mperblock_oblock_operblock;
+        return y_grid_desc_mblock_mperblock_nblock_nperblock;
     }
 
     __host__ __device__ static constexpr auto
@@ -102,7 +108,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
             c_grid_desc_m_n);
     }
 
-    using YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock = remove_cvref_t<decltype(
+    using YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
         MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}))>;
 
     using DefaultBlock2CTileMap =
@@ -139,15 +145,15 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
                                const InputDataType* __restrict__ p_ygrad_grid,
                                FloatD* __restrict__ p_d_grid,
                                void* __restrict__ p_shared,
-                               const YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock&
-                                   y_grid_desc_mblock_mperblock_oblock_operblock,
+                               const YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
+                                   y_grid_desc_mblock_mperblock_nblock_nperblock,
                                const DGridDesc_M& d_grid_desc_m,
                                const DefaultBlock2CTileMap& block_2_ctile_map)
     {
         const auto y_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_y_grid, y_grid_desc_mblock_mperblock_oblock_operblock.GetElementSpaceSize());
+            p_y_grid, y_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
         const auto ygrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_ygrad_grid, y_grid_desc_mblock_mperblock_oblock_operblock.GetElementSpaceSize());
+            p_ygrad_grid, y_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         auto d_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_d_grid, d_grid_desc_m.GetElementSpaceSize());
@@ -158,8 +164,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
 
         if(!block_2_ctile_map.ValidCTileIndex(
                block_work_idx,
-               make_tuple(y_grid_desc_mblock_mperblock_oblock_operblock.GetLength(I0),
-                          y_grid_desc_mblock_mperblock_oblock_operblock.GetLength(I2))))
+               make_tuple(y_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
+                          y_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
         {
             return;
         }
@@ -193,7 +199,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
         auto yygrad_threadwise_copy = ThreadwiseTensorSliceTransfer_v2<
             InputDataType,
             FloatD,
-            YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock,
+            YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
             decltype(y_thread_desc_m0_m1_o0_o1),
             decltype(y_thread_desc_m0_m1_o0_o1.GetLengths()),
             Sequence<0, 1, 2, 3>,
@@ -201,7 +207,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
             YDotYGrad_M_O::SrcScalarPerVector, // SrcScalarPerVector
             1,                                 // SrcScalarStrideInVector
             true /* ResetCoordAfterRun */,
-            false /* InvalidElementAsNaN */>(y_grid_desc_mblock_mperblock_oblock_operblock,
+            false /* InvalidElementAsNaN */>(y_grid_desc_mblock_mperblock_nblock_nperblock,
                                              y_thread_data_on_grid_idx);
 
         auto y_thread_buf                 = typename YDotYGrad_M_O::SrcBufType{};
@@ -217,12 +223,12 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
         index_t oblock_idx = 0;
         do
         {
-            yygrad_threadwise_copy.Run(y_grid_desc_mblock_mperblock_oblock_operblock,
+            yygrad_threadwise_copy.Run(y_grid_desc_mblock_mperblock_nblock_nperblock,
                                        y_grid_buf,
                                        y_thread_desc_m0_m1_o0_o1,
                                        make_tuple(I0, I0, I0, I0),
                                        y_thread_buf);
-            yygrad_threadwise_copy.Run(y_grid_desc_mblock_mperblock_oblock_operblock,
+            yygrad_threadwise_copy.Run(y_grid_desc_mblock_mperblock_nblock_nperblock,
                                        ygrad_grid_buf,
                                        y_thread_desc_m0_m1_o0_o1,
                                        make_tuple(I0, I0, I0, I0),
@@ -237,11 +243,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
                 });
             });
 
-            yygrad_threadwise_copy.MoveSrcSliceWindow(y_grid_desc_mblock_mperblock_oblock_operblock,
+            yygrad_threadwise_copy.MoveSrcSliceWindow(y_grid_desc_mblock_mperblock_nblock_nperblock,
                                                       make_multi_index(0, 0, 1, 0));
 
             oblock_idx++;
-        } while(oblock_idx < y_grid_desc_mblock_mperblock_oblock_operblock.GetLength(I2));
+        } while(oblock_idx < y_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2));
 
         auto d_grid_desc_mblock_mperblock = MakeORSGridDescriptor_MBlock_MPerBlock(d_grid_desc_m);
 
