@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -79,6 +79,10 @@ struct GridwiseGemmPipeline_v2
 
             do
             {
+#if CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT
+                __builtin_amdgcn_iglp_opt(CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT);
+#endif
+
                 block_sync_lds();
 
                 // GEMM i

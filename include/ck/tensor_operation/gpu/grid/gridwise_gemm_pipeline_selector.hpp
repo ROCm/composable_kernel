@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+
+#include <iostream>
 
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v2.hpp"

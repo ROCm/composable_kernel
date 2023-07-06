@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -28,6 +28,7 @@ template <typename InDataType,
           typename AccElementwiseOperation,
           bool PropagateNan,
           bool OutputIndex,
+          bool TransformIndexKtoGlobal,
           bool HaveIndexInputIfOutputIndex,
           index_t BlockSize,
           index_t MThreadSliceSize,
@@ -260,6 +261,7 @@ struct DeviceReduceThreadWise : public DeviceReduce<InDataType,
 
             const auto kernel = kernel_reduce_threadwise<GridwiseReduce,
                                                          OutputIndex,
+                                                         TransformIndexKtoGlobal,
                                                          HaveIndexInput,
                                                          InDataType,
                                                          OutDataType,
