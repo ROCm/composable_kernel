@@ -375,7 +375,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         static constexpr int BLOCK_SUBSCRIPTION_FACTOR = 1;
         static constexpr int BLOCK_WAVES               = BlockSize / get_warp_size();
         // assume we want to have at most 2 waves per SIMD
-        static constexpr int CU_BLOCKS = math::intiger_divide_floor(8, BLOCK_WAVES);
+        static constexpr int CU_BLOCKS = math::integer_divide_floor(8, BLOCK_WAVES);
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
