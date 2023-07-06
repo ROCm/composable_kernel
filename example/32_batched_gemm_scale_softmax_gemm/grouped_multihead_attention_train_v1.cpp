@@ -111,7 +111,7 @@ static constexpr bool Deterministic = true;
 // If 64 < DIM <= 128, ues prototype2 2nd template.
 #if(DIM <= 32)
 using DeviceGemmInstanceFWD =
-    ck::tensor_operation::device::DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -182,7 +182,7 @@ using DeviceGemmInstanceFWD =
         Deterministic>;
 
 using DeviceGemmInstanceBWD =
-    ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1<
+    ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -252,7 +252,7 @@ using DeviceGemmInstanceBWD =
         Deterministic>;
 #elif(DIM <= 64)
 using DeviceGemmInstanceFWD =
-    ck::tensor_operation::device::DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -323,7 +323,7 @@ using DeviceGemmInstanceFWD =
         Deterministic>;
 
 using DeviceGemmInstanceBWD =
-    ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1<
+    ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -393,7 +393,7 @@ using DeviceGemmInstanceBWD =
         Deterministic>;
 
 // using DeviceGemmInstanceBWD =
-//     ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2<
+//     ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V2<
 //         NumDimG,
 //         NumDimM,
 //         NumDimN,
@@ -463,7 +463,7 @@ using DeviceGemmInstanceBWD =
 //         Deterministic>;
 #elif(DIM <= 128)
 using DeviceGemmInstanceFWD =
-    ck::tensor_operation::device::DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -534,7 +534,7 @@ using DeviceGemmInstanceFWD =
         Deterministic>;
 
 using DeviceGemmInstanceBWD =
-    ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V2<
+    ck::tensor_operation::device::DeviceGroupedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V2<
         NumDimG,
         NumDimM,
         NumDimN,

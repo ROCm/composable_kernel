@@ -40,7 +40,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, /*CK_MIN_BLOCK_PER_CU*/ 1)
 #endif
-        kernel_grouped_multihead_attention_backward_xdl_cshuffle_v1(
+        kernel_grouped_multihead_attention_backward_qloop_xdl_cshuffle_v1(
             const void CK_CONSTANT_ADDRESS_SPACE* group_kernel_args,
             const index_t group_count,
             const AElementwiseOperation a_element_op,
@@ -251,7 +251,7 @@ template <index_t NumDimG,
           MaskingSpecialization MaskingSpec,
           bool Deterministic,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1
+struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
     : public BaseOperator // TODO inherit atten bwd op once API stablizes
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
@@ -263,7 +263,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1
     // TODO: implement bias combination
     static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
 
-    using DeviceOp = DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1;
+    using DeviceOp = DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1;
     struct ProblemDesc
     {
         std::vector<index_t> a_gs_ms_ks_lengths;
@@ -961,16 +961,17 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1
             float ave_time = 0;
 
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
-                const auto kernel = kernel_grouped_multihead_attention_backward_xdl_cshuffle_v1<
-                    GridwiseGemm,
-                    GroupKernelArg,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    AccElementwiseOperation,
-                    B1ElementwiseOperation,
-                    CElementwiseOperation,
-                    has_main_k_block_loop_,
-                    Deterministic>;
+                const auto kernel =
+                    kernel_grouped_multihead_attention_backward_qloop_xdl_cshuffle_v1<
+                        GridwiseGemm,
+                        GroupKernelArg,
+                        AElementwiseOperation,
+                        BElementwiseOperation,
+                        AccElementwiseOperation,
+                        B1ElementwiseOperation,
+                        CElementwiseOperation,
+                        has_main_k_block_loop_,
+                        Deterministic>;
 
                 return launch_and_time_kernel(
                     stream_config,
@@ -1207,7 +1208,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_V1"
+        str << "DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
