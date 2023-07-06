@@ -131,6 +131,12 @@ struct DeviceAvgPool3dBwdImpl : public DeviceAvgPoolBwd<DOutDataType, DInDataTyp
         const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilde, YTilde);
         const auto XDotSlice = math::integer_divide_ceil(X - i_xtilde, XTilde);
 
+        const index_t MRaw = N * DTildeSlice * HTildeSlice * WTildeSlice * C;
+        const index_t MPad = math::integer_least_multiple(MRaw, M_BlockTileSize) - MRaw;
+
+        const index_t KRaw = ZDotSlice * YDotSlice * XDotSlice;
+        const index_t KPad = math::integer_least_multiple(KRaw, K_BlockTileSize) - KRaw;
+
         // Out[ReduceM, ReduceK]
         const auto out_n_dop_hop_wop_c_grid_desc = transform_tensor_descriptor(
             out_n_do_ho_wo_c_grid_desc,
@@ -198,12 +204,6 @@ struct DeviceAvgPool3dBwdImpl : public DeviceAvgPoolBwd<DOutDataType, DInDataTyp
                 make_merge_transform(make_tuple(ZDotSlice, YDotSlice, XDotSlice))),
             make_tuple(Sequence<0, 2, 4, 6, 7>{}, Sequence<1, 3, 5>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-        const index_t MRaw = N * DTildeSlice * HTildeSlice * WTildeSlice * C;
-        const index_t MPad = math::integer_least_multiple(MRaw, M_BlockTileSize) - MRaw;
-
-        const index_t KRaw = ZDotSlice * YDotSlice * XDotSlice;
-        const index_t KPad = math::integer_least_multiple(KRaw, K_BlockTileSize) - KRaw;
 
         const auto out_grid_desc_reducem_reducek = transform_tensor_descriptor(
             out_grid_desc_reducemraw_reducekraw,
