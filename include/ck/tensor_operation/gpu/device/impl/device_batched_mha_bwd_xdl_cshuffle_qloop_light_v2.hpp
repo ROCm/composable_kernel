@@ -96,7 +96,6 @@ template <typename GridwiseGemm,
           typename BGridDesc_BK0_N_BK1,
           typename ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3,
           typename B1GridDesc_BK0_N_BK1,
-          typename YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock,
           typename LSEGridDescriptor_M,
           typename DGridDescriptor_M,
           typename YGradGridDesc_M0_O_M1,
@@ -130,8 +129,6 @@ __global__ void
             const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3
                 c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
             const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
-            const YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
-                c_grid_desc_mblock_mperblock_nblock_nperblock,
             const LSEGridDescriptor_M lse_grid_desc_m,
             const DGridDescriptor_M d_grid_desc_m,
             const YGradGridDesc_M0_O_M1 ygrad_grid_desc_m0_o_m1,
@@ -197,7 +194,6 @@ __global__ void
                 b_grid_desc_bk0_n_bk1,
                 c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                 b1_grid_desc_bk0_n_bk1,
-                c_grid_desc_mblock_mperblock_nblock_nperblock,
                 lse_grid_desc_m,
                 d_grid_desc_m,
                 ygrad_grid_desc_m0_o_m1,
@@ -232,7 +228,6 @@ __global__ void
                                                       b_grid_desc_bk0_n_bk1,
                                                       c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                                                       b1_grid_desc_bk0_n_bk1,
-                                                      c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                       lse_grid_desc_m,
                                                       d_grid_desc_m,
                                                       ygrad_grid_desc_m0_o_m1,
@@ -257,7 +252,6 @@ __global__ void
     ignore = a_grid_desc_ak0_m_ak1;
     ignore = b_grid_desc_bk0_n_bk1;
     ignore = b1_grid_desc_bk0_n_bk1;
-    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = block_2_ctile_map;
     ignore = batch_count;
     ignore = compute_base_ptr_of_batch;
@@ -855,7 +849,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V2
                                                                       c_gs_ms_gemm1ns_strides)},
               z_grid_desc_g_m_n_{
                   Transform::MakeCGridDescriptor_G_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
-              y_grid_desc_mblock_mperblock_oblock_operblock_{},
               block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(k_grid_desc_n_k_)},
               d_block_2_ctile_map_{GridwiseYDotYGrad::MakeDefaultBlock2CTileMap(y_grid_desc_m_o_)},
               d_y_grid_desc_mblock_mperblock_oblock_operblock_{},
@@ -894,16 +887,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V2
             ignore = acc0_biases_gs_ms_ns_strides;
             ignore = acc1_biases_gs_ms_gemm1ns_lengths;
             ignore = acc1_biases_gs_ms_gemm1ns_strides;
-
-            if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
-                                           b_grid_desc_bk0_n_bk1_,
-                                           b1_grid_desc_bk0_n_bk1_,
-                                           y_grid_desc_m_o_))
-            {
-                y_grid_desc_mblock_mperblock_oblock_operblock_ =
-                    GridwiseGemm::MakeYGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock(
-                        y_grid_desc_m_o_);
-            }
 
             seed_   = std::get<0>(seeds);
             offset_ = std::get<1>(seeds);
@@ -974,8 +957,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V2
         B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
         CGridDesc_G_M_N c_grid_desc_g_m_n_;
         ZGridDesc_G_M_N z_grid_desc_g_m_n_;
-        typename GridwiseGemm::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
-            y_grid_desc_mblock_mperblock_oblock_operblock_;
 
         typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3
             c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_;
@@ -1098,7 +1079,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V2
                         DeviceOp::BGridDesc_BK0_N_BK1,
                         typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3,
                         DeviceOp::B1GridDesc_BK0_N_BK1,
-                        typename GridwiseGemm::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock,
                         DeviceOp::LSEGridDesc_M,
                         DeviceOp::DGridDesc_M,
                         DeviceOp::YGradGridDesc_M0_O_M1,
@@ -1133,7 +1113,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V2
                     arg.b_grid_desc_bk0_n_bk1_,
                     arg.c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_,
                     arg.b1_grid_desc_bk0_n_bk1_,
-                    arg.y_grid_desc_mblock_mperblock_oblock_operblock_,
                     arg.lse_grid_desc_m_,
                     arg.d_grid_desc_m_,
                     arg.ygrad_grid_desc_m0_o_m1_,
