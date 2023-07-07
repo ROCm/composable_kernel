@@ -894,7 +894,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V2
             c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_ =
                 GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3(z_grid_desc_m_n_);
             d_y_grid_desc_mblock_mperblock_oblock_operblock_ =
-                GridwiseYDotYGrad::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                GridwiseYDotYGrad::MakeYGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     y_grid_desc_m_o_);
             // Print();
 

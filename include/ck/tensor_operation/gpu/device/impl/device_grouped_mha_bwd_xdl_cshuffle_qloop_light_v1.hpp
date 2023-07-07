@@ -949,7 +949,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
                 const auto d_block_2_ctile_map =
                     GridwiseYDotYGrad::MakeDefaultBlock2CTileMap(y_grid_desc_m_o);
                 const auto d_y_grid_desc_mblock_mperblock_nblock_nperblock =
-                    GridwiseYDotYGrad::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    GridwiseYDotYGrad::MakeYGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         y_grid_desc_m_o);
 
                 index_t d_num_blocks_per_batch =

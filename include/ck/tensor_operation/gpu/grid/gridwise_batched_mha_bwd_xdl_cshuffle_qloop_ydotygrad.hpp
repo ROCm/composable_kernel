@@ -22,7 +22,7 @@ namespace ck {
 
 template <typename InputDataType,
           typename FloatD,
-          typename CGridDesc_M_N,
+          typename YGridDesc_M_N,
           typename DGridDesc_M,
           index_t BlockSize,
           index_t MPerBlock,
@@ -32,23 +32,21 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
-    static constexpr auto I3 = Number<3>{};
-    static constexpr auto I4 = Number<4>{};
 
     static constexpr auto WaveSize = 64;
     static_assert(BlockSize == MPerBlock, "BlockSize must be same with MPerBlock");
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2CTileMap>
-    __host__ __device__ static constexpr bool CheckValidity(const CGridDesc_M_N& c_grid_desc_m_n,
+    __host__ __device__ static constexpr bool CheckValidity(const YGridDesc_M_N& y_grid_desc_m_n,
                                                             const Block2CTileMap& block_2_ctile_map)
     {
-        if(!block_2_ctile_map.CheckValidity(c_grid_desc_m_n))
+        if(!block_2_ctile_map.CheckValidity(y_grid_desc_m_n))
         {
             return false;
         }
-        // const auto M = c_grid_desc_m_n.GetLength(I0);
-        const auto N = c_grid_desc_m_n.GetLength(I1);
+        // const auto M = y_grid_desc_m_n.GetLength(I0);
+        const auto N = y_grid_desc_m_n.GetLength(I1);
         if(N < NPerBlock)
         {
             return false;
@@ -62,21 +60,20 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
         // {
         //     return false;
         // }
-        // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
     }
 
     __host__ __device__ static constexpr auto
-    MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const CGridDesc_M_N& c_grid_desc_m_n)
+    MakeYGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const YGridDesc_M_N& y_grid_desc_m_n)
     {
-        const auto M = c_grid_desc_m_n.GetLength(I0);
-        const auto N = c_grid_desc_m_n.GetLength(I1);
+        const auto M = y_grid_desc_m_n.GetLength(I0);
+        const auto N = y_grid_desc_m_n.GetLength(I1);
 
         const auto MBlock = M / MPerBlock;
         const auto NBlock = N / NPerBlock;
 
         const auto y_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
-            c_grid_desc_m_n,
+            y_grid_desc_m_n,
             make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{})),
                        make_unmerge_transform(make_tuple(NBlock, Number<NPerBlock>{}))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
@@ -86,7 +83,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
     }
 
     __host__ __device__ static constexpr auto
-    MakeORSGridDescriptor_MBlock_MPerBlock(const DGridDesc_M& d_grid_desc_m)
+    MakeDGridDescriptor_MBlock_MPerBlock(const DGridDesc_M& d_grid_desc_m)
     {
         const index_t M      = d_grid_desc_m.GetLength(I0);
         const index_t MBlock = M / MPerBlock;
@@ -100,19 +97,19 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
         return d_grid_desc_mblock_mperblock;
     }
 
-    // return block_id to C matrix tile idx (m0, n0) mapping
+    // return block_id to Y matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
-    MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n)
+    MakeDefaultBlock2CTileMap(const YGridDesc_M_N& y_grid_desc_m_n)
     {
-        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>(
-            c_grid_desc_m_n);
+        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, YGridDesc_M_N>(
+            y_grid_desc_m_n);
     }
 
     using YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
-        MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}))>;
+        MakeYGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(YGridDesc_M_N{}))>;
 
     using DefaultBlock2CTileMap =
-        remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}))>;
+        remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(YGridDesc_M_N{}))>;
 
     template <index_t BlockSize_, index_t BlockSliceLength_M_, index_t BlockSliceLength_O_>
     struct YDotYGrad_M_N_
@@ -240,7 +237,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
             oblock_idx++;
         } while(oblock_idx < y_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2));
 
-        auto d_grid_desc_mblock_mperblock = MakeORSGridDescriptor_MBlock_MPerBlock(d_grid_desc_m);
+        auto d_grid_desc_mblock_mperblock = MakeDGridDescriptor_MBlock_MPerBlock(d_grid_desc_m);
 
         auto d_thread_copy_vgpr_to_global =
             ThreadwiseTensorSliceTransfer_v1r3<FloatD,
