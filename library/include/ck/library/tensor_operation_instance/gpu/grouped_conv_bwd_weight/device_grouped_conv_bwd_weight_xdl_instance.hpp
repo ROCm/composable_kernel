@@ -33,7 +33,7 @@ static constexpr auto ConvBwdWeightFilter1x1Stride1Pad0 =
     ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0;
 
 template <ck::index_t NDimSpatial,
-            typename ALayout,
+          typename ALayout,
           typename BLayout,
           typename ELayout,
           ConvolutionBackwardWeightSpecialization ConvSpec>
@@ -59,7 +59,8 @@ using device_grouped_conv_bwd_weight_xdl_c_shuffle_f32_instances = std::tuple<
     // clang-format on
     >;
 
-template <ck::index_t NDimSpatial,typename ALayout,
+template <ck::index_t NDimSpatial,
+          typename ALayout,
           typename BLayout,
           typename ELayout,
           ConvolutionBackwardWeightSpecialization ConvSpec>
@@ -85,7 +86,8 @@ using device_grouped_conv_bwd_weight_xdl_c_shuffle_f16_instances = std::tuple<
     // clang-format on
     >;
 
-template <ck::index_t NDimSpatial,typename ALayout,
+template <ck::index_t NDimSpatial,
+          typename ALayout,
           typename BLayout,
           typename ELayout,
           ConvolutionBackwardWeightSpecialization ConvSpec>
