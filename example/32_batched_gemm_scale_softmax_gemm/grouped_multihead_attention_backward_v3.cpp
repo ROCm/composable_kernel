@@ -24,7 +24,7 @@ Kernel outputs:
 */
 
 #define USING_MASK 0
-#define DIM 128 // DIM should be a multiple of 8.
+#define DIM 32 // DIM should be a multiple of 8.
 
 #include <iostream>
 #include <numeric>
@@ -260,7 +260,7 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
 int run(int argc, char* argv[])
 {
     bool do_verification = true;
-    int init_method      = 2; // method 1 will have slightly higher error; TODO: to investigate
+    int init_method      = 1; // method 1 will have slightly higher error; TODO: to investigate
     bool time_kernel     = true;
 
     // Overall QKV matrices shape
