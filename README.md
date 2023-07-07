@@ -109,6 +109,24 @@ make install
 
 Instructions for using CK as a pre-built kernel library are under [client_example](/client_example)
 
+## Contributing
+
+When you contribute to Composable Kernel, make sure to run `clang-format` on all the changed files. We highly recommend using git hooks that are managed by the `pre-commit` framework. To install hooks, run:
+
+```bash
+sudo script/install_precommit.sh
+```
+
+This way, `pre-commit` will add the appropriate hooks to your local repository and automatically run `clang-format` (and possibly additional checks) before any commit is created.
+
+If you need to uninstall hooks from the repository, you can do so by running the following command:
+
+```bash
+script/uninstall_precommit.sh
+```
+
+If for any reason, you need to temporarily disable precommit hooks, you can add the `--no-verify` option to the `git commit` command.
+
 ## Caveat
 ### Kernel Timing and Verification
 
