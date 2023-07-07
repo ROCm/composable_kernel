@@ -259,7 +259,9 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
                                                               PassThrough,
                                                               PassThrough,
                                                               PassThrough>>>& instances);
-// Add a generic instance
+
+// This function adds a set of instance with the first being the most generic one. (That
+// is it supports the broadest convolution configuration spectrum)
 void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
                                                               NDHWGC,
