@@ -101,8 +101,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
     __host__ __device__ static constexpr auto
     MakeDefaultBlock2CTileMap(const YGridDesc_M_N& y_grid_desc_m_n)
     {
-        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, YGridDesc_M_N>(
-            y_grid_desc_m_n);
+        // should rewrite BlockToCTileMap_M00_N0_M01Adapt
+        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, 1024, YGridDesc_M_N>(y_grid_desc_m_n);
     }
 
     using YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
@@ -133,13 +133,14 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
     };
     using YDotYGrad_M_N = YDotYGrad_M_N_<BlockSize, MPerBlock, NPerBlock>;
 
+    template <typename Block2CTileMap>
     __device__ static void Run(const InputDataType* __restrict__ p_y_grid,
                                const InputDataType* __restrict__ p_ygrad_grid,
                                FloatD* __restrict__ p_d_grid,
                                const YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                    y_grid_desc_mblock_mperblock_nblock_nperblock,
                                const DGridDesc_M& d_grid_desc_m,
-                               const DefaultBlock2CTileMap& block_2_ctile_map)
+                               const Block2CTileMap& block_2_ctile_map)
     {
         const auto y_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_y_grid, y_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());

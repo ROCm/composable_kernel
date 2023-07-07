@@ -709,6 +709,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
                                                             BlockSize,
                                                             BlockSize,
                                                             DKPerBlock>;
+    using DBlock2CTileMap =
+        OffsettedBlockToCTileMap<typename GridwiseYDotYGrad::DefaultBlock2CTileMap>;
 
     struct GroupKernelArg
     {
@@ -751,7 +753,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
         // D parameter
         DDataType* p_d_grid_;
         DGridDesc_M d_grid_desc_m_;
-        typename GridwiseYDotYGrad::DefaultBlock2CTileMap d_block_2_ctile_map_;
+        DBlock2CTileMap d_block_2_ctile_map_;
         typename GridwiseYDotYGrad::YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             d_y_grid_desc_mblock_mperblock_nblock_nperblock_;
         index_t d_num_blocks_per_batch_;
@@ -930,18 +932,17 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
                 const auto p_d_grid = static_cast<DDataType*>(p_Ds[i]);
                 const auto d_grid_desc_m =
                     DeviceOp::MakeLSEGridDescriptor_M(problem_desc.d_gs_ms_lengths[NumDimG]);
-
-                const auto d_block_2_ctile_map =
-                    GridwiseYDotYGrad::MakeDefaultBlock2CTileMap(y_grid_desc_m_o);
+                index_t d_block_start          = d_grid_size_;
+                const auto d_block_2_ctile_map = DBlock2CTileMap(y_grid_desc_m_o, d_block_start);
                 const auto d_y_grid_desc_mblock_mperblock_nblock_nperblock =
                     GridwiseYDotYGrad::MakeYGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         y_grid_desc_m_o);
 
                 index_t d_num_blocks_per_batch =
                     d_block_2_ctile_map.CalculateGridSize(y_grid_desc_m_o);
-                index_t d_block_start = d_grid_size_;
-                index_t d_block_end   = d_block_start + d_num_blocks_per_batch * batch_count;
-                d_grid_size_          = d_block_end;
+
+                index_t d_block_end = d_block_start + d_num_blocks_per_batch * batch_count;
+                d_grid_size_        = d_block_end;
 
                 group_kernel_args_.push_back({p_a_grid,
                                               p_b_grid,
