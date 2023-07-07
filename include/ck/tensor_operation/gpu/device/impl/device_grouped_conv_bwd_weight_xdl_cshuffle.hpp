@@ -1086,21 +1086,21 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         Argument(const InDataType* p_in_grid,
                  WeiDataType* p_wei_grid,
                  const OutDataType* p_out_grid,
-                 ck::index_t G,
-                 ck::index_t N,
-                 ck::index_t K,
-                 ck::index_t C,
-                 std::array<ck::index_t, NDimSpatial>& input_spatial_lengths,
-                 std::array<ck::index_t, NDimSpatial>& filter_spatial_lengths,
-                 std::array<ck::index_t, NDimSpatial>& output_spatial_lengths,
-                 std::array<ck::index_t, NDimSpatial + 3>& input_strides,
-                 std::array<ck::index_t, NDimSpatial + 3>& output_strides,
-                 std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
-                 std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
-                 std::array<ck::index_t, NDimSpatial>& input_left_pads,
-                 std::array<ck::index_t, NDimSpatial>& input_right_pads,
-                 ck::index_t M01,
-                 ck::index_t N01,
+                 const ck::index_t G,
+                 const ck::index_t N,
+                 const ck::index_t K,
+                 const ck::index_t C,
+                 const std::array<ck::index_t, NDimSpatial>& input_spatial_lengths,
+                 const std::array<ck::index_t, NDimSpatial>& filter_spatial_lengths,
+                 const std::array<ck::index_t, NDimSpatial>& output_spatial_lengths,
+                 const std::array<ck::index_t, NDimSpatial + 3>& input_strides,
+                 const std::array<ck::index_t, NDimSpatial + 3>& output_strides,
+                 const std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
+                 const std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
+                 const std::array<ck::index_t, NDimSpatial>& input_left_pads,
+                 const std::array<ck::index_t, NDimSpatial>& input_right_pads,
+                 const ck::index_t M01,
+                 const ck::index_t N01,
                  InElementwiseOperation in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op,
@@ -1194,16 +1194,16 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         WeiElementwiseOperation c_element_op_;
 
         // for checking IsSupportedArgument()
-        index_t Conv_G_;
-        index_t Conv_N_;
-        index_t Conv_K_;
-        index_t Conv_C_;
-        std::array<ck::index_t, NDimSpatial>& output_spatial_lengths_;
-        std::array<ck::index_t, NDimSpatial>& filter_spatial_lengths_;
-        std::array<ck::index_t, NDimSpatial>& conv_filter_strides_;
-        std::array<ck::index_t, NDimSpatial>& input_left_pads_;
-        std::array<ck::index_t, NDimSpatial>& input_right_pads_;
-        index_t k_batch_;
+        const index_t Conv_G_;
+        const index_t Conv_N_;
+        const index_t Conv_K_;
+        const index_t Conv_C_;
+        const std::array<ck::index_t, NDimSpatial>& output_spatial_lengths_;
+        const std::array<ck::index_t, NDimSpatial>& filter_spatial_lengths_;
+        const std::array<ck::index_t, NDimSpatial>& conv_filter_strides_;
+        const std::array<ck::index_t, NDimSpatial>& input_left_pads_;
+        const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
+        const index_t k_batch_;
     };
 
     // Invoker
@@ -1390,23 +1390,23 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     static auto MakeArgument(const InDataType* p_in_grid,
                              WeiDataType* p_wei_grid,
                              const OutDataType* p_out_grid,
-                             ck::index_t G,
-                             ck::index_t N,
-                             ck::index_t K,
-                             ck::index_t C,
-                             std::array<ck::index_t, NDimSpatial>& input_spatial_lengths,
-                             std::array<ck::index_t, NDimSpatial>& filter_spatial_lengths,
-                             std::array<ck::index_t, NDimSpatial>& output_spatial_lengths,
-                             std::array<ck::index_t, NDimSpatial + 3>& input_strides,
-                             std::array<ck::index_t, NDimSpatial + 3>& output_strides,
-                             std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
-                             std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
-                             std::array<ck::index_t, NDimSpatial>& input_left_pads,
-                             std::array<ck::index_t, NDimSpatial>& input_right_pads,
+                             const ck::index_t G,
+                             const ck::index_t N,
+                             const ck::index_t K,
+                             const ck::index_t C,
+                             const std::array<ck::index_t, NDimSpatial>& input_spatial_lengths,
+                             const std::array<ck::index_t, NDimSpatial>& filter_spatial_lengths,
+                             const std::array<ck::index_t, NDimSpatial>& output_spatial_lengths,
+                             const std::array<ck::index_t, NDimSpatial + 3>& input_strides,
+                             const std::array<ck::index_t, NDimSpatial + 3>& output_strides,
+                             const std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
+                             const std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
+                             const std::array<ck::index_t, NDimSpatial>& input_left_pads,
+                             const std::array<ck::index_t, NDimSpatial>& input_right_pads,
                              InElementwiseOperation in_element_op,
                              WeiElementwiseOperation wei_element_op,
                              OutElementwiseOperation out_element_op,
-                             ck::index_t split_k)
+                             const ck::index_t split_k)
     {
         return Argument{p_in_grid,
                         p_wei_grid,
@@ -1438,23 +1438,23 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     MakeArgumentPointer(const void* p_in_grid,
                         void* p_wei_grid,
                         const void* p_out_grid,
-                        ck::index_t G,
-                        ck::index_t N,
-                        ck::index_t K,
-                        ck::index_t C,
-                        std::array<ck::index_t, NDimSpatial>& input_spatial_lengths,
-                        std::array<ck::index_t, NDimSpatial>& filter_spatial_lengths,
-                        std::array<ck::index_t, NDimSpatial>& output_spatial_lengths,
-                        std::array<ck::index_t, NDimSpatial + 3>& input_strides,
-                        std::array<ck::index_t, NDimSpatial + 3>& output_strides,
-                        std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
-                        std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
-                        std::array<ck::index_t, NDimSpatial>& input_left_pads,
-                        std::array<ck::index_t, NDimSpatial>& input_right_pads,
+                        const ck::index_t G,
+                        const ck::index_t N,
+                        const ck::index_t K,
+                        const ck::index_t C,
+                        const std::array<ck::index_t, NDimSpatial>& input_spatial_lengths,
+                        const std::array<ck::index_t, NDimSpatial>& filter_spatial_lengths,
+                        const std::array<ck::index_t, NDimSpatial>& output_spatial_lengths,
+                        const std::array<ck::index_t, NDimSpatial + 3>& input_strides,
+                        const std::array<ck::index_t, NDimSpatial + 3>& output_strides,
+                        const std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
+                        const std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
+                        const std::array<ck::index_t, NDimSpatial>& input_left_pads,
+                        const std::array<ck::index_t, NDimSpatial>& input_right_pads,
                         InElementwiseOperation in_element_op,
                         WeiElementwiseOperation wei_element_op,
                         OutElementwiseOperation out_element_op,
-                        ck::index_t split_k) override
+                        const ck::index_t split_k) override
     {
         return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_grid),
                                           static_cast<WeiDataType*>(p_wei_grid),

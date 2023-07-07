@@ -25,10 +25,17 @@ static constexpr ck::index_t Hi            = 28;
 static constexpr ck::index_t Wi            = 28;
 static constexpr ck::index_t Ho            = 28;
 static constexpr ck::index_t Wo            = 28;
+static constexpr std::array<ck::index_t, NumDimSpatial> input_spatial_lengths{Hi, Wi};
+static constexpr std::array<ck::index_t, NumDimSpatial> filter_spatial_lengths{Y, X};
+static constexpr std::array<ck::index_t, NumDimSpatial> output_spatial_lengths{Ho, Wo};
 static constexpr std::array<ck::index_t, NumDimSpatial + 3> input_strides{
-    G * N * Hi * Wi * C, N* Hi* Wi* C, Hi* Wi* C, Wi* C, C, 1};
+    N * Hi * Wi * C, Hi* Wi* C, Wi* C, C, 1};
 static constexpr std::array<ck::index_t, NumDimSpatial + 3> output_strides{
-    G * N * Ho * Wo * K, N* Ho* Wo* K, Ho* Wo* K, Wo* K, K, 1};
+    N * Ho * Wo * K, Ho* Wo* K, Wo* K, K, 1};
+static constexpr std::array<ck::index_t, NumDimSpatial> conv_filter_strides{1, 1};
+static constexpr std::array<ck::index_t, NumDimSpatial> conv_filter_dilations{1, 1};
+static constexpr std::array<ck::index_t, NumDimSpatial> input_left_pads{1, 1};
+static constexpr std::array<ck::index_t, NumDimSpatial> input_right_pads{1, 1};
 
 int main()
 {
@@ -42,15 +49,15 @@ int main()
                                                   N,
                                                   K,
                                                   C,
-                                                  {Hi, Wi},
-                                                  {Y, X},
-                                                  {Ho, Wo},
+                                                  input_spatial_lengths,
+                                                  filter_spatial_lengths,
+                                                  output_spatial_lengths,
                                                   input_strides,
                                                   output_strides,
-                                                  {1, 1},
-                                                  {1, 1},
-                                                  {1, 1},
-                                                  {1, 1})
+                                                  conv_filter_strides,
+                                                  conv_filter_dilations,
+                                                  input_left_pads,
+                                                  input_right_pads)
                ? EXIT_SUCCESS
                : EXIT_FAILURE;
 }

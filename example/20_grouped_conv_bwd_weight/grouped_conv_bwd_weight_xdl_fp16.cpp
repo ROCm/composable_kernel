@@ -17,7 +17,7 @@ using OutElementOp = PassThrough;
 template <ck::index_t NDimSpatial>
 using DeviceConvBwdWeightInstance =
     ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffle<
-        NDimSpatial, // NDimSpatial
+        NDimSpatial,
         ck::tuple_element_t<NDimSpatial - 1,
                             ck::Tuple<ck::tensor_layout::convolution::GNWC,
                                       ck::tensor_layout::convolution::GNHWC,
