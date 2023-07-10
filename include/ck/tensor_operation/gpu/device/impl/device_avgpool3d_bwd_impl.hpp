@@ -18,6 +18,11 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+// In and Din = [N, C, Di, Hi, Wi]
+// Out and Dout = [N, C, Do, Ho, Wo]
+// Out = AvgPoolFwd(In)
+// Din = AvgPoolBwd(Dout)
+// Pooling dimension = D, H, W
 template <typename DOutDataType,
           typename DInDataType,
           typename ComputeDataType,
@@ -26,7 +31,8 @@ template <typename DOutDataType,
           ck::index_t KThreadClusterSize,
           ck::index_t MThreadSliceSize,
           ck::index_t KThreadSliceSize,
-          ck::index_t InSrcOutDstVectorSize>
+          ck::index_t InSrcOutDstVectorSize,
+          bool IsFastestDimReduced>
 struct DeviceAvgPool3dBwdImpl : public DeviceAvgPoolBwd<DOutDataType, DInDataType>
 {
     static constexpr index_t NDimSpatial = 3;
@@ -312,7 +318,7 @@ struct DeviceAvgPool3dBwdImpl : public DeviceAvgPoolBwd<DOutDataType, DInDataTyp
     // FIXME
     // for NDHWC, the dim C is the vector Dim for both input and output in memory, which is not
     // reduced. Assume C is the fastest dimension
-    static constexpr index_t InSrcOutDstVectorDim = 0;
+    static constexpr index_t OutSrcInDstVectorDim = IsFastestDimReduced ? 1 : 0;
 
     using PassThrough = tensor_operation::element_wise::PassThrough;
     using Div         = tensor_operation::element_wise::UnaryDivide;
@@ -331,7 +337,7 @@ struct DeviceAvgPool3dBwdImpl : public DeviceAvgPoolBwd<DOutDataType, DInDataTyp
                                                                  BlockSize,
                                                                  MThreadSliceSize,
                                                                  KThreadSliceSize,
-                                                                 InSrcOutDstVectorDim,
+                                                                 OutSrcInDstVectorDim,
                                                                  InSrcOutDstVectorSize,
                                                                  InSrcOutDstVectorSize>;
 
@@ -413,9 +419,6 @@ struct DeviceAvgPool3dBwdImpl : public DeviceAvgPoolBwd<DOutDataType, DInDataTyp
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            ignore = arg;
-            ignore = stream_config;
-
             float ave_time = 0;
 
             for(index_t i = 0; i < arg.num_reduce_; i++)
