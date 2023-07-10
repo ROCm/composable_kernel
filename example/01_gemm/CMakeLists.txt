@@ -45,3 +45,8 @@ if(GPU_TARGETS MATCHES "gfx1100" OR GPU_TARGETS MATCHES "gfx1101" OR GPU_TARGETS
 endif()
 
 add_example_executable(example_gemm_xdl_streamk gemm_xdl_streamk.cpp)
+
+if(GPU_TARGETS MATCHES "gfx940" OR GPU_TARGETS MATCHES "gfx941" OR GPU_TARGETS MATCHES "gfx942")
+  add_example_executable(example_gemm_xdl_f8 gemm_xdl_f8.cpp)
+  add_dependencies(example_gemm_xdl example_gemm_xdl_f8)
+endif()
