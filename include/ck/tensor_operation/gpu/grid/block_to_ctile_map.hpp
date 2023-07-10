@@ -646,7 +646,7 @@ struct BlockToCTileMap_3DGrid_KSplit
     // @tparam     TopIdx     The type of block index.
     //
     template <typename TopIdx>
-    __host__ __device__ BlockToCTileMap_3DGrid_KSplit(TopIdx&)
+    __host__ __device__ BlockToCTileMap_3DGrid_KSplit(TopIdx)
     {
     }
 
