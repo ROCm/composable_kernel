@@ -68,7 +68,9 @@ using KernelTypes = ::testing::Types<std::tuple<Row, Row, Row>,
 } // namespace
 
 TYPED_TEST_SUITE(TestBatchedGemmMultiD, KernelTypes);
-
+#ifdef __fp16
 TYPED_TEST(TestBatchedGemmMultiD, f16) { this->template Run<F16>(); }
-
+#endif
+#ifdef __int8__
 TYPED_TEST(TestBatchedGemmMultiD, int8) { this->template Run<int8_t>(); }
+#endif
