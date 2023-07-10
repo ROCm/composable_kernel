@@ -12,7 +12,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename DOutDataType, typename DInDataType>
+template <index_t NDimSpatial, typename DOutDataType, typename DInDataType>
 struct DeviceAvgPoolBwd : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>

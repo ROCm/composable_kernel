@@ -75,7 +75,8 @@ bool pool3d_bwd_test(bool do_verification,
                      std::vector<ck::index_t> dinput_right_pads)
 {
     using DevicePoolBwdInstance =
-        ck::tensor_operation::device::DeviceAvgPool3dBwdImpl<DOutDataType,
+        ck::tensor_operation::device::DeviceAvgPool3dBwdImpl<3,
+                                                             DOutDataType,
                                                              DInDataType,
                                                              ComputeDataType, // ComputeDataType
                                                              64,              // BlockSize
