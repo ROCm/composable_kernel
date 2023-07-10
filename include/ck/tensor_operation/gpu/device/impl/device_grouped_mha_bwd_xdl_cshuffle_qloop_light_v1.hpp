@@ -315,6 +315,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
 
     static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();
     static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
+    static constexpr index_t DMPerBlock  = BlockSize;
 
     // TODO: implement bias combination
     static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
@@ -373,6 +374,15 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
         Sequence<NumDimG, NumDimM, NumDimN, NumDimK, NumDimO>,
         Sequence<MPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock>,
         GemmSpec,
+        ASpec,
+        BSpec,
+        B1Spec,
+        CSpec>;
+
+    using DTransform = TransformBatchedContractionContractionToBatchedGemmGemm<
+        Sequence<NumDimG, NumDimM, NumDimN, NumDimK, NumDimO>,
+        Sequence<DMPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock>,
+        GemmSpecialization::MNKOPadding,
         ASpec,
         BSpec,
         B1Spec,
@@ -547,6 +557,19 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
         }
     }
 
+    static auto MakeDGridDescriptor_M(index_t MRaw)
+    {
+        const auto d_grid_desc_mraw = make_naive_tensor_descriptor_packed(make_tuple(MRaw));
+
+        const auto M    = math::integer_divide_ceil(MRaw, DMPerBlock) * DMPerBlock;
+        const auto MPad = M - MRaw;
+
+        return transform_tensor_descriptor(d_grid_desc_mraw,
+                                           make_tuple(make_right_pad_transform(MRaw, MPad)),
+                                           make_tuple(Sequence<0>{}),
+                                           make_tuple(Sequence<0>{}));
+    }
+
     using AGridDesc_AK0_M_AK1  = decltype(MakeAGridDescriptor_AK0_M_AK1({}, {}));
     using BGridDesc_BK0_N_BK1  = decltype(MakeBGridDescriptor_BK0_N_BK1({}, {}));
     using B1GridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1({}, {}));
@@ -562,7 +585,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
     using YGradGridDesc_O0_M_O1 = decltype(MakeYGradGridDescriptor_O0_M_O1({}, {}));
     using ZGridDesc_M_N         = decltype(MakeZGridDescriptor_M_N({}, {}));
 
-    using DGridDesc_M = decltype(MakeLSEGridDescriptor_M(1));
+    using DYGridDesc_M_O = decltype(DTransform::MakeCGridDescriptor_M_N({}, {}));
+    using DGridDesc_M    = decltype(MakeDGridDescriptor_M(1));
 
     constexpr static auto make_MaskOutPredicate()
     {
@@ -656,7 +680,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
         B1GridDesc_BK0_N_BK1,
         YGridDesc_M_O,
         LSEGridDesc_M,
-        DGridDesc_M,
+        LSEGridDesc_M,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,
@@ -707,7 +731,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
                                                             YGridDesc_M_O,
                                                             DGridDesc_M,
                                                             BlockSize,
-                                                            BlockSize,
+                                                            DMPerBlock,
                                                             DKPerBlock>;
     using DBlock2CTileMap =
         OffsettedBlockToCTileMap<typename GridwiseYDotYGrad::DefaultBlock2CTileMap>;
@@ -752,6 +776,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
 
         // D parameter
         DDataType* p_d_grid_;
+        DYGridDesc_M_O d_y_grid_desc_m_o_;
         DGridDesc_M d_grid_desc_m_;
         DBlock2CTileMap d_block_2_ctile_map_;
         typename GridwiseYDotYGrad::YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -931,15 +956,18 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
                 // D parameters
                 const auto p_d_grid = static_cast<DDataType*>(p_Ds[i]);
                 const auto d_grid_desc_m =
-                    DeviceOp::MakeLSEGridDescriptor_M(problem_desc.d_gs_ms_lengths[NumDimG]);
+                    DeviceOp::MakeDGridDescriptor_M(problem_desc.d_gs_ms_lengths[NumDimG]);
+
+                const auto d_y_grid_desc_m_o = DTransform::MakeCGridDescriptor_M_N(
+                    problem_desc.c_gs_ms_gemm1ns_lengths, problem_desc.c_gs_ms_gemm1ns_strides);
                 index_t d_block_start          = d_grid_size_;
-                const auto d_block_2_ctile_map = DBlock2CTileMap(y_grid_desc_m_o, d_block_start);
+                const auto d_block_2_ctile_map = DBlock2CTileMap(d_y_grid_desc_m_o, d_block_start);
                 const auto d_y_grid_desc_mblock_mperblock_nblock_nperblock =
                     GridwiseYDotYGrad::MakeYGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        y_grid_desc_m_o);
+                        d_y_grid_desc_m_o);
 
                 index_t d_num_blocks_per_batch =
-                    d_block_2_ctile_map.CalculateGridSize(y_grid_desc_m_o);
+                    d_block_2_ctile_map.CalculateGridSize(d_y_grid_desc_m_o);
 
                 index_t d_block_end = d_block_start + d_num_blocks_per_batch * batch_count;
                 d_grid_size_        = d_block_end;
@@ -973,6 +1001,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
                                               raw_m_padded,
                                               raw_n_padded,
                                               p_d_grid,
+                                              d_y_grid_desc_m_o,
                                               d_grid_desc_m,
                                               d_block_2_ctile_map,
                                               d_y_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -1151,7 +1180,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Xdl_CShuffle_Light_V1
             // TODO: Check if tensor specialization & strides mismatch
             const auto& kernel_arg = arg.group_kernel_args_[i];
             const auto& device_arg = arg.group_device_args_[i];
-            if(!GridwiseYDotYGrad::CheckValidity(kernel_arg.y_grid_desc_m_o_,
+            if(!GridwiseYDotYGrad::CheckValidity(kernel_arg.d_y_grid_desc_m_o_,
                                                  kernel_arg.d_block_2_ctile_map_))
             {
                 return false;

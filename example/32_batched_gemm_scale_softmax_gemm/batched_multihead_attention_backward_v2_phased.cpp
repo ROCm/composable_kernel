@@ -102,8 +102,8 @@ static constexpr bool Deterministic = false;
 // If 32 < DIM <= 64 , ues prototype1 2nd template.
 // If 64 < DIM <= 128, ues prototype2 2nd template.
 #if(DIM <= 32)
-using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Phased_Xdl_CShuffle_V1<
+using DeviceGemmInstance = ck::tensor_operation::device::
+    DeviceBatchedMultiheadAttentionBackward_Qloop_Phased_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -172,8 +172,8 @@ using DeviceGemmInstance =
         MaskingSpec,                                    // MaskingSpecialization
         Deterministic>;
 #elif(DIM <= 64)
-using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Phased_Xdl_CShuffle_V1<
+using DeviceGemmInstance = ck::tensor_operation::device::
+    DeviceBatchedMultiheadAttentionBackward_Qloop_Phased_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,

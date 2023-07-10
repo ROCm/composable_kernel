@@ -45,21 +45,22 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
         {
             return false;
         }
-        // const auto M = y_grid_desc_m_n.GetLength(I0);
+        const auto M = y_grid_desc_m_n.GetLength(I0);
         const auto N = y_grid_desc_m_n.GetLength(I1);
+
         if(N < NPerBlock)
         {
             return false;
         }
-        // std::cout << "m: " << M <<" n: " << N << std::endl;
-        // if(M < MPerBlock)
-        // {
-        //     return false;
-        // }
-        // if(M % MPerBlock != 0)
-        // {
-        //     return false;
-        // }
+
+        if(M < MPerBlock)
+        {
+            return false;
+        }
+        if(M % MPerBlock != 0)
+        {
+            return false;
+        }
         return true;
     }
 
