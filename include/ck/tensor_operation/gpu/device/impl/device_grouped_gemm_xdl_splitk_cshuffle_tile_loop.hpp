@@ -129,7 +129,6 @@ __global__ void
 
 #else
     ignore = gemm_desc_const;
-    ignore = group_count;
     ignore = tile_count;
     ignore = k_batch;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
