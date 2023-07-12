@@ -734,6 +734,10 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         const auto wave_id     = GetGemm0WaveIdx();
         const auto wave_m_n_id = GetGemm0WaveMNIdx(wave_id[I2]); // I2: 0~63
 
+        static_assert(CDE0BlockTransferSrcScalarPerVector <= n4,
+                      "vector load must be not greater than n4");
+        static_assert(n4 % CDE0BlockTransferSrcScalarPerVector == 0);
+
         auto d0s_threadwise_copy = generate_tuple(
             [&](auto i) {
                 return ThreadwiseTensorSliceTransfer_v2<
