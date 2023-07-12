@@ -752,7 +752,7 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                              n3, // NInputNum
                              n4>,
                     Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
-                    CDE0BlockTransferSrcVectorDim,
+                    9, // CDE0BlockTransferSrcVectorDim
                     CDE0BlockTransferSrcScalarPerVector,
                     1,
                     false>(d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
