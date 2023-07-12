@@ -214,5 +214,50 @@ check_err(const Range& out,
     return res;
 }
 
+template <typename Range, typename RefRange>
+std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
+                  std::is_same_v<ranges::range_value_t<Range>, f8_t>), bool>
+check_err(const Range& out,
+          const RefRange& ref,
+          const std::string& msg = "Error: Incorrect results!",
+          double                 = 0,
+          double atol            = 0)
+{
+    if(out.size() != ref.size())
+    {
+        std::cerr << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+                  << std::endl;
+        return false;
+    }
+
+    bool res{true};
+    int err_count   = 0;
+    int64_t err     = 0;
+    int64_t max_err = std::numeric_limits<int64_t>::min();
+    for(std::size_t i = 0; i < ref.size(); ++i)
+    {
+        const int64_t o = *std::next(std::begin(out), i);
+        const int64_t r = *std::next(std::begin(ref), i);
+        err             = std::abs(o - r);
+
+        if(err > atol)
+        {
+            max_err = err > max_err ? err : max_err;
+            err_count++;
+            if(err_count < 5)
+            {
+                std::cerr << msg << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r
+                          << std::endl;
+            }
+            res = false;
+        }
+    }
+    if(!res)
+    {
+        std::cerr << "max err: " << max_err << std::endl;
+    }
+    return res;
+}
+
 } // namespace utils
 } // namespace ck
