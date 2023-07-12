@@ -1945,14 +1945,10 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                         block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
                     auto m_global = m_local + m_block_data_idx_on_grid;
                     auto n_global = n_local + n_block_data_idx_on_grid;
-                    if(c0_matrix_mask.IsMaskedElement(m_global, n_global))
-                    {
-                        s_slash_p_thread_buf(i) = -ck::NumericLimits<float>::Infinity();
-                    }
-                    else
-                    {
-                        s_element_op(s_slash_p_thread_buf(i), s_slash_p_thread_buf[i]);
-                    }
+                    bool masked_flag = c0_matrix_mask.IsMaskedElement(m_global, n_global);
+                    s_element_op(s_slash_p_thread_buf(i),
+                                 masked_flag ? -ck::NumericLimits<float>::Infinity()
+                                             : s_slash_p_thread_buf[i]);
                 });
             }
             else
@@ -2015,17 +2011,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                 constexpr auto m =
                     pgrad_thread_idx_to_m_n_adaptor.CalculateBottomIndex(pgrad_thread_idx)[I0];
                 // dS and P has same thread buf layout
-                if(s_slash_p_thread_buf[i] >= 0)
-                {
-                    sgrad_thread_buf(i) =
-                        s_slash_p_thread_buf[i] *
-                        (pgrad_thread_buf[i] - y_dot_ygrad_thread_buf[Number<m>{}]);
-                }
-                else
-                {
-                    sgrad_thread_buf(i) =
-                        s_slash_p_thread_buf[i] * y_dot_ygrad_thread_buf[Number<m>{}];
-                }
+                bool undropped_flag = s_slash_p_thread_buf[i] >= 0;
+                sgrad_thread_buf(i) =
+                    s_slash_p_thread_buf[i] *
+                    (undropped_flag ? (pgrad_thread_buf[i] - y_dot_ygrad_thread_buf[Number<m>{}])
+                                    : y_dot_ygrad_thread_buf[Number<m>{}]);
             });
 
             // gemm dQ
@@ -2086,6 +2076,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                     p_slice_idx[I3],
                     p_slice_idx[I3] + Gemm2Params_N_O_M::ABlockSliceLengths_M0_N0_M1_N1::At(I3));
 
+                block_sync_lds(); // sync before write
                 if(gemm2_a_copy_subgroup.IsBelong(mwave_range, nwave_range))
                 {
                     vgrad_gemm_tile_p_thread_copy_vgpr_to_lds.Run(
@@ -2095,8 +2086,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                         Gemm2::a_block_desc_m0_n0_m1_n1_m2_n2_n3_n4,
                         gemm2_a_block_buf);
                 }
-
-                // block_sync_lds(); // sync before write
 
                 vgrad_gemm_tile_ygrad_blockwise_copy.Run(Gemm2::b_block_desc_o0_o1_o2_m0_m1_m2_m3,
                                                          ygrad_block_buf,
@@ -2135,6 +2124,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                sgrad_slice_idx[I3] +
                                    Gemm2Params_N_O_M::ABlockSliceLengths_M0_N0_M1_N1::At(I3));
 
+                block_sync_lds(); // sync before write
                 if(gemm2_a_copy_subgroup.IsBelong(mwave_range, nwave_range))
                 {
                     kgrad_gemm_tile_sgrad_thread_copy_vgpr_to_lds.Run(
