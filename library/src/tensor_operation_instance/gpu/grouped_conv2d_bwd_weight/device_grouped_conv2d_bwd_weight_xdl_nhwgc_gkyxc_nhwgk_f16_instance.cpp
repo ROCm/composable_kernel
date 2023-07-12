@@ -1,14 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <cstdlib>
-
-#include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
+
 #include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_xdl_instance.hpp"
 
 namespace ck {
@@ -16,11 +10,12 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_grouped_conv3d_bwd_weight_xdl_gndhwc_gkzyxc_gndhwk_f16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           GNDHWC,
-                                                           GKZYXC,
-                                                           GNDHWK,
+// Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
+void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
+                                                           NHWGC,
+                                                           GKYXC,
+                                                           NHWGK,
                                                            F16,
                                                            F16,
                                                            F16,
@@ -31,18 +26,18 @@ void add_device_grouped_conv3d_bwd_weight_xdl_gndhwc_gkzyxc_gndhwk_f16_instances
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_xdl_c_shuffle_f16_instances<3,
-                                                                   GNDHWC,
-                                                                   GKZYXC,
-                                                                   GNDHWK,
+        device_grouped_conv_bwd_weight_xdl_c_shuffle_f16_instances<2,
+                                                                   NHWGC,
+                                                                   GKYXC,
+                                                                   NHWGK,
                                                                    ConvBwdWeightDefault>{});
     // 2. Filter1x1Stride1Pad0
     add_device_operation_instances(instances,
                                    device_grouped_conv_bwd_weight_xdl_c_shuffle_f16_instances<
-                                       3,
-                                       GNDHWC,
-                                       GKZYXC,
-                                       GNDHWK,
+                                       2,
+                                       NHWGC,
+                                       GKYXC,
+                                       NHWGK,
                                        ConvBwdWeightFilter1x1Stride1Pad0>{});
 }
 
