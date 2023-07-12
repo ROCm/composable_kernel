@@ -1943,8 +1943,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                         block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
                     auto n_local =
                         block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
-                    auto m_global = m_local + m_block_data_idx_on_grid;
-                    auto n_global = n_local + n_block_data_idx_on_grid;
+                    auto m_global    = m_local + m_block_data_idx_on_grid;
+                    auto n_global    = n_local + n_block_data_idx_on_grid;
                     bool masked_flag = c0_matrix_mask.IsMaskedElement(m_global, n_global);
                     s_element_op(s_slash_p_thread_buf(i),
                                  masked_flag ? -ck::NumericLimits<float>::Infinity()

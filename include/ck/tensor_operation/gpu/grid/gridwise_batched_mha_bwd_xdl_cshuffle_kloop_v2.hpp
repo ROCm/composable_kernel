@@ -1448,7 +1448,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                                              1,
                                              false>{
                 lse_grid_desc_mblock_mrepeat_mwave_mperxdl,
-                make_multi_index(block_work_idx_m,       // mblock
+                make_multi_index(block_work_idx_m,         // mblock
                                  acc0_thread_origin[I0],   // mrepeat
                                  acc0_thread_origin[I2],   // mwave
                                  acc0_thread_origin[I4])}; // mperxdl
@@ -1511,14 +1511,14 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
             1, // DstScalarStrideInVector
             true>{z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                   make_multi_index(block_work_idx_m, // MBlockId
-                                   0,                  // NBlockId
-                                   0,                  // mrepeat
-                                   0,                  // nrepeat
-                                   wave_id[I0],        // MWaveId
-                                   wave_id[I1],        // NWaveId
-                                   wave_m_n_id[I1],    // MPerXdl
-                                   0,                  // group
-                                   wave_m_n_id[I0],    // NInputIndex
+                                   0,                // NBlockId
+                                   0,                // mrepeat
+                                   0,                // nrepeat
+                                   wave_id[I0],      // MWaveId
+                                   wave_id[I1],      // NWaveId
+                                   wave_m_n_id[I1],  // MPerXdl
+                                   0,                // group
+                                   wave_m_n_id[I0],  // NInputIndex
                                    0),
                   tensor_operation::element_wise::PassThrough{}};
 
@@ -1838,8 +1838,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V2
                         block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
                     auto n_local =
                         block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
-                    auto m_global = m_local + m_block_data_idx_on_grid;
-                    auto n_global = n_local + n_block_data_idx_on_grid;
+                    auto m_global    = m_local + m_block_data_idx_on_grid;
+                    auto n_global    = n_local + n_block_data_idx_on_grid;
                     bool masked_flag = c0_matrix_mask.IsMaskedElement(m_global, n_global);
                     s_element_op(s_slash_p_thread_buf(i),
                                  masked_flag ? -ck::NumericLimits<float>::Infinity()
