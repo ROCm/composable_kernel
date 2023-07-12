@@ -67,6 +67,8 @@ template <typename A0B0B1DataType, // FIXME: don't assume A0/B0/B1 have same dat
           index_t B0BlockTransferDstScalarPerVector_BK1,
           bool B0ThreadTransferSrcResetCoordinateAfterRun, // ignored
           index_t B0BlockLdsExtraN,
+          index_t CDE0BlockTransferSrcVectorDim,
+          index_t CDE0BlockTransferSrcScalarPerVector,
           typename B1BlockTransferThreadClusterLengths_BK0_N_BK1,
           typename B1BlockTransferThreadClusterArrangeOrder,
           typename B1BlockTransferSrcAccessOrder,
@@ -79,8 +81,7 @@ template <typename A0B0B1DataType, // FIXME: don't assume A0/B0/B1 have same dat
           index_t C1ShuffleGemm0NXdlPerWavePerShuffle,
           typename CDE1ShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDE1ShuffleBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched,
-          int D0sTransferSrcScalarPerVector = 4>
+          LoopScheduler LoopSched>
 struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
 {
     static_assert(LoopSched == LoopScheduler::Default,
@@ -751,8 +752,8 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                              n3, // NInputNum
                              n4>,
                     Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
-                    9,
-                    D0sTransferSrcScalarPerVector,
+                    CDE0BlockTransferSrcVectorDim,
+                    CDE0BlockTransferSrcScalarPerVector,
                     1,
                     false>(d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
                            make_multi_index(block_work_idx[I0], // MBlockId

@@ -173,6 +173,8 @@ using DeviceGemmInstance =
         8,
         8,
         true,
+        9,           // D0sTransferSrcVectorDim
+        4,           // D0sTransferSrcScalaerPerVector
         S<8, 32, 1>, // B1BlockTransfer
         S<0, 2, 1>,
         S<0, 2, 1>,
