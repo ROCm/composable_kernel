@@ -23,7 +23,7 @@ namespace ck::utils {
 namespace {
 
 template <typename T, bool negative_zero_nan, bool clip, bool stoch>
-__host__ __device__ f8_t run_cast_to_f8(T x, uint32_t rng)
+__host__ __device__ uint8_t run_cast_to_f8(T x, uint32_t rng)
 {
     // check data type
     constexpr bool is_half  = std::is_same<T, half_t>::value;
@@ -133,7 +133,7 @@ __host__ __device__ f8_t run_cast_to_f8(T x, uint32_t rng)
 }
 
 template <typename T, bool negative_zero_nan>
-__host__ __device__ T run_cast_from_f8(f8_t x)
+__host__ __device__ T run_cast_from_f8(uint8_t x)
 {
     // check data type
     constexpr bool is_half  = std::is_same<T, half_t>::value;
@@ -222,7 +222,7 @@ __host__ __device__ T run_cast_from_f8(f8_t x)
 } // namespace
 
 template <typename T, bool negative_zero_nan, bool clip, bool stoch>
-__host__ __device__ f8_t cast_to_f8(T x, uint32_t rng)
+__host__ __device__ uint8_t cast_to_f8(T x, uint32_t rng)
 {
     // check datatype
     constexpr bool is_half  = std::is_same<T, half_t>::value;
@@ -233,7 +233,7 @@ __host__ __device__ f8_t cast_to_f8(T x, uint32_t rng)
 }
 
 template <typename T, bool negative_zero_nan>
-__host__ __device__ T cast_from_f8(f8_t x)
+__host__ __device__ T cast_from_f8(uint8_t x)
 {
     // check datatype
     constexpr bool is_half  = std::is_same<T, half_t>::value;
@@ -248,3 +248,9 @@ __host__ __device__ T cast_from_f8(f8_t x)
 }
 
 } // namespace ck::utils
+
+// f8_t constuctor impl
+inline __host__ __device__ ck::f8_t::f8_t(uint8_t init)
+{    
+    data = init;
+}
