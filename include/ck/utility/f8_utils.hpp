@@ -250,7 +250,4 @@ __host__ __device__ T cast_from_f8(uint8_t x)
 } // namespace ck::utils
 
 // f8_t constuctor impl
-inline __host__ __device__ ck::f8_t::f8_t(uint8_t init)
-{    
-    data = init;
-}
+inline __host__ __device__ ck::f8_t::f8_t(uint8_t init) { data = init; }
