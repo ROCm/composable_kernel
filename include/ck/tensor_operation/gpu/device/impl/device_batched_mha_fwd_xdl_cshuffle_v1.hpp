@@ -449,7 +449,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V1
     };
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle<
+    using GridwiseGemm = GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V1<
         ADataType, // TODO: distinguish A/B datatype
         ZDataType,
         GemmDataType,
