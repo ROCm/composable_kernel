@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/tensor_description/cluster_descriptor.hpp"
-#include "ck/utility/reduction_common.hpp"
+#include "ck/utility/get_shift.hpp"
 #include "ck/utility/reduction_functions_accumulate.hpp"
 
 namespace ck {

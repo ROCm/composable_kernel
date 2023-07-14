@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -190,9 +190,9 @@ bool profile_groupnorm_impl(int do_verification,
 
     if(time_kernel)
     {
-        LogRange(std::cout << "length = ", length, ",") << ", ";
-        std::cout << "num_kernel = " << num_kernel << ", best perf = " << best_avg_time << " ms, "
-                  << best_gb_per_sec << " GB/s, " << best_instance_name << std::endl;
+        LogRange(std::cout << "length = ", length, ",") << std::endl;
+        std::cout << "best perf = " << best_avg_time << " ms, " << best_gb_per_sec << " GB/s, "
+                  << best_instance_name << std::endl;
     }
 
     if(num_kernel == 0)

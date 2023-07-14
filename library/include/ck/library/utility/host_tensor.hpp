@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,6 +13,7 @@
 
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/span.hpp"
+#include "ck/utility/type_convert.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/ranges.hpp"
@@ -396,7 +397,7 @@ struct Tensor
         }
         case 6: {
             auto f = [&](auto i0, auto i1, auto i2, auto i3, auto i4, auto i5) {
-                (*this)(i0, i1, i2, i3, i4) = g(i0, i1, i2, i3, i4, i5);
+                (*this)(i0, i1, i2, i3, i4, i5) = g(i0, i1, i2, i3, i4, i5);
             };
             make_ParallelTensorFunctor(f,
                                        mDesc.GetLengths()[0],
@@ -409,6 +410,12 @@ struct Tensor
         }
         default: throw std::runtime_error("unspported dimension");
         }
+    }
+
+    template <typename... Is>
+    std::size_t GetOffsetFromMultiIndex(Is... is) const
+    {
+        return mDesc.GetOffsetFromMultiIndex(is...);
     }
 
     template <typename... Is>

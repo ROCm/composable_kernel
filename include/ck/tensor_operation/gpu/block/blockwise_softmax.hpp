@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -12,6 +12,16 @@
 
 namespace ck {
 
+/**
+ * @brief Blockwise softmax
+ *
+ * @tparam BlockSize Block size
+ * @tparam AccDataType Accumulator data type
+ * @tparam ThreadMap_M_K Thread id to m_k
+ * @tparam ThreadClusterDesc_M_K Threadwise cluster descriptor
+ * @tparam ThreadSliceDesc_M_K Threadwise slices descriptor
+ * @tparam IgnoreNaN Flag to ignore NaN, false by default
+ */
 template <index_t BlockSize,
           typename AccDataType,
           typename ThreadMap_M_K, // thread_id to m_k

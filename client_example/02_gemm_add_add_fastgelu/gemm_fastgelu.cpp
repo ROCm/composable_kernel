@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iomanip>
 #include <vector>
@@ -72,7 +72,7 @@ int main(int argc, char* argv[])
 
         StrideA = std::stoi(argv[4]);
         StrideB = std::stoi(argv[5]);
-        StrideE = std::stoi(argv[8]);
+        StrideE = std::stoi(argv[6]);
     }
     else
     {
@@ -84,7 +84,7 @@ int main(int argc, char* argv[])
         [](std::size_t nRow, std::size_t nCol, std::size_t stride, auto layout) {
             using Layout = decltype(layout);
 
-            if(std::is_same<Layout, ck::tensor_layout::gemm::RowMajor>::value)
+            if constexpr(std::is_same<Layout, ck::tensor_layout::gemm::RowMajor>::value)
             {
                 return (nRow - 1) * stride + nCol;
             }

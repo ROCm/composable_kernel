@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -38,16 +38,9 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
                                                 OutDataType,
                                                 InElementwiseOp,
                                                 AccElementwiseOp,
-                                                Rank>
+                                                Rank,
+                                                NumReduceDim>
 {
-    static constexpr index_t kRank            = Rank;
-    static constexpr index_t kNumReduceDim    = NumReduceDim;
-    static constexpr index_t kNumInvariantDim = Rank - NumReduceDim;
-
-    virtual index_t GetRank() const override { return kRank; }
-
-    virtual index_t GetNumReduceDim() const override { return kNumReduceDim; }
-
     static constexpr index_t NumInvariantDim = Rank - NumReduceDim;
 
     static constexpr index_t NumSrcDim = Rank;
@@ -156,19 +149,20 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
         Argument(const std::vector<index_t> inLengths,
                  const std::vector<index_t> inStrides,
                  const std::vector<index_t> reduceDims,
-                 AccDataType alpha,
-                 AccDataType beta,
+                 double alpha,
+                 double beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev,
                  InElementwiseOp in_elementwise_op,
                  AccElementwiseOp acc_elementwise_op)
-            : alpha_{alpha},
-              beta_{beta},
-              in_dev_{in_dev},
+            : in_dev_{in_dev},
               out_dev_{out_dev},
               in_elementwise_op_{in_elementwise_op},
               acc_elementwise_op_{acc_elementwise_op}
         {
+            alpha_ = static_cast<AccDataType>(alpha);
+            beta_  = static_cast<AccDataType>(beta);
+
             if(Rank != inLengths.size() || Rank != inStrides.size() ||
                NumReduceDim != reduceDims.size())
             {
@@ -286,13 +280,13 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
     {
         if constexpr(InSrcVectorDim == 0)
         {
-            if constexpr(kNumInvariantDim == 0)
+            if constexpr(NumInvariantDim == 0)
             {
                 return false;
             }
             else
             {
-                if(arg.inStrides_[kNumInvariantDim - 1] != 1 && InSrcVectorSize != 1)
+                if(arg.inStrides_[NumInvariantDim - 1] != 1 && InSrcVectorSize != 1)
                 {
                     return false;
                 }
@@ -315,7 +309,7 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
         }
 
         // To improve
-        if(kNumInvariantDim > 0 && arg.invariant_lowest_length_ % OutDstVectorSize != 0)
+        if(NumInvariantDim > 0 && arg.invariant_lowest_length_ % OutDstVectorSize != 0)
         {
             return false;
         }
@@ -336,8 +330,8 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
     static auto MakeArgument(const std::vector<index_t> inLengths,
                              const std::vector<index_t> inStrides,
                              const std::vector<int> reduceDims,
-                             const AccDataType alpha,
-                             const AccDataType beta,
+                             double alpha,
+                             double beta,
                              const InDataType* in_dev,
                              OutDataType* out_dev,
                              InElementwiseOp in_elementwise_op,
@@ -375,8 +369,8 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<index_t> inLengths,
                                                       const std::vector<index_t> inStrides,
                                                       const std::vector<int> reduceDims,
-                                                      const void* alpha,
-                                                      const void* beta,
+                                                      double alpha,
+                                                      double beta,
                                                       const void* in_dev,
                                                       void* out_dev,
                                                       InElementwiseOp in_elementwise_op,
@@ -385,8 +379,8 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
                                           reduceDims,
-                                          *static_cast<const AccDataType*>(alpha),
-                                          *static_cast<const AccDataType*>(beta),
+                                          alpha,
+                                          beta,
                                           static_cast<const InDataType*>(in_dev),
                                           static_cast<OutDataType*>(out_dev),
                                           in_elementwise_op,

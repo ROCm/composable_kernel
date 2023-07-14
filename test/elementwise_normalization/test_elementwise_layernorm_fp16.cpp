@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
 #include "profiler/profile_elementwise_layernorm_impl.hpp"
@@ -23,7 +23,7 @@ class TestElementwiseLayernorm : public ::testing::Test
     {
         // M, N
         std::vector<std::vector<ck::index_t>> lengths = {
-            {1, 1}, {25, 16}, {39, 777}, {100, 200}, {1024, 1024}, {48 * 256, 2048}};
+            {1, 1}, {25, 16}, {39, 777}, {100, 200}, {1024, 1024}, {48 * 256, 2048}, {4096, 8192}};
 
         for(auto length : lengths)
         {

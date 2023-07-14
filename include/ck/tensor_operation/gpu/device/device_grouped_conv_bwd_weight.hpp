@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -27,17 +27,19 @@ struct DeviceGroupedConvBwdWeight : public BaseOperator
     MakeArgumentPointer(const void* p_in,
                         void* p_wei,
                         const void* p_out,
-                        ck::index_t G,
-                        ck::index_t N,
-                        ck::index_t K,
-                        ck::index_t C,
-                        std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
-                        std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
-                        std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
-                        std::array<ck::index_t, NDimSpatial> conv_filter_strides,
-                        std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
-                        std::array<ck::index_t, NDimSpatial> input_left_pads,
-                        std::array<ck::index_t, NDimSpatial> input_right_pads,
+                        const ck::index_t G,
+                        const ck::index_t N,
+                        const ck::index_t K,
+                        const ck::index_t C,
+                        const std::array<ck::index_t, NDimSpatial>& input_spatial_lengths,
+                        const std::array<ck::index_t, NDimSpatial>& filter_spatial_lengths,
+                        const std::array<ck::index_t, NDimSpatial>& output_spatial_lengths,
+                        const std::array<ck::index_t, NDimSpatial + 3>& input_strides,
+                        const std::array<ck::index_t, NDimSpatial + 3>& output_strides,
+                        const std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
+                        const std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
+                        const std::array<ck::index_t, NDimSpatial>& input_left_pads,
+                        const std::array<ck::index_t, NDimSpatial>& input_right_pads,
                         InElementwiseOperation in_element_op,
                         WeiElementwiseOperation wei_element_op,
                         OutElementwiseOperation out_element_op,

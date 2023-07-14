@@ -11,15 +11,56 @@ def show_node_info() {
     """
 }
 
+def nthreads() {
+    def nproc = sh(returnStdout: true, script: 'nproc')
+    echo "Number of cores: ${nproc}"
+    def n = nproc.toInteger()
+    if (n > 32){
+        n /= 2
+    }
+    if (n > 64){
+        n = 64
+    }
+    echo "Number of threads used for building: ${n}"
+    return n
+}
+
 def runShell(String command){
     def responseCode = sh returnStatus: true, script: "${command} > tmp.txt"
     def output = readFile(file: "tmp.txt")
-    echo "tmp.txt contents: $output"
     return (output != "")
 }
 
 def getDockerImageName(){
-    def img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
+    def img
+    if (params.ROCMVERSION != "5.7"){
+       if (params.COMPILER_VERSION == "") {
+           img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
+       }
+       else{
+          if (params.COMPILER_COMMIT == ""){
+             img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
+          }
+          else{
+             def commit = "${params.COMPILER_COMMIT}"[0..6]
+             img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
+          }
+       }
+    }
+    else{
+       if (params.COMPILER_VERSION == "") {
+           img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}"
+       }
+       else{
+          if (params.COMPILER_COMMIT == ""){
+             img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
+          }
+          else{
+             def commit = "${params.COMPILER_COMMIT}"[0..6]
+             img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
+          }
+       }
+    }
     return img
 }
 
@@ -43,11 +84,11 @@ def build_compiler(){
         compiler = '/opt/rocm/bin/hipcc'
     }
     else{
-        if (params.COMPILER_VERSION == "release"){
-            compiler = "/opt/rocm/llvm/bin/clang++"
+        if (params.COMPILER_VERSION == "amd-stg-open" || params.COMPILER_COMMIT != ""){
+            compiler = "/llvm-project/build/bin/clang++"
         }
         else{
-            compiler = "/llvm-project/build/bin/clang++"
+            compiler = "/opt/rocm/llvm/bin/clang++"
         }        
     }
     return compiler
@@ -165,7 +206,7 @@ def cmake_build(Map conf=[:]){
     if(conf.get("build_install","") == "true")
     {
         config_targets = 'install ' + config_targets
-        setup_args = ' -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install' + setup_args
+        setup_args = ' -DBUILD_DEV=On -DCMAKE_INSTALL_PREFIX=../install' + setup_args
     } else{
         setup_args = ' -DBUILD_DEV=On' + setup_args
     }
@@ -192,7 +233,8 @@ def cmake_build(Map conf=[:]){
         """
     def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
     // reduce parallelism when compiling, clang uses too much memory
-    def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j\$(( \$(nproc) / 2 )) ${config_targets}")
+    def nt = nthreads()
+    def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j${nt} ${config_targets}")
     def execute_cmd = conf.get("execute_cmd", "")
 
     def cmd = conf.get("cmd", """
@@ -226,7 +268,7 @@ def buildHipClangJob(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-        if (params.COMPILER_VERSION != "release"){
+        if (params.COMPILER_VERSION == "amd-stg-open" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
 
@@ -281,7 +323,7 @@ def runCKProfiler(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-        if (params.COMPILER_VERSION != "release"){
+        if (params.COMPILER_VERSION == "amd-stg-open" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
 
@@ -414,12 +456,13 @@ def Build_CK(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-        if (params.COMPILER_VERSION != "release"){
+        if (params.COMPILER_VERSION == "amd-stg-open" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
 
         def variant = env.STAGE_NAME
         def retimage
+        def navi_node = 0
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             try {
@@ -432,6 +475,9 @@ def Build_CK(Map conf=[:]){
                         }
                         else{
                             echo "GPU is OK"
+                        }
+                        if ( runShell('grep -n "gfx1030" clinfo.log') || runShell('grep -n "gfx1101" clinfo.log') ){
+                            navi_node = 1
                         }
                     }
                 }
@@ -451,6 +497,9 @@ def Build_CK(Map conf=[:]){
                         else{
                             echo "GPU is OK"
                         }
+                        if ( runShell('grep -n "gfx1030" clinfo.log') || runShell('grep -n "gfx1101" clinfo.log') ){
+                            navi_node = 1
+                        }
                     }
                 }
             }
@@ -460,10 +509,22 @@ def Build_CK(Map conf=[:]){
                     cmake_build(conf)
                     dir("build"){
                         //run tests and examples
-                        sh 'make -j check'
-                        //we only need the ckProfiler to run the performance tests, so we pack and stash it
-                        sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
-                        stash "ckProfiler.tar.gz"
+                        def nt = nthreads()	
+                        sh 'make -j${nt} check'
+                        if (navi_node == 0 ){
+                            //we only need the ckProfiler to run the performance tests, so we pack and stash it
+                            //do not stash profiler on Navi nodes
+                           sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
+                           stash "ckProfiler.tar.gz"
+                        }
+                        if (params.RUN_FULL_QA){
+                           // build deb packages
+                           sh 'make -j package'
+                           archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
+                           archiveArtifacts artifacts: 'composablekernel-tests_*.deb'
+                           sh 'mv composablekernel-ckprofiler_*.deb ckprofiler_0.2.0_amd64.deb'
+                           stash "ckprofiler_0.2.0_amd64.deb"
+                        }
                     }
                 }
             }
@@ -530,6 +591,8 @@ def process_results(Map conf=[:]){
                         unstash "perf_splitK_gemm.log"
                         unstash "perf_onnx_gemm.log"
                         sh "./process_qa_data.sh"
+                        unstash "ckprofiler_0.2.0_amd64.deb"
+                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                     }
                     else{
                         // unstash perf files to master
@@ -550,8 +613,9 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;COMPILER_VERSION=release
-                                              0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-stg-open''' : ""
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true
+                                              0 21 * * * % ROCMVERSION=5.6;COMPILER_VERSION=;COMPILER_COMMIT=
+                                              0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=''' : ""
 
 pipeline {
     agent none
@@ -568,16 +632,16 @@ pipeline {
             description: "Force building docker image (default: false), set to true if docker image needs to be updated.")
         string(
             name: 'ROCMVERSION', 
-            defaultValue: '5.3', 
-            description: 'Specify which ROCM version to use: 5.2.3, or 5.3 (default), etc.')
+            defaultValue: '5.6', 
+            description: 'Specify which ROCM version to use: 5.6 (default).')
         string(
             name: 'COMPILER_VERSION', 
-            defaultValue: 'release', 
-            description: 'Specify which version of compiler to use: ck-9110, release (default), or amd-stg-open.')
+            defaultValue: '', 
+            description: 'Specify which version of compiler to use: release, amd-stg-open, or leave blank (default).')
         string(
             name: 'COMPILER_COMMIT', 
             defaultValue: '', 
-            description: 'Specify which commit of compiler branch to use: leave empty to use the latest commit (default), or use 8a82e4eb7ba28521ba9a9424a0315a8a16590424 commit of amd-stg-open branch.')
+            description: 'Specify which commit of compiler branch to use: leave blank to use the latest commit, or use 5541927df00eabd6a110180170eca7785d436ee3 (default) commit of amd-stg-open branch.')
         string(
             name: 'BUILD_COMPILER', 
             defaultValue: 'hipcc', 
@@ -639,12 +703,47 @@ pipeline {
         {
             parallel
             {
-                stage("Build CK and run Tests")
+                stage("Build CK and run Tests on MI100/MI200/MI300")
                 {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_FULL_QA.toBoolean() }
+                    }
                     agent{ label rocmnode("gfx908 || gfx90a") }
                     environment{
-                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS="-O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" """ : """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS="-O3 " """ }"
-                        execute_args = "${params.COMPILER_VERSION == "ck-9110" ? """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS="-O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ : """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908,gfx90a" -DCMAKE_CXX_FLAGS="-O3" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ }"
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a;gfx940" """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908;gfx90a;gfx940" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ 
+                    }
+                    steps{
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                    }
+                }
+                stage("Build CK and run Tests on MI100/MI200")
+                {
+                    when {
+                        beforeAgent true
+                        expression { !params.RUN_FULL_QA.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx908 || gfx90a") }
+                    environment{
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a" """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908;gfx90a" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ 
+                    }
+                    steps{
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                    }
+                }
+                stage("Build CK and run Tests on Navi21")
+                {
+                    when {
+                        beforeAgent true
+                        expression { !params.RUN_FULL_QA.toBoolean() }
+                    }
+                    agent{ label rocmnode("navi21") }
+                    environment{
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1030" """ 
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1030" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
+
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
@@ -657,7 +756,7 @@ pipeline {
         {
             parallel
             {
-                stage("Run ckProfiler: gfx908 or gfx90a")
+                stage("Run ckProfiler: gfx90*")
                 {
                     when {
                         beforeAgent true
@@ -666,7 +765,7 @@ pipeline {
                     options { retry(2) }
                     agent{ label rocmnode("gfx908 || gfx90a")}
                     environment{
-                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS=" -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """ : """ -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " -DBUILD_DEV=On """}"
+                        setup_args = """ -DGPU_TARGETS="gfx908;gfx90a" -DBUILD_DEV=On """
                    }
                     steps{
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
@@ -681,7 +780,7 @@ pipeline {
                     options { retry(2) }
                     agent{ label rocmnode("gfx90a")}
                     environment{
-                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -DGPU_TARGETS="gfx90a" -DCMAKE_CXX_FLAGS=" -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """ : """ -DGPU_TARGETS="gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " -DBUILD_DEV=On """}"
+                        setup_args = """ -DGPU_TARGETS="gfx90a" -DBUILD_DEV=On """
                     }
                     steps{
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')

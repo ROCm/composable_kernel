@@ -1,0 +1,16 @@
+add_custom_target(test_pool_fwd)
+
+add_gtest_executable(test_avg_pool2d_fwd test_avg_pool2d_fwd.cpp)
+add_gtest_executable(test_avg_pool3d_fwd test_avg_pool3d_fwd.cpp)
+add_gtest_executable(test_max_pool2d_fwd test_max_pool2d_fwd.cpp)
+add_gtest_executable(test_max_pool3d_fwd test_max_pool3d_fwd.cpp)
+
+target_link_libraries(test_avg_pool2d_fwd PRIVATE utility device_pool_fwd_instance)
+target_link_libraries(test_avg_pool3d_fwd PRIVATE utility device_pool_fwd_instance)
+target_link_libraries(test_max_pool2d_fwd PRIVATE utility device_pool_fwd_instance)
+target_link_libraries(test_max_pool3d_fwd PRIVATE utility device_pool_fwd_instance)
+
+add_dependencies(test_pool_fwd test_avg_pool2d_fwd)
+add_dependencies(test_pool_fwd test_avg_pool3d_fwd)
+add_dependencies(test_pool_fwd test_max_pool2d_fwd)
+add_dependencies(test_pool_fwd test_max_pool3d_fwd)

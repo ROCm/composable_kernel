@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -161,7 +161,7 @@ struct GridwiseMultiblockWelfordFirstHalf
                                                PassThroughOp,
                                                ThreadBufferLengths_M_1,
                                                Sequence<0, 1>,
-                                               1,
+                                               0,
                                                1,
                                                InMemoryDataOperationEnum::Set,
                                                1,
@@ -180,7 +180,7 @@ struct GridwiseMultiblockWelfordFirstHalf
                                                PassThroughOp,
                                                ThreadBufferLengths_M_1,
                                                Sequence<0, 1>,
-                                               1,
+                                               0,
                                                1,
                                                InMemoryDataOperationEnum::Set,
                                                1,

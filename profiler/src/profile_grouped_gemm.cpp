@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -29,6 +29,11 @@ enum struct GemmDataType
     INT8_INT8_INT8, // 3
 };
 
+#define OP_NAME "grouped_gemm"
+#define OP_DESC "Grouped GEMM"
+
+namespace {
+
 std::vector<int> argToIntArray(char* input)
 {
     std::vector<int> out;
@@ -45,25 +50,26 @@ std::vector<int> argToIntArray(char* input)
     return out;
 }
 
-#define OP_NAME "grouped_gemm"
-#define OP_DESC "Grouped GEMM"
-
 int profile_grouped_gemm(int argc, char* argv[])
 {
-    if(!(argc == 14))
+    if(argc < 14)
     {
-        printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
-        printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8)\n");
-        printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
-        printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
-        printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");
-        printf("                     3: A[k, m] * B[n, k] = C[m, n])\n");
-        printf("arg4: verification (0: no; 1: yes)\n");
-        printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
-        printf("arg6: print tensor value (0: no; 1: yes)\n");
-        printf("arg7: time kernel (0=n0, 1=yes)\n");
-        printf("arg8 to 13: Ms, Ns, Ks, StrideAs, StrideBs, StrideCs (e.g., 256,256 128,128 64,64 "
-               "64,64 64,64 128,128)\n");
+        std::cout
+            << "arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n"
+            << "arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8)\n"
+            << "arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n"
+            << "                     1: A[m, k] * B[n, k] = C[m, n];\n"
+            << "                     2: A[k, m] * B[k, n] = C[m, n];\n"
+            << "                     3: A[k, m] * B[n, k] = C[m, n])\n"
+            << "arg4: verification (0: no; 1: yes)\n"
+            << "arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n"
+            << "arg6: print tensor value (0: no; 1: yes)\n"
+            << "arg7: time kernel (0=n0, 1=yes)\n"
+            << "arg8 to 13: Ms, Ns, Ks, StrideAs, StrideBs, StrideCs (e.g., 256,256 128,128 64,64 "
+               "64,64 64,64 128,128)\n"
+            << "arg15: kbatch value (default 4)\n"
+            << std::endl;
+
         exit(1);
     }
 
@@ -81,6 +87,7 @@ int profile_grouped_gemm(int argc, char* argv[])
     const auto StrideAs = argToIntArray(argv[11]);
     const auto StrideBs = argToIntArray(argv[12]);
     const auto StrideCs = argToIntArray(argv[13]);
+    const int kbatch    = argc == 15 ? std::stoi(argv[14]) : 1;
 
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
@@ -99,7 +106,8 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                                                    Ks,
                                                                                    StrideAs,
                                                                                    StrideBs,
-                                                                                   StrideCs);
+                                                                                   StrideCs,
+                                                                                   kbatch);
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
@@ -118,7 +126,8 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                                                    Ks,
                                                                                    StrideAs,
                                                                                    StrideBs,
-                                                                                   StrideCs);
+                                                                                   StrideCs,
+                                                                                   kbatch);
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_KN_MN)
     {
@@ -137,7 +146,8 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                                                    Ks,
                                                                                    StrideAs,
                                                                                    StrideBs,
-                                                                                   StrideCs);
+                                                                                   StrideCs,
+                                                                                   kbatch);
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
@@ -156,7 +166,8 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                                                    Ks,
                                                                                    StrideAs,
                                                                                    StrideBs,
-                                                                                   StrideCs);
+                                                                                   StrideCs,
+                                                                                   kbatch);
     }
     else
     {
@@ -165,5 +176,7 @@ int profile_grouped_gemm(int argc, char* argv[])
 
     return 0;
 }
+
+} // anonymous namespace
 
 REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_grouped_gemm);

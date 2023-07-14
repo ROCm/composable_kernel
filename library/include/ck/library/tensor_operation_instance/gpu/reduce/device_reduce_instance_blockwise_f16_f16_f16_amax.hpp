@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -15,14 +15,14 @@ namespace instance {
 
 // clang-format off
 // InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOperation | InElementwiseOp | AccElementwiseOp | PropagateNan | UseIndex 
-extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 4, 3, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 3, UnaryAbs, PassThrough>>&);
-extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 4, 4, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 4, UnaryAbs, PassThrough>>&);
-extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 4, 1, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 1, UnaryAbs, PassThrough>>&);
-extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 2, 1, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<2, 1, UnaryAbs, PassThrough>>&);
-extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 4, 3, ReduceAMax, UnaryAbs, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 3, UnaryAbs, PassThrough>>&);
-extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 4, 4, ReduceAMax, UnaryAbs, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 4, UnaryAbs, PassThrough>>&);
-extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 4, 1, ReduceAMax, UnaryAbs, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 1, UnaryAbs, PassThrough>>&);
-extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 2, 1, ReduceAMax, UnaryAbs, PassThrough, false, true>(std::vector<DeviceReducePtr<2, 1, UnaryAbs, PassThrough>>&);
+extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 4, 3, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F16, F16, F16, 4, 3, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
+extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 4, 4, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F16, F16, F16, 4, 4, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
+extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 4, 1, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F16, F16, F16, 4, 1, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
+extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 2, 1, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F16, F16, F16, 2, 1, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
+extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 4, 3, ReduceAMax, UnaryAbs, PassThrough, false, true>(std::vector<DeviceReducePtr<F16, F16, F16, 4, 3, ReduceAMax, UnaryAbs, PassThrough, false, true>>&);
+extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 4, 4, ReduceAMax, UnaryAbs, PassThrough, false, true>(std::vector<DeviceReducePtr<F16, F16, F16, 4, 4, ReduceAMax, UnaryAbs, PassThrough, false, true>>&);
+extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 4, 1, ReduceAMax, UnaryAbs, PassThrough, false, true>(std::vector<DeviceReducePtr<F16, F16, F16, 4, 1, ReduceAMax, UnaryAbs, PassThrough, false, true>>&);
+extern template void add_device_reduce_instance_blockwise<F16, F16, F16, 2, 1, ReduceAMax, UnaryAbs, PassThrough, false, true>(std::vector<DeviceReducePtr<F16, F16, F16, 2, 1, ReduceAMax, UnaryAbs, PassThrough, false, true>>&);
 // clang-format on
 
 } // namespace instance

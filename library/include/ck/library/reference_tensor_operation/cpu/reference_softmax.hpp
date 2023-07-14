@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -24,17 +24,19 @@ struct ReferenceSoftmax : public device::BaseOperator
     {
         Argument(const Tensor<InDataType>& in,
                  Tensor<OutDataType>& out,
-                 AccDataType alpha,
-                 AccDataType beta,
+                 double alpha,
+                 double beta,
                  const std::vector<index_t> sm_reduce_dims,
                  Tensor<AccDataType>* sm_stats_ptr = nullptr)
             : in_(in),
               out_(out),
-              alpha_(alpha),
-              beta_(beta),
               sm_reduce_dims_(sm_reduce_dims),
               sm_stats_ptr_(sm_stats_ptr)
         {
+            alpha_ = static_cast<AccDataType>(alpha);
+            beta_  = static_cast<AccDataType>(beta);
+
+            // std::cout << "debug: scalar dims: ";  
             for(size_t i = 0; i < in.mDesc.GetNumOfDimension(); i++)
             {
                 if(std::find(sm_reduce_dims.begin(), sm_reduce_dims.end(), i) ==
@@ -171,8 +173,8 @@ struct ReferenceSoftmax : public device::BaseOperator
 
     static auto MakeArgument(const Tensor<InDataType>& in,
                              Tensor<OutDataType>& out,
-                             AccDataType alpha,
-                             AccDataType beta,
+                             double alpha,
+                             double beta,
                              const std::vector<index_t> sm_reduce_dims,
                              Tensor<AccDataType>* stats = nullptr)
     {

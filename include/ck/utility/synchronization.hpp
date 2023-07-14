@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -18,6 +18,7 @@ __device__ void block_sync_lds()
     __syncthreads();
 #endif
 }
+
 __device__ void s_nop()
 {
 #if 1
