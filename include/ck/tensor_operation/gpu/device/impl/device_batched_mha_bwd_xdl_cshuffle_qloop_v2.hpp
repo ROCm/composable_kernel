@@ -47,6 +47,7 @@ template <typename GridwiseGemm,
           typename ComputeBasePtrOfStridedBatch,
           typename C0MatrixMask,
           bool HasMainKBlockLoop,
+          bool IsDropout,
           bool Deterministic>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -118,7 +119,7 @@ __global__ void
     {
         for(index_t i = 0; i < nblock; i++)
         {
-            GridwiseGemm::template Run<HasMainKBlockLoop>(
+            GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
                 p_a_grid + a_batch_offset,
                 p_b_grid + b_batch_offset,
                 z_matrix_ptr,
@@ -153,7 +154,7 @@ __global__ void
     }
     else
     {
-        GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
+        GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(p_a_grid + a_batch_offset,
                                                       p_b_grid + b_batch_offset,
                                                       z_matrix_ptr,
                                                       p_b1_grid + b1_batch_offset,
@@ -949,7 +950,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
             float ave_time = 0;
 
-            auto launch_kernel = [&](auto has_main_k_block_loop_) {
+            auto launch_kernel = [&](auto has_main_k_block_loop_, auto is_dropout_) {
                 const auto kernel =
                     kernel_batched_multihead_attention_backward_qloop_xdl_cshuffle_v2<
                         GridwiseGemm,
@@ -973,6 +974,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                         ComputeBasePtrOfStridedBatch,
                         C0MatrixMask,
                         has_main_k_block_loop_,
+                        is_dropout_,
                         Deterministic>;
 
                 return launch_and_time_kernel(
@@ -1020,11 +1022,17 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                ave_time = launch_kernel(integral_constant<bool, true>{});
+                if(arg.p_drop_ > 0.0)
+                    ave_time = launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, true>{});
+                else
+                    ave_time = launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, false>{});
             }
             else
             {
-                ave_time = launch_kernel(integral_constant<bool, false>{});
+                if(arg.p_drop_ > 0.0)
+                    ave_time = launch_kernel(integral_constant<bool, false>{}, integral_constant<bool, true>{});
+                else
+                    ave_time = launch_kernel(integral_constant<bool, false>{}, integral_constant<bool, false>{});
             }
 
             return ave_time;
