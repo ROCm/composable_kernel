@@ -1396,7 +1396,7 @@ int run(int argc, char* argv[])
         }
 
         std::cout << "Checking z:\n";
-        pass &= ck::utils::check_err(z_fwd_gs_ms_ns.mData, z_bwd_gs_ms_ns.mData, 1);
+        pass &= ck::utils::check_integer_err(z_fwd_gs_ms_ns.mData, z_bwd_gs_ms_ns.mData, 1);
 
         std::cout << "Checking y:\n";
         pass &= ck::utils::check_err(
