@@ -264,13 +264,6 @@ template <index_t NumDimG,
           index_t BBlockTransferSrcScalarPerVector,
           index_t BBlockTransferDstScalarPerVector_BK1,
           bool BBlockLdsExtraN,
-          typename B1BlockTransferThreadClusterLengths_BK0_N_BK1,
-          typename B1BlockTransferThreadClusterArrangeOrder,
-          typename B1BlockTransferSrcAccessOrder,
-          index_t B1BlockTransferSrcVectorDim,
-          index_t B1BlockTransferSrcScalarPerVector,
-          index_t B1BlockTransferDstScalarPerVector_BK1,
-          bool B1BlockLdsExtraN,
           index_t CShuffleMXdlPerWavePerShuffle,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -694,14 +687,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V1
         BBlockTransferDstScalarPerVector_BK1,
         true,
         BBlockLdsExtraN,
-        B1BlockTransferThreadClusterLengths_BK0_N_BK1,
-        B1BlockTransferThreadClusterArrangeOrder,
-        B1BlockTransferSrcAccessOrder,
-        B1BlockTransferSrcVectorDim,
-        B1BlockTransferSrcScalarPerVector,
-        B1BlockTransferDstScalarPerVector_BK1,
-        false,
-        B1BlockLdsExtraN,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -1082,14 +1067,12 @@ struct DeviceBatchedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V1
         const auto Gemm1NzRaw = arg.raw_lengths_mz_nz_kz_gemm1nz_[3];
 
         // Check scalar per vector requirement
-        const auto a_extent_lowest  = ABlockTransferSrcVectorDim == 2 ? KzRaw : MzRaw;
-        const auto b_extent_lowest  = BBlockTransferSrcVectorDim == 2 ? KzRaw : NzRaw;
-        const auto b1_extent_lowest = B1BlockTransferSrcVectorDim == 2 ? NzRaw : Gemm1NzRaw;
-        const auto c_extent_lowest  = Gemm1NzRaw;
+        const auto a_extent_lowest = ABlockTransferSrcVectorDim == 2 ? KzRaw : MzRaw;
+        const auto b_extent_lowest = BBlockTransferSrcVectorDim == 2 ? KzRaw : NzRaw;
+        const auto c_extent_lowest = Gemm1NzRaw;
 
         if(!(a_extent_lowest % ABlockTransferSrcScalarPerVector == 0 &&
              b_extent_lowest % BBlockTransferSrcScalarPerVector == 0 &&
-             b1_extent_lowest % B1BlockTransferSrcScalarPerVector == 0 &&
              c_extent_lowest % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
         {
             return false;
@@ -1100,13 +1083,10 @@ struct DeviceBatchedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V1
             ABlockTransferSrcVectorDim == 2 ? arg.a_mz_kz_strides_[1] : arg.a_mz_kz_strides_[0];
         const auto b_stride_lowest =
             BBlockTransferSrcVectorDim == 2 ? arg.b_nz_kz_strides_[1] : arg.b_nz_kz_strides_[0];
-        const auto b1_stride_lowest =
-            B1BlockTransferSrcVectorDim == 2 ? arg.b1_nz_kz_strides_[1] : arg.b1_nz_kz_strides_[0];
         const auto c_stride_lowest =
             arg.c_mz_gemm1nz_strides_[1]; // cshuffle assumes lowest dim in Gemm1Ns to be contiguous
 
-        if(!(a_stride_lowest == 1 || b_stride_lowest == 1 || b1_stride_lowest == 1 ||
-             c_stride_lowest == 1))
+        if(!(a_stride_lowest == 1 || b_stride_lowest == 1 || c_stride_lowest == 1))
         {
             return false;
         }
