@@ -35,6 +35,7 @@ template <typename GridwiseGemm,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
           bool HasMainKBlockLoop,
+          bool IsDropout,
           bool Deterministic>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -105,7 +106,7 @@ __global__ void
     {
         for(index_t i = 0; i < num_blocks_per_batch; i++)
         {
-            GridwiseGemm::template Run<HasMainKBlockLoop>(
+            GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
                 arg_ptr[group_id].p_a_grid_ + a_batch_offset,
                 arg_ptr[group_id].p_b_grid_ + b_batch_offset,
                 z_matrix_ptr,
@@ -141,7 +142,7 @@ __global__ void
     }
     else
     {
-        GridwiseGemm::template Run<HasMainKBlockLoop>(
+        GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
             arg_ptr[group_id].p_a_grid_ + a_batch_offset,
             arg_ptr[group_id].p_b_grid_ + b_batch_offset,
             z_matrix_ptr,
@@ -968,7 +969,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
             float ave_time = 0;
 
-            auto launch_kernel = [&](auto has_main_k_block_loop_) {
+            auto launch_kernel = [&](auto has_main_k_block_loop_, auto is_dropout_) {
                 const auto kernel =
                     kernel_grouped_multihead_attention_backward_qloop_xdl_cshuffle_v2<
                         GridwiseGemm,
@@ -979,6 +980,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                         B1ElementwiseOperation,
                         CElementwiseOperation,
                         has_main_k_block_loop_,
+                        is_dropout_,
                         Deterministic>;
 
                 return launch_and_time_kernel(
@@ -1003,11 +1005,17 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             // to concern Gemm0's loop
             if(all_has_main_k_block_loop)
             {
-                ave_time = launch_kernel(integral_constant<bool, true>{});
+                if(arg.p_dropout_ > 0.0)
+                    ave_time = launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, true>{});
+                else
+                    ave_time = launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, false>{});
             }
             else if(!some_has_main_k_block_loop)
             {
-                ave_time = launch_kernel(integral_constant<bool, false>{});
+                if(arg.p_dropout_ > 0.0)
+                    ave_time = launch_kernel(integral_constant<bool, false>{}, integral_constant<bool, true>{});
+                else
+                    ave_time = launch_kernel(integral_constant<bool, false>{}, integral_constant<bool, false>{});
             }
             else
             {

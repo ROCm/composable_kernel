@@ -1048,7 +1048,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V2
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-#if 0
+#if DEBUG_LOG
         arg.Print();
 #endif
 
