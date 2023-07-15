@@ -152,4 +152,3 @@ void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(
 } // namespace tensor_operation
 } // namespace ck
 #endif
-
