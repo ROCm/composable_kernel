@@ -67,6 +67,7 @@ else()
             -Wunused
             -Wno-reserved-identifier
             -Werror
+            -Wno-option-ignored
             -Wsign-compare
             -Wno-extra-semi-stmt
         )
