@@ -1937,10 +1937,14 @@ struct GridwiseBatchedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V1
                         block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
                     auto m_global    = m_local + m_block_data_idx_on_grid;
                     auto n_global    = n_local + n_block_data_idx_on_grid;
-                    bool masked_flag = c0_matrix_mask.IsMaskedElement(m_global, n_global);
-                    s_element_op(s_slash_p_thread_buf(i),
-                                 masked_flag ? -ck::NumericLimits<float>::Infinity()
-                                             : s_slash_p_thread_buf[i]);
+                    if(c0_matrix_mask.IsMaskedElement(m_global, n_global))
+                    {
+                        s_slash_p_thread_buf(i) = -ck::NumericLimits<float>::Infinity();
+                    }
+                    else
+                    {
+                        s_element_op(s_slash_p_thread_buf(i), s_slash_p_thread_buf[i]);
+                    }
                 });
             }
             else
@@ -2003,11 +2007,17 @@ struct GridwiseBatchedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V1
                 constexpr auto m =
                     pgrad_thread_idx_to_m_n_adaptor.CalculateBottomIndex(pgrad_thread_idx)[I0];
                 // dS and P has same thread buf layout
-                bool undropped_flag = s_slash_p_thread_buf[i] >= 0;
-                sgrad_thread_buf(i) =
-                    s_slash_p_thread_buf[i] *
-                    (undropped_flag ? (pgrad_thread_buf[i] - y_dot_ygrad_thread_buf[Number<m>{}])
-                                    : y_dot_ygrad_thread_buf[Number<m>{}]);
+                if(s_slash_p_thread_buf[i] >= 0)
+                {
+                    sgrad_thread_buf(i) =
+                        s_slash_p_thread_buf[i] *
+                        (pgrad_thread_buf[i] - y_dot_ygrad_thread_buf[Number<m>{}]);
+                }
+                else
+                {
+                    sgrad_thread_buf(i) =
+                        s_slash_p_thread_buf[i] * y_dot_ygrad_thread_buf[Number<m>{}];
+                }
             });
 
             // gemm dQ

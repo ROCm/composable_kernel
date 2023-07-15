@@ -1406,7 +1406,7 @@ int run(int argc, char* argv[])
             }
 
             std::cout << "Checking z:\n";
-            pass &= ck::utils::check_err(z_fwd_tensors[i].mData, z_bwd_tensors[i].mData, 1);
+            pass &= ck::utils::check_integer_err(z_fwd_tensors[i].mData, z_bwd_tensors[i].mData, 1);
 
             std::cout << "Checking y:\n";
             pass &= ck::utils::check_err(
