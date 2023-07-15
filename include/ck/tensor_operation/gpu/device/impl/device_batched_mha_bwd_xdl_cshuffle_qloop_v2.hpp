@@ -1047,6 +1047,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+#if DEBUG_LOG
+        arg.Print();
+#endif
 
         if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
              ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||

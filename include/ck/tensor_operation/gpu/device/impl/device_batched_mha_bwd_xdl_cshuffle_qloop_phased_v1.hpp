@@ -1041,7 +1041,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Phased_Xdl_CShuffle_V1
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-#if 0
+#if DEBUG_LOG
         arg.Print();
 #endif
 
