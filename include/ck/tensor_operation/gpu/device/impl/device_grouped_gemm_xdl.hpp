@@ -24,6 +24,8 @@ namespace device {
 
 template <typename GridwiseGemm,
           typename GemmDesc,
+          GemmSpecialization GemmSpec,
+          typename Block2ETileMapKSplit,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
@@ -34,6 +36,7 @@ __global__ void
 #endif
         kernel_grouped_gemm_xdl(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                 const index_t group_count,
+                                const index_t grid_size_grp,
                                 const AElementwiseOperation a_element_op,
                                 const BElementwiseOperation b_element_op,
                                 const CDEElementwiseOperation c_element_op)
@@ -47,6 +50,7 @@ __global__ void
     const auto gemm_desc_ptr =
         reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
 
+#if 0
     index_t left     = 0;
     index_t right    = group_count;
     index_t group_id = index_t((left + right) / 2);
@@ -64,7 +68,14 @@ __global__ void
         }
         group_id = index_t((left + right) / 2);
     }
+#endif
 
+    const index_t group_id = block_id / grid_size_grp;
+
+    if(group_id >= group_count)
+        return;
+
+#if 0
     GridwiseGemm::template Run<HasMainKBlockLoop>(
         gemm_desc_ptr[group_id].a_ptr_,
         gemm_desc_ptr[group_id].b_ptr_,
@@ -79,6 +90,56 @@ __global__ void
         gemm_desc_ptr[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
         gemm_desc_ptr[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
         gemm_desc_ptr[group_id].block_2_etile_map_);
+#else
+    const index_t M = gemm_desc_ptr[group_id].M;
+    const index_t N = gemm_desc_ptr[group_id].N;
+    const index_t K = gemm_desc_ptr[group_id].K;
+
+    if(M == 0 || N == 0 || K == 0)
+        return;
+
+    const index_t StrideA    = K;
+    const index_t StrideB    = K;
+    const index_t StrideDs[] = {};
+    const index_t StrideE    = N;
+
+    using Row = ck::tensor_layout::gemm::RowMajor;
+    using Col = ck::tensor_layout::gemm::ColumnMajor;
+
+    using ALayout  = Row;
+    using BLayout  = Col;
+    using DsLayout = ck::Tuple<>;
+    using ELayout  = Row;
+
+    const auto e_grid_desc_m_n =
+        GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(M, N, StrideE);
+
+    const index_t BlockStart = group_id * grid_size_grp;
+
+    using GroupedGemmBlock2ETileMap = OffsettedBlockToCTileMap<Block2ETileMapKSplit>;
+
+    const auto local_b2e_tile_map = Block2ETileMapKSplit{e_grid_desc_m_n};
+    const auto block_2_etile_map  = GroupedGemmBlock2ETileMap(local_b2e_tile_map, BlockStart);
+
+    GridwiseGemm::template Run<HasMainKBlockLoop, GemmSpec, ALayout, BLayout, DsLayout, ELayout>(
+        gemm_desc_ptr[group_id].a_ptr_,
+        gemm_desc_ptr[group_id].b_ptr_,
+        gemm_desc_ptr[group_id].ds_ptr_,
+        gemm_desc_ptr[group_id].e_ptr_,
+        p_shared,
+        a_element_op,
+        b_element_op,
+        c_element_op,
+        M,
+        N,
+        K,
+        StrideA,
+        StrideB,
+        StrideDs,
+        StrideE,
+        block_2_etile_map);
+#endif
+
 #else
     ignore = gemm_descs_const;
     ignore = group_count;
@@ -281,46 +342,8 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
     using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock  = remove_cvref_t<decltype(
         GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}))>;
 
-    struct GroupedGemmBlock2ETileMap
-    {
-        using Block2ETileMap =
-            remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
-
-        GroupedGemmBlock2ETileMap()
-        {
-            block_2_etile_map_ = GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{});
-            BlockStart_        = -1;
-        }
-
-        GroupedGemmBlock2ETileMap(const EGridDesc_M_N& e_grid_desc_m_n, ck::index_t BlockStart)
-        {
-            block_2_etile_map_ = GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n);
-            BlockStart_        = BlockStart;
-        }
-
-        template <typename TopIdx>
-        __host__ __device__ constexpr auto CalculateBottomIndex(const TopIdx& idx_top) const
-        {
-            return block_2_etile_map_.CalculateBottomIndex(
-                make_multi_index(idx_top[I0] - BlockStart_));
-        }
-
-        // it's actually E-Tile
-        template <typename CTileIdx, typename CTileDim>
-        __host__ __device__ bool ValidCTileIndex(const CTileIdx& c_tile_idx,
-                                                 const CTileDim& c_tile_dim) const
-        {
-            return block_2_etile_map_.ValidCTileIndex(c_tile_idx, c_tile_dim);
-        }
-
-        __host__ bool CheckValidity(const EGridDesc_M_N& e_grid_desc_m_n) const
-        {
-            return block_2_etile_map_.CheckValidity(e_grid_desc_m_n);
-        }
-
-        Block2ETileMap block_2_etile_map_;
-        ck::index_t BlockStart_;
-    };
+    using Block2ETileMap = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, EGridDesc_M_N>;
+    using GroupedGemmBlock2ETileMap = OffsettedBlockToCTileMap<Block2ETileMap>;
 
     struct GemmBiasTransKernelArg
     {
@@ -329,6 +352,8 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         const BDataType* b_ptr_;
         typename GridwiseGemm::DsGridPointer ds_ptr_;
         EDataType* e_ptr_;
+
+        index_t M, N, K;
 
         // tensor descriptors for problem definiton
         AGridDesc_M_K a_grid_desc_m_k_;
@@ -344,7 +369,7 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock e_grid_desc_mblock_mperblock_nblock_nperblock_;
 
         // block-to-e-tile map
-        GroupedGemmBlock2ETileMap block_2_etile_map_;
+        Block2ETileMap block_2_etile_map_;
         ck::index_t BlockStart_, BlockEnd_;
     };
 
@@ -374,7 +399,7 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
 
             gemm_desc_kernel_arg_.reserve(group_count_);
 
-            skipped_group_count_ = 0;
+            index_t group_id = 0;
 
             for(std::size_t i = 0; i < gemm_descs.size(); i++)
             {
@@ -384,12 +409,6 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
 
                 a_mtx_mraw_kraw_.emplace_back(M, K);
                 b_mtx_nraw_kraw_.emplace_back(N, K);
-
-                if(M == 0)
-                {
-                    skipped_group_count_++;
-                    continue;
-                }
 
                 const index_t StrideA = gemm_descs[i].stride_A_;
                 const index_t StrideB = gemm_descs[i].stride_B_;
@@ -427,24 +446,23 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 const auto b_grid_desc_bk0_n_bk1 =
                     GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
 
-                const index_t grid_size_grp =
-                    GroupedGemmBlock2ETileMap(e_grid_desc_m_n, 0)
-                        .block_2_etile_map_.CalculateGridSize(e_grid_desc_m_n);
+                // block-to-e-tile map
+                const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_m_n};
+
+                const index_t grid_size_grp = local_b2c_tile_map.CalculateGridSize(e_grid_desc_m_n);
+
+                std::cout << "grp id: " << group_id << " grid_size: " << grid_size_grp << std::endl;
 
                 const index_t BlockStart = grid_size_;
                 const index_t BlockEnd   = grid_size_ + grid_size_grp;
 
                 grid_size_ += grid_size_grp;
 
-                // block-to-e-tile map
-                const auto block_2_etile_map =
-                    GroupedGemmBlock2ETileMap(e_grid_desc_m_n, BlockStart);
-
                 if(GridwiseGemm::CheckValidity(a_grid_desc_m_k,
                                                b_grid_desc_n_k,
                                                ds_grid_desc_m_n,
                                                e_grid_desc_m_n,
-                                               block_2_etile_map))
+                                               local_b2c_tile_map))
                 {
                     // tensor descriptors for block/thread-wise copy
                     DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
@@ -465,6 +483,9 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                                                static_cast<const BDataType*>(p_Bs[i]),
                                                p_ds_grid,
                                                static_cast<EDataType*>(p_Es[i]),
+                                               M,
+                                               N,
+                                               K,
                                                a_grid_desc_m_k,
                                                b_grid_desc_n_k,
                                                ds_grid_desc_m_n,
@@ -473,16 +494,17 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                                                b_grid_desc_bk0_n_bk1,
                                                ds_grid_desc_mblock_mperblock_nblock_nperblock,
                                                e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                               block_2_etile_map,
+                                               local_b2c_tile_map,
                                                BlockStart,
                                                BlockEnd});
                 }
+
+                group_id++;
             }
         }
 
         //  private:
         index_t group_count_;
-        index_t skipped_group_count_;
 
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
@@ -560,10 +582,15 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
                 const auto kernel = kernel_grouped_gemm_xdl<GridwiseGemm,
                                                             GemmBiasTransKernelArg,
+                                                            GemmSpec,
+                                                            Block2ETileMap,
                                                             AElementwiseOperation,
                                                             BElementwiseOperation,
                                                             CDEElementwiseOperation,
                                                             has_main_k_block_loop_>;
+
+                const index_t grid_size_grp = arg.gemm_desc_kernel_arg_[0].BlockEnd_ -
+                                              arg.gemm_desc_kernel_arg_[0].BlockStart_;
 
                 return launch_and_time_kernel(
                     stream_config,
@@ -573,6 +600,7 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                     0,
                     cast_pointer_to_constant_address_space(arg.p_workspace_),
                     arg.gemm_desc_kernel_arg_.size(),
+                    grid_size_grp,
                     arg.a_element_op_,
                     arg.b_element_op_,
                     arg.c_element_op_);
@@ -600,8 +628,7 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if((ck::type_convert<ck::index_t>(arg.gemm_desc_kernel_arg_.size()) +
-            arg.skipped_group_count_) != arg.group_count_)
+        if(ck::type_convert<ck::index_t>(arg.gemm_desc_kernel_arg_.size()) != arg.group_count_)
         {
             return false;
         }

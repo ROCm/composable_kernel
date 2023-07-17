@@ -15,6 +15,9 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+
 namespace ck {
 
 // GEMM:
@@ -330,6 +333,97 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
     }
 
     using DsGridPointer = decltype(MakeDsGridPointer());
+
+    using Row = ck::tensor_layout::gemm::RowMajor;
+    using Col = ck::tensor_layout::gemm::ColumnMajor;
+
+    using GemmSpecialization = ck::tensor_operation::device::GemmSpecialization;
+
+    template <typename ALayout, GemmSpecialization GemmSpec>
+    __host__ __device__ static auto
+    MakeAGridDescriptor_M_K(index_t MRaw, index_t KRaw, index_t StrideA)
+    {
+        constexpr auto matrix_padder =
+            ck::tensor_operation::device::MatrixPadder<GemmSpec, index_t, index_t, index_t>{
+                MPerBlock, NPerBlock, KPerBlock};
+
+        const auto a_grid_desc_mraw_kraw = [&]() {
+            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
+            {
+                return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
+                                                    make_tuple(StrideA, I1));
+            }
+            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
+            {
+                return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
+                                                    make_tuple(I1, StrideA));
+            }
+        }();
+
+        return matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
+    }
+
+    template <typename BLayout, GemmSpecialization GemmSpec>
+    __host__ __device__ static auto
+    MakeBGridDescriptor_N_K(index_t KRaw, index_t NRaw, index_t StrideB)
+    {
+        constexpr auto matrix_padder =
+            ck::tensor_operation::device::MatrixPadder<GemmSpec, index_t, index_t, index_t>{
+                MPerBlock, NPerBlock, KPerBlock};
+
+        const auto b_grid_desc_nraw_kraw = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
+                                                    make_tuple(I1, StrideB));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
+                                                    make_tuple(StrideB, I1));
+            }
+        }();
+
+        return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
+    }
+
+    template <typename ELayout, GemmSpecialization GemmSpec>
+    __host__ __device__ static auto
+    MakeEGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideE)
+    {
+        constexpr auto matrix_padder =
+            ck::tensor_operation::device::MatrixPadder<GemmSpec, index_t, index_t, index_t>{
+                MPerBlock, NPerBlock, KPerBlock};
+        const auto e_grid_desc_mraw_nraw = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, ELayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
+                                                    make_tuple(StrideE, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ELayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
+                                                    make_tuple(I1, StrideE));
+            }
+        }();
+
+        return matrix_padder.PadCDescriptor_M_N(e_grid_desc_mraw_nraw);
+    }
+
+    template <typename DsLayout, GemmSpecialization GemmSpec>
+    __host__ __device__ static auto
+    MakeDsGridDescriptor_M_N(const std::array<index_t, NumDTensor>& MRaws,
+                             const std::array<index_t, NumDTensor>& NRaws,
+                             const std::array<index_t, NumDTensor>& DsStride)
+    {
+        return generate_tuple(
+            [&](auto i) {
+                using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+
+                return MakeEGridDescriptor_M_N<DLayout, GemmSpec>(MRaws[i], NRaws[i], DsStride[i]);
+            },
+            Number<NumDTensor>{});
+    }
 
     template <bool HasMainKBlockLoop,
               typename AGridDesc_AK0_M_AK1,
@@ -759,6 +853,95 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                 }
             });
         }
+    }
+
+    template <bool HasMainKBlockLoop,
+              GemmSpecialization GemmSpec,
+              typename ALayout,
+              typename BLayout,
+              typename DsLayout,
+              typename ELayout,
+#if 0
+              typename AGridDesc_AK0_M_AK1,
+              typename BGridDesc_BK0_N_BK1,
+              typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+#endif
+              typename Block2ETileMap>
+    __device__ static void Run(const ABDataType* __restrict__ p_a_grid,
+                               const ABDataType* __restrict__ p_b_grid,
+                               DsGridPointer p_ds_grid,
+                               EDataType* __restrict__ p_e_grid,
+                               void* __restrict__ p_shared,
+                               const AElementwiseOperation& a_element_op,
+                               const BElementwiseOperation& b_element_op,
+                               const CDEElementwiseOperation& cde_element_op,
+                               const index_t M,
+                               const index_t N,
+                               const index_t K,
+                               const index_t StrideA,
+                               const index_t StrideB,
+                               const index_t StrideDs[],
+                               const index_t StrideE,
+#if 0
+                               const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
+                               const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
+                               const DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
+                                   ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
+                                   e_grid_desc_mblock_mperblock_nblock_nperblock,
+#endif
+                               const Block2ETileMap& block_2_etile_map)
+    {
+
+        // tensor descriptors for problem definiton
+        const auto a_grid_desc_m_k = MakeAGridDescriptor_M_K<ALayout, GemmSpec>(M, K, StrideA);
+        const auto b_grid_desc_n_k = MakeBGridDescriptor_N_K<BLayout, GemmSpec>(K, N, StrideB);
+
+        using DsGridDesc_M_N =
+            remove_cvref_t<decltype(MakeDsGridDescriptor_M_N<DsLayout, GemmSpec>({}, {}, {}))>;
+
+        DsGridDesc_M_N ds_grid_desc_m_n;
+
+        static_for<0, NumDTensor, 1>{}([&](auto j) {
+            using DLayout = remove_cvref_t<tuple_element_t<j.value, DsLayout>>;
+
+            ds_grid_desc_m_n(j) = MakeEGridDescriptor_M_N<DLayout, GemmSpec>(M, N, StrideDs[j]);
+        });
+
+        const auto e_grid_desc_m_n = MakeEGridDescriptor_M_N<ELayout, GemmSpec>(M, N, StrideE);
+
+        // tensor descriptors for block/thread-wise copy
+        const auto a_grid_desc_ak0_m_ak1 = MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k);
+
+        const auto b_grid_desc_bk0_n_bk1 = MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
+
+        using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
+            MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}))>;
+
+        DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock ds_grid_desc_mblock_mperblock_nblock_nperblock;
+
+        static_for<0, NumDTensor, 1>{}([&](auto j) {
+            ds_grid_desc_mblock_mperblock_nblock_nperblock(j) =
+                MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(ds_grid_desc_m_n[j]);
+        });
+
+        const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
+            MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n);
+
+        Run<HasMainKBlockLoop>(p_a_grid,
+                               p_b_grid,
+                               p_ds_grid,
+                               p_e_grid,
+                               p_shared,
+                               a_element_op,
+                               b_element_op,
+                               cde_element_op,
+                               a_grid_desc_ak0_m_ak1,
+                               b_grid_desc_bk0_n_bk1,
+                               ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                               e_grid_desc_mblock_mperblock_nblock_nperblock,
+                               block_2_etile_map);
     }
 };
 
