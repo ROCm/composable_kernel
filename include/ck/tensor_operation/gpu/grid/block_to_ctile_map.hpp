@@ -269,7 +269,8 @@ struct BlockToCTileMap_KSplit_M00_N0_M01Adapt
     {
     }
 
-    __host__ constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
+    __host__ __device__ constexpr index_t
+    CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
     {
         const auto M0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I0), MPerBlock);
         const auto N0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I1), NPerBlock);
