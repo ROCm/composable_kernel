@@ -16,10 +16,23 @@ include(ROCMSetupVersion)
 include(ROCMInstallSymlinks)
 include(ROCMCreatePackage)
 include(CheckCXXCompilerFlag)
-
+include(ROCMCheckTargetIds)
 rocm_setup_version(VERSION 0.2.0)
 include(TargetFlags)
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip)
+
+message("GPU_TARGETS= ${GPU_TARGETS}")
+
+message("checking which targets are supported")
+#This is the list of targets to be used in case GPU_TARGETS is not set on command line
+#These targets will be filtered and only supported ones will be used
+#Setting GPU_TARGETS on command line will override this list
+rocm_check_target_ids(DEFAULT_GPU_TARGETS
+    TARGETS "gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102"
+)
+message("Supported GPU_TARGETS= ${DEFAULT_GPU_TARGETS}")
+set(AMDGPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " ")
+find_package(hip)
 
 option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
 option(USE_OPT_NAVI3X, "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
