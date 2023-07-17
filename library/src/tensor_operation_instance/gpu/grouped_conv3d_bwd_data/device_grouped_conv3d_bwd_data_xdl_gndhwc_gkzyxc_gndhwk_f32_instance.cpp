@@ -8,13 +8,14 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-// Compilation parameters for out[n, hi, wi, g, c] * wei[g, k, y, x, c] = in[n, ho, wo, g, k]
-void add_device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f32_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
-                                                                  NHWGK,
-                                                                  GKYXC,
+// Compilation parameters for out[g, n, di, hi, wi, c] * wei[g, k, z, y, x, c] = in[g, n, do, ho,
+// wo, k]
+void add_device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  GNDHWK,
+                                                                  GKZYXC,
                                                                   Empty_Tuple,
-                                                                  NHWGC,
+                                                                  GNDHWC,
                                                                   F32,
                                                                   F32,
                                                                   Empty_Tuple,
@@ -26,20 +27,20 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f32_instances(
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_data_xdl_f32_instances<2,
-                                                       NHWGK,
-                                                       GKYXC,
+        device_grouped_conv_bwd_data_xdl_f32_instances<3,
+                                                       GNDHWK,
+                                                       GKZYXC,
                                                        Empty_Tuple,
-                                                       NHWGC,
+                                                       GNDHWC,
                                                        ConvBwdDataDefault>{});
     // 2. Filter1x1Stride1Pad0
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_data_xdl_f32_instances<2,
-                                                       NHWGK,
-                                                       GKYXC,
+        device_grouped_conv_bwd_data_xdl_f32_instances<3,
+                                                       GNDHWK,
+                                                       GKZYXC,
                                                        Empty_Tuple,
-                                                       NHWGC,
+                                                       GNDHWC,
                                                        ConvBwdDataFilter1x1Stride1Pad0>{});
 }
 
