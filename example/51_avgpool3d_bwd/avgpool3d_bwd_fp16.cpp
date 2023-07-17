@@ -85,7 +85,7 @@ bool pool3d_bwd_test(bool do_verification,
                                                              1,  // ReduceMThreadSliceSize
                                                              1,  // ReduceKThreadSliceSize
                                                              1,  // InSrcOutDstVectorSize
-                                                             true>;
+                                                             false>;
 
     auto OutSpatialLength = [&](auto InSpatialLength, int index) {
         ck::index_t left_pad   = dinput_left_pads[index];
