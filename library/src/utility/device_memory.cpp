@@ -19,9 +19,19 @@ void DeviceMem::ToDevice(const void* p) const
     hip_check_error(hipMemcpy(mpDeviceBuf, const_cast<void*>(p), mMemSize, hipMemcpyHostToDevice));
 }
 
+void DeviceMem::ToDevice(const void* p, const std::size_t cpySize) const
+{
+    hip_check_error(hipMemcpy(mpDeviceBuf, const_cast<void*>(p), cpySize, hipMemcpyHostToDevice));
+}
+
 void DeviceMem::FromDevice(void* p) const
 {
     hip_check_error(hipMemcpy(p, mpDeviceBuf, mMemSize, hipMemcpyDeviceToHost));
+}
+
+void DeviceMem::FromDevice(void* p, const std::size_t cpySize) const
+{
+    hip_check_error(hipMemcpy(p, mpDeviceBuf, cpySize, hipMemcpyDeviceToHost));
 }
 
 void DeviceMem::SetZero() const { hip_check_error(hipMemset(mpDeviceBuf, 0, mMemSize)); }
