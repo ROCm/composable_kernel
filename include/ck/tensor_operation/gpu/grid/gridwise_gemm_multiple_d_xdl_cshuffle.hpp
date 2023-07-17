@@ -425,6 +425,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             Number<NumDTensor>{});
     }
 
+    __device__ __host__ static constexpr auto GetMPerBlock() { return MPerBlock; }
+
     template <bool HasMainKBlockLoop,
               typename AGridDesc_AK0_M_AK1,
               typename BGridDesc_BK0_N_BK1,
@@ -868,10 +870,10 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
               typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
 #endif
               typename Block2ETileMap>
-    __device__ static void Run(const ABDataType* __restrict__ p_a_grid,
-                               const ABDataType* __restrict__ p_b_grid,
+    __device__ static void Run(const void* __restrict__ p_a_grid_,
+                               const void* __restrict__ p_b_grid_,
                                DsGridPointer p_ds_grid,
-                               EDataType* __restrict__ p_e_grid,
+                               void* __restrict__ p_e_grid_,
                                void* __restrict__ p_shared,
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
@@ -881,7 +883,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                const index_t K,
                                const index_t StrideA,
                                const index_t StrideB,
-                               const index_t StrideDs[],
+                               const std::array<index_t, NumDTensor> StrideDs,
                                const index_t StrideE,
 #if 0
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
@@ -893,6 +895,9 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 #endif
                                const Block2ETileMap& block_2_etile_map)
     {
+        const auto p_a_grid = reinterpret_cast<const ABDataType*>(p_a_grid_);
+        const auto p_b_grid = reinterpret_cast<const ABDataType*>(p_b_grid_);
+        const auto p_e_grid = reinterpret_cast<EDataType*>(p_e_grid_);
 
         // tensor descriptors for problem definiton
         const auto a_grid_desc_m_k = MakeAGridDescriptor_M_K<ALayout, GemmSpec>(M, K, StrideA);
