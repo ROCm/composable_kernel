@@ -77,7 +77,7 @@ void add_device_gemm_dl_f32_f32_f32_mk_nk_mn_instances(
     std::vector<std::unique_ptr<
         DeviceGemm<Row, Col, Row, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
         instances);
-
+#ifdef __int8__
 void add_device_gemm_dl_i8_i8_i8_km_kn_mn_instances(
     std::vector<std::unique_ptr<
         DeviceGemm<Col, Row, Row, int8_t, int8_t, int8_t, PassThrough, PassThrough, PassThrough>>>&
@@ -117,6 +117,27 @@ void add_device_gemm_dl_i8_i8_i8_mk_nk_mn_irregular_instances(
     std::vector<std::unique_ptr<
         DeviceGemm<Row, Col, Row, int8_t, int8_t, int8_t, PassThrough, PassThrough, PassThrough>>>&
         instances);
+
+void add_device_gemm_xdl_c_shuffle_i8_i8_i8_km_kn_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm<Col, Row, Row, int8_t, int8_t, int8_t, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_c_shuffle_i8_i8_i8_km_nk_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm<Col, Col, Row, int8_t, int8_t, int8_t, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_c_shuffle_i8_i8_i8_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm<Row, Row, Row, int8_t, int8_t, int8_t, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_c_shuffle_i8_i8_i8_mk_nk_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm<Row, Col, Row, int8_t, int8_t, int8_t, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+#endif
 
 void add_device_gemm_xdl_c_shuffle_2_stage_f16_f16_f16_mk_nk_mn_instances(
     std::vector<std::unique_ptr<
@@ -181,26 +202,6 @@ void add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_kn_mn_instances(
 void add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_nk_mn_instances(
     std::vector<std::unique_ptr<
         DeviceGemm<Row, Col, Row, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
-        instances);
-
-void add_device_gemm_xdl_c_shuffle_i8_i8_i8_km_kn_mn_instances(
-    std::vector<std::unique_ptr<
-        DeviceGemm<Col, Row, Row, int8_t, int8_t, int8_t, PassThrough, PassThrough, PassThrough>>>&
-        instances);
-
-void add_device_gemm_xdl_c_shuffle_i8_i8_i8_km_nk_mn_instances(
-    std::vector<std::unique_ptr<
-        DeviceGemm<Col, Col, Row, int8_t, int8_t, int8_t, PassThrough, PassThrough, PassThrough>>>&
-        instances);
-
-void add_device_gemm_xdl_c_shuffle_i8_i8_i8_mk_kn_mn_instances(
-    std::vector<std::unique_ptr<
-        DeviceGemm<Row, Row, Row, int8_t, int8_t, int8_t, PassThrough, PassThrough, PassThrough>>>&
-        instances);
-
-void add_device_gemm_xdl_c_shuffle_i8_i8_i8_mk_nk_mn_instances(
-    std::vector<std::unique_ptr<
-        DeviceGemm<Row, Col, Row, int8_t, int8_t, int8_t, PassThrough, PassThrough, PassThrough>>>&
         instances);
 
 void add_device_gemm_xdl_f16_f16_f16_km_kn_mn_instances(
@@ -388,6 +389,7 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_nk_mn_instances(op_ptrs);
             }
         }
+#ifdef __int8__
         else if constexpr(is_same_v<ADataType, int8_t> && is_same_v<BDataType, int8_t> &&
                           is_same_v<CDataType, int8_t>)
         {
@@ -420,7 +422,7 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_dl_i8_i8_i8_km_nk_mn_irregular_instances(op_ptrs);
             }
         }
-
+#endif
         return op_ptrs;
     }
 };

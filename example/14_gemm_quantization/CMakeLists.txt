@@ -1,3 +1,4 @@
+if(DTYPES MATCHES "int8" OR NOT DEFINED DTYPES)
 # dlops
 add_example_executable(example_gemm_dl_quantization_int8 gemm_dl_quantization_int8.cpp)
 
@@ -11,3 +12,4 @@ foreach(gpu IN LISTS GPU_TARGETS)
    set(target 1)
  endif()
 endforeach()
+endif()

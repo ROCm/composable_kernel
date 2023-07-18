@@ -70,8 +70,10 @@ int profile_batched_gemm_multi_d(int argc, char* argv[])
 
     const int BatchCount = std::stoi(argv[17]);
 
-    using F16  = ck::half_t;
+    using F16 = ck::half_t;
+#ifdef __int8__
     using INT8 = int8_t;
+#endif
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -163,6 +165,7 @@ int profile_batched_gemm_multi_d(int argc, char* argv[])
     {
         return profile(F16{}, F16{}, F16{}, Col{}, Col{}, Row{});
     }
+#ifdef __int8__
     else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(INT8{}, INT8{}, INT8{}, Row{}, Row{}, Row{});
@@ -179,6 +182,7 @@ int profile_batched_gemm_multi_d(int argc, char* argv[])
     {
         return profile(INT8{}, INT8{}, INT8{}, Col{}, Col{}, Row{});
     }
+#endif
     else
     {
         std::cout << "this data_type & layout is not implemented" << std::endl;

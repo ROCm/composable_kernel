@@ -77,7 +77,9 @@ int profile_conv_bwd_data(int argc, char* argv[])
     using F32  = float;
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
+#ifdef __int8__
     using INT8 = int8_t;
+#endif
 
     using NWC   = ck::tensor_layout::convolution::NWC;
     using NHWC  = ck::tensor_layout::convolution::NHWC;
@@ -138,10 +140,12 @@ int profile_conv_bwd_data(int argc, char* argv[])
         {
             return profile(I1, NWC{}, KXC{}, NWK{}, BF16{}, BF16{}, BF16{});
         }
+#ifdef __int8__
         else if(data_type == ConvDataType::INT8_INT8_INT8)
         {
             return profile(I1, NWC{}, KXC{}, NWK{}, INT8{}, INT8{}, INT8{});
         }
+#endif
     }
     else if(num_dim_spatial == 2 && layout == ConvLayout::NHWC_KYXC_NHWK)
     {
@@ -157,10 +161,12 @@ int profile_conv_bwd_data(int argc, char* argv[])
         {
             return profile(I2, NHWC{}, KYXC{}, NHWK{}, BF16{}, BF16{}, BF16{});
         }
+#ifdef __int8__
         else if(data_type == ConvDataType::INT8_INT8_INT8)
         {
             return profile(I2, NHWC{}, KYXC{}, NHWK{}, INT8{}, INT8{}, INT8{});
         }
+#endif
     }
     else if(num_dim_spatial == 3 && layout == ConvLayout::NHWC_KYXC_NHWK)
     {
@@ -176,10 +182,12 @@ int profile_conv_bwd_data(int argc, char* argv[])
         {
             return profile(I3, NDHWC{}, KZYXC{}, NDHWK{}, BF16{}, BF16{}, BF16{});
         }
+#ifdef __int8__
         else if(data_type == ConvDataType::INT8_INT8_INT8)
         {
             return profile(I3, NDHWC{}, KZYXC{}, NDHWK{}, INT8{}, INT8{}, INT8{});
         }
+#endif
     }
 
     std::cout << "this data_type & layout is not implemented" << std::endl;
