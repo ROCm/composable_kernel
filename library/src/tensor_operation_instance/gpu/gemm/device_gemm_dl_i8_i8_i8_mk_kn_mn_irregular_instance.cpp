@@ -8,7 +8,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_dl.hpp"
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
-
+#ifdef __int8__
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -78,3 +78,4 @@ void add_device_gemm_dl_i8_i8_i8_mk_kn_mn_irregular_instances(
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#endif

@@ -39,7 +39,7 @@ void add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f32_instances(
     std::vector<std::unique_ptr<
         DeviceConvBwdData<1, NWC, KXC, NWK, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
         instances);
-
+#ifdef __int8__
 void add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_int8_instances(
     std::vector<std::unique_ptr<DeviceConvBwdData<1,
                                                   NWC,
@@ -51,7 +51,7 @@ void add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_int8_instances(
                                                   PassThrough,
                                                   PassThrough,
                                                   PassThrough>>>& instances);
-
+#endif
 // conv2d backward data
 void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvBwdData<2,
@@ -88,7 +88,7 @@ void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances(
                                                   PassThrough,
                                                   PassThrough,
                                                   PassThrough>>>& instances);
-
+#ifdef __int8__
 void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(
     std::vector<std::unique_ptr<DeviceConvBwdData<2,
                                                   NHWC,
@@ -100,7 +100,7 @@ void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(
                                                   PassThrough,
                                                   PassThrough,
                                                   PassThrough>>>& instances);
-
+#endif
 // conv2d dl
 void add_device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_f16_instances(
     std::vector<std::unique_ptr<DeviceConvBwdData<2,
@@ -125,7 +125,7 @@ void add_device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_f32_instances(
                                                   PassThrough,
                                                   PassThrough,
                                                   PassThrough>>>& instances);
-
+#ifdef __int8__
 void add_device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_int8_instances(
     std::vector<std::unique_ptr<DeviceConvBwdData<2,
                                                   NHWC,
@@ -137,6 +137,7 @@ void add_device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_int8_instances(
                                                   PassThrough,
                                                   PassThrough,
                                                   PassThrough>>>& instances);
+#endif
 // conv3d backward data
 void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvBwdData<3,
@@ -173,7 +174,7 @@ void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f32_instances(
                                                   PassThrough,
                                                   PassThrough,
                                                   PassThrough>>>& instances);
-
+#ifdef __int8__
 void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instances(
     std::vector<std::unique_ptr<DeviceConvBwdData<3,
                                                   NDHWC,
@@ -185,7 +186,7 @@ void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instances(
                                                   PassThrough,
                                                   PassThrough,
                                                   PassThrough>>>& instances);
-
+#endif
 template <ck::index_t NumDimSpatial,
           typename InLayout,
           typename WeiLayout,
@@ -239,11 +240,13 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceConvBw
             {
                 add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_bf16_instances(op_ptrs);
             }
+#ifdef __int8__
             else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
                               is_same_v<OutDataType, int8_t>)
             {
                 add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_int8_instances(op_ptrs);
             }
+#endif
         }
         else if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NHWC> &&
                           is_same_v<WeiLayout, KYXC> && is_same_v<OutLayout, NHWK>)
@@ -266,12 +269,14 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceConvBw
             {
                 add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(op_ptrs);
             }
+#ifdef __int8__
             else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
                               is_same_v<OutDataType, int8_t>)
             {
                 add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(op_ptrs);
                 add_device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_int8_instances(op_ptrs);
             }
+#endif
         }
         else if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NDHWC> &&
                           is_same_v<WeiLayout, KZYXC> && is_same_v<OutLayout, NDHWK>)
@@ -292,11 +297,13 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceConvBw
             {
                 add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(op_ptrs);
             }
+#ifdef __int8__
             else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
                               is_same_v<OutDataType, int8_t>)
             {
                 add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instances(op_ptrs);
             }
+#endif
         }
 
         return op_ptrs;

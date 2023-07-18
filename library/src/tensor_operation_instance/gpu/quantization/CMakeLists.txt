@@ -1,3 +1,4 @@
+if(DTYPES MATCHES "int8" OR NOT DEFINED DTYPES)
 set(CONV2D_PERLAYER_QUANT_SRC
     conv2d_fwd/device_conv2d_dl_perlayer_quantization_int8_instance.cpp
     conv2d_fwd/device_conv2d_xdl_perlayer_quantization_int8_instance.cpp
@@ -36,3 +37,4 @@ add_instance_library(device_quantization_instance
     ${CONV2D_BIAS_PERCHANNEL_QUANT_SRC}
     ${GEMM_QUANT_SRC}
 )
+endif()
