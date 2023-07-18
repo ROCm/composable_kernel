@@ -81,4 +81,5 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_scale_in
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_pool_fwd_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_multi_d_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv2d_bwd_data_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_bwd_data_instance)
 rocm_install(TARGETS ${PROFILER_EXECUTABLE} COMPONENT profiler)
