@@ -20,24 +20,6 @@ struct GemmDesc
     std::vector<ck::index_t> stride_Ds_;
 };
 
-template <index_t NumDTensor = 0>
-struct GroupedGemmKernelArgument
-{
-    const void* p_a_grid;
-    const void* p_b_grid;
-    std::array<const void*, NumDTensor> p_ds_grid;
-    void* p_e_grid;
-
-    index_t M;
-    index_t N;
-    index_t K;
-
-    index_t StrideA;
-    index_t StrideB;
-    std::array<index_t, NumDTensor> StrideDs;
-    index_t StrideE;
-};
-
 template <typename ALayout,
           typename BLayout,
           typename DsLayout,
@@ -66,8 +48,6 @@ struct DeviceGroupedGemm : public BaseOperator
                         CElementwiseOperation c_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
-
-    virtual void SetDeviceKernelArgs(BaseArgument* p_arg, const void* kernel_args) const = 0;
 };
 
 } // namespace device
