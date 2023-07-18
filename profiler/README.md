@@ -141,3 +141,46 @@ avg_time: 0.768321
 tflops: 86.6679
 GB/s: 127.947
 ```
+
+## Profile grouped convolution backward weight kernels
+```bash
+# arg1: tensor operation (grouped_conv_bwd_data: Grouped Convolution Backward Data)
+# arg2: data type (0: Input fp32, Weight fp32, Output fp32
+#                  1: Input fp16, Weight fp16, Output fp16
+#                  2: Input bf16, Weight fp32, Output bf16)
+# arg3: tensor layout (0: Input[G, N, C, Hi, Wi], Weight[G, K, C, Y, X], Output[G, N, K, Ho, Wo]
+#                      1: Input[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Output[G, N, Ho, Wo, K]
+#                      2: Input[N, Hi, Wi, G, C], Weight[G, K, Y, X, C], Output[N, Ho, Wo, G, K]
+# arg4: verification (0: no, 1: yes)
+# arg5: initialization (0: no init, 1: integer value, 2: decimal value)
+# arg6: print tensor value (0: no; 1: yes)
+# arg7: time kernel (0: no, 1: yes)
+# Following arguments (depending on number of spatial dims):
+#  Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
+#  G, N, K, C, 
+#  <filter spatial dimensions>, (ie Y, X for 2D)
+#  <input image spatial dimensions>, (ie Hi, Wi for 2D)
+#  <strides>, (ie Sy, Sx for 2D)
+#  <dilations>, (ie Dy, Dx for 2D)
+#  <left padding>, (ie LeftPy, LeftPx for 2D)
+#  <right padding>, (ie RightPy, RightPx for 2D)
+# SplitK
+
+ ################                   op   datatype  layout  verify  init  log  time  Ndims  G   N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx  SplitK
+./bin/ckProfiler grouped_conv_bwd_data          1       0       1     1    0     1      2 32 256 256 512  3  3  28  28   1   1   1   1       1       0        0        0       1
+
+ ```
+
+Result (MI100, FP16, GNHWC_GKYXC_GNHWK)
+```
+input: dim 5, lengths {32, 512, 1024, 28, 28}, strides {411041792, 802816, 1, 28672, 1024}
+weight: dim 5, lengths {32, 512, 1024, 3, 3}, strides {4718592, 9216, 1, 3072, 1024}
+output: dim 5, lengths {32, 512, 512, 26, 26}, strides {177209344, 346112, 1, 13312, 512}
+....
+Best configuration parameters:
+name: DeviceGroupedConvBwdWeight_Xdl_CShuffle<256, 256, 128, 4, Default, 8, 4, 2, 8, 4, 8, 2, 1, 1, 8>
+avg_time: 68.5216
+tflops: 95.337
+GB/s: 69.2301
+```
+Note: This kernel use atomic add, this will cause output buffer to be accumulated multiple times, causing verification failure. To work around it, do not use CK's own timer and do verification at the same time.

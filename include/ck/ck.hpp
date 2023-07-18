@@ -27,6 +27,21 @@
 #define CK_WAVELET_MIN_BLOCK_PER_CU 2
 #endif
 
+// kernel attribute: amdgpu_waves_per_eu()
+#ifdef CK_USE_WAVES_PER_EU
+// for 1-wave kernels, control arguments of amdgpu_waves_per_eu() attribute
+#ifndef CK_MIN_WAVES_PER_EU
+#define CK_MIN_WAVES_PER_EU 0
+#endif
+
+#ifndef CK_MAX_WAVES_PER_EU
+#define CK_MAX_WAVES_PER_EU 0
+#endif
+
+#else
+#define CK_USE_WAVES_PER_EU 0
+#endif
+
 // buffer resource
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_BUFFER_RESOURCE_3RD_DWORD -1
@@ -148,6 +163,10 @@
 #define CK_EXPERIMENTAL_INTER_WAVE_INSTANCES 1
 // experimental feature: add instances using pipeline v2
 #define CK_EXPERIMENTAL_PIPELINE_V2_INSTANCES 1
+// experimental feature: optimize pipeline v2 by IGLP strategy (value=ID of strategy)
+#ifndef CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT
+#define CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT 0
+#endif
 
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug
 // hack for forcing register to keep idx_diff_low_const in SGPR. idx_diff_low_const must be

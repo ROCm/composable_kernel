@@ -11,6 +11,20 @@ def show_node_info() {
     """
 }
 
+def nthreads() {
+    def nproc = sh(returnStdout: true, script: 'nproc')
+    echo "Number of cores: ${nproc}"
+    def n = nproc.toInteger()
+    if (n > 32){
+        n /= 2
+    }
+    if (n > 64){
+        n = 64
+    }
+    echo "Number of threads used for building: ${n}"
+    return n
+}
+
 def runShell(String command){
     def responseCode = sh returnStatus: true, script: "${command} > tmp.txt"
     def output = readFile(file: "tmp.txt")
@@ -19,7 +33,7 @@ def runShell(String command){
 
 def getDockerImageName(){
     def img
-    if (params.ROCMVERSION != "5.6" && params.ROCMVERSION != "5.7"){
+    if (params.ROCMVERSION != "5.7"){
        if (params.COMPILER_VERSION == "") {
            img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
        }
@@ -219,7 +233,8 @@ def cmake_build(Map conf=[:]){
         """
     def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
     // reduce parallelism when compiling, clang uses too much memory
-    def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j\$(( \$(nproc) / 2 )) ${config_targets}")
+    def nt = nthreads()
+    def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j${nt} ${config_targets}")
     def execute_cmd = conf.get("execute_cmd", "")
 
     def cmd = conf.get("cmd", """
@@ -461,7 +476,7 @@ def Build_CK(Map conf=[:]){
                         else{
                             echo "GPU is OK"
                         }
-                        if ( runShell('grep -n "gfx1030" clinfo.log') ){
+                        if ( runShell('grep -n "gfx1030" clinfo.log') || runShell('grep -n "gfx1101" clinfo.log') ){
                             navi_node = 1
                         }
                     }
@@ -482,7 +497,7 @@ def Build_CK(Map conf=[:]){
                         else{
                             echo "GPU is OK"
                         }
-                        if ( runShell('grep -n "gfx1030" clinfo.log') ){
+                        if ( runShell('grep -n "gfx1030" clinfo.log') || runShell('grep -n "gfx1101" clinfo.log') ){
                             navi_node = 1
                         }
                     }
@@ -493,8 +508,9 @@ def Build_CK(Map conf=[:]){
                 {
                     cmake_build(conf)
                     dir("build"){
-                        //run tests and examples 	
-                        sh 'make -j\$(( \$(nproc) / 2 )) check'
+                        //run tests and examples
+                        def nt = nthreads()	
+                        sh 'make -j${nt} check'
                         if (navi_node == 0 ){
                             //we only need the ckProfiler to run the performance tests, so we pack and stash it
                             //do not stash profiler on Navi nodes
@@ -598,7 +614,7 @@ def process_results(Map conf=[:]){
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true
-                                              0 21 * * * % ROCMVERSION=5.5;COMPILER_VERSION=release;COMPILER_COMMIT=
+                                              0 21 * * * % ROCMVERSION=5.6;COMPILER_VERSION=;COMPILER_COMMIT=
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=''' : ""
 
 pipeline {
@@ -717,7 +733,7 @@ pipeline {
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                     }
                 }
-                stage("Build CK and run Tests on Navi")
+                stage("Build CK and run Tests on Navi21")
                 {
                     when {
                         beforeAgent true
@@ -727,6 +743,22 @@ pipeline {
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1030" """ 
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1030" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
+
+                    }
+                    steps{
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                    }
+                }
+                stage("Build CK and run Tests on Navi32")
+                {
+                    when {
+                        beforeAgent true
+                        expression { !params.RUN_FULL_QA.toBoolean() }
+                    }
+                    agent{ label rocmnode("navi32") }
+                    environment{
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DDTYPES="fp16;fp32;bf16" -DGPU_TARGETS="gfx1101" """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1101" -DDTYPES="fp16;fp32;bf16" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
 
                     }
                     steps{
