@@ -67,11 +67,15 @@ int profile_gemm(int argc, char* argv[])
     const int StrideB = std::stoi(argv[12]);
     const int StrideC = std::stoi(argv[13]);
 
-    using F32   = float;
-    using F16   = ck::half_t;
-    using BF16  = ck::bhalf_t;
+    using F32 = float;
+    using F16 = ck::half_t;
+#ifdef __bf16__
+    using BF16 = ck::bhalf_t;
+#endif
+#ifdef __int8__
     using INT8  = int8_t;
     using INT32 = int32_t;
+#endif
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -149,6 +153,7 @@ int profile_gemm(int argc, char* argv[])
     {
         return profile(Col{}, Col{}, Row{}, F16{}, F16{}, F32{}, F16{});
     }
+#ifdef __bf16__
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(Row{}, Row{}, Row{}, BF16{}, BF16{}, F32{}, BF16{});
@@ -165,6 +170,8 @@ int profile_gemm(int argc, char* argv[])
     {
         return profile(Col{}, Col{}, Row{}, BF16{}, BF16{}, F32{}, BF16{});
     }
+#endif
+#ifdef __int8__
     else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(Row{}, Row{}, Row{}, INT8{}, INT8{}, INT32{}, INT8{});
@@ -181,6 +188,7 @@ int profile_gemm(int argc, char* argv[])
     {
         return profile(Col{}, Col{}, Row{}, INT8{}, INT8{}, INT32{}, INT8{});
     }
+#endif
     else
     {
         std::cout << "this data_type & layout is not implemented" << std::endl;
