@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -71,14 +71,6 @@ template <typename InputDataType,
           index_t BBlockTransferDstScalarPerVector_BK1,
           bool BThreadTransferSrcResetCoordinateAfterRun, // ignored
           index_t BBlockLdsExtraN,
-          typename B1BlockTransferThreadClusterLengths_BK0_N_BK1,
-          typename B1BlockTransferThreadClusterArrangeOrder,
-          typename B1BlockTransferSrcAccessOrder,
-          index_t B1BlockTransferSrcVectorDim,
-          index_t B1BlockTransferSrcScalarPerVector,
-          index_t B1BlockTransferDstScalarPerVector_BK1,
-          bool B1ThreadTransferSrcResetCoordinateAfterRun,
-          index_t B1BlockLdsExtraN,
           index_t CShuffleMXdlPerWavePerShuffle,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -88,7 +80,7 @@ template <typename InputDataType,
           bool MaskOutUpperTriangle,
           bool Deterministic,
           PipelineVersion PipelineVer = PipelineVersion::v1>
-struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
+struct GridwiseBatchedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V1
 {
     static_assert(LoopSched == LoopScheduler::Default,
                   "Non-default loop scheduler is currently not supported");
@@ -1943,8 +1935,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                         block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
                     auto n_local =
                         block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
-                    auto m_global = m_local + m_block_data_idx_on_grid;
-                    auto n_global = n_local + n_block_data_idx_on_grid;
+                    auto m_global    = m_local + m_block_data_idx_on_grid;
+                    auto n_global    = n_local + n_block_data_idx_on_grid;
                     if(c0_matrix_mask.IsMaskedElement(m_global, n_global))
                     {
                         s_slash_p_thread_buf(i) = -ck::NumericLimits<float>::Infinity();
@@ -2086,6 +2078,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                     p_slice_idx[I3],
                     p_slice_idx[I3] + Gemm2Params_N_O_M::ABlockSliceLengths_M0_N0_M1_N1::At(I3));
 
+                block_sync_lds(); // sync before write
                 if(gemm2_a_copy_subgroup.IsBelong(mwave_range, nwave_range))
                 {
                     vgrad_gemm_tile_p_thread_copy_vgpr_to_lds.Run(
@@ -2095,8 +2088,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                         Gemm2::a_block_desc_m0_n0_m1_n1_m2_n2_n3_n4,
                         gemm2_a_block_buf);
                 }
-
-                // block_sync_lds(); // sync before write
 
                 vgrad_gemm_tile_ygrad_blockwise_copy.Run(Gemm2::b_block_desc_o0_o1_o2_m0_m1_m2_m3,
                                                          ygrad_block_buf,
@@ -2135,6 +2126,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1
                                sgrad_slice_idx[I3] +
                                    Gemm2Params_N_O_M::ABlockSliceLengths_M0_N0_M1_N1::At(I3));
 
+                block_sync_lds(); // sync before write
                 if(gemm2_a_copy_subgroup.IsBelong(mwave_range, nwave_range))
                 {
                     kgrad_gemm_tile_sgrad_thread_copy_vgpr_to_lds.Run(

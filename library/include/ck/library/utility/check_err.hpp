@@ -219,7 +219,7 @@ typename std::enable_if<
     std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
         std::is_same_v<ranges::range_value_t<Range>, unsigned short>,
     bool>::type
-check_err(const Range& out, const RefRange& ref, unsigned short atol = 1)
+check_integer_err(const Range& out, const RefRange& ref, unsigned short atol)
 {
     const std::string& msg = "Error: Incorrect U16 results!";
     if(out.size() != ref.size())
@@ -262,7 +262,7 @@ typename std::enable_if<
     std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
         std::is_same_v<ranges::range_value_t<Range>, int32_t>,
     bool>::type
-check_err(const Range& out, const RefRange& ref, int32_t atol = 1)
+check_integer_err(const Range& out, const RefRange& ref, int32_t atol)
 {
     const std::string& msg = "Error: Incorrect U16 results!";
     if(out.size() != ref.size())

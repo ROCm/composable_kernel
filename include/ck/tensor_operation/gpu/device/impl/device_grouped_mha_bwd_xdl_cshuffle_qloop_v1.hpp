@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -35,6 +35,7 @@ template <typename GridwiseGemm,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
           bool HasMainKBlockLoop,
+          bool IsDropout,
           bool Deterministic>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -52,7 +53,8 @@ __global__ void
             const unsigned long long seed,
             const unsigned long long offset)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
+    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     const index_t block_id = get_block_1d_id();
     const auto arg_ptr     = reinterpret_cast<const GroupKernelArg*>(
@@ -104,7 +106,7 @@ __global__ void
     {
         for(index_t i = 0; i < num_blocks_per_batch; i++)
         {
-            GridwiseGemm::template Run<HasMainKBlockLoop>(
+            GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
                 arg_ptr[group_id].p_a_grid_ + a_batch_offset,
                 arg_ptr[group_id].p_b_grid_ + b_batch_offset,
                 z_matrix_ptr,
@@ -140,7 +142,7 @@ __global__ void
     }
     else
     {
-        GridwiseGemm::template Run<HasMainKBlockLoop>(
+        GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
             arg_ptr[group_id].p_a_grid_ + a_batch_offset,
             arg_ptr[group_id].p_b_grid_ + b_batch_offset,
             z_matrix_ptr,
@@ -573,7 +575,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
     };
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_V1<
+    using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1<
         InputDataType, // TODO: distinguish A/B datatype
         OutputDataType,
         ZDataType,
@@ -960,7 +962,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
 
             float ave_time = 0;
 
-            auto launch_kernel = [&](auto has_main_k_block_loop_) {
+            auto launch_kernel = [&](auto has_main_k_block_loop_, auto is_dropout_) {
                 const auto kernel =
                     kernel_grouped_multihead_attention_backward_qloop_xdl_cshuffle_v1<
                         GridwiseGemm,
@@ -971,6 +973,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                         B1ElementwiseOperation,
                         CElementwiseOperation,
                         has_main_k_block_loop_,
+                        is_dropout_,
                         Deterministic>;
 
                 return launch_and_time_kernel(
@@ -995,11 +998,17 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             // to concern Gemm0's loop
             if(all_has_main_k_block_loop)
             {
-                ave_time = launch_kernel(integral_constant<bool, true>{});
+                if(arg.p_dropout_ > 0.0)
+                    ave_time = launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, true>{});
+                else
+                    ave_time = launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, false>{});
             }
             else if(!some_has_main_k_block_loop)
             {
-                ave_time = launch_kernel(integral_constant<bool, false>{});
+                if(arg.p_dropout_ > 0.0)
+                    ave_time = launch_kernel(integral_constant<bool, false>{}, integral_constant<bool, true>{});
+                else
+                    ave_time = launch_kernel(integral_constant<bool, false>{}, integral_constant<bool, false>{});
             }
             else
             {
@@ -1025,7 +1034,9 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
+        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
+             ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
+             ck::get_device_name() == "gfx942"))
         {
             return false;
         }
