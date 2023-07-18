@@ -16,7 +16,7 @@ namespace device {
 namespace instance {
 
 // conv2d backward data
-void add_device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instances(
+void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   GNHWK,
                                                                   GKYXC,
@@ -30,7 +30,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instances(
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
 
-void add_device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f32_instances(
+void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   GNHWK,
                                                                   GKYXC,
@@ -44,7 +44,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f32_instances(
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
 
-void add_device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_bf16_instances(
+void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   GNHWK,
                                                                   GKYXC,
@@ -58,7 +58,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_bf16_instances(
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
 
-void add_device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
+void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   NHWGK,
                                                                   GKYXC,
@@ -72,7 +72,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
 
-void add_device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f32_instances(
+void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   NHWGK,
                                                                   GKYXC,
@@ -86,7 +86,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f32_instances(
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
 
-void add_device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(
+void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   NHWGK,
                                                                   GKYXC,
@@ -101,7 +101,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(
                                                                   PassThrough>>>& instances);
 
 // conv3d backward data
-void add_device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f16_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   GNDHWK,
                                                                   GKZYXC,
@@ -115,7 +115,7 @@ void add_device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f16_instances(
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
 
-void add_device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f32_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   GNDHWK,
                                                                   GKZYXC,
@@ -129,7 +129,7 @@ void add_device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f32_instances(
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
 
-void add_device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_bf16_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   GNDHWK,
                                                                   GKZYXC,
@@ -143,7 +143,7 @@ void add_device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_bf16_instances(
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
 
-void add_device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   NDHWGK,
                                                                   GKZYXC,
@@ -157,7 +157,7 @@ void add_device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances(
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
 
-void add_device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   NDHWGK,
                                                                   GKZYXC,
@@ -171,7 +171,7 @@ void add_device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances(
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
 
-void add_device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   NDHWGK,
                                                                   GKZYXC,
@@ -233,17 +233,17 @@ struct DeviceOperationInstanceFactory<
                 if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
                              is_same_v<OutDataType, F16>)
                 {
-                    add_device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instances(op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f16_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
                                   is_same_v<OutDataType, F32>)
                 {
-                    add_device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f32_instances(op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f32_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
                                   is_same_v<OutDataType, BF16>)
                 {
-                    add_device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_bf16_instances(
+                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_bf16_instances(
                         op_ptrs);
                 }
             }
@@ -253,17 +253,17 @@ struct DeviceOperationInstanceFactory<
                 if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
                              is_same_v<OutDataType, F16>)
                 {
-                    add_device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f16_instances(op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
                                   is_same_v<OutDataType, F32>)
                 {
-                    add_device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f32_instances(op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
                                   is_same_v<OutDataType, BF16>)
                 {
-                    add_device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(
+                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_instances(
                         op_ptrs);
                 }
             }
@@ -277,19 +277,19 @@ struct DeviceOperationInstanceFactory<
                 if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
                              is_same_v<OutDataType, F16>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f16_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f16_instances(
                         op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
                                   is_same_v<OutDataType, F32>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f32_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f32_instances(
                         op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
                                   is_same_v<OutDataType, BF16>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_bf16_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_bf16_instances(
                         op_ptrs);
                 }
             }
@@ -299,19 +299,19 @@ struct DeviceOperationInstanceFactory<
                 if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
                              is_same_v<OutDataType, F16>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f16_instances(
                         op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
                                   is_same_v<OutDataType, F32>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_instances(
                         op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
                                   is_same_v<OutDataType, BF16>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
                         op_ptrs);
                 }
             }
