@@ -223,7 +223,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(&argument));
 
-    gemm.SetWorkSpacePointer(&argument, gemm_desc_workspace.GetDeviceBuffer());
+    // gemm.SetWorkSpacePointer(&argument, gemm_desc_workspace.GetDeviceBuffer());
 
     hip_check_error(hipMemcpy(gemm_desc_workspace.GetDeviceBuffer(),
                               grouped_gemm_kernel_args_.data(),
@@ -237,7 +237,9 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             "not support this GEMM problem");
     }
 
-    invoker.Run(argument, gemm_desc_workspace.GetDeviceBuffer(), StreamConfig{nullptr, false});
+    gemm.SetDeviceKernelArgs(argument, gemm_desc_workspace.GetDeviceBuffer());
+
+    invoker.Run(argument, StreamConfig{nullptr, false});
 
     bool pass = true;
     if(config.do_verification)
@@ -273,9 +275,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     if(config.time_kernel)
     {
-        float ave_time   = invoker.Run(argument,
-                                     gemm_desc_workspace.GetDeviceBuffer(),
-                                     StreamConfig{nullptr, config.time_kernel});
+        float ave_time   = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
         float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 

@@ -564,6 +564,8 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         {
             grid_size_ = 0;
 
+            grouped_gemm_kernel_args_dev = nullptr;
+
             group_count_ = ck::type_convert<ck::index_t>(gemm_descs.size());
 
             if(!(group_count_ == ck::type_convert<ck::index_t>(p_As.size()) ||
@@ -713,6 +715,8 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         std::vector<Tuple<index_t, index_t>> a_mtx_mraw_kraw_;
         std::vector<Tuple<index_t, index_t>> b_mtx_nraw_kraw_;
 
+        const void* grouped_gemm_kernel_args_dev;
+
         index_t grid_size_;
     };
 
@@ -721,65 +725,15 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg,
-                  const void* grouped_gemm_kernel_args_dev,
-                  const StreamConfig& stream_config = StreamConfig{})
-        {
-            bool has_main_k_block_loop = true;
-
-            float ave_time = 0;
-
-            auto launch_kernel = [&](auto has_main_k_block_loop_) {
-                const auto kernel = kernel_grouped_gemm_xdl<GridwiseGemm,
-                                                            GroupedGemmKernelArgument<NumDTensor>,
-                                                            GemmSpec,
-                                                            ALayout,
-                                                            BLayout,
-                                                            DsLayout,
-                                                            ELayout,
-                                                            Block2ETileMap,
-                                                            GroupedGemmBlock2ETileMap,
-                                                            AElementwiseOperation,
-                                                            BElementwiseOperation,
-                                                            CDEElementwiseOperation,
-                                                            has_main_k_block_loop_>;
-
-                const index_t grid_size_grp = arg.gemm_desc_kernel_arg_[0].BlockEnd_ -
-                                              arg.gemm_desc_kernel_arg_[0].BlockStart_;
-
-                return launch_and_time_kernel(
-                    stream_config,
-                    kernel,
-                    dim3(arg.grid_size_),
-                    dim3(BlockSize),
-                    0,
-                    cast_pointer_to_constant_address_space(grouped_gemm_kernel_args_dev),
-                    arg.gemm_desc_kernel_arg_.size(),
-                    grid_size_grp,
-                    arg.a_element_op_,
-                    arg.b_element_op_,
-                    arg.c_element_op_);
-            };
-
-            if(has_main_k_block_loop)
-            {
-                ave_time = launch_kernel(integral_constant<bool, true>{});
-            }
-            else
-            {
-                ave_time = launch_kernel(integral_constant<bool, false>{});
-            }
-
-            return ave_time;
-        }
-
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             bool has_main_k_block_loop = true;
 
+#if 1
             std::vector<GroupedGemmKernelArgument<NumDTensor>> grouped_gemm_kernel_args;
 
             grouped_gemm_kernel_args.reserve(arg.gemm_desc_kernel_arg_.size());
+#endif
 
             for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
             {
@@ -824,13 +778,7 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                     throw std::runtime_error("wrong! not all gemm has_main_k_block_loop");
                 }
 
-                if(arg.gemm_desc_kernel_arg_[i].a_ptr_ == nullptr ||
-                   arg.gemm_desc_kernel_arg_[i].b_ptr_ == nullptr ||
-                   arg.gemm_desc_kernel_arg_[i].e_ptr_ == nullptr)
-                {
-                    throw std::runtime_error("wrong! p_a/b/c_grid is nullptr");
-                }
-
+#if 1
                 grouped_gemm_kernel_args.push_back(
                     GroupedGemmKernelArgument<NumDTensor>{arg.gemm_desc_kernel_arg_[i].a_ptr_,
                                                           arg.gemm_desc_kernel_arg_[i].b_ptr_,
@@ -843,16 +791,80 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                                                           arg.gemm_desc_kernel_arg_[i].StrideB_,
                                                           arg.gemm_desc_kernel_arg_[i].StrideDs_,
                                                           arg.gemm_desc_kernel_arg_[i].StrideE_});
+#endif
             }
 
-            hipGetErrorString(hipMemcpyWithStream(arg.p_workspace_,
-                                                  grouped_gemm_kernel_args.data(),
-                                                  grouped_gemm_kernel_args.size() *
-                                                      sizeof(GroupedGemmKernelArgument<NumDTensor>),
-                                                  hipMemcpyHostToDevice,
-                                                  stream_config.stream_id_));
+            float ave_time = 0;
 
-            float ave_time = Run(arg, arg.p_workspace_, stream_config);
+            auto launch_kernel = [&](auto has_main_k_block_loop_) {
+                const auto kernel = kernel_grouped_gemm_xdl<GridwiseGemm,
+                                                            GroupedGemmKernelArgument<NumDTensor>,
+                                                            GemmSpec,
+                                                            ALayout,
+                                                            BLayout,
+                                                            DsLayout,
+                                                            ELayout,
+                                                            Block2ETileMap,
+                                                            GroupedGemmBlock2ETileMap,
+                                                            AElementwiseOperation,
+                                                            BElementwiseOperation,
+                                                            CDEElementwiseOperation,
+                                                            has_main_k_block_loop_>;
+
+                const index_t grid_size_grp = arg.gemm_desc_kernel_arg_[0].BlockEnd_ -
+                                              arg.gemm_desc_kernel_arg_[0].BlockStart_;
+
+                const void* kernel_args_dev = nullptr;
+
+                if(arg.grouped_gemm_kernel_args_dev != nullptr)
+                {
+                    kernel_args_dev = arg.grouped_gemm_kernel_args_dev;
+                }
+                else
+                {
+                    for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
+                    {
+                        if(arg.gemm_desc_kernel_arg_[i].a_ptr_ == nullptr ||
+                           arg.gemm_desc_kernel_arg_[i].b_ptr_ == nullptr ||
+                           arg.gemm_desc_kernel_arg_[i].e_ptr_ == nullptr)
+                        {
+                            throw std::runtime_error("wrong! p_a/b/c_grid is nullptr");
+                        }
+                    }
+
+                    hipGetErrorString(
+                        hipMemcpyWithStream(arg.p_workspace_,
+                                            grouped_gemm_kernel_args.data(),
+                                            grouped_gemm_kernel_args.size() *
+                                                sizeof(GroupedGemmKernelArgument<NumDTensor>),
+                                            hipMemcpyHostToDevice,
+                                            stream_config.stream_id_));
+
+                    kernel_args_dev = arg.p_workspace_;
+                }
+
+                return launch_and_time_kernel(
+                    stream_config,
+                    kernel,
+                    dim3(arg.grid_size_),
+                    dim3(BlockSize),
+                    0,
+                    cast_pointer_to_constant_address_space(kernel_args_dev),
+                    arg.gemm_desc_kernel_arg_.size(),
+                    grid_size_grp,
+                    arg.a_element_op_,
+                    arg.b_element_op_,
+                    arg.c_element_op_);
+            };
+
+            if(has_main_k_block_loop)
+            {
+                ave_time = launch_kernel(integral_constant<bool, true>{});
+            }
+            else
+            {
+                ave_time = launch_kernel(integral_constant<bool, false>{});
+            }
 
             return ave_time;
         }
@@ -965,6 +977,17 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         // clang-format on
 
         return str.str();
+    }
+
+    static void SetDeviceKernelArgs(Argument& arg, const void* kernel_args)
+    {
+        arg.grouped_gemm_kernel_args_dev = kernel_args;
+    }
+
+    // polymorphic
+    void SetDeviceKernelArgs(BaseArgument* p_arg, const void* kernel_args) const override
+    {
+        return SetDeviceKernelArgs(*dynamic_cast<Argument*>(p_arg), kernel_args);
     }
 
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override

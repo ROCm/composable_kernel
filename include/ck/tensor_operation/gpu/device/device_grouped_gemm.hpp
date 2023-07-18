@@ -66,6 +66,8 @@ struct DeviceGroupedGemm : public BaseOperator
                         CElementwiseOperation c_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+
+    virtual void SetDeviceKernelArgs(BaseArgument* p_arg, const void* kernel_args) const = 0;
 };
 
 } // namespace device
