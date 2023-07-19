@@ -8,6 +8,7 @@ add_example_executable(example_grouped_gemm_multiple_d_dl_fp16 grouped_gemm_mult
 add_example_executable(example_grouped_gemm_xdl_splitk_fp16 grouped_gemm_xdl_splitk_fp16.cpp)
 
 add_example_executable(example_grouped_gemm_xdl_fixed_nk_fp16 grouped_gemm_xdl_fixed_nk_fp16.cpp)
+add_example_executable(example_grouped_gemm_xdl_fixed_nk_bias_fp16 grouped_gemm_xdl_fixed_nk_bias_fp16.cpp)
 
 
 add_dependencies(example_grouped_gemm_xdl
@@ -17,7 +18,7 @@ add_dependencies(example_grouped_gemm_xdl
                  example_grouped_gemm_xdl_int8
                  example_grouped_gemm_multiple_d_dl_fp16
                  example_grouped_gemm_xdl_splitk_fp16
-                 example_grouped_gemm_xdl_fixed_nk_fp16
+                 example_grouped_gemm_xdl_fixed_nk_bias_fp16
              )
 
 if(USE_BITINT_EXTENSION_INT4)

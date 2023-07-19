@@ -29,6 +29,7 @@ template <typename GridwiseGemm,
           typename BLayout,
           typename DsLayout,
           typename ELayout,
+          typename DsDataType,
           typename Block2ETileMap,
           typename GroupedGemmBlock2ETileMap,
           typename AElementwiseOperation,
@@ -108,18 +109,6 @@ __global__ void
     const auto StrideDs = gemm_desc_ptr[group_id].StrideDs;
     const auto StrideE  = gemm_desc_ptr[group_id].StrideE;
 
-#if 0
-    using Row = ck::tensor_layout::gemm::RowMajor;
-    using Col = ck::tensor_layout::gemm::ColumnMajor;
-
-    using ALayout  = Row;
-    using BLayout  = Col;
-    using DsLayout = ck::Tuple<>;
-    using ELayout  = Row;
-#endif
-
-    using DsDataType = ck::Tuple<>;
-
     const auto e_grid_desc_m_n =
         GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(M, N, StrideE);
 
@@ -127,7 +116,7 @@ __global__ void
 
     const auto local_b2e_tile_map = Block2ETileMap{e_grid_desc_m_n};
 
-    constexpr auto NumDTensor = 0;
+    constexpr auto NumDTensor = DsDataType::Size();
 
     using DsGridPointer = decltype(GridwiseGemm::MakeDsGridPointer());
 
@@ -580,10 +569,9 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                 throw std::runtime_error("wrong! group_count_ != p_Bs || 0 != p_Bs.size");
             }
 
-            if(!(group_count_ == ck::type_convert<ck::index_t>(p_Ds.size()) ||
-                 0 == ck::type_convert<ck::index_t>(p_Ds.size())))
+            if(!(group_count_ == ck::type_convert<ck::index_t>(p_Ds.size()) || NumDTensor == 0))
             {
-                throw std::runtime_error("wrong! group_count_ != p_Ds || 0 != p_Ds.size");
+                throw std::runtime_error("wrong! group_count_ != p_Ds");
             }
 
             if(!(group_count_ == ck::type_convert<ck::index_t>(p_Es.size())))
@@ -648,10 +636,16 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
 
                 const index_t grid_size_grp = local_b2c_tile_map.CalculateGridSize(e_grid_desc_m_n);
 
-                std::cout << "grp id: " << group_id << " grid_size: " << grid_size_grp << std::endl;
+                // std::cout << "grp id: " << group_id << " grid_size: " << grid_size_grp <<
+                // std::endl;
 
                 const index_t BlockStart = grid_size_;
                 const index_t BlockEnd   = grid_size_ + grid_size_grp;
+
+                if(group_id * grid_size_grp != grid_size_)
+                {
+                    throw std::runtime_error("wrong! grid_size_grp is not identical!");
+                }
 
                 grid_size_ += grid_size_grp;
 
@@ -754,6 +748,14 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                           << arg.gemm_desc_kernel_arg_[i].b_grid_desc_bk0_n_bk1_.GetLength(I2)
                           << "}";
 
+                static_for<0, NumDTensor, 1>{}([&](auto j) {
+                    std::cout << ", arg.d" << i << "_grid_desc_m_n_{"
+                              << arg.gemm_desc_kernel_arg_[i].ds_grid_desc_m_n_[j].GetLength(I0)
+                              << ", "
+                              << arg.gemm_desc_kernel_arg_[i].ds_grid_desc_m_n_[j].GetLength(I1)
+                              << "}";
+                });
+
                 std::cout << ", arg.e_grid_desc_m_n_{ "
                           << arg.gemm_desc_kernel_arg_[i].e_grid_desc_m_n_.GetLength(I0) << ", "
                           << arg.gemm_desc_kernel_arg_[i].e_grid_desc_m_n_.GetLength(I1) << "}"
@@ -805,6 +807,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                                                      BLayout,
                                                      DsLayout,
                                                      ELayout,
+                                                     DsDataType,
                                                      Block2ETileMap,
                                                      GroupedGemmBlock2ETileMap,
                                                      AElementwiseOperation,
