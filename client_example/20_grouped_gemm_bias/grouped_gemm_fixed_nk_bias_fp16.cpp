@@ -181,7 +181,7 @@ int main()
         auto& op_ptr = op_ptrs[i];
 
         auto argument_ptr = op_ptr->MakeArgumentPointer(
-                p_a, p_b, p_ds, p_e, gemm_descs, a_element_op, b_element_op, cde_element_op);
+            p_a, p_b, p_ds, p_e, gemm_descs, a_element_op, b_element_op, cde_element_op);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

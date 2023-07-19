@@ -121,12 +121,12 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
                          is_same_v<ELayout, Row>)
             {
-                //add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_km_kn_mn_instances(op_ptrs);
+                // add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_km_kn_mn_instances(op_ptrs);
             }
             if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
                          is_same_v<ELayout, Row>)
             {
-                //add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_km_nk_mn_instances(op_ptrs);
+                // add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_km_nk_mn_instances(op_ptrs);
             }
         }
         return op_ptrs;
