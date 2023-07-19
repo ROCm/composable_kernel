@@ -18,6 +18,7 @@ add_dependencies(example_grouped_gemm_xdl
                  example_grouped_gemm_xdl_int8
                  example_grouped_gemm_multiple_d_dl_fp16
                  example_grouped_gemm_xdl_splitk_fp16
+                 example_grouped_gemm_xdl_fixed_nk_fp16
                  example_grouped_gemm_xdl_fixed_nk_bias_fp16
              )
 
