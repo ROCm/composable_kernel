@@ -16,7 +16,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-// void add_device_grouped_gemm_xdl_fixed_nk_f16_f16_f16_mk_kn_mn_instances(
+// void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_mk_kn_mn_instances(
 // std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
 // Row,
 // Empty_Tuple,
@@ -29,7 +29,7 @@ namespace instance {
 // PassThrough,
 // PassThrough>>>& instances);
 
-void add_device_grouped_gemm_xdl_fixed_nk_f16_f16_f16_mk_nk_mn_instances(
+void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_mk_nk_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
                                                          Col,
                                                          Empty_Tuple,
@@ -42,7 +42,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_f16_f16_f16_mk_nk_mn_instances(
                                                          PassThrough,
                                                          PassThrough>>>& instances);
 
-// void add_device_grouped_gemm_xdl_fixed_nk_f16_f16_f16_km_kn_mn_instances(
+// void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_km_kn_mn_instances(
 // std::vector<std::unique_ptr<DeviceGroupedGemm<Col,
 // Row,
 // Empty_Tuple,
@@ -55,7 +55,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_f16_f16_f16_mk_nk_mn_instances(
 // PassThrough,
 // PassThrough>>>& instances);
 
-// void add_device_grouped_gemm_xdl_fixed_nk_f16_f16_f16_km_nk_mn_instances(
+// void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_km_nk_mn_instances(
 // std::vector<std::unique_ptr<DeviceGroupedGemm<Col,
 // Col,
 // Empty_Tuple,
@@ -109,22 +109,22 @@ struct DeviceOperationInstanceFactory<
             // if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
             // is_same_v<ELayout, Row>)
             //{
-            // add_device_grouped_gemm_xdl_fixed_nk_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
+            // add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
             //}
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                          is_same_v<ELayout, Row>)
             {
-                add_device_grouped_gemm_xdl_fixed_nk_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
+                add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
             }
             // if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
             // is_same_v<ELayout, Row>)
             //{
-            // add_device_grouped_gemm_xdl_fixed_nk_f16_f16_f16_km_kn_mn_instances(op_ptrs);
+            // add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_km_kn_mn_instances(op_ptrs);
             //}
             // if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
             // is_same_v<ELayout, Row>)
             //{
-            // add_device_grouped_gemm_xdl_fixed_nk_f16_f16_f16_km_nk_mn_instances(op_ptrs);
+            // add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_km_nk_mn_instances(op_ptrs);
             //}
         }
         return op_ptrs;

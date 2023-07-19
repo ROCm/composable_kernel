@@ -11,7 +11,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_gemm_xdl_fixed_nk.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -30,6 +30,7 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using AddBias     = ck::tensor_operation::element_wise::AddBias;
 
 using ADataType        = F16;
 using BDataType        = F16;
@@ -48,28 +49,7 @@ using ELayout  = Row;
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
 
-struct Add
-{
-    template <typename E, typename C, typename D0>
-    __host__ __device__ void operator()(E& e, const C& c, const D0& d0) const;
-
-    template <>
-    __host__ __device__ void
-    operator()<ck::half_t, float, float>(ck::half_t& e, const float& c, const float& d0) const
-    {
-        e = c + d0;
-    }
-
-    template <>
-    __host__ __device__ void operator()<ck::half_t, ck::half_t, float>(ck::half_t& e,
-                                                                       const ck::half_t& c,
-                                                                       const float& d0) const
-    {
-        e = c + d0;
-    }
-};
-
-using CDEElementOp = Add;
+using CDEElementOp = AddBias;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
