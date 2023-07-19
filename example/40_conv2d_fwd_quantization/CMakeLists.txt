@@ -1,3 +1,4 @@
+if(DTYPES MATCHES "int8" OR NOT DEFINED DTYPES)
 list(APPEND gpu_list gfx908 gfx90a gfx940 gfx941 gfx942)
 set(target 0)
 foreach(gpu IN LISTS GPU_TARGETS)
@@ -26,3 +27,4 @@ add_example_executable(example_conv2d_fwd_dl_bias_tanh_perlayer_quantization_int
 
 # Conv + bias + tanh perchannel quantization
 add_example_executable(example_conv2d_fwd_dl_bias_tanh_perchannel_quantization_int8 conv2d_fwd_dl_bias_tanh_perchannel_quantization_int8.cpp)
+endif()
