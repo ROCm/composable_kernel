@@ -56,9 +56,6 @@ struct SimpleDeviceMem
 
 int main()
 {
-    std::mt19937 gen(19391);
-    std::uniform_int_distribution<> distrib(1, 10);
-
     std::vector<int> Ms, Ns, Ks, StrideAs, StrideBs, StrideEs;
 
     int sum_of_m = 0;
@@ -123,7 +120,7 @@ int main()
         e_dev_bufs.emplace_back(sizeof(EDataType) *
                                 f_matrix_space_size(Ms[i], Ns[i], StrideEs[i], ELayout{}));
 
-        gemm_descs.push_back({sum_of_m, Ns[i], Ks[i], 0, StrideBs[i], 0, {0}});
+        gemm_descs.push_back({sum_of_m, Ns[i], Ks[i], 1, StrideBs[i], 1, {0}});
 
         p_e.push_back(e_dev_bufs[i].GetDeviceBuffer());
 
@@ -248,7 +245,6 @@ int main()
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
         SimpleDeviceMem gemm_desc_workspace(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
-        // op_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {

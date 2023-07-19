@@ -56,47 +56,11 @@ __global__ void
     const auto gemm_desc_ptr =
         reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
 
-#if 0
-    index_t left     = 0;
-    index_t right    = group_count;
-    index_t group_id = index_t((left + right) / 2);
-    while((!(block_id >= gemm_desc_ptr[group_id].BlockStart_ &&
-             block_id < gemm_desc_ptr[group_id].BlockEnd_)) &&
-          left <= right)
-    {
-        if(block_id < gemm_desc_ptr[group_id].BlockStart_)
-        {
-            right = group_id;
-        }
-        else
-        {
-            left = group_id;
-        }
-        group_id = index_t((left + right) / 2);
-    }
-#endif
-
     const index_t group_id = block_id / grid_size_grp;
 
     if(group_id >= group_count)
         return;
 
-#if 0
-    GridwiseGemm::template Run<HasMainKBlockLoop>(
-        gemm_desc_ptr[group_id].a_ptr_,
-        gemm_desc_ptr[group_id].b_ptr_,
-        gemm_desc_ptr[group_id].ds_ptr_,
-        gemm_desc_ptr[group_id].e_ptr_,
-        p_shared,
-        a_element_op,
-        b_element_op,
-        c_element_op,
-        gemm_desc_ptr[group_id].a_grid_desc_ak0_m_ak1_,
-        gemm_desc_ptr[group_id].b_grid_desc_bk0_n_bk1_,
-        gemm_desc_ptr[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-        gemm_desc_ptr[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
-        gemm_desc_ptr[group_id].block_2_etile_map_);
-#else
     const index_t M = gemm_desc_ptr[group_id].M;
     const index_t N = gemm_desc_ptr[group_id].N;
     const index_t K = gemm_desc_ptr[group_id].K;
@@ -158,9 +122,6 @@ __global__ void
         m_id += 1;
 
     } while(m_id < m_loops);
-
-#endif
-
 #else
     ignore = gemm_descs_const;
     ignore = group_count;
@@ -644,9 +605,6 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
 
                 const index_t grid_size_grp = local_b2c_tile_map.CalculateGridSize(e_grid_desc_m_n);
 
-                // std::cout << "grp id: " << group_id << " grid_size: " << grid_size_grp <<
-                // std::endl;
-
                 const index_t BlockStart = grid_size_;
                 const index_t BlockEnd   = grid_size_ + grid_size_grp;
 
@@ -731,11 +689,9 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
         {
             bool has_main_k_block_loop = true;
 
-#if 1
             std::vector<GroupedGemmKernelArgument<NumDTensor>> grouped_gemm_kernel_args;
 
             grouped_gemm_kernel_args.reserve(arg.gemm_desc_kernel_arg_.size());
-#endif
 
             for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
             {
@@ -788,7 +744,6 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                     throw std::runtime_error("wrong! not all gemm has_main_k_block_loop");
                 }
 
-#if 1
                 grouped_gemm_kernel_args.push_back(
                     GroupedGemmKernelArgument<NumDTensor>{arg.gemm_desc_kernel_arg_[i].a_ptr_,
                                                           arg.gemm_desc_kernel_arg_[i].b_ptr_,
@@ -801,7 +756,6 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                                                           arg.gemm_desc_kernel_arg_[i].StrideB_,
                                                           arg.gemm_desc_kernel_arg_[i].StrideDs_,
                                                           arg.gemm_desc_kernel_arg_[i].StrideE_});
-#endif
             }
 
             float ave_time = 0;

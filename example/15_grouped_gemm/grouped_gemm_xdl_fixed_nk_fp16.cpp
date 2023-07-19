@@ -188,9 +188,9 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         gemm_descs.push_back({sum_of_m,
                               problem_size.Ns[i],
                               problem_size.Ks[i],
-                              problem_size.stride_As[i],
+                              1,
                               problem_size.stride_Bs[i],
-                              problem_size.stride_Cs[i],
+                              1,
                               {}});
 
         grouped_gemm_kernel_args_.push_back({a_tensors_device[i]->GetDeviceBuffer(),
@@ -222,8 +222,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         p_As, p_Bs, p_Ds, p_Cs, gemm_descs, a_element_op, b_element_op, c_element_op);
 
     DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(&argument));
-
-    // gemm.SetWorkSpacePointer(&argument, gemm_desc_workspace.GetDeviceBuffer());
 
     hip_check_error(hipMemcpy(gemm_desc_workspace.GetDeviceBuffer(),
                               grouped_gemm_kernel_args_.data(),
@@ -286,7 +284,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     return pass;
 }
 
-// int main(int argc, char* argv[]) { return !run_grouped_gemm_example(argc, argv); }
 int main(int argc, char* argv[])
 {
     ProblemSize problem_size;

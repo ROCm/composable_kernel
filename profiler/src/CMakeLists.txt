@@ -75,7 +75,6 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_normalization_instan
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_softmax_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_reduce_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batchnorm_instance)
-target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_gemm_bias_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_gemm_fastgelu_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_bilinear_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_scale_instance)

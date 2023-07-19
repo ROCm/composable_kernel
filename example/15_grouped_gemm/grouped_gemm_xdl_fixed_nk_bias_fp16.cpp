@@ -202,13 +202,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
         p_Cs.push_back(c_tensors_device[i]->GetDeviceBuffer());
 
-        gemm_descs.push_back({sum_of_m,
-                              problem_size.Ns[i],
-                              problem_size.Ks[i],
-                              0,
-                              problem_size.stride_Bs[i],
-                              0,
-                              {0}});
+        gemm_descs.push_back(
+            {1, problem_size.Ns[i], problem_size.Ks[i], 1, problem_size.stride_Bs[i], 1, {0}});
 
         grouped_gemm_kernel_args_.push_back(
             {a_tensors_device[i]->GetDeviceBuffer(),
@@ -320,8 +315,7 @@ int main(int argc, char* argv[])
 
     problem_size.group_count = 16;
 
-    problem_size.Ms = {
-        167, 183, 177, 181, 153, 139, 156, 173, 163, 150, 204, 184, 168, 156, 168, 148};
+    problem_size.Ms = {167, 0, 177, 181, 153, 0, 156, 173, 645, 150, 204, 184, 168, 156, 168, 148};
 
     for(int i = 0; i < problem_size.group_count; i++)
     {

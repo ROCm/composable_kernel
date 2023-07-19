@@ -4,7 +4,7 @@
 #pragma once
 
 #include <iostream>
-#include <vector>
+#include <array>
 
 #include "device_grouped_gemm.hpp"
 
