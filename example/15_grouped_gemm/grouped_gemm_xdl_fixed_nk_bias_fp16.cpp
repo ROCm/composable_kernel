@@ -307,7 +307,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     return pass;
 }
 
-// int main(int argc, char* argv[]) { return !run_grouped_gemm_example(argc, argv); }
 int main(int argc, char* argv[])
 {
     ProblemSize problem_size;

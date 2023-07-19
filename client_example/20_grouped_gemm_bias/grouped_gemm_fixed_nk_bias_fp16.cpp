@@ -182,18 +182,19 @@ int main()
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-        SimpleDeviceMem gemm_desc_workspace(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
+        SimpleDeviceMem grouped_gemm_kernel_args_dev(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
 
         std::string op_name = op_ptr->GetTypeString();
 
-        hipGetErrorString(hipMemcpy(gemm_desc_workspace.GetDeviceBuffer(),
+        hipGetErrorString(hipMemcpy(grouped_gemm_kernel_args_dev.GetDeviceBuffer(),
                                     grouped_gemm_kernel_args_.data(),
                                     op_ptr->GetWorkSpaceSize(argument_ptr.get()),
                                     hipMemcpyHostToDevice));
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            op_ptr->SetDeviceKernelArgs(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
+            op_ptr->SetDeviceKernelArgs(argument_ptr.get(),
+                                        grouped_gemm_kernel_args_dev.GetDeviceBuffer());
 
             float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
@@ -244,11 +245,12 @@ int main()
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-        SimpleDeviceMem gemm_desc_workspace(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
+        SimpleDeviceMem grouped_gemm_kernel_args_dev(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            op_ptr->SetDeviceKernelArgs(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
+            op_ptr->SetDeviceKernelArgs(argument_ptr.get(),
+                                        grouped_gemm_kernel_args_dev.GetDeviceBuffer());
 
             invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
         }

@@ -496,7 +496,6 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
 
         // block-to-e-tile map
         Block2ETileMap block_2_etile_map_;
-        ck::index_t BlockStart_, BlockEnd_;
     };
 
     // Argument
@@ -605,9 +604,6 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
 
                 const index_t grid_size_grp = local_b2c_tile_map.CalculateGridSize(e_grid_desc_m_n);
 
-                const index_t BlockStart = grid_size_;
-                const index_t BlockEnd   = grid_size_ + grid_size_grp;
-
                 if(group_id * grid_size_grp != grid_size_)
                 {
                     throw std::runtime_error("wrong! grid_size_grp is not identical!");
@@ -655,9 +651,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                                                b_grid_desc_bk0_n_bk1,
                                                ds_grid_desc_mblock_mperblock_nblock_nperblock,
                                                e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                               local_b2c_tile_map,
-                                               BlockStart,
-                                               BlockEnd});
+                                               local_b2c_tile_map});
                 }
 
                 group_id++;
@@ -777,8 +771,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                                                      CDEElementwiseOperation,
                                                      has_main_k_block_loop_>;
 
-                const index_t grid_size_grp = arg.gemm_desc_kernel_arg_[0].BlockEnd_ -
-                                              arg.gemm_desc_kernel_arg_[0].BlockStart_;
+                const index_t grid_size_grp = arg.grid_size_ / arg.group_count_;
 
                 const void* kernel_args_dev = nullptr;
 
@@ -796,6 +789,11 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                         {
                             throw std::runtime_error("wrong! p_a/b/c_grid is nullptr");
                         }
+                    }
+
+                    if(arg.p_workspace_ == nullptr)
+                    {
+                        throw std::runtime_error("wrong! arg.p_workspace_ == nullptr");
                     }
 
                     hipGetErrorString(
