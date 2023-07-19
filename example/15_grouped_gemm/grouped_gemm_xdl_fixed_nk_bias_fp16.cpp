@@ -88,7 +88,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     // GEMM shape
     std::vector<ck::tensor_operation::device::GemmDesc> gemm_descs;
-    std::vector<std::array<const void*, 1>> p_Ds;
     std::vector<void*> p_Cs;
 
     gemm_descs.reserve(group_count);
@@ -201,15 +200,14 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         d0_tensors_device[i]->ToDevice(d0_tensors[i].mData.data());
         c_tensors_device[i]->SetZero();
 
-        p_Ds.push_back(std::array<const void*, 1>{d0_tensors_device[i]->GetDeviceBuffer()});
         p_Cs.push_back(c_tensors_device[i]->GetDeviceBuffer());
 
         gemm_descs.push_back({sum_of_m,
                               problem_size.Ns[i],
                               problem_size.Ks[i],
-                              problem_size.stride_As[i],
+                              0,
                               problem_size.stride_Bs[i],
-                              problem_size.stride_Cs[i],
+                              0,
                               {0}});
 
         grouped_gemm_kernel_args_.push_back(
@@ -233,8 +231,9 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
 
-    std::vector<const void*> p_As = {};
-    std::vector<const void*> p_Bs = {};
+    std::vector<const void*> p_As                = {};
+    std::vector<const void*> p_Bs                = {};
+    std::vector<std::array<const void*, 1>> p_Ds = {};
 
     // do GEMM
     auto argument = gemm.MakeArgument(

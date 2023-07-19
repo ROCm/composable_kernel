@@ -1,2 +1,0 @@
-add_executable(client_grouped_gemm_fixed_nk grouped_gemm_fixed_nk.cpp)
-target_link_libraries(client_grouped_gemm_fixed_nk PRIVATE composable_kernel::device_operations)

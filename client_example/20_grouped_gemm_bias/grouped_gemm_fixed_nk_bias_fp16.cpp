@@ -11,7 +11,7 @@
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_fixed_nk.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_fixed_nk.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_bias.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -20,20 +20,23 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using AddBias     = ck::tensor_operation::element_wise::AddBias;
 
 using ADataType  = F16;
 using BDataType  = F16;
-using DsDataType = ck::Tuple<>;
+using D0DataType = F32;
+using DsDataType = ck::Tuple<D0DataType>;
 using EDataType  = F16;
 
 using ALayout  = Row;
 using BLayout  = Col;
-using DsLayout = ck::Tuple<>;
+using D0Layout = Row;
+using DsLayout = ck::Tuple<D0Layout>;
 using ELayout  = Row;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
-using CDEElementOp = PassThrough;
+using CDEElementOp = AddBias;
 
 struct SimpleDeviceMem
 {
@@ -90,24 +93,22 @@ int main()
             }
         };
 
-    std::vector<SimpleDeviceMem> a_dev_bufs, b_dev_bufs, e_dev_bufs;
+    std::vector<SimpleDeviceMem> a_dev_bufs, b_dev_bufs, d0_dev_bufs, e_dev_bufs;
 
     a_dev_bufs.reserve(group_count);
     b_dev_bufs.reserve(group_count);
+    d0_dev_bufs.reserve(group_count);
     e_dev_bufs.reserve(group_count);
 
-    std::vector<const void*> p_a, p_b;
     std::vector<void*> p_e;
 
-    p_a.reserve(group_count);
-    p_b.reserve(group_count);
     p_e.reserve(group_count);
 
     std::vector<ck::tensor_operation::device::GemmDesc> gemm_descs;
 
     gemm_descs.reserve(group_count);
 
-    std::vector<ck::tensor_operation::device::GroupedGemmKernelArgument<>>
+    std::vector<ck::tensor_operation::device::GroupedGemmKernelArgument<1>>
         grouped_gemm_kernel_args_;
     grouped_gemm_kernel_args_.reserve(group_count);
 
@@ -117,26 +118,27 @@ int main()
                                 f_matrix_space_size(Ms[i], Ks[i], StrideAs[i], ALayout{}));
         b_dev_bufs.emplace_back(sizeof(BDataType) *
                                 f_matrix_space_size(Ks[i], Ns[i], StrideBs[i], BLayout{}));
+        d0_dev_bufs.emplace_back(sizeof(D0DataType) *
+                                 f_matrix_space_size(Ms[i], Ns[i], 0, D0Layout{}));
         e_dev_bufs.emplace_back(sizeof(EDataType) *
                                 f_matrix_space_size(Ms[i], Ns[i], StrideEs[i], ELayout{}));
 
-        gemm_descs.push_back({sum_of_m, Ns[i], Ks[i], StrideAs[i], StrideBs[i], StrideEs[i], {}});
+        gemm_descs.push_back({sum_of_m, Ns[i], Ks[i], 0, StrideBs[i], 0, {0}});
 
-        p_a.push_back(a_dev_bufs[i].GetDeviceBuffer());
-        p_b.push_back(b_dev_bufs[i].GetDeviceBuffer());
         p_e.push_back(e_dev_bufs[i].GetDeviceBuffer());
 
-        grouped_gemm_kernel_args_.push_back({a_dev_bufs[i].GetDeviceBuffer(),
-                                             b_dev_bufs[i].GetDeviceBuffer(),
-                                             {},
-                                             e_dev_bufs[i].GetDeviceBuffer(),
-                                             Ms[i],
-                                             Ns[i],
-                                             Ks[i],
-                                             StrideAs[i],
-                                             StrideBs[i],
-                                             {},
-                                             StrideEs[i]});
+        grouped_gemm_kernel_args_.push_back(
+            {a_dev_bufs[i].GetDeviceBuffer(),
+             b_dev_bufs[i].GetDeviceBuffer(),
+             std::array<const void*, 1>{d0_dev_bufs[i].GetDeviceBuffer()},
+             e_dev_bufs[i].GetDeviceBuffer(),
+             Ms[i],
+             Ns[i],
+             Ks[i],
+             StrideAs[i],
+             StrideBs[i],
+             std::array<ck::index_t, 1>{0},
+             StrideEs[i]});
     }
 
     using DeviceOp = ck::tensor_operation::device::DeviceGroupedGemmFixedNK<ALayout,
@@ -168,23 +170,22 @@ int main()
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
 
-    auto p_ds = std::vector<std::array<const void*, 0>>{};
-
     // profile device operation instances
     std::cout << "Run all instances and do timing" << std::endl;
+
+    std::vector<const void*> p_a = {}, p_b = {};
+    std::vector<std::array<const void*, 1>> p_ds = {};
 
     for(int i = 0; i < op_ptrs.size(); ++i)
     {
         auto& op_ptr = op_ptrs[i];
 
         auto argument_ptr = op_ptr->MakeArgumentPointer(
-            p_a, p_b, p_ds, p_e, gemm_descs, a_element_op, b_element_op, cde_element_op);
+                p_a, p_b, p_ds, p_e, gemm_descs, a_element_op, b_element_op, cde_element_op);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
         SimpleDeviceMem gemm_desc_workspace(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
-
-        // op_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
 
         std::string op_name = op_ptr->GetTypeString();
 

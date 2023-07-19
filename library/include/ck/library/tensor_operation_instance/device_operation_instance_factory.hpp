@@ -97,6 +97,7 @@ using AddMultiply    = ck::tensor_operation::element_wise::AddMultiply;
 using ScaleAdd       = ck::tensor_operation::element_wise::ScaleAdd;
 using Gelu           = ck::tensor_operation::element_wise::Gelu;
 using Swish          = ck::tensor_operation::element_wise::Swish;
+using AddBias        = ck::tensor_operation::element_wise::AddBias;
 
 template <typename Activation>
 using Activation_Mul_Clamp = ck::tensor_operation::element_wise::Activation_Mul_Clamp<Activation>;

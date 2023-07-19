@@ -30,7 +30,8 @@ using DsDataType = ck::Tuple<D0DataType>;
 using D0Layout = Row;
 using DsLayout = ck::Tuple<D0Layout>;
 
-using Add = ck::tensor_operation::element_wise::AddBias;
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using Add         = ck::tensor_operation::element_wise::AddBias;
 
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
@@ -63,12 +64,12 @@ void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_mk_nk_mn_instances(
                                                          DsLayout,
                                                          Row,
                                                          F16,
-                                                         F32,
+                                                         F16,
                                                          DsDataType,
                                                          F16,
                                                          PassThrough,
                                                          PassThrough,
-                                                         PassThrough>>>& instances)
+                                                         Add>>>& instances)
 {
     add_device_operation_instances(
         instances,

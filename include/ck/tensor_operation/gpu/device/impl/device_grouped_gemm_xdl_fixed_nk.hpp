@@ -569,9 +569,10 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                 throw std::runtime_error("wrong! group_count_ != p_Bs || 0 != p_Bs.size");
             }
 
-            if(!(group_count_ == ck::type_convert<ck::index_t>(p_Ds.size()) || NumDTensor == 0))
+            if(!(group_count_ == ck::type_convert<ck::index_t>(p_Ds.size()) ||
+                 0 == ck::type_convert<ck::index_t>(p_Ds.size())))
             {
-                throw std::runtime_error("wrong! group_count_ != p_Ds");
+                throw std::runtime_error("wrong! group_count_ != p_Ds || 0 != p_Ds.size");
             }
 
             if(!(group_count_ == ck::type_convert<ck::index_t>(p_Es.size())))
@@ -602,7 +603,8 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                 static_for<0, NumDTensor, 1>{}([&](auto j) {
                     using DDataType = remove_cvref_t<tuple_element_t<j.value, DsDataType>>;
 
-                    p_ds_grid[j] = static_cast<const DDataType*>(p_Ds[i][j]);
+                    p_ds_grid[j] =
+                        static_cast<const DDataType*>(p_Ds.size() == 0 ? nullptr : p_Ds[i][j]);
                 });
 
                 // tensor descriptors for problem definiton
@@ -615,6 +617,12 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
 
                 static_for<0, NumDTensor, 1>{}([&](auto j) {
                     using DLayout = remove_cvref_t<tuple_element_t<j.value, DsLayout>>;
+
+                    if(gemm_descs[i].stride_Ds_.size() != NumDTensor)
+                    {
+                        throw std::runtime_error(
+                            "wrong! gemm_descs[i].stride_Ds_.size() does not match NumDTensor");
+                    }
 
                     StrideDs[j]         = gemm_descs[i].stride_Ds_[j];
                     ds_grid_desc_m_n(j) = DeviceOp::MakeEGridDescriptor_M_N<DLayout>(
