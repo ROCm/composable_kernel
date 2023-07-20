@@ -567,13 +567,12 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                                                EDataType,
                                                                HasMainKBlockLoop,
                                                                CGlobalMemoryDataOperation>;
-            return LaunchKernel(kernel, arg, stream_config);
+            return LaunchKernel(kernel, arg, dev_gemm_args, stream_config);
         }
 
         template <typename KernelFunction>
-        float LaunchKernel(const KernelFunction& kernel,
-                           const Argument& arg,
-                           const StreamConfig& stream_config) const
+        int CalculateMaxOccupancyGridSize(const KernelFunction& kernel,
+                                          const StreamConfig& stream_config) const
         {
             // Calculate max number of workgroups that can simultaneously reside on the CU.
             int num_blocks                = 0;
@@ -592,13 +591,29 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                           << std::endl;
             }
 
+            return cu_count * ck::math::min(num_blocks, CU_BLOCKS) * BLOCK_SUBSCRIPTION_FACTOR;
+        }
+
+        template <typename KernelFunction>
+        float LaunchKernel(const KernelFunction& kernel,
+                           const Argument& arg,
+                           const void* dev_gemm_args,
+                           const StreamConfig& stream_config) const
+        {
+            int max_occupancy_grid_size = CalculateMaxOccupancyGridSize(kernel, stream_config);
+
+            // We launch the smaller number of workgroups from acutally needed tiles and the
+            // number of workgroups that maximize the GPU occupancy. That is because for some tile
+            // configuration the first is smaller than the latter. Launching too many workgroups
+            // mean some of them will have to iterate through all gemm problem descriptors just to
+            // find out they have nothing to do which is of course waste of GPU cycles.
             return launch_and_time_kernel(
                 stream_config,
                 kernel,
-                dim3(cu_count * ck::math::min(num_blocks, CU_BLOCKS) * BLOCK_SUBSCRIPTION_FACTOR),
+                dim3(ck::math::min(arg.grid_size_, max_occupancy_grid_size)),
                 dim3(BlockSize),
                 0,
-                arg.p_workspace_,
+                dev_gemm_args,
                 arg.grid_size_,
                 arg.K_BATCH);
         }
