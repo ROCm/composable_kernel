@@ -12,57 +12,6 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-/**
- * @brief      Structure representing single GEMM problem arguments.
- *
- *             The pointer to the vector of those structures is passed
- *             to the GroupedGEMM entry point kernel.
- */
-struct GemmKernelArguments
-{
-    __host__ __device__ GemmKernelArguments(const void* p_a_grid_,
-                                            const void* p_b_grid_,
-                                            void* p_c_grid_,
-                                            index_t M_,
-                                            index_t N_,
-                                            index_t K_,
-                                            index_t StrideA_,
-                                            index_t StrideB_,
-                                            index_t StrideC_)
-        : p_a_grid{p_a_grid_},
-          p_b_grid{p_b_grid_},
-          p_c_grid{p_c_grid_},
-          M{M_},
-          N{N_},
-          K{K_},
-          StrideA{StrideA_},
-          StrideB{StrideB_},
-          StrideC{StrideC_}
-    {
-    }
-
-    const void* p_a_grid;
-    const void* p_b_grid;
-    void* p_c_grid;
-    index_t M;
-    index_t N;
-    index_t K;
-    index_t StrideA;
-    index_t StrideB;
-    index_t StrideC;
-
-    void Print() const
-    {
-        std::cout << "arg {"
-                  << "M:" << M << ", "
-                  << "N:" << N << ", "
-                  << "K:" << K << ", "
-                  << "SA:" << StrideA << ", "
-                  << "SB:" << StrideB << ", "
-                  << "SC:" << StrideC << "}" << std::endl;
-    }
-};
-
 struct GemmDesc
 {
     ck::index_t M_, N_, K_;

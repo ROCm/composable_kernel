@@ -265,7 +265,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
     using CGridDesc_M_N   = typename GridwiseGemm::CGridDesc_M_N;
     using GridwiseGemmArg = typename GridwiseGemm::Argument;
-    using KernelArguments = GemmKernelArguments;
+    using KernelArguments = GroupedGemmKernelArguments;
     using Block2ETileMapKSplit =
         BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>;
     // Block2CTileMap configuration parameter.
@@ -366,6 +366,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         index_t skipped_group_count_;
         // The overall number of output tiles to be processed.
         index_t grid_size_;
+        const void* p_dev_gemm_args_;
 
         std::vector<KernelArguments> gemm_kernel_args_;
     };
@@ -384,8 +385,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         //
         // @brief      Launch Grouped Gemm kernel.
         //
-        // @note       This function overload is using user provided device workspace buffer for
-        //             kernel arguments.
+        // @note       This function overload is using user provided device buffer for kernel
+        //             arguments.
         //
         // @param[in]  arg            The structure containing kernel arguments (in host memory).
         // @param[in]  dev_gemm_args  The point to device memory with kernel arguments.
@@ -400,11 +401,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             auto [all_have_kbatch_gt_one, all_have_main_k0_block_loop] =
                 CheckArgument(arg, stream_config);
 
-            if(dev_gemm_args != nullptr)
-            {
-                arg.p_workspace_ = dev_gemm_args;
-            }
-            else
+            if(dev_gemm_args == nullptr)
             {
                 std::ostringstream err;
                 err << "The gemm arguments workspace buffer is not allocated!"
@@ -428,12 +425,12 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 if(all_have_kbatch_gt_one)
                 {
                     ave_time = DispatchKernel<InMemoryDataOperationEnum::AtomicAdd, true>(
-                        arg, stream_config);
+                        arg, dev_gemm_args, stream_config);
                 }
                 else
                 {
-                    ave_time =
-                        DispatchKernel<InMemoryDataOperationEnum::Set, true>(arg, stream_config);
+                    ave_time = DispatchKernel<InMemoryDataOperationEnum::Set, true>(
+                        arg, dev_gemm_args, stream_config);
                 }
             }
             else
@@ -441,12 +438,12 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 if(all_have_kbatch_gt_one)
                 {
                     ave_time = DispatchKernel<InMemoryDataOperationEnum::AtomicAdd, false>(
-                        arg, stream_config);
+                        arg, dev_gemm_args, stream_config);
                 }
                 else
                 {
-                    ave_time =
-                        DispatchKernel<InMemoryDataOperationEnum::Set, false>(arg, stream_config);
+                    ave_time = DispatchKernel<InMemoryDataOperationEnum::Set, false>(
+                        arg, dev_gemm_args, stream_config);
                 }
             }
 
@@ -467,9 +464,6 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         //
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            auto [all_have_kbatch_gt_one, all_have_main_k0_block_loop] =
-                CheckArgument(arg, stream_config);
-
             if(arg.p_workspace_ != nullptr)
             {
                 hip_check_error(
@@ -487,45 +481,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 throw std::runtime_error(err.str());
             }
 
-            if(all_have_kbatch_gt_one)
-            {
-                for(const auto& gemm_arg : arg.gemm_kernel_args_)
-                {
-                    hip_check_error(hipMemset(
-                        gemm_arg.p_c_grid, 0, gemm_arg.M * gemm_arg.N * sizeof(EDataType)));
-                }
-            }
-
-            float ave_time = 0;
-
-            if(all_have_main_k0_block_loop)
-            {
-                if(all_have_kbatch_gt_one)
-                {
-                    ave_time = DispatchKernel<InMemoryDataOperationEnum::AtomicAdd, true>(
-                        arg, stream_config);
-                }
-                else
-                {
-                    ave_time =
-                        DispatchKernel<InMemoryDataOperationEnum::Set, true>(arg, stream_config);
-                }
-            }
-            else
-            {
-                if(all_have_kbatch_gt_one)
-                {
-                    ave_time = DispatchKernel<InMemoryDataOperationEnum::AtomicAdd, false>(
-                        arg, stream_config);
-                }
-                else
-                {
-                    ave_time =
-                        DispatchKernel<InMemoryDataOperationEnum::Set, false>(arg, stream_config);
-                }
-            }
-
-            return ave_time;
+            return Run(arg, arg.p_workspace_, stream_config);
         }
 
         float Run(const BaseArgument* p_arg,
@@ -600,7 +556,9 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         }
 
         template <InMemoryDataOperationEnum CGlobalMemoryDataOperation, bool HasMainKBlockLoop>
-        float DispatchKernel(const Argument& arg, const StreamConfig& stream_config) const
+        float DispatchKernel(const Argument& arg,
+                             const void* dev_gemm_args,
+                             const StreamConfig& stream_config) const
         {
             const auto kernel = kernel_grouped_gemm_xdl_splitk<GridwiseGemm,
                                                                KernelArguments,
@@ -772,10 +730,19 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
     }
 
     static void SetKBatchSize(Argument& arg, index_t kbatch) { arg.UpdateKBatch(kbatch); }
+    static void SetDeviceKernelArgs(Argument& arg, const void* p_dev_kernel_args)
+    {
+        arg.p_dev_gemm_args_ = p_dev_kernel_args;
+    }
 
     void SetKBatchSize(BaseArgument* p_arg, index_t kbatch) const override
     {
         return SetKBatchSize(*dynamic_cast<Argument*>(p_arg), kbatch);
+    }
+
+    void SetDeviceKernelArgs(BaseArgument* p_arg, const void* p_dev_kernel_args) const override
+    {
+        return SetDeviceKernelArgs(*dynamic_cast<Argument*>(p_arg), p_dev_kernel_args);
     }
 };
 
