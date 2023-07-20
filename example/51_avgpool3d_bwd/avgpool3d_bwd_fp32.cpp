@@ -9,8 +9,8 @@
 
 #include "avgpool3d_bwd_common.hpp"
 
-using DOutDataType    = ck::half_t;
-using DInDataType     = ck::half_t;
+using DOutDataType    = float;
+using DInDataType     = float;
 using ComputeDataType = float;
 
 #if 1
