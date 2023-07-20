@@ -77,7 +77,7 @@ bool pool3d_bwd_test(bool do_verification,
 
     ck::index_t Do = OutSpatialLength(Di, 0);
     ck::index_t Ho = OutSpatialLength(Hi, 1);
-    ck::index_t Wo = OutSpatialLength(Wi, 1);
+    ck::index_t Wo = OutSpatialLength(Wi, 2);
 
     Tensor<DOutDataType> dout(f_host_tensor_descriptor(N, C, Do, Ho, Wo, DOutLayout{}));
     Tensor<DInDataType> din_dev(f_host_tensor_descriptor(N, C, Di, Hi, Wi, DInLayout{}));
