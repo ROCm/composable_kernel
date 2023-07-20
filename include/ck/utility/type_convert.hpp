@@ -62,24 +62,6 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, half_t>(half_
     return type_convert<bhalf_t>(x_fp32);
 }
 
-// convert bfp16 to int32 via fp32
-template <>
-inline __host__ __device__ constexpr int32_t type_convert<int32_t, bhalf_t>(bhalf_t x)
-{
-    float x_fp32 = type_convert<float>(x);
-
-    return static_cast<int32_t>(x_fp32);
-}
-
-// convert int32 to bfp16 via fp32
-template <>
-inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int32_t>(int32_t x)
-{
-    float x_fp32 = static_cast<float>(x);
-
-    return type_convert<bhalf_t>(x_fp32);
-}
-
 // convert bfp16 to int8 via fp32
 template <>
 inline __host__ __device__ constexpr int8_t type_convert<int8_t, bhalf_t>(bhalf_t x)
