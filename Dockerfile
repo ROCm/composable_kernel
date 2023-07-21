@@ -48,6 +48,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libpthread-stubs0-dev \
     llvm-amdgpu \
     pkg-config \
+    python \
     python3 \
     python3-dev \
     python3-pip \
@@ -63,6 +64,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     rm -rf /var/lib/apt/lists/*
 
 #Install latest version of cmake
+RUN wget -qO /usr/local/bin/ninja.gz https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip
+RUN gunzip /usr/local/bin/ninja.gz
+RUN chmod a+x /usr/local/bin/ninja
+RUN git clone https://github.com/nico/ninjatracing.git
 RUN apt purge --auto-remove -y cmake
 RUN apt update
 RUN apt install -y software-properties-common lsb-release
