@@ -72,7 +72,9 @@ bool pool3d_bwd_test(bool do_verification,
         ck::index_t right_pad  = dinput_right_pads[index];
         ck::index_t window_len = window_lengths[index];
         ck::index_t stride     = window_strides[index];
-        return (InSpatialLength + left_pad + right_pad - window_len) / stride + 1;
+        ck::index_t dilation   = window_dilations[index];
+        ck::index_t eff        = (window_len - 1) * dilation + 1;
+        return (InSpatialLength + left_pad + right_pad - eff) / stride + 1;
     };
 
     ck::index_t Do = OutSpatialLength(Di, 0);
