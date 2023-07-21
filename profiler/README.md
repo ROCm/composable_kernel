@@ -144,7 +144,7 @@ GB/s: 127.947
 
 ## Profile grouped convolution backward weight kernels
 ```bash
-# arg1: tensor operation (grouped_conv_bwd_data: Grouped Convolution Backward Data)
+# arg1: tensor operation (grouped_conv_bwd_weight: Grouped Convolution Backward Weight)
 # arg2: data type (0: Input fp32, Weight fp32, Output fp32
 #                  1: Input fp16, Weight fp16, Output fp16
 #                  2: Input bf16, Weight fp32, Output bf16)
@@ -167,7 +167,7 @@ GB/s: 127.947
 # SplitK
 
  ################                   op   datatype  layout  verify  init  log  time  Ndims  G   N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx  SplitK
-./bin/ckProfiler grouped_conv_bwd_data          1       0       1     1    0     1      2 32 256 256 512  3  3  28  28   1   1   1   1       1       0        0        0       1
+./bin/ckProfiler grouped_conv_bwd_weight          1       0       1     1    0     1      2 32 256 256 512  3  3  28  28   1   1   1   1       1       0        0        0       1
 
  ```
 
