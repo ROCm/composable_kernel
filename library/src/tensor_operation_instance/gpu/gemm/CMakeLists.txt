@@ -29,8 +29,8 @@ if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
    list(APPEND GEMM_INSTANCES device_gemm_dl_f16_f16_f16_km_nk_mn_instance.cpp)
    list(APPEND GEMM_INSTANCES device_gemm_dl_f16_f16_f16_km_nk_mn_irregular_instance.cpp)
 
-   add_subdirectory(device_gemm_xdl_f16_f16_f16)
    add_subdirectory(device_gemm_xdl_c_shuffle_f16_f16_f16)
+   add_subdirectory(device_gemm_xdl_f16_f16_f16)
 endif()
 if(DTYPES MATCHES "int8" OR NOT DEFINED DTYPES)
    list(APPEND GEMM_INSTANCES device_gemm_dl_i8_i8_i8_mk_kn_mn_instance.cpp)
@@ -86,6 +86,9 @@ If(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
          COMPILE_OPTIONS "${MAX_ILP_OPTS}"
          COMPILE_DEFINITIONS "${WAVES_PER_EU_DEFS}")
       # layout=TN
+      set_source_files_properties(device_gemm_xdl_c_shuffle_f16_f16_f16/mk_nk_mn_1_stage_default_pipeline_v2_opt_instance.cpp PROPERTIES
+         COMPILE_OPTIONS "${MAX_ILP_OPTS}"
+         COMPILE_DEFINITIONS "${IGLP_OPT_DEFS}")
       set_source_files_properties(device_gemm_xdl_f16_f16_f16/mk_nk_mn_default_pipeline_v2_opt_instance.cpp PROPERTIES
          COMPILE_OPTIONS "${MAX_ILP_OPTS}"
          COMPILE_DEFINITIONS "${WAVES_PER_EU_DEFS};${IGLP_OPT_DEFS}")
