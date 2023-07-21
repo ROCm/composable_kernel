@@ -139,6 +139,13 @@ struct AddBias
     {
         e = c + d0;
     }
+
+    template <>
+    __host__ __device__ void
+    operator()<float, float, float>(float& e, const float& c, const float& d0) const
+    {
+        e = c + d0;
+    }
 };
 
 struct UnaryConvert
