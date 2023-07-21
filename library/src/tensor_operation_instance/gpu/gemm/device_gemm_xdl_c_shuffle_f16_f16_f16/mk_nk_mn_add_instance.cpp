@@ -14,6 +14,8 @@ void add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_1_stage_default_pipeline
     Instances&);
 void add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_1_stage_default_pipeline_v2_instances(
     Instances&);
+void add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_1_stage_default_pipeline_v2_opt_instances(
+    Instances&);
 void add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_1_stage_interwave_pipeline_v1_instances(
     Instances&);
 
@@ -29,6 +31,8 @@ void add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(Instances& ins
     add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_1_stage_default_pipeline_v1_instances(
         instances);
     add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_1_stage_default_pipeline_v2_instances(
+        instances);
+    add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_1_stage_default_pipeline_v2_opt_instances(
         instances);
     add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_1_stage_interwave_pipeline_v1_instances(
         instances);

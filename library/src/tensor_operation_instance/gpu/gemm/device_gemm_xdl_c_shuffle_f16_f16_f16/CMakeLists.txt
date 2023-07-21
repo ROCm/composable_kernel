@@ -15,6 +15,7 @@ set(INSTANCE_FILES
    ${CURRENT_DIR}/mk_kn_mn_add_instance.cpp
    ${CURRENT_DIR}/mk_nk_mn_1_stage_default_pipeline_v1_instance.cpp
    ${CURRENT_DIR}/mk_nk_mn_1_stage_default_pipeline_v2_instance.cpp
+   ${CURRENT_DIR}/mk_nk_mn_1_stage_default_pipeline_v2_opt_instance.cpp
    ${CURRENT_DIR}/mk_nk_mn_1_stage_interwave_pipeline_v1_instance.cpp
    ${CURRENT_DIR}/mk_nk_mn_2_stage_default_pipeline_v1_instance.cpp
    ${CURRENT_DIR}/mk_nk_mn_2_stage_default_pipeline_v2_instance.cpp
