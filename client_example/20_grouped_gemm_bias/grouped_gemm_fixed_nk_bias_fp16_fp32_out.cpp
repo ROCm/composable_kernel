@@ -26,7 +26,7 @@ using ADataType  = F16;
 using BDataType  = F16;
 using D0DataType = F32;
 using DsDataType = ck::Tuple<D0DataType>;
-using EDataType  = F16;
+using EDataType  = F32;
 
 using ALayout  = Row;
 using BLayout  = Col;

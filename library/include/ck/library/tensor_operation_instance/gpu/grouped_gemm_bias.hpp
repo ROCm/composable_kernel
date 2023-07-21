@@ -16,7 +16,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-//fp16_output
+// fp16_output
 void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_mk_kn_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
                                                          Row,
@@ -43,7 +43,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_mk_nk_mn_instances(
                                                          PassThrough,
                                                          AddBias>>>& instances);
 
-//fp32_output
+// fp32_output
 void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f32_mk_kn_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
                                                          Row,
@@ -69,10 +69,6 @@ void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f32_mk_nk_mn_instances(
                                                          PassThrough,
                                                          PassThrough,
                                                          AddBias>>>& instances);
-
-
-
-
 
 template <typename ALayout,
           typename BLayout,
@@ -109,7 +105,7 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
-        //fp16_output
+        // fp16_output
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<EDataType, half_t>)
         {
@@ -125,7 +121,7 @@ struct DeviceOperationInstanceFactory<
             }
         }
 
-        //fp32_output
+        // fp32_output
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<EDataType, float>)
         {
