@@ -85,7 +85,10 @@ using KernelTypes2d = ::testing::Types<
 using KernelTypes3d = ::testing::Types<
     std::tuple<float, float, float, GNDHWC, GKZYXC, GNDHWK, ck::Number<3>>,
     std::tuple<ck::half_t, ck::half_t, ck::half_t, GNDHWC, GKZYXC, GNDHWK, ck::Number<3>>,
-    std::tuple<ck::bhalf_t, float, ck::bhalf_t, GNDHWC, GKZYXC, GNDHWK, ck::Number<3>>>;
+    std::tuple<ck::bhalf_t, float, ck::bhalf_t, GNDHWC, GKZYXC, GNDHWK, ck::Number<3>>,
+    std::tuple<float, float, float, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>,
+    std::tuple<ck::half_t, ck::half_t, ck::half_t, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>,
+    std::tuple<ck::bhalf_t, float, ck::bhalf_t, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>>;
 
 TYPED_TEST_SUITE(TestGroupedConvndBwdWeight1d, KernelTypes1d);
 TYPED_TEST_SUITE(TestGroupedConvndBwdWeight2d, KernelTypes2d);

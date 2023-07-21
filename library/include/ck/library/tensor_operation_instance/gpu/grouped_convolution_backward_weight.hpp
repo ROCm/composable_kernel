@@ -164,6 +164,42 @@ void add_device_grouped_conv3d_bwd_weight_xdl_gndhwc_gkzyxc_gndhwk_f32_instances
                                                            PassThrough,
                                                            PassThrough>>>& instances);
 
+void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           BF16,
+                                                           F32,
+                                                           BF16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           F16,
+                                                           F16,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+
 template <ck::index_t NumDimSpatial,
           typename InLayout,
           typename WeiLayout,
@@ -273,8 +309,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         }
         else if constexpr(NumDimSpatial == 3)
         {
-            if(is_same_v<InLayout, GNDHWC> && is_same_v<WeiLayout, GKZYXC> &&
-               is_same_v<OutLayout, GNDHWK>)
+            if constexpr(is_same_v<InLayout, GNDHWC> && is_same_v<WeiLayout, GKZYXC> &&
+                         is_same_v<OutLayout, GNDHWK>)
             {
                 if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                              is_same_v<OutDataType, float>)
@@ -293,6 +329,29 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                                   is_same_v<OutDataType, ck::bhalf_t>)
                 {
                     add_device_grouped_conv3d_bwd_weight_xdl_gndhwc_gkzyxc_gndhwk_bf16_f32_bf16_instances(
+                        op_ptrs);
+                }
+            }
+            else if constexpr(is_same_v<InLayout, NDHWGC> && is_same_v<WeiLayout, GKZYXC> &&
+                              is_same_v<OutLayout, NDHWGK>)
+            {
+                if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
+                             is_same_v<OutDataType, float>)
+                {
+                    add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances(
+                        op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                                  is_same_v<OutDataType, half_t>)
+                {
+                    add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+                        op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                                  is_same_v<WeiDataType, float> &&
+                                  is_same_v<OutDataType, ck::bhalf_t>)
+                {
+                    add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
                         op_ptrs);
                 }
             }
