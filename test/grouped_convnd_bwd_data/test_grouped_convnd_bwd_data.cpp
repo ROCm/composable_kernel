@@ -46,23 +46,36 @@ class TestGroupedConvndBwdData : public ::testing::Test
     }
 };
 
-using GNHWC = ck::tensor_layout::convolution::GNHWC;
-using NHWGC = ck::tensor_layout::convolution::NHWGC;
+using namespace ck::tensor_layout::convolution;
 
-using GKYXC = ck::tensor_layout::convolution::GKYXC;
+using KernelTypes2d = ::testing::Types<std::tuple<float, GNHWK, GKYXC, GNHWC>,
+                                       std::tuple<ck::half_t, GNHWK, GKYXC, GNHWC>,
+                                       std::tuple<ck::bhalf_t, GNHWK, GKYXC, GNHWC>,
+                                       std::tuple<float, NHWGK, GKYXC, NHWGC>,
+                                       std::tuple<ck::half_t, NHWGK, GKYXC, NHWGC>,
+                                       std::tuple<ck::bhalf_t, NHWGK, GKYXC, NHWGC>>;
 
-using GNHWK = ck::tensor_layout::convolution::GNHWK;
-using NHWGK = ck::tensor_layout::convolution::NHWGK;
+using KernelTypes3d = ::testing::Types<std::tuple<float, GNDHWK, GKZYXC, GNDHWC>,
+                                       std::tuple<ck::half_t, GNDHWK, GKZYXC, GNDHWC>,
+                                       std::tuple<ck::bhalf_t, GNDHWK, GKZYXC, GNDHWC>,
+                                       std::tuple<float, NDHWGK, GKZYXC, NDHWGC>,
+                                       std::tuple<ck::half_t, NDHWGK, GKZYXC, NDHWGC>,
+                                       std::tuple<ck::bhalf_t, NDHWGK, GKZYXC, NDHWGC>>;
 
-using KernelTypes = ::testing::Types<std::tuple<float, GNHWK, GKYXC, GNHWC>,
-                                     std::tuple<ck::half_t, GNHWK, GKYXC, GNHWC>,
-                                     std::tuple<ck::bhalf_t, GNHWK, GKYXC, GNHWC>,
-                                     std::tuple<float, NHWGK, GKYXC, NHWGC>,
-                                     std::tuple<ck::half_t, NHWGK, GKYXC, NHWGC>,
-                                     std::tuple<ck::bhalf_t, NHWGK, GKYXC, NHWGC>>;
-TYPED_TEST_SUITE(TestGroupedConvndBwdData, KernelTypes);
+template <typename Tuple>
+class TestGroupedConvndBwdData2d : public TestGroupedConvndBwdData<Tuple>
+{
+};
 
-TYPED_TEST(TestGroupedConvndBwdData, Test2D)
+template <typename Tuple>
+class TestGroupedConvndBwdData3d : public TestGroupedConvndBwdData<Tuple>
+{
+};
+
+TYPED_TEST_SUITE(TestGroupedConvndBwdData2d, KernelTypes2d);
+TYPED_TEST_SUITE(TestGroupedConvndBwdData3d, KernelTypes3d);
+
+TYPED_TEST(TestGroupedConvndBwdData2d, Test2D)
 {
     this->conv_params.clear();
 
@@ -75,4 +88,16 @@ TYPED_TEST(TestGroupedConvndBwdData, Test2D)
     this->conv_params.push_back(
         {2, 2, 128, 128, 256, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
     this->template Run<2>();
+}
+
+TYPED_TEST(TestGroupedConvndBwdData3d, Test3D)
+{
+    this->conv_params.clear();
+    this->conv_params.push_back(
+        {3, 2, 16, 128, 256, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+    this->conv_params.push_back(
+        {3, 2, 2, 128, 256, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    this->conv_params.push_back(
+        {3, 2, 32, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+    this->template Run<3>();
 }
