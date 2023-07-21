@@ -165,7 +165,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
 
         const index_t block_work_idx_m = block_work_idx[I0];
 
-        constexpr auto d_thread_desc_mblock_mrepeat_mwave_mperxdl =
+        constexpr auto d_thread_desc_mblock_m1 =
             make_naive_tensor_descriptor_packed(make_tuple(I1, I1));
 
         constexpr auto y_thread_desc_m0_m1_n0_n1 = make_naive_tensor_descriptor_packed(make_tuple(
@@ -244,7 +244,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
         auto d_thread_copy_vgpr_to_global =
             ThreadwiseTensorSliceTransfer_v1r3<FloatD,
                                                FloatD,
-                                               decltype(d_thread_desc_mblock_mrepeat_mwave_mperxdl),
+                                               decltype(d_thread_desc_mblock_m1),
                                                decltype(d_grid_desc_mblock_mperblock),
                                                ck::tensor_operation::element_wise::PassThrough,
                                                Sequence<1, 1>,
@@ -260,7 +260,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
                 ck::tensor_operation::element_wise::PassThrough{}};
 
         // copy from VGPR to Global
-        d_thread_copy_vgpr_to_global.Run(d_thread_desc_mblock_mrepeat_mwave_mperxdl,
+        d_thread_copy_vgpr_to_global.Run(d_thread_desc_mblock_m1,
                                          make_tuple(I0, I0),
                                          y_dot_ygrad_thread_accum_buf,
                                          d_grid_desc_mblock_mperblock,
