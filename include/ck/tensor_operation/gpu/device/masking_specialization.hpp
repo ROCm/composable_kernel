@@ -10,7 +10,8 @@ namespace device {
 enum struct MaskingSpecialization
 {
     MaskDisabled,
-    MaskOutUpperTriangle
+    MaskOutUpperTriangle,
+    MaskUpperTringleFromBottonRight
 };
 
 inline std::string getMaskingSpecializationString(const MaskingSpecialization& s)
@@ -19,6 +20,8 @@ inline std::string getMaskingSpecializationString(const MaskingSpecialization& s
     {
     case MaskingSpecialization::MaskDisabled: return "MaskDisabled";
     case MaskingSpecialization::MaskOutUpperTriangle: return "MaskOutUpperTriangle";
+    case MaskingSpecialization::MaskUpperTringleFromBottonRight:
+        return "MaskUpperTringleFromBottonRight";
     default: return "Unrecognized specialization!";
     }
 }
@@ -47,13 +50,37 @@ struct MaskOutUpperTrianglePredicate
         return operator()(m + m_tile - 1, n);
     }
 };
+struct MaskUpperTringleFromBottonRightPredicate
+{
+    __host__ __device__ void SetOffset(const index_t offset) { offset_ = offset; }
+    __host__ __device__ constexpr bool operator()(index_t m, index_t n) const
+    {
+        return n > m + offset_;
+    }
+
+    __host__ __device__ constexpr bool
+    IsTileSkippable(index_t m, index_t n, index_t m_tile, index_t /*n_tile*/) const
+    {
+        return operator()(m + m_tile - 1, n);
+    }
+
+    private:
+    index_t offset_;
+};
 
 // to track the points which need to be set to -inf on C0
 // Note: no need to reset M padding value, because they will not be stored out.
 template <typename MaskOutPredicate>
 struct C0MatrixMask_impl
 {
-    C0MatrixMask_impl(index_t NRaw) : NRaw_(NRaw), predicate_(MaskOutPredicate{}) {}
+    C0MatrixMask_impl(index_t MRaw, index_t NRaw) : NRaw_(NRaw), predicate_(MaskOutPredicate{})
+    {
+        if constexpr(std::is_same<MaskOutPredicate,
+                                  MaskUpperTringleFromBottonRightPredicate>::value)
+        {
+            predicate_.SetOffset(NRaw - MRaw);
+        }
+    }
 
     __host__ __device__ constexpr bool IsNOutOfBound(/*index_t m, */ index_t n) const
     {
