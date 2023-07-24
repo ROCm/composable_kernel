@@ -310,28 +310,36 @@ struct DeviceOperationInstanceFactory<
                          is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(op_ptrs);
+#ifdef DL_KERNELS
                 add_device_gemm_dl_f32_f32_f32_mk_kn_mn_instances(op_ptrs);
+#endif
                 add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_kn_mn_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(op_ptrs);
+#ifdef DL_KERNELS
                 add_device_gemm_dl_f32_f32_f32_mk_nk_mn_instances(op_ptrs);
+#endif
                 add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_nk_mn_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_f32_f32_f32_km_kn_mn_instances(op_ptrs);
+#ifdef DL_KERNELS
                 add_device_gemm_dl_f32_f32_f32_km_kn_mn_instances(op_ptrs);
+#endif
                 add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_kn_mn_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(op_ptrs);
+#ifdef DL_KERNELS
                 add_device_gemm_dl_f32_f32_f32_km_nk_mn_instances(op_ptrs);
+#endif
                 add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_nk_mn_instances(op_ptrs);
             }
         }
@@ -342,16 +350,20 @@ struct DeviceOperationInstanceFactory<
                          is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
+#ifdef DL_KERNELS
                 add_device_gemm_dl_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
                 add_device_gemm_dl_f16_f16_f16_mk_kn_mn_irregular_instances(op_ptrs);
+#endif
                 add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
+#ifdef DL_KERNELS
                 add_device_gemm_dl_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
                 add_device_gemm_dl_f16_f16_f16_mk_nk_mn_irregular_instances(op_ptrs);
+#endif
                 add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
                 add_device_gemm_xdl_c_shuffle_2_stage_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
             }
@@ -359,16 +371,20 @@ struct DeviceOperationInstanceFactory<
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_f16_f16_f16_km_kn_mn_instances(op_ptrs);
+#ifdef DL_KERNELS
                 add_device_gemm_dl_f16_f16_f16_km_kn_mn_instances(op_ptrs);
                 add_device_gemm_dl_f16_f16_f16_km_kn_mn_irregular_instances(op_ptrs);
+#endif
                 add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_f16_f16_f16_km_nk_mn_instances(op_ptrs);
+#ifdef DL_KERNELS
                 add_device_gemm_dl_f16_f16_f16_km_nk_mn_instances(op_ptrs);
                 add_device_gemm_dl_f16_f16_f16_km_nk_mn_irregular_instances(op_ptrs);
+#endif
                 add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(op_ptrs);
             }
         }
@@ -404,29 +420,37 @@ struct DeviceOperationInstanceFactory<
                          is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_c_shuffle_i8_i8_i8_mk_kn_mn_instances(op_ptrs);
+#ifdef DL_KERNELS
                 add_device_gemm_dl_i8_i8_i8_mk_kn_mn_instances(op_ptrs);
                 add_device_gemm_dl_i8_i8_i8_mk_kn_mn_irregular_instances(op_ptrs);
+#endif
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_c_shuffle_i8_i8_i8_mk_nk_mn_instances(op_ptrs);
+#ifdef DL_KERNELS
                 add_device_gemm_dl_i8_i8_i8_mk_nk_mn_instances(op_ptrs);
                 add_device_gemm_dl_i8_i8_i8_mk_nk_mn_irregular_instances(op_ptrs);
+#endif
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_c_shuffle_i8_i8_i8_km_kn_mn_instances(op_ptrs);
+#ifdef DL_KERNELS
                 add_device_gemm_dl_i8_i8_i8_km_kn_mn_instances(op_ptrs);
                 add_device_gemm_dl_i8_i8_i8_km_kn_mn_irregular_instances(op_ptrs);
+#endif
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_c_shuffle_i8_i8_i8_km_nk_mn_instances(op_ptrs);
+#ifdef DL_KERNELS
                 add_device_gemm_dl_i8_i8_i8_km_nk_mn_instances(op_ptrs);
                 add_device_gemm_dl_i8_i8_i8_km_nk_mn_irregular_instances(op_ptrs);
+#endif
             }
         }
 #endif
