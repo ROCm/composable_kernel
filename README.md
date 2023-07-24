@@ -82,11 +82,16 @@ cmake                                                                           
 -D GPU_TARGETS="gfx908;gfx90a"                                                                    \
 ..
 ```
+
 If GPU_TARGETS is not set on the cmake command line, CK will be built for all targets supported by the 
 current compiler.
+
+
 Additional cmake flags can be used to significantly speed-up the build:
+
 DTYPES (by default not set) can be set to any subset of "fp64;fp32;fp16;fp8;bf16;int8" to build instances 
 of select data types only. Currently, building of int8 instances is taking a lot of time.
+
 DL_KERNELS (by default is OFF) must be set to ON in order to build the gemm_dl and batched_gemm_multi_d_dl 
 instances. Those instances are only needed for the NAVI2x platforms.
 
