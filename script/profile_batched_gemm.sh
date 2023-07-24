@@ -3,13 +3,6 @@
 ## GPU visibility
 export HIP_VISIBLE_DEVICES=0
 DRIVER="../build/bin/ckProfiler"
-OP=$1
-DATATYPE=$2
-LAYOUT=$3
-VERIFY=$4
-INIT=$5
-LOG=$6
-TIME=$7
  
 OP=$1
 DATATYPE=$2

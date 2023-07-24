@@ -13,13 +13,13 @@ __device__ void inner_product(const TA& a, const TB& b, TC& c);
 template <>
 __device__ void inner_product<float, float, float>(const float& a, const float& b, float& c)
 {
-#if CK_USE_AMD_INNER_PRODUCT_INLINE_ASM && defined(CK_USE_AMD_V_MAC_F32)
+#if CK_USE_AMD_V_MAC_INLINE_ASM && defined(CK_USE_AMD_V_MAC_F32)
     asm volatile("\n \
             v_mac_f32 %0, %1, %2 \n \
             "
                  : "=v"(c)
                  : "v"(a), "v"(b), "0"(c));
-#elif CK_USE_AMD_INNER_PRODUCT_INLINE_ASM && defined(CK_USE_AMD_V_FMAC_F32)
+#elif CK_USE_AMD_V_MAC_INLINE_ASM && defined(CK_USE_AMD_V_FMAC_F32)
     asm volatile("\n \
             v_fmac_f32 %0, %1, %2 \n \
             "
@@ -76,7 +76,7 @@ template <>
 __device__ void inner_product<half2_t, half2_t, float>(const half2_t& a, const half2_t& b, float& c)
 {
 #if defined(CK_USE_AMD_V_DOT2_F32_F16)
-#if CK_USE_AMD_INNER_PRODUCT_INLINE_ASM
+#if CK_USE_AMD_V_DOT_INLINE_ASM
     // Use 3 x s_nop to avoid hazard (mi200 cdna2 isa)
     asm volatile("\n \
             v_dot2_f32_f16 %0, %1, %2, %0\n \
@@ -165,7 +165,7 @@ __device__ void
 inner_product<int8x4_t, int8x4_t, int32_t>(const int8x4_t& a, const int8x4_t& b, int32_t& c)
 {
 #if defined(CK_USE_AMD_V_DOT4_I32_I8)
-#if CK_USE_AMD_INNER_PRODUCT_INLINE_ASM
+#if CK_USE_AMD_V_DOT_INLINE_ASM
     // Use 3 x s_nop to avoid hazard (mi200 cdna2 isa)
     asm volatile("\n \
             v_dot4_i32_i8 %0, %1, %2, %0\n \

@@ -118,8 +118,12 @@
 // inline asm
 #define CK_USE_AMD_INLINE_ASM 1
 
-// inner product (DLOP)
-#define CK_USE_AMD_INNER_PRODUCT_INLINE_ASM 1
+// inner product (V_MAC/V_FMAC)
+#define CK_USE_AMD_V_MAC_INLINE_ASM 1
+
+// V_DOT inline instructions, less efficient by the need to add s_nop to avoid
+// hazard
+#define CK_USE_AMD_V_DOT_INLINE_ASM 0
 
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
 #define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
