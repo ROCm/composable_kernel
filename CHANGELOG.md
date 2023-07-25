@@ -14,6 +14,7 @@ Full documentation for Composable Kernel is not yet available.
 ### Added
 - Added new cmake flag "DL_KERNELS" must be set to "ON" in order to build the gemm_dl and batched_gemm_multi_d_dl instances.
 - Added new cmake flag "DTYPES" which could be set to any subset of "fp64;fp32;fp16;fp8;bf16;int8" to build instance of select data types.
+- Added new cmake flag "INSTANCES_ONLY" which will only build CK library and instances without the tests, examples, or profiler.
 - Added new feature: if GPU_TARGETS is not set on cmake command line, CK will be built for all targets supported by compiler.
 - Added support on MI300A/MI300X.
 - Added support on NAVI3x.
