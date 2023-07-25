@@ -123,6 +123,7 @@ __global__ void
 
     } while(m_id < m_loops);
 #else
+    ignore = grid_size_grp;
     ignore = gemm_descs_const;
     ignore = group_count;
     ignore = a_element_op;
