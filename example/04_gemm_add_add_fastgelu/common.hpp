@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -62,7 +62,7 @@ struct ExecutionConfig final
 };
 
 inline bool
-parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, ExecutionConfig config)
+parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, ExecutionConfig& config)
 {
     if(argc == 1)
     {

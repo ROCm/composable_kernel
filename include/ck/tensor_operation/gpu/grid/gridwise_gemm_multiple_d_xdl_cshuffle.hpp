@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -91,6 +91,17 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 
     using GridwiseGemmPipe = remove_cvref_t<decltype(
         GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
+
+    // denorm test fix, required to work around fp16 mfma issue
+    // we convert fp16->fp32->bf16 and execute bf16 mfma instruction
+    // when mfma if fixed, remove this section and update
+    // ABDataTypeAdjusted -> ABDataType throughout this file
+#if CK_WORKAROUND_DENORM_FIX
+    using ABDataTypeAdjusted =
+        conditional_t<is_same_v<ABDataType, ck::half_t>, ck::bhalf_t, ABDataType>;
+#else
+    using ABDataTypeAdjusted = ABDataType;
+#endif
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
@@ -397,7 +408,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
                                                 ABDataType,
-                                                ABDataType,
+                                                ABDataTypeAdjusted,
                                                 decltype(a_grid_desc_ak0_m_ak1),
                                                 decltype(a_block_desc_ak0_m_ak1),
                                                 ABlockTransferSrcAccessOrder,
@@ -428,7 +439,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                 BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 BBlockTransferThreadClusterArrangeOrder,
                                                 ABDataType,
-                                                ABDataType,
+                                                ABDataTypeAdjusted,
                                                 decltype(b_grid_desc_bk0_n_bk1),
                                                 decltype(b_block_desc_bk0_n_bk1),
                                                 BBlockTransferSrcAccessOrder,
@@ -458,11 +469,11 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         // sanity check
         constexpr index_t KPack =
             math::max(math::lcm(AK1, BK1),
-                      MfmaSelector<ABDataType, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+                      MfmaSelector<ABDataTypeAdjusted, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
-            ABDataType,
+            ABDataTypeAdjusted,
             AccDataType,
             decltype(a_block_desc_ak0_m_ak1),
             decltype(b_block_desc_bk0_n_bk1),
@@ -480,10 +491,11 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ABDataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<ABDataTypeAdjusted*>(p_shared),
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ABDataType*>(p_shared) + a_block_space_size_aligned,
+            static_cast<ABDataTypeAdjusted*>(p_shared) + a_block_space_size_aligned,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);

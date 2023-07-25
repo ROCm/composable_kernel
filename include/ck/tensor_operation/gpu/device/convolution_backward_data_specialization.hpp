@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -19,8 +19,7 @@ getConvBackwardDataSpecializationString(const ConvolutionBackwardDataSpecializat
     switch(s)
     {
     case ConvolutionBackwardDataSpecialization::Default: return "Default";
-    case ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0:
-        return "FFilter1x1Stride1Pad0";
+    case ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0: return "Filter1x1Stride1Pad0";
     default: return "Unrecognized specialization!";
     }
 }

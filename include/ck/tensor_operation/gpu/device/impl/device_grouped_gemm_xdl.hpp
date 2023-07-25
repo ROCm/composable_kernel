@@ -1,6 +1,6 @@
 #pragma once
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -38,7 +38,8 @@ __global__ void
                                 const BElementwiseOperation b_element_op,
                                 const CDEElementwiseOperation c_element_op)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
+    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();
@@ -381,6 +382,9 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 const index_t N = gemm_descs[i].N_;
                 const index_t K = gemm_descs[i].K_;
 
+                a_mtx_mraw_kraw_.emplace_back(M, K);
+                b_mtx_nraw_kraw_.emplace_back(N, K);
+
                 if(M == 0)
                 {
                     skipped_group_count_++;
@@ -485,6 +489,8 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         CDEElementwiseOperation c_element_op_;
 
         std::vector<GemmBiasTransKernelArg> gemm_desc_kernel_arg_;
+        std::vector<Tuple<index_t, index_t>> a_mtx_mraw_kraw_;
+        std::vector<Tuple<index_t, index_t>> b_mtx_nraw_kraw_;
 
         index_t grid_size_;
     };
@@ -542,11 +548,12 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 }
             }
 
-            hipGetErrorString(
-                hipMemcpy(arg.p_workspace_,
-                          arg.gemm_desc_kernel_arg_.data(),
-                          arg.gemm_desc_kernel_arg_.size() * sizeof(GemmBiasTransKernelArg),
-                          hipMemcpyHostToDevice));
+            hipGetErrorString(hipMemcpyWithStream(arg.p_workspace_,
+                                                  arg.gemm_desc_kernel_arg_.data(),
+                                                  arg.gemm_desc_kernel_arg_.size() *
+                                                      sizeof(GemmBiasTransKernelArg),
+                                                  hipMemcpyHostToDevice,
+                                                  stream_config.stream_id_));
 
             float ave_time = 0;
 
@@ -599,7 +606,28 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
             return false;
         }
 
-        return true;
+        bool supported = true;
+
+        // If we use padding we do not support vector loads for dimensions not divisible by vector
+        // load size.
+        if constexpr(GemmSpec != GemmSpecialization::Default)
+        {
+            // [A|B]BlockTransferSrcVectorDim value define dimension in the block {K0,M,K1} layout,
+            // thus we have to adapt it to the {M,K} or {N,K} layout.
+            const auto a_raw_vector_dim = ABlockTransferSrcVectorDim != 1 ? 1 : 0;
+            const auto b_raw_vector_dim = BBlockTransferSrcVectorDim != 1 ? 1 : 0;
+
+            for(index_t i = 0; i < arg.group_count_; ++i)
+            {
+                const auto a_vector_dim = arg.a_mtx_mraw_kraw_[i].At(Number<a_raw_vector_dim>{});
+                const auto b_vector_dim = arg.b_mtx_nraw_kraw_[i].At(Number<b_raw_vector_dim>{});
+
+                supported = supported & (a_vector_dim % ABlockTransferSrcScalarPerVector == 0);
+                supported = supported & (b_vector_dim % BBlockTransferSrcScalarPerVector == 0);
+            }
+        }
+
+        return supported;
     }
 
     // polymorphic
@@ -661,7 +689,12 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
             << MPerXDL << ", "
             << NPerXDL << ", "
             << MXdlPerWave << ", "
-            << NXdlPerWave
+            << NXdlPerWave << ", "
+            << ABlockTransferSrcScalarPerVector << ", "
+            << BBlockTransferSrcScalarPerVector << ", "
+            << CShuffleMXdlPerWavePerShuffle << ", "
+            << CShuffleNXdlPerWavePerShuffle << ", "
+            << getGemmSpecializationString(GemmSpec)
             << ">";
         // clang-format on
 

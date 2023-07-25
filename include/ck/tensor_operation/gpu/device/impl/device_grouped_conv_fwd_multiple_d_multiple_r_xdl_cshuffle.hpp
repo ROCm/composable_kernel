@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -155,7 +155,8 @@ __global__ void
             const Block2ETileMap block_2_ctile_map,
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
+    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -810,7 +811,8 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                 return false;
             }
         }
-        else if(get_device_name() == "gfx90a")
+        else if(get_device_name() == "gfx90a" || get_device_name() == "gfx940" ||
+                get_device_name() == "gfx941" || get_device_name() == "gfx942")
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
                            is_same_v<AccDataType, int32_t> || is_same_v<AccDataType, double>))
@@ -1092,7 +1094,15 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
             << MPerBlock << ", "
             << NPerBlock << ", "
             << KPerBlock << ", "
-            << getConvForwardSpecializationString(ConvForwardSpecialization)
+            << getConvForwardSpecializationString(ConvForwardSpecialization) << ", "
+            << MPerXDL << ", "
+            << NPerXDL << ", "
+            << MXdlPerWave << ", "
+            << NXdlPerWave << ", "
+            << ABlockTransferSrcScalarPerVector << ", "
+            << BBlockTransferSrcScalarPerVector << ", "
+            << CShuffleMXdlPerWavePerShuffle << ", "
+            << CShuffleNXdlPerWavePerShuffle
             << ">";
         // clang-format on
 

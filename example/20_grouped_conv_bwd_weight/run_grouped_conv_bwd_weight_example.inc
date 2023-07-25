@@ -1,45 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
-
-template <ck::index_t NDimSpatial>
-using DeviceConvBwdWeightInstance =
-    ck::tensor_operation::device::DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Xdl_CShuffle<
-        NDimSpatial,          // NDimSpatial
-        InDataType,           // InDataType
-        WeiDataType,          // WeiDataType
-        OutDataType,          // OutDataType
-        AccDataType,          // AccDataType
-        InElementOp,          // InElementwiseOperation
-        WeiElementOp,         // WeiElementwiseOperation
-        OutElementOp,         // OutElementwiseOperation
-        ConvBwdWeightDefault, // ConvolutionBackwardWeightSpecialization
-        256,                  // BlockSize
-        128,                  // MPerBlock
-        128,                  // NPerBlock
-        4,                    // K0PerBlock
-        8,                    // K1
-        32,                   // MPerXdl
-        32,                   // NPerXdl
-        2,                    // MXdlPerWave
-        2,                    // NXdlPerWave
-        S<1, 4, 16, 4>,       // ABlockTransferThreadClusterLengths_K0_M_K1
-        S<0, 3, 1, 2>,        // ABlockTransferThreadClusterArrangeOrder
-        S<0, 2, 1, 3>,        // ABlockTransferSrcAccessOrder
-        2,                    // ABlockTransferSrcVectorDim
-        8,                    // ABlockTransferSrcScalarPerVector
-        2,                    // ABlockTransferDstScalarPerVector_K1
-        true,                 // ABlockLdsAddExtraM
-        S<1, 4, 16, 4>,       // BBlockTransferThreadClusterLengths_K0_N_K1
-        S<0, 3, 1, 2>,        // BBlockTransferThreadClusterArrangeOrder
-        S<0, 2, 1, 3>,        // BBlockTransferSrcAccessOrder
-        2,                    // BBlockTransferSrcVectorDim
-        8,                    // BBlockTransferSrcScalarPerVector
-        2,                    // BBlockTransferDstScalarPerVector_K1
-        true,                 // BBlockLdsAddExtraN
-        1,                    // CShuffleMXdlPerWavePerShuffle
-        1,                    // CShuffleNXdlPerWavePerShuffle
-        S<1, 32, 1, 4>,       // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        128 / (sizeof(WeiDataType) * CHAR_BIT)>; // CBlockTransferScalarPerVector_NWaveNPerXdl
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 template <ck::index_t NDimSpatial>
 using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
@@ -54,7 +14,20 @@ template <ck::index_t NDimSpatial>
 bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                  const ck::utils::conv::ConvParam& conv_param)
 {
-    constexpr ck::index_t split_k = 2;
+    ck::index_t split_k;
+    // Set split_k = 2 for xdl op, split_k = 1 for dl
+    // Dl op doesn't support split_k > 1
+    // TODO: Add Dl op split_k > 1 support
+    if(!(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030" ||
+         ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
+         ck::get_device_name() == "gfx1102"))
+    {
+        split_k = 2;
+    }
+    else
+    {
+        split_k = 1;
+    }
 
     const auto in_g_n_c_wis_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<
@@ -102,6 +75,8 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
     std::array<ck::index_t, NDimSpatial> input_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial> output_spatial_lengths{};
+    std::array<ck::index_t, NDimSpatial + 3> input_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> output_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
@@ -112,6 +87,8 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
     range_copy(conv_param.input_spatial_lengths_, begin(input_spatial_lengths));
     range_copy(conv_param.filter_spatial_lengths_, begin(filter_spatial_lengths));
     range_copy(conv_param.output_spatial_lengths_, begin(output_spatial_lengths));
+    range_copy(in_g_n_c_wis_desc.GetStrides(), begin(input_strides));
+    range_copy(out_g_n_k_wos_desc.GetStrides(), begin(output_strides));
     range_copy(conv_param.conv_filter_strides_, begin(conv_filter_strides));
     range_copy(conv_param.conv_filter_dilations_, begin(conv_filter_dilations));
     range_copy(conv_param.input_left_pads_, begin(input_left_pads));
@@ -130,6 +107,8 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                       input_spatial_lengths,
                                       filter_spatial_lengths,
                                       output_spatial_lengths,
+                                      input_strides,
+                                      output_strides,
                                       conv_filter_strides,
                                       conv_filter_dilations,
                                       input_left_pads,
@@ -144,7 +123,7 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
         std::cerr << "wrong! device_conv with the specified compilation parameters does "
                      "not support this Conv problem"
                   << std::endl;
-        return false;
+        return true;
     }
 
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});

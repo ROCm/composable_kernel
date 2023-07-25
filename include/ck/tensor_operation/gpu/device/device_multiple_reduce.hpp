@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -32,8 +32,8 @@ struct DeviceMultipleReduce : public BaseOperator
         const std::array<index_t, NumOutputDim> outLengths,
         const std::array<std::array<index_t, NumOutputDim>, NumReduction> outStrides,
         const std::array<int, NumReduceDim> reduceDims,
-        const std::array<const void*, NumReduction> alphas,
-        const std::array<const void*, NumReduction> betas,
+        const std::array<double, NumReduction> alphas,
+        const std::array<double, NumReduction> betas,
         const void* in_dev,
         const std::array<void*, NumReduction> out_dev_buffers,
         const InElementwiseOperationTuple in_elementwise_op_tuple,

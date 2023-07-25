@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -28,6 +28,7 @@ template <typename InDataType,
           typename AccElementwiseOperation,
           bool PropagateNan,
           bool OutputIndex,
+          bool TransformIndexKtoGlobal,
           bool HaveIndexInputIfOutputIndex,
           index_t BlockSize,
           index_t MThreadSliceSize,
@@ -35,8 +36,17 @@ template <typename InDataType,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
           index_t OutDstVectorSize>
-struct DeviceReduceThreadWise
-    : public DeviceReduce<Rank, NumReduceDim, InElementwiseOperation, AccElementwiseOperation>
+struct DeviceReduceThreadWise : public DeviceReduce<InDataType,
+                                                    AccDataType,
+                                                    OutDataType,
+                                                    Rank,
+                                                    NumReduceDim,
+                                                    ReduceOperation,
+                                                    InElementwiseOperation,
+                                                    AccElementwiseOperation,
+                                                    PropagateNan,
+                                                    OutputIndex>
+
 {
     static_assert(Rank <= 6, "Bigger Rank size is not supported!");
 
@@ -156,8 +166,8 @@ struct DeviceReduceThreadWise
                  const std::array<index_t, NumDstDim> outLengths,
                  const std::array<index_t, NumDstDim> outStrides,
                  const std::array<int, NumReduceDim> reduceDims,
-                 float alpha,
-                 float beta,
+                 double alpha,
+                 double beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev,
                  IndexDataType* out_index_dev,
@@ -251,6 +261,7 @@ struct DeviceReduceThreadWise
 
             const auto kernel = kernel_reduce_threadwise<GridwiseReduce,
                                                          OutputIndex,
+                                                         TransformIndexKtoGlobal,
                                                          HaveIndexInput,
                                                          InDataType,
                                                          OutDataType,
@@ -332,8 +343,8 @@ struct DeviceReduceThreadWise
                         const std::array<index_t, NumDstDim> outLengths,
                         const std::array<index_t, NumDstDim> outStrides,
                         const std::array<int, NumReduceDim> reduceDims,
-                        float alpha,
-                        float beta,
+                        double alpha,
+                        double beta,
                         const void* in_dev,
                         const void* in_index_dev,
                         void* out_dev,

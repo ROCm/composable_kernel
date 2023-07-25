@@ -298,12 +298,6 @@ struct DeviceGroupedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V2
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static constexpr index_t Q_K1 = 8;
-    static constexpr index_t K_K1 = 8;
-    static constexpr index_t V_N1 = 2;
-
-    static constexpr index_t Q_M1 = 2;
-    static constexpr index_t K_N1 = 2;
     static constexpr index_t V_O1 = 8;
     static constexpr index_t Y_O1 = 8;
     static constexpr index_t Y_M1 = 2;

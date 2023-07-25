@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gemm_util.hpp"
 
@@ -10,6 +10,7 @@
 #include "gemm_f16_nt_instance.hpp"
 #include "gemm_f16_tn_instance.hpp"
 #include "gemm_f16_tt_instance.hpp"
+#include "gemm_wavelet_f16_tn_instance.hpp"
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -74,6 +75,10 @@ int main(int argc, char* argv[])
     {GemmParams{2048, 1664, 4096}, LayoutConfig{true, false, true}, add_gemm_f16_tn_256x128},
     {GemmParams{1024, 1664, 4096}, LayoutConfig{true, false, true}, add_gemm_f16_tn_128x128},
     {GemmParams{1024,  832, 4096}, LayoutConfig{true, false, true}, add_gemm_f16_tn_128x64},
+    {GemmParams{2048, 3328, 4096}, LayoutConfig{true, false, true}, add_gemm_wavelet_f16_tn_256x256},
+    {GemmParams{2048, 1664, 4096}, LayoutConfig{true, false, true}, add_gemm_wavelet_f16_tn_256x128},
+    {GemmParams{1024, 1664, 4096}, LayoutConfig{true, false, true}, add_gemm_wavelet_f16_tn_128x128},
+    {GemmParams{1024,  832, 4096}, LayoutConfig{true, false, true}, add_gemm_wavelet_f16_tn_128x64},
     {GemmParams{2048, 3328, 4096}, LayoutConfig{true, true, true}, add_gemm_f16_tt_256x256},
     {GemmParams{2048, 1664, 4096}, LayoutConfig{true, true, true}, add_gemm_f16_tt_256x128},
     {GemmParams{1024, 1664, 4096}, LayoutConfig{true, true, true}, add_gemm_f16_tt_128x128},

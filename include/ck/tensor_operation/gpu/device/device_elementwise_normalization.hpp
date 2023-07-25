@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -32,7 +32,7 @@ struct DeviceElementwiseNormalization : public BaseOperator
                         const std::vector<index_t> betaStrides,
                         const std::vector<index_t> yStrides,
                         const std::vector<index_t> reduceDims,
-                        AccDataType epsilon,
+                        double epsilon,
                         const std::array<const void*, NumInput> in_dev_buffers,
                         const void* p_gamma,
                         const void* p_beta,

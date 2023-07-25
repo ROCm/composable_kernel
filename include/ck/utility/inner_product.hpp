@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include "data_type.hpp"
+#include "type_convert.hpp"
 
 namespace ck {
 
@@ -132,6 +133,28 @@ __device__ void inner_product<half8_t, half8_t, float>(const half8_t& a, const h
 
     inner_product(vector_type<half_t, 8>{a}.AsType<half2_t>()[I3],
                   vector_type<half_t, 8>{b}.AsType<half2_t>()[I3],
+                  c);
+}
+
+template <>
+__device__ void inner_product<int8_t, int8_t, int32_t>(const int8_t& a, const int8_t& b, int32_t& c)
+{
+    c += type_convert<int32_t>(a) * type_convert<int32_t>(b);
+}
+
+template <>
+__device__ void
+inner_product<int8x2_t, int8x2_t, int32_t>(const int8x2_t& a, const int8x2_t& b, int32_t& c)
+{
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+
+    inner_product(vector_type<int8_t, 2>{a}.AsType<int8_t>()[I0],
+                  vector_type<int8_t, 2>{b}.AsType<int8_t>()[I0],
+                  c);
+
+    inner_product(vector_type<int8_t, 2>{a}.AsType<int8_t>()[I1],
+                  vector_type<int8_t, 2>{b}.AsType<int8_t>()[I1],
                   c);
 }
 

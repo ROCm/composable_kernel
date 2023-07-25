@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor/static_tensor.hpp"
 
@@ -207,15 +208,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             auto src_vector_container = src_vector_type{
                 src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid)};
 
-            // apply SrcElementwiseOperation on src_vector_container
-            static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
-                SrcData src_v;
-
-                src_element_op_(src_v, src_vector_container.template AsType<SrcData>()[i]);
-
-                src_vector_container.template AsType<SrcData>()(i) = src_v;
-            });
-
             // copy data from src_vector_container into src_thread_scratch_
             src_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<src_vector_t>(
@@ -318,7 +310,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 constexpr auto data_idx_seq = generate_sequence_v2(
                     [&](auto i) { return Number<data_idx[i]>{}; }, Number<nDim>{});
 
-                // TODO type_convert is not used yet!!!!!
                 using src_vector_t = vector_type_maker_t<SrcData, SrcScalarPerVector>;
                 using dst_vector_t = vector_type_maker_t<DstData, DstScalarPerVector>;
 
@@ -342,19 +333,17 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                     Number<num_dst_vector>{});
 
                 // do data transpose
-                // TODO type_convert is not used yet!!!!!
                 transpose_vectors<SrcData, DstScalarPerVector, SrcScalarPerVector>{}(
                     src_vector_refs, dst_vector_refs);
             });
         }
-        else
-        {
-            static_ford<SliceLengths>{}([&](auto idx) {
-                // convert from SrcData to DstData here
-                dst_thread_scratch_(idx) =
-                    type_convert<DstData>(src_thread_scratch_tuple_[thread_scratch_id][idx]);
-            });
-        }
+
+        static_ford<SliceLengths>{}([&](auto idx) {
+            // apply the src elementwise op and convert to DstData under the hood if needed
+            DstData dst_v;
+            src_element_op_(dst_v, src_thread_scratch_tuple_[thread_scratch_id][idx]);
+            dst_thread_scratch_(idx) = dst_v;
+        });
 #endif
     }
 

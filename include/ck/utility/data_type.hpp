@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -12,6 +12,7 @@ using half_t  = _Float16;
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 using int4_t = _BitInt(4);
 #endif
+using f8_t = uint8_t;
 
 // vector_type
 template <typename T, index_t N>
@@ -141,6 +142,13 @@ struct scalar_type<int4_t>
     static constexpr index_t vector_size = 1;
 };
 #endif
+
+template <>
+struct scalar_type<f8_t>
+{
+    using type                           = f8_t;
+    static constexpr index_t vector_size = 1;
+};
 
 //
 template <typename T>
@@ -898,6 +906,8 @@ struct vector_type<T, 256>
     }
 };
 
+using int64_t = long;
+
 // fp64
 using double2_t = typename vector_type<double, 2>::type;
 using double4_t = typename vector_type<double, 4>::type;
@@ -942,107 +952,13 @@ using int8x16_t = typename vector_type<int8_t, 16>::type;
 using int8x32_t = typename vector_type<int8_t, 32>::type;
 using int8x64_t = typename vector_type<int8_t, 64>::type;
 
-// Convert X to Y
-template <typename Y, typename X>
-__host__ __device__ constexpr Y type_convert(X x)
-{
-    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
-
-    return static_cast<Y>(x);
-}
-
-// convert bfp16 to fp32
-template <>
-inline __host__ __device__ constexpr float type_convert<float, bhalf_t>(bhalf_t x)
-{
-    union
-    {
-        uint32_t int32;
-        float fp32;
-    } u = {uint32_t(x) << 16};
-
-    return u.fp32;
-}
-
-// convert fp32 to bfp16
-template <>
-inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float x)
-{
-    union
-    {
-        float fp32;
-        uint32_t int32;
-    } u = {x};
-
-    // When the exponent bits are not all 1s, then the value is zero, normal,
-    // or subnormal. We round the bfloat16 mantissa up by adding 0x7FFF, plus
-    // 1 if the least significant bit of the bfloat16 mantissa is 1 (odd).
-    // This causes the bfloat16's mantissa to be incremented by 1 if the 16
-    // least significant bits of the float mantissa are greater than 0x8000,
-    // or if they are equal to 0x8000 and the least significant bit of the
-    // bfloat16 mantissa is 1 (odd). This causes it to be rounded to even when
-    // the lower 16 bits are exactly 0x8000. If the bfloat16 mantissa already
-    // has the value 0x7f, then incrementing it causes it to become 0x00 and
-    // the exponent is incremented by one, which is the next higher FP value
-    // to the unrounded bfloat16 value. When the bfloat16 value is subnormal
-    // with an exponent of 0x00 and a mantissa of 0x7f, it may be rounded up
-    // to a normal value with an exponent of 0x01 and a mantissa of 0x00.
-    // When the bfloat16 value has an exponent of 0xFE and a mantissa of 0x7F,
-    // incrementing it causes it to become an exponent of 0xFF and a mantissa
-    // of 0x00, which is Inf, the next higher value to the unrounded value.
-    bool flag0 = ~u.int32 & 0x7f800000;
-
-    // When all of the exponent bits are 1, the value is Inf or NaN.
-    // Inf is indicated by a zero mantissa. NaN is indicated by any nonzero
-    // mantissa bit. Quiet NaN is indicated by the most significant mantissa
-    // bit being 1. Signaling NaN is indicated by the most significant
-    // mantissa bit being 0 but some other bit(s) being 1. If any of the
-    // lower 16 bits of the mantissa are 1, we set the least significant bit
-    // of the bfloat16 mantissa, in order to preserve signaling NaN in case
-    // the bfloat16's mantissa bits are all 0.
-    bool flag1 = !flag0 && (u.int32 & 0xffff);
-
-    u.int32 += flag0 ? 0x7fff + ((u.int32 >> 16) & 1) : 0; // Round to nearest, round to even
-    u.int32 |= flag1 ? 0x10000 : 0x0;                      // Preserve signaling NaN
-
-    return uint16_t(u.int32 >> 16);
-}
-
-// convert fp16 to bf16
-template <>
-inline __host__ __device__ bhalf_t type_convert<bhalf_t, half_t>(half_t x)
-{
-    union
-    {
-        float fp32;
-        uint32_t int32;
-    } u = {static_cast<float>(x)};
-
-    return uint16_t(u.int32 >> 16);
-}
-
-template <>
-inline __host__ __device__ bhalf2_t type_convert<bhalf2_t, half2_t>(half2_t x)
-{
-    float y0{0}, y1{0};
-    bhalf2_t y{0};
-    asm volatile("\n \
-            v_cvt_f32_f16 %0, %1 \n \
-            "
-                 : "=v"(y0)
-                 : "v"(x));
-    asm volatile("\n \
-            v_cvt_f32_f16 %0, %1 src0_sel:WORD_1\n \
-            "
-                 : "=v"(y1)
-                 : "v"(x));
-    asm volatile("\n \
-            v_pack_b32_f16 %0, %1, %2 op_sel:[1, 1] \n \
-            "
-                 : "=v"(y)
-                 : "v"(y0), "v"(y1));
-    return y;
-}
+// f8
+using f8x2_t  = typename vector_type<f8_t, 2>::type;
+using f8x4_t  = typename vector_type<f8_t, 4>::type;
+using f8x8_t  = typename vector_type<f8_t, 8>::type;
+using f8x16_t = typename vector_type<f8_t, 16>::type;
+using f8x32_t = typename vector_type<f8_t, 32>::type;
+using f8x64_t = typename vector_type<f8_t, 64>::type;
 
 template <typename T>
 struct NumericLimits
@@ -1089,6 +1005,23 @@ struct NumericLimits<int4_t>
     __host__ __device__ static constexpr int4_t Lowest() { return int4_t(-8); }
 };
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+
+template <>
+struct NumericLimits<f8_t>
+{
+    static constexpr uint8_t binary_min    = 0x08; // 0b00001000
+    static constexpr uint8_t binary_max    = 0x77; // 0b01110111
+    static constexpr uint8_t binary_lowest = 0xF7; // 0b11110111
+    static constexpr uint8_t binary_qnan   = 0x80; // 0b10000000
+
+    __host__ __device__ static constexpr f8_t Min() { return bit_cast<f8_t>(binary_min); }
+
+    __host__ __device__ static constexpr f8_t Max() { return bit_cast<f8_t>(binary_max); }
+
+    __host__ __device__ static constexpr f8_t Lowest() { return bit_cast<f8_t>(binary_lowest); }
+
+    __host__ __device__ static constexpr f8_t QuietNaN() { return bit_cast<f8_t>(binary_qnan); }
+};
 
 } // namespace ck
 
