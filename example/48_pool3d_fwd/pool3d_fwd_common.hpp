@@ -55,7 +55,8 @@ HostTensorDescriptor f_host_tensor_descriptor(std::size_t N_,
     }
 };
 
-template <typename InDataType,
+template <typename DevicePoolFwdInstance,
+          typename InDataType,
           typename OutDataType,
           typename ComputeDataType,
           typename IndexDataType,
@@ -84,20 +85,6 @@ bool pool3d_test(bool do_verification,
                  ck::index_t in_right_pad_h,
                  ck::index_t in_right_pad_w)
 {
-    using DevicePoolFwdInstance =
-        ck::tensor_operation::device::DevicePool3dFwdImpl<InDataType,      // InDataType
-                                                          OutDataType,     // OutDataType
-                                                          IndexDataType,   // IndexDataType
-                                                          ComputeDataType, // ComputeDataType
-                                                          ReduceOpId,
-                                                          OutputIndex,
-                                                          64,     // BlockSize
-                                                          64,     // ReduceMThreadClusterSize
-                                                          1,      // ReduceKThreadClusterSize
-                                                          1,      // ReduceMThreadSliceSize
-                                                          1,      // ReduceKThreadSliceSize
-                                                          1,      // InSrcOutDstVectorSize
-                                                          false>; // IsFastestDimReduced
     const ck::index_t Do = (Di + in_left_pad_d + in_right_pad_d - Z) / window_stride_d + 1;
     const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Y) / window_stride_h + 1;
     const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - X) / window_stride_w + 1;
