@@ -61,8 +61,10 @@ bool pool_test(bool do_verification,
                                                           1,      // InSrcOutDstVectorSize
                                                           false>; // IsFastestDimReduced
 
-    const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Y) / window_stride_h + 1;
-    const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - X) / window_stride_w + 1;
+    const ck::index_t Ys = (Y - 1) * window_dilation_h + 1;
+    const ck::index_t Xs = (X - 1) * window_dilation_w + 1;
+    const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Ys) / window_stride_h + 1;
+    const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - Xs) / window_stride_w + 1;
 
     const std::vector<ck::index_t> window_spatial_lengths{Y, X};
     const std::vector<ck::index_t> window_strides{window_stride_h, window_stride_w};
