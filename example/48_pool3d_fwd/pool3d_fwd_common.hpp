@@ -8,7 +8,7 @@
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/utility/reduction_functions_accumulate.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_pool3d_fwd_ndhwc_ndhwc.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_pool3d_fwd_impl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -17,6 +17,43 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_pool_fwd.hpp"
+
+template <typename TensorLayout>
+std::vector<ck::index_t> f_tensor_strides_ncdhw(ck::index_t N_,
+                                                ck::index_t C_,
+                                                ck::index_t D,
+                                                ck::index_t H,
+                                                ck::index_t W,
+                                                TensorLayout layout)
+{
+    using namespace ck::literals;
+    (void)N_;
+    if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NCDHW>::value)
+        return {C_ * D * H * W, D * H * W, H * W, W, 1_uz};
+    else if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NDHWC>::value)
+        return {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_};
+};
+
+template <typename TensorLayout>
+HostTensorDescriptor f_host_tensor_descriptor(std::size_t N_,
+                                              std::size_t C_,
+                                              std::size_t D,
+                                              std::size_t H,
+                                              std::size_t W,
+                                              TensorLayout layout)
+{
+    using namespace ck::literals;
+
+    if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NCDHW>::value)
+    {
+        return HostTensorDescriptor({N_, C_, D, H, W}, {C_ * D * H * W, D * H * W, H * W, W, 1_uz});
+    }
+    else if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NDHWC>::value)
+    {
+        return HostTensorDescriptor({N_, C_, D, H, W},
+                                    {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_});
+    }
+};
 
 template <typename InDataType,
           typename OutDataType,
@@ -48,20 +85,19 @@ bool pool3d_test(bool do_verification,
                  ck::index_t in_right_pad_w)
 {
     using DevicePoolFwdInstance =
-        ck::tensor_operation::device::DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C<
-            InDataType,      // InDataType
-            OutDataType,     // OutDataType
-            IndexDataType,   // IndexDataType
-            ComputeDataType, // ComputeDataType
-            ReduceOpId,
-            OutputIndex,
-            64, // BlockSize
-            64, // ReduceMThreadClusterSize
-            1,  // ReduceKThreadClusterSize
-            4,  // ReduceMThreadSliceSize
-            1,  // ReduceKThreadSliceSize
-            4>; // InSrcOutDstVectorSize
-
+        ck::tensor_operation::device::DevicePool3dFwdImpl<InDataType,      // InDataType
+                                                          OutDataType,     // OutDataType
+                                                          IndexDataType,   // IndexDataType
+                                                          ComputeDataType, // ComputeDataType
+                                                          ReduceOpId,
+                                                          OutputIndex,
+                                                          64,     // BlockSize
+                                                          64,     // ReduceMThreadClusterSize
+                                                          1,      // ReduceKThreadClusterSize
+                                                          1,      // ReduceMThreadSliceSize
+                                                          1,      // ReduceKThreadSliceSize
+                                                          1,      // InSrcOutDstVectorSize
+                                                          false>; // IsFastestDimReduced
     const ck::index_t Do = (Di + in_left_pad_d + in_right_pad_d - Z) / window_stride_d + 1;
     const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Y) / window_stride_h + 1;
     const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - X) / window_stride_w + 1;
@@ -71,28 +107,6 @@ bool pool3d_test(bool do_verification,
         window_stride_d, window_stride_h, window_stride_w};
     const std::vector<ck::index_t> input_left_pads{in_left_pad_d, in_left_pad_h, in_left_pad_w};
     const std::vector<ck::index_t> input_right_pads{in_right_pad_d, in_right_pad_h, in_right_pad_w};
-
-    // tensor layout
-    auto f_host_tensor_descriptor = [](std::size_t N_,
-                                       std::size_t C_,
-                                       std::size_t D,
-                                       std::size_t H,
-                                       std::size_t W,
-                                       auto layout) {
-        using namespace ck::literals;
-
-        if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NCDHW>::value)
-        {
-            return HostTensorDescriptor({N_, C_, D, H, W},
-                                        {C_ * D * H * W, D * H * W, H * W, W, 1_uz});
-        }
-        else if constexpr(ck::is_same<decltype(layout),
-                                      ck::tensor_layout::convolution::NDHWC>::value)
-        {
-            return HostTensorDescriptor({N_, C_, D, H, W},
-                                        {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_});
-        }
-    };
 
     Tensor<InDataType> in_n_c_di_hi_wi(f_host_tensor_descriptor(N, C, Di, Hi, Wi, InLayout{}));
     Tensor<OutDataType> out_n_c_do_ho_wo_host(
@@ -126,9 +140,9 @@ bool pool3d_test(bool do_verification,
         {N, C, Di, Hi, Wi},
         {Z, Y, X},
         {N, C, Do, Ho, Wo},
-        {Di * C * Hi * Wi, 1, C * Hi * Wi, Wi * C, C},
-        {Do * C * Ho * Wo, 1, C * Ho * Wo, Wo * C, C},
-        {Do * C * Ho * Wo, 1, C * Ho * Wo, Wo * C, C},
+        f_tensor_strides_ncdhw(N, C, Di, Hi, Wi, InLayout{}),
+        f_tensor_strides_ncdhw(N, C, Do, Ho, Wo, OutLayout{}),
+        f_tensor_strides_ncdhw(N, C, Do, Ho, Wo, OutLayout{}),
         window_strides,
         input_left_pads,
         input_right_pads,
