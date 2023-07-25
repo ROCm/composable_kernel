@@ -36,6 +36,8 @@ bool maxpool_bwd_test(bool do_verification,
                       ck::index_t Wi,
                       ck::index_t window_stride_h,
                       ck::index_t window_stride_w,
+                      ck::index_t window_dilation_h,
+                      ck::index_t window_dilation_w,
                       ck::index_t in_left_pad_h,
                       ck::index_t in_left_pad_w,
                       ck::index_t in_right_pad_h,
@@ -61,11 +63,14 @@ bool maxpool_bwd_test(bool do_verification,
     using DeviceMaxPoolBwdInstance = ck::tensor_operation::device::
         DeviceIndexPoolBwdImpl<DOutDataType, IndexDataType, DInDataType, 4>;
 
-    const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Y) / window_stride_h + 1;
-    const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - X) / window_stride_w + 1;
+    const ck::index_t Ys = (Y - 1) * window_dilation_h + 1;
+    const ck::index_t Xs = (X - 1) * window_dilation_w + 1;
+    const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Ys) / window_stride_h + 1;
+    const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - Xs) / window_stride_w + 1;
 
     const std::vector<ck::index_t> window_spatial_lengths{Y, X};
     const std::vector<ck::index_t> window_strides{window_stride_h, window_stride_w};
+    const std::vector<ck::index_t> window_dilations{window_dilation_h, window_dilation_w};
     const std::vector<ck::index_t> input_left_pads{in_left_pad_h, in_left_pad_w};
     const std::vector<ck::index_t> input_right_pads{in_right_pad_h, in_right_pad_w};
 
@@ -128,6 +133,7 @@ bool maxpool_bwd_test(bool do_verification,
         {C * Ho * Wo, 1, Wo * C, C},
         {C * Ho * Wo, 1, Wo * C, C},
         window_strides,
+        window_dilations,
         input_left_pads,
         input_right_pads,
         {2, 3});
@@ -191,6 +197,7 @@ bool maxpool_bwd_test(bool do_verification,
                                                                      indices_n_c_ho_wo_host,
                                                                      window_spatial_lengths,
                                                                      window_strides,
+                                                                     window_dilations,
                                                                      input_left_pads,
                                                                      input_right_pads);
         ref_pooling_fwd_invoker.Run(ref_pooling_fwd_argument);
