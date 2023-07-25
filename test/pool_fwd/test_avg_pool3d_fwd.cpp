@@ -34,6 +34,7 @@ class TestAvgPool3dFwd : public ::testing::Test
                                                              param.length_,
                                                              param.window_spatial_lengths_,
                                                              param.window_strides_,
+                                                             param.window_dilations_,
                                                              param.input_left_pads_,
                                                              param.input_right_pads_);
             EXPECT_TRUE(success);
@@ -47,10 +48,11 @@ using KernelTypes =
 TYPED_TEST_SUITE(TestAvgPool3dFwd, KernelTypes);
 TYPED_TEST(TestAvgPool3dFwd, Test_Pool)
 {
-    // length, window_length, window_stride, left_pad, right_pad
-    this->params = {{{1, 1, 1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}},
-                    {{2, 16, 64, 64, 64}, {64, 64, 64}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}},
-                    {{2, 32, 30, 30, 30}, {2, 2, 2}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}}};
+    // length, window_length, window_stride, window_dilation, left_pad, right_pad
+    this->params = {{{1, 1, 1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}},
+                    {{2, 16, 64, 64, 64}, {64, 64, 64}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}},
+                    {{2, 16, 64, 64, 64}, {4, 4, 4}, {4, 4, 4}, {2, 2, 2}, {0, 0, 0}, {0, 0, 0}},
+                    {{2, 32, 30, 30, 30}, {2, 2, 2}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}}};
 
     this->Run();
 }
