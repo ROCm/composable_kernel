@@ -27,6 +27,8 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    // assume scale tensor is [1, n]
+    Tensor<ScaleDataType> scale_k_n(f_host_tensor_descriptor(K, N, 0, BLayout{}));
 
     switch(config.init_method)
     {
@@ -34,26 +36,32 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     case 1:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k);
         ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n);
+        ck::utils::FillUniformDistributionIntegerValue<ScaleDataType>{-5.f, 5.f}(scale_k_n);
         break;
     case 2:
         ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
         ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+        ck::utils::FillUniformDistribution<ScaleDataType>{-1.f, 1.f}(scale_k_n);
         break;
     case 3:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{1.f, 1.f}(a_m_k);
         ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n);
+        ck::utils::FillUniformDistributionIntegerValue<ScaleDataType>{-5.f, 5.f}(scale_k_n);
         break;
     case 4:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{1.f, 1.f}(a_m_k);
         ck::utils::FillUniformDistributionIntegerValue<BDataType>{1.f, 1.f}(b_k_n);
+        ck::utils::FillUniformDistributionIntegerValue<ScaleDataType>{1.f, 1.f}(scale_k_n);
         break;
     case 5:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{-2.f, 2.f}(a_m_k);
         ck::utils::FillUniformDistributionIntegerValue<BDataType>{-2.f, 2.f}(b_k_n);
+        ck::utils::FillUniformDistributionIntegerValue<ScaleDataType>{-2.f, 2.f}(scale_k_n);
         break;
     default:
         ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
         ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+        ck::utils::FillUniformDistribution<ScaleDataType>{-1.f, 1.f}(scale_k_n);
     }
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
@@ -61,6 +69,7 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
+    std::cout << "scale_k_n: " << scale_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
 
 #ifdef BUILD_INT4_EXAMPLE
@@ -77,10 +86,12 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 #else
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem scale_k_n_device_buf(sizeof(ScaleDataType) * scale_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
+    scale_k_n_device_buf.ToDevice(scale_k_n.mData.data());
 #endif
 
     auto a_element_op = AElementOp{};
@@ -98,6 +109,7 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 #else
         static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
         static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+        static_cast<ScaleDataType*>(scale_k_n_device_buf.GetDeviceBuffer()),
         static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
 #endif
         M,
@@ -136,7 +148,7 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
         auto ref_invoker = ref_gemm.MakeInvoker();
 
         auto ref_argument = ref_gemm.MakeArgument(
-            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+            a_m_k, b_k_n, scale_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
 
         ref_invoker.Run(ref_argument);
 

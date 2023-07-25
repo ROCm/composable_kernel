@@ -22,7 +22,7 @@ namespace tensor_operation {
 namespace device {
 
 // 1. DequantB(K, N) = int2fp(B(K, N)) * scale(1, N)
-// 2. C(M, N) = A(M, K) * DequantB(K, N) 
+// 2. C(M, N) = A(M, K) * DequantB(K, N)
 
 template <typename ALayout,
           typename BLayout,
@@ -66,16 +66,16 @@ template <typename ALayout,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           ck::LoopScheduler LoopSched     = make_default_loop_scheduler(),
-          ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
+          ck::PipelineVersion PipelineVer = ck::PipelineVersion::dequant_v1>
 struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
-                                                   BLayout,
-                                                   CLayout,
-                                                   ADataType,
-                                                   BDataType,
-                                                   CDataType,
-                                                   AElementwiseOperation,
-                                                   BElementwiseOperation,
-                                                   CElementwiseOperation>
+                                                                    BLayout,
+                                                                    CLayout,
+                                                                    ADataType,
+                                                                    BDataType,
+                                                                    CDataType,
+                                                                    AElementwiseOperation,
+                                                                    BElementwiseOperation,
+                                                                    CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -103,7 +103,7 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
-    
+
     using DeviceOp = DeviceFpAintBGemm_Wmma_CShuffle;
 
     // Describe how data read from Global memory
@@ -183,7 +183,7 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
         const auto N = b_grid_desc_n_k.GetLength(I0);
         const auto K = b_grid_desc_n_k.GetLength(I1);
         // When K = 1, it might be scale tensor.
-        assert(K % K1 == 0 && K != 1 );
+        assert(K % K1 == 0 && K != 1);
 
         if constexpr(BEnableLds)
         {
@@ -241,61 +241,62 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
     using CGridDesc_M_N = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm =
-        GridwiseFpAintBGemm_Wmma<BlockSize,
-                          ADataType,
-                          BDataType,
-                          ScaleDataType,
-                          AccDataType,
-                          CShuffleDataType,
-                          CDataType,
-                          InMemoryDataOperationEnum::Set,
-                          AGridDesc,
-                          BGridDesc,
-                          CGridDesc_M_N,
-                          AElementwiseOperation,
-                          BElementwiseOperation,
-                          CElementwiseOperation,
-                          MPerBlock,
-                          NPerBlock,
-                          KPerBlock,
-                          MPerWmma,
-                          NPerWmma,
-                          K1,
-                          MRepeat,
-                          NRepeat,
-                          ABlockTransferThreadClusterLengths_K0_M_K1,
-                          ABlockTransferThreadClusterArrangeOrder,
-                          ABlockTransferSrcAccessOrder,
-                          ABlockTransferSrcVectorDim,
-                          ABlockTransferSrcScalarPerVector,
-                          ABlockTransferDstScalarPerVector_K1,
-                          false, // AThreadTransferSrcResetCoordinateAfterRun,
-                          AEnableLds,
-                          ABlockLdsAddExtraM,
-                          BBlockTransferThreadClusterLengths_K0_N_K1,
-                          BBlockTransferThreadClusterArrangeOrder,
-                          BBlockTransferSrcAccessOrder,
-                          BBlockTransferSrcVectorDim,
-                          BBlockTransferSrcScalarPerVector,
-                          BBlockTransferDstScalarPerVector_K1,
-                          false, // BThreadTransferSrcResetCoordinateAfterRun,
-                          BEnableLds,
-                          BBlockLdsAddExtraN,
-                          CShuffleMRepeatPerShuffle,
-                          CShuffleNRepeatPerShuffle,
-                          CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                          CShuffleBlockTransferScalarPerVector_NPerBlock,
-                          NumPrefetch,
-                          LoopSched,
-                          PipelineVer>;
+    using GridwiseGemm = GridwiseFpAintBGemm_Wmma<
+        BlockSize,
+        ADataType,
+        BDataType,
+        ScaleDataType,
+        AccDataType,
+        CShuffleDataType,
+        CDataType,
+        InMemoryDataOperationEnum::Set,
+        AGridDesc,
+        BGridDesc,
+        ScaleGridDesc,
+        CGridDesc_M_N,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        MPerWmma,
+        NPerWmma,
+        K1,
+        MRepeat,
+        NRepeat,
+        ABlockTransferThreadClusterLengths_K0_M_K1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_K1,
+        false, // AThreadTransferSrcResetCoordinateAfterRun,
+        AEnableLds,
+        ABlockLdsAddExtraM,
+        BBlockTransferThreadClusterLengths_K0_N_K1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_K1,
+        false, // BThreadTransferSrcResetCoordinateAfterRun,
+        BEnableLds,
+        BBlockLdsAddExtraN,
+        CShuffleMRepeatPerShuffle,
+        CShuffleNRepeatPerShuffle,
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CShuffleBlockTransferScalarPerVector_NPerBlock,
+        NumPrefetch,
+        LoopSched,
+        PipelineVer>;
 
     // Argument
     struct Argument : public BaseArgument
     {
         Argument(const ADataType* p_a_grid,
                  const BDataType* p_b_grid,
-                 const ScaleDataType* p_scale,
+                 const ScaleDataType* p_scale_grid,
                  CDataType* p_c_grid,
                  index_t M,
                  index_t N,
@@ -310,7 +311,7 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
                  CElementwiseOperation c_element_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
-              p_scale_grid_{p_scale},
+              p_scale_grid_{p_scale_grid},
               p_c_grid_{p_c_grid},
               a_grid_desc_{},
               b_grid_desc_{},
@@ -327,10 +328,10 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
               NRaw_{N},
               KRaw_{K}
         {
-            a_grid_desc_         = DeviceOp::MakeAGridDescriptor(M, K, StrideA);
-            b_grid_desc_ = DeviceOp::MakeBGridDescriptor(K, N, StrideB);
-            scale_grid_desc_ = DeviceOp::MakeBGridDescriptor(1, N, 1);
-            c_grid_desc_m_n_     = DeviceOp::MakeCGridDescriptor_M_N(M, N, StrideC);
+            a_grid_desc_     = DeviceOp::MakeAGridDescriptor(M, K, StrideA);
+            b_grid_desc_     = DeviceOp::MakeBGridDescriptor(K, N, StrideB);
+            scale_grid_desc_ = DeviceOp::MakeBGridDescriptor(K, N, 0);
+            c_grid_desc_m_n_ = DeviceOp::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             block_2_ctile_map_ =
                 GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
@@ -347,7 +348,7 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
         //  private:
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
-        const ScaleDataType* p_b_grid_;
+        const ScaleDataType* p_scale_grid_;
         CDataType* p_c_grid_;
         AGridDesc a_grid_desc_;
         BGridDesc b_grid_desc_;
@@ -406,7 +407,7 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
                     CDataType,
                     remove_reference_t<DeviceOp::AGridDesc>,
                     remove_reference_t<DeviceOp::BGridDesc>,
-                    remove_reference_t<DeviceOp::BGridDesc>,
+                    remove_reference_t<DeviceOp::ScaleGridDesc>,
                     remove_reference_t<
                         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
                     AElementwiseOperation,
@@ -422,9 +423,11 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
                                               0,
                                               arg.p_a_grid_,
                                               arg.p_b_grid_,
+                                              arg.p_scale_grid_,
                                               arg.p_c_grid_,
                                               arg.a_grid_desc_,
                                               arg.b_grid_desc_,
+                                              arg.scale_grid_desc_,
                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
                                               arg.a_element_op_,
                                               arg.b_element_op_,
@@ -536,10 +539,8 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
             }
         }
 
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_,
-                                           arg.b_grid_desc_,
-                                           arg.c_grid_desc_m_n_,
-                                           arg.block_2_ctile_map_);
+        return GridwiseGemm::CheckValidity(
+            arg.a_grid_desc_, arg.b_grid_desc_, arg.c_grid_desc_m_n_, arg.block_2_ctile_map_);
     }
 
     // polymorphic
@@ -550,6 +551,7 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
 
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
+                             const ScaleDataType* p_scale,
                              CDataType* p_c,
                              index_t M,
                              index_t N,
@@ -563,6 +565,7 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
     {
         return Argument{p_a,
                         p_b,
+                        p_scale,
                         p_c,
                         M,
                         N,
@@ -582,6 +585,7 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
     // polymorphic
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                       const void* p_b,
+                                                      const void* p_scale,
                                                       void* p_c,
                                                       index_t M,
                                                       index_t N,
@@ -595,6 +599,7 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
+                                          static_cast<const ScaleDataType*>(p_scale),
                                           static_cast<CDataType*>(p_c),
                                           M,
                                           N,
@@ -623,8 +628,10 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
         std::map<LoopScheduler, std::string> LoopSchedToString{
             {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
 
-        std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
-                                                                       {PipelineVersion::v2, "v2"}};
+        std::map<PipelineVersion, std::string> PipelineVersionToString{
+            {PipelineVersion::v1, "v1"},
+            {PipelineVersion::v2, "v2"},
+            {PipelineVersion::dequant_v1, "dequant_v1"}};
 
         // clang-format off
         str << "DeviceFpAintBGemm_Wmma_CShuffle"

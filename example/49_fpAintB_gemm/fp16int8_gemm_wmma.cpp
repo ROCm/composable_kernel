@@ -37,7 +37,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceFpAintBGemm_Wmma_
            BElementOp,  
            CElementOp,    
            GemmDefault, 
-           2,           // Prefetch stage
+           1,           // Prefetch stage
            128,         // BlockSize
            128,         // MPerBlock
            64,          // NPerBlock
@@ -67,8 +67,14 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceFpAintBGemm_Wmma_
            8>;
 // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferencefpAintBGemm<ADataType,
+                                                                               BDataType,
+                                                                               ScaleDataType,
+                                                                               CDataType,
+                                                                               AccDataType,
+                                                                               AElementOp,
+                                                                               BElementOp,
+                                                                               CElementOp>;
 
 #include "run_gemm_example.inc"
 

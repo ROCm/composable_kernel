@@ -1090,6 +1090,16 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int8_t>(int8_
     return type_convert<bhalf_t>(x_fp32);
 }
 
+// convert int8 to fp16 via fp32
+template <>
+inline __host__ __device__ constexpr half_t type_convert<half_t, int8_t>(int8_t x)
+{
+    // TODO: replace it with fast_converter
+    float x_fp32 = static_cast<float>(x);
+
+    return type_convert<half_t>(x_fp32);
+}
+
 // Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
 __host__ __device__ constexpr Y bf16_convert_rtn(X x);

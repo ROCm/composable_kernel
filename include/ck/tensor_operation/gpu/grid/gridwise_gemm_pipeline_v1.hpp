@@ -600,9 +600,9 @@ struct GridwiseGemmPipeline_v1_dequant<1, true, true>
                                const BBlockTransferStep& b_block_copy_step,
                                const ScaleGridDesc& scale_grid_desc,
                                const ScaleBlockDesc& scale_block_desc,
+                               ScaleBlockTransfer& scale_blockwise_copy,
                                const ScaleGridBuffer& scale_grid_buf,
                                ScaleBlockBuffer& scale_block_buf,
-                               ScaleBlockTransfer& scale_blockwise_copy,
                                const BlockwiseGemm& blockwise_gemm,
                                CThreadBuffer& c_thread_buf,
                                index_t num_loop)
@@ -653,7 +653,7 @@ struct GridwiseGemmPipeline_v1_dequant<1, true, true>
         {
             block_sync_lds();
 
-            blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+            blockwise_gemm.Run(a_block_buf, b_block_buf, scale_block_buf, c_thread_buf);
         }
     }
 };

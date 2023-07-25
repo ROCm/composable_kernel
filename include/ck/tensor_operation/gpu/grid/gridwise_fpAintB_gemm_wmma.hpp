@@ -20,9 +20,11 @@ namespace ck {
 template <typename GridwiseGemm,
           typename ADataType,
           typename BDataType,
+          typename ScaleDataType,
           typename CDataType,
           typename AGridDesc,
           typename BGridDesc,
+          typename ScaleGridDesc,
           typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
@@ -33,17 +35,19 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_wmma(const ADataType* __restrict__ p_a_grid,
-                         const BDataType* __restrict__ p_b_grid,
-                         CDataType* __restrict__ p_c_grid,
-                         const AGridDesc a_grid_desc,
-                         const BGridDesc b_grid_desc,
-                         const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                             c_grid_desc_mblock_mperblock_nblock_nperblock,
-                         const AElementwiseOperation a_element_op,
-                         const BElementwiseOperation b_element_op,
-                         const CElementwiseOperation c_element_op,
-                         const Block2CTileMap block_2_ctile_map)
+        kernel_fpAintB_gemm_wmma(const ADataType* __restrict__ p_a_grid,
+                                 const BDataType* __restrict__ p_b_grid,
+                                 const ScaleDataType* __restrict__ p_scale_grid,
+                                 CDataType* __restrict__ p_c_grid,
+                                 const AGridDesc a_grid_desc,
+                                 const BGridDesc b_grid_desc,
+                                 const ScaleGridDesc scale_grid_desc,
+                                 const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                                     c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                 const AElementwiseOperation a_element_op,
+                                 const BElementwiseOperation b_element_op,
+                                 const CElementwiseOperation c_element_op,
+                                 const Block2CTileMap block_2_ctile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__) || defined(__gfx1101__) || \
     defined(__gfx1102__))
@@ -51,10 +55,12 @@ __global__ void
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
                                                   p_b_grid,
+                                                  p_scale_grid,
                                                   p_c_grid,
                                                   p_shared,
                                                   a_grid_desc,
                                                   b_grid_desc,
+                                                  scale_grid_desc,
                                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   a_element_op,
                                                   b_element_op,
@@ -63,9 +69,11 @@ __global__ void
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
+    ignore = p_scale_grid;
     ignore = p_c_grid;
     ignore = a_grid_desc;
     ignore = b_grid_desc;
+    ignore = scale_grid_desc;
     ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = a_element_op;
     ignore = b_element_op;
@@ -77,12 +85,14 @@ __global__ void
 template <index_t BlockSize,
           typename ADataType,
           typename BDataType,
+          typename ScaleDataType,
           typename AccDataType,
           typename CShuffleDataType,
           typename CDataType,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename AGridDesc,
           typename BGridDesc,
+          typename ScaleGridDesc,
           typename CGridDesc_M_N,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
@@ -119,7 +129,7 @@ template <index_t BlockSize,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           index_t NumGemmKPrefetchStage = 1,
           LoopScheduler LoopSched       = make_default_loop_scheduler(),
-          PipelineVersion PipelineVer   = PipelineVersion::v1>
+          PipelineVersion PipelineVer   = PipelineVersion::dequant_v1>
 struct GridwiseFpAintBGemm_Wmma
 {
     static constexpr auto I0 = Number<0>{};
@@ -140,7 +150,12 @@ struct GridwiseFpAintBGemm_Wmma
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using GridwiseGemmPipe = GridwiseGemmPipeline_v1_dequant<NumGemmKPrefetchStage, AEnableLds, BEnableLds>;
+    using GridwiseGemmPipe =
+        remove_cvref_t<decltype(GridwiseGemmPipeline_Selector<PipelineVer,
+                                                              NumGemmKPrefetchStage,
+                                                              LoopSched,
+                                                              AEnableLds,
+                                                              BEnableLds>())>;
 
     // Describe how data store to (LDS/VGPR) buffer from Global memory
     __host__ __device__ static constexpr auto MakeABlockDescriptor()
@@ -235,6 +250,38 @@ struct GridwiseFpAintBGemm_Wmma
         }();
 
         return b_block_desc;
+    }
+
+    __host__ __device__ static constexpr auto MakeScaleBlockDescriptor()
+    {
+        // Scale [1, N], all K related dimension reduce to 1
+        constexpr auto scale_block_desc = [&]() {
+            if constexpr(BEnableLds)
+            {
+                // K0->N->K1 Per Block
+                constexpr auto K0PerBlock = KPerBlock / K1;
+
+                return make_naive_tensor_descriptor(
+                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
+                    make_tuple(I0, I1, I0));
+            }
+            else
+            {
+                constexpr auto KWmmaPerblock = KPerBlock / WmmaK;
+                constexpr auto K0PerWmma     = WmmaK / 2 / K1;
+                // KWmma->NRepeat->MWave->K0PerWmma->KRow->MPerWmma->K1 Per Thread
+                return make_naive_tensor_descriptor(make_tuple(Number<KWmmaPerblock>{},
+                                                               Number<NRepeat>{},
+                                                               I1,
+                                                               Number<K0PerWmma>{},
+                                                               I1,
+                                                               I1,
+                                                               K1),
+                                                    make_tuple(I0, I1, I0, I0, I0, I0, I0));
+            }
+        }();
+
+        return scale_block_desc;
     }
 
     __host__ __device__ static constexpr auto MakeABlockSliceCopyStep()
@@ -537,9 +584,15 @@ struct GridwiseFpAintBGemm_Wmma
             BEnableLds ? math::integer_least_multiple(MakeBBlockDescriptor().GetElementSpaceSize(),
                                                       max_lds_align)
                        : 0;
+        static constexpr auto scale_block_space_size_aligned =
+            BEnableLds ? math::integer_least_multiple(
+                             MakeScaleBlockDescriptor().GetElementSpaceSize(), max_lds_align)
+                       : 0;
 
         static constexpr auto a_block_space_offset = 0;
         static constexpr auto b_block_space_offset = a_block_space_size_aligned;
+        static constexpr auto scale_block_space_offset =
+            b_block_space_offset + b_block_space_size_aligned;
 
         // LDS allocation for C shuffle in LDS
         static constexpr auto c_shuffle_block_space_size =
@@ -551,7 +604,8 @@ struct GridwiseFpAintBGemm_Wmma
         static constexpr auto lds_size =
             math::max(c_shuffle_block_space_size * sizeof(CShuffleDataType),
                       a_block_space_size_aligned * sizeof(ADataType) +
-                          b_block_space_size_aligned * sizeof(BDataType));
+                          b_block_space_size_aligned * sizeof(BDataType) +
+                          scale_block_space_size_aligned * sizeof(ScaleDataType));
     };
 
     template <bool HasMainKBlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
@@ -609,7 +663,7 @@ struct GridwiseFpAintBGemm_Wmma
 
         constexpr auto a_block_desc = MakeABlockDescriptor();
         constexpr auto b_block_desc = MakeBBlockDescriptor();
-        constexpr auto scale_block_desc = MakeBBlockDescriptor();
+        constexpr auto scale_block_desc = MakeScaleBlockDescriptor();
         
         auto a_block_trait = [&](){
             // A matrix blockwise copy
@@ -768,7 +822,7 @@ struct GridwiseFpAintBGemm_Wmma
                                      get_thread_local_1d_id() % 16,
                                      0));
                                 
-                return make_tuple(b_block_buf, b_blockwise_copy, scale_blockwise_copy);
+                return make_tuple(b_block_buf, b_blockwise_copy);
             }
         };
 
@@ -776,13 +830,14 @@ struct GridwiseFpAintBGemm_Wmma
             if constexpr(BEnableLds)
             {
                 constexpr auto K0PerBlock = KPerBlock/ K1;
+
                 auto scale_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
                     static_cast<ScaleDataType*>(p_shared) + SharedMemTrait::scale_block_space_offset, 
                     SharedMemTrait::scale_block_space_size_aligned);
 
                 auto scale_blockwise_copy =
                     ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
-                                                        ck::tensor_operation::element_wise::PassThrough,
+                                                        BElementwiseOperation,
                                                         ck::tensor_operation::element_wise::PassThrough,
                                                         InMemoryDataOperationEnum::Set,
                                                         Sequence<K0PerBlock, NPerBlock, K1>,
@@ -802,10 +857,10 @@ struct GridwiseFpAintBGemm_Wmma
                                                         1,
                                                         BThreadTransferSrcResetCoordinateAfterRun,
                                                         true,
-                                                        1>(
+                                                        NumGemmKPrefetchStage>(
                     scale_grid_desc,
                     make_multi_index(0, n_block_data_idx_on_grid, 0),
-                    ck::tensor_operation::element_wise::PassThrough{},
+                    b_element_op,
                     scale_block_desc,
                     make_multi_index(0, 0, 0),
                     ck::tensor_operation::element_wise::PassThrough{});
@@ -815,13 +870,12 @@ struct GridwiseFpAintBGemm_Wmma
             else
             {
                 // Thread-wise copy
-                // KPerBlock/WmmaK -> NRepeat -> NWaves -> WmmaK/K1 -> NPerWmma -> K1
                 constexpr auto KWmmaPerBlock = KPerBlock / WmmaK;
                 constexpr auto K0PerWmma     = WmmaK/2/K1Value;
+                // KPerBlock/WmmaK -> NRepeat -> NWaves -> WmmaK/K1 -> NPerWmma -> K1
                 auto scale_block_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ScaleDataType>(
                     scale_block_desc.GetElementSpaceSize());
                 
-                // Limitation: NumDim of Src and Dst descriptor should be identical
                 auto scale_blockwise_copy =
                     ThreadwiseTensorSliceTransfer_v2<ScaleDataType,
                                                      ScaleDataType,
@@ -894,9 +948,6 @@ struct GridwiseFpAintBGemm_Wmma
 
         // gridwise GEMM pipeline
         const index_t KBlockMainLoop = __builtin_amdgcn_readfirstlane(K / KPerBlock);
-        /*
-        scale_blockwise_copy
-        */
         GridwiseGemmPipe::template Run<HasMainKBlockLoop>(a_grid_desc,
                                                           a_block_desc,
                                                           a_blockwise_copy,
