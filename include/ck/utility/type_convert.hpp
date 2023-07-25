@@ -120,29 +120,6 @@ inline __host__ __device__ half_t type_convert<half_t, f8_t>(f8_t x)
     return utils::cast_from_f8<half_t, negative_zero_nan>(x);
 }
 
-template <>
-inline __host__ __device__ bhalf2_t type_convert<bhalf2_t, half2_t>(half2_t x)
-{
-    float y0{0}, y1{0};
-    bhalf2_t y{0};
-    asm volatile("\n \
-            v_cvt_f32_f16 %0, %1 \n \
-            "
-                 : "=v"(y0)
-                 : "v"(x));
-    asm volatile("\n \
-            v_cvt_f32_f16 %0, %1 src0_sel:WORD_1\n \
-            "
-                 : "=v"(y1)
-                 : "v"(x));
-    asm volatile("\n \
-            v_pack_b32_f16 %0, %1, %2 op_sel:[1, 1] \n \
-            "
-                 : "=v"(y)
-                 : "v"(y0), "v"(y1));
-    return y;
-}
-
 // Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
 __host__ __device__ constexpr Y bf16_convert_rtn(X x);
