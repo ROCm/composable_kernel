@@ -25,7 +25,6 @@ set(PROFILER_SOURCES
     profile_reduce.cpp
     profile_groupnorm.cpp
     profile_layernorm.cpp
-    profile_avg_pool2d_fwd.cpp
     profile_max_pool3d_fwd.cpp
     profile_softmax.cpp
     profile_batchnorm_fwd.cpp
@@ -78,7 +77,7 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batchnorm_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_gemm_fastgelu_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_bilinear_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_scale_instance)
-target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_pool_fwd_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_pool3d_fwd_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_multi_d_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv2d_bwd_data_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_bwd_data_instance)

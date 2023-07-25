@@ -84,12 +84,12 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
     std::vector<index_t> pad1      = {1, 1, 1};
     std::vector<index_t> pad2      = {1, 1, 1};
 
-    if(argc != 2 && argc != 31)
+    if(argc != 2 && argc != 34)
     {
         print_help_max_pool3d_fwd();
         return 0;
     }
-    else if(argc == 31)
+    else if(argc == 34)
     {
         data_type       = static_cast<ck::DataTypeEnum>(std::stoi(argv[2]));
         do_verification = std::stoi(argv[3]);
@@ -109,10 +109,14 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
         pad2      = arg_parser.long_opts["pad2"];
     }
 
-    using F16                 = ck::half_t;
-    using F32                 = float;
-    using I32                 = int32_t;
+    using F16 = ck::half_t;
+    using F32 = float;
+    using I32 = int32_t;
+#if 1
     constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
+#else
+    constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
+#endif
 
     if(data_type == ck::DataTypeEnum::Half)
     {
