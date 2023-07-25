@@ -155,36 +155,37 @@ __global__ void
     }
     else
     {
-        GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(p_a_grid + a_batch_offset,
-                                                      p_b_grid + b_batch_offset,
-                                                      z_matrix_ptr,
-                                                      p_b1_grid + b1_batch_offset,
-                                                      p_c_grid + c_batch_offset,
-                                                      p_lse_grid + lse_batch_offset,
-                                                      p_ygrad_grid + c_batch_offset,
-                                                      p_qgrad_grid + a_batch_offset,
-                                                      p_kgrad_grid + b_batch_offset,
-                                                      p_vgrad_grid + b1_batch_offset,
-                                                      p_shared,
-                                                      a_element_op,
-                                                      b_element_op,
-                                                      acc_element_op,
-                                                      b1_element_op,
-                                                      c_element_op,
-                                                      a_grid_desc_ak0_m_ak1,
-                                                      b_grid_desc_bk0_n_bk1,
-                                                      c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
-                                                      b1_grid_desc_bk0_n_bk1,
-                                                      c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                      lse_grid_desc_m,
-                                                      ygrad_grid_desc_m0_o_m1,
-                                                      block_2_ctile_map,
-                                                      c0_matrix_mask,
-                                                      p_drop,
-                                                      ph,
-                                                      z_random_matrix_offset,
-                                                      raw_n_padded,
-                                                      0);
+        GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
+            p_a_grid + a_batch_offset,
+            p_b_grid + b_batch_offset,
+            z_matrix_ptr,
+            p_b1_grid + b1_batch_offset,
+            p_c_grid + c_batch_offset,
+            p_lse_grid + lse_batch_offset,
+            p_ygrad_grid + c_batch_offset,
+            p_qgrad_grid + a_batch_offset,
+            p_kgrad_grid + b_batch_offset,
+            p_vgrad_grid + b1_batch_offset,
+            p_shared,
+            a_element_op,
+            b_element_op,
+            acc_element_op,
+            b1_element_op,
+            c_element_op,
+            a_grid_desc_ak0_m_ak1,
+            b_grid_desc_bk0_n_bk1,
+            c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
+            b1_grid_desc_bk0_n_bk1,
+            c_grid_desc_mblock_mperblock_nblock_nperblock,
+            lse_grid_desc_m,
+            ygrad_grid_desc_m0_o_m1,
+            block_2_ctile_map,
+            c0_matrix_mask,
+            p_drop,
+            ph,
+            z_random_matrix_offset,
+            raw_n_padded,
+            0);
     }
 #else
     ignore = p_a_grid;
@@ -1018,16 +1019,20 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
                 if(arg.p_drop_ > 0.0)
-                    ave_time = launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, true>{});
+                    ave_time = launch_kernel(integral_constant<bool, true>{},
+                                             integral_constant<bool, true>{});
                 else
-                    ave_time = launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, false>{});
+                    ave_time = launch_kernel(integral_constant<bool, true>{},
+                                             integral_constant<bool, false>{});
             }
             else
             {
                 if(arg.p_drop_ > 0.0)
-                    ave_time = launch_kernel(integral_constant<bool, false>{}, integral_constant<bool, true>{});
+                    ave_time = launch_kernel(integral_constant<bool, false>{},
+                                             integral_constant<bool, true>{});
                 else
-                    ave_time = launch_kernel(integral_constant<bool, false>{}, integral_constant<bool, false>{});
+                    ave_time = launch_kernel(integral_constant<bool, false>{},
+                                             integral_constant<bool, false>{});
             }
 
             return ave_time;

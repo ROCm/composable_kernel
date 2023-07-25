@@ -993,16 +993,20 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             if(all_has_main_k_block_loop)
             {
                 if(arg.p_dropout_ > 0.0)
-                    ave_time = launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, true>{});
+                    ave_time = launch_kernel(integral_constant<bool, true>{},
+                                             integral_constant<bool, true>{});
                 else
-                    ave_time = launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, false>{});
+                    ave_time = launch_kernel(integral_constant<bool, true>{},
+                                             integral_constant<bool, false>{});
             }
             else if(!some_has_main_k_block_loop)
             {
                 if(arg.p_dropout_ > 0.0)
-                    ave_time = launch_kernel(integral_constant<bool, false>{}, integral_constant<bool, true>{});
+                    ave_time = launch_kernel(integral_constant<bool, false>{},
+                                             integral_constant<bool, true>{});
                 else
-                    ave_time = launch_kernel(integral_constant<bool, false>{}, integral_constant<bool, false>{});
+                    ave_time = launch_kernel(integral_constant<bool, false>{},
+                                             integral_constant<bool, false>{});
             }
             else
             {
