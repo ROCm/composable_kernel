@@ -65,9 +65,12 @@ int main(int argc, char* argv[])
     ck::index_t in_right_pad_h    = 1;
     ck::index_t in_right_pad_w    = 1;
 
-    ck::index_t Do = (Di + in_left_pad_d + in_right_pad_d - Z) / window_stride_d + 1;
-    ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Y) / window_stride_h + 1;
-    ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - X) / window_stride_w + 1;
+    const ck::index_t Zs = (Z - 1) * window_dilation_d + 1;
+    const ck::index_t Ys = (Y - 1) * window_dilation_h + 1;
+    const ck::index_t Xs = (X - 1) * window_dilation_w + 1;
+    ck::index_t Do       = (Di + in_left_pad_d + in_right_pad_d - Zs) / window_stride_d + 1;
+    ck::index_t Ho       = (Hi + in_left_pad_h + in_right_pad_h - Ys) / window_stride_h + 1;
+    ck::index_t Wo       = (Wi + in_left_pad_w + in_right_pad_w - Xs) / window_stride_w + 1;
 
     // Pool API only support the order of NCDHW
     std::vector<ck::index_t> in_length              = {N, C, Di, Hi, Wi};
@@ -187,6 +190,7 @@ int main(int argc, char* argv[])
             out_tensor_stride,
             out_tensor_stride,
             window_strides,
+            window_dilations,
             input_left_pads,
             input_right_pads,
             {2, 3, 4});

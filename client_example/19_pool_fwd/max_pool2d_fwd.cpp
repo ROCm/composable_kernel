@@ -10,14 +10,15 @@
 #include "ck/tensor_operation/gpu/device/device_pool_fwd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/pool2d_fwd.hpp"
+#include "ck/library/tensor_operation_instance/gpu/pool3d_fwd.hpp"
 
 using InDataType    = ck::half_t;
 using OutDataType   = ck::half_t;
 using IndexDataType = int32_t;
 
-constexpr ck::index_t InOutRank  = 4;
-constexpr ck::index_t WindowRank = 2;
+// We use pool3d to implement pool2d in this example
+constexpr ck::index_t InOutRank  = 5;
+constexpr ck::index_t WindowRank = 3;
 #if 1
 constexpr auto ReduceOpId  = ck::ReduceTensorOp::MAX;
 constexpr bool OutputIndex = true;
@@ -42,6 +43,35 @@ struct SimpleDeviceMem
     void* p_mem_;
 };
 
+void TransformPool2dparamToPool3d(std::vector<ck::index_t>& input_lengths,
+                                  std::vector<ck::index_t>& window_lengths,
+                                  std::vector<ck::index_t>& output_lengths,
+                                  std::vector<ck::index_t>& input_stride,
+                                  std::vector<ck::index_t>& output_stride,
+                                  std::vector<ck::index_t>& indices_stride,
+                                  std::vector<ck::index_t>& window_strides,
+                                  std::vector<ck::index_t>& window_dilations,
+                                  std::vector<ck::index_t>& input_left_pads,
+                                  std::vector<ck::index_t>& input_right_pads,
+                                  std::vector<ck::index_t>& pooling_dims)
+{
+    // NCHW to NCDHW
+    input_lengths.insert(input_lengths.begin() + 2, 1);
+    output_lengths.insert(output_lengths.begin() + 2, 1);
+    input_stride.insert(input_stride.begin() + 2, 0);
+    output_stride.insert(output_stride.begin() + 2, 0);
+    indices_stride.insert(indices_stride.begin() + 2, 0);
+
+    // YX to ZYX
+    window_lengths.insert(window_lengths.begin(), 1);
+    window_strides.insert(window_strides.begin(), 0);
+    window_dilations.insert(window_dilations.begin(), 0);
+    input_left_pads.insert(input_left_pads.begin(), 0);
+    input_right_pads.insert(input_right_pads.begin(), 0);
+
+    pooling_dims = {2, 3, 4};
+}
+
 int main(int argc, char* argv[])
 {
     ck::index_t N                 = 2;
@@ -52,7 +82,6 @@ int main(int argc, char* argv[])
     ck::index_t Wi                = 30;
     ck::index_t window_stride_h   = 2;
     ck::index_t window_stride_w   = 2;
-    ck::index_t window_dilation_d = 1;
     ck::index_t window_dilation_h = 1;
     ck::index_t window_dilation_w = 1;
     ck::index_t in_left_pad_h     = 1;
@@ -60,18 +89,20 @@ int main(int argc, char* argv[])
     ck::index_t in_right_pad_h    = 1;
     ck::index_t in_right_pad_w    = 1;
 
-    ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Y) / window_stride_h + 1;
-    ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - X) / window_stride_w + 1;
+    const ck::index_t Ys = (Y - 1) * window_dilation_h + 1;
+    const ck::index_t Xs = (X - 1) * window_dilation_w + 1;
+    ck::index_t Ho       = (Hi + in_left_pad_h + in_right_pad_h - Ys) / window_stride_h + 1;
+    ck::index_t Wo       = (Wi + in_left_pad_w + in_right_pad_w - Xs) / window_stride_w + 1;
 
     // Pool API only support the order of NCHW
     std::vector<ck::index_t> in_length              = {N, C, Hi, Wi};
     std::vector<ck::index_t> out_length             = {N, C, Ho, Wo};
     std::vector<ck::index_t> window_spatial_lengths = {Y, X};
     std::vector<ck::index_t> window_strides         = {window_stride_h, window_stride_w};
-    std::vector<ck::index_t> window_dilations{
-        window_dilation_d, window_dilation_h, window_dilation_w};
-    std::vector<ck::index_t> input_left_pads  = {in_left_pad_h, in_left_pad_w};
-    std::vector<ck::index_t> input_right_pads = {in_right_pad_h, in_right_pad_w};
+    std::vector<ck::index_t> window_dilations       = {window_dilation_h, window_dilation_w};
+    std::vector<ck::index_t> input_left_pads        = {in_left_pad_h, in_left_pad_w};
+    std::vector<ck::index_t> input_right_pads       = {in_right_pad_h, in_right_pad_w};
+    std::vector<ck::index_t> pooling_dims           = {2, 3};
 
     std::size_t in_tensor_size  = N * C * Hi * Wi;
     std::size_t out_tensor_size = N * C * Ho * Wo;
@@ -79,6 +110,18 @@ int main(int argc, char* argv[])
     // tensor layout = NHWC
     std::vector<ck::index_t> in_tensor_stride  = {C * Hi * Wi, 1, Wi * C, C};
     std::vector<ck::index_t> out_tensor_stride = {C * Ho * Wo, 1, Wo * C, C};
+
+    TransformPool2dparamToPool3d(in_length,
+                                 window_spatial_lengths,
+                                 out_length,
+                                 in_tensor_stride,
+                                 out_tensor_stride,
+                                 out_tensor_stride,
+                                 window_strides,
+                                 window_dilations,
+                                 input_left_pads,
+                                 input_right_pads,
+                                 pooling_dims);
 
     SimpleDeviceMem in_device_buf(sizeof(InDataType) * in_tensor_size);
     SimpleDeviceMem out_device_buf(sizeof(OutDataType) * out_tensor_size);
@@ -124,7 +167,7 @@ int main(int argc, char* argv[])
             window_dilations,
             input_left_pads,
             input_right_pads,
-            {2, 3});
+            pooling_dims);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -181,9 +224,10 @@ int main(int argc, char* argv[])
             out_tensor_stride,
             out_tensor_stride,
             window_strides,
+            window_dilations,
             input_left_pads,
             input_right_pads,
-            {2, 3});
+            pooling_dims);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
