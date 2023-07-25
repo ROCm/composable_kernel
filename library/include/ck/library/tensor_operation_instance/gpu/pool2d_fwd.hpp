@@ -17,8 +17,9 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-static constexpr auto InOutRank  = 4;
-static constexpr auto WindowRank = 2;
+// pool2d inherit pool3d
+static constexpr auto InOutRank  = 5;
+static constexpr auto WindowRank = 3;
 
 static constexpr auto MaxOp = ck::ReduceTensorOp::MAX;
 static constexpr auto AvgOp = ck::ReduceTensorOp::AVG;
