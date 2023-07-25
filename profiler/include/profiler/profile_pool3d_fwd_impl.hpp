@@ -60,7 +60,7 @@ bool profile_pool3d_fwd_impl(int do_verification,
         auto windows_stride   = window_strides[i - 2];
         auto windows_dilation = window_dilations[i - 2];
         auto eff              = (windows_size - 1) * windows_dilation + 1;
-        out_length[i] = (in_length[i] + pad1 + pad2 - eff) / windows_stride + 1;
+        out_length[i]         = (in_length[i] + pad1 + pad2 - eff) / windows_stride + 1;
     }
 
     int Di = in_length[2];

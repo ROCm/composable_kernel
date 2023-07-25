@@ -31,8 +31,8 @@ using device_pool2d_fwd_nhwc_instances =
         DevicePool2dFwdImpl<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 1, 1, 1, false>,
         DevicePool2dFwdImpl<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 2, 1, 2, false>,
         DevicePool2dFwdImpl<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 4, 1, 4, false>
-                 // clang-format on
-                 >;
+               // clang-format on
+               >;
 
 template <typename InDataType,
           typename OutDataType,
@@ -46,8 +46,8 @@ using device_pool3d_fwd_ndhwc_instances =
         DevicePool3dFwdImpl<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 1, 1, 1, false>,
         DevicePool3dFwdImpl<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 2, 1, 2, false>,
         DevicePool3dFwdImpl<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 4, 1, 4, false>
-                 // clang-format on
-                 >;
+               // clang-format on
+               >;
 
 } // namespace instance
 } // namespace device
