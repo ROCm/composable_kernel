@@ -70,6 +70,7 @@ struct DevicePool2dFwdImpl : public DevicePool3dFwdImpl<InDataType,
                         std::vector<ck::index_t> output_stride,
                         std::vector<ck::index_t> indices_stride,
                         std::vector<ck::index_t> window_strides,
+                        std::vector<ck::index_t> window_dilations,
                         std::vector<ck::index_t> input_left_pads,
                         std::vector<ck::index_t> input_right_pads,
                         std::vector<ck::index_t> pooling_dims) override
@@ -79,7 +80,8 @@ struct DevicePool2dFwdImpl : public DevicePool3dFwdImpl<InDataType,
 
         if(input_lengths.size() != InOutRank || window_lengths.size() != WindowRank ||
            input_lengths.size() != InOutRank || window_strides.size() != WindowRank ||
-           input_left_pads.size() != WindowRank || input_right_pads.size() != WindowRank)
+           window_dilations.size() != WindowRank || input_left_pads.size() != WindowRank ||
+           input_right_pads.size() != WindowRank)
             throw std::runtime_error("dimension is incorrect");
 
         if(pooling_dims != std::vector<ck::index_t>{2, 3})
@@ -95,6 +97,7 @@ struct DevicePool2dFwdImpl : public DevicePool3dFwdImpl<InDataType,
         // YX to ZYX
         window_lengths.insert(window_lengths.begin(), 1);
         window_strides.insert(window_strides.begin(), 0);
+        window_dilations.insert(window_dilations.begin(), 0);
         input_left_pads.insert(input_left_pads.begin(), 0);
         input_right_pads.insert(input_right_pads.begin(), 0);
 
@@ -110,6 +113,7 @@ struct DevicePool2dFwdImpl : public DevicePool3dFwdImpl<InDataType,
                                                  output_stride,
                                                  indices_stride,
                                                  window_strides,
+                                                 window_dilations,
                                                  input_left_pads,
                                                  input_right_pads,
                                                  pooling_dims);

@@ -39,6 +39,8 @@ bool pool_test(bool do_verification,
                ck::index_t Wi,
                ck::index_t window_stride_h,
                ck::index_t window_stride_w,
+               ck::index_t window_dilation_h,
+               ck::index_t window_dilation_w,
                ck::index_t in_left_pad_h,
                ck::index_t in_left_pad_w,
                ck::index_t in_right_pad_h,
@@ -64,6 +66,7 @@ bool pool_test(bool do_verification,
 
     const std::vector<ck::index_t> window_spatial_lengths{Y, X};
     const std::vector<ck::index_t> window_strides{window_stride_h, window_stride_w};
+    const std::vector<ck::index_t> window_dilations{window_dilation_h, window_dilation_w};
     const std::vector<ck::index_t> input_left_pads{in_left_pad_h, in_left_pad_w};
     const std::vector<ck::index_t> input_right_pads{in_right_pad_h, in_right_pad_w};
 
@@ -123,6 +126,7 @@ bool pool_test(bool do_verification,
         {C * Ho * Wo, 1, Wo * C, C},
         {C * Ho * Wo, 1, Wo * C, C},
         window_strides,
+        window_dilations,
         input_left_pads,
         input_right_pads,
         {2, 3});
@@ -169,6 +173,7 @@ bool pool_test(bool do_verification,
                                                              out_indices_n_c_ho_wo_host,
                                                              window_spatial_lengths,
                                                              window_strides,
+                                                             window_dilations,
                                                              input_left_pads,
                                                              input_right_pads);
 

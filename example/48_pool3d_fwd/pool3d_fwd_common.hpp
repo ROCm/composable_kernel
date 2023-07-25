@@ -78,6 +78,9 @@ bool pool3d_test(bool do_verification,
                  ck::index_t window_stride_d,
                  ck::index_t window_stride_h,
                  ck::index_t window_stride_w,
+                 ck::index_t window_dilation_d,
+                 ck::index_t window_dilation_h,
+                 ck::index_t window_dilation_w,
                  ck::index_t in_left_pad_d,
                  ck::index_t in_left_pad_h,
                  ck::index_t in_left_pad_w,
@@ -92,6 +95,8 @@ bool pool3d_test(bool do_verification,
     const std::vector<ck::index_t> window_spatial_lengths{Z, Y, X};
     const std::vector<ck::index_t> window_strides{
         window_stride_d, window_stride_h, window_stride_w};
+    const std::vector<ck::index_t> window_dilations{
+        window_dilation_d, window_dilation_h, window_dilation_w};
     const std::vector<ck::index_t> input_left_pads{in_left_pad_d, in_left_pad_h, in_left_pad_w};
     const std::vector<ck::index_t> input_right_pads{in_right_pad_d, in_right_pad_h, in_right_pad_w};
 
@@ -131,6 +136,7 @@ bool pool3d_test(bool do_verification,
         f_tensor_strides_ncdhw(N, C, Do, Ho, Wo, OutLayout{}),
         f_tensor_strides_ncdhw(N, C, Do, Ho, Wo, OutLayout{}),
         window_strides,
+        window_dilations,
         input_left_pads,
         input_right_pads,
         {2, 3, 4});
@@ -166,6 +172,7 @@ bool pool3d_test(bool do_verification,
                                                              out_indices_n_c_do_ho_wo_host,
                                                              window_spatial_lengths,
                                                              window_strides,
+                                                             window_dilations,
                                                              input_left_pads,
                                                              input_right_pads);
 
