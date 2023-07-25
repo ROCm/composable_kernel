@@ -52,6 +52,7 @@ struct MaskOutUpperTrianglePredicate
 };
 struct MaskUpperTringleFromBottonRightPredicate
 {
+    MaskUpperTringleFromBottonRightPredicate() : offset_(0) {}
     __host__ __device__ void SetOffset(const index_t offset) { offset_ = offset; }
     __host__ __device__ constexpr bool operator()(index_t m, index_t n) const
     {
@@ -78,7 +79,8 @@ struct C0MatrixMask_impl
         if constexpr(std::is_same<MaskOutPredicate,
                                   MaskUpperTringleFromBottonRightPredicate>::value)
         {
-            predicate_.SetOffset(NRaw - MRaw);
+            if(NRaw > MRaw)
+                predicate_.SetOffset(NRaw - MRaw);
         }
     }
 

@@ -102,8 +102,8 @@ static constexpr bool Deterministic = false;
 // If 32 < DIM <= 64 , ues prototype1 2nd template.
 // If 64 < DIM <= 128, ues prototype2 2nd template.
 #if(DIM <= 32)
-using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Phased_Xdl_CShuffle_V1<
+using DeviceGemmInstance = ck::tensor_operation::device::
+    DeviceBatchedMultiheadAttentionBackward_Qloop_Phased_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -172,8 +172,8 @@ using DeviceGemmInstance =
         MaskingSpec,                                    // MaskingSpecialization
         Deterministic>;
 #elif(DIM <= 64)
-using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Phased_Xdl_CShuffle_V1<
+using DeviceGemmInstance = ck::tensor_operation::device::
+    DeviceBatchedMultiheadAttentionBackward_Qloop_Phased_Xdl_CShuffle_V1<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -461,8 +461,9 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
     ref_gemm0_invoker.Run(ref_gemm0_argument);
 
     // masking
+    auto M          = s_g_m_n.GetLengths()[1];
     auto N          = s_g_m_n.GetLengths()[2];
-    const auto mask = DeviceGemmInstance::C0MatrixMask(N);
+    const auto mask = DeviceGemmInstance::C0MatrixMask(M, N);
     s_g_m_n.ForEach([&](auto& self, auto idx) {
         if(mask.IsMaskedElement(idx[1], idx[2]))
             self(idx) = -ck::NumericLimits<float>::Infinity();

@@ -268,7 +268,7 @@ int run(int argc, char* argv[])
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
     // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
     // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t M  = 123;
+    ck::index_t M  = 253;
     ck::index_t N  = 512;
     ck::index_t K  = DIM;
     ck::index_t O  = DIM;
