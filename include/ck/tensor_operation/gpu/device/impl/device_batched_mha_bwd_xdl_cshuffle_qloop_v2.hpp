@@ -569,9 +569,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         {
             return MaskOutUpperTrianglePredicate{};
         }
-        else if constexpr(MaskingSpec == MaskingSpecialization::MaskUpperTringleFromBottonRight)
+        else if constexpr(MaskingSpec == MaskingSpecialization::MaskUpperTringleFromBottomRight)
         {
-            return MaskUpperTringleFromBottonRightPredicate{};
+            return MaskUpperTringleFromBottomRightPredicate{};
         }
     }
     using C0MatrixMask = C0MatrixMask_impl<decltype(make_MaskOutPredicate())>;

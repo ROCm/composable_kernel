@@ -11,7 +11,7 @@ enum struct MaskingSpecialization
 {
     MaskDisabled,
     MaskOutUpperTriangle,
-    MaskUpperTringleFromBottonRight
+    MaskUpperTringleFromBottomRight
 };
 
 inline std::string getMaskingSpecializationString(const MaskingSpecialization& s)
@@ -20,8 +20,8 @@ inline std::string getMaskingSpecializationString(const MaskingSpecialization& s
     {
     case MaskingSpecialization::MaskDisabled: return "MaskDisabled";
     case MaskingSpecialization::MaskOutUpperTriangle: return "MaskOutUpperTriangle";
-    case MaskingSpecialization::MaskUpperTringleFromBottonRight:
-        return "MaskUpperTringleFromBottonRight";
+    case MaskingSpecialization::MaskUpperTringleFromBottomRight:
+        return "MaskUpperTringleFromBottomRight";
     default: return "Unrecognized specialization!";
     }
 }
@@ -50,9 +50,9 @@ struct MaskOutUpperTrianglePredicate
         return operator()(m + m_tile - 1, n);
     }
 };
-struct MaskUpperTringleFromBottonRightPredicate
+struct MaskUpperTringleFromBottomRightPredicate
 {
-    MaskUpperTringleFromBottonRightPredicate() : offset_(0) {}
+    MaskUpperTringleFromBottomRightPredicate() : offset_(0) {}
     __host__ __device__ void SetOffset(const index_t offset) { offset_ = offset; }
     __host__ __device__ constexpr bool operator()(index_t m, index_t n) const
     {
@@ -77,7 +77,7 @@ struct C0MatrixMask_impl
     C0MatrixMask_impl(index_t MRaw, index_t NRaw) : NRaw_(NRaw), predicate_(MaskOutPredicate{})
     {
         if constexpr(std::is_same<MaskOutPredicate,
-                                  MaskUpperTringleFromBottonRightPredicate>::value)
+                                  MaskUpperTringleFromBottomRightPredicate>::value)
         {
             if(NRaw > MRaw)
                 predicate_.SetOffset(NRaw - MRaw);
