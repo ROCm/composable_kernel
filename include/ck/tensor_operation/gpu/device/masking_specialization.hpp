@@ -56,7 +56,7 @@ struct MaskUpperTringleFromBottomRightPredicate
     __host__ __device__ void SetOffset(const index_t offset) { offset_ = offset; }
     __host__ __device__ constexpr bool operator()(index_t m, index_t n) const
     {
-        return n > m + offset_;
+        return n > (m + offset_);
     }
 
     __host__ __device__ constexpr bool
