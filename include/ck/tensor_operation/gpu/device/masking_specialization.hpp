@@ -10,7 +10,7 @@ namespace device {
 enum struct MaskingSpecialization
 {
     MaskDisabled,
-    MaskOutUpperTriangle,
+    MaskUpperTringleFromTopLeft,
     MaskUpperTringleFromBottomRight
 };
 
@@ -19,7 +19,7 @@ inline std::string getMaskingSpecializationString(const MaskingSpecialization& s
     switch(s)
     {
     case MaskingSpecialization::MaskDisabled: return "MaskDisabled";
-    case MaskingSpecialization::MaskOutUpperTriangle: return "MaskOutUpperTriangle";
+    case MaskingSpecialization::MaskUpperTringleFromTopLeft: return "MaskUpperTringleFromTopLeft";
     case MaskingSpecialization::MaskUpperTringleFromBottomRight:
         return "MaskUpperTringleFromBottomRight";
     default: return "Unrecognized specialization!";
@@ -40,7 +40,7 @@ struct MaskDisabledPredicate
     }
 };
 
-struct MaskOutUpperTrianglePredicate
+struct MaskUpperTringleFromTopLeftPredicate
 {
     __host__ __device__ constexpr bool operator()(index_t m, index_t n) const { return n > m; }
 

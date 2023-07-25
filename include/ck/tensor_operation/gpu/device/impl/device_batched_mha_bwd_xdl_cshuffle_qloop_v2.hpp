@@ -565,9 +565,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         {
             return MaskDisabledPredicate{};
         }
-        else if constexpr(MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle)
+        else if constexpr(MaskingSpec == MaskingSpecialization::MaskUpperTringleFromTopLeft)
         {
-            return MaskOutUpperTrianglePredicate{};
+            return MaskUpperTringleFromTopLeftPredicate{};
         }
         else if constexpr(MaskingSpec == MaskingSpecialization::MaskUpperTringleFromBottomRight)
         {

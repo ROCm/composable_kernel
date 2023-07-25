@@ -93,7 +93,7 @@ static constexpr ck::index_t CShuffleBlockTransferScalarPerVector_NPerBlock = 8;
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 #if USING_MASK
 static constexpr auto MaskingSpec =
-    ck::tensor_operation::device::MaskingSpecialization::MaskOutUpperTriangle;
+    ck::tensor_operation::device::MaskingSpecialization::MaskUpperTringleFromTopLeft;
 #else
 static constexpr auto MaskingSpec =
     ck::tensor_operation::device::MaskingSpecialization::MaskDisabled;

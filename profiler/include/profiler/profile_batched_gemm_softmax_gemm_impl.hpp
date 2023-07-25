@@ -31,7 +31,7 @@ template <typename ADataType,
           typename B0Layout,
           typename B1Layout,
           typename CLayout,
-          bool MaskOutUpperTriangle>
+          bool MaskUpperTringleFromTopLeft>
 bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
                                             int init_method,
                                             bool do_log,
@@ -197,20 +197,21 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
     auto b1_element_op   = B1ElementOp{};
     auto c_element_op    = CElementOp{};
 
-    using DeviceOp = tensor_operation::device::DeviceBatchedGemmSoftmaxGemm<ALayout,
-                                                                            B0Layout,
-                                                                            B1Layout,
-                                                                            CLayout,
-                                                                            ADataType,
-                                                                            B0DataType,
-                                                                            B1DataType,
-                                                                            CDataType,
-                                                                            AElementOp,
-                                                                            B0ElementOp,
-                                                                            Acc0ElementOp,
-                                                                            B1ElementOp,
-                                                                            CElementOp,
-                                                                            MaskOutUpperTriangle>;
+    using DeviceOp =
+        tensor_operation::device::DeviceBatchedGemmSoftmaxGemm<ALayout,
+                                                               B0Layout,
+                                                               B1Layout,
+                                                               CLayout,
+                                                               ADataType,
+                                                               B0DataType,
+                                                               B1DataType,
+                                                               CDataType,
+                                                               AElementOp,
+                                                               B0ElementOp,
+                                                               Acc0ElementOp,
+                                                               B1ElementOp,
+                                                               CElementOp,
+                                                               MaskUpperTringleFromTopLeft>;
 
     // get device op instances
     const auto op_ptrs = tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -229,7 +230,7 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
 
         // mask out upper triangle
         acc0_g_m_n.ForEach([&](auto& self, auto idx) {
-            if(MaskOutUpperTriangle && idx[1] < idx[2])
+            if(MaskUpperTringleFromTopLeft && idx[1] < idx[2])
                 self(idx) = -ck::NumericLimits<float>::Infinity();
         });
 

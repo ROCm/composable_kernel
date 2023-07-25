@@ -83,7 +83,7 @@ void add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_f16_f16_f
                                             Scale,
                                             PassThrough,
                                             PassThrough,
-                                            MaskingSpecialization::MaskOutUpperTriangle>>>&
+                                            MaskingSpecialization::MaskUpperTringleFromTopLeft>>>&
         instances)
 {
     add_device_operation_instances(
@@ -94,7 +94,7 @@ void add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_f16_f16_f
             1,
             1,
             1,
-            MaskingSpecialization::MaskOutUpperTriangle>{});
+            MaskingSpecialization::MaskUpperTringleFromTopLeft>{});
 }
 
 void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(

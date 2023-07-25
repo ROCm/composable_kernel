@@ -57,7 +57,7 @@ template <typename ALayout,
           typename B0DataType,
           typename B1DataType,
           typename CDataType,
-          bool MaskOutUpperTriangle>
+          bool MaskUpperTringleFromTopLeft>
 struct DeviceOperationInstanceFactory<
     ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemm<ALayout,
                                                                B0Layout,
@@ -72,7 +72,7 @@ struct DeviceOperationInstanceFactory<
                                                                Scale,
                                                                PassThrough,
                                                                PassThrough,
-                                                               MaskOutUpperTriangle>>
+                                                               MaskUpperTringleFromTopLeft>>
 {
     using DeviceOp = DeviceBatchedGemmSoftmaxGemm<ALayout,
                                                   B0Layout,
@@ -87,7 +87,7 @@ struct DeviceOperationInstanceFactory<
                                                   Scale,
                                                   PassThrough,
                                                   PassThrough,
-                                                  MaskOutUpperTriangle>;
+                                                  MaskUpperTringleFromTopLeft>;
 
     static auto GetInstances()
     {
@@ -99,7 +99,7 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<ALayout, Row> && is_same_v<B0Layout, Col> &&
                          is_same_v<B1Layout, Row> && is_same_v<CLayout, Row>)
             {
-                if constexpr(MaskOutUpperTriangle)
+                if constexpr(MaskUpperTringleFromTopLeft)
                 {
                     add_device_batched_gemm_masking_softmax_gemm_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
                         op_ptrs);
