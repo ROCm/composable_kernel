@@ -32,6 +32,7 @@ struct DevicePoolFwd : public BaseOperator
                         std::vector<ck::index_t> output_stride,
                         std::vector<ck::index_t> indices_stride,
                         std::vector<ck::index_t> window_strides,
+                        std::vector<ck::index_t> window_dilations,
                         std::vector<ck::index_t> input_left_pads,
                         std::vector<ck::index_t> input_right_pads,
                         std::vector<ck::index_t> pooling_dims) = 0;

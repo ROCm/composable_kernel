@@ -44,18 +44,21 @@ struct SimpleDeviceMem
 
 int main(int argc, char* argv[])
 {
-    ck::index_t N               = 2;
-    ck::index_t C               = 32;
-    ck::index_t Y               = 2;
-    ck::index_t X               = 2;
-    ck::index_t Hi              = 30;
-    ck::index_t Wi              = 30;
-    ck::index_t window_stride_h = 2;
-    ck::index_t window_stride_w = 2;
-    ck::index_t in_left_pad_h   = 1;
-    ck::index_t in_left_pad_w   = 1;
-    ck::index_t in_right_pad_h  = 1;
-    ck::index_t in_right_pad_w  = 1;
+    ck::index_t N                 = 2;
+    ck::index_t C                 = 32;
+    ck::index_t Y                 = 2;
+    ck::index_t X                 = 2;
+    ck::index_t Hi                = 30;
+    ck::index_t Wi                = 30;
+    ck::index_t window_stride_h   = 2;
+    ck::index_t window_stride_w   = 2;
+    ck::index_t window_dilation_d = 1;
+    ck::index_t window_dilation_h = 1;
+    ck::index_t window_dilation_w = 1;
+    ck::index_t in_left_pad_h     = 1;
+    ck::index_t in_left_pad_w     = 1;
+    ck::index_t in_right_pad_h    = 1;
+    ck::index_t in_right_pad_w    = 1;
 
     ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Y) / window_stride_h + 1;
     ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - X) / window_stride_w + 1;
@@ -65,8 +68,10 @@ int main(int argc, char* argv[])
     std::vector<ck::index_t> out_length             = {N, C, Ho, Wo};
     std::vector<ck::index_t> window_spatial_lengths = {Y, X};
     std::vector<ck::index_t> window_strides         = {window_stride_h, window_stride_w};
-    std::vector<ck::index_t> input_left_pads        = {in_left_pad_h, in_left_pad_w};
-    std::vector<ck::index_t> input_right_pads       = {in_right_pad_h, in_right_pad_w};
+    std::vector<ck::index_t> window_dilations{
+        window_dilation_d, window_dilation_h, window_dilation_w};
+    std::vector<ck::index_t> input_left_pads  = {in_left_pad_h, in_left_pad_w};
+    std::vector<ck::index_t> input_right_pads = {in_right_pad_h, in_right_pad_w};
 
     std::size_t in_tensor_size  = N * C * Hi * Wi;
     std::size_t out_tensor_size = N * C * Ho * Wo;
@@ -116,6 +121,7 @@ int main(int argc, char* argv[])
             out_tensor_stride,
             out_tensor_stride,
             window_strides,
+            window_dilations,
             input_left_pads,
             input_right_pads,
             {2, 3});

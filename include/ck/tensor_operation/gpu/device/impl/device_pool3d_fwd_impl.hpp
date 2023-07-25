@@ -62,6 +62,7 @@ struct DevicePool3dFwdImpl
                                                std::vector<ck::index_t> output_stride,
                                                std::vector<ck::index_t> window_spatial_lengths,
                                                std::vector<ck::index_t> window_strides,
+                                               std::vector<ck::index_t> window_dilations,
                                                std::vector<ck::index_t> input_left_pads,
                                                std::vector<ck::index_t> input_right_pads)
     {
@@ -79,9 +80,13 @@ struct DevicePool3dFwdImpl
         const index_t Y = window_spatial_lengths[1];
         const index_t X = window_spatial_lengths[2];
 
-        const index_t ConvStrideD = window_strides[0];
-        const index_t ConvStrideH = window_strides[1];
-        const index_t ConvStrideW = window_strides[2];
+        const index_t WindowStrideD = window_strides[0];
+        const index_t WindowStrideH = window_strides[1];
+        const index_t WindowStrideW = window_strides[2];
+
+        const index_t WindowDilationD = window_dilations[0];
+        const index_t WindowDilationH = window_dilations[1];
+        const index_t WindowDilationW = window_dilations[2];
 
         const index_t InLeftPadD = input_left_pads[0];
         const index_t InLeftPadH = input_left_pads[1];
@@ -120,11 +125,12 @@ struct DevicePool3dFwdImpl
 
         const auto in_grid_desc_n_z_do_y_ho_x_wo_c = transform_tensor_descriptor(
             in_grid_desc_n_dip_hip_wip_c,
-            make_tuple(make_pass_through_transform(N),
-                       make_embed_transform(make_tuple(Z, Do), make_tuple(I1, ConvStrideD)),
-                       make_embed_transform(make_tuple(Y, Ho), make_tuple(I1, ConvStrideH)),
-                       make_embed_transform(make_tuple(X, Wo), make_tuple(I1, ConvStrideW)),
-                       make_pass_through_transform(C)),
+            make_tuple(
+                make_pass_through_transform(N),
+                make_embed_transform(make_tuple(Z, Do), make_tuple(WindowDilationD, WindowStrideD)),
+                make_embed_transform(make_tuple(Y, Ho), make_tuple(WindowDilationH, WindowStrideH)),
+                make_embed_transform(make_tuple(X, Wo), make_tuple(WindowDilationW, WindowStrideW)),
+                make_pass_through_transform(C)),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
             make_tuple(Sequence<0>{},
                        Sequence<1, 2>{},
@@ -171,7 +177,8 @@ struct DevicePool3dFwdImpl
         return make_tuple(in_grid_desc_reducem_reducek, out_grid_desc_reducem);
     }
 
-    using ABGridDescs = decltype(MakeABGridDescriptor_A_M_K_B_M({}, {}, {}, {}, {}, {}, {}, {}));
+    using ABGridDescs =
+        decltype(MakeABGridDescriptor_A_M_K_B_M({}, {}, {}, {}, {}, {}, {}, {}, {}));
 
     using AGridDesc_M_K = remove_cvref_t<decltype(ABGridDescs{}[I0])>;
     using BGridDesc_M   = remove_cvref_t<decltype(ABGridDescs{}[I1])>;
@@ -188,6 +195,7 @@ struct DevicePool3dFwdImpl
                  std::vector<ck::index_t>&, // indices_stride
                  std::vector<ck::index_t>& window_spatial_lengths,
                  std::vector<ck::index_t>& window_strides,
+                 std::vector<ck::index_t>& window_dilations,
                  std::vector<ck::index_t>& input_left_pads,
                  std::vector<ck::index_t>& input_right_pads)
             : p_in_dev_{p_in_dev},
@@ -202,6 +210,7 @@ struct DevicePool3dFwdImpl
                                                               output_stride,
                                                               window_spatial_lengths,
                                                               window_strides,
+                                                              window_dilations,
                                                               input_left_pads,
                                                               input_right_pads);
 
@@ -323,13 +332,15 @@ struct DevicePool3dFwdImpl
                         std::vector<ck::index_t> output_stride,
                         std::vector<ck::index_t> indices_stride,
                         std::vector<ck::index_t> window_strides,
+                        std::vector<ck::index_t> window_dilations,
                         std::vector<ck::index_t> input_left_pads,
                         std::vector<ck::index_t> input_right_pads,
                         std::vector<ck::index_t> pooling_dims) override
     {
         if(input_lengths.size() != InOutRank || window_lengths.size() != WindowRank ||
            input_lengths.size() != InOutRank || window_strides.size() != WindowRank ||
-           input_left_pads.size() != WindowRank || input_right_pads.size() != WindowRank)
+           window_dilations.size() != WindowRank || input_left_pads.size() != WindowRank ||
+           input_right_pads.size() != WindowRank)
             throw std::runtime_error("dimension is incorrect");
 
         if(pooling_dims != std::vector<ck::index_t>{2, 3, 4})
@@ -348,6 +359,7 @@ struct DevicePool3dFwdImpl
                                           indices_stride,
                                           window_lengths,
                                           window_strides,
+                                          window_dilations,
                                           input_left_pads,
                                           input_right_pads);
     }
