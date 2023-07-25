@@ -256,8 +256,9 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
     ref_gemm0_invoker.Run(ref_gemm0_argument);
 
     // masking
+    auto M          = s_g_m_n.GetLengths()[1];
     auto N          = s_g_m_n.GetLengths()[2];
-    const auto mask = DeviceGemmInstanceFWD::C0MatrixMask(N);
+    const auto mask = DeviceGemmInstanceFWD::C0MatrixMask(M, N);
     s_g_m_n.ForEach([&](auto& self, auto idx) {
         if(mask.IsMaskedElement(idx[1], idx[2]))
             self(idx) = -ck::NumericLimits<float>::Infinity();
