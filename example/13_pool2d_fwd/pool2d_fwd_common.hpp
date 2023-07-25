@@ -9,7 +9,7 @@
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/utility/reduction_functions_accumulate.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_nhwc_nhwc.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_impl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -45,19 +45,19 @@ bool pool_test(bool do_verification,
                ck::index_t in_right_pad_w)
 {
     using DevicePoolFwdInstance =
-        ck::tensor_operation::device::DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<
-            InDataType,      // InDataType
-            OutDataType,     // OutDataType
-            IndexDataType,   // IndexDataType
-            ComputeDataType, // ComputeDataType
-            ReduceOpId,
-            OutputIndex,
-            64, // BlockSize
-            64, // ReduceMThreadClusterSize
-            1,  // ReduceKThreadClusterSize
-            4,  // ReduceMThreadSliceSize
-            1,  // ReduceKThreadSliceSize
-            4>; // InSrcOutDstVectorSize
+        ck::tensor_operation::device::DevicePool2dFwdImpl<InDataType,      // InDataType
+                                                          OutDataType,     // OutDataType
+                                                          IndexDataType,   // IndexDataType
+                                                          ComputeDataType, // ComputeDataType
+                                                          ReduceOpId,
+                                                          OutputIndex,
+                                                          64,     // BlockSize
+                                                          64,     // ReduceMThreadClusterSize
+                                                          1,      // ReduceKThreadClusterSize
+                                                          4,      // ReduceMThreadSliceSize
+                                                          1,      // ReduceKThreadSliceSize
+                                                          1,      // InSrcOutDstVectorSize
+                                                          false>; // IsFastestDimReduced
 
     const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Y) / window_stride_h + 1;
     const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - X) / window_stride_w + 1;

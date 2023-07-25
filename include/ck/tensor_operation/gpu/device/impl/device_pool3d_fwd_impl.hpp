@@ -312,7 +312,7 @@ struct DevicePool3dFwdImpl
         return true;
     }
 
-    std::unique_ptr<BaseArgument>
+    virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_in_dev,
                         void* p_out_dev,
                         void* p_out_indices_dev,

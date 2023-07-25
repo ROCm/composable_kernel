@@ -7,7 +7,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_nhwc_nhwc.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_impl.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_index_pool_bwd_impl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -44,19 +44,19 @@ bool maxpool_bwd_test(bool do_verification,
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
     using DevicePoolFwdInstance =
-        ck::tensor_operation::device::DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<
-            InDataType,      // InDataType
-            OutDataType,     // OutDataType
-            IndexDataType,   // IndexDataType
-            ComputeDataType, // ComputeDataType
-            ck::ReduceTensorOp::MAX,
-            true, // OutputIndex
-            64,   // BlockSize
-            64,   // ReduceMThreadClusterSize
-            1,    // ReduceKThreadClusterSize
-            4,    // ReduceMThreadSliceSize
-            1,    // ReduceKThreadSliceSize
-            1>;   // InSrcOutDstVectorSize
+        ck::tensor_operation::device::DevicePool2dFwdImpl<InDataType,      // InDataType
+                                                          OutDataType,     // OutDataType
+                                                          IndexDataType,   // IndexDataType
+                                                          ComputeDataType, // ComputeDataType
+                                                          ck::ReduceTensorOp::MAX,
+                                                          true,
+                                                          64,     // BlockSize
+                                                          64,     // ReduceMThreadClusterSize
+                                                          1,      // ReduceKThreadClusterSize
+                                                          4,      // ReduceMThreadSliceSize
+                                                          1,      // ReduceKThreadSliceSize
+                                                          1,      // InSrcOutDstVectorSize
+                                                          false>; // IsFastestDimReduced
 
     using DeviceMaxPoolBwdInstance = ck::tensor_operation::device::
         DeviceIndexPoolBwdImpl<DOutDataType, IndexDataType, DInDataType, 4>;
