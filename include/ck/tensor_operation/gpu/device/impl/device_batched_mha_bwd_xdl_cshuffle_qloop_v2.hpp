@@ -701,7 +701,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
         Transform::matrix_padder.PadN,
-        MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle,
+        MaskingSpec != MaskingSpecialization::MaskDisabled,
         Deterministic>;
 
     // Argument
