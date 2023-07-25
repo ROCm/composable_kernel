@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_nhwc_nhwc.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_impl.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_pool3d_fwd_impl.hpp"
 #include "ck/utility/data_type.hpp"
 
