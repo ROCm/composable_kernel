@@ -34,9 +34,11 @@ set(PROFILER_SOURCES
     profile_grouped_gemm_fastgelu.cpp
     profile_contraction_bilinear.cpp
     profile_contraction_scale.cpp
-    profile_batched_gemm_multi_d.cpp
     profile_grouped_conv_bwd_data.cpp
 )
+if(DL_KERNELS)
+  list(APPEND PROFILER_SOURCES profile_batched_gemm_multi_d.cpp)
+endif()
 
 set(PROFILER_EXECUTABLE ckProfiler)
 
@@ -79,7 +81,9 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_gemm_fastgel
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_bilinear_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_scale_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_pool_fwd_instance)
-target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_multi_d_instance)
+if(DL_KERNELS)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_multi_d_instance)
+endif()
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv2d_bwd_data_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_bwd_data_instance)
 rocm_install(TARGETS ${PROFILER_EXECUTABLE} COMPONENT profiler)
