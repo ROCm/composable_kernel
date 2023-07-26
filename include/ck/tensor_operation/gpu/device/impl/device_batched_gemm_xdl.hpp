@@ -310,6 +310,11 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
 
     static bool IsSupportedArgument(const Problem& problem)
     {
+        if(!ck::is_xdl_supported())
+        {
+            return false;
+        }
+
         if(problem.K % K1 != 0)
         {
             return false;
