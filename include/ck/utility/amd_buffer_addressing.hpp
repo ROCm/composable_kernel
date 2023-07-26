@@ -629,7 +629,7 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
 {
     static_assert(
         (is_same<T, double>::value && (N == 1 || N == 2)) ||
-            (is_same<T, float>::value && (N == 1 || N == 2 || N == 4)) ||
+            (is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, half_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, bhalf_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4)) ||
@@ -680,6 +680,20 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
                                                 dst_wave_buffer_resource,
                                                 dst_thread_addr_offset,
                                                 dst_wave_addr_offset,
+                                                static_cast<index_t>(coherence));
+        }
+        else if constexpr(N == 8)
+        {
+            vector_type<float, 8> tmp{src_thread_data};
+            llvm_amdgcn_raw_buffer_store_fp32x4(tmp.AsType<float4_t>()[Number<0>{}],
+                                                dst_wave_buffer_resource,
+                                                dst_thread_addr_offset,
+                                                dst_wave_addr_offset,
+                                                static_cast<index_t>(coherence));
+            llvm_amdgcn_raw_buffer_store_fp32x4(tmp.AsType<float4_t>()[Number<1>{}],
+                                                dst_wave_buffer_resource,
+                                                dst_thread_addr_offset,
+                                                dst_wave_addr_offset + 4 * sizeof(float),
                                                 static_cast<index_t>(coherence));
         }
     }
