@@ -174,7 +174,7 @@ struct DeviceInstanceWrapper_G2M1N1K1O1_TNTT_FP16_M128_N128_K32_O128
             2,              // CShuffleNXdlPerWavePerShuffle
             S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
             8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-            MaskingSpecialization::MaskUpperTringleFromTopLeft>; // MaskUpperTringleFromTopLeft
+            MaskingSpecialization::MaskUpperTriangleFromTopLeft>; // MaskUpperTriangleFromTopLeft
 
     bool IsSupported(int M, int N, int K, int O)
     {
@@ -321,7 +321,7 @@ struct DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128
             2,              // CShuffleNXdlPerWavePerShuffle
             S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
             8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-            MaskingSpecialization::MaskUpperTringleFromTopLeft>; // MaskUpperTringleFromTopLeft
+            MaskingSpecialization::MaskUpperTriangleFromTopLeft>; // MaskUpperTriangleFromTopLeft
 
     bool IsSupported(int M, int N, int K, int O)
     {

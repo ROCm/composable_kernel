@@ -10,8 +10,8 @@ namespace device {
 enum struct MaskingSpecialization
 {
     MaskDisabled,
-    MaskUpperTringleFromTopLeft,
-    MaskUpperTringleFromBottomRight
+    MaskUpperTriangleFromTopLeft,
+    MaskUpperTriangleFromBottomRight
 };
 
 inline std::string getMaskingSpecializationString(const MaskingSpecialization& s)
@@ -19,9 +19,9 @@ inline std::string getMaskingSpecializationString(const MaskingSpecialization& s
     switch(s)
     {
     case MaskingSpecialization::MaskDisabled: return "MaskDisabled";
-    case MaskingSpecialization::MaskUpperTringleFromTopLeft: return "MaskUpperTringleFromTopLeft";
-    case MaskingSpecialization::MaskUpperTringleFromBottomRight:
-        return "MaskUpperTringleFromBottomRight";
+    case MaskingSpecialization::MaskUpperTriangleFromTopLeft: return "MaskUpperTriangleFromTopLeft";
+    case MaskingSpecialization::MaskUpperTriangleFromBottomRight:
+        return "MaskUpperTriangleFromBottomRight";
     default: return "Unrecognized specialization!";
     }
 }
@@ -40,7 +40,7 @@ struct MaskDisabledPredicate
     }
 };
 
-struct MaskUpperTringleFromTopLeftPredicate
+struct MaskUpperTriangleFromTopLeftPredicate
 {
     __host__ __device__ constexpr bool operator()(index_t m, index_t n) const { return n > m; }
 
@@ -50,9 +50,9 @@ struct MaskUpperTringleFromTopLeftPredicate
         return operator()(m + m_tile - 1, n);
     }
 };
-struct MaskUpperTringleFromBottomRightPredicate
+struct MaskUpperTriangleFromBottomRightPredicate
 {
-    MaskUpperTringleFromBottomRightPredicate() : offset_(0) {}
+    MaskUpperTriangleFromBottomRightPredicate() : offset_(0) {}
     __host__ __device__ void SetOffset(const index_t offset) { offset_ = offset; }
     __host__ __device__ constexpr bool operator()(index_t m, index_t n) const
     {
@@ -77,7 +77,7 @@ struct C0MatrixMask_impl
     C0MatrixMask_impl(index_t MRaw, index_t NRaw) : NRaw_(NRaw), predicate_(MaskOutPredicate{})
     {
         if constexpr(std::is_same<MaskOutPredicate,
-                                  MaskUpperTringleFromBottomRightPredicate>::value)
+                                  MaskUpperTriangleFromBottomRightPredicate>::value)
         {
             if(NRaw > MRaw)
                 predicate_.SetOffset(NRaw - MRaw);

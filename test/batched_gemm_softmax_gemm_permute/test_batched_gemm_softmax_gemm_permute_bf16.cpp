@@ -15,14 +15,14 @@ using I2_t = ck::Number<2>;
 
 using MaskDisabled_t =
     ck::integral_constant<MaskingSpecialization, MaskingSpecialization::MaskDisabled>;
-using MaskUpperTringleFromTopLeft_t =
+using MaskUpperTriangleFromTopLeft_t =
     ck::integral_constant<MaskingSpecialization,
-                          MaskingSpecialization::MaskUpperTringleFromTopLeft>;
+                          MaskingSpecialization::MaskUpperTriangleFromTopLeft>;
 
 // clang-format off
 using KernelTypes = ::testing::Types<
     std::tuple<I2_t, I1_t, I1_t, I1_t, I1_t, BF16, BF16, BF16, BF16, ck::Tuple<>, ck::Tuple<>, MaskDisabled_t>,
-    std::tuple<I2_t, I1_t, I1_t, I1_t, I1_t, BF16, BF16, BF16, BF16, ck::Tuple<>, ck::Tuple<>, MaskUpperTringleFromTopLeft_t>
+    std::tuple<I2_t, I1_t, I1_t, I1_t, I1_t, BF16, BF16, BF16, BF16, ck::Tuple<>, ck::Tuple<>, MaskUpperTriangleFromTopLeft_t>
     >;
 // clang-format on
 

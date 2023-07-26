@@ -364,7 +364,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
     using CGridDesc_M_N        = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     using C0MatrixMask = conditional_t<MaskOutUpperTriangle,
-                                       C0MatrixMask_impl<MaskUpperTringleFromTopLeftPredicate>,
+                                       C0MatrixMask_impl<MaskUpperTriangleFromTopLeftPredicate>,
                                        C0MatrixMask_impl<MaskDisabledPredicate>>;
 
     // GridwiseGemm

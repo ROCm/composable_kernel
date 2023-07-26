@@ -500,13 +500,13 @@ struct DeviceGroupedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V2
         {
             return MaskDisabledPredicate{};
         }
-        else if constexpr(MaskingSpec == MaskingSpecialization::MaskUpperTringleFromTopLeft)
+        else if constexpr(MaskingSpec == MaskingSpecialization::MaskUpperTriangleFromTopLeft)
         {
-            return MaskUpperTringleFromTopLeftPredicate{};
+            return MaskUpperTriangleFromTopLeftPredicate{};
         }
-        else if constexpr(MaskingSpec == MaskingSpecialization::MaskUpperTringleFromBottomRight)
+        else if constexpr(MaskingSpec == MaskingSpecialization::MaskUpperTriangleFromBottomRight)
         {
-            return MaskUpperTringleFromBottomRightPredicate{};
+            return MaskUpperTriangleFromBottomRightPredicate{};
         }
     }
     using C0MatrixMask = C0MatrixMask_impl<decltype(make_MaskOutPredicate())>;
