@@ -168,6 +168,8 @@ __global__ void
     ignore = p_b_grid;
     ignore = p_b1_grid;
     ignore = p_c_grid;
+    ignore = p_z_grid;
+    ignore = p_lse_grid;
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = acc_element_op;
@@ -177,10 +179,17 @@ __global__ void
     ignore = b_grid_desc_bk0_n_bk1;
     ignore = b1_grid_desc_bk0_n_bk1;
     ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
+    ignore = lse_grid_desc_m;
     ignore = block_2_ctile_map;
     ignore = batch_count;
+    ignore = mblock;
     ignore = compute_base_ptr_of_batch;
     ignore = c0_matrix_mask;
+    ignore = p_dropout_in_16bits;
+    ignore = GemmAccDataType p_dropout_rescale;
+    ignore = seed;
+    ignore = offset;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
