@@ -51,4 +51,11 @@ inline std::string get_device_name()
     return name;
 }
 
+inline bool is_xdl_supported()
+{
+    return ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
+           ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
+           ck::get_device_name() == "gfx942";
+}
+
 } // namespace ck

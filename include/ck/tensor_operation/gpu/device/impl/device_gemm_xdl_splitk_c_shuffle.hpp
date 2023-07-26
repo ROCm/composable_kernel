@@ -231,6 +231,11 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
 
     static bool IsSupportedArgument(const Argument& karg)
     {
+        if(!ck::is_xdl_supported())
+        {
+            return false;
+        }
+
         return GridwiseGemm::CheckValidity(karg);
     }
 

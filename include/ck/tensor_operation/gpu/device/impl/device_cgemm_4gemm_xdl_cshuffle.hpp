@@ -448,6 +448,11 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(!ck::is_xdl_supported())
+        {
+            return false;
+        }
+
         return GridwiseGemm::CheckValidity(arg);
     }
 
