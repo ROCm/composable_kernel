@@ -77,7 +77,9 @@ __device__ void inner_product<half2_t, half2_t, float>(const half2_t& a, const h
 {
 #if defined(CK_USE_AMD_V_DOT2_F32_F16)
 #if CK_USE_AMD_V_DOT_INLINE_ASM
-    // Use 3 x s_nop to avoid hazard (mi200 cdna2 isa)
+    // Use 3 x s_nop to avoid hazard (mi200 cdna2 isa page 47
+    // https://www.amd.com/system/files/TechDocs/instinct-mi200-cdna2-instruction-set-architecture.pdf
+    // ) s_nop with parameter 2 is equal to 3 x s_nop
     asm volatile("\n \
             v_dot2_f32_f16 %0, %1, %2, %0\n \
             s_nop 2 \n \
@@ -166,7 +168,9 @@ inner_product<int8x4_t, int8x4_t, int32_t>(const int8x4_t& a, const int8x4_t& b,
 {
 #if defined(CK_USE_AMD_V_DOT4_I32_I8)
 #if CK_USE_AMD_V_DOT_INLINE_ASM
-    // Use 3 x s_nop to avoid hazard (mi200 cdna2 isa)
+    // Use 3 x s_nop to avoid hazard (mi200 cdna2 isa page 47
+    // https://www.amd.com/system/files/TechDocs/instinct-mi200-cdna2-instruction-set-architecture.pdf
+    // ) s_nop with parameter 2 is equal to 3 x s_nop
     asm volatile("\n \
             v_dot4_i32_i8 %0, %1, %2, %0\n \
             s_nop 2 \n \
