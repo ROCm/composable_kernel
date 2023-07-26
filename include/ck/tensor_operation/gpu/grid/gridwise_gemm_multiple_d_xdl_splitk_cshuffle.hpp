@@ -234,7 +234,6 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
-    // prefer this to be called on host
     __host__ __device__ static auto CalculateMPadded(index_t M)
     {
         return math::integer_least_multiple(M, MPerBlock);
@@ -748,8 +747,8 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
             GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>();
 
         const index_t num_k_block_main_loop =
-            __builtin_amdgcn_readfirstlane((a_grid_desc_kbatch_ak0_m_ak1.GetLength(I0) *
-                                            a_grid_desc_kbatch_ak0_m_ak1.GetLength(I2)) /
+            __builtin_amdgcn_readfirstlane((a_grid_desc_kbatch_ak0_m_ak1.GetLength(I1) *
+                                            a_grid_desc_kbatch_ak0_m_ak1.GetLength(I3)) /
                                            KPerBlock);
 
         gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_kbatch_ak0_m_ak1,
