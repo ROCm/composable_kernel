@@ -200,6 +200,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                          c_block_size * sizeof(CShuffleDataType));
     }
 
+#if 0
     // A desc for source in blockwise copy
     template <typename AGridDesc_M_K>
     __host__ __device__ static constexpr auto
@@ -233,6 +234,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
+#endif
 
     __host__ __device__ static auto CalculateMPadded(index_t M)
     {
