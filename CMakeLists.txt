@@ -30,6 +30,14 @@ else()
         add_definitions(-D__int8__ -D__fp8__ -D__fp16__ -D__fp32__ -D__fp64__ -D__bf16__)
 endif()
 
+if(DL_KERNELS)
+    add_definitions(-DDL_KERNELS)
+endif()
+
+if(INSTANCES_ONLY)
+    add_definitions(-DINSTANCES_ONLY)
+endif()
+
 enable_testing()
 
 set(ROCM_SYMLINK_LIBS OFF)
