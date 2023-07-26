@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -41,7 +41,6 @@ template <typename InputDataType,
           typename VGridDesc_N0_O_N1,
           typename YGridDesc_M_O,
           typename LSEGridDesc_M,
-          typename DGridDesc_M,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
           index_t MPerBlock,
@@ -91,7 +90,7 @@ template <typename InputDataType,
           bool MaskOutUpperTriangle,
           bool Deterministic,
           PipelineVersion PipelineVer = PipelineVersion::v1>
-struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V2
+struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
 {
     static_assert(LoopSched == LoopScheduler::Default,
                   "Non-default loop scheduler is currently not supported");
@@ -1110,6 +1109,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V2
     }
 
     template <bool HasMainKBlockLoop,
+              bool IsDropout,
               typename Block2CTileMap,
               typename C0MatrixMask,
               typename YGradGridDesc_M0_O_M1>
@@ -1135,7 +1135,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V2
                                    z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                                const VGridDesc_N0_O_N1& v_grid_desc_n0_o_n1,
                                const LSEGridDesc_M& lse_grid_desc_m,
-                               const DGridDesc_M& d_grid_desc_m,
                                const YGradGridDesc_M0_O_M1& ygrad_grid_desc_m0_o_m1,
                                const Block2CTileMap& block_2_ctile_map,
                                const C0MatrixMask& c0_matrix_mask,
@@ -1161,7 +1160,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V2
         const auto lse_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_lse_grid, lse_grid_desc_m.GetElementSpaceSize());
         const auto d_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_d_grid, d_grid_desc_m.GetElementSpaceSize());
+            p_d_grid, lse_grid_desc_m.GetElementSpaceSize()); // reuse lse grid descriptor
         const auto ygrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_ygrad_grid, ygrad_grid_desc_m0_o_m1.GetElementSpaceSize());
         auto vgrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -1516,6 +1515,25 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V2
                                  acc0_thread_origin[I5],
                                  acc0_thread_origin[I6])};
 
+        auto d_thread_copy_global_to_vgpr =
+            ThreadwiseTensorSliceTransfer_v2<FloatD,
+                                             FloatGemmAcc,
+                                             decltype(lse_grid_desc_mb_m0_m1_m2_m3_m4),
+                                             decltype(lse_thread_desc_mb_m0_m1_m2_m3_m4),
+                                             Sequence<1, m0, m1, m2, m3, m4>,
+                                             Sequence<0, 1, 2, 3, 4, 5>,
+                                             5,
+                                             1,
+                                             1,
+                                             true /* ResetCoordAfterRun */>{
+                lse_grid_desc_mb_m0_m1_m2_m3_m4,
+                make_multi_index(num_gemm0_m_block_outer_loop - 1, // mblock
+                                 acc0_thread_origin[I0],           // mrepeat
+                                 acc0_thread_origin[I2],           // mwave
+                                 acc0_thread_origin[I4],           // mperxdl
+                                 acc0_thread_origin[I5],
+                                 acc0_thread_origin[I6])};
+
         //
         // z vgpr copy to global
         //
@@ -1612,11 +1630,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V2
             // load d and lse
             //
 
-            lse_thread_copy_global_to_vgpr.Run(lse_grid_desc_mb_m0_m1_m2_m3_m4,
-                                               d_grid_buf,
-                                               lse_thread_desc_mb_m0_m1_m2_m3_m4,
-                                               make_tuple(I0, I0, I0, I0, I0, I0),
-                                               y_dot_ygrad_thread_buf);
+            d_thread_copy_global_to_vgpr.Run(lse_grid_desc_mb_m0_m1_m2_m3_m4,
+                                             d_grid_buf,
+                                             lse_thread_desc_mb_m0_m1_m2_m3_m4,
+                                             make_tuple(I0, I0, I0, I0, I0, I0),
+                                             y_dot_ygrad_thread_buf);
 
             lse_thread_copy_global_to_vgpr.Run(lse_grid_desc_mb_m0_m1_m2_m3_m4,
                                                lse_grid_buf,
@@ -1706,55 +1724,63 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V2
 
             constexpr auto position_offset = M3 * M4;
             // save z to global
-            if(p_z_grid)
+            if constexpr(IsDropout)
             {
+                if(p_z_grid)
+                {
 
-                auto acc0_thread_idx = Acc0TileIterator::GetIndex(I0) + acc0_thread_origin;
-                auto m_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
-                auto n_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
-                auto m_global = m_local + m_block_data_idx_on_grid;
-                auto n_global = n_local + n_block_data_idx_on_grid;
+                    auto acc0_thread_idx = Acc0TileIterator::GetIndex(I0) + acc0_thread_origin;
+                    auto m_local =
+                        block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
+                    auto n_local =
+                        block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
+                    auto m_global = m_local + m_block_data_idx_on_grid;
+                    auto n_global = n_local + n_block_data_idx_on_grid;
 
-                auto global_elem_id_raw = z_random_matrix_offset + m_global * raw_n_padded +
-                                          n_global; // unique element global 1d id
+                    auto global_elem_id_raw = z_random_matrix_offset + m_global * raw_n_padded +
+                                              n_global; // unique element global 1d id
 
-                auto global_elem_id =
-                    (global_elem_id_raw % M4) * raw_n_padded + (global_elem_id_raw / M4) * M4;
+                    auto global_elem_id =
+                        (global_elem_id_raw % M4) * raw_n_padded + (global_elem_id_raw / M4) * M4;
 
-                blockwise_dropout.template ApplyDropoutAttnBwdSaveZ<decltype(s_slash_p_thread_buf),
-                                                                    decltype(z_tenor_buffer),
-                                                                    decltype(position_offset),
-                                                                    true>(
-                    s_slash_p_thread_buf, ph, global_elem_id, z_tenor_buffer, raw_n_padded);
+                    blockwise_dropout
+                        .template ApplyDropoutAttnBwdSaveZ<decltype(s_slash_p_thread_buf),
+                                                           decltype(z_tenor_buffer),
+                                                           decltype(position_offset),
+                                                           true>(
+                            s_slash_p_thread_buf, ph, global_elem_id, z_tenor_buffer, raw_n_padded);
 
-                z_thread_copy_vgpr_to_global.Run(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
-                                                 make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                                                 z_tenor_buffer,
-                                                 z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
-                                                 z_grid_buf);
+                    z_thread_copy_vgpr_to_global.Run(
+                        z_thread_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
+                        make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                        z_tenor_buffer,
+                        z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
+                        z_grid_buf);
+                }
+                else
+                {
+                    ignore = z_grid_buf;
+
+                    auto acc0_thread_idx = Acc0TileIterator::GetIndex(I0) + acc0_thread_origin;
+                    auto m_local =
+                        block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
+                    auto n_local =
+                        block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
+                    auto m_global = m_local + m_block_data_idx_on_grid;
+                    auto n_global = n_local + n_block_data_idx_on_grid;
+
+                    auto global_elem_id_raw = z_random_matrix_offset + m_global * raw_n_padded +
+                                              n_global; // unique element global 1d id
+
+                    auto global_elem_id =
+                        (global_elem_id_raw % M4) * raw_n_padded + (global_elem_id_raw / M4) * M4;
+                    // P_dropped
+                    blockwise_dropout.template ApplyDropoutAttnBwd<decltype(s_slash_p_thread_buf),
+                                                                   decltype(position_offset),
+                                                                   true>(
+                        s_slash_p_thread_buf, ph, global_elem_id, raw_n_padded);
+                }
             }
-            else
-            {
-                ignore = z_grid_buf;
-
-                auto acc0_thread_idx = Acc0TileIterator::GetIndex(I0) + acc0_thread_origin;
-                auto m_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
-                auto n_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
-                auto m_global = m_local + m_block_data_idx_on_grid;
-                auto n_global = n_local + n_block_data_idx_on_grid;
-
-                auto global_elem_id_raw = z_random_matrix_offset + m_global * raw_n_padded +
-                                          n_global; // unique element global 1d id
-
-                auto global_elem_id =
-                    (global_elem_id_raw % M4) * raw_n_padded + (global_elem_id_raw / M4) * M4;
-                // P_dropped
-                blockwise_dropout.template ApplyDropoutAttnBwd<decltype(s_slash_p_thread_buf),
-                                                               decltype(position_offset),
-                                                               true>(
-                    s_slash_p_thread_buf, ph, global_elem_id, raw_n_padded);
-            }
-
             block_sync_lds(); // wait for gemm1 LDS read
 
             // gemm dV
@@ -2005,6 +2031,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Xdl_CShuffle_Light_V2
                 qgrad_grid_desc_m0_o0_m1_o1_m2_o2_o3_o4, Gemm2::c_block_slice_copy_step); // step M
             lse_thread_copy_global_to_vgpr.MoveSrcSliceWindow(lse_grid_desc_mb_m0_m1_m2_m3_m4,
                                                               make_multi_index(-1, 0, 0, 0, 0, 0));
+            d_thread_copy_global_to_vgpr.MoveSrcSliceWindow(lse_grid_desc_mb_m0_m1_m2_m3_m4,
+                                                            make_multi_index(-1, 0, 0, 0, 0, 0));
             z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
                 z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                 make_multi_index(-1, 0, 0, 0, 0, 0, 0, 0, 0, 0));

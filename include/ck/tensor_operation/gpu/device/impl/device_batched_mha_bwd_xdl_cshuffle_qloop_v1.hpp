@@ -73,7 +73,7 @@ __global__ void
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
             const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3
-                c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
             const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
             const YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -140,7 +140,7 @@ __global__ void
                 c_element_op,
                 a_grid_desc_ak0_m_ak1,
                 b_grid_desc_bk0_n_bk1,
-                c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                 b1_grid_desc_bk0_n_bk1,
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
                 lse_grid_desc_m,
@@ -175,7 +175,7 @@ __global__ void
             c_element_op,
             a_grid_desc_ak0_m_ak1,
             b_grid_desc_bk0_n_bk1,
-            c_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+            c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
             b1_grid_desc_bk0_n_bk1,
             c_grid_desc_mblock_mperblock_nblock_nperblock,
             lse_grid_desc_m,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -26,7 +26,8 @@ template <typename InputDataType,
           typename DGridDesc_M,
           index_t BlockSize,
           index_t MPerBlock,
-          index_t NPerBlock>
+          index_t NPerBlock,
+          index_t NPadded>
 struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
 {
     static constexpr auto I0 = Number<0>{};
@@ -103,7 +104,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
     MakeDefaultBlock2CTileMap(const YGridDesc_M_N& y_grid_desc_m_n)
     {
         // should rewrite BlockToCTileMap_M00_N0_M01Adapt
-        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, 1024, YGridDesc_M_N>(y_grid_desc_m_n);
+        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPadded, YGridDesc_M_N>(y_grid_desc_m_n);
     }
 
     using YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
