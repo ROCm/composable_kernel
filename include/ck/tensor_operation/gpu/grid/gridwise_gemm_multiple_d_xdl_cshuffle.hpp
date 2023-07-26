@@ -75,6 +75,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
+    using GemmSpecialization = ck::tensor_operation::device::GemmSpecialization;
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -333,11 +335,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
     }
 
     using DsGridPointer = decltype(MakeDsGridPointer());
-
-    using Row = ck::tensor_layout::gemm::RowMajor;
-    using Col = ck::tensor_layout::gemm::ColumnMajor;
-
-    using GemmSpecialization = ck::tensor_operation::device::GemmSpecialization;
 
     template <typename ALayout, GemmSpecialization GemmSpec>
     __host__ __device__ static auto
@@ -863,12 +860,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
               typename BLayout,
               typename DsLayout,
               typename ELayout,
-#if 0
-              typename AGridDesc_AK0_M_AK1,
-              typename BGridDesc_BK0_N_BK1,
-              typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-              typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-#endif
               typename Block2ETileMap>
     __device__ static void Run(const void* __restrict__ p_a_grid_,
                                const void* __restrict__ p_b_grid_,
@@ -885,14 +876,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                const index_t StrideB,
                                const std::array<index_t, NumDTensor> StrideDs,
                                const index_t StrideE,
-#if 0
-                               const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
-                               const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
-                               const DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
-                                   ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                               const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
-                                   e_grid_desc_mblock_mperblock_nblock_nperblock,
-#endif
                                const Block2ETileMap& block_2_etile_map)
     {
         const auto p_a_grid = reinterpret_cast<const ABDataType*>(p_a_grid_);

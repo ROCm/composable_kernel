@@ -14,7 +14,8 @@
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_fixed_nk.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
+//#include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_splitk_cshuffle.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -273,7 +274,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
     using EGridDesc_M_N  = decltype(MakeEGridDescriptor_M_N<ELayout>(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
+    using GridwiseGemm = GridwiseGemmMultipleD_xdl_splitk_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CShuffleDataType,
