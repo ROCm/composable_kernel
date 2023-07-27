@@ -69,10 +69,12 @@ struct MaskUpperTriangleFromBottomRightPredicate
         return n > (m + diagonal_offset_);
     }
 
-    __host__ __device__ constexpr bool
-    IsTileSkippable(index_t m, index_t n, index_t m_tile, index_t /*n_tile*/) const
+    __host__ __device__ constexpr bool IsTileSkippable(index_t m_tile_orig,
+                                                       index_t n_tile_orig,
+                                                       index_t m_tile_size,
+                                                       index_t /*n_tile_size*/) const
     {
-        return operator()(m + m_tile - 1, n);
+        return operator()(m_tile_orig + m_tile_size - 1, n_tile_orig);
     }
 
     private:
