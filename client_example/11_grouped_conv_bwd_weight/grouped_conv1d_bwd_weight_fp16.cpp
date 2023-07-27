@@ -26,6 +26,7 @@ static constexpr std::array<ck::index_t, NumDimSpatial> input_spatial_lengths{Wi
 static constexpr std::array<ck::index_t, NumDimSpatial> filter_spatial_lengths{X};
 static constexpr std::array<ck::index_t, NumDimSpatial> output_spatial_lengths{Wo};
 static constexpr std::array<ck::index_t, NumDimSpatial + 3> input_strides{N * Wi * C, Wi* C, C, 1};
+static constexpr std::array<ck::index_t, NumDimSpatial + 3> weights_strides{K * X * C, X* C, C, 1};
 static constexpr std::array<ck::index_t, NumDimSpatial + 3> output_strides{N * Wo * K, Wo* K, K, 1};
 static constexpr std::array<ck::index_t, NumDimSpatial> conv_filter_strides{1};
 static constexpr std::array<ck::index_t, NumDimSpatial> conv_filter_dilations{1};
@@ -48,6 +49,7 @@ int main()
                                                   filter_spatial_lengths,
                                                   output_spatial_lengths,
                                                   input_strides,
+                                                  weights_strides,
                                                   output_strides,
                                                   conv_filter_strides,
                                                   conv_filter_dilations,

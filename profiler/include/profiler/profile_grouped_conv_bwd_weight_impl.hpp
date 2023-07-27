@@ -140,6 +140,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial> output_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> input_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> weights_strides{};
     std::array<ck::index_t, NDimSpatial + 3> output_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
@@ -152,6 +153,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     range_copy(conv_param.filter_spatial_lengths_, begin(filter_spatial_lengths));
     range_copy(conv_param.output_spatial_lengths_, begin(output_spatial_lengths));
     range_copy(in_g_n_c_wis_desc.GetStrides(), begin(input_strides));
+    range_copy(wei_g_k_c_xs_desc.GetStrides(), begin(weights_strides));
     range_copy(out_g_n_k_wos_desc.GetStrides(), begin(output_strides));
     range_copy(conv_param.conv_filter_strides_, begin(conv_filter_strides));
     range_copy(conv_param.conv_filter_dilations_, begin(conv_filter_dilations));
@@ -172,6 +174,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                         filter_spatial_lengths,
                                         output_spatial_lengths,
                                         input_strides,
+                                        weights_strides,
                                         output_strides,
                                         conv_filter_strides,
                                         conv_filter_dilations,

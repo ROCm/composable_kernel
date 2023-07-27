@@ -35,6 +35,7 @@ struct DeviceGroupedConvBwdWeight : public BaseOperator
                         const std::array<ck::index_t, NDimSpatial>& filter_spatial_lengths,
                         const std::array<ck::index_t, NDimSpatial>& output_spatial_lengths,
                         const std::array<ck::index_t, NDimSpatial + 3>& input_strides,
+                        const std::array<ck::index_t, NDimSpatial + 3>& weights_strides,
                         const std::array<ck::index_t, NDimSpatial + 3>& output_strides,
                         const std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
                         const std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
