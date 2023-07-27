@@ -32,11 +32,11 @@ static constexpr std::array<ck::index_t, NumDimSpatial> input_spatial_lengths{Di
 static constexpr std::array<ck::index_t, NumDimSpatial> filter_spatial_lengths{Z, Y, X};
 static constexpr std::array<ck::index_t, NumDimSpatial> output_spatial_lengths{Do, Ho, Wo};
 static constexpr std::array<ck::index_t, NumDimSpatial + 3> input_strides{
-    N * Di * Hi * Wi * C, Di* Hi* Wi* C, Hi* Wi* C, Wi* C, C, 1};
+    N * Di * Hi * Wi * C, Di* Hi* Wi* C, 1, Hi* Wi* C, Wi* C, C};
 static constexpr std::array<ck::index_t, NumDimSpatial + 3> weights_strides{
-    K * Z * Y * X * C, Z* Y* X* C, Y* X* C, X* C, C, 1};
+    K * Z * Y * X * C, Z* Y* X* C, 1, Y* X* C, X* C, C};
 static constexpr std::array<ck::index_t, NumDimSpatial + 3> output_strides{
-    N * Do * Ho * Wo * K, Do* Ho* Wo* K, Ho* Wo* K, Wo* K, K, 1};
+    N * Do * Ho * Wo * K, Do* Ho* Wo* K, 1, Ho* Wo* K, Wo* K, K};
 static constexpr std::array<ck::index_t, NumDimSpatial> conv_filter_strides{1, 1, 1};
 static constexpr std::array<ck::index_t, NumDimSpatial> conv_filter_dilations{1, 1, 1};
 static constexpr std::array<ck::index_t, NumDimSpatial> input_left_pads{1, 1, 1};

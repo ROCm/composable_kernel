@@ -231,6 +231,7 @@ bool run_grouped_conv_bwd_weight(
                                                         filter_spatial_lengths,
                                                         output_spatial_lengths,
                                                         input_strides,
+                                                        weights_strides,
                                                         output_strides,
                                                         conv_filter_strides,
                                                         conv_filter_dilations,
