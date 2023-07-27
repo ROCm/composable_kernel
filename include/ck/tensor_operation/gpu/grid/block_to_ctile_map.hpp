@@ -622,30 +622,31 @@ struct OffsettedBlockToCTileMap
     index_t block_start_;
 };
 
-//
-// @brief      Simple tile mapping which creates 3D grid of block of threads.
-//
-// @paragraph  Description
-//             This Block-to-C-tile-map creates a 3D grid (n_blocks, m_blocks, z_blocks) of thread
-//             blocks. The first 2D are regular 2D tiles created by division of output GEMM
-//             dimenions by corresponding tile size. The third dimension (Z) is a k-split dimension,
-//             which denotes the number of blocks we use to divide work on GEMM K dimension onto.
-//
-// @tparam     MPerBlock  Output block tile size in M dimension.
-// @tparam     NPerBlock  Output block tile size in N dimension.
-//
+///
+/// @brief      Simple tile mapping which creates 3D grid of block of threads.
+///
+/// @paragraph  Description
+///             This Block-to-C-tile-map creates a 3D grid (n_blocks, m_blocks, z_blocks) of thread
+///             blocks. The first 2D are regular 2D tiles created by division of output GEMM
+///             dimenions by corresponding tile size. The third dimension (Z) is a k-split
+///             dimension, which denotes the number of blocks we use to divide work on GEMM K
+///             dimension onto.
+///
+/// @tparam     MPerBlock  Output block tile size in M dimension.
+/// @tparam     NPerBlock  Output block tile size in N dimension.
+///
 template <index_t MPerBlock, index_t NPerBlock>
 struct BlockToCTileMap_3DGrid_KSplit
 {
     __host__ __device__ BlockToCTileMap_3DGrid_KSplit() = default;
 
-    //
-    // @brief      Constructs a new instance.
-    //
-    // @param      <unnamed>  Swallow blockIdx.
-    //
-    // @tparam     TopIdx     The type of block index.
-    //
+    ///
+    /// @brief      Constructs a new instance.
+    ///
+    /// @param      <unnamed>  Swallow blockIdx.
+    ///
+    /// @tparam     TopIdx     The type of block index.
+    ///
     template <typename TopIdx>
     __host__ __device__ BlockToCTileMap_3DGrid_KSplit(TopIdx)
     {
@@ -680,14 +681,14 @@ struct BlockToCTileMap_3DGrid_KSplit
     }
 };
 
-//
-// @brief      Block to CTile Map which foster external mechanism for setting up local block id.
-//
-//             In example this type can be easily used to implement tile looping work distribution
-//             scheme.
-//
-// @tparam     UnderlyingBlockToCTileMap  The type of the local tile mapp.
-//
+///
+/// @brief      Block to CTile Map which foster external mechanism for setting up local block id.
+///
+///             In example this type can be easily used to implement tile looping work distribution
+///             scheme.
+///
+/// @tparam     UnderlyingBlockToCTileMap  The type of the local tile mapp.
+///
 template <typename UnderlyingBlockToCTileMap>
 struct LocalBlockToCTileMap
 {

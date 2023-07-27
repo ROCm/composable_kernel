@@ -25,23 +25,23 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-//
-// @brief      Entry point kernel for device-wide Grouped GEMM operation.
-//
-// @param[in]  gemm_desc_const             The pointer to the array of GEMM descriptor structures.
-// @param[in]  tile_count                  The overall number of output tiles we divided all groups
-//                                         into.
-// @param[in]  k_batch                     The number of batches we split the K dimension into.
-//
-// @tparam     GridwiseGemm                The specific GridwiseGEMM algorithm implementation.
-// @tparam     GemmDesc                    The structure holding all necessary descriptors and other
-//                                         data needed for groupd gemm calculation and work
-//                                         distribution.
-// @tparam     HasMainKBlockLoop           Flag indicating whether all GEMM problem configurations
-//                                         need to loop over tiles in K dimension.
-// @tparam     CGlobalMemoryDataOperation  The functor used to store data in output C matrix.
-//                                         In example could be: AtomicAdd or Store.
-//
+///
+/// @brief      Entry point kernel for device-wide Grouped GEMM operation.
+///
+/// @param[in]  gemm_desc_const             The pointer to the array of GEMM descriptor structures.
+/// @param[in]  tile_count                  The overall number of output tiles we divided all groups
+///                                         into.
+/// @param[in]  k_batch                     The number of batches we split the K dimension into.
+///
+/// @tparam     GridwiseGemm                The specific GridwiseGEMM algorithm implementation.
+/// @tparam     GemmDesc                    The structure holding all necessary descriptors and
+///                                         other data needed for groupd gemm calculation and work
+///                                         distribution.
+/// @tparam     HasMainKBlockLoop           Flag indicating whether all GEMM problem configurations
+///                                         need to loop over tiles in K dimension.
+/// @tparam     CGlobalMemoryDataOperation  The functor used to store data in output C matrix.
+///                                         In example could be: AtomicAdd or Store.
+///
 template <typename GridwiseGemm,
           typename GemmDesc,
           typename FloatA,
@@ -383,18 +383,18 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         // Assume we want to have at most 2 waves per SIMD
         static constexpr int CU_BLOCKS = math::integer_divide_floor(2 * CU_SIMDS, BLOCK_WAVES);
 
-        //
-        // @brief      Launch Grouped Gemm kernel.
-        //
-        // @note       This function overload is using user provided device buffer for kernel
-        //             arguments.
-        //
-        // @param[in]  arg            The structure containing kernel arguments (in host memory).
-        // @param[in]  dev_gemm_args  The point to device memory with kernel arguments.
-        // @param[in]  stream_config  The device stream configuration.
-        //
-        // @return     The average kernel execution time (if time measurement is enabled.)
-        //
+        ///
+        /// @brief      Launch Grouped Gemm kernel.
+        ///
+        /// @note       This function overload is using user provided device buffer for kernel
+        ///             arguments.
+        ///
+        /// @param[in]  arg            The structure containing kernel arguments (in host memory).
+        /// @param[in]  dev_gemm_args  The point to device memory with kernel arguments.
+        /// @param[in]  stream_config  The device stream configuration.
+        ///
+        /// @return     The average kernel execution time (if time measurement is enabled.)
+        ///
         float Run(const Argument& arg,
                   const void* dev_gemm_args,
                   const StreamConfig& stream_config = StreamConfig{})
@@ -451,18 +451,18 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             return ave_time;
         }
 
-        //
-        // @brief      Launch Grouped Gemm kernel.
-        //
-        // @note       This function overload is using device workspace buffer for kernel arguments.
-        //             The user should call @see GetWorkSpaceSize and @see SetWorkSpacePointer on
-        //             arg parameter to properly allocate this buffer.
-        //
-        // @param[in]  arg            The structure containing kernel arguments (in host memory).
-        // @param[in]  stream_config  The device stream configuration.
-        //
-        // @return     The average kernel execution time (if time measurement is enabled.)
-        //
+        ///
+        /// @brief      Launch Grouped Gemm kernel.
+        ///
+        /// @note       This function overload is using device workspace buffer for kernel
+        ///             arguments. The user should call @see GetWorkSpaceSize and @see
+        ///             SetWorkSpacePointer on arg parameter to properly allocate this buffer.
+        ///
+        /// @param[in]  arg            The structure containing kernel arguments (in host memory).
+        /// @param[in]  stream_config  The device stream configuration.
+        ///
+        /// @return     The average kernel execution time (if time measurement is enabled.)
+        ///
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(arg.p_workspace_ != nullptr)

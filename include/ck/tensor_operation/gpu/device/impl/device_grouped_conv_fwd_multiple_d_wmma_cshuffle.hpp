@@ -76,23 +76,23 @@ struct ComputePtrOffsetOfStridedBatch
 
 } // namespace
 
-//
-// @brief      Device Convolution operation.
-//
-// Supports:
-//  @li         Forward convolution with up to 3 spatial dimentions
-//  @li         Input tensor in GNWC data format
-//  @li         Weight tensor in GKXC data format
-//  @li         Output tensor in GNWK data format
-//
-// 1D:
-// out[N, Wo, K] = in[N, Wi, C] * wei[K, X, C]
-// 2D:
-// out[N, Ho, Wo, K] = in[N, Hi, Wi, C] * wei[K, Y, X, C]
-// 3D:
-// out[N, Do, Ho, Wo, K] = in[N, Di, Hi, Wi, C] * wei[K, Z, Y, X, C]
-// Assume:
-//  AK1 == BK1
+///
+/// @brief      Device Convolution operation.
+///
+/// Supports:
+///  @li         Forward convolution with up to 3 spatial dimentions
+///  @li         Input tensor in GNWC data format
+///  @li         Weight tensor in GKXC data format
+///  @li         Output tensor in GNWK data format
+///
+/// 1D:
+/// out[N, Wo, K] = in[N, Wi, C] * wei[K, X, C]
+/// 2D:
+/// out[N, Ho, Wo, K] = in[N, Hi, Wi, C] * wei[K, Y, X, C]
+/// 3D:
+/// out[N, Do, Ho, Wo, K] = in[N, Di, Hi, Wi, C] * wei[K, Z, Y, X, C]
+/// Assume:
+///  AK1 == BK1
 template <index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
