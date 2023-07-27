@@ -200,42 +200,6 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                          c_block_size * sizeof(CShuffleDataType));
     }
 
-#if 0
-    // A desc for source in blockwise copy
-    template <typename AGridDesc_M_K>
-    __host__ __device__ static constexpr auto
-    MakeDefaultAGridDescriptor_AK0_M_AK1(const AGridDesc_M_K& a_grid_desc_m_k)
-    {
-        const auto M = a_grid_desc_m_k.GetLength(I0);
-        const auto K = a_grid_desc_m_k.GetLength(I1);
-
-        const auto AK0 = K / AK1;
-
-        return transform_tensor_descriptor(a_grid_desc_m_k,
-                                           make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
-                                                      make_pass_through_transform(M)),
-                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-    }
-
-    // B desc for source in blockwise copy
-    template <typename BGridDesc_N_K>
-    __host__ __device__ static constexpr auto
-    MakeDefaultBGridDescriptor_BK0_N_BK1(const BGridDesc_N_K& b_grid_desc_n_k)
-    {
-        const auto N = b_grid_desc_n_k.GetLength(I0);
-        const auto K = b_grid_desc_n_k.GetLength(I1);
-
-        const auto BK0 = K / BK1;
-
-        return transform_tensor_descriptor(b_grid_desc_n_k,
-                                           make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                      make_pass_through_transform(N)),
-                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-    }
-#endif
-
     __host__ __device__ static auto CalculateMPadded(index_t M)
     {
         return math::integer_least_multiple(M, MPerBlock);
@@ -414,16 +378,6 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
             MakeBGridDescriptor_KBatch_BK0_N_BK1<BLayout, GemmSpec>(K, N, StrideB, KBatch);
 
         ignore = StrideDs;
-        // using DsGridDesc_M_N =
-        // remove_cvref_t<decltype(MakeDsGridDescriptor_M_N<DsLayout, GemmSpec>({}, {}, {}))>;
-
-        // DsGridDesc_M_N ds_grid_desc_m_n;
-
-        // static_for<0, NumDTensor, 1>{}([&](auto j) {
-        // using DLayout = remove_cvref_t<tuple_element_t<j.value, DsLayout>>;
-
-        // ds_grid_desc_m_n(j) = MakeEGridDescriptor_M_N<DLayout, GemmSpec>(M, N, StrideDs[j]);
-        //});
 
         const auto e_grid_desc_m_n = MakeEGridDescriptor_M_N<ELayout, GemmSpec>(M, N, StrideE);
 
@@ -457,80 +411,6 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
         return true;
     }
 
-#if 0
-    // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
-    template <typename AGridDesc_M_K,
-              typename BGridDesc_N_K,
-              typename DsGridDesc_M_N,
-              typename EGridDesc_M_N,
-              typename Block2ETileMap>
-    __host__ __device__ static constexpr bool CheckValidity(const AGridDesc_M_K& a_grid_desc_m_k,
-                                                            const BGridDesc_N_K& b_grid_desc_n_k,
-                                                            const DsGridDesc_M_N& ds_grid_desc_m_n,
-                                                            const EGridDesc_M_N& e_grid_desc_m_n,
-                                                            const Block2ETileMap& block_2_etile_map)
-    {
-        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
-                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
-                      "Invalid tuning param!");
-
-        const auto M = a_grid_desc_m_k.GetLength(I0);
-        const auto N = b_grid_desc_n_k.GetLength(I0);
-        const auto K = a_grid_desc_m_k.GetLength(I1);
-
-        // check consistency of desc
-        if(!(M == e_grid_desc_m_n.GetLength(I0) && N == e_grid_desc_m_n.GetLength(I1)))
-        {
-            return false;
-        }
-
-        bool valid = true;
-
-        static_for<0, NumDTensor, 1>{}([&](auto i) {
-            valid = valid && (M == ds_grid_desc_m_n[i].GetLength(I0) &&
-                              N == ds_grid_desc_m_n[i].GetLength(I1));
-        });
-
-        if(!valid)
-        {
-            return false;
-        }
-
-        // check tile size
-        if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0))
-        {
-            return false;
-        }
-
-        // check gridwise gemm pipeline
-        const auto num_k_loop = K / KPerBlock;
-
-        if(!GridwiseGemmPipe::IsSupported(num_k_loop))
-        {
-            return false;
-        }
-
-        // check block-to-E-tile
-        if(!block_2_etile_map.CheckValidity(e_grid_desc_m_n))
-        {
-            return false;
-        }
-
-        // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
-        // check tensor size: cannot be larger than 2GB each
-        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
-
-        if(!(a_grid_desc_m_k.GetElementSpaceSize() * sizeof(ABDataType) <= TwoGB &&
-             b_grid_desc_n_k.GetElementSpaceSize() * sizeof(ABDataType) <= TwoGB &&
-             e_grid_desc_m_n.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
-        {
-            return false;
-        }
-
-        return true;
-    }
-#endif
-
     __host__ __device__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)
     {
         const index_t num_loop = K / KPerBlock;
@@ -539,56 +419,6 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
     }
 
     using DsGridPointer = decltype(MakeDsGridPointer());
-
-#if 0
-    template <typename ALayout, GemmSpecialization GemmSpec>
-    __host__ __device__ static auto
-    MakeAGridDescriptor_M_K(index_t MRaw, index_t KRaw, index_t StrideA)
-    {
-        constexpr auto matrix_padder =
-            ck::tensor_operation::device::MatrixPadder<GemmSpec, index_t, index_t, index_t>{
-                MPerBlock, NPerBlock, KPerBlock};
-
-        const auto a_grid_desc_mraw_kraw = [&]() {
-            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
-                                                    make_tuple(StrideA, I1));
-            }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
-                                                    make_tuple(I1, StrideA));
-            }
-        }();
-
-        return matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
-    }
-
-    template <typename BLayout, GemmSpecialization GemmSpec>
-    __host__ __device__ static auto
-    MakeBGridDescriptor_N_K(index_t KRaw, index_t NRaw, index_t StrideB)
-    {
-        constexpr auto matrix_padder =
-            ck::tensor_operation::device::MatrixPadder<GemmSpec, index_t, index_t, index_t>{
-                MPerBlock, NPerBlock, KPerBlock};
-
-        const auto b_grid_desc_nraw_kraw = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
-                                                    make_tuple(I1, StrideB));
-            }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
-                                                    make_tuple(StrideB, I1));
-            }
-        }();
-
-        return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
-    }
-#endif
 
     template <typename ELayout, GemmSpecialization GemmSpec>
     __host__ __device__ static auto
@@ -682,15 +512,6 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
 
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I2] * NPerBlock);
-
-        // if(get_thread_local_1d_id() == 0)
-        //{
-        // printf("%d %d %d %d\n",
-        // get_block_1d_id(),
-        // kbatch_id,
-        // block_work_idx[I1],
-        // block_work_idx[I2]);
-        //}
 
         // lds max alignment
         constexpr auto max_lds_align = math::lcm(AK1, BK1);

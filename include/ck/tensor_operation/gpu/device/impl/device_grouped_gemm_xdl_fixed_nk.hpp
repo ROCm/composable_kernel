@@ -13,8 +13,6 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_fixed_nk.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-//#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-//#include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_splitk_cshuffle.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -419,7 +417,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                 throw std::runtime_error("wrong! k_batch must be > 0");
             }
 
-            const index_t AverM = sum_of_m / group_count_;
+            const index_t AverM = math::integer_divide_ceil(sum_of_m, group_count_);
 
             const index_t StrideE = gemm_desc_kernel_arg_[0].StrideE_;
             const index_t N       = gemm_desc_kernel_arg_[0].N_;
@@ -481,7 +479,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
             index_t group_id = 0;
 
             sum_of_m            = gemm_descs[0].M_;
-            const index_t AverM = sum_of_m / group_count_;
+            const index_t AverM = math::integer_divide_ceil(sum_of_m, group_count_);
             const index_t N     = gemm_descs[0].N_;
             const index_t K     = gemm_descs[0].K_;
 
