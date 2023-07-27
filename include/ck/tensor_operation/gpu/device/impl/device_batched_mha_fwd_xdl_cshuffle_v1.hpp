@@ -187,7 +187,7 @@ __global__ void
     ignore = compute_base_ptr_of_batch;
     ignore = c0_matrix_mask;
     ignore = p_dropout_in_16bits;
-    ignore = GemmAccDataType p_dropout_rescale;
+    ignore = p_dropout_rescale;
     ignore = seed;
     ignore = offset;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
