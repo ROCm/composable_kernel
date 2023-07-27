@@ -1046,7 +1046,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                     ave_time = launch_kernel(integral_constant<bool, false>{},
                                              integral_constant<bool, false>{});
             }
-
             return ave_time;
         }
 
