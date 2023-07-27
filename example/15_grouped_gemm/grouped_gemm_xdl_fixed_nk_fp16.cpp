@@ -57,7 +57,8 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemm_Xdl_F
 //######|        |        |         |        |          |          |            |                 |           |          |            |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
       //< ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,  S<1, 4, 64, 1>,  S<2, 0, 1, 3>,  S<2, 0, 1, 3>,              3,              8,              8,         1,  S<1, 4, 64, 1>,  S<2, 0, 1, 3>,  S<2, 0, 1, 3>,             3,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8>;
       //< ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,    64,   128,    32,   8,   8,   32,   32,    1,    2,  S<1, 4, 64, 1>,  S<2, 0, 1, 3>,  S<2, 0, 1, 3>,              3,              8,              8,         1,  S<1, 4, 64, 1>,  S<2, 0, 1, 3>,  S<2, 0, 1, 3>,             3,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8>;
-        < ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,    64,   128,    64,   8,   8,   32,   32,    1,    2,  S<1, 8, 32, 1>,  S<2, 0, 1, 3>,  S<2, 0, 1, 3>,              3,              8,              8,         1,  S<1, 8, 32, 1>,  S<2, 0, 1, 3>,  S<2, 0, 1, 3>,             3,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8>;
+      //< ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,    64,   128,    64,   8,   8,   32,   32,    1,    2,  S<1, 8, 32, 1>,  S<2, 0, 1, 3>,  S<2, 0, 1, 3>,              3,              8,              8,         1,  S<1, 8, 32, 1>,  S<2, 0, 1, 3>,  S<2, 0, 1, 3>,             3,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8>;
+        < ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,    64,   128,    64,   8,   8,   32,   32,    1,    2,  S<1, 8, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 8, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8>;
 // clang-format on
 
 struct ProblemSize final
@@ -77,6 +78,7 @@ struct ExecutionConfig final
 {
     bool do_verification = true;
     int init_method      = 1;
+    int k_batch          = 1;
     bool time_kernel     = false;
 };
 
@@ -238,6 +240,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     }
 
     gemm.SetDeviceKernelArgs(argument, gemm_desc_workspace.GetDeviceBuffer());
+    gemm.SetKBatch(argument, config.k_batch);
 
     invoker.Run(argument, StreamConfig{nullptr, false});
 
@@ -293,8 +296,7 @@ int main(int argc, char* argv[])
 
     problem_size.group_count = 16;
 
-    problem_size.Ms = {
-        167, 183, 177, 181, 153, 139, 156, 173, 163, 150, 204, 184, 168, 156, 168, 148};
+    problem_size.Ms = {167, 183, 177, 181, 153, 139, 156, 173, 163, 150, 204, 184, 118, 0, 1, 148};
 
     for(int i = 0; i < problem_size.group_count; i++)
     {
@@ -306,17 +308,19 @@ int main(int argc, char* argv[])
         problem_size.stride_Cs.push_back(problem_size.Ns[i]);
     }
 
-    if(argc == 4)
+    if(argc == 5)
     {
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
         config.time_kernel     = std::stoi(argv[3]);
+        config.k_batch         = std::stoi(argv[4]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=n0, 1=yes)\n");
+        printf("arg4: k_batch (> 0)\n");
         exit(0);
     }
 

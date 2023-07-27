@@ -37,7 +37,6 @@ template <typename ABDataType, // FIXME: don't assume A/B have same datatype
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
-          InMemoryDataOperationEnum EGlobalMemoryDataOperation,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
           index_t MPerBlock,
@@ -632,6 +631,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
     __device__ __host__ static constexpr auto GetMPerBlock() { return MPerBlock; }
 
     template <bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum EGlobalMemoryDataOperation,
               typename AGridDesc_KBatch_AK0_M_AK1,
               typename BGridDesc_KBatch_BK0_N_BK1,
               typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -1074,6 +1074,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
     }
 
     template <bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum EGlobalMemoryDataOperation,
               GemmSpecialization GemmSpec,
               typename ALayout,
               typename BLayout,
@@ -1139,19 +1140,20 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
         const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n);
 
-        Run<HasMainKBlockLoop>(p_a_grid,
-                               p_b_grid,
-                               p_ds_grid,
-                               p_e_grid,
-                               p_shared,
-                               a_element_op,
-                               b_element_op,
-                               cde_element_op,
-                               a_grid_desc_kbatch_ak0_m_ak1,
-                               b_grid_desc_kbatch_bk0_n_bk1,
-                               ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                               e_grid_desc_mblock_mperblock_nblock_nperblock,
-                               block_2_etile_map);
+        Run<HasMainKBlockLoop, EGlobalMemoryDataOperation>(
+            p_a_grid,
+            p_b_grid,
+            p_ds_grid,
+            p_e_grid,
+            p_shared,
+            a_element_op,
+            b_element_op,
+            cde_element_op,
+            a_grid_desc_kbatch_ak0_m_ak1,
+            b_grid_desc_kbatch_bk0_n_bk1,
+            ds_grid_desc_mblock_mperblock_nblock_nperblock,
+            e_grid_desc_mblock_mperblock_nblock_nperblock,
+            block_2_etile_map);
     }
 };
 

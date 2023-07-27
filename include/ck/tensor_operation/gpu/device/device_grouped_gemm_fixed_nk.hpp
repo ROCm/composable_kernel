@@ -54,6 +54,7 @@ struct DeviceGroupedGemmFixedNK : DeviceGroupedGemm<ALayout,
                                                     CElementwiseOperation>
 {
     virtual void SetDeviceKernelArgs(BaseArgument* p_arg, const void* kernel_args) const = 0;
+    virtual void SetKBatch(BaseArgument* p_arg, index_t k_batch) const                   = 0;
 };
 
 } // namespace device
