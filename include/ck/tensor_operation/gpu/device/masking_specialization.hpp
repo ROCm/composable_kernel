@@ -50,6 +50,13 @@ struct MaskUpperTriangleFromTopLeftPredicate
         return operator()(m + m_tile - 1, n);
     }
 };
+
+// eg: m = 3, n = 5 => offset = 2
+//    so matrix(n > m + offset) = 0
+//      1  2  3  4  5
+//    1 *  *  *  0  0
+//    2 *  *  *  *  0
+//    3 *  *  *  *  *
 struct MaskUpperTriangleFromBottomRightPredicate
 {
     MaskUpperTriangleFromBottomRightPredicate() : diagonal_offset_(0) {}
