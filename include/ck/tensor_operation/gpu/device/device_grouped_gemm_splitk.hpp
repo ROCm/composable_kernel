@@ -88,7 +88,7 @@ struct DeviceGroupedGemmSplitK : public DeviceGroupedGemm<ALayout,
     // @param      p_arg   Pointer to the Argument we're going to change.
     // @param[in]  kbatch  The kbatch value.
     //
-    virtual void SetKBatchSize(BaseArgument* p_arg, index_t kbatch) const = 0;
+    virtual void SetKBatchSize(BaseArgument* /*p_arg*/, index_t /*kbatch*/) const {}
 
     //------------------------------------------------------------------------//
     //
@@ -98,7 +98,10 @@ struct DeviceGroupedGemmSplitK : public DeviceGroupedGemm<ALayout,
     // @param[in]  p_dev_kernel_args  The pointer to the device memory which contains kernel
     //                                arguments.
     //
-    virtual void SetDeviceKernelArgs(BaseArgument* p_arg, const void* p_dev_kernel_args) const = 0;
+    virtual void SetDeviceKernelArgs(BaseArgument* /*p_arg*/,
+                                     const void* /*p_dev_kernel_args*/) const
+    {
+    }
 };
 
 } // namespace device
