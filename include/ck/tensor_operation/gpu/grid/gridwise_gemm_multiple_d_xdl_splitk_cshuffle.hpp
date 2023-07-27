@@ -462,10 +462,13 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+              index_t NumDTensor_,
+              typename DsDataType_,
               typename AGridDesc_KBatch_AK0_M_AK1,
               typename BGridDesc_KBatch_BK0_N_BK1,
               typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
               typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename CDEElementwiseOperation_,
               typename Block2ETileMap>
     __device__ static void Run(const ABDataType* __restrict__ p_a_grid,
                                const ABDataType* __restrict__ p_b_grid,
@@ -474,7 +477,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                                void* __restrict__ p_shared,
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
-                               const CDEElementwiseOperation& cde_element_op,
+                               const CDEElementwiseOperation_& cde_element_op,
                                const AGridDesc_KBatch_AK0_M_AK1& a_grid_desc_kbatch_ak0_m_ak1,
                                const BGridDesc_KBatch_BK0_N_BK1& b_grid_desc_kbatch_bk0_n_bk1,
                                const DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
@@ -495,7 +498,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                     p_ds_grid[i],
                     ds_grid_desc_mblock_mperblock_nblock_nperblock[i].GetElementSpaceSize());
             },
-            Number<NumDTensor>{});
+            Number<NumDTensor_>{});
 
         auto e_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_e_grid, e_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
@@ -777,7 +780,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                 generate_tie(
                     [&](auto i) -> const auto& // return type should be reference
                     { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
-                    Number<NumDTensor>{}));
+                    Number<NumDTensor_>{}));
 
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_buf_refs = concat_tuple_of_reference(
@@ -785,7 +788,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                 generate_tie(
                     [&](auto i) -> const auto& // return type should be reference
                     { return ds_grid_buf[i]; },
-                    Number<NumDTensor>{}));
+                    Number<NumDTensor_>{}));
 
             // tuple of starting index of C/Ds blockwise copy
             const auto idx_c_ds_block_begin = container_concat(
@@ -794,16 +797,16 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                     [&](auto) {
                         return make_multi_index(block_work_idx[I1], 0, block_work_idx[I2], 0);
                     },
-                    Number<NumDTensor>{}));
+                    Number<NumDTensor_>{}));
 
             // blockwise copy C/D/E between LDS and global
             auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7<
                 ThisThreadBlock,
-                decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
+                decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType_{})),
                 Tuple<EDataType>,
                 decltype(c_ds_desc_refs),
                 decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)),
-                CDEElementwiseOperation,
+                CDEElementwiseOperation_,
                 Sequence<static_cast<index_t>(EGlobalMemoryDataOperation)>, // FIXME: make Sequence
                                                                             // support arbitray type
                 Sequence<1,
@@ -817,7 +820,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                 CDEShuffleBlockTransferScalarPerVector_NPerBlock,
                 sequence_merge_t<
                     Sequence<true>,
-                    uniform_sequence_gen_t<NumDTensor,
+                    uniform_sequence_gen_t<NumDTensor_,
                                            false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
                 Sequence<false>>                    // ThreadTransferDstResetCoordinateAfterRunFlags
                 {c_ds_desc_refs,
@@ -879,7 +882,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                         sfc_cde_block.GetForwardStep(access_id);
 
                     // move on Ds
-                    static_for<0, NumDTensor, 1>{}([&](auto i) {
+                    static_for<0, NumDTensor_, 1>{}([&](auto i) {
                         cde_block_copy_lds_and_global.MoveSrcSliceWindow(
                             c_ds_desc_refs, i + I1, cde_lds_and_global_step);
                     });
@@ -961,20 +964,45 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
         const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n);
 
-        Run<HasMainKBlockLoop, EGlobalMemoryDataOperation>(
-            p_a_grid,
-            p_b_grid,
-            p_ds_grid,
-            p_e_grid,
-            p_shared,
-            a_element_op,
-            b_element_op,
-            cde_element_op,
-            a_grid_desc_kbatch_ak0_m_ak1,
-            b_grid_desc_kbatch_bk0_n_bk1,
-            ds_grid_desc_mblock_mperblock_nblock_nperblock,
-            e_grid_desc_mblock_mperblock_nblock_nperblock,
-            block_2_etile_map);
+        const auto block_work_idx =
+            block_2_etile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
+
+        const index_t kbatch_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
+
+        if(kbatch_id == 0)
+        {
+            Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, NumDTensor, DsDataType>(
+                p_a_grid,
+                p_b_grid,
+                p_ds_grid,
+                p_e_grid,
+                p_shared,
+                a_element_op,
+                b_element_op,
+                cde_element_op,
+                a_grid_desc_kbatch_ak0_m_ak1,
+                b_grid_desc_kbatch_bk0_n_bk1,
+                ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                e_grid_desc_mblock_mperblock_nblock_nperblock,
+                block_2_etile_map);
+        }
+        else
+        {
+            Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, 0, Tuple<>>(
+                p_a_grid,
+                p_b_grid,
+                p_ds_grid,
+                p_e_grid,
+                p_shared,
+                a_element_op,
+                b_element_op,
+                ck::tensor_operation::element_wise::PassThrough{},
+                a_grid_desc_kbatch_ak0_m_ak1,
+                b_grid_desc_kbatch_bk0_n_bk1,
+                ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                e_grid_desc_mblock_mperblock_nblock_nperblock,
+                block_2_etile_map);
+        }
     }
 };
 
