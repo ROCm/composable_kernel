@@ -28,7 +28,7 @@ namespace device {
 ///
 /// @brief      Entry point kernel for device-wide Grouped GEMM operation.
 ///
-/// @param[in]  gemm_desc_const             The pointer to the array of GEMM descriptor structures.
+/// @param[in]  gemm_descs_const            The pointer to the array of GEMM descriptor structures.
 /// @param[in]  tile_count                  The overall number of output tiles we divided all groups
 ///                                         into.
 /// @param[in]  k_batch                     The number of batches we split the K dimension into.
