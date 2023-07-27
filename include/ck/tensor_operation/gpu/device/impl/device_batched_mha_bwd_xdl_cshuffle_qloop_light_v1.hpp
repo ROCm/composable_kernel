@@ -16,7 +16,8 @@
 #include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_bwd_xdl_cshuffle_qloop_b2t_v1.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_bwd_xdl_cshuffle_qloop_b2t_light_v1.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_bwd_xdl_cshuffle_qloop_ydotygrad.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -29,9 +30,64 @@ namespace device {
 
 template <typename GridwiseGemm,
           typename InputDataType,
+          typename DDataType,
+          typename YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename DGridDescriptor_M,
+          typename Block2CTileMap,
+          typename ComputeBasePtrOfStridedBatch>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, /*CK_MIN_BLOCK_PER_CU*/ 1)
+#endif
+        kernel_batched_multihead_attention_backward_ydotygrad_v1(
+            const InputDataType* __restrict__ p_y_grid,
+            const InputDataType* __restrict__ p_ygrad_grid,
+            DDataType* __restrict__ p_d_grid,
+            const YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                y_grid_desc_mblock_mperblock_nblock_nperblock,
+            const DGridDescriptor_M d_grid_desc_m,
+            const Block2CTileMap block_2_ctile_map,
+            const index_t batch_count,
+            const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch)
+{
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
+    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+    const index_t num_blocks_per_batch =
+        __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
+    const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
+
+    // NOTE: assumes QKVY has the same layout as dQ/dK/dV/dY therefore being able to reuse batch
+    // offsets
+    const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(compute_base_ptr_of_batch.GetCBasePtr(g_idx)));
+    const long_index_t d_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(compute_base_ptr_of_batch.GetLSEBasePtr(g_idx)));
+
+    GridwiseGemm::Run(p_y_grid + c_batch_offset,
+                      p_ygrad_grid + c_batch_offset,
+                      p_d_grid + d_batch_offset,
+                      y_grid_desc_mblock_mperblock_nblock_nperblock,
+                      d_grid_desc_m,
+                      block_2_ctile_map);
+
+#else
+    ignore = p_y_grid;
+    ignore = p_ygrad_grid;
+    ingore = p_d_grid;
+    ignore = y_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = d_grid_desc_m;
+    ignore = block_2_ctile_map;
+    ignore = batch_count;
+    ignore = compute_base_ptr_of_batch;
+#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+}
+
+template <typename GridwiseGemm,
+          typename InputDataType,
           typename OutputDataType,
           typename ZDataType,
           typename LSEDataType,
+          typename DDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename AccElementwiseOperation,
@@ -41,7 +97,6 @@ template <typename GridwiseGemm,
           typename BGridDesc_BK0_N_BK1,
           typename ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3,
           typename B1GridDesc_BK0_N_BK1,
-          typename YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock,
           typename LSEGridDescriptor_M,
           typename YGradGridDesc_O0_M_O1,
           typename Block2CTileMap,
@@ -54,13 +109,13 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, /*CK_MIN_BLOCK_PER_CU*/ 1)
 #endif
-        kernel_batched_multihead_attention_backward_qloop_xdl_cshuffle_v1(
+        kernel_batched_multihead_attention_backward_qloop_xdl_cshuffle_light_v1(
             const InputDataType* __restrict__ p_a_grid,
             const InputDataType* __restrict__ p_b_grid,
             ZDataType* __restrict__ p_z_grid,
             const InputDataType* __restrict__ p_b1_grid,
-            const InputDataType* __restrict__ p_c_grid,
             const LSEDataType* __restrict__ p_lse_grid,
+            const DDataType* __restrict__ p_d_grid,
             const InputDataType* __restrict__ p_ygrad_grid,
             OutputDataType* __restrict__ p_qgrad_grid,
             OutputDataType* __restrict__ p_kgrad_grid,
@@ -75,8 +130,6 @@ __global__ void
             const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3
                 c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
             const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
-            const YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
-                c_grid_desc_mblock_mperblock_nblock_nperblock,
             const LSEGridDescriptor_M lse_grid_desc_m,
             const YGradGridDesc_O0_M_O1 ygrad_grid_desc_o0_m_o1,
             const Block2CTileMap block_2_ctile_map,
@@ -126,8 +179,8 @@ __global__ void
                 p_b_grid + b_batch_offset,
                 z_matrix_ptr,
                 p_b1_grid + b1_batch_offset,
-                p_c_grid + c_batch_offset,
                 p_lse_grid + lse_batch_offset,
+                p_d_grid + lse_batch_offset,
                 p_ygrad_grid + c_batch_offset,
                 p_qgrad_grid + a_batch_offset,
                 p_kgrad_grid + b_batch_offset,
@@ -142,7 +195,6 @@ __global__ void
                 b_grid_desc_bk0_n_bk1,
                 c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                 b1_grid_desc_bk0_n_bk1,
-                c_grid_desc_mblock_mperblock_nblock_nperblock,
                 lse_grid_desc_m,
                 ygrad_grid_desc_o0_m_o1,
                 block_2_ctile_map,
@@ -161,8 +213,8 @@ __global__ void
             p_b_grid + b_batch_offset,
             z_matrix_ptr,
             p_b1_grid + b1_batch_offset,
-            p_c_grid + c_batch_offset,
             p_lse_grid + lse_batch_offset,
+            p_d_grid + lse_batch_offset,
             p_ygrad_grid + c_batch_offset,
             p_qgrad_grid + a_batch_offset,
             p_kgrad_grid + b_batch_offset,
@@ -177,7 +229,6 @@ __global__ void
             b_grid_desc_bk0_n_bk1,
             c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
             b1_grid_desc_bk0_n_bk1,
-            c_grid_desc_mblock_mperblock_nblock_nperblock,
             lse_grid_desc_m,
             ygrad_grid_desc_o0_m_o1,
             block_2_ctile_map,
@@ -193,8 +244,8 @@ __global__ void
     ignore = p_b_grid;
     ignore = p_z_grid;
     ignore = p_b1_grid;
-    ignore = p_c_grid;
     ignore = p_lse_grid;
+    ignore = p_d_grid;
     ignore = p_ygrad_grid;
     ignore = p_qgrad_grid;
     ignore = p_kgrad_grid;
@@ -208,7 +259,6 @@ __global__ void
     ignore = b_grid_desc_bk0_n_bk1;
     ignore = c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3;
     ignore = b1_grid_desc_bk0_n_bk1;
-    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = lse_grid_desc_m;
     ignore = ygrad_grid_desc_o0_m_o1;
     ignore = block_2_ctile_map;
@@ -237,6 +287,7 @@ template <index_t NumDimG,
           typename GemmDataType,
           typename ZDataType,
           typename LSEDataType,
+          typename DDataType,
           typename Acc0BiasDataType,
           typename Acc1BiasDataType,
           typename GemmAccDataType,
@@ -267,6 +318,7 @@ template <index_t NumDimG,
           index_t NXdlPerWave,
           index_t Gemm1NXdlPerWave,
           index_t Gemm2NXdlPerWave,
+          index_t DKPerBlock,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -288,7 +340,7 @@ template <index_t NumDimG,
           MaskingSpecialization MaskingSpec,
           bool Deterministic,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
+struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
     : public BaseOperator // TODO inherit atten bwd op once API stablizes
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
@@ -296,16 +348,23 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
 
     static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();
     static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
+    static constexpr index_t DMPerBlock  = BlockSize;
 
     // TODO: implement bias combination
     static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
 
-    using DeviceOp = DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1;
+    using DeviceOp = DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
+    static constexpr index_t Q_K1 = 8;
+    static constexpr index_t K_K1 = 8;
+    static constexpr index_t V_N1 = 2;
+
+    static constexpr index_t Q_M1 = 2;
+    static constexpr index_t K_N1 = 2;
     static constexpr index_t V_O1 = 8;
     static constexpr index_t Y_O1 = 8;
     static constexpr index_t Y_M1 = 2;
@@ -320,6 +379,15 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         Sequence<NumDimG, NumDimM, NumDimN, NumDimK, NumDimO>,
         Sequence<MPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock>,
         GemmSpec,
+        ASpec,
+        BSpec,
+        B1Spec,
+        CSpec>;
+
+    using DTransform = TransformBatchedContractionContractionToBatchedGemmGemm<
+        Sequence<NumDimG, NumDimM, NumDimN, NumDimK, NumDimO>,
+        Sequence<DMPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock>,
+        GemmSpecialization::MNKOPadding,
         ASpec,
         BSpec,
         B1Spec,
@@ -550,6 +618,31 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         }
     }
 
+    static auto MakeDGridDescriptor_M(index_t MRaw)
+    {
+        const auto d_grid_desc_mraw = make_naive_tensor_descriptor_packed(make_tuple(MRaw));
+
+        const auto M    = math::integer_divide_ceil(MRaw, DMPerBlock) * DMPerBlock;
+        const auto MPad = M - MRaw;
+
+        if constexpr(GemmSpec == GemmSpecialization::MPadding ||
+                     GemmSpec == GemmSpecialization::MNPadding ||
+                     GemmSpec == GemmSpecialization::MKPadding ||
+                     GemmSpec == GemmSpecialization::MNKPadding)
+        {
+            // pad M
+            return transform_tensor_descriptor(d_grid_desc_mraw,
+                                               make_tuple(make_right_pad_transform(MRaw, MPad)),
+                                               make_tuple(Sequence<0>{}),
+                                               make_tuple(Sequence<0>{}));
+        }
+        else
+        {
+            // not pad M
+            return d_grid_desc_mraw;
+        }
+    }
+
     using AGridDesc_AK0_M_AK1  = decltype(MakeAGridDescriptor_AK0_M_AK1({}, {}));
     using BGridDesc_BK0_N_BK1  = decltype(MakeBGridDescriptor_BK0_N_BK1({}, {}));
     using B1GridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1({}, {}));
@@ -560,6 +653,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
     using B1GridDesc_G_N_K     = decltype(Transform::MakeB1GridDescriptor_G_N_K({}, {}));
     using CGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
     using ZGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
+    using DYGridDesc_M_O       = decltype(DTransform::MakeCGridDescriptor_M_N({}, {}));
+    using DGridDesc_M          = decltype(MakeDGridDescriptor_M(1));
 
     using KGridDesc_N_K         = decltype(Transform::MakeB0GridDescriptor_N_K({}, {}));
     using YGradGridDesc_O0_M_O1 = decltype(MakeYGradGridDescriptor_O0_M_O1({}, {}));
@@ -571,13 +666,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         {
             return MaskDisabledPredicate{};
         }
-        else if constexpr(MaskingSpec == MaskingSpecialization::MaskUpperTriangleFromTopLeft)
+        else if constexpr(MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle)
         {
-            return MaskUpperTriangleFromTopLeftPredicate{};
-        }
-        else if constexpr(MaskingSpec == MaskingSpecialization::MaskUpperTriangleFromBottomRight)
-        {
-            return MaskUpperTriangleFromBottomRightPredicate{};
+            return MaskOutUpperTrianglePredicate{};
         }
     }
     using C0MatrixMask = C0MatrixMask_impl<decltype(make_MaskOutPredicate())>;
@@ -640,7 +731,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
     };
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1<
+    using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1<
         InputDataType, // TODO: distinguish A/B datatype
         OutputDataType,
         ZDataType,
@@ -648,6 +739,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         GemmAccDataType,
         CShuffleDataType,
         LSEDataType,
+        DDataType,
         AElementwiseOperation,
         BElementwiseOperation,
         AccElementwiseOperation,
@@ -699,9 +791,18 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
         Transform::matrix_padder.PadN,
-        MaskingSpec != MaskingSpecialization::MaskDisabled,
+        MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle,
         Deterministic>;
 
+    // GridwiseYDotYGrad
+    using GridwiseYDotYGrad = GridwiseBatchedMultiheadAttentionBackward_YDotYGrad<InputDataType,
+                                                                                  DDataType,
+                                                                                  DYGridDesc_M_O,
+                                                                                  DGridDesc_M,
+                                                                                  BlockSize,
+                                                                                  DMPerBlock,
+                                                                                  DKPerBlock,
+                                                                                  Gemm1NPerBlock>;
     // Argument
     struct Argument : public BaseArgument
     {
@@ -712,6 +813,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             const InputDataType* p_b1_grid,
             const InputDataType* p_c_grid, // for dS
             const LSEDataType* p_lse_grid,
+            DDataType* p_d_grid,
             const InputDataType* p_ygrad_grid,
             OutputDataType* p_qgrad_grid,
             OutputDataType* p_kgrad_grid,
@@ -748,6 +850,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
               p_b1_grid_{p_b1_grid},
               p_c_grid_{p_c_grid},
               p_lse_grid_{p_lse_grid},
+              p_d_grid_{p_d_grid},
               p_ygrad_grid_{p_ygrad_grid},
               p_qgrad_grid_{p_qgrad_grid},
               p_kgrad_grid_{p_kgrad_grid},
@@ -761,7 +864,10 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
               y_grid_desc_m_o_{Transform::MakeCGridDescriptor_M_N(c_gs_ms_gemm1ns_lengths,
                                                                   c_gs_ms_gemm1ns_strides)},
+              d_y_grid_desc_m_o_{DTransform::MakeCGridDescriptor_M_N(c_gs_ms_gemm1ns_lengths,
+                                                                     c_gs_ms_gemm1ns_strides)},
               lse_grid_desc_m_{DeviceOp::MakeLSEGridDescriptor_M(lse_gs_ms_lengths[NumDimG])},
+              d_grid_desc_m_{DeviceOp::MakeDGridDescriptor_M(lse_gs_ms_lengths[NumDimG])},
               k_grid_desc_n_k_{
                   Transform::MakeB0GridDescriptor_N_K(b_gs_ns_ks_lengths, b_gs_ns_ks_strides)},
               ygrad_grid_desc_o0_m_o1_{DeviceOp::MakeYGradGridDescriptor_O0_M_O1(
@@ -777,14 +883,16 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                                                                       c_gs_ms_gemm1ns_strides)},
               z_grid_desc_g_m_n_{
                   Transform::MakeCGridDescriptor_G_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
-              y_grid_desc_mblock_mperblock_oblock_operblock_{},
               block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(k_grid_desc_n_k_)},
+              d_block_2_ctile_map_{
+                  GridwiseYDotYGrad::MakeDefaultBlock2CTileMap(d_y_grid_desc_m_o_)},
+              d_y_grid_desc_mblock_mperblock_oblock_operblock_{},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               acc_element_op_{acc_element_op},
               b1_element_op_{b1_element_op},
               c_element_op_{c_element_op},
-              c0_matrix_mask_{a_grid_desc_g_m_k_.GetLength(I1), b_grid_desc_g_n_k_.GetLength(I1)},
+              c0_matrix_mask_{b_grid_desc_g_n_k_.GetLength(I1)},
               raw_lengths_mz_nz_kz_gemm1nz_{a_gs_ms_ks_lengths[NumDimG + NumDimM - 1],
                                             b_gs_ns_ks_lengths[NumDimG + NumDimN - 1],
                                             b_gs_ns_ks_lengths[NumDimG + NumDimN + NumDimK - 1],
@@ -815,21 +923,14 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             ignore = acc1_biases_gs_ms_gemm1ns_lengths;
             ignore = acc1_biases_gs_ms_gemm1ns_strides;
 
-            if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
-                                           b_grid_desc_bk0_n_bk1_,
-                                           b1_grid_desc_bk0_n_bk1_,
-                                           y_grid_desc_m_o_))
-            {
-                y_grid_desc_mblock_mperblock_oblock_operblock_ =
-                    GridwiseGemm::MakeYGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock(
-                        y_grid_desc_m_o_);
-            }
-
             seed_   = std::get<0>(seeds);
             offset_ = std::get<1>(seeds);
 
             c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_ =
                 GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3(z_grid_desc_m_n_);
+            d_y_grid_desc_mblock_mperblock_oblock_operblock_ =
+                GridwiseYDotYGrad::MakeYGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    d_y_grid_desc_m_o_);
             // Print();
 
             m_raw_padded_ = GridwiseGemm::GetPaddedSize(raw_lengths_mz_nz_kz_gemm1nz_[0]);
@@ -868,6 +969,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         const InputDataType* p_b1_grid_;
         const InputDataType* p_c_grid_;
         const LSEDataType* p_lse_grid_;
+        DDataType* p_d_grid_;
         const InputDataType* p_ygrad_grid_;
         OutputDataType* p_qgrad_grid_;
         OutputDataType* p_kgrad_grid_;
@@ -879,7 +981,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         ZGridDesc_M_N z_grid_desc_m_n_;
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
         YGridDesc_M_O y_grid_desc_m_o_;
+        DYGridDesc_M_O d_y_grid_desc_m_o_;
         LSEGridDesc_M lse_grid_desc_m_;
+        DGridDesc_M d_grid_desc_m_;
         KGridDesc_N_K k_grid_desc_n_k_;
         YGradGridDesc_O0_M_O1 ygrad_grid_desc_o0_m_o1_;
 
@@ -889,14 +993,15 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
         CGridDesc_G_M_N c_grid_desc_g_m_n_;
         ZGridDesc_G_M_N z_grid_desc_g_m_n_;
-        typename GridwiseGemm::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
-            y_grid_desc_mblock_mperblock_oblock_operblock_;
 
         typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3
             c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_;
 
         // block-to-c-tile map
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
+        typename GridwiseYDotYGrad::DefaultBlock2CTileMap d_block_2_ctile_map_;
+        typename GridwiseYDotYGrad::YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            d_y_grid_desc_mblock_mperblock_oblock_operblock_;
 
         // element-wise op
         AElementwiseOperation a_element_op_;
@@ -938,21 +1043,56 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                 throw std::runtime_error("wrong! unsupported argument");
             }
 
+            float ave_time = 0;
+            {
+                const index_t grid_size =
+                    arg.d_block_2_ctile_map_.CalculateGridSize(arg.d_y_grid_desc_m_o_) *
+                    arg.batch_count_;
+
+                auto launch_kernel = [&]() {
+                    const auto kernel = kernel_batched_multihead_attention_backward_ydotygrad_v1<
+                        GridwiseYDotYGrad,
+                        InputDataType,
+                        DDataType,
+                        typename GridwiseYDotYGrad::
+                            YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                        DeviceOp::DGridDesc_M,
+                        typename GridwiseYDotYGrad::DefaultBlock2CTileMap,
+                        ComputeBasePtrOfStridedBatch>;
+
+                    return launch_and_time_kernel(
+                        stream_config,
+                        kernel,
+                        dim3(grid_size),
+                        dim3(BlockSize),
+                        0,
+                        arg.p_c_grid_,
+                        arg.p_ygrad_grid_,
+                        arg.p_d_grid_,
+                        arg.d_y_grid_desc_mblock_mperblock_oblock_operblock_,
+                        arg.d_grid_desc_m_,
+                        arg.d_block_2_ctile_map_,
+                        arg.batch_count_,
+                        arg.compute_base_ptr_of_batch_);
+                };
+
+                ave_time = launch_kernel();
+            }
+
             const index_t grid_size =
                 (Deterministic ? 1
                                : arg.block_2_ctile_map_.CalculateGridSize(arg.k_grid_desc_n_k_)) *
                 arg.batch_count_;
 
-            float ave_time = 0;
-
             auto launch_kernel = [&](auto has_main_k_block_loop_, auto is_dropout_) {
                 const auto kernel =
-                    kernel_batched_multihead_attention_backward_qloop_xdl_cshuffle_v1<
+                    kernel_batched_multihead_attention_backward_qloop_xdl_cshuffle_light_v1<
                         GridwiseGemm,
                         InputDataType,
                         OutputDataType,
                         ZDataType,
                         LSEDataType,
+                        DDataType,
                         AElementwiseOperation,
                         BElementwiseOperation,
                         AccElementwiseOperation,
@@ -962,7 +1102,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                         DeviceOp::BGridDesc_BK0_N_BK1,
                         typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3,
                         DeviceOp::B1GridDesc_BK0_N_BK1,
-                        typename GridwiseGemm::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock,
                         DeviceOp::LSEGridDesc_M,
                         DeviceOp::YGradGridDesc_O0_M_O1,
                         typename GridwiseGemm::DefaultBlock2CTileMap,
@@ -982,8 +1121,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                     arg.p_b_grid_,
                     arg.p_z_grid_,
                     arg.p_b1_grid_,
-                    arg.p_c_grid_,
                     arg.p_lse_grid_,
+                    arg.p_d_grid_,
                     arg.p_ygrad_grid_,
                     arg.p_qgrad_grid_,
                     arg.p_kgrad_grid_,
@@ -997,7 +1136,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                     arg.b_grid_desc_bk0_n_bk1_,
                     arg.c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_,
                     arg.b1_grid_desc_bk0_n_bk1_,
-                    arg.y_grid_desc_mblock_mperblock_oblock_operblock_,
                     arg.lse_grid_desc_m_,
                     arg.ygrad_grid_desc_o0_m_o1_,
                     arg.block_2_ctile_map_,
@@ -1013,13 +1151,13 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             };
             if(arg.p_drop_ > 0.0)
             {
-                ave_time = launch_kernel(integral_constant<bool, false>{},
-                                         integral_constant<bool, true>{});
+                ave_time += launch_kernel(integral_constant<bool, false>{},
+                                          integral_constant<bool, true>{});
             }
             else
             {
-                ave_time = launch_kernel(integral_constant<bool, false>{},
-                                         integral_constant<bool, false>{});
+                ave_time += launch_kernel(integral_constant<bool, false>{},
+                                          integral_constant<bool, false>{});
             }
             return ave_time;
         }
@@ -1118,6 +1256,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         const InputDataType* p_b1,
         const InputDataType* p_c,
         const LSEDataType* p_lse,
+        DDataType* p_d_grid,
         const InputDataType* p_ygrad_grid,
         OutputDataType* p_qgrad_grid,
         OutputDataType* p_kgrad_grid,
@@ -1155,6 +1294,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                         p_b1,
                         p_c,
                         p_lse,
+                        p_d_grid,
                         p_ygrad_grid,
                         p_qgrad_grid,
                         p_kgrad_grid,
@@ -1196,6 +1336,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         const void* p_b1,
         const void* p_c,
         const void* p_lse,
+        void* p_d_grid,
         const void* p_ygrad_grid,
         void* p_qgrad_grid,
         void* p_kgrad_grid,
@@ -1233,6 +1374,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                                           static_cast<const InputDataType*>(p_b1),
                                           static_cast<const InputDataType*>(p_c),
                                           static_cast<const LSEDataType*>(p_lse),
+                                          static_cast<DDataType*>(p_d_grid),
                                           static_cast<const InputDataType*>(p_ygrad_grid),
                                           static_cast<OutputDataType*>(p_qgrad_grid),
                                           static_cast<OutputDataType*>(p_kgrad_grid),
@@ -1275,7 +1417,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1"
+        str << "DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

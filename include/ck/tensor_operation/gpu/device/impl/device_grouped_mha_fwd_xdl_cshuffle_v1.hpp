@@ -176,6 +176,10 @@ __global__ void
     ignore = acc_element_op;
     ignore = b1_element_op;
     ignore = c_element_op;
+    ignore = p_dropout_in_16bits;
+    ignore = p_dropout_rescale;
+    ignore = seed;
+    ignore = offset;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
