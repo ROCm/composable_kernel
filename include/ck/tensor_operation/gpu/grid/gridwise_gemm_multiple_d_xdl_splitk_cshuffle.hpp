@@ -16,6 +16,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 
 namespace ck {
 
@@ -393,6 +394,71 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
             e_grid_desc_m_n);
     }
 
+    template <typename ALayout,
+              typename BLayout,
+              typename DsLayout,
+              typename ELayout,
+              GemmSpecialization GemmSpec>
+    __host__ __device__ static constexpr bool
+    CheckValidity(const index_t M,
+                  const index_t N,
+                  const index_t K,
+                  const index_t StrideA,
+                  const index_t StrideB,
+                  const std::array<index_t, NumDTensor> StrideDs,
+                  const index_t StrideE,
+                  const index_t KBatch = 1)
+    {
+        const auto a_grid_desc_kbatch_ak0_m_ak1 =
+            MakeAGridDescriptor_KBatch_AK0_M_AK1<ALayout, GemmSpec>(M, K, StrideA, KBatch);
+        const auto b_grid_desc_kbatch_bk0_n_bk1 =
+            MakeBGridDescriptor_KBatch_BK0_N_BK1<BLayout, GemmSpec>(K, N, StrideB, KBatch);
+
+        ignore = StrideDs;
+        // using DsGridDesc_M_N =
+        // remove_cvref_t<decltype(MakeDsGridDescriptor_M_N<DsLayout, GemmSpec>({}, {}, {}))>;
+
+        // DsGridDesc_M_N ds_grid_desc_m_n;
+
+        // static_for<0, NumDTensor, 1>{}([&](auto j) {
+        // using DLayout = remove_cvref_t<tuple_element_t<j.value, DsLayout>>;
+
+        // ds_grid_desc_m_n(j) = MakeEGridDescriptor_M_N<DLayout, GemmSpec>(M, N, StrideDs[j]);
+        //});
+
+        const auto e_grid_desc_m_n = MakeEGridDescriptor_M_N<ELayout, GemmSpec>(M, N, StrideE);
+
+#if 0
+        // check tile size
+        if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0))
+        {
+            return false;
+        }
+#endif
+
+        // check gridwise gemm pipeline
+        const auto num_k_loop = K / KPerBlock;
+
+        if(!GridwiseGemmPipe::IsSupported(num_k_loop))
+        {
+            return false;
+        }
+
+        // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
+        // check tensor size: cannot be larger than 2GB each
+        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+
+        if(!(a_grid_desc_kbatch_ak0_m_ak1.GetElementSpaceSize() * sizeof(ABDataType) <= TwoGB &&
+             b_grid_desc_kbatch_bk0_n_bk1.GetElementSpaceSize() * sizeof(ABDataType) <= TwoGB &&
+             e_grid_desc_m_n.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+#if 0
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename AGridDesc_M_K,
               typename BGridDesc_N_K,
@@ -464,6 +530,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
 
         return true;
     }
+#endif
 
     __host__ __device__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)
     {
@@ -616,11 +683,22 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
         }
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
+        const index_t kbatch_id = 0; //__builtin_amdgcn_readfirstlane(block_work_idx[I0]);
+
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
 
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
+
+        // if(get_thread_local_1d_id() == 0)
+        //{
+        // printf("%d %d %d %d\n",
+        // get_block_1d_id(),
+        // kbatch_id,
+        // block_work_idx[I1],
+        // block_work_idx[I2]);
+        //}
 
         // lds max alignment
         constexpr auto max_lds_align = math::lcm(AK1, BK1);
@@ -632,8 +710,6 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
         // B matrix in LDS memory, dst of blockwise copy
         constexpr auto b_block_desc_kbatch_bk0_n_bk1 =
             GetBBlockDescriptor_KBatch_BK0PerBlock_NPerBlock_BK1();
-
-        const index_t kbatch_id = 0;
 
         // A matrix blockwise copy
         auto a_blockwise_copy =

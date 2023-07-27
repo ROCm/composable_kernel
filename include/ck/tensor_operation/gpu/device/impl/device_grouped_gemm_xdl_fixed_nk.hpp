@@ -193,6 +193,8 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
 
     static constexpr index_t NumDTensor = DsDataType::Size();
 
+    static const index_t k_batch = 1;
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -574,15 +576,15 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                 });
 
                 // tensor descriptors for problem definiton
-                const auto a_grid_desc_m_k = DeviceOp::MakeAGridDescriptor_M_K(M, K, StrideA);
-                const auto b_grid_desc_n_k = DeviceOp::MakeBGridDescriptor_N_K(K, N, StrideB);
+                // const auto a_grid_desc_m_k = DeviceOp::MakeAGridDescriptor_M_K(M, K, StrideA);
+                // const auto b_grid_desc_n_k = DeviceOp::MakeBGridDescriptor_N_K(K, N, StrideB);
 
-                DsGridDesc_M_N ds_grid_desc_m_n;
+                // DsGridDesc_M_N ds_grid_desc_m_n;
 
                 std::array<index_t, NumDTensor> StrideDs;
 
                 static_for<0, NumDTensor, 1>{}([&](auto j) {
-                    using DLayout = remove_cvref_t<tuple_element_t<j.value, DsLayout>>;
+                    // using DLayout = remove_cvref_t<tuple_element_t<j.value, DsLayout>>;
 
                     if(gemm_descs[i].stride_Ds_.size() != NumDTensor)
                     {
@@ -590,9 +592,9 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                             "wrong! gemm_descs[i].stride_Ds_.size() does not match NumDTensor");
                     }
 
-                    StrideDs[j]         = gemm_descs[i].stride_Ds_[j];
-                    ds_grid_desc_m_n(j) = DeviceOp::MakeEGridDescriptor_M_N<DLayout>(
-                        M, N, gemm_descs[i].stride_Ds_[j]);
+                    StrideDs[j] = gemm_descs[i].stride_Ds_[j];
+                    // ds_grid_desc_m_n(j) = DeviceOp::MakeEGridDescriptor_M_N<DLayout>(
+                    // M, N, gemm_descs[i].stride_Ds_[j]);
                 });
 
 #if 0
@@ -619,31 +621,33 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
 
                 grid_size_ += grid_size_grp;
 
-                if(GridwiseGemm::CheckValidity(a_grid_desc_m_k,
-                                               b_grid_desc_n_k,
-                                               ds_grid_desc_m_n,
-                                               e_grid_desc_m_n,
-                                               local_b2c_tile_map))
+                // check block-to-E-tile
+                if(!local_b2c_tile_map.CheckValidity(e_grid_desc_m_n))
                 {
-                    gemm_desc_kernel_arg_.push_back(GemmBiasTransKernelArg{
-                        p_As.size() == 0 ? nullptr : p_As[i],
-                        p_Bs.size() == 0 ? nullptr : p_Bs[i],
-                        p_ds_grid,
-                        p_Es[i],
-                        M,
-                        N,
-                        K,
-                        StrideA,
-                        StrideB,
-                        StrideDs,
-                        StrideC,
-                    });
+                    throw std::runtime_error("wrong! block_2_etile_map validation failed");
                 }
-                else
+
+                if(!GridwiseGemm::
+                       template CheckValidity<ALayout, BLayout, DsLayout, ELayout, GemmSpec>(
+                           M, N, K, StrideA, StrideB, StrideDs, StrideC, 1))
                 {
                     throw std::runtime_error(
                         "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
                 }
+
+                gemm_desc_kernel_arg_.push_back(GemmBiasTransKernelArg{
+                    p_As.size() == 0 ? nullptr : p_As[i],
+                    p_Bs.size() == 0 ? nullptr : p_Bs[i],
+                    p_ds_grid,
+                    p_Es[i],
+                    M,
+                    N,
+                    K,
+                    StrideA,
+                    StrideB,
+                    StrideDs,
+                    StrideC,
+                });
 
                 group_id++;
             }
@@ -682,7 +686,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
             for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
             {
                 const auto KPad =
-                    GridwiseGemm::CalculateKPadded(arg.gemm_desc_kernel_arg_[i].K_, 1);
+                    GridwiseGemm::CalculateKPadded(arg.gemm_desc_kernel_arg_[i].K_, k_batch);
 
                 if(GridwiseGemm::CalculateHasMainKBlockLoop(KPad) != has_main_k_block_loop)
                 {
