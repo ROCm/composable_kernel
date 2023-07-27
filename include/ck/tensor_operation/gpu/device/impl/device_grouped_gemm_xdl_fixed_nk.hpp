@@ -13,7 +13,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_fixed_nk.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
+//#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 //#include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_splitk_cshuffle.hpp"
 #include "ck/host_utility/device_prop.hpp"
@@ -44,6 +44,7 @@ __global__ void
         kernel_grouped_gemm_xdl_fixed_nk(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                          const index_t group_count,
                                          const index_t grid_size_grp,
+                                         const index_t KBatch,
                                          const AElementwiseOperation a_element_op,
                                          const BElementwiseOperation b_element_op,
                                          const CDEElementwiseOperation c_element_op)
@@ -79,7 +80,7 @@ __global__ void
 
     const index_t BlockStart = group_id * grid_size_grp;
 
-    const auto local_b2e_tile_map = Block2ETileMap{e_grid_desc_m_n};
+    const auto local_b2e_tile_map = Block2ETileMap{e_grid_desc_m_n, KBatch};
 
     constexpr auto NumDTensor = DsDataType::Size();
 
@@ -118,6 +119,7 @@ __global__ void
                 StrideB,
                 StrideDs,
                 StrideE,
+                KBatch,
                 block_2_etile_map);
 
         m_id += 1;
@@ -193,7 +195,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
 
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-    static const index_t k_batch = 1;
+    static const index_t k_batch = 2;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -285,7 +287,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
         AElementwiseOperation,
         BElementwiseOperation,
         CDEElementwiseOperation,
-        InMemoryDataOperationEnum::Set,
+        InMemoryDataOperationEnum::AtomicAdd,
         NumPrefetch, // NumGemmKPrefetchStage
         BlockSize,
         MPerBlock,
@@ -351,7 +353,8 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
             auto idx_bot = block_to_ctile_map_.CalculateBottomIndex(
                 make_multi_index(idx_top[Number<0>{}] - block_start_));
 
-            return make_tuple(idx_bot[Number<0>{}] + mblock_id_off_, idx_bot[Number<1>{}]);
+            return make_tuple(
+                idx_bot[Number<0>{}], idx_bot[Number<1>{}] + mblock_id_off_, idx_bot[Number<2>{}]);
         }
 
         template <typename CTileIdx, typename CTileDim>
@@ -379,34 +382,35 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
     };
 
     template <index_t MPerBlock_, index_t NPerBlock_>
-    struct BlockToCTileMap_M00_N0_M01Adapt_MLoops
+    struct BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops
     {
         static constexpr auto I0 = Number<0>{};
         static constexpr auto I1 = Number<1>{};
 
-        __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt_MLoops() = default;
+        __host__ __device__ BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops() = default;
 
-        __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt_MLoops(
-            const BlockToCTileMap_M00_N0_M01Adapt_MLoops&) = default;
-        __host__ __device__
-        BlockToCTileMap_M00_N0_M01Adapt_MLoops(BlockToCTileMap_M00_N0_M01Adapt_MLoops&&) = default;
-        __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt_MLoops&
-        operator=(const BlockToCTileMap_M00_N0_M01Adapt_MLoops&) = default;
-        __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt_MLoops&
-        operator=(BlockToCTileMap_M00_N0_M01Adapt_MLoops&&) = default;
+        __host__ __device__ BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops(
+            const BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops&) = default;
+        __host__ __device__ BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops(
+            BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops&&) = default;
+        __host__ __device__ BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops&
+        operator=(const BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops&) = default;
+        __host__ __device__ BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops&
+        operator=(BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops&&) = default;
 
-        __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt_MLoops(index_t M,
-                                                                   index_t N,
-                                                                   index_t M01 = 8)
-            : M_(M), N_(N), M01_(M01)
+        __host__ __device__ BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops(index_t M,
+                                                                          index_t N,
+                                                                          index_t KBatch,
+                                                                          index_t M01 = 8)
+            : M_(M), N_(N), KBatch_(KBatch), M01_(M01)
         {
         }
 
         template <typename CGridDesc_M_N>
-        __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt_MLoops(
-            const CGridDesc_M_N& c_grid_desc_m_n, index_t M01 = 8)
-            : BlockToCTileMap_M00_N0_M01Adapt_MLoops(
-                  c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1), M01)
+        __host__ __device__ BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops(
+            const CGridDesc_M_N& c_grid_desc_m_n, index_t KBatch, index_t M01 = 8)
+            : BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops(
+                  c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1), KBatch, M01)
         {
         }
 
@@ -415,16 +419,16 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
             return math::integer_divide_ceil(M_, MPerBlock_);
         }
 
-        __host__ static constexpr index_t CalculateGridSize(index_t /*M*/, index_t N)
+        __host__ constexpr index_t CalculateGridSize(index_t /*M*/, index_t N) const
         {
             const auto M0 = 1; // math::integer_divide_ceil(M, MPerBlock);
             const auto N0 = math::integer_divide_ceil(N, NPerBlock);
 
-            return M0 * N0;
+            return M0 * N0 * KBatch_;
         }
 
         template <typename CGridDesc_M_N>
-        __host__ static constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n)
+        __host__ constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
         {
             return CalculateGridSize(c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1));
         }
@@ -443,7 +447,10 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
             const auto M0 = 1; // math::integer_divide_ceil(M_, MPerBlock_);
             const auto N0 = math::integer_divide_ceil(N_, NPerBlock_);
 
-            block_1d_id = block_1d_id % (M0 * N0); // swallow batch index
+            block_1d_id = block_1d_id % (M0 * N0 * KBatch_); // hide groups
+
+            const index_t idx_ksplit = block_1d_id / (M0 * N0);
+            block_1d_id              = block_1d_id % (M0 * N0);
 
             index_t idx_N0 = block_1d_id % N0;
             index_t idx_M0 = block_1d_id / N0;
@@ -454,7 +461,8 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
             index_t idx_M01          = idx_M0 % M01_;
             index_t idx_N0_M01_local = idx_N0 + idx_M01 * N0;
 
-            return make_tuple(idx_N0_M01_local % M01_adapt + idx_M00 * M01_,
+            return make_tuple(idx_ksplit,
+                              idx_N0_M01_local % M01_adapt + idx_M00 * M01_,
                               idx_N0_M01_local / M01_adapt);
         }
 
@@ -468,10 +476,11 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
         private:
         index_t M_;
         index_t N_;
+        index_t KBatch_;
         index_t M01_;
     };
 
-    using Block2ETileMap            = BlockToCTileMap_M00_N0_M01Adapt_MLoops<MPerBlock, NPerBlock>;
+    using Block2ETileMap = BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops<MPerBlock, NPerBlock>;
     using GroupedGemmBlock2ETileMap = OffsettedBlockToCTileMapMLoops<Block2ETileMap>;
 
     struct GemmBiasTransKernelArg
@@ -563,7 +572,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
 
                 const index_t StrideA = gemm_descs[i].stride_A_;
                 const index_t StrideB = gemm_descs[i].stride_B_;
-                const index_t StrideC = gemm_descs[i].stride_C_;
+                const index_t StrideE = gemm_descs[i].stride_C_;
 
                 // pointer
                 std::array<const void*, NumDTensor> p_ds_grid;
@@ -607,10 +616,10 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
 #endif
 
                 const auto e_grid_desc_m_n =
-                    DeviceOp::MakeEGridDescriptor_M_N<ELayout>(M, N, StrideC);
+                    DeviceOp::MakeEGridDescriptor_M_N<ELayout>(M, N, StrideE);
 
                 // block-to-e-tile map
-                const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_m_n};
+                const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_m_n, k_batch};
 
                 grid_size_grp = local_b2c_tile_map.CalculateGridSize(e_grid_desc_m_n);
 
@@ -629,7 +638,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
 
                 if(!GridwiseGemm::
                        template CheckValidity<ALayout, BLayout, DsLayout, ELayout, GemmSpec>(
-                           M, N, K, StrideA, StrideB, StrideDs, StrideC, 1))
+                           M, N, K, StrideA, StrideB, StrideDs, StrideE, 1))
                 {
                     throw std::runtime_error(
                         "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
@@ -646,7 +655,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                     StrideA,
                     StrideB,
                     StrideDs,
-                    StrideC,
+                    StrideE,
                 });
 
                 group_id++;
@@ -769,6 +778,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                     cast_pointer_to_constant_address_space(kernel_args_dev),
                     arg.gemm_desc_kernel_arg_.size(),
                     arg.grid_size_grp,
+                    k_batch,
                     arg.a_element_op_,
                     arg.b_element_op_,
                     arg.c_element_op_);

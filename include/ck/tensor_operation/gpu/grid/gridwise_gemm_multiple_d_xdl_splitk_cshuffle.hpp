@@ -247,7 +247,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
         return math::integer_least_multiple(N, NPerBlock);
     }
 
-    __host__ __device__ static auto CalculateKPadded(index_t K, index_t K_Batch = 1)
+    __host__ __device__ static auto CalculateKPadded(index_t K, index_t K_Batch)
     {
         return math::integer_least_multiple(K, KPerBlock * K_Batch);
     }
@@ -407,7 +407,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                   const index_t StrideB,
                   const std::array<index_t, NumDTensor> StrideDs,
                   const index_t StrideE,
-                  const index_t KBatch = 1)
+                  const index_t KBatch)
     {
         const auto a_grid_desc_kbatch_ak0_m_ak1 =
             MakeAGridDescriptor_KBatch_AK0_M_AK1<ALayout, GemmSpec>(M, K, StrideA, KBatch);
@@ -674,22 +674,14 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
         const auto block_work_idx =
             block_2_etile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
-        if(!block_2_etile_map.ValidCTileIndex(
-               block_work_idx,
-               make_tuple(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
-                          e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
-        {
-            return;
-        }
-
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
-        const index_t kbatch_id = 0; //__builtin_amdgcn_readfirstlane(block_work_idx[I0]);
+        const index_t kbatch_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
 
         const index_t m_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
+            __builtin_amdgcn_readfirstlane(block_work_idx[I1] * MPerBlock);
 
         const index_t n_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
+            __builtin_amdgcn_readfirstlane(block_work_idx[I2] * NPerBlock);
 
         // if(get_thread_local_1d_id() == 0)
         //{
@@ -979,7 +971,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                 make_tuple(make_multi_index(0, 0, 0, 0)),
                 generate_tuple(
                     [&](auto) {
-                        return make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0);
+                        return make_multi_index(block_work_idx[I1], 0, block_work_idx[I2], 0);
                     },
                     Number<NumDTensor>{}));
 
@@ -1010,7 +1002,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                 {c_ds_desc_refs,
                  idx_c_ds_block_begin,
                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                 make_tuple(make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0)),
+                 make_tuple(make_multi_index(block_work_idx[I1], 0, block_work_idx[I2], 0)),
                  cde_element_op};
 
             // space filling curve for threadwise C in VGPR before shuffle
@@ -1103,6 +1095,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                                const index_t StrideB,
                                const std::array<index_t, NumDTensor> StrideDs,
                                const index_t StrideE,
+                               const index_t KBatch,
                                const Block2ETileMap& block_2_etile_map)
     {
         const auto p_a_grid = reinterpret_cast<const ABDataType*>(p_a_grid_);
@@ -1128,10 +1121,10 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
 
         // tensor descriptors for block/thread-wise copy
         const auto a_grid_desc_kbatch_ak0_m_ak1 =
-            MakeAGridDescriptor_KBatch_AK0_M_AK1<ALayout, GemmSpec>(M, K, StrideA, 1);
+            MakeAGridDescriptor_KBatch_AK0_M_AK1<ALayout, GemmSpec>(M, K, StrideA, KBatch);
 
         const auto b_grid_desc_kbatch_bk0_n_bk1 =
-            MakeBGridDescriptor_KBatch_BK0_N_BK1<BLayout, GemmSpec>(K, N, StrideB, 1);
+            MakeBGridDescriptor_KBatch_BK0_N_BK1<BLayout, GemmSpec>(K, N, StrideB, KBatch);
 
         using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
             MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}))>;
