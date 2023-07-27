@@ -56,17 +56,17 @@ using device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f32_mk_kn_mn_irregular_tile_
         >;
 
 void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f32_mk_kn_mn_instances(
-    std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
-                                                  Row,
-                                                  DsLayout,
-                                                  Row,
-                                                  F16,
-                                                  F16,
-                                                  DsDataType,
-                                                  F32,
-                                                  PassThrough,
-                                                  PassThrough,
-                                                  Add>>>& instances)
+    std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
+                                                         Row,
+                                                         DsLayout,
+                                                         Row,
+                                                         F16,
+                                                         F16,
+                                                         DsDataType,
+                                                         F32,
+                                                         PassThrough,
+                                                         PassThrough,
+                                                         Add>>>& instances)
 {
     add_device_operation_instances(
         instances,
