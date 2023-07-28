@@ -73,7 +73,7 @@ __global__ void
 #else
     ignore = p_y_grid;
     ignore = p_ygrad_grid;
-    ingore = p_d_grid;
+    ignore = p_d_grid;
     ignore = y_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = d_grid_desc_m;
     ignore = block_2_ctile_map;
