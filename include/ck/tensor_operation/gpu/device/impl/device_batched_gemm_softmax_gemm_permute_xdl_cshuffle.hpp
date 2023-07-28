@@ -727,9 +727,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         arg.Print();
 #endif
 
-        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
-             ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
-             ck::get_device_name() == "gfx942"))
+        if(!ck::is_xdl_supported())
         {
             return false;
         }

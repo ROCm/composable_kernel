@@ -34,9 +34,9 @@ int main()
 
     int N = 1024;
 
-    Tensor<XDataType> x(HostTensorDescriptor{N, 1});
-    Tensor<IndexDataType> indices(HostTensorDescriptor{N, 1});
-    Tensor<YDataType> y(HostTensorDescriptor{N, 1});
+    Tensor<XDataType> x(HostTensorDescriptor{N});
+    Tensor<IndexDataType> indices(HostTensorDescriptor{N});
+    Tensor<YDataType> y(HostTensorDescriptor{N});
 
     x.GenerateTensorValue(GeneratorTensor_3<XDataType>{-1.0, 1.0});
     for(int i = 0; i < N; ++i)
@@ -72,7 +72,7 @@ int main()
     bool pass = true;
     if(do_verification)
     {
-        Tensor<YDataType> y_host(HostTensorDescriptor{N, 1});
+        Tensor<YDataType> y_host(HostTensorDescriptor{N});
 
         for(int i = 0; i < N; ++i)
         {

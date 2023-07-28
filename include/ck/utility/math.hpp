@@ -256,5 +256,21 @@ struct less
     __host__ __device__ constexpr bool operator()(T x, T y) const { return x < y; }
 };
 
+template <index_t X>
+__host__ __device__ constexpr auto next_power_of_two()
+{
+    // TODO: X need to be 2 ~ 0x7fffffff. 0, 1, or larger than 0x7fffffff will compile fail
+    constexpr index_t Y = 1 << (32 - __builtin_clz(X - 1));
+    return Y;
+}
+
+template <index_t X>
+__host__ __device__ constexpr auto next_power_of_two(Number<X> x)
+{
+    // TODO: X need to be 2 ~ 0x7fffffff. 0, 1, or larger than 0x7fffffff will compile fail
+    constexpr index_t Y = 1 << (32 - __builtin_clz(x.value - 1));
+    return Number<Y>{};
+}
+
 } // namespace math
 } // namespace ck
