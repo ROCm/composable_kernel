@@ -30,6 +30,14 @@ else()
         add_definitions(-D__int8__ -D__fp8__ -D__fp16__ -D__fp32__ -D__fp64__ -D__bf16__)
 endif()
 
+if(DL_KERNELS)
+    add_definitions(-DDL_KERNELS)
+endif()
+
+if(INSTANCES_ONLY)
+    add_definitions(-DINSTANCES_ONLY)
+endif()
+
 enable_testing()
 
 set(ROCM_SYMLINK_LIBS OFF)
@@ -296,31 +304,68 @@ file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp"
 file(GLOB dir_list RELATIVE ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/*)
 set(CK_DEVICE_INSTANCES)
 FOREACH(subdir_path ${dir_list})
-    IF(IS_DIRECTORY "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/${subdir_path}")
-       list(APPEND CK_DEVICE_INSTANCES device_${subdir_path}_instance)
-    ENDIF()
+set(target_dir)
+IF(IS_DIRECTORY "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/${subdir_path}")
+    set(cmake_instance)
+    file(READ "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/${subdir_path}/CMakeLists.txt" cmake_instance)
+    set(add_inst 0)
+    if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp8\" " AND DTYPES MATCHES "fp8")
+            #message("fp8 instance found!")
+            set(add_inst 1)
+    endif()
+    if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp16\"" AND DTYPES MATCHES "fp16")
+            #message("fp16 instance found!")
+            set(add_inst 1)
+    endif()
+    if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp32\"" AND DTYPES MATCHES "fp32")
+            #message("fp32 instance found!")
+            set(add_inst 1)
+    endif()
+    if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp64\"" AND DTYPES MATCHES "fp64")
+            #message("fp64 instance found!")
+            set(add_inst 1)
+    endif()
+    if("${cmake_instance}" MATCHES "DTYPES MATCHES \"bf16\"" AND DTYPES MATCHES "bf16")
+            #message("bf16 instance found!")
+            set(add_inst 1)
+    endif()
+    if("${cmake_instance}" MATCHES "DTYPES MATCHES \"int8\"" AND DTYPES MATCHES "int8")
+            #message("int8 instance found!")
+            set(add_inst 1)
+    endif()
+    if(NOT "${cmake_instance}" MATCHES "DTYPES")
+            #message("instance should be built for all types!")
+            set(add_inst 1)
+    endif()
+    if(add_inst EQUAL 1 OR NOT DEFINED DTYPES)
+      list(APPEND CK_DEVICE_INSTANCES device_${subdir_path}_instance)
+    endif()
+ENDIF()
 ENDFOREACH()
-add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
 
-rocm_package_setup_component(tests
+add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
+add_subdirectory(library)
+
+if(NOT DEFINED INSTANCES_ONLY)
+   rocm_package_setup_component(tests
         LIBRARY_NAME composablekernel
         PACKAGE_NAME tests # Prevent -static suffix on package name
-)
+   )
 
-rocm_package_setup_component(examples
+   rocm_package_setup_component(examples
         LIBRARY_NAME composablekernel
         PACKAGE_NAME examples
-)
+   )
 
-rocm_package_setup_component(profiler
+   rocm_package_setup_component(profiler
         LIBRARY_NAME composablekernel
         PACKAGE_NAME ckProfiler
-)
+   )
 
-add_subdirectory(library)
-add_subdirectory(example)
-add_subdirectory(test)
-add_subdirectory(profiler)
+   add_subdirectory(example)
+   add_subdirectory(test)
+   add_subdirectory(profiler)
+endif()
 
 #Create an interface target for the include only files and call it "composablekernels"
 include(CMakePackageConfigHelpers)

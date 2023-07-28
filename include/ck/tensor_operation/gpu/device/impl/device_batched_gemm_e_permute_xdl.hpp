@@ -571,6 +571,11 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(!ck::is_xdl_supported())
+        {
+            return false;
+        }
+
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                            arg.b_grid_desc_n_k_,
                                            ck::Tuple<>{},
