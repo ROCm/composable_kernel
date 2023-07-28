@@ -319,9 +319,13 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         {
             return MaskDisabledPredicate{};
         }
-        else if constexpr(MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle)
+        else if constexpr(MaskingSpec == MaskingSpecialization::MaskUpperTriangleFromTopLeft)
         {
-            return MaskOutUpperTrianglePredicate{};
+            return MaskUpperTriangleFromTopLeftPredicate{};
+        }
+        else if constexpr(MaskingSpec == MaskingSpecialization::MaskUpperTriangleFromBottomRight)
+        {
+            return MaskUpperTriangleFromBottomRightPredicate{};
         }
     }
     using C0MatrixMask = C0MatrixMask_impl<decltype(make_MaskOutPredicate())>;
@@ -439,7 +443,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
         Transform::matrix_padder.PadN,
-        MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle,
+        MaskingSpec != MaskingSpecialization::MaskDisabled,
         D0sTransferSrcScalarPerVector>;
 
     // Argument
@@ -503,7 +507,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
               c0de_element_op_{c0de_element_op},
               b1_element_op_{b1_element_op},
               c1de_element_op_{c1de_element_op},
-              c0_matrix_mask_{b_grid_desc_g_n_k_.GetLength(I1)},
+              c0_matrix_mask_{a_grid_desc_g_m_k_.GetLength(I1), b_grid_desc_g_n_k_.GetLength(I1)},
               raw_lengths_mz_nz_kz_gemm1nz_{a_gs_ms_ks_lengths[NumDimG + NumDimM - 1],
                                             b_gs_ns_ks_lengths[NumDimG + NumDimN - 1],
                                             b_gs_ns_ks_lengths[NumDimG + NumDimN + NumDimK - 1],

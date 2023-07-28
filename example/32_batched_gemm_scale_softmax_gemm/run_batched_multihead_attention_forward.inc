@@ -304,7 +304,7 @@ int run(int argc, char* argv[])
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
         // masking
-        const auto mask = DeviceGemmInstance::C0MatrixMask(N);
+        const auto mask = DeviceGemmInstance::C0MatrixMask(M, N);
         acc0_g_m_n.ForEach([&](auto& self, auto idx) {
             if(mask.IsMaskedElement(idx[1], idx[2]))
                 self(idx) = -ck::NumericLimits<float>::Infinity();

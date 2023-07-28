@@ -59,7 +59,7 @@ using CElementOp    = PassThrough;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 static constexpr auto MaskingSpec =
-    ck::tensor_operation::device::MaskingSpecialization::MaskOutUpperTriangle;
+    ck::tensor_operation::device::MaskingSpecialization::MaskUpperTriangleFromTopLeft;
 
 static constexpr auto TensorSpecA  = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecB0 = ck::tensor_operation::device::TensorSpecialization::Default;
