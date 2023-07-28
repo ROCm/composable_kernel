@@ -30,8 +30,8 @@ using EDataType  = F16;
 // using EDataType  = F32;
 
 using ALayout = Row;
-// using BLayout  = Col;
-using BLayout  = Row;
+using BLayout = Col;
+// using BLayout  = Row;
 using D0Layout = Row;
 using DsLayout = ck::Tuple<D0Layout>;
 using ELayout  = Row;
@@ -198,7 +198,7 @@ int main()
             op_ptr->SetDeviceKernelArgs(argument_ptr.get(),
                                         grouped_gemm_kernel_args_dev.GetDeviceBuffer());
 
-            op_ptr->SetKBatch(argument_ptr.get(), 4);
+            op_ptr->SetKBatch(argument_ptr.get(), 2);
 
             float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
