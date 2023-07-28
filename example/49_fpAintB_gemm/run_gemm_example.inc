@@ -28,7 +28,7 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     // assume scale tensor is [1, n]
-    Tensor<ScaleDataType> scale_k_n(f_host_tensor_descriptor(K, N, 0, BLayout{}));
+    Tensor<ScaleDataType> scale_k_n(f_host_tensor_descriptor(K, N, 0, Row{}));
 
     switch(config.init_method)
     {
@@ -51,7 +51,7 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     case 4:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{1.f, 1.f}(a_m_k);
         ck::utils::FillUniformDistributionIntegerValue<BDataType>{1.f, 1.f}(b_k_n);
-        ck::utils::FillUniformDistributionIntegerValue<ScaleDataType>{1.f, 1.f}(scale_k_n);
+        ck::utils::FillUniformDistributionIntegerValue<ScaleDataType>{2.f, 2.f}(scale_k_n);
         break;
     case 5:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{-2.f, 2.f}(a_m_k);
@@ -64,6 +64,50 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
         ck::utils::FillUniformDistribution<ScaleDataType>{-1.f, 1.f}(scale_k_n);
     }
 
+#if 0
+    printf("Matrix A:\n");
+    for (int im = 0; im < M; im++)
+    {
+        for (int ik = 0; ik < K; ik++)
+        {
+            if(ik % 16 == 0){
+                printf("|");
+            }
+            
+            printf(" %04x", *(reinterpret_cast<uint16_t*>(&a_m_k(im,ik))));
+        }
+        printf("\n");
+    }
+
+    printf("Matrix B:\n");
+    for (int in = 0; in < N; in++)
+    {
+        for (int ik = 0; ik < K; ik++)
+        {
+            if(ik % 16 == 0){
+                printf("|");
+            }
+            
+            printf(" %02x", b_k_n(ik,in));
+        }
+        printf("\n");
+    }
+
+    printf("Matrix Scale:\n");
+    for (int in = 0; in < N; in++)
+    {
+        for (int ik = 0; ik < K; ik++)
+        {
+            if(ik % 16 == 0){
+                printf("|");
+            }
+            
+            printf(" %04x", *(reinterpret_cast<uint16_t*>(&scale_k_n(ik,in))));
+        }
+        printf("\n");
+    }
+    #endif 
+    
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 

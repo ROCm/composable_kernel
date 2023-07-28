@@ -182,8 +182,7 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
 
         const auto N = b_grid_desc_n_k.GetLength(I0);
         const auto K = b_grid_desc_n_k.GetLength(I1);
-        // When K = 1, it might be scale tensor.
-        assert(K % K1 == 0 && K != 1);
+        assert(K % K1 == 0);
 
         if constexpr(BEnableLds)
         {
@@ -216,6 +215,52 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
         }
     }
 
+    static auto MakeScaleGridDescriptor(index_t KRaw, index_t NRaw, index_t StrideB = 0)
+    {
+        // assume Scale is [1, N]
+        const auto scale_grid_desc_n_k = [&]() {
+            const auto scale_grid_desc_nraw_kraw =
+                make_naive_tensor_descriptor(make_tuple(NRaw, KRaw), make_tuple(I1, StrideB));
+
+            return matrix_padder.PadBDescriptor_N_K(scale_grid_desc_nraw_kraw);
+        }();
+
+        const auto N = scale_grid_desc_n_k.GetLength(I0);
+        const auto K = scale_grid_desc_n_k.GetLength(I1);
+        // When K = 1, it might be scale tensor.
+        assert(K % K1 == 0 && K != 1);
+
+        if constexpr(BEnableLds)
+        {
+            const index_t K0 = K / K1;
+
+            return transform_tensor_descriptor(
+                scale_grid_desc_n_k,
+                make_tuple(make_unmerge_transform(make_tuple(K0, 1)), // Reduce K1 = 1
+                           make_pass_through_transform(N)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+        else
+        {
+            constexpr auto B_KRow      = 2;
+            constexpr auto B_K0PerWmma = WmmaK / B_KRow / K1Number;
+            const auto B_KWmma         = K / WmmaK;
+
+            const auto N0 = N / NPerBlock;
+            // 0   1     0         1                2        3             4        5          6
+            // M - K <-> A_KWmma - MBlock*MRepeat - MWaves - A_K0PerWmma - A_KRow - MPerWmma - A_K1
+            return transform_tensor_descriptor(
+                scale_grid_desc_n_k,
+                make_tuple(make_unmerge_transform(make_tuple(
+                               B_KWmma, Number<B_K0PerWmma>{}, Number<B_KRow>{}, K1Number)),
+                           make_unmerge_transform(
+                               make_tuple(N0 * NRepeat, Number<NWaves>{}, Number<NPerWmma>{}))),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 3, 4, 6>{}, Sequence<1, 2, 5>{}));
+        }
+    }
+
     static auto MakeCGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideC)
     {
         const auto c_grid_desc_mraw_nraw = [&]() {
@@ -237,7 +282,7 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
     // Gridwise descriptor, mapping to whole given provblem.
     using AGridDesc     = decltype(MakeAGridDescriptor(1, 1, 1));
     using BGridDesc     = decltype(MakeBGridDescriptor(1, 1, 1));
-    using ScaleGridDesc = decltype(MakeBGridDescriptor(1, 1, 1));
+    using ScaleGridDesc = decltype(MakeScaleGridDescriptor(1, 1, 0));
     using CGridDesc_M_N = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
@@ -330,7 +375,7 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
         {
             a_grid_desc_     = DeviceOp::MakeAGridDescriptor(M, K, StrideA);
             b_grid_desc_     = DeviceOp::MakeBGridDescriptor(K, N, StrideB);
-            scale_grid_desc_ = DeviceOp::MakeBGridDescriptor(K, N, 0);
+            scale_grid_desc_ = DeviceOp::MakeScaleGridDescriptor(K, N, 0);
             c_grid_desc_m_n_ = DeviceOp::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             block_2_ctile_map_ =

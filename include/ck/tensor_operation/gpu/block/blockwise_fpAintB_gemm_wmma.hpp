@@ -309,7 +309,8 @@ struct Blockwise_fpAintB_GemmWMMA
             b_thread_desc_.GetElementSpaceSize());
         auto scale_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ScaleDataType>(
             scale_thread_desc_.GetElementSpaceSize());
-        auto converted_b_thread_buf = b_thread_buf;
+        auto converted_b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ADataType>(
+            b_thread_desc_.GetElementSpaceSize());
 
         // basic intrinsic to determine loopover direction
         if constexpr(MRepeat < NRepeat)
@@ -345,7 +346,7 @@ struct Blockwise_fpAintB_GemmWMMA
                                 scale_thread_buf);
 
                             // convert B from int8 to fp16, multiply scale
-                            static_for<0, b_thread_buf.size(), 1>{}([&](auto i) {
+                            static_for<0, b_thread_buf.Size(), 1>{}([&](auto i) {
                                 converted_b_thread_buf(i) =
                                     scale_thread_buf[i / WmmaK] *
                                     type_convert<ADataType>(b_thread_buf[i]);
@@ -390,6 +391,20 @@ struct Blockwise_fpAintB_GemmWMMA
         else
         {
             static_for<0, NRepeat, 1>{}([&](auto n0) {
+                // read weight scale
+                scale_thread_copy_.Run(
+                    scale_block_desc_1_n0_n1_n2_1,
+                    make_tuple(I0, n0, I0, I0, I0, I0),
+                    scale_block_buf,
+                    scale_thread_desc_,
+                    make_tuple(I0, n0, I0, I0, I0, I0),
+                    scale_thread_buf);
+#if 0
+                    printf("Tid: %03d, n: %02d, scale_thread_buf: %04x\n",
+                            get_thread_local_1d_id(), n0.value,
+                            *(reinterpret_cast<const uint16_t*>(&scale_thread_buf[n0]))
+                             );
+#endif
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     static_for<0, KPerBlock / WmmaK, 1>{}([&](auto k) { // k=0,1,2 instead of
                                                                         // k=0,kpack*1, ..
@@ -400,16 +415,7 @@ struct Blockwise_fpAintB_GemmWMMA
                             b_block_buf,
                             b_thread_desc_,
                             make_tuple(I0, n0, I0, I0, I0, I0),
-                            b_thread_buf);
-                        // read weight scale
-                        scale_thread_copy_.Run(
-                            scale_block_desc_1_n0_n1_n2_1,
-                            make_tuple(Number<k * WmmaK / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
-                            scale_block_buf,
-                            scale_thread_desc_,
-                            make_tuple(I0, n0, I0, I0, I0, I0),
-                            scale_thread_buf);
-
+                            b_thread_buf);                        
                         // convert B from int8 to fp16, multiply scale
                         static_for<0, b_thread_buf.Size(), 1>{}([&](auto i) {
                             converted_b_thread_buf(i) = scale_thread_buf[i / WmmaK] *
@@ -423,7 +429,71 @@ struct Blockwise_fpAintB_GemmWMMA
                             a_thread_desc_,
                             make_tuple(I0, m0, I0, I0, I0, I0),
                             a_thread_buf);
-
+                        if (true){
+#if 0
+                            printf("Tid: %03d, m, n, k: %02d, %02d, %02d, a_thread_buf: %04x %04x %04x %04x|  %04x %04x %04x %04x|  %04x %04x %04x %04x|  %04x %04x %04x %04x|\n",
+                                    get_thread_local_1d_id(), m0.value, n0.value, k.value,
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<0>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<1>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<2>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<3>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<4>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<5>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<6>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<7>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<8>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<9>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<10>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<11>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<12>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<13>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<14>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<15>{}]))
+                                     );
+#endif
+#if 0
+                            printf("Tid: %03d, m, n, k: %02d, %02d, %02d, b_thread_buf: %02x %02x %02x %02x|  %02x %02x %02x %02x|  %02x %02x %02x %02x|  %02x %02x %02x %02x|\n",
+                                    get_thread_local_1d_id(), m0.value, n0.value, k.value,
+                                    b_thread_buf[Number<0>{}],
+                                    b_thread_buf[Number<1>{}],
+                                    b_thread_buf[Number<2>{}],
+                                    b_thread_buf[Number<3>{}],
+                                    b_thread_buf[Number<4>{}],
+                                    b_thread_buf[Number<5>{}],
+                                    b_thread_buf[Number<6>{}],
+                                    b_thread_buf[Number<7>{}],
+                                    b_thread_buf[Number<8>{}],
+                                    b_thread_buf[Number<9>{}],
+                                    b_thread_buf[Number<10>{}],
+                                    b_thread_buf[Number<11>{}],
+                                    b_thread_buf[Number<12>{}],
+                                    b_thread_buf[Number<13>{}],
+                                    b_thread_buf[Number<14>{}],
+                                    b_thread_buf[Number<15>{}]
+                                     );
+#endif
+#if 0
+                            printf("Tid: %03d, m, n, k: %02d, %02d, %02d, converted_b_thread_buf: %04x %04x %04x %04x|  %04x %04x %04x %04x|  %04x %04x %04x %04x|  %04x %04x %04x %04x|\n",
+                                    get_thread_local_1d_id(), m0.value, n0.value, k.value,
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<0>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<1>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<2>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<3>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<4>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<5>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<6>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<7>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<8>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<9>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<10>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<11>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<12>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<13>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<14>{}])),
+                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<15>{}]))
+                                     );
+#endif
+                        }
                         vector_type<ADataType, WmmaK> a_thread_vec;
                         vector_type<ADataType, WmmaK> b_thread_vec;
 
@@ -497,7 +567,7 @@ struct Blockwise_fpAintB_GemmWMMA
                                                 I1,
                                                 Number<B_KRow>{},
                                                 I1,
-                                                Number<B_K1>{}),
+                                                I1),
                                      make_tuple(I0, I1, I0, I0, I0, I0));
 
     // C[M, N, NumRegWMMA]
@@ -587,11 +657,11 @@ struct Blockwise_fpAintB_GemmWMMA
                                              ScaleDataType,
                                              decltype(scale_block_desc_1_n0_n1_n2_1),
                                              decltype(scale_thread_desc_),
-                                             Sequence<WmmaK / B_K1 / B_KRow, 1, 1, B_KRow, 1, B_K1>,
+                                             Sequence<WmmaK / B_K1 / B_KRow, 1, 1, B_KRow, 1, 1>,
                                              Sequence<0, 1, 2, 3, 4, 5>,
                                              5,
-                                             B_K1,
-                                             B_K1>;
+                                             1,
+                                             1>;
     };
 
     template <>
