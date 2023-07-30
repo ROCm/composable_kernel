@@ -129,9 +129,10 @@ __global__ void
         id_off += grid_size_grp;
     }
 #else
-    ignore = grid_size_grp;
     ignore = gemm_descs_const;
     ignore = group_count;
+    ignore = grid_size_grp;
+    ignore = KBatch;
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
