@@ -121,8 +121,8 @@ set_source_files_properties(device_gemm_xdl_f16_f16_f16/km_nk_mn_default_pipelin
    COMPILE_DEFINITIONS "${WAVES_PER_EU_DEFS};${IGLP_OPT_DEFS}")
 # layout=TT
 set_source_files_properties(device_gemm_xdl_f16_f16_f16/mk_kn_mn_default_pipeline_v2_opt_instance.cpp PROPERTIES
-   COMPILE_OPTIONS "${MAX_ILP_OPTS}"
-   COMPILE_DEFINITIONS "${WAVES_PER_EU_DEFS}")
+   COMPILE_OPTIONS ";;"
+   COMPILE_DEFINITIONS "${WAVES_PER_EU_DEFS};${IGLP_OPT_DEFS}")
 # layout=TN
 set_source_files_properties(device_gemm_xdl_f16_f16_f16/mk_nk_mn_default_pipeline_v2_opt_instance.cpp PROPERTIES
    COMPILE_OPTIONS "${MAX_ILP_OPTS}"
