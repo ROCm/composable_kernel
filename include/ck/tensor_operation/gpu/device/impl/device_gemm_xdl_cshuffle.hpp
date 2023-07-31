@@ -65,7 +65,8 @@ template <typename ALayout,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched     = make_default_loop_scheduler(),
-          PipelineVersion PipelineVer = PipelineVersion::v1>
+          PipelineVersion PipelineVer = PipelineVersion::v1,
+          bool EnableMixedPrecision   = false>
 struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                                                    BLayout,
                                                    CLayout,
@@ -87,7 +88,8 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         ALayout,
         BLayout,
         CLayout,
-        ADataType, // TODO: distinguish A/B datatype
+        ADataType,
+        BDataType,
         GemmAccDataType,
         CShuffleDataType,
         CDataType,
@@ -128,7 +130,8 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
-        PipelineVer>;
+        PipelineVer,
+        EnableMixedPrecision>;
 
     using Argument = typename GridwiseGemm::Argument;
 
