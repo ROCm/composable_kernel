@@ -124,7 +124,7 @@ int profile_gemm(int argc, char* argv[])
     if(false)
         ;
 #ifdef __fp32__
-    if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
+    else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(Row{}, Row{}, Row{}, F32{}, F32{}, F32{}, F32{});
     }
