@@ -378,6 +378,9 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         const index_t GemmM      = K;
         const index_t GemmN      = C * X;
 
+        const auto PadGemmM = (MPerBlock - GemmM % MPerBlock) % MPerBlock;
+        const auto PadGemmN = (NPerBlock - GemmN % NPerBlock) % NPerBlock;
+
         const index_t GemmKBatch = batch_k;
         const index_t GemmK0 =
             math::integer_divide_ceil(GemmKTotal, GemmK1Number * K0PerBlock * GemmKBatch) *
@@ -496,9 +499,37 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
             const auto wei_gemmm_gemmn_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(K, X * C));
 
-            return make_tuple(out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
-                              in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
-                              wei_gemmm_gemmn_grid_desc);
+            // Padd
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_pad_grid_desc =
+                transform_tensor_descriptor(
+                    out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
+                    make_tuple(make_pass_through_transform(GemmKBatch),
+                               make_pass_through_transform(GemmK0),
+                               make_right_pad_transform(GemmM, PadGemmM),
+                               make_pass_through_transform(GemmK1Number)),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
+            const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_pad_grid_desc =
+                transform_tensor_descriptor(
+                    in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
+                    make_tuple(make_pass_through_transform(GemmKBatch),
+                               make_pass_through_transform(GemmK0),
+                               make_right_pad_transform(GemmN, PadGemmN),
+                               make_pass_through_transform(GemmK1Number)),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
+            const auto wei_gemmm_gemmn_pad_grid_desc =
+                transform_tensor_descriptor(wei_gemmm_gemmn_grid_desc,
+                                            make_tuple(make_right_pad_transform(GemmM, PadGemmM),
+                                                       make_right_pad_transform(GemmN, PadGemmN)),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            return make_tuple(out_gemmkbatch_gemmk0_gemmm_gemmk1_pad_grid_desc,
+                              in_gemmkbatch_gemmk0_gemmn_gemmk1_pad_grid_desc,
+                              wei_gemmm_gemmn_pad_grid_desc);
         }
     }
 
@@ -545,6 +576,9 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         const index_t GemmKTotal = N * Ho * Wo;
         const index_t GemmM      = K;
         const index_t GemmN      = C * X * Y;
+
+        const auto PadGemmM = (MPerBlock - GemmM % MPerBlock) % MPerBlock;
+        const auto PadGemmN = (NPerBlock - GemmN % NPerBlock) % NPerBlock;
 
         const index_t GemmKBatch = batch_k;
         const index_t GemmK0 =
@@ -651,9 +685,37 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
-            return make_tuple(out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
-                              in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
-                              wei_grid_desc);
+            // Padd
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_pad_grid_desc =
+                transform_tensor_descriptor(
+                    out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
+                    make_tuple(make_pass_through_transform(GemmKBatch),
+                               make_pass_through_transform(GemmK0),
+                               make_right_pad_transform(GemmM, PadGemmM),
+                               make_pass_through_transform(GemmK1Number)),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
+            const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_pad_grid_desc =
+                transform_tensor_descriptor(
+                    in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
+                    make_tuple(make_pass_through_transform(GemmKBatch),
+                               make_pass_through_transform(GemmK0),
+                               make_right_pad_transform(GemmN, PadGemmN),
+                               make_pass_through_transform(GemmK1Number)),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
+            const auto wei_gemmm_gemmn_pad_grid_desc =
+                transform_tensor_descriptor(wei_gemmm_gemmn_grid_desc,
+                                            make_tuple(make_right_pad_transform(GemmM, PadGemmM),
+                                                       make_right_pad_transform(GemmN, PadGemmN)),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            return make_tuple(out_gemmkbatch_gemmk0_gemmm_gemmk1_pad_grid_desc,
+                              in_gemmkbatch_gemmk0_gemmn_gemmk1_pad_grid_desc,
+                              wei_gemmm_gemmn_pad_grid_desc);
         }
     }
 
@@ -707,6 +769,9 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         const index_t GemmKTotal = N * Do * Ho * Wo;
         const index_t GemmM      = K;
         const index_t GemmN      = C * Z * X * Y;
+
+        const auto PadGemmM = (MPerBlock - GemmM % MPerBlock) % MPerBlock;
+        const auto PadGemmN = (NPerBlock - GemmN % NPerBlock) % NPerBlock;
 
         const index_t GemmKBatch = batch_k;
         const index_t GemmK0 =
@@ -822,9 +887,37 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
-            return make_tuple(out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
-                              in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
-                              wei_grid_desc);
+            // Padd
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_pad_grid_desc =
+                transform_tensor_descriptor(
+                    out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
+                    make_tuple(make_pass_through_transform(GemmKBatch),
+                               make_pass_through_transform(GemmK0),
+                               make_right_pad_transform(GemmM, PadGemmM),
+                               make_pass_through_transform(GemmK1Number)),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
+            const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_pad_grid_desc =
+                transform_tensor_descriptor(
+                    in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
+                    make_tuple(make_pass_through_transform(GemmKBatch),
+                               make_pass_through_transform(GemmK0),
+                               make_right_pad_transform(GemmN, PadGemmN),
+                               make_pass_through_transform(GemmK1Number)),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
+            const auto wei_gemmm_gemmn_pad_grid_desc =
+                transform_tensor_descriptor(wei_grid_desc,
+                                            make_tuple(make_right_pad_transform(GemmM, PadGemmM),
+                                                       make_right_pad_transform(GemmN, PadGemmN)),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            return make_tuple(out_gemmkbatch_gemmk0_gemmm_gemmk1_pad_grid_desc,
+                              in_gemmkbatch_gemmk0_gemmn_gemmk1_pad_grid_desc,
+                              wei_gemmm_gemmn_pad_grid_desc);
         }
     } // function end
 
