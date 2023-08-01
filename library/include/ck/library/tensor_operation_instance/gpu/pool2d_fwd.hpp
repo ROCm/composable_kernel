@@ -22,7 +22,7 @@ static constexpr auto WindowRank = 2;
 
 static constexpr auto MaxOp = ck::ReduceTensorOp::MAX;
 static constexpr auto AvgOp = ck::ReduceTensorOp::AVG;
-
+#ifdef __fp16__
 // FP16
 void add_device_pool2d_fwd_nhwc_f16_instances(
     std::vector<
@@ -36,7 +36,8 @@ void add_device_pool2d_fwd_nhwc_f16_instances(
 void add_device_pool2d_fwd_nhwc_index_f16_instances(
     std::vector<
         std::unique_ptr<DevicePoolFwd<InOutRank, WindowRank, F16, F16, I32, MaxOp, true>>>&);
-
+#endif
+#ifdef __fp32__
 // FP32
 void add_device_pool2d_fwd_nhwc_f32_instances(
     std::vector<
@@ -50,7 +51,7 @@ void add_device_pool2d_fwd_nhwc_f32_instances(
 void add_device_pool2d_fwd_nhwc_index_f32_instances(
     std::vector<
         std::unique_ptr<DevicePoolFwd<InOutRank, WindowRank, F32, F32, I32, MaxOp, true>>>&);
-
+#endif
 template <typename InDataType,
           typename OutDataType,
           typename IndexDataType,
@@ -75,7 +76,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-
+#ifdef __fp16__
         if constexpr(is_same_v<InDataType, F16> && is_same_v<OutDataType, F16> &&
                      is_same_v<IndexDataType, I32>)
         {
@@ -88,7 +89,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
                 add_device_pool2d_fwd_nhwc_f16_instances(op_ptrs);
             }
         }
-        else if constexpr(is_same_v<InDataType, F32> && is_same_v<OutDataType, F32> &&
+#endif
+#ifdef __fp32__
+        if constexpr(is_same_v<InDataType, F32> && is_same_v<OutDataType, F32> &&
                           is_same_v<IndexDataType, I32>)
         {
             if constexpr(OutputIndex && ReduceOpId == MaxOp)
@@ -100,7 +103,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
                 add_device_pool2d_fwd_nhwc_f32_instances(op_ptrs);
             }
         }
-
+#endif
         return op_ptrs;
     }
 };
