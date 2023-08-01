@@ -419,7 +419,7 @@ struct Blockwise_fpAintB_GemmWMMA
                         // convert B from int8 to fp16, multiply scale
                         static_for<0, b_thread_buf.Size(), 1>{}([&](auto i) {
                             converted_b_thread_buf(i) = scale_thread_buf[i / WmmaK] *
-                                                        type_convert<ADataType>(b_thread_buf[i]);
+                                                        type_convert<ADataType>(b_thread_buf[i]); // call byte permute
                         });
                         // read A
                         a_thread_copy_.Run(
