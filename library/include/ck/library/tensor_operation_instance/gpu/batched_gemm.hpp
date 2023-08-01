@@ -182,7 +182,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceBatche
 #endif
 #ifdef __fp16__
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
-                          is_same_v<CDataType, half_t>)
+                     is_same_v<CDataType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
@@ -208,7 +208,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceBatche
 #endif
 #ifdef __bf16__
         if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, bhalf_t> &&
-                          is_same_v<CDataType, bhalf_t>)
+                     is_same_v<CDataType, bhalf_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
@@ -234,7 +234,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceBatche
 #endif
 #ifdef __int8__
         if constexpr(is_same_v<ADataType, int8_t> && is_same_v<BDataType, int8_t> &&
-                          is_same_v<CDataType, int8_t>)
+                     is_same_v<CDataType, int8_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)

@@ -68,7 +68,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceSoftma
 #endif
 #ifdef __fp32__
         if constexpr(std::is_same_v<InDataType, F32> && std::is_same_v<AccDataType, F32> &&
-                          std::is_same_v<OutDataType, F32>)
+                     std::is_same_v<OutDataType, F32>)
         {
             if constexpr(Rank == 3)
             {

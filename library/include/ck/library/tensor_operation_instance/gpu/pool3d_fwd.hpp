@@ -92,7 +92,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
 #endif
 #ifdef __fp32__
         if constexpr(is_same_v<InDataType, F32> && is_same_v<OutDataType, F32> &&
-                          is_same_v<IndexDataType, I32>)
+                     is_same_v<IndexDataType, I32>)
         {
             if constexpr(OutputIndex && ReduceOpId == MaxOp)
             {

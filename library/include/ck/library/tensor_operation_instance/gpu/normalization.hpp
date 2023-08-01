@@ -86,7 +86,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceNormal
 #endif
 #ifdef __fp32__
         if constexpr(is_same_v<XDataType, F32> && is_same_v<GammaDataType, F32> &&
-                          is_same_v<BetaDataType, F32> && is_same_v<YDataType, F32>)
+                     is_same_v<BetaDataType, F32> && is_same_v<YDataType, F32>)
         {
             if constexpr(Rank == 2 && NumReduceDim == 1)
             {
