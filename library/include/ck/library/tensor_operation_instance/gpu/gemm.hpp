@@ -23,12 +23,22 @@ void add_device_gemm_dl_f16_f16_f16_km_kn_mn_instances(
         DeviceGemm<Col, Row, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 
+void add_device_gemm_dl_dpp8_f16_f16_f16_km_kn_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm<Col, Row, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
 void add_device_gemm_dl_f16_f16_f16_km_kn_mn_irregular_instances(
     std::vector<std::unique_ptr<
         DeviceGemm<Col, Row, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 
 void add_device_gemm_dl_f16_f16_f16_km_nk_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm<Col, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_dl_dpp8_f16_f16_f16_km_nk_mn_instances(
     std::vector<std::unique_ptr<
         DeviceGemm<Col, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
@@ -43,12 +53,22 @@ void add_device_gemm_dl_f16_f16_f16_mk_kn_mn_instances(
         DeviceGemm<Row, Row, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 
+void add_device_gemm_dl_dpp8_f16_f16_f16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm<Row, Row, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
 void add_device_gemm_dl_f16_f16_f16_mk_kn_mn_irregular_instances(
     std::vector<std::unique_ptr<
         DeviceGemm<Row, Row, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 
 void add_device_gemm_dl_f16_f16_f16_mk_nk_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_dl_dpp8_f16_f16_f16_mk_nk_mn_instances(
     std::vector<std::unique_ptr<
         DeviceGemm<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
@@ -353,6 +373,7 @@ struct DeviceOperationInstanceFactory<
 #ifdef DL_KERNELS
                 add_device_gemm_dl_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
                 add_device_gemm_dl_f16_f16_f16_mk_kn_mn_irregular_instances(op_ptrs);
+                add_device_gemm_dl_dpp8_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
 #endif
                 add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
             }
@@ -363,6 +384,7 @@ struct DeviceOperationInstanceFactory<
 #ifdef DL_KERNELS
                 add_device_gemm_dl_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
                 add_device_gemm_dl_f16_f16_f16_mk_nk_mn_irregular_instances(op_ptrs);
+                add_device_gemm_dl_dpp8_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
 #endif
                 add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
                 add_device_gemm_xdl_c_shuffle_2_stage_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
@@ -374,6 +396,7 @@ struct DeviceOperationInstanceFactory<
 #ifdef DL_KERNELS
                 add_device_gemm_dl_f16_f16_f16_km_kn_mn_instances(op_ptrs);
                 add_device_gemm_dl_f16_f16_f16_km_kn_mn_irregular_instances(op_ptrs);
+                add_device_gemm_dl_dpp8_f16_f16_f16_km_kn_mn_instances(op_ptrs);
 #endif
                 add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(op_ptrs);
             }
@@ -384,6 +407,7 @@ struct DeviceOperationInstanceFactory<
 #ifdef DL_KERNELS
                 add_device_gemm_dl_f16_f16_f16_km_nk_mn_instances(op_ptrs);
                 add_device_gemm_dl_f16_f16_f16_km_nk_mn_irregular_instances(op_ptrs);
+                add_device_gemm_dl_dpp8_f16_f16_f16_km_nk_mn_instances(op_ptrs);
 #endif
                 add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(op_ptrs);
             }

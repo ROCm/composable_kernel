@@ -2,9 +2,11 @@ add_custom_target(example_gemm_dl)
 
 add_example_executable(example_gemm_dl_fp32 gemm_dl_fp32.cpp)
 add_example_executable(example_gemm_dl_fp16 gemm_dl_fp16.cpp)
+add_example_executable(example_gemm_dl_dpp8_fp16 gemm_dl_dpp8_fp16.cpp)
 
 add_dependencies(example_gemm_dl example_gemm_dl_fp32)
 add_dependencies(example_gemm_dl example_gemm_dl_fp16)
+add_dependencies(example_gemm_dl example_gemm_dl_dpp8_fp16)
 
 if(DTYPES MATCHES "int8" OR NOT DEFINED DTYPES)
    add_example_executable(example_gemm_dl_int8 gemm_dl_int8.cpp)
