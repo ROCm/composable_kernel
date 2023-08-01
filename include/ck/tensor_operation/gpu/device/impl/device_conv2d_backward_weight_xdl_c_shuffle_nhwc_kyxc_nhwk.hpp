@@ -649,6 +649,11 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(!ck::is_xdl_supported())
+        {
+            return false;
+        }
+
         // vector load A/B matrix from global memory
         if(!(ABlockTransferSrcVectorDim == 2 && BBlockTransferSrcVectorDim == 2 &&
              arg.Conv_K_ % ABlockTransferSrcScalarPerVector == 0 &&
