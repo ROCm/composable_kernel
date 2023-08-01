@@ -3,6 +3,7 @@ set(PROFILER_SOURCES
     profiler.cpp
     profile_gemm.cpp
     profile_gemm_splitk.cpp
+    profile_gemm_streamk.cpp
     profile_gemm_bilinear.cpp
     profile_gemm_bias_add_reduce.cpp
     profile_gemm_add_add_fastgelu.cpp
@@ -33,9 +34,11 @@ set(PROFILER_SOURCES
     profile_grouped_gemm_fastgelu.cpp
     profile_contraction_bilinear.cpp
     profile_contraction_scale.cpp
-    profile_batched_gemm_multi_d.cpp
     profile_grouped_conv_bwd_data.cpp
 )
+if(DL_KERNELS)
+  list(APPEND PROFILER_SOURCES profile_batched_gemm_multi_d.cpp)
+endif()
 
 set(PROFILER_EXECUTABLE ckProfiler)
 
@@ -45,6 +48,7 @@ target_compile_options(${PROFILER_EXECUTABLE} PRIVATE -Wno-global-constructors)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE utility)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_splitk_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_streamk_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_bilinear_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_add_fastgelu_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_multiply_instance)
@@ -78,7 +82,9 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_gemm_fastgel
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_bilinear_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_scale_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_pool3d_fwd_instance)
-target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_multi_d_instance)
+if(DL_KERNELS)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_multi_d_instance)
+endif()
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv2d_bwd_data_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_bwd_data_instance)
 rocm_install(TARGETS ${PROFILER_EXECUTABLE} COMPONENT profiler)
