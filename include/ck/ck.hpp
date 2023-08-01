@@ -198,7 +198,7 @@
 #define CK_WORKAROUND_SWDEV_388832 1
 
 // workaround: Grouped Conv2d_bwd_data fails for already implemented instance
-#define CK_WORKAROUND_GITHUB_CK_824 1
+#define CK_WORKAROUND_GITHUB_ISSUE_824 1
 
 // flag to enable (1) or disable (0) the debugging output in some kernels
 #define DEBUG_LOG 0
