@@ -732,6 +732,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             << BBlockTransferSrcScalarPerVector << ", "
             << CShuffleMXdlPerWavePerShuffle << ", "
             << CShuffleNXdlPerWavePerShuffle << ", "
+            << ABlockTransferThreadClusterLengths_K0_M_K1{} << ", "
             << getGemmSpecializationString(GemmSpec)
             << ">";
         // clang-format on
