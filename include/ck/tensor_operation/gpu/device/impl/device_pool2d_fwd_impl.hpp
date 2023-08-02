@@ -3,16 +3,7 @@
 
 #pragma once
 
-#include <iostream>
-#include <sstream>
-
-#include "ck/tensor_description/tensor_descriptor.hpp"
-#include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_pool3d_fwd_impl.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_threadwise.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
