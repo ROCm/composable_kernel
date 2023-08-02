@@ -264,7 +264,7 @@ TEST_F(TestGroupedConvNdFwd, GroupedConv2dFwdNHWGC)
         // fp16
         pass = ck::profiler::profile_grouped_conv_fwd_impl<2,
                                                            ck::tensor_layout::convolution::NHWGC,
-                                                           ck::tensor_layout::convolution::KYXGC,
+                                                           ck::tensor_layout::convolution::GKYXC,
                                                            ck::tensor_layout::convolution::NHWGK,
                                                            ck::half_t,
                                                            ck::half_t,
