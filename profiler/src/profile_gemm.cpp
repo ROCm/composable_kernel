@@ -121,7 +121,10 @@ int profile_gemm(int argc, char* argv[])
         return pass ? 0 : 1;
     };
 
-    if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
+    if(false)
+        ;
+#ifdef __fp32__
+    else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(Row{}, Row{}, Row{}, F32{}, F32{}, F32{}, F32{});
     }
@@ -137,6 +140,8 @@ int profile_gemm(int argc, char* argv[])
     {
         return profile(Col{}, Col{}, Row{}, F32{}, F32{}, F32{}, F32{});
     }
+#endif
+#ifdef __fp16__
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(Row{}, Row{}, Row{}, F16{}, F16{}, F32{}, F16{});
@@ -153,6 +158,7 @@ int profile_gemm(int argc, char* argv[])
     {
         return profile(Col{}, Col{}, Row{}, F16{}, F16{}, F32{}, F16{});
     }
+#endif
 #ifdef __bf16__
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
