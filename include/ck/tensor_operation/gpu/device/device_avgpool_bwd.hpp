@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
-#include "ck/utility/reduction_enums.hpp"
 
 namespace ck {
 namespace tensor_operation {
