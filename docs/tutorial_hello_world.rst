@@ -72,8 +72,8 @@ First let's clone the library and rebase to the tested version::
 To make our lives easier we prepared
 `docker images <https://hub.docker.com/r/rocm/composable_kernel>`_ with all the necessary
 dependencies. Pick the right image and create a container. In this tutorial we use
-``rocm/composable_kernel:ck_ub20.04_rocm5.3_release`` image, it is based on Ubuntu 20.04,
-ROCm v5.3 and a release version of compiler.
+``rocm/composable_kernel:ck_ub20.04_rocm5.6`` image, it is based on Ubuntu 20.04 and
+ROCm v5.6.
 
 If your current folder is ``${HOME}``, start the docker container with::
 
@@ -83,7 +83,7 @@ If your current folder is ``${HOME}``, start the docker container with::
     --group-add sudo  \
     -w /root/workspace  \
     -v ${HOME}:/root/workspace  \
-    rocm/composable_kernel:ck_ub20.04_rocm5.3_release  \
+    rocm/composable_kernel:ck_ub20.04_rocm5.6  \
     /bin/bash
 
 If your current folder is different from ``${HOME}``, adjust the line ``-v ${HOME}:/root/workspace``

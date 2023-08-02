@@ -30,7 +30,7 @@ run a docker container::
     --group-add sudo                                                      \
     -w /root/workspace                                                    \
     -v ${PATH_TO_LOCAL_WORKSPACE}:/root/workspace                         \
-    rocm/composable_kernel:ck_ub20.04_rocm5.3_release                     \
+    rocm/composable_kernel:ck_ub20.04_rocm5.6                             \
     /bin/bash
 
 and build the CK::
@@ -76,12 +76,11 @@ The docker images have everything you need for running CK including:
 Which image is right for me?
 -------------------------------------
 
-Let's take a look at the image naming, for example ``ck_ub20.04_rocm5.4_release``. The image specs are:
+Let's take a look at the image naming, for example ``ck_ub20.04_rocm5.6``. The image specs are:
 
 * ``ck`` - made for running Composable Kernel;
 * ``ub20.04`` - based on Ubuntu 20.04;
-* ``rocm5.4`` - ROCm platform version 5.4;
-* ``release`` - compiler version is release.
+* ``rocm5.6`` - ROCm platform version 5.6.
 
 So just pick the right image for your project dependencies and you're all set.
 
