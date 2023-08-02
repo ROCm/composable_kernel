@@ -222,11 +222,17 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     auto argument = gemm.MakeArgument(
         p_As, p_Bs, p_Ds, p_Cs, gemm_descs, a_element_op, b_element_op, c_element_op);
 
-    DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(&argument));
+    std::size_t grouped_gemm_kernel_args_buf_size =
+        grouped_gemm_kernel_args_.size() * sizeof(GroupedGemmKernelArgument);
 
-    hip_check_error(hipMemcpy(gemm_desc_workspace.GetDeviceBuffer(),
+    DeviceMem gemm_arg_dev_mem(grouped_gemm_kernel_args_buf_size);
+    DeviceMem gemm_workspace_dev(gemm.GetWorkSpaceSize(&argument));
+
+    gemm.SetWorkSpacePointer(&argument, gemm_workspace_dev.GetDeviceBuffer());
+
+    hip_check_error(hipMemcpy(gemm_arg_dev_mem.GetDeviceBuffer(),
                               grouped_gemm_kernel_args_.data(),
-                              gemm.GetWorkSpaceSize(&argument),
+                              grouped_gemm_kernel_args_buf_size,
                               hipMemcpyHostToDevice));
 
     if(!gemm.IsSupportedArgument(argument))
@@ -236,10 +242,20 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             "not support this GEMM problem");
     }
 
-    gemm.SetDeviceKernelArgs(argument, gemm_desc_workspace.GetDeviceBuffer());
+    gemm.SetDeviceKernelArgs(argument, gemm_arg_dev_mem.GetDeviceBuffer());
     gemm.SetKBatch(argument, config.k_batch);
 
     invoker.Run(argument, StreamConfig{nullptr, false});
+
+    if(config.time_kernel)
+    {
+        float ave_time   = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+        float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+        float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                  << " GB/s, " << gemm.GetTypeString() << std::endl;
+    }
 
     bool pass = true;
     if(config.do_verification)
@@ -273,16 +289,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         }
     }
 
-    if(config.time_kernel)
-    {
-        float ave_time   = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-        float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
-        float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s, " << gemm.GetTypeString() << std::endl;
-    }
-
     return pass;
 }
 
@@ -293,8 +299,10 @@ int main(int argc, char* argv[])
 
     problem_size.group_count = 16;
 
-    problem_size.Ms = {
-        167, 183, 177, 181, 153, 139, 156, 173, 163, 150, 204, 184, 168, 156, 168, 148};
+    // problem_size.Ms = {
+    // 167, 183, 177, 181, 153, 139, 156, 173, 163, 150, 180, 184, 168, 156, 168, 148};
+
+    problem_size.Ms = {0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0};
 
     for(int i = 0; i < problem_size.group_count; i++)
     {

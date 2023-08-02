@@ -475,6 +475,9 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                                DsGridPointer p_ds_grid,
                                EDataType* __restrict__ p_e_grid,
                                void* __restrict__ p_shared,
+                               uint32_t* barrier_count_start,
+                               uint32_t* barrier_count_finished,
+                               const index_t KBatch,
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
                                const CDEElementwiseOperation_& cde_element_op,
@@ -491,17 +494,6 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
 
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid, b_grid_desc_kbatch_bk0_n_bk1.GetElementSpaceSize());
-
-        const auto ds_grid_buf = generate_tuple(
-            [&](auto i) {
-                return make_dynamic_buffer<AddressSpaceEnum::Global>(
-                    p_ds_grid[i],
-                    ds_grid_desc_mblock_mperblock_nblock_nperblock[i].GetElementSpaceSize());
-            },
-            Number<NumDTensor_>{});
-
-        auto e_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_e_grid, e_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         // divide block work by [M, N]
         const auto block_work_idx =
@@ -661,8 +653,38 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                                                                c_thread_buf,
                                                                num_k_block_main_loop);
 
+        // ignore                              = barrier_count_start;
+        // ignore                              = barrier_count_finished;
+        // ignore                              = KBatch;
+
+        __shared__ index_t k_id_start_shared;
+
+        if(threadIdx.x == 0)
+        {
+            const auto k_id_start_t = atomicAdd(barrier_count_start, 1);
+            k_id_start_shared       = k_id_start_t;
+
+            if(k_id_start_t > 0)
+            {
+                while(__atomic_load_n(barrier_count_finished, __ATOMIC_RELAXED) == 0) {}
+            }
+        }
+
+        __syncthreads();
+
         // shuffle C and write out
         {
+            const auto ds_grid_buf = generate_tuple(
+                [&](auto i) {
+                    return make_dynamic_buffer<AddressSpaceEnum::Global>(
+                        p_ds_grid[i],
+                        ds_grid_desc_mblock_mperblock_nblock_nperblock[i].GetElementSpaceSize());
+                },
+                Number<NumDTensor_>{});
+
+            auto e_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                p_e_grid, e_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
                               NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");
@@ -799,36 +821,6 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                     },
                     Number<NumDTensor_>{}));
 
-            // blockwise copy C/D/E between LDS and global
-            auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7<
-                ThisThreadBlock,
-                decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType_{})),
-                Tuple<EDataType>,
-                decltype(c_ds_desc_refs),
-                decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)),
-                CDEElementwiseOperation_,
-                Sequence<static_cast<index_t>(EGlobalMemoryDataOperation)>, // FIXME: make Sequence
-                                                                            // support arbitray type
-                Sequence<1,
-                         CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
-                         1,
-                         CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
-                CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
-                Sequence<0, 1, 2, 3>, // typename DimAccessOrder,
-                3,                    // index_t VectorDim,
-                CDEShuffleBlockTransferScalarPerVector_NPerBlock,
-                sequence_merge_t<
-                    Sequence<true>,
-                    uniform_sequence_gen_t<NumDTensor_,
-                                           false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
-                Sequence<false>>                    // ThreadTransferDstResetCoordinateAfterRunFlags
-                {c_ds_desc_refs,
-                 idx_c_ds_block_begin,
-                 tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                 make_tuple(make_multi_index(block_work_idx[I1], 0, block_work_idx[I2], 0)),
-                 cde_element_op};
-
             // space filling curve for threadwise C in VGPR before shuffle
             constexpr auto sfc_c_vgpr =
                 SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
@@ -855,45 +847,166 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
 
             static_assert(num_access == sfc_cde_block.GetNumOfAccess(), "wrong!");
 
-            static_for<0, num_access, 1>{}([&](auto access_id) {
-                // make sure it's safe to write to LDS
-                block_sync_lds();
+            if(k_id_start_shared == 0)
+            {
+                // blockwise copy C/D/E between LDS and global
+                auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7<
+                    ThisThreadBlock,
+                    decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType_{})),
+                    Tuple<EDataType>,
+                    decltype(c_ds_desc_refs),
+                    decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)),
+                    CDEElementwiseOperation_,
+                    Sequence<static_cast<index_t>(InMemoryDataOperationEnum::Set)>, // FIXME: make
+                                                                                    // Sequence
+                                                                                    // support
+                                                                                    // arbitray type
+                    Sequence<1,
+                             CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
+                             1,
+                             CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
+                    CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                    Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
+                    Sequence<0, 1, 2, 3>, // typename DimAccessOrder,
+                    3,                    // index_t VectorDim,
+                    CDEShuffleBlockTransferScalarPerVector_NPerBlock,
+                    sequence_merge_t<Sequence<true>,
+                                     uniform_sequence_gen_t<
+                                         NumDTensor_,
+                                         false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
+                    Sequence<false>>              // ThreadTransferDstResetCoordinateAfterRunFlags
+                    {c_ds_desc_refs,
+                     idx_c_ds_block_begin,
+                     tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                     make_tuple(make_multi_index(block_work_idx[I1], 0, block_work_idx[I2], 0)),
+                     cde_element_op};
 
-                // each thread write its data from VGPR to LDS
-                c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                              sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
-                                              c_thread_buf,
-                                              c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                              c_shuffle_block_buf);
+                static_for<0, num_access, 1>{}([&](auto access_id) {
+                    // make sure it's safe to write to LDS
+                    block_sync_lds();
 
-                // make sure it's safe to read from LDS
-                block_sync_lds();
+                    // each thread write its data from VGPR to LDS
+                    c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                                  sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
+                                                  c_thread_buf,
+                                                  c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                                  c_shuffle_block_buf);
 
-                // each block copy its data from LDS to global
-                cde_block_copy_lds_and_global.Run(
-                    c_ds_desc_refs,
-                    c_ds_buf_refs,
-                    tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                    tie(e_grid_buf));
+                    // make sure it's safe to read from LDS
+                    block_sync_lds();
 
-                if constexpr(access_id < num_access - 1)
-                {
-                    constexpr auto cde_lds_and_global_step =
-                        sfc_cde_block.GetForwardStep(access_id);
-
-                    // move on Ds
-                    static_for<0, NumDTensor_, 1>{}([&](auto i) {
-                        cde_block_copy_lds_and_global.MoveSrcSliceWindow(
-                            c_ds_desc_refs, i + I1, cde_lds_and_global_step);
-                    });
-
-                    // move on E
-                    cde_block_copy_lds_and_global.MoveDstSliceWindow(
+                    // each block copy its data from LDS to global
+                    cde_block_copy_lds_and_global.Run(
+                        c_ds_desc_refs,
+                        c_ds_buf_refs,
                         tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                        I0,
-                        cde_lds_and_global_step);
+                        tie(e_grid_buf));
+
+                    if constexpr(access_id < num_access - 1)
+                    {
+                        constexpr auto cde_lds_and_global_step =
+                            sfc_cde_block.GetForwardStep(access_id);
+
+                        // move on Ds
+                        static_for<0, NumDTensor_, 1>{}([&](auto i) {
+                            cde_block_copy_lds_and_global.MoveSrcSliceWindow(
+                                c_ds_desc_refs, i + I1, cde_lds_and_global_step);
+                        });
+
+                        // move on E
+                        cde_block_copy_lds_and_global.MoveDstSliceWindow(
+                            tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                            I0,
+                            cde_lds_and_global_step);
+                    }
+                });
+            }
+            else
+            {
+                // blockwise copy C/D/E between LDS and global
+                auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7<
+                    ThisThreadBlock,
+                    decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType_{})),
+                    Tuple<EDataType>,
+                    decltype(c_ds_desc_refs),
+                    decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)),
+                    CDEElementwiseOperation_,
+                    Sequence<static_cast<index_t>(EGlobalMemoryDataOperation)>, // FIXME: make
+                                                                                // Sequence support
+                                                                                // arbitray type
+                    Sequence<1,
+                             CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
+                             1,
+                             CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
+                    CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                    Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
+                    Sequence<0, 1, 2, 3>, // typename DimAccessOrder,
+                    3,                    // index_t VectorDim,
+                    CDEShuffleBlockTransferScalarPerVector_NPerBlock,
+                    sequence_merge_t<Sequence<true>,
+                                     uniform_sequence_gen_t<
+                                         NumDTensor_,
+                                         false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
+                    Sequence<false>>              // ThreadTransferDstResetCoordinateAfterRunFlags
+                    {c_ds_desc_refs,
+                     idx_c_ds_block_begin,
+                     tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                     make_tuple(make_multi_index(block_work_idx[I1], 0, block_work_idx[I2], 0)),
+                     cde_element_op};
+
+                static_for<0, num_access, 1>{}([&](auto access_id) {
+                    // make sure it's safe to write to LDS
+                    block_sync_lds();
+
+                    // each thread write its data from VGPR to LDS
+                    c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                                  sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
+                                                  c_thread_buf,
+                                                  c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                                  c_shuffle_block_buf);
+
+                    // make sure it's safe to read from LDS
+                    block_sync_lds();
+
+                    // each block copy its data from LDS to global
+                    cde_block_copy_lds_and_global.Run(
+                        c_ds_desc_refs,
+                        c_ds_buf_refs,
+                        tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                        tie(e_grid_buf));
+
+                    if constexpr(access_id < num_access - 1)
+                    {
+                        constexpr auto cde_lds_and_global_step =
+                            sfc_cde_block.GetForwardStep(access_id);
+
+                        // move on Ds
+                        static_for<0, NumDTensor_, 1>{}([&](auto i) {
+                            cde_block_copy_lds_and_global.MoveSrcSliceWindow(
+                                c_ds_desc_refs, i + I1, cde_lds_and_global_step);
+                        });
+
+                        // move on E
+                        cde_block_copy_lds_and_global.MoveDstSliceWindow(
+                            tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                            I0,
+                            cde_lds_and_global_step);
+                    }
+                });
+            }
+
+            __syncthreads();
+
+            if(threadIdx.x == 0)
+            {
+                index_t k_id_finished_t = atomicAdd(barrier_count_finished, 1);
+
+                if(k_id_finished_t == KBatch - 1)
+                {
+                    *barrier_count_start    = 0;
+                    *barrier_count_finished = 0;
                 }
-            });
+            }
         }
     }
 
@@ -910,6 +1023,8 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                                DsGridPointer p_ds_grid,
                                void* __restrict__ p_e_grid_,
                                void* __restrict__ p_shared,
+                               uint32_t* barrier_count_start,
+                               uint32_t* barrier_count_finished,
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
                                const CDEElementwiseOperation& cde_element_op,
@@ -977,6 +1092,9 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                 p_ds_grid,
                 p_e_grid,
                 p_shared,
+                barrier_count_start,
+                barrier_count_finished,
+                KBatch,
                 a_element_op,
                 b_element_op,
                 cde_element_op,
@@ -994,6 +1112,9 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                 p_ds_grid,
                 p_e_grid,
                 p_shared,
+                barrier_count_start,
+                barrier_count_finished,
+                KBatch,
                 a_element_op,
                 b_element_op,
                 ck::tensor_operation::element_wise::PassThrough{},

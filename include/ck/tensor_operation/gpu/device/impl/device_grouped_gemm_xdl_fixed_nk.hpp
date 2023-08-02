@@ -1,4 +1,3 @@
-#pragma once
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -41,6 +40,8 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
         kernel_grouped_gemm_xdl_fixed_nk(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+                                         uint32_t* barrier_count,
+                                         const index_t barrier_size_grp,
                                          const index_t group_count,
                                          const index_t grid_size_grp,
                                          const index_t KBatch,
@@ -95,12 +96,26 @@ __global__ void
         p_ds_grid_(i) = static_cast<const DDataType*>(gemm_desc_ptr[group_id].p_ds_grid[i]);
     });
 
-    index_t id_off = 0;
+    index_t id_off   = 0;
+    index_t id_local = get_block_1d_id() - BlockStart;
 
-    while((get_block_1d_id() - BlockStart + id_off) < local_grid_size)
+    const index_t mn_blocks = local_grid_size / KBatch;
+
+    __shared__ index_t k_id_start, k_id_finished;
+
+    ignore = barrier_count;
+    ignore = k_id_start;
+    ignore = k_id_finished;
+
+    while(id_local < local_grid_size)
     {
         const auto block_2_etile_map =
             GroupedGemmBlock2ETileMap(local_b2e_tile_map, BlockStart, id_off);
+
+        auto barrier_count_start =
+            barrier_count + group_id * barrier_size_grp * 2 + id_local % mn_blocks;
+        auto barrier_count_finished = barrier_count + group_id * barrier_size_grp * 2 +
+                                      barrier_size_grp + id_local % mn_blocks;
 
         GridwiseGemm::template Run<HasMainKBlockLoop,
                                    EGlobalMemoryDataOperation,
@@ -113,6 +128,8 @@ __global__ void
                                             p_ds_grid_,
                                             gemm_desc_ptr[group_id].p_e_grid,
                                             p_shared,
+                                            barrier_count_start,
+                                            barrier_count_finished,
                                             a_element_op,
                                             b_element_op,
                                             c_element_op,
@@ -127,6 +144,7 @@ __global__ void
                                             block_2_etile_map);
 
         id_off += grid_size_grp;
+        id_local += grid_size_grp;
     }
 #else
     ignore = gemm_descs_const;
@@ -430,8 +448,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
             const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_m_n, k_batch_};
 
             grid_size_grp_ = local_b2c_tile_map.CalculateGridSize(e_grid_desc_m_n);
-
-            grid_size_ = grid_size_grp_ * group_count_;
+            grid_size_     = grid_size_grp_ * group_count_;
         }
 
         Argument(std::vector<const void*>& p_As,
@@ -568,6 +585,14 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
 
                 group_id++;
             }
+
+            const auto e_grid_desc_sum_m_n =
+                GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
+                    sum_of_m, gemm_desc_kernel_arg_[0].N_, gemm_desc_kernel_arg_[0].StrideE_);
+
+            const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_sum_m_n, 1};
+
+            barrier_size_grp_ = local_b2c_tile_map.CalculateGridSize(e_grid_desc_sum_m_n);
         }
 
         //  private:
@@ -585,6 +610,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
 
         index_t grid_size_;
         index_t grid_size_grp_;
+        index_t barrier_size_grp_;
         index_t sum_of_m;
 
         index_t k_batch_;
@@ -642,6 +668,8 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                     dim3(BlockSize),
                     0,
                     cast_pointer_to_constant_address_space(arg.grouped_gemm_kernel_args_dev),
+                    reinterpret_cast<uint32_t*>(arg.p_workspace_),
+                    arg.barrier_size_grp_,
                     arg.gemm_desc_kernel_arg_.size(),
                     arg.grid_size_grp_,
                     arg.k_batch_,
@@ -808,8 +836,17 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
 
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
     {
-        return dynamic_cast<const Argument*>(p_arg)->group_count_ *
-               sizeof(GroupedGemmKernelArgument<NumDTensor>);
+        auto arg = *dynamic_cast<const Argument*>(p_arg);
+
+        return arg.group_count_ * (arg.barrier_size_grp_ * 2) * sizeof(uint32_t);
+    }
+
+    void SetWorkSpacePointer(BaseArgument* p_arg, void* p_workspace) const override
+    {
+        auto p_arg_          = dynamic_cast<Argument*>(p_arg);
+        p_arg_->p_workspace_ = p_workspace;
+
+        hip_check_error(hipMemset(p_workspace, 0, GetWorkSpaceSize(p_arg)));
     }
 
     static void SetKBatch(Argument& arg, index_t k_batch) { arg.UpdateKBatch(k_batch); }
