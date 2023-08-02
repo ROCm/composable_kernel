@@ -65,6 +65,11 @@ rocm_check_target_ids(DEFAULT_GPU_TARGETS
 )
 message("Supported GPU_TARGETS= ${DEFAULT_GPU_TARGETS}")
 set(AMDGPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " ")
+if(GPU_TARGETS)
+    message("Building CK for the following targets: ${GPU_TARGETS}")
+else()
+    message("Building CK for the following targets: ${AMDGPU_TARGETS}")
+endif()
 find_package(hip)
 
 option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
