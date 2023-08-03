@@ -1350,7 +1350,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             static_for<0, MXdlPerWave, 1>{}(
                 [&](auto I) { lse_thread_buf(I) = running_max(I) + math::log(running_sum(I)); });
 
-            if(get_warp_local_1d_id() < AccM2)
+            if(get_lane_local_1d_id() < AccM2)
             {
                 static_for<0, MXdlPerWave, 1>{}([&](auto I) {
                     // copy from VGPR to Global
