@@ -26,7 +26,7 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
         };
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
-    Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    Tensor<QuantDataType> quant_b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     // assume scale tensor is [1, n]
     Tensor<ScaleDataType> scale_k_n(f_host_tensor_descriptor(K, N, 0, Row{}));
 
@@ -35,34 +35,37 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     case 0: break;
     case 1:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k);
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n);
+        ck::utils::FillUniformDistributionIntegerValue<QuantDataType>{-5.f, 5.f}(quant_b_k_n);
         ck::utils::FillUniformDistributionIntegerValue<ScaleDataType>{-5.f, 5.f}(scale_k_n);
         break;
     case 2:
         ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
-        ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+        ck::utils::FillUniformDistribution<QuantDataType>{-1.f, 1.f}(quant_b_k_n);
         ck::utils::FillUniformDistribution<ScaleDataType>{-1.f, 1.f}(scale_k_n);
         break;
     case 3:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{1.f, 1.f}(a_m_k);
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n);
+        ck::utils::FillUniformDistributionIntegerValue<QuantDataType>{-5.f, 5.f}(quant_b_k_n);
         ck::utils::FillUniformDistributionIntegerValue<ScaleDataType>{-5.f, 5.f}(scale_k_n);
         break;
     case 4:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{1.f, 1.f}(a_m_k);
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{1.f, 1.f}(b_k_n);
+        ck::utils::FillUniformDistributionIntegerValue<QuantDataType>{1.f, 1.f}(quant_b_k_n);
         ck::utils::FillUniformDistributionIntegerValue<ScaleDataType>{2.f, 2.f}(scale_k_n);
         break;
     case 5:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{-2.f, 2.f}(a_m_k);
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-2.f, 2.f}(b_k_n);
+        ck::utils::FillUniformDistributionIntegerValue<QuantDataType>{-2.f, 2.f}(quant_b_k_n);
         ck::utils::FillUniformDistributionIntegerValue<ScaleDataType>{-2.f, 2.f}(scale_k_n);
         break;
     default:
         ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
-        ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+        ck::utils::FillUniformDistribution<QuantDataType>{-1.f, 1.f}(quant_b_k_n);
         ck::utils::FillUniformDistribution<ScaleDataType>{-1.f, 1.f}(scale_k_n);
     }
+
+    UnsignedWeightPreprocessor<QuantDataType> preprocessor;
+    Tensor<BDataType> b_k_n = preprocessor(quant_b_k_n);
 
 #if 0
     printf("Matrix A:\n");
@@ -78,7 +81,39 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
         }
         printf("\n");
     }
+#endif
+#if 0 
+    printf("Matrix QuantB:\n");
+    for (int in = 0; in < N; in++)
+    {
+        for (int ik = 0; ik < K; ik++)
+        {
+            if(ik % 16 == 0){
+                printf("|");
+            }
+            
+            printf(" %02x", *(reinterpret_cast<uint8_t*>(&quant_b_k_n(ik,in))));
+        }
+        printf("\n");
+    }
+#endif
+#if 0
+    printf("Matrix Scale:\n");
+    for(int in = 0; in < N; in++)
+    {
+        for(int ik = 0; ik < 1; ik++)
+        {
+            if(ik % 16 == 0)
+            {
+                printf("|");
+            }
 
+            printf(" %04x", *(reinterpret_cast<uint16_t*>(&scale_k_n(ik, in))));
+        }
+        printf("\n");
+    }
+#endif
+#if 0
     printf("Matrix B:\n");
     for (int in = 0; in < N; in++)
     {
@@ -92,22 +127,8 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
         }
         printf("\n");
     }
+#endif
 
-    printf("Matrix Scale:\n");
-    for (int in = 0; in < N; in++)
-    {
-        for (int ik = 0; ik < K; ik++)
-        {
-            if(ik % 16 == 0){
-                printf("|");
-            }
-            
-            printf(" %04x", *(reinterpret_cast<uint16_t*>(&scale_k_n(ik,in))));
-        }
-        printf("\n");
-    }
-    #endif 
-    
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
@@ -191,8 +212,13 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
-        auto ref_argument = ref_gemm.MakeArgument(
-            a_m_k, b_k_n, scale_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+        auto ref_argument = ref_gemm.MakeArgument(a_m_k,
+                                                  quant_b_k_n,
+                                                  scale_k_n,
+                                                  c_m_n_host_result,
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  c_element_op);
 
         ref_invoker.Run(ref_argument);
 

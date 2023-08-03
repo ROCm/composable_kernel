@@ -1145,7 +1145,7 @@ struct ThreadwiseTensorSliceTransfer_v4
                 src_desc, src_data_coord);
 #if 0
             printf("Tid: %03d, LDS read offset: %d\n", get_thread_local_1d_id(), src_data_coord.GetOffset());
-#endif 
+#endif
             // copy data from src_buf into src_tmp_vector
             if constexpr(SrcBuffer::IsDynamicBuffer())
             {
@@ -1419,7 +1419,7 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
                                                     1,
                                                     0);
                 v_theother_row = type_convert_sp<SrcData>(temp);
-                
+
                 if(get_thread_local_1d_id() % 32 < 16)
                 {
                     // apply type convert

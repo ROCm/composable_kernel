@@ -207,10 +207,12 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             // copy data from src_buf into src_vector_container
             auto src_vector_container = src_vector_type{
                 src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid)};
-            if (false){
+            if(false)
+            {
                 printf("Tid: %03d, a_grid_buf: %04x\n",
-                        get_thread_local_1d_id(),
-                        *(reinterpret_cast<const uint16_t*>(&src_vector_container.template AsType<SrcData>()[Number<0>{}])));
+                       get_thread_local_1d_id(),
+                       *(reinterpret_cast<const uint16_t*>(
+                           &src_vector_container.template AsType<SrcData>()[Number<0>{}])));
             }
             // copy data from src_vector_container into src_thread_scratch_
             src_thread_scratch_tuple_(thread_scratch_id)

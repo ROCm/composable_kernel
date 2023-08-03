@@ -719,7 +719,8 @@ struct GridwiseGemmPipeline_v1_dequant<1, true, false>
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
         b_blockwise_copy.Run(
             b_grid_desc, b_grid_buf, b_block_desc, b_block_origin_idx, b_block_buf);
-        scale_blockwise_copy.Run(scale_grid_desc, scale_grid_buf, scale_block_desc, b_block_origin_idx, scale_block_buf);
+        scale_blockwise_copy.Run(
+            scale_grid_desc, scale_grid_buf, scale_block_desc, b_block_origin_idx, scale_block_buf);
 
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);

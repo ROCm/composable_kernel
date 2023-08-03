@@ -5,8 +5,18 @@
 
 #include "ck/tensor_operation/gpu/device/impl/device_fpAintB_gemm_wmma.hpp"
 
+// Implementation follows the paper:
+// Kim, Young Jin, Rawn Henry, Raffy Fahim, and Hany Hassan Awadalla. “Who Says Elephants Can’t Run:
+// Bringing Large Scale MoE Models into Cloud Scale Production.” arXiv, November 17, 2022.
+// https://doi.org/10.48550/arXiv.2211.10017. Assume weight (Matrix B) is add preprocess to
+// unsigned.
+
+// The DeviceOp is CDataType = ADataType * Dequant(BDataType) * ScaleDataType
+// The HostRef  is CDataType = ADataType * Dequant(QuantDataType) * ScaleDataType
+
 using ADataType        = ck::half_t;
-using BDataType        = int8_t;
+using QuantDataType    = int8_t;
+using BDataType        = uint8_t;
 using ScaleDataType    = ck::half_t;
 using AccDataType      = float;
 using CShuffleDataType = ck::half_t;
@@ -40,13 +50,13 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceFpAintBGemm_Wmma_
            1,           // Prefetch stage
            128,         // BlockSize
            128,         // MPerBlock
-           64,          // NPerBlock
+           128,          // NPerBlock
            64,          // KPerBlock
            8,           // K1
            16,          // MPerWmma
            16,          // NPerWmma
            4,           // M-Repeat // M-PerWmma / M-Repeat = M-Wave
-           2,           // N-Repeat // N-PerWmma / N-Repeat = N-Wave
+           4,           // N-Repeat // N-PerWmma / N-Repeat = N-Wave
            S<4, 32, 1>,     
            S<1, 0, 2>,     
            S<1, 0, 2>,              
@@ -68,7 +78,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceFpAintBGemm_Wmma_
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferencefpAintBGemm<ADataType,
-                                                                               BDataType,
+                                                                               QuantDataType,
                                                                                ScaleDataType,
                                                                                CDataType,
                                                                                AccDataType,

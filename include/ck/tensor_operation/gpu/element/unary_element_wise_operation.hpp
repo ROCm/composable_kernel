@@ -6,6 +6,7 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/math.hpp"
 #include "ck/utility/math_v2.hpp"
+#include "ck/utility/get_id.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -64,6 +65,12 @@ struct PassThrough
 
     template <>
     __host__ __device__ void operator()<int8_t, int8_t>(int8_t& y, const int8_t& x) const
+    {
+        y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<uint8_t, uint8_t>(uint8_t& y, const uint8_t& x) const
     {
         y = x;
     }
@@ -369,6 +376,90 @@ struct Swish
     };
 
     float beta_ = 1.0f;
+};
+
+// support fastconvert of int8 to fp16
+
+template <typename InputDataType, typename OutputDataType, index_t RegPackNumber>
+struct FastNumericArrayConverter
+{
+};
+
+template <>
+struct FastNumericArrayConverter<uint8_t, ck::half_t, 4>
+{
+    using InputArray  = vector_type<uint8_t, 4>;
+    using OutputArray = vector_type<ck::half_t, 4>;
+
+    __device__ static OutputArray convert(InputArray const& Input)
+    {
+        OutputArray Output;
+
+        uint32_t* half_2       = reinterpret_cast<uint32_t*>(&Output);
+        uint32_t const uint8_4 = reinterpret_cast<uint32_t const&>(Input);
+
+        // printf("Tid: %03d, uint8_4: %08x\n",
+        // get_thread_local_1d_id(),
+        // uint8_4);
+
+        static constexpr uint32_t byte_selector_01 = 0x05010500;
+        static constexpr uint32_t byte_selector_23 = 0x05030502;
+        static constexpr uint32_t fp16_adder       = 0x64646464;
+        half_2[0] = __builtin_amdgcn_perm(fp16_adder, uint8_4, byte_selector_01);
+        half_2[1] = __builtin_amdgcn_perm(fp16_adder, uint8_4, byte_selector_23);
+
+        // printf("Tid: %03d, Part1 converted: %08x | %08x\n",
+        // get_thread_local_1d_id(),
+        // half_2[Number<0>{}],
+        // half_2[Number<1>{}]);
+
+        // Lastly, we subtract 1152 from our constructed number using fp16 math to get our signed
+        // integer as fp16.
+        static constexpr uint32_t I8s_TO_F16s_MAGIC_NUM = 0x64806480;
+        asm volatile("v_pk_add_f16 %0, %1, %2 neg_lo:[0,1] neg_hi:[0,1]\n"
+                     : "=v"(half_2[0])
+                     : "v"(half_2[0]), "s"(I8s_TO_F16s_MAGIC_NUM));
+        asm volatile("v_pk_add_f16 %0, %1, %2 neg_lo:[0,1] neg_hi:[0,1]\n"
+                     : "=v"(half_2[1])
+                     : "v"(half_2[1]), "s"(I8s_TO_F16s_MAGIC_NUM));
+        // printf("Tid: %03d, Part2 converted: %08x | %08x\n",
+        // get_thread_local_1d_id(),
+        // half_2[Number<0>{}],
+        // half_2[Number<1>{}]);
+        return Output;
+    }
+
+    __device__ OutputArray operator()(InputArray const& Input) { return convert(Input); }
+};
+
+template <index_t N>
+struct FastNumericArrayConverter<uint8_t, ck::half_t, N>
+{
+    static constexpr int VEC_WIDTH = 4;
+    static_assert(!(N % VEC_WIDTH), "N must be multiple of 4.");
+
+    using InputArray  = vector_type<uint8_t, N>;
+    using OutputArray = vector_type<ck::half_t, N>;
+
+    __device__ static OutputArray convert(InputArray const& Input)
+    {
+        FastNumericArrayConverter<uint8_t, ck::half_t, 4> converter;
+
+        OutputArray Output;
+
+        using Vec_InputArray  = vector_type<uint8_t, 4>;
+        using Vec_OutputArray = vector_type<ck::half_t, 4>;
+
+        Vec_OutputArray* half_4_ptr       = reinterpret_cast<Vec_OutputArray*>(&Output);
+        Vec_InputArray const* uint8_4_ptr = reinterpret_cast<Vec_InputArray const*>(&Input);
+
+        static_for<0, N / VEC_WIDTH, 1>{}(
+            [&](auto i) { half_4_ptr[i] = converter(uint8_4_ptr[i]); });
+
+        return Output;
+    }
+
+    __device__ OutputArray operator()(InputArray const& Input) { return convert(Input); }
 };
 
 } // namespace element_wise

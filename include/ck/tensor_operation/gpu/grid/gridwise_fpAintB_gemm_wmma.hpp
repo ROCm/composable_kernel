@@ -52,11 +52,13 @@ __global__ void
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__) || defined(__gfx1101__) || \
     defined(__gfx1102__))
     __shared__ char p_shared[GridwiseGemm::SharedMemTrait::lds_size];
-    if (false && get_thread_local_1d_id()==0){
+    if(false && get_thread_local_1d_id() == 0)
+    {
         printf("lds_size: %lu\n", GridwiseGemm::SharedMemTrait::lds_size);
         printf("lds_a_size: %d\n", GridwiseGemm::SharedMemTrait::a_block_space_size_aligned);
         printf("lds_b_size: %d\n", GridwiseGemm::SharedMemTrait::b_block_space_size_aligned);
-        printf("lds_scale_size: %d\n", GridwiseGemm::SharedMemTrait::scale_block_space_size_aligned);
+        printf("lds_scale_size: %d\n",
+               GridwiseGemm::SharedMemTrait::scale_block_space_size_aligned);
     }
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -459,17 +461,12 @@ struct GridwiseFpAintBGemm_Wmma
 
                 // Workaround, Freeze transform
                 return make_naive_tensor_descriptor(make_tuple(Number<KWmma * K0PerWmma>{},
-                                                                      Number<NRepeat>{},
-                                                                      I1,
-                                                                      Number<B_KRow>{},
-                                                                      I1,
-                                                                      Number<B_K1>{}),
-                                                    make_tuple(I0,
-                                                                      I1,
-                                                                      I0,
-                                                                      I0,
-                                                                      I0,
-                                                                      I0));
+                                                               Number<NRepeat>{},
+                                                               I1,
+                                                               Number<B_KRow>{},
+                                                               I1,
+                                                               Number<B_K1>{}),
+                                                    make_tuple(I0, I1, I0, I0, I0, I0));
             }
         }();
 
@@ -642,10 +639,12 @@ struct GridwiseFpAintBGemm_Wmma
                        : 0;
 
         static constexpr auto a_block_space_offset = 0;
-        static constexpr auto b_block_space_offset = 
-            (a_block_space_offset + a_block_space_size_aligned) * sizeof(ADataType)/sizeof(BDataType);
+        static constexpr auto b_block_space_offset =
+            (a_block_space_offset + a_block_space_size_aligned) * sizeof(ADataType) /
+            sizeof(BDataType);
         static constexpr auto scale_block_space_offset =
-            (b_block_space_offset + b_block_space_size_aligned) * sizeof(BDataType)/sizeof(ScaleDataType);
+            (b_block_space_offset + b_block_space_size_aligned) * sizeof(BDataType) /
+            sizeof(ScaleDataType);
 
         // LDS allocation for C shuffle in LDS
         static constexpr auto c_shuffle_block_space_size =

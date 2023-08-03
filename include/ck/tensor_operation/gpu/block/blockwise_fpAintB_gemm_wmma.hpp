@@ -309,8 +309,10 @@ struct Blockwise_fpAintB_GemmWMMA
             b_thread_desc_.GetElementSpaceSize());
         auto scale_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ScaleDataType>(
             scale_thread_desc_.GetElementSpaceSize());
-        auto converted_b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ADataType>(
-            b_thread_desc_.GetElementSpaceSize());
+        // auto converted_b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ADataType>(
+        // b_thread_desc_.GetElementSpaceSize());
+        tensor_operation::element_wise::FastNumericArrayConverter<BDataType, ADataType, WmmaK>
+            fast_numeric_converter;
 
         // basic intrinsic to determine loopover direction
         if constexpr(MRepeat < NRepeat)
@@ -345,15 +347,29 @@ struct Blockwise_fpAintB_GemmWMMA
                                 make_tuple(I0, n0, I0, I0, I0, I0),
                                 scale_thread_buf);
 
-                            // convert B from int8 to fp16, multiply scale
-                            static_for<0, b_thread_buf.Size(), 1>{}([&](auto i) {
-                                converted_b_thread_buf(i) =
-                                    scale_thread_buf[i / WmmaK] *
-                                    type_convert<ADataType>(b_thread_buf[i]);
+                            vector_type<BDataType, WmmaK> b_int_vec;
+                            vector_type<ADataType, WmmaK> b_thread_vec;
+
+                            static_for<0, WmmaK, 1>{}([&](auto i) {
+                                b_int_vec.template AsType<BDataType>()(i) =
+                                    b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                        make_tuple(i / B_K1 / B_KRow,
+                                                   n0,
+                                                   0,
+                                                   (i / B_K1) % B_KRow,
+                                                   0,
+                                                   i % B_K1))>{}];
+                            });
+
+                            // convert B from uint8 to fp16, multiply scale
+                            b_thread_vec = fast_numeric_converter(b_int_vec);
+                            static_for<0, WmmaK, 1>{}([&](auto i) {
+                                b_thread_vec.template AsType<ADataType>()(i) =
+                                    scale_thread_buf[n0] *
+                                    b_thread_vec.template AsType<ADataType>()(i);
                             });
 
                             vector_type<ADataType, WmmaK> a_thread_vec;
-                            vector_type<ADataType, WmmaK> b_thread_vec;
 
                             static_for<0, WmmaK, 1>{}([&](auto i) {
                                 a_thread_vec.template AsType<ADataType>()(i) =
@@ -364,14 +380,6 @@ struct Blockwise_fpAintB_GemmWMMA
                                                    (i / A_K1) % A_KRow,
                                                    0,
                                                    i % A_K1))>{}];
-                                b_thread_vec.template AsType<ADataType>()(i) =
-                                    converted_b_thread_buf[Number<b_thread_desc_.CalculateOffset(
-                                        make_tuple(i / B_K1 / B_KRow,
-                                                   n0,
-                                                   0,
-                                                   (i / B_K1) % B_KRow,
-                                                   0,
-                                                   i % B_K1))>{}];
                             });
 
                             using wmma_input_type_a = typename vector_type<ADataType, WmmaK>::type;
@@ -390,37 +398,48 @@ struct Blockwise_fpAintB_GemmWMMA
         }
         else
         {
-            static_for<0, NRepeat, 1>{}([&](auto n0) {
-                // read weight scale
-                scale_thread_copy_.Run(
-                    scale_block_desc_1_n0_n1_n2_1,
-                    make_tuple(I0, n0, I0, I0, I0, I0),
-                    scale_block_buf,
-                    scale_thread_desc_,
-                    make_tuple(I0, n0, I0, I0, I0, I0),
-                    scale_thread_buf);
+            static_for<0, KPerBlock / WmmaK, 1>{}([&](auto k) { // k=0,1,2 instead of
+                                                                // k=0,kpack*1, ..
+                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    // read weight scale
+                    scale_thread_copy_.Run(scale_block_desc_1_n0_n1_n2_1,
+                                           make_tuple(I0, n0, I0, I0, I0, I0),
+                                           scale_block_buf,
+                                           scale_thread_desc_,
+                                           make_tuple(I0, n0, I0, I0, I0, I0),
+                                           scale_thread_buf);
 #if 0
                     printf("Tid: %03d, n: %02d, scale_thread_buf: %04x\n",
                             get_thread_local_1d_id(), n0.value,
                             *(reinterpret_cast<const uint16_t*>(&scale_thread_buf[n0]))
                              );
 #endif
-                static_for<0, MRepeat, 1>{}([&](auto m0) {
-                    static_for<0, KPerBlock / WmmaK, 1>{}([&](auto k) { // k=0,1,2 instead of
-                                                                        // k=0,kpack*1, ..
-                        // read B
-                        b_thread_copy_.Run(
-                            b_block_desc_k0_n0_n1_n2_k1,
-                            make_tuple(Number<k * WmmaK / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
-                            b_block_buf,
-                            b_thread_desc_,
-                            make_tuple(I0, n0, I0, I0, I0, I0),
-                            b_thread_buf);                        
-                        // convert B from int8 to fp16, multiply scale
-                        static_for<0, b_thread_buf.Size(), 1>{}([&](auto i) {
-                            converted_b_thread_buf(i) = scale_thread_buf[i / WmmaK] *
-                                                        type_convert<ADataType>(b_thread_buf[i]); // call byte permute
-                        });
+                    // read B
+                    b_thread_copy_.Run(
+                        b_block_desc_k0_n0_n1_n2_k1,
+                        make_tuple(Number<k * WmmaK / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
+                        b_block_buf,
+                        b_thread_desc_,
+                        make_tuple(I0, n0, I0, I0, I0, I0),
+                        b_thread_buf);
+
+                    vector_type<BDataType, WmmaK> b_int_vec;
+                    vector_type<ADataType, WmmaK> b_thread_vec;
+
+                    static_for<0, WmmaK, 1>{}([&](auto i) {
+                        b_int_vec.template AsType<BDataType>()(i) =
+                            b_thread_buf[Number<b_thread_desc_.CalculateOffset(make_tuple(
+                                i / B_K1 / B_KRow, n0, 0, (i / B_K1) % B_KRow, 0, i % B_K1))>{}];
+                    });
+
+                    // convert B from uint8 to fp16, multiply scale
+                    b_thread_vec = fast_numeric_converter(b_int_vec);
+                    static_for<0, WmmaK, 1>{}([&](auto i) {
+                        b_thread_vec.template AsType<ADataType>()(i) =
+                            scale_thread_buf[n0] * b_thread_vec.template AsType<ADataType>()(i);
+                    });
+
+                    static_for<0, MRepeat, 1>{}([&](auto m0) {
                         // read A
                         a_thread_copy_.Run(
                             a_block_desc_k0_m0_m1_m2_k1,
@@ -429,7 +448,8 @@ struct Blockwise_fpAintB_GemmWMMA
                             a_thread_desc_,
                             make_tuple(I0, m0, I0, I0, I0, I0),
                             a_thread_buf);
-                        if (true){
+                        if(true)
+                        {
 #if 0
                             printf("Tid: %03d, m, n, k: %02d, %02d, %02d, a_thread_buf: %04x %04x %04x %04x|  %04x %04x %04x %04x|  %04x %04x %04x %04x|  %04x %04x %04x %04x|\n",
                                     get_thread_local_1d_id(), m0.value, n0.value, k.value,
@@ -495,17 +515,8 @@ struct Blockwise_fpAintB_GemmWMMA
 #endif
                         }
                         vector_type<ADataType, WmmaK> a_thread_vec;
-                        vector_type<ADataType, WmmaK> b_thread_vec;
 
                         static_for<0, WmmaK, 1>{}([&](auto i) {
-                            b_thread_vec.template AsType<ADataType>()(i) =
-                                converted_b_thread_buf[Number<b_thread_desc_.CalculateOffset(
-                                    make_tuple(i / B_K1 / B_KRow,
-                                               n0,
-                                               0,
-                                               (i / B_K1) % B_KRow,
-                                               0,
-                                               i % B_K1))>{}];
                             a_thread_vec.template AsType<ADataType>()(i) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                     make_tuple(i / A_K1 / A_KRow,
@@ -561,14 +572,10 @@ struct Blockwise_fpAintB_GemmWMMA
                                                 Number<B_K1>{},
                                                 Number<1>{}));
 
-    static constexpr auto scale_thread_desc_ =
-        make_naive_tensor_descriptor(make_tuple(Number<WmmaK / B_K1 / B_KRow>{},
-                                                Number<NRepeat>{},
-                                                I1,
-                                                Number<B_KRow>{},
-                                                I1,
-                                                I1),
-                                     make_tuple(I0, I1, I0, I0, I0, I0));
+    static constexpr auto scale_thread_desc_ = make_naive_tensor_descriptor(
+        make_tuple(
+            Number<WmmaK / B_K1 / B_KRow>{}, Number<NRepeat>{}, I1, Number<B_KRow>{}, I1, I1),
+        make_tuple(I0, I1, I0, I0, I0, I0));
 
     // C[M, N, NumRegWMMA]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(

@@ -48,6 +48,40 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
+template <typename IntType>
+struct UnsignedWeightPreprocessor
+{
+};
+
+template <>
+struct UnsignedWeightPreprocessor<int8_t>
+{
+    using UnsignedWeight = Tensor<uint8_t>;
+    using SignedWeight   = Tensor<int8_t>;
+    static UnsignedWeight convert(SignedWeight const& Input)
+    {
+
+        UnsignedWeight Output = Input.template CopyAsType<uint8_t>();
+
+        auto f_kn = [&](auto k, auto n) {
+            const uint8_t adder = 128;
+            int8_t v_signed_weight;
+            uint8_t v_unsigned_weight;
+
+            ck::tensor_operation::element_wise::PassThrough{}(v_signed_weight, Input(k, n));
+            v_unsigned_weight = ck::type_convert<uint8_t>(v_signed_weight) + adder;
+            Output(k, n)      = v_unsigned_weight;
+        };
+
+        make_ParallelTensorFunctor(f_kn, Input.mDesc.GetLengths()[0], Input.mDesc.GetLengths()[1])(
+            std::thread::hardware_concurrency());
+
+        return Output;
+    }
+
+    UnsignedWeight operator()(SignedWeight const& Input) { return convert(Input); }
+};
+
 inline bool
 parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, ExecutionConfig& config)
 {
