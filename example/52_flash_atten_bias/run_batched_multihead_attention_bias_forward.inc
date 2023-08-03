@@ -23,7 +23,7 @@ int run(int argc, char* argv[])
     bool input_permute  = false;
     bool output_permute = true;
 
-    float p_drop                    = 0;
+    float p_drop                    = 0.1;
     const unsigned long long seed   = 1;
     const unsigned long long offset = 0;
 
