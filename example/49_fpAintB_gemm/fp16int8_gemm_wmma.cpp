@@ -14,6 +14,8 @@
 // The DeviceOp is CDataType = ADataType * Dequant(BDataType) * ScaleDataType
 // The HostRef  is CDataType = ADataType * Dequant(QuantDataType) * ScaleDataType
 
+//TODO: Current implementation consume more VGPR than expected.
+
 using ADataType        = ck::half_t;
 using QuantDataType    = int8_t;
 using BDataType        = uint8_t;
@@ -49,13 +51,13 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceFpAintBGemm_Wmma_
            GemmDefault, 
            1,           // Prefetch stage
            128,         // BlockSize
-           128,         // MPerBlock
-           128,          // NPerBlock
+           64,          // MPerBlock
+           128,         // NPerBlock
            64,          // KPerBlock
            8,           // K1
            16,          // MPerWmma
            16,          // NPerWmma
-           4,           // M-Repeat // M-PerWmma / M-Repeat = M-Wave
+           2,           // M-Repeat // M-PerWmma / M-Repeat = M-Wave
            4,           // N-Repeat // N-PerWmma / N-Repeat = N-Wave
            S<4, 32, 1>,     
            S<1, 0, 2>,     

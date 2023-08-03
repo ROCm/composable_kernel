@@ -408,12 +408,7 @@ struct Blockwise_fpAintB_GemmWMMA
                                            scale_thread_desc_,
                                            make_tuple(I0, n0, I0, I0, I0, I0),
                                            scale_thread_buf);
-#if 0
-                    printf("Tid: %03d, n: %02d, scale_thread_buf: %04x\n",
-                            get_thread_local_1d_id(), n0.value,
-                            *(reinterpret_cast<const uint16_t*>(&scale_thread_buf[n0]))
-                             );
-#endif
+
                     // read B
                     b_thread_copy_.Run(
                         b_block_desc_k0_n0_n1_n2_k1,
@@ -448,72 +443,7 @@ struct Blockwise_fpAintB_GemmWMMA
                             a_thread_desc_,
                             make_tuple(I0, m0, I0, I0, I0, I0),
                             a_thread_buf);
-                        if(true)
-                        {
-#if 0
-                            printf("Tid: %03d, m, n, k: %02d, %02d, %02d, a_thread_buf: %04x %04x %04x %04x|  %04x %04x %04x %04x|  %04x %04x %04x %04x|  %04x %04x %04x %04x|\n",
-                                    get_thread_local_1d_id(), m0.value, n0.value, k.value,
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<0>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<1>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<2>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<3>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<4>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<5>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<6>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<7>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<8>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<9>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<10>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<11>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<12>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<13>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<14>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&a_thread_buf[Number<15>{}]))
-                                     );
-#endif
-#if 0
-                            printf("Tid: %03d, m, n, k: %02d, %02d, %02d, b_thread_buf: %02x %02x %02x %02x|  %02x %02x %02x %02x|  %02x %02x %02x %02x|  %02x %02x %02x %02x|\n",
-                                    get_thread_local_1d_id(), m0.value, n0.value, k.value,
-                                    b_thread_buf[Number<0>{}],
-                                    b_thread_buf[Number<1>{}],
-                                    b_thread_buf[Number<2>{}],
-                                    b_thread_buf[Number<3>{}],
-                                    b_thread_buf[Number<4>{}],
-                                    b_thread_buf[Number<5>{}],
-                                    b_thread_buf[Number<6>{}],
-                                    b_thread_buf[Number<7>{}],
-                                    b_thread_buf[Number<8>{}],
-                                    b_thread_buf[Number<9>{}],
-                                    b_thread_buf[Number<10>{}],
-                                    b_thread_buf[Number<11>{}],
-                                    b_thread_buf[Number<12>{}],
-                                    b_thread_buf[Number<13>{}],
-                                    b_thread_buf[Number<14>{}],
-                                    b_thread_buf[Number<15>{}]
-                                     );
-#endif
-#if 0
-                            printf("Tid: %03d, m, n, k: %02d, %02d, %02d, converted_b_thread_buf: %04x %04x %04x %04x|  %04x %04x %04x %04x|  %04x %04x %04x %04x|  %04x %04x %04x %04x|\n",
-                                    get_thread_local_1d_id(), m0.value, n0.value, k.value,
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<0>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<1>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<2>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<3>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<4>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<5>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<6>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<7>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<8>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<9>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<10>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<11>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<12>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<13>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<14>{}])),
-                                    *(reinterpret_cast<const uint16_t*>(&converted_b_thread_buf[Number<15>{}]))
-                                     );
-#endif
-                        }
+
                         vector_type<ADataType, WmmaK> a_thread_vec;
 
                         static_for<0, WmmaK, 1>{}([&](auto i) {

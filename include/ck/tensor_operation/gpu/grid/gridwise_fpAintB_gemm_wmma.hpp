@@ -52,14 +52,6 @@ __global__ void
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__) || defined(__gfx1101__) || \
     defined(__gfx1102__))
     __shared__ char p_shared[GridwiseGemm::SharedMemTrait::lds_size];
-    if(false && get_thread_local_1d_id() == 0)
-    {
-        printf("lds_size: %lu\n", GridwiseGemm::SharedMemTrait::lds_size);
-        printf("lds_a_size: %d\n", GridwiseGemm::SharedMemTrait::a_block_space_size_aligned);
-        printf("lds_b_size: %d\n", GridwiseGemm::SharedMemTrait::b_block_space_size_aligned);
-        printf("lds_scale_size: %d\n",
-               GridwiseGemm::SharedMemTrait::scale_block_space_size_aligned);
-    }
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
                                                   p_b_grid,
@@ -805,7 +797,7 @@ struct GridwiseFpAintBGemm_Wmma
                 auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
                     static_cast<BDataType*>(p_shared) + SharedMemTrait::b_block_space_offset, 
                     SharedMemTrait::b_block_space_size_aligned);
-                // printf("b_lds_offset: %lu\n", SharedMemTrait::b_block_space_offset);
+
                 auto b_blockwise_copy =
                     ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
                                                         BElementwiseOperation,
@@ -886,7 +878,6 @@ struct GridwiseFpAintBGemm_Wmma
                 auto scale_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
                     static_cast<ScaleDataType*>(p_shared) + SharedMemTrait::scale_block_space_offset, 
                     SharedMemTrait::scale_block_space_size_aligned);
-                // printf("scale_lds_offset: %lu\n", SharedMemTrait::scale_block_space_offset);
                 
                 auto scale_blockwise_copy =
                     ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,

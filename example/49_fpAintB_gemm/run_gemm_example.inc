@@ -67,68 +67,6 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     UnsignedWeightPreprocessor<QuantDataType> preprocessor;
     Tensor<BDataType> b_k_n = preprocessor(quant_b_k_n);
 
-#if 0
-    printf("Matrix A:\n");
-    for (int im = 0; im < M; im++)
-    {
-        for (int ik = 0; ik < K; ik++)
-        {
-            if(ik % 16 == 0){
-                printf("|");
-            }
-            
-            printf(" %04x", *(reinterpret_cast<uint16_t*>(&a_m_k(im,ik))));
-        }
-        printf("\n");
-    }
-#endif
-#if 0 
-    printf("Matrix QuantB:\n");
-    for (int in = 0; in < N; in++)
-    {
-        for (int ik = 0; ik < K; ik++)
-        {
-            if(ik % 16 == 0){
-                printf("|");
-            }
-            
-            printf(" %02x", *(reinterpret_cast<uint8_t*>(&quant_b_k_n(ik,in))));
-        }
-        printf("\n");
-    }
-#endif
-#if 0
-    printf("Matrix Scale:\n");
-    for(int in = 0; in < N; in++)
-    {
-        for(int ik = 0; ik < 1; ik++)
-        {
-            if(ik % 16 == 0)
-            {
-                printf("|");
-            }
-
-            printf(" %04x", *(reinterpret_cast<uint16_t*>(&scale_k_n(ik, in))));
-        }
-        printf("\n");
-    }
-#endif
-#if 0
-    printf("Matrix B:\n");
-    for (int in = 0; in < N; in++)
-    {
-        for (int ik = 0; ik < K; ik++)
-        {
-            if(ik % 16 == 0){
-                printf("|");
-            }
-            
-            printf(" %02x", b_k_n(ik,in));
-        }
-        printf("\n");
-    }
-#endif
-
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 

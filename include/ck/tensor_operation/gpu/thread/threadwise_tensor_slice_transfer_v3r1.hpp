@@ -207,13 +207,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             // copy data from src_buf into src_vector_container
             auto src_vector_container = src_vector_type{
                 src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid)};
-            if(false)
-            {
-                printf("Tid: %03d, a_grid_buf: %04x\n",
-                       get_thread_local_1d_id(),
-                       *(reinterpret_cast<const uint16_t*>(
-                           &src_vector_container.template AsType<SrcData>()[Number<0>{}])));
-            }
+
             // copy data from src_vector_container into src_thread_scratch_
             src_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<src_vector_t>(
@@ -448,9 +442,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
-#if 0
-            printf("Tid: %03d, LDS write offset: %d\n", get_thread_local_1d_id(), dst_coord_.GetOffset());
-#endif
+
             using dst_vector_type = vector_type_maker_t<DstData, DstScalarPerVector>;
             using dst_vector_t    = typename dst_vector_type::type;
 

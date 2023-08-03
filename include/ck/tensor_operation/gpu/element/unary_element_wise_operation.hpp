@@ -398,23 +398,12 @@ struct FastNumericArrayConverter<uint8_t, ck::half_t, 4>
         uint32_t* half_2       = reinterpret_cast<uint32_t*>(&Output);
         uint32_t const uint8_4 = reinterpret_cast<uint32_t const&>(Input);
 
-        // printf("Tid: %03d, uint8_4: %08x\n",
-        // get_thread_local_1d_id(),
-        // uint8_4);
-
         static constexpr uint32_t byte_selector_01 = 0x05010500;
         static constexpr uint32_t byte_selector_23 = 0x05030502;
         static constexpr uint32_t fp16_adder       = 0x64646464;
         half_2[0] = __builtin_amdgcn_perm(fp16_adder, uint8_4, byte_selector_01);
         half_2[1] = __builtin_amdgcn_perm(fp16_adder, uint8_4, byte_selector_23);
 
-        // printf("Tid: %03d, Part1 converted: %08x | %08x\n",
-        // get_thread_local_1d_id(),
-        // half_2[Number<0>{}],
-        // half_2[Number<1>{}]);
-
-        // Lastly, we subtract 1152 from our constructed number using fp16 math to get our signed
-        // integer as fp16.
         static constexpr uint32_t I8s_TO_F16s_MAGIC_NUM = 0x64806480;
         asm volatile("v_pk_add_f16 %0, %1, %2 neg_lo:[0,1] neg_hi:[0,1]\n"
                      : "=v"(half_2[0])
@@ -422,10 +411,7 @@ struct FastNumericArrayConverter<uint8_t, ck::half_t, 4>
         asm volatile("v_pk_add_f16 %0, %1, %2 neg_lo:[0,1] neg_hi:[0,1]\n"
                      : "=v"(half_2[1])
                      : "v"(half_2[1]), "s"(I8s_TO_F16s_MAGIC_NUM));
-        // printf("Tid: %03d, Part2 converted: %08x | %08x\n",
-        // get_thread_local_1d_id(),
-        // half_2[Number<0>{}],
-        // half_2[Number<1>{}]);
+
         return Output;
     }
 
