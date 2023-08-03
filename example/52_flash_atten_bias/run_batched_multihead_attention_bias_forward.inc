@@ -69,7 +69,7 @@ int run(int argc, char* argv[])
     float p_dropout               = 1 - p_drop;
     ZDataType p_dropout_in_16bits = ZDataType(std::floor(p_dropout * 65535.0));
     float rp_dropout              = 1.0 / p_dropout;
-    float alpha                   = 1.f;// / std::sqrt(K);
+    float alpha                   = 1.f / std::sqrt(K);
 
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
     std::vector<ck::index_t> a_gs_ms_ks_strides =

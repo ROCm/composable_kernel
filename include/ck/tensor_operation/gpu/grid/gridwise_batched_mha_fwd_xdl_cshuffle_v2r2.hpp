@@ -1152,35 +1152,6 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2
                                                                    acc_thread_buf,
                                                                    num_k_block_main_loop);
 
-            // add bias
-            if(p_d_grid)
-            {
-                auto d_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                    p_d_grid, d_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize());
-
-                StaticBuffer<AddressSpaceEnum::Vgpr,
-                             DDataType,
-                             d_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize(),
-                             true>
-                    d_thread_buf;
-
-                d_threadwise_copy_globla_vgpr.Run(
-                    d_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                    d_grid_buf,
-                    d_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                    make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                    d_thread_buf);
-
-                static_for<0, m0 * n0 * n2 * n4, 1>{}([&](auto i) {
-                    // acc add bias
-                    acc_thread_buf(i) += d_thread_buf[i];
-                });
-
-                d_threadwise_copy_globla_vgpr.MoveSrcSliceWindow(
-                    d_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                    make_multi_index(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
-            }
-
             // 8d thread_desc in thread scope
             constexpr auto c_thread_lengths =
                 blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
@@ -1240,6 +1211,35 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2
             }
 
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
+
+            // add bias
+            if(p_d_grid)
+            {
+                auto d_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                    p_d_grid, d_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize());
+
+                StaticBuffer<AddressSpaceEnum::Vgpr,
+                             DDataType,
+                             d_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize(),
+                             true>
+                    d_thread_buf;
+
+                d_threadwise_copy_globla_vgpr.Run(
+                    d_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                    d_grid_buf,
+                    d_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                    make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                    d_thread_buf);
+
+                static_for<0, m0 * n0 * n2 * n4, 1>{}([&](auto i) {
+                    // acc add bias
+                    acc_thread_buf(i) += d_thread_buf[i];
+                });
+
+                d_threadwise_copy_globla_vgpr.MoveSrcSliceWindow(
+                    d_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                    make_multi_index(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
+            }
 
             // softmax
             SoftmaxBuf& max = blockwise_softmax.max_value_buf;
