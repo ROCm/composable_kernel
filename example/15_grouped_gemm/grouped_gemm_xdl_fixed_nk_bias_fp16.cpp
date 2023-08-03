@@ -59,7 +59,11 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemm_Xdl_F
 //######|        |        |         |        |      Type|      Type|        Type|         DataType|       Type|      Type| Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
 //######|        |        |         |        |          |          |            |                 |           |          |   Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
 //######|        |        |         |        |          |          |            |                 |           |          |            |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-        < ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   128,    64,   128,    32,   8,   8,   32,   32,    2,    2,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              8,              8,         1,           1,           1,               S<1, 16, 1, 8>,              4>;
+      //< ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   128,    64,   128,    32,   8,   8,   32,   32,    2,    2,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              8,              8,         1,           1,           1,               S<1, 16, 1, 8>,              4>;
+      //< ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   128,    32,   128,    32,   8,   8,   32,   32,    1,    2,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              8,              8,         1,           1,           1,               S<1, 16, 1, 8>,              4>;
+      //< ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   128,    16,   128,    32,   8,   8,   16,   16,    1,    4,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              8,              8,         1,           1,           1,               S<1, 16, 1, 8>,              4>;
+        < ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,    64,    16,    16,    32,   8,   8,   16,   16,    1,    1,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              8,              8,         1,           1,           1,               S<1, 16, 1, 4>,              4>;
+      //< ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,    32,   128,    32,   4,   4,   32,   32,    1,    1,  S<1, 8, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              4,              4,         1,  S<1, 4, 64, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              2,              8,         1,           1,           1,               S<1, 32, 1, 8>,              4>;
 // clang-format on
 
 struct ProblemSize final
@@ -240,11 +244,14 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     auto argument = gemm.MakeArgument(
         p_As, p_Bs, p_Ds, p_Cs, gemm_descs, a_element_op, b_element_op, cde_element_op);
 
-    DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(&argument));
+    DeviceMem gemm_kernel_args_dev(gemm.GetDeviceKernelArgSize(&argument));
+    DeviceMem gemm_workspace_dev(gemm.GetWorkSpaceSize(&argument));
 
-    hip_check_error(hipMemcpy(gemm_desc_workspace.GetDeviceBuffer(),
+    gemm.SetWorkSpacePointer(&argument, gemm_workspace_dev.GetDeviceBuffer());
+
+    hip_check_error(hipMemcpy(gemm_kernel_args_dev.GetDeviceBuffer(),
                               grouped_gemm_kernel_args_.data(),
-                              gemm.GetWorkSpaceSize(&argument),
+                              gemm.GetDeviceKernelArgSize(&argument),
                               hipMemcpyHostToDevice));
 
     if(!gemm.IsSupportedArgument(argument))
@@ -254,10 +261,20 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             "not support this GEMM problem");
     }
 
-    gemm.SetDeviceKernelArgs(argument, gemm_desc_workspace.GetDeviceBuffer());
+    gemm.SetDeviceKernelArgs(argument, gemm_kernel_args_dev.GetDeviceBuffer());
     gemm.SetKBatch(argument, config.k_batch);
 
     invoker.Run(argument, StreamConfig{nullptr, false});
+
+    if(config.time_kernel)
+    {
+        float ave_time   = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+        float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+        float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                  << " GB/s, " << gemm.GetTypeString() << std::endl;
+    }
 
     bool pass = true;
     if(config.do_verification)
@@ -299,16 +316,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
             pass &= ck::utils::check_err(c_device_tensors[i], c_host_tensors[i]);
         }
-    }
-
-    if(config.time_kernel)
-    {
-        float ave_time   = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-        float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
-        float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s, " << gemm.GetTypeString() << std::endl;
     }
 
     return pass;

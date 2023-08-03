@@ -182,7 +182,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         CDEBlockTransferScalarPerVector_NPerBlock,
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         LoopSched,
-        PipelineVersion::v2>;
+        PipelineVersion::v1>;
 
     using CGridDesc_M_N = typename GridwiseGemm::CGridDesc_M_N;
     using Block2ETileMapKSplit =

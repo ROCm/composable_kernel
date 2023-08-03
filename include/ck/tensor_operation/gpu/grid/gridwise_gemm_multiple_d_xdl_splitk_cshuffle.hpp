@@ -653,9 +653,9 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                                                                c_thread_buf,
                                                                num_k_block_main_loop);
 
-        // ignore                              = barrier_count_start;
-        // ignore                              = barrier_count_finished;
-        // ignore                              = KBatch;
+        ignore = barrier_count_start;
+        ignore = barrier_count_finished;
+        ignore = KBatch;
 
         __shared__ index_t k_id_start_shared;
 

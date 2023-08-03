@@ -222,17 +222,14 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     auto argument = gemm.MakeArgument(
         p_As, p_Bs, p_Ds, p_Cs, gemm_descs, a_element_op, b_element_op, c_element_op);
 
-    std::size_t grouped_gemm_kernel_args_buf_size =
-        grouped_gemm_kernel_args_.size() * sizeof(GroupedGemmKernelArgument);
-
-    DeviceMem gemm_arg_dev_mem(grouped_gemm_kernel_args_buf_size);
+    DeviceMem gemm_arg_dev_mem(gemm.GetDeviceKernelArgSize(&argument));
     DeviceMem gemm_workspace_dev(gemm.GetWorkSpaceSize(&argument));
 
     gemm.SetWorkSpacePointer(&argument, gemm_workspace_dev.GetDeviceBuffer());
 
     hip_check_error(hipMemcpy(gemm_arg_dev_mem.GetDeviceBuffer(),
                               grouped_gemm_kernel_args_.data(),
-                              grouped_gemm_kernel_args_buf_size,
+                              gemm.GetDeviceKernelArgSize(&argument),
                               hipMemcpyHostToDevice));
 
     if(!gemm.IsSupportedArgument(argument))

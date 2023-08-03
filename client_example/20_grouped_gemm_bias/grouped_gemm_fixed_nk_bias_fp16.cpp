@@ -27,7 +27,7 @@ using BDataType  = F16;
 using D0DataType = F32;
 using DsDataType = ck::Tuple<D0DataType>;
 using EDataType  = F16;
-// using EDataType  = F32;
+// using EDataType = F32;
 
 using ALayout = Row;
 using BLayout = Col;
@@ -184,22 +184,28 @@ int main()
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-        SimpleDeviceMem grouped_gemm_kernel_args_dev(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
+        SimpleDeviceMem grouped_gemm_kernel_args_dev(
+            op_ptr->GetDeviceKernelArgSize(argument_ptr.get()));
+
+        SimpleDeviceMem grouped_gemm_workspace_dev(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
 
         std::string op_name = op_ptr->GetTypeString();
 
         hipGetErrorString(hipMemcpy(grouped_gemm_kernel_args_dev.GetDeviceBuffer(),
                                     grouped_gemm_kernel_args_.data(),
-                                    op_ptr->GetWorkSpaceSize(argument_ptr.get()),
+                                    op_ptr->GetDeviceKernelArgSize(argument_ptr.get()),
                                     hipMemcpyHostToDevice));
+
+        op_ptr->SetWorkSpacePointer(argument_ptr.get(),
+                                    grouped_gemm_workspace_dev.GetDeviceBuffer());
+
+        op_ptr->SetDeviceKernelArgs(argument_ptr.get(),
+                                    grouped_gemm_kernel_args_dev.GetDeviceBuffer());
+
+        op_ptr->SetKBatch(argument_ptr.get(), 2);
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            op_ptr->SetDeviceKernelArgs(argument_ptr.get(),
-                                        grouped_gemm_kernel_args_dev.GetDeviceBuffer());
-
-            op_ptr->SetKBatch(argument_ptr.get(), 2);
-
             float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
             std::size_t flop = 0, num_btype = 0;
@@ -235,32 +241,6 @@ int main()
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
-
-    // run the best intance
-    if(found)
-    {
-        auto& op_ptr = op_ptrs[best_op_id];
-
-        std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
-                  << std::endl;
-
-        auto argument_ptr = op_ptr->MakeArgumentPointer(
-            p_a, p_b, p_ds, p_e, gemm_descs, a_element_op, b_element_op, cde_element_op);
-
-        auto invoker_ptr = op_ptr->MakeInvokerPointer();
-
-        SimpleDeviceMem grouped_gemm_kernel_args_dev(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
-
-        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
-        {
-            op_ptr->SetDeviceKernelArgs(argument_ptr.get(),
-                                        grouped_gemm_kernel_args_dev.GetDeviceBuffer());
-
-            invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
-        }
-
-        std::cout << "Done" << std::endl;
-    }
 
     return 0;
 }

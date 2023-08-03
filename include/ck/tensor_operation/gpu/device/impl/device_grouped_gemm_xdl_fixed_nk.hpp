@@ -841,6 +841,13 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
         return arg.group_count_ * (arg.barrier_size_grp_ * 2) * sizeof(uint32_t);
     }
 
+    size_t GetDeviceKernelArgSize(const BaseArgument* p_arg) const override
+    {
+        auto arg = *dynamic_cast<const Argument*>(p_arg);
+
+        return arg.group_count_ * sizeof(GroupedGemmKernelArgument<NumDTensor>);
+    }
+
     void SetWorkSpacePointer(BaseArgument* p_arg, void* p_workspace) const override
     {
         auto p_arg_          = dynamic_cast<Argument*>(p_arg);
