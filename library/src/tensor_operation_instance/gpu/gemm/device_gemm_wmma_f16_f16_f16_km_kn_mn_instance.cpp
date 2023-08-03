@@ -29,9 +29,8 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 // Compilation parameters for a[k, m] * b[k, n] = c[m, n]
-using device_gemm_wmma_f16_f16_f16_km_kn_mn_instances =
-    std::tuple<
-        // clang-format off
+using device_gemm_wmma_f16_f16_f16_km_kn_mn_instances = std::tuple<
+    // clang-format off
         //######################| ALayout| BLayout| CLayout| AData| BData| CData| AccData| CShuffle|           A|           B|           C|          GEMM| NumPrefetch| Block|  MPer|  NPer|  KPer| K1| MPer| NPer|      M|       N|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CShuffle| CShuffle| CShuffleBlockTransfer| CShuffleBlockTransfer|
         //######################|        |        |        |  Type|  Type|  Type|    Type| DataType| Elementwise| Elementwise| Elementwise|Specialization|            |  Size| Block| Block| Block|   | WMMA| WMMA| Repeat|  Repeat|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|  MRepeat|  MRepeat|        ClusterLengths|       ScalarPerVector|
         //######################|        |        |        |      |      |      |        |         |   Operation|   Operation|   Operation|              |            |      |      |      |      |   |     |     |       |        | Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          | PerStore| PerStore|      MBlock_MPerBlock|                      |
@@ -62,8 +61,8 @@ using device_gemm_wmma_f16_f16_f16_km_kn_mn_instances =
         // 1 Wave
         DeviceGemmWmma_CShuffle<      Col,     Row,     Row,   F16,   F16,   F16,     F32,      F16, PassThrough, PassThrough, PassThrough, GemmMNKPadding,           1,    32,    16,    32,    64,  8,   16,   16,      1,       2,     S<2, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,      true,     S<2, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,      true,        1,        1,       S<1, 16, 1,  2>,                      8>,
         DeviceGemmWmma_CShuffle<      Col,     Row,     Row,   F16,   F16,   F16,     F32,      F16, PassThrough, PassThrough, PassThrough, GemmMNKPadding,           1,    32,    16,    16,    64,  8,   16,   16,      1,       1,     S<2, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,      true,     S<2, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,      true,        1,        1,       S<1, 16, 1,  2>,                      8>
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 
 void add_device_gemm_wmma_f16_f16_f16_km_kn_mn_instances(
     std::vector<std::unique_ptr<
