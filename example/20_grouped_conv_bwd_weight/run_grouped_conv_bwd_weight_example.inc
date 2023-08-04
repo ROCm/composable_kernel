@@ -85,11 +85,11 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
 
     auto range_copy = [](const auto& from, auto to) { std::copy(begin(from), end(from), to); };
 
-    range_copy(in_g_n_c_wis_desc.GetLengths(), begin(input_spatial_lengths));
+    range_copy(in_g_n_c_wis_desc.GetLengths(), begin(input_lengths));
     range_copy(in_g_n_c_wis_desc.GetStrides(), begin(input_strides));
-    range_copy(wei_g_k_c_xs_desc.GetLengths(), begin(filter_spatial_lengths));
+    range_copy(wei_g_k_c_xs_desc.GetLengths(), begin(filter_lengths));
     range_copy(wei_g_k_c_xs_desc.GetStrides(), begin(weights_strides));
-    range_copy(out_g_n_k_wos_desc.GetLengths(), begin(output_spatial_lengths));
+    range_copy(out_g_n_k_wos_desc.GetLengths(), begin(output_lengths));
     range_copy(out_g_n_k_wos_desc.GetStrides(), begin(output_strides));
     range_copy(conv_param.conv_filter_strides_, begin(conv_filter_strides));
     range_copy(conv_param.conv_filter_dilations_, begin(conv_filter_dilations));
