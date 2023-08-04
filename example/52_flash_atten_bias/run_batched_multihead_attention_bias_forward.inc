@@ -137,7 +137,7 @@ int run(int argc, char* argv[])
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<DDataType>{-1,1});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<DDataType>{-2, 2});
         break;
     case 2:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -188,11 +188,10 @@ int run(int argc, char* argv[])
         static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
         static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
         static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-        static_cast<DDataType*>(nullptr),
         static_cast<ZDataType*>(nullptr),
         static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-        {}, // std::array<void*, 1> p_acc0_biases;
-        {}, // std::array<void*, 1> p_acc1_biases;
+        std::array<void*, 1>{d_device_buf.GetDeviceBuffer()}, // std::array<void*, 1> p_acc0_biases;
+        {},                                                   // std::array<void*, 1> p_acc1_biases;
         a_gs_ms_ks_lengths,
         a_gs_ms_ks_strides,
         b0_gs_ns_ks_lengths,
@@ -201,13 +200,11 @@ int run(int argc, char* argv[])
         b1_gs_os_ns_strides,
         c_gs_ms_os_lengths,
         c_gs_ms_os_strides,
-        d_gs_ms_ns_lengths,
-        d_gs_ms_ns_strides,
         z_gs_ms_ns_lengths,
         z_gs_ms_ns_strides,
         lse_gs_ms_lengths,
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
+        std::array<std::vector<ck::index_t>, 1>{d_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
+        std::array<std::vector<ck::index_t>, 1>{d_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
         {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
         {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
         a_element_op,
@@ -244,18 +241,17 @@ int run(int argc, char* argv[])
 
     if(do_verification)
     {
-
         // run for storing z tensor
         argument = gemm.MakeArgument(
             static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
             static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
             static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
             static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-            static_cast<DDataType*>(d_device_buf.GetDeviceBuffer()),
             static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
             static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-            {}, // std::array<void*, 1> p_acc0_biases;
-            {}, // std::array<void*, 1> p_acc1_biases;
+            std::array<void*, 1>{
+                d_device_buf.GetDeviceBuffer()}, // std::array<void*, 1> p_acc0_biases;
+            {},                                  // std::array<void*, 1> p_acc1_biases;
             a_gs_ms_ks_lengths,
             a_gs_ms_ks_strides,
             b0_gs_ns_ks_lengths,
@@ -264,13 +260,13 @@ int run(int argc, char* argv[])
             b1_gs_os_ns_strides,
             c_gs_ms_os_lengths,
             c_gs_ms_os_strides,
-            d_gs_ms_ns_lengths,
-            d_gs_ms_ns_strides,
             z_gs_ms_ns_lengths,
             z_gs_ms_ns_strides,
             lse_gs_ms_lengths,
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
+            std::array<std::vector<ck::index_t>, 1>{
+                d_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
+            std::array<std::vector<ck::index_t>, 1>{
+                d_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
             {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
             {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
             a_element_op,
@@ -326,11 +322,8 @@ int run(int argc, char* argv[])
             a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, acc0_element_op);
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
-        
-        //bias
-        acc0_g_m_n.ForEach([&](auto& self, auto idx) {
-                self(idx) += d_g_m_n(idx);
-        });
+        // bias
+        acc0_g_m_n.ForEach([&](auto& self, auto idx) { self(idx) += d_g_m_n(idx); });
         // masking
         const auto mask = DeviceGemmInstance::C0MatrixMask(M, N);
         acc0_g_m_n.ForEach([&](auto& self, auto idx) {

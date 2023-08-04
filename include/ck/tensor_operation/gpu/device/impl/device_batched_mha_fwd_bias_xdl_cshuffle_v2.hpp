@@ -124,9 +124,9 @@ __global__ void
                 p_b_grid + b_batch_offset,
                 p_b1_grid + b1_batch_offset,
                 p_c_grid + c_batch_offset,
-                nullptr ? nullptr : p_d_grid + d_batch_offset,
-                nullptr ? nullptr : p_z_grid + z_batch_offset,
-                nullptr ? nullptr : p_lse_grid + lse_batch_offset,
+                p_d_grid == nullptr ? nullptr : p_d_grid + d_batch_offset,
+                p_z_grid == nullptr ? nullptr : p_z_grid + z_batch_offset,
+                p_lse_grid == nullptr ? nullptr : p_lse_grid + lse_batch_offset,
                 p_shared,
                 a_element_op,
                 b_element_op,
@@ -157,9 +157,9 @@ __global__ void
             p_b_grid + b_batch_offset,
             p_b1_grid + b1_batch_offset,
             p_c_grid + c_batch_offset,
-            p_d_grid + d_batch_offset,
-            nullptr ? nullptr : p_z_grid + z_batch_offset,
-            nullptr ? nullptr : p_lse_grid + lse_batch_offset,
+            p_d_grid == nullptr ? nullptr : p_d_grid + d_batch_offset,
+            p_z_grid == nullptr ? nullptr : p_z_grid + z_batch_offset,
+            p_lse_grid == nullptr ? nullptr : p_lse_grid + lse_batch_offset,
             p_shared,
             a_element_op,
             b_element_op,
@@ -288,28 +288,27 @@ template <index_t NumDimG,
           MaskingSpecialization MaskingSpec,
           bool Deterministic,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
-    : public DeviceBatchedMultiheadAttentionBiasForward<NumDimG,
-                                                        NumDimM,
-                                                        NumDimN,
-                                                        NumDimK,
-                                                        NumDimO,
-                                                        ADataType,
-                                                        BDataType,
-                                                        B1DataType,
-                                                        CDataType,
-                                                        ZDataType,
-                                                        LSEDataType,
-                                                        Acc0BiasDataType,
-                                                        Acc1BiasDataType,
-                                                        AElementwiseOperation,
-                                                        BElementwiseOperation,
-                                                        AccElementwiseOperation,
-                                                        B1ElementwiseOperation,
-                                                        CElementwiseOperation,
-                                                        MaskingSpec>
+struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2
+    : public DeviceBatchedMultiheadAttentionForward<NumDimG,
+                                                    NumDimM,
+                                                    NumDimN,
+                                                    NumDimK,
+                                                    NumDimO,
+                                                    ADataType,
+                                                    BDataType,
+                                                    B1DataType,
+                                                    CDataType,
+                                                    ZDataType,
+                                                    LSEDataType,
+                                                    Acc0BiasDataType,
+                                                    Acc1BiasDataType,
+                                                    AElementwiseOperation,
+                                                    BElementwiseOperation,
+                                                    AccElementwiseOperation,
+                                                    B1ElementwiseOperation,
+                                                    CElementwiseOperation,
+                                                    MaskingSpec>
 {
-    using DDataType = ADataType;
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
 
@@ -317,7 +316,12 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
     static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
 
     // TODO ANT: implement bias combination
-    static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
+    static_assert(NumAcc0Bias <= 1, "Acc0 Bias addition is max support one bias");
+    static_assert(NumAcc1Bias == 0, "Acc1 Bias addition is unimplemented");
+    static_assert(NumAcc1Bias == 0
+                      ? true
+                      : std::is_same_v<ADataType, ck::tuple_element_t<0, Acc0BiasDataType>>);
+    using DDataType = ADataType;
 
 #if 0
     // TODO ANT: use alias
@@ -329,7 +333,7 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
     static constexpr index_t NumDimGemm1K = NumDimN;
 #endif
 
-    using DeviceOp = DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2;
+    using DeviceOp = DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -574,7 +578,6 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
             const BDataType* p_b_grid,
             const B1DataType* p_b1_grid,
             CDataType* p_c_grid,
-            const DDataType* p_d_grid,
             ZDataType* p_z_grid,
             LSEDataType* p_lse_grid,
             const std::array<void*, NumAcc0Bias> p_acc0_biases,
@@ -587,8 +590,6 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
             const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
             const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
             const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-            const std::vector<index_t>& d_gs_ms_ns_lengths,
-            const std::vector<index_t>& d_gs_ms_ns_strides,
             const std::vector<index_t>& z_gs_ms_ns_lengths,
             const std::vector<index_t>& z_gs_ms_ns_strides,
             const std::vector<index_t>& lse_gs_ms_lengths,
@@ -609,7 +610,8 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
               p_b_grid_{p_b_grid},
               p_b1_grid_{p_b1_grid},
               p_c_grid_{p_c_grid},
-              p_d_grid_{p_d_grid},
+              p_d_grid_{NumAcc0Bias == 0 ? nullptr
+                                         : static_cast<const DDataType*>(p_acc0_biases[0])},
               p_z_grid_{p_z_grid},
               p_lse_grid_{p_lse_grid},
               a_grid_desc_ak0_m_ak1_{
@@ -620,7 +622,10 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
               c_grid_desc_m_n_{Transform::MakeCGridDescriptor_M_N(c_gs_ms_gemm1ns_lengths,
                                                                   c_gs_ms_gemm1ns_strides)},
-              d_grid_desc_m_n_{MakeZGridDescriptor_M_N(d_gs_ms_ns_lengths, d_gs_ms_ns_strides)},
+              d_grid_desc_m_n_{NumAcc0Bias == 0
+                                   ? DGridDesc_M_N{}
+                                   : MakeZGridDescriptor_M_N(acc0_biases_gs_ms_ns_lengths[0],
+                                                             acc0_biases_gs_ms_ns_strides[0])},
               z_grid_desc_m_n_{MakeZGridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
               lse_grid_desc_m_{DeviceOp::MakeLSEGridDescriptor_M(lse_gs_ms_lengths[NumDimG])},
               a_grid_desc_g_m_k_{
@@ -631,8 +636,10 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
               c_grid_desc_g_m_n_{Transform::MakeCGridDescriptor_G_M_N(c_gs_ms_gemm1ns_lengths,
                                                                       c_gs_ms_gemm1ns_strides)},
-              d_grid_desc_g_m_n_{
-                  Transform::MakeCGridDescriptor_G_M_N(d_gs_ms_ns_lengths, d_gs_ms_ns_strides)},
+              d_grid_desc_g_m_n_{NumAcc0Bias == 0 ? DGridDesc_G_M_N{}
+                                                  : Transform::MakeCGridDescriptor_G_M_N(
+                                                        acc0_biases_gs_ms_ns_lengths[0],
+                                                        acc0_biases_gs_ms_ns_strides[0])},
               z_grid_desc_g_m_n_{
                   Transform::MakeCGridDescriptor_G_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
               c_grid_desc_mblock_mperblock_nblock_nperblock_{},
@@ -666,10 +673,7 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
                   type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize())}
         {
             // TODO ANT: implement bias addition
-            ignore = p_acc0_biases;
             ignore = p_acc1_biases;
-            ignore = acc0_biases_gs_ms_ns_lengths;
-            ignore = acc0_biases_gs_ms_ns_strides;
             ignore = acc1_biases_gs_ms_gemm1ns_lengths;
             ignore = acc1_biases_gs_ms_gemm1ns_strides;
 
@@ -1052,7 +1056,6 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
         const BDataType* p_b,
         const B1DataType* p_b1,
         CDataType* p_c,
-        const DDataType* p_d,
         ZDataType* p_z,
         LSEDataType* p_lse,
         const std::array<void*, NumAcc0Bias> p_acc0_biases,
@@ -1065,8 +1068,6 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
         const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
         const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
         const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-        const std::vector<index_t>& d_gs_ms_ns_lengths,
-        const std::vector<index_t>& d_gs_ms_ns_strides,
         const std::vector<index_t>& z_gs_ms_ns_lengths,
         const std::vector<index_t>& z_gs_ms_ns_strides,
         const std::vector<index_t>& lse_gs_ms_lengths,
@@ -1088,7 +1089,6 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
                         p_b,
                         p_b1,
                         p_c,
-                        p_d,
                         p_z,
                         p_lse,
                         p_acc0_biases,
@@ -1101,8 +1101,6 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
                         b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
                         c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
                         c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-                        d_gs_ms_ns_lengths,
-                        d_gs_ms_ns_strides,
                         z_gs_ms_ns_lengths,
                         z_gs_ms_ns_strides,
                         lse_gs_ms_lengths,
@@ -1128,7 +1126,6 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
         const void* p_b,
         const void* p_b1,
         void* p_c,
-        const void* p_d,
         void* p_z,
         void* p_lse,
         const std::array<void*, NumAcc0Bias> p_acc0_biases,
@@ -1141,8 +1138,6 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
         const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
         const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
         const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-        const std::vector<index_t>& d_gs_ms_ns_lengths,
-        const std::vector<index_t>& d_gs_ms_ns_strides,
         const std::vector<index_t>& z_gs_ms_ns_lengths,
         const std::vector<index_t>& z_gs_ms_ns_strides,
         const std::vector<index_t>& lse_gs_ms_lengths,
@@ -1164,7 +1159,6 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<const B1DataType*>(p_b1),
                                           static_cast<CDataType*>(p_c),
-                                          static_cast<const DDataType*>(p_d),
                                           static_cast<ZDataType*>(p_z),
                                           static_cast<LSEDataType*>(p_lse),
                                           p_acc0_biases, // cast in struct Argument
@@ -1177,8 +1171,6 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
                                           b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
                                           c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
                                           c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-                                          d_gs_ms_ns_lengths,
-                                          d_gs_ms_ns_strides,
                                           z_gs_ms_ns_lengths,
                                           z_gs_ms_ns_strides,
                                           lse_gs_ms_lengths,
@@ -1207,7 +1199,7 @@ struct DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceBatchedMultiheadAttentionBiasForward_Xdl_CShuffle_V2"
+        str << "DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
