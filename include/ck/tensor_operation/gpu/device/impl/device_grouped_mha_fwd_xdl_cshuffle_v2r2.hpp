@@ -285,12 +285,16 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
 
-    static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();
-    static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
+    static constexpr index_t NumD0Tensor = Acc0BiasDataType::Size();
+    static constexpr index_t NumD1Tensor = Acc1BiasDataType::Size();
 
     // TODO ANT: implement bias combination
-    static_assert(NumAcc0Bias <= 1, "Bias0 addition is only support one bias");
-    static_assert(NumAcc1Bias == 0, "Bias addition is unimplemented");
+    static_assert(NumD0Tensor <= 1, "Bias0 addition is only support one bias");
+    static_assert(NumD1Tensor == 0, "Bias addition is unimplemented");
+    static_assert(NumD0Tensor == 0
+                      ? true
+                      : std::is_same_v<ADataType, ck::tuple_element_t<0, Acc0BiasDataType>>);
+    using DDataType = ADataType;
 
 #if 0
     // TODO ANT: use alias
@@ -398,12 +402,14 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
     using B1GridDesc_BK0_N_BK1 = decltype(MakeB1GridDescriptor_BK0_N_BK1({}, {}));
     using CGridDesc_M_N        = decltype(Transform::MakeCGridDescriptor_M_N({}, {}));
     using LSEGridDesc_M        = decltype(MakeLSEGridDescriptor_M(1));
+    using DGridDesc_M_N        = decltype(MakeZGridDescriptor_M_N({}, {}));
     using ZGridDesc_M_N        = decltype(MakeZGridDescriptor_M_N({}, {}));
 
     using AGridDesc_G_M_K  = decltype(Transform::MakeAGridDescriptor_G_M_K({}, {}));
     using BGridDesc_G_N_K  = decltype(Transform::MakeB0GridDescriptor_G_N_K({}, {}));
     using B1GridDesc_G_N_K = decltype(Transform::MakeB1GridDescriptor_G_N_K({}, {}));
     using CGridDesc_G_M_N  = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
+    using DGridDesc_G_M_N  = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
     using ZGridDesc_G_M_N  = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
 
     constexpr static auto make_MaskOutPredicate()
@@ -429,12 +435,14 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
                                      const BGridDesc_G_N_K& b_grid_desc_g_n_k,
                                      const B1GridDesc_G_N_K& b1_grid_desc_g_n_k,
                                      const CGridDesc_G_M_N& c_grid_desc_g_m_n,
+                                     const DGridDesc_G_M_N& d_grid_desc_g_m_n,
                                      const ZGridDesc_G_M_N& z_grid_desc_g_m_n,
                                      index_t BatchStrideLSE)
             : a_grid_desc_g_m_k_(a_grid_desc_g_m_k),
               b_grid_desc_g_n_k_(b_grid_desc_g_n_k),
               b1_grid_desc_g_n_k_(b1_grid_desc_g_n_k),
               c_grid_desc_g_m_n_(c_grid_desc_g_m_n),
+              d_grid_desc_g_m_n_(d_grid_desc_g_m_n),
               z_grid_desc_g_m_n_(z_grid_desc_g_m_n),
               BatchStrideLSE_(BatchStrideLSE)
         {
@@ -460,6 +468,11 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
             return c_grid_desc_g_m_n_.CalculateOffset(make_multi_index(g_idx, 0, 0));
         }
 
+        __host__ __device__ constexpr long_index_t GetDBasePtr(index_t g_idx) const
+        {
+            return d_grid_desc_g_m_n_.CalculateOffset(make_multi_index(g_idx, 0, 0));
+        }
+
         __host__ __device__ constexpr long_index_t GetZBasePtr(index_t g_idx) const
         {
             return z_grid_desc_g_m_n_.CalculateOffset(make_multi_index(g_idx, 0, 0));
@@ -475,6 +488,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
         BGridDesc_G_N_K b_grid_desc_g_n_k_;
         B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
         CGridDesc_G_M_N c_grid_desc_g_m_n_;
+        DGridDesc_G_M_N d_grid_desc_g_m_n_;
         ZGridDesc_G_M_N z_grid_desc_g_m_n_;
 
         index_t BatchStrideLSE_;
@@ -558,6 +572,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
         const BDataType* p_b_grid_;
         const B1DataType* p_b1_grid_;
         CDataType* p_c_grid_;
+        const DDataType* p_d_grid_;
         ZDataType* p_z_grid_;
         LSEDataType* p_lse_grid_;
 
@@ -567,6 +582,9 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
+        DGridDesc_M_N d_grid_desc_m_n_;
+        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
+            d_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
         typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
             z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
         ZGridDesc_M_N z_grid_desc_m_n_;
@@ -649,10 +667,13 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
 
             for(std::size_t i = 0; i < group_count_; i++)
             {
-                const auto p_a_grid   = static_cast<const ADataType*>(p_a_vec[i]);
-                const auto p_b_grid   = static_cast<const BDataType*>(p_b_vec[i]);
-                const auto p_b1_grid  = static_cast<const B1DataType*>(p_b1_vec[i]);
-                const auto p_c_grid   = static_cast<CDataType*>(p_c_vec[i]);
+                const auto p_a_grid  = static_cast<const ADataType*>(p_a_vec[i]);
+                const auto p_b_grid  = static_cast<const BDataType*>(p_b_vec[i]);
+                const auto p_b1_grid = static_cast<const B1DataType*>(p_b1_vec[i]);
+                const auto p_c_grid  = static_cast<CDataType*>(p_c_vec[i]);
+                const auto p_d_grid  = NumD0Tensor == 0
+                                          ? nullptr
+                                          : static_cast<const DDataType*>(p_acc0_biases_vec[i][0]);
                 const auto p_z_grid   = static_cast<ZDataType*>(p_z_vec[i]);
                 const auto p_lse_grid = static_cast<LSEDataType*>(p_lse_vec[i]);
 
@@ -671,6 +692,14 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
                     problem_desc.b1_gs_os_ns_lengths, problem_desc.b1_gs_os_ns_strides);
                 const auto c_grid_desc_m_n = Transform::MakeCGridDescriptor_M_N(
                     problem_desc.c_gs_ms_os_lengths, problem_desc.c_gs_ms_os_strides);
+                const auto d_grid_desc_m_n =
+                    NumD0Tensor == 0
+                        ? DGridDesc_M_N{}
+                        : MakeZGridDescriptor_M_N(problem_desc.acc0_biases_gs_ms_ns_lengths[0],
+                                                  problem_desc.acc0_biases_gs_ms_ns_strides[0]);
+                const auto d_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
+                        d_grid_desc_m_n);
                 const auto z_grid_desc_m_n = MakeZGridDescriptor_M_N(
                     problem_desc.z_gs_ms_ns_lengths, problem_desc.z_gs_ms_ns_strides);
                 const auto lse_grid_desc_m =
@@ -684,6 +713,11 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
                     problem_desc.b1_gs_os_ns_lengths, problem_desc.b1_gs_os_ns_strides);
                 const auto c_grid_desc_g_m_n = Transform::MakeCGridDescriptor_G_M_N(
                     problem_desc.c_gs_ms_os_lengths, problem_desc.c_gs_ms_os_strides);
+                const auto d_grid_desc_g_m_n =
+                    NumD0Tensor == 0 ? DGridDesc_G_M_N{}
+                                     : Transform::MakeCGridDescriptor_G_M_N(
+                                           problem_desc.acc0_biases_gs_ms_ns_lengths[0],
+                                           problem_desc.acc0_biases_gs_ms_ns_strides[0]);
                 const auto z_grid_desc_g_m_n = Transform::MakeCGridDescriptor_G_M_N(
                     problem_desc.z_gs_ms_ns_lengths, problem_desc.z_gs_ms_ns_strides);
 
@@ -713,6 +747,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
                     b_grid_desc_g_n_k,
                     b1_grid_desc_g_n_k,
                     c_grid_desc_g_m_n,
+                    d_grid_desc_g_m_n,
                     z_grid_desc_g_m_n,
                     type_convert<index_t>(lse_grid_desc_m.GetElementSpaceSize()));
 
@@ -722,12 +757,12 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
 
                 grid_size_ += grid_size_grp;
 
-                // for each group, make sure acc0_biases_gs_ms_ns_lengths.size() == NumAcc0Bias and
+                // for each group, make sure acc0_biases_gs_ms_ns_lengths.size() == NumD0Tensor and
                 // so on
-                if(!(problem_desc.acc0_biases_gs_ms_ns_lengths.size() == NumAcc0Bias &&
-                     problem_desc.acc0_biases_gs_ms_ns_strides.size() == NumAcc0Bias &&
-                     problem_desc.acc1_biases_gs_ms_os_lengths.size() == NumAcc1Bias &&
-                     problem_desc.acc1_biases_gs_ms_os_strides.size() == NumAcc1Bias))
+                if(!(problem_desc.acc0_biases_gs_ms_ns_lengths.size() == NumD0Tensor &&
+                     problem_desc.acc0_biases_gs_ms_ns_strides.size() == NumD0Tensor &&
+                     problem_desc.acc1_biases_gs_ms_os_lengths.size() == NumD1Tensor &&
+                     problem_desc.acc1_biases_gs_ms_os_strides.size() == NumD1Tensor))
                 {
                     throw std::runtime_error(
                         "wrong! number of biases in function argument does not "
@@ -743,12 +778,15 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
                                               p_b_grid,
                                               p_b1_grid,
                                               p_c_grid,
+                                              p_d_grid,
                                               p_z_grid,
                                               p_lse_grid,
                                               a_grid_desc_ak0_m_ak1,
                                               b_grid_desc_bk0_n_bk1,
                                               b1_grid_desc_bk0_n_bk1,
                                               c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              d_grid_desc_m_n,
+                                              d_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                                               z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                                               z_grid_desc_m_n,
                                               lse_grid_desc_m,
