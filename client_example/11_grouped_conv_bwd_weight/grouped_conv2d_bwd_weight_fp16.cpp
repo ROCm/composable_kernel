@@ -25,9 +25,9 @@ static constexpr ck::index_t Hi            = 28;
 static constexpr ck::index_t Wi            = 28;
 static constexpr ck::index_t Ho            = 28;
 static constexpr ck::index_t Wo            = 28;
-static constexpr std::array<ck::index_t, NumDimSpatial> input_spatial_lengths{Hi, Wi};
-static constexpr std::array<ck::index_t, NumDimSpatial> filter_spatial_lengths{Y, X};
-static constexpr std::array<ck::index_t, NumDimSpatial> output_spatial_lengths{Ho, Wo};
+static constexpr std::array<ck::index_t, NumDimSpatial + 3> input_lengths{G, N, C, Hi, Wi};
+static constexpr std::array<ck::index_t, NumDimSpatial + 3> filter_lengths{G, K, C, Y, X};
+static constexpr std::array<ck::index_t, NumDimSpatial + 3> output_lengths{G, N, K, Ho, Wo};
 static constexpr std::array<ck::index_t, NumDimSpatial + 3> input_strides{
     N * Hi * Wi * C, Hi* Wi* C, 1, Wi* C, C};
 static constexpr std::array<ck::index_t, NumDimSpatial + 3> weights_strides{
@@ -47,15 +47,11 @@ int main()
                                        OutDataType,
                                        InLayout,
                                        WeiLayout,
-                                       OutLayout>(G,
-                                                  N,
-                                                  K,
-                                                  C,
-                                                  input_spatial_lengths,
-                                                  filter_spatial_lengths,
-                                                  output_spatial_lengths,
+                                       OutLayout>(input_lengths,
                                                   input_strides,
+                                                  filter_lengths,
                                                   weights_strides,
+                                                  output_lengths,
                                                   output_strides,
                                                   conv_filter_strides,
                                                   conv_filter_dilations,

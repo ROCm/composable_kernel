@@ -865,20 +865,20 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Dl
             // A/B/C Batch Stride
             compute_ptr_offset_of_batch_.BatchStrideA_ =
                 Conv_N_ * Conv_K_ *
-                std::accumulate(begin(output_spatial_lengths),
-                                end(output_spatial_lengths),
+                std::accumulate(begin(output_spatial_lengths_),
+                                end(output_spatial_lengths_),
                                 index_t{1},
                                 std::multiplies<>{});
             compute_ptr_offset_of_batch_.BatchStrideB_ =
                 Conv_N_ * Conv_C_ *
-                std::accumulate(begin(input_spatial_lengths),
-                                end(input_spatial_lengths),
+                std::accumulate(begin(input_spatial_lengths_),
+                                end(input_spatial_lengths_),
                                 index_t{1},
                                 std::multiplies<>{});
             compute_ptr_offset_of_batch_.BatchStrideC_ =
                 Conv_K_ * Conv_C_ *
-                std::accumulate(begin(filter_spatial_lengths),
-                                end(filter_spatial_lengths),
+                std::accumulate(begin(filter_spatial_lengths_),
+                                end(filter_spatial_lengths_),
                                 index_t{1},
                                 std::multiplies<>{});
         }
