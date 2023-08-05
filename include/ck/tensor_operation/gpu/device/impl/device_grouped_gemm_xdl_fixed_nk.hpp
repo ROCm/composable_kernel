@@ -67,7 +67,7 @@ __global__ void
     const index_t N = gemm_desc_ptr[group_id].N;
     const index_t K = gemm_desc_ptr[group_id].K;
 
-    if(M == 0 || N == 0 || K == 0)
+    if(M * N * K == 0)
         return;
 
     const auto StrideA  = gemm_desc_ptr[group_id].StrideA;
@@ -112,10 +112,8 @@ __global__ void
         const auto block_2_etile_map =
             GroupedGemmBlock2ETileMap(local_b2e_tile_map, BlockStart, id_off);
 
-        auto barrier_count_start =
-            barrier_count + group_id * barrier_size_grp * 2 + id_local % mn_blocks;
-        auto barrier_count_finished = barrier_count + group_id * barrier_size_grp * 2 +
-                                      barrier_size_grp + id_local % mn_blocks;
+        auto barrier_count_finished =
+            barrier_count + group_id * barrier_size_grp + id_local % mn_blocks;
 
         GridwiseGemm::template Run<HasMainKBlockLoop,
                                    EGlobalMemoryDataOperation,
@@ -128,7 +126,6 @@ __global__ void
                                             p_ds_grid_,
                                             gemm_desc_ptr[group_id].p_e_grid,
                                             p_shared,
-                                            barrier_count_start,
                                             barrier_count_finished,
                                             a_element_op,
                                             b_element_op,
@@ -448,13 +445,14 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
             const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_m_n, k_batch_};
 
             grid_size_grp_ = local_b2c_tile_map.CalculateGridSize(e_grid_desc_m_n);
-            grid_size_     = grid_size_grp_ * group_count_;
+
+            grid_size_ = grid_size_grp_ * group_count_;
         }
 
-        Argument(std::vector<const void*>& p_As,
-                 std::vector<const void*>& p_Bs,
-                 std::vector<std::array<const void*, NumDTensor>>& p_Ds,
-                 std::vector<void*>& p_Es,
+        Argument(std::vector<const void*>&,
+                 std::vector<const void*>&,
+                 std::vector<std::array<const void*, NumDTensor>>&,
+                 std::vector<void*>&,
                  std::vector<GemmDesc>& gemm_descs,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
@@ -468,29 +466,6 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
             grouped_gemm_kernel_args_dev = nullptr;
 
             group_count_ = ck::type_convert<ck::index_t>(gemm_descs.size());
-
-            if(!(group_count_ == ck::type_convert<ck::index_t>(p_As.size()) ||
-                 0 == ck::type_convert<ck::index_t>(p_As.size())))
-            {
-                throw std::runtime_error("wrong! group_count_ != p_As || 0 != p_As.size");
-            }
-
-            if(!(group_count_ == ck::type_convert<ck::index_t>(p_Bs.size()) ||
-                 0 == ck::type_convert<ck::index_t>(p_Bs.size())))
-            {
-                throw std::runtime_error("wrong! group_count_ != p_Bs || 0 != p_Bs.size");
-            }
-
-            if(!(group_count_ == ck::type_convert<ck::index_t>(p_Ds.size()) ||
-                 0 == ck::type_convert<ck::index_t>(p_Ds.size())))
-            {
-                throw std::runtime_error("wrong! group_count_ != p_Ds || 0 != p_Ds.size");
-            }
-
-            if(!(group_count_ == ck::type_convert<ck::index_t>(p_Es.size())))
-            {
-                throw std::runtime_error("wrong! group_count_ != p_Es");
-            }
 
             gemm_desc_kernel_arg_.reserve(group_count_);
 
@@ -518,12 +493,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                 // pointer
                 std::array<const void*, NumDTensor> p_ds_grid;
 
-                static_for<0, NumDTensor, 1>{}([&](auto j) {
-                    using DDataType = remove_cvref_t<tuple_element_t<j.value, DsDataType>>;
-
-                    p_ds_grid[j] =
-                        static_cast<const DDataType*>(p_Ds.size() == 0 ? nullptr : p_Ds[i][j]);
-                });
+                static_for<0, NumDTensor, 1>{}([&](auto j) { p_ds_grid[j] = nullptr; });
 
                 std::array<index_t, NumDTensor> StrideDs;
 
@@ -570,10 +540,10 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                 }
 
                 gemm_desc_kernel_arg_.push_back(GemmBiasTransKernelArg{
-                    p_As.size() == 0 ? nullptr : p_As[i],
-                    p_Bs.size() == 0 ? nullptr : p_Bs[i],
+                    nullptr,
+                    nullptr,
                     p_ds_grid,
-                    p_Es[i],
+                    nullptr,
                     AverM,
                     N,
                     K,
@@ -838,7 +808,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
     {
         auto arg = *dynamic_cast<const Argument*>(p_arg);
 
-        return arg.group_count_ * (arg.barrier_size_grp_ * 2) * sizeof(uint32_t);
+        return arg.group_count_ * arg.barrier_size_grp_ * sizeof(uint32_t);
     }
 
     size_t GetDeviceKernelArgSize(const BaseArgument* p_arg) const override

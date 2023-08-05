@@ -41,7 +41,7 @@ using DsDataType       = ck::Tuple<D0DataType>;
 using EDataType        = F32;
 
 using ALayout  = Row;
-using BLayout  = Col;
+using BLayout  = Row;
 using D0Layout = Row;
 using DsLayout = ck::Tuple<D0Layout>;
 using ELayout  = Row;
@@ -51,7 +51,7 @@ using BElementOp = PassThrough;
 
 using CDEElementOp = AddBias;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNPadding;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MPadding;
 
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemm_Xdl_Fixed_NK
     // clang-format off
@@ -60,9 +60,12 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemm_Xdl_F
 //######|        |        |         |        |          |          |            |                 |           |          |   Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
 //######|        |        |         |        |          |          |            |                 |           |          |            |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
       //< ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   128,    64,   128,    32,   8,   8,   32,   32,    2,    2,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              8,              8,         1,           1,           1,               S<1, 16, 1, 8>,              4>;
+        < ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   128,    16,   128,    32,   8,   8,   16,   16,    1,    4,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              8,         1,           1,           1,               S<1, 16, 1, 8>,              4>;
+      //< ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   128,    16,   192,    32,   8,   8,   16,   16,    1,    6,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              2,              8,         1,           1,           1,               S<1, 16, 1, 8>,              4>;
+      //< ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   128,    16,    96,    32,   8,   8,   16,   16,    1,    3,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              8,         1,           1,           1,               S<1, 16, 1, 8>,              4>;
       //< ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   128,    32,   128,    32,   8,   8,   32,   32,    1,    2,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              8,              8,         1,           1,           1,               S<1, 16, 1, 8>,              4>;
       //< ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   128,    16,   128,    32,   8,   8,   16,   16,    1,    4,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              8,              8,         1,           1,           1,               S<1, 16, 1, 8>,              4>;
-        < ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,    64,    16,    16,    32,   8,   8,   16,   16,    1,    1,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              8,              8,         1,           1,           1,               S<1, 16, 1, 4>,              4>;
+      //< ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,    64,    16,    16,    32,   8,   8,   16,   16,    1,    1,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              8,              8,         1,           1,           1,               S<1, 16, 1, 4>,              4>;
       //< ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,    32,   128,    32,   4,   4,   32,   32,    1,    1,  S<1, 8, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              4,              4,         1,  S<1, 4, 64, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              2,              8,         1,           1,           1,               S<1, 32, 1, 8>,              4>;
 // clang-format on
 
@@ -93,7 +96,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     // GEMM shape
     std::vector<ck::tensor_operation::device::GemmDesc> gemm_descs;
-    std::vector<void*> p_Cs;
 
     gemm_descs.reserve(group_count);
 
@@ -205,8 +207,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         d0_tensors_device[i]->ToDevice(d0_tensors[i].mData.data());
         c_tensors_device[i]->SetZero();
 
-        p_Cs.push_back(c_tensors_device[i]->GetDeviceBuffer());
-
         gemm_descs.push_back({sum_of_m,
                               problem_size.Ns[i],
                               problem_size.Ks[i],
@@ -239,20 +239,11 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     std::vector<const void*> p_As                = {};
     std::vector<const void*> p_Bs                = {};
     std::vector<std::array<const void*, 1>> p_Ds = {};
+    std::vector<void*> p_Cs                      = {};
 
     // do GEMM
     auto argument = gemm.MakeArgument(
         p_As, p_Bs, p_Ds, p_Cs, gemm_descs, a_element_op, b_element_op, cde_element_op);
-
-    DeviceMem gemm_kernel_args_dev(gemm.GetDeviceKernelArgSize(&argument));
-    DeviceMem gemm_workspace_dev(gemm.GetWorkSpaceSize(&argument));
-
-    gemm.SetWorkSpacePointer(&argument, gemm_workspace_dev.GetDeviceBuffer());
-
-    hip_check_error(hipMemcpy(gemm_kernel_args_dev.GetDeviceBuffer(),
-                              grouped_gemm_kernel_args_.data(),
-                              gemm.GetDeviceKernelArgSize(&argument),
-                              hipMemcpyHostToDevice));
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -260,6 +251,15 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             "wrong! device_gemm with the specified compilation parameters does "
             "not support this GEMM problem");
     }
+
+    DeviceMem gemm_workspace_dev(gemm.GetWorkSpaceSize(&argument));
+    gemm.SetWorkSpacePointer(&argument, gemm_workspace_dev.GetDeviceBuffer());
+
+    DeviceMem gemm_kernel_args_dev(gemm.GetDeviceKernelArgSize(&argument));
+    hip_check_error(hipMemcpy(gemm_kernel_args_dev.GetDeviceBuffer(),
+                              grouped_gemm_kernel_args_.data(),
+                              gemm.GetDeviceKernelArgSize(&argument),
+                              hipMemcpyHostToDevice));
 
     gemm.SetDeviceKernelArgs(argument, gemm_kernel_args_dev.GetDeviceBuffer());
     gemm.SetKBatch(argument, config.k_batch);
@@ -328,8 +328,7 @@ int main(int argc, char* argv[])
 
     problem_size.group_count = 16;
 
-    problem_size.Ms = {
-        167, 183, 177, 181, 153, 139, 156, 173, 163, 150, 204, 184, 168, 156, 168, 148};
+    problem_size.Ms = {0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0};
 
     for(int i = 0; i < problem_size.group_count; i++)
     {
@@ -337,7 +336,7 @@ int main(int argc, char* argv[])
         problem_size.Ks.push_back(4608);
 
         problem_size.stride_As.push_back(problem_size.Ks[i]);
-        problem_size.stride_Bs.push_back(problem_size.Ks[i]);
+        problem_size.stride_Bs.push_back(problem_size.Ns[i]);
         problem_size.stride_Cs.push_back(problem_size.Ns[i]);
     }
 
