@@ -707,7 +707,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
             const auto wei_gemmm_gemmn_pad_grid_desc =
-                transform_tensor_descriptor(wei_gemmm_gemmn_grid_desc,
+                transform_tensor_descriptor(wei_grid_desc,
                                             make_tuple(make_right_pad_transform(GemmM, PadGemmM),
                                                        make_right_pad_transform(GemmN, PadGemmN)),
                                             make_tuple(Sequence<0>{}, Sequence<1>{}),
