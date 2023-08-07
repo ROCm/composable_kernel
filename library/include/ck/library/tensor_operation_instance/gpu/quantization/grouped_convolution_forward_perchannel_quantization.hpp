@@ -11,12 +11,12 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
-
+#ifdef __int8__
 namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-
+#ifdef DL_KERNELS
 // grouped conv2d forward, NHWGC/GKYXC/NHWGK
 void add_device_conv2d_dl_perchannel_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
@@ -47,7 +47,7 @@ void add_device_conv2d_dl_relu_perchannel_quantization_int8_instances(
                                                               PassThrough,
                                                               Activation_Mul2_Clamp<Relu>>>>&
         instances);
-
+#endif
 void add_device_conv2d_xdl_perchannel_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
                                                               NHWGC,
@@ -128,12 +128,16 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             {
                 if constexpr(is_same_v<Activation, PassThrough>)
                 {
+#ifdef DL_KERNELS
                     add_device_conv2d_dl_perchannel_quantization_int8_instances(op_ptrs);
+#endif
                     add_device_conv2d_xdl_perchannel_quantization_int8_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<Activation, Relu>)
                 {
+#ifdef DL_KERNELS
                     add_device_conv2d_dl_relu_perchannel_quantization_int8_instances(op_ptrs);
+#endif
                     add_device_conv2d_xdl_relu_perchannel_quantization_int8_instances(op_ptrs);
                 }
             }
@@ -147,3 +151,4 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#endif

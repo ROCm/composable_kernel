@@ -88,7 +88,7 @@ int profile_grouped_gemm(int argc, char* argv[])
     const auto StrideBs = argToIntArray(argv[12]);
     const auto StrideCs = argToIntArray(argv[13]);
     const int kbatch    = argc == 15 ? std::stoi(argv[14]) : 1;
-
+#ifdef __fp16__
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         ck::profiler::profile_grouped_gemm_impl<ck::half_t,
@@ -173,7 +173,7 @@ int profile_grouped_gemm(int argc, char* argv[])
     {
         throw std::runtime_error("wrong! this GEMM data_type & layout is not implemented");
     }
-
+#endif
     return 0;
 }
 

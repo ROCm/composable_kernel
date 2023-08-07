@@ -18,11 +18,17 @@ namespace device {
 namespace instance {
 
 // conv2d forward
+#ifdef __fp16__
 void add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(
     std::vector<std::unique_ptr<
         DeviceConvFwd<2, NHWC, KYXC, NHWK, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
-
+void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(
+    std::vector<std::unique_ptr<
+        DeviceConvFwd<2, NHWC, KYXC, NHWK, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+#endif
+#ifdef __bf16__
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvFwd<2,
                                               NHWC,
@@ -34,17 +40,14 @@ void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(
                                               PassThrough,
                                               PassThrough,
                                               PassThrough>>>& instances);
-
-void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(
-    std::vector<std::unique_ptr<
-        DeviceConvFwd<2, NHWC, KYXC, NHWK, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
-        instances);
-
+#endif
+#ifdef __fp32__
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(
     std::vector<std::unique_ptr<
         DeviceConvFwd<2, NHWC, KYXC, NHWK, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
         instances);
-
+#endif
+#ifdef __int8__
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(
     std::vector<std::unique_ptr<DeviceConvFwd<2,
                                               NHWC,
@@ -56,6 +59,7 @@ void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(
                                               PassThrough,
                                               PassThrough,
                                               PassThrough>>>& instances);
+#endif
 
 template <ck::index_t NumDimSpatial,
           typename InLayout,
@@ -99,23 +103,29 @@ struct DeviceOperationInstanceFactory<
             {
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(op_ptrs);
             }
+#ifdef __fp16__
             else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
                               is_same_v<OutDataType, half_t>)
             {
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(op_ptrs);
                 add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(op_ptrs);
             }
+#endif
+#ifdef __bf16__
             else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
                               is_same_v<WeiDataType, ck::bhalf_t> &&
                               is_same_v<OutDataType, ck::bhalf_t>)
             {
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(op_ptrs);
             }
+#endif
+#ifdef __int8__
             else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
                               is_same_v<OutDataType, int8_t>)
             {
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(op_ptrs);
             }
+#endif
         }
 
         return op_ptrs;

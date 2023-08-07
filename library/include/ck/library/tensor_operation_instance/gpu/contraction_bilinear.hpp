@@ -16,7 +16,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-
+#ifdef __fp32__
 // float
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_kknn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -65,7 +65,8 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_mnnn
                                                            PassThrough,
                                                            PassThrough,
                                                            Bilinear>>>& instances);
-
+#endif
+#ifdef __fp64__
 // double
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_kknn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -114,7 +115,7 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_mnnn
                                                            PassThrough,
                                                            PassThrough,
                                                            Bilinear>>>& instances);
-
+#endif
 // Contraction + Bilinear
 template <index_t NumDimM,
           index_t NumDimN,
@@ -149,7 +150,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceContra
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-
+#ifdef __fp32__
         if constexpr(is_same_v<ADataType, float> && is_same_v<BDataType, float> &&
                      is_same_v<DDataType, float> && is_same_v<EDataType, float>)
         {
@@ -165,7 +166,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceContra
                     op_ptrs);
             }
         }
-
+#endif
+#ifdef __fp64__
         if constexpr(is_same_v<ADataType, double> && is_same_v<BDataType, double> &&
                      is_same_v<DDataType, double> && is_same_v<EDataType, double>)
         {
@@ -181,7 +183,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceContra
                     op_ptrs);
             }
         }
-
+#endif
         return op_ptrs;
     }
 };
