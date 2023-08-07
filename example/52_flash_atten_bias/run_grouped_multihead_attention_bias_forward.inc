@@ -57,7 +57,7 @@ int run(int argc, char* argv[])
     std::vector<const void*> p_b0;
     std::vector<const void*> p_b1;
     std::vector<void*> p_c;
-    std::vector<const void*> p_d;
+    std::vector<std::vector<const void*>> p_d;
     std::vector<void*> p_z;         // for result verification
     std::vector<void*> p_z_nullptr; // for time test
     std::vector<void*> p_lse;
@@ -122,8 +122,8 @@ int run(int argc, char* argv[])
         std::vector<ck::index_t> d_gs_ms_ns_lengths{G0, G1, M, N};
         std::vector<ck::index_t> d_gs_ms_ns_strides =
             input_permute
-                ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // Z layout [G0, M, G1, N]
-                : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // Z layout [G0, G1, M, N]
+                ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // D layout [G0, M, G1, N]
+                : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // D layout [G0, G1, M, N]
 
         std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
         std::vector<ck::index_t> z_gs_ms_ns_strides =
@@ -159,7 +159,7 @@ int run(int argc, char* argv[])
         Tensor<B0DataType> b0_gs_ns_ks(b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides);
         Tensor<B1DataType> b1_gs_os_ns(b1_gs_os_ns_lengths, b1_gs_os_ns_strides);
         Tensor<CDataType> c_gs_ms_os_device_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
-        Tensor<ZDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
+        Tensor<DDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
         Tensor<ZDataType> z_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
         Tensor<LSEDataType> lse_gs_ms_device_result(lse_gs_ms_lengths, lse_gs_ms_strides);
 
@@ -176,6 +176,7 @@ int run(int argc, char* argv[])
                       << "b0_gs_ns_ks[" << i << "]: " << b0_gs_ns_ks.mDesc << ", "
                       << "b1_gs_os_ns[" << i << "]: " << b1_gs_os_ns.mDesc << ", "
                       << "c_gs_ms_os[" << i << "]: " << c_gs_ms_os_device_result.mDesc << ", "
+                      << "d_gs_ms_ns[" << i << "]: " << d_gs_ms_ns.mDesc << ", "
                       << "z_gs_ms_ns[" << i << "]: " << z_gs_ms_ns.mDesc << ", "
                       << "lse_gs_ms_os[" << i << "]: " << lse_gs_ms_device_result.mDesc
                       << std::endl;
@@ -190,7 +191,7 @@ int run(int argc, char* argv[])
             a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
             b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
             b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
-            d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<DDataType>{-2, 2});
+            d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<DDataType>{-1, 1});
             break;
         case 2:
             a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -243,7 +244,9 @@ int run(int argc, char* argv[])
         p_b0.push_back(b0_tensors_device[i]->GetDeviceBuffer());
         p_b1.push_back(b1_tensors_device[i]->GetDeviceBuffer());
         p_c.push_back(c_tensors_device[i]->GetDeviceBuffer());
-        p_d.push_back(d_tensors_device[i]->GetDeviceBuffer());
+        p_d.push_back({d_tensors_device[i]->GetDeviceBuffer()});
+        // std::cout << "from host  group id: " << i << " d address: " <<
+        // d_tensors_device[i]->GetDeviceBuffer() << std::endl;
         p_z.push_back(z_tensors_device[i]->GetDeviceBuffer());
         p_z_nullptr.push_back(nullptr);
         p_lse.push_back(lse_tensors_device[i]->GetDeviceBuffer());
@@ -266,8 +269,8 @@ int run(int argc, char* argv[])
                           p_c,
                           p_z_nullptr,
                           p_lse,
-                          std::vector<std::vector<const void*>>{p_d}, // p_acc0_biases
-                          {},                                         // p_acc1_biases
+                          p_d, // p_acc0_biases
+                          {},  // p_acc1_biases
                           problem_descs,
                           a_element_op,
                           b0_element_op,
@@ -309,8 +312,8 @@ int run(int argc, char* argv[])
                               p_c,
                               p_z,
                               p_lse,
-                              {}, // p_acc0_biases
-                              {}, // p_acc1_biases
+                              p_d, // p_acc0_biases
+                              {},  // p_acc1_biases
                               problem_descs,
                               a_element_op,
                               b0_element_op,
@@ -344,6 +347,7 @@ int run(int argc, char* argv[])
             const auto& a_gs_ms_ks         = a_tensors[i];
             const auto& b0_gs_ns_ks        = b0_tensors[i];
             const auto& b1_gs_os_ns        = b1_tensors[i];
+            const auto& d_gs_ms_ns         = d_tensors[i];
             auto& c_gs_ms_os_device_result = c_tensors[i];
             auto& z_gs_ms_ns_device_result = z_tensors[i];
             auto& lse_gs_ms_device_result  = lse_tensors[i];
@@ -358,7 +362,8 @@ int run(int argc, char* argv[])
             Tensor<ADataType> a_g_m_k({G0 * G1, M, K});
             Tensor<B0DataType> b0_g_k_n({G0 * G1, K, N});
             Tensor<B1DataType> b1_g_n_o({G0 * G1, N, O});
-            Tensor<AccDataType> acc0_g_m_n({G0 * G1, M, N});        // scratch object after gemm0
+            Tensor<AccDataType> acc0_g_m_n({G0 * G1, M, N}); // scratch object after gemm0
+            Tensor<AccDataType> d_g_m_n({G0 * G1, M, N});
             Tensor<ADataType> a1_g_m_n({G0 * G1, M, N});            // scratch object after softmax
             Tensor<ADataType> a1_g_m_n_drop({G0 * G1, M, N});       // scratch object after softmax
             Tensor<CDataType> c_g_m_o_host_result({G0 * G1, M, O}); // scratch object after gemm1
@@ -378,6 +383,10 @@ int run(int argc, char* argv[])
                 b1_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
             });
 
+            d_gs_ms_ns.ForEach([&](auto& self, auto idx) {
+                d_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+            });
+
             z_gs_ms_ns_device_result.ForEach([&](auto& self, auto idx) {
                 z_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
             });
@@ -390,6 +399,8 @@ int run(int argc, char* argv[])
 
             ref_gemm0_invoker.Run(ref_gemm0_argument);
 
+            // bias
+            acc0_g_m_n.ForEach([&](auto& self, auto idx) { self(idx) += d_g_m_n(idx); });
             // masking
             const auto mask = DeviceGemmInstance::C0MatrixMask(M, N);
             acc0_g_m_n.ForEach([&](auto& self, auto idx) {
@@ -470,6 +481,10 @@ int run(int argc, char* argv[])
                                               "Error: Incorrect results lse!",
                                               rtol,
                                               atol);
+            if(!pass_)
+            {
+                std::cout << "from group: " << i << std::endl;
+            }
             pass &= pass_;
         }
         if(pass)

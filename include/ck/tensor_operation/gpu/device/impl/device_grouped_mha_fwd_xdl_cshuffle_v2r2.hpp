@@ -14,7 +14,7 @@
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_softmax_gemm_permute.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_fwd_xdl_cshuffle_v2.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_fwd_xdl_cshuffle_v2r2.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -39,7 +39,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v2(
+        kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v2r2(
             const void CK_CONSTANT_ADDRESS_SPACE* group_kernel_args,
             const index_t group_count,
             const AElementwiseOperation a_element_op,
@@ -95,6 +95,8 @@ __global__ void
         arg_ptr[group_id].compute_base_ptr_of_batch_.GetB1BasePtr(g_idx)));
     const long_index_t c_batch_offset  = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetCBasePtr(g_idx)));
+    const long_index_t d_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetDBasePtr(g_idx)));
     const long_index_t z_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetZBasePtr(g_idx)));
     const long_index_t lse_batch_offset = __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(
@@ -109,6 +111,9 @@ __global__ void
                 arg_ptr[group_id].p_b_grid_ + b_batch_offset,
                 arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
                 arg_ptr[group_id].p_c_grid_ + c_batch_offset,
+                arg_ptr[group_id].p_d_grid_ == nullptr
+                    ? nullptr
+                    : arg_ptr[group_id].p_d_grid_ + d_batch_offset,
                 arg_ptr[group_id].p_z_grid_ == nullptr
                     ? nullptr
                     : arg_ptr[group_id].p_z_grid_ + z_batch_offset,
@@ -126,6 +131,7 @@ __global__ void
                 arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
                 arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
                 arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                arg_ptr[group_id].d_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
                 arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
                 arg_ptr[group_id].lse_grid_desc_m_,
                 arg_ptr[group_id].block_2_ctile_map_,
@@ -146,6 +152,8 @@ __global__ void
             arg_ptr[group_id].p_b_grid_ + b_batch_offset,
             arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
             arg_ptr[group_id].p_c_grid_ + c_batch_offset,
+            arg_ptr[group_id].p_d_grid_ == nullptr ? nullptr
+                                                   : arg_ptr[group_id].p_d_grid_ + d_batch_offset,
             arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
                                                    : arg_ptr[group_id].p_z_grid_ + z_batch_offset,
             arg_ptr[group_id].p_lse_grid_ == nullptr
@@ -162,6 +170,7 @@ __global__ void
             arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
             arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
             arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
+            arg_ptr[group_id].d_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
             arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
             arg_ptr[group_id].lse_grid_desc_m_,
             arg_ptr[group_id].block_2_ctile_map_,
@@ -330,6 +339,13 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
+    static constexpr auto I3 = Number<3>{};
+    static constexpr auto I4 = Number<4>{};
+    static constexpr auto I5 = Number<5>{};
+    static constexpr auto I6 = Number<6>{};
+    static constexpr auto I7 = Number<7>{};
+    static constexpr auto I8 = Number<8>{};
+    static constexpr auto I9 = Number<9>{};
 
     using Transform = TransformBatchedContractionContractionToBatchedGemmGemm<
         Sequence<NumDimG, NumDimM, NumDimN, NumDimK, NumDimO>,
@@ -495,7 +511,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
     };
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2<
+    using GridwiseGemm = GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2<
         ADataType, // TODO: distinguish A/B datatype
         ZDataType,
         GemmDataType,
@@ -647,18 +663,15 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
               b1_element_op_{b1_element_op},
               c_element_op_{c_element_op}
         {
+            ignore = p_acc1_biases_vec;
             // TODO ANT: implement bias addition
             group_count_ = problem_desc_vec.size();
 
             if(!(group_count_ == p_a_vec.size() && group_count_ == p_b_vec.size() &&
-                 group_count_ == p_b1_vec.size() && group_count_ == p_c_vec.size()))
+                 group_count_ == p_b1_vec.size() && group_count_ == p_c_vec.size() &&
+                 (group_count_ == p_acc0_biases_vec.size() || p_acc0_biases_vec.size() == 0)))
             {
                 throw std::runtime_error("wrong! group_count_ != a/b/b1/c_vec.size");
-            }
-
-            if(!(p_acc0_biases_vec.size() == p_acc1_biases_vec.size()))
-            {
-                throw std::runtime_error("wrong! acc0_bias_vec.size != acc1_bias_vec.size");
             }
 
             grid_size_ = 0;
@@ -884,18 +897,18 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2R2
             auto launch_kernel =
                 [&](auto has_main_k_block_loop_, auto is_dropout_, auto is_lse_storing_) {
                     const auto kernel =
-                        kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v2<GridwiseGemm,
-                                                                         GemmAccDataType,
-                                                                         GroupKernelArg,
-                                                                         AElementwiseOperation,
-                                                                         BElementwiseOperation,
-                                                                         AccElementwiseOperation,
-                                                                         B1ElementwiseOperation,
-                                                                         CElementwiseOperation,
-                                                                         has_main_k_block_loop_,
-                                                                         is_dropout_,
-                                                                         is_lse_storing_,
-                                                                         Deterministic>;
+                        kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v2r2<GridwiseGemm,
+                                                                           GemmAccDataType,
+                                                                           GroupKernelArg,
+                                                                           AElementwiseOperation,
+                                                                           BElementwiseOperation,
+                                                                           AccElementwiseOperation,
+                                                                           B1ElementwiseOperation,
+                                                                           CElementwiseOperation,
+                                                                           has_main_k_block_loop_,
+                                                                           is_dropout_,
+                                                                           is_lse_storing_,
+                                                                           Deterministic>;
 
                     return launch_and_time_kernel(
                         stream_config,
