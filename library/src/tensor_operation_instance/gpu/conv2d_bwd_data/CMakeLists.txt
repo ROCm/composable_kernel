@@ -1,10 +1,17 @@
-add_instance_library(device_conv2d_bwd_data_instance
-   device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instance.cpp
-   device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instance.cpp
-   device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instance.cpp
-   device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instance.cpp
-
-   device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_f16_instance.cpp
-   device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_f32_instance.cpp
-   device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_int8_instance.cpp
-) 
+set(CONV2D_BWD_DATA_INSTANCES)
+if(DTYPES MATCHES "fp32" OR NOT DEFINED DTYPES)
+   list(APPEND CONV2D_BWD_DATA_INSTANCES device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instance.cpp)
+   list(APPEND CONV2D_BWD_DATA_INSTANCES device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_f32_instance.cpp)
+endif()
+if(DTYPES MATCHES "bf16" OR NOT DEFINED DTYPES)
+   list(APPEND CONV2D_BWD_DATA_INSTANCES device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instance.cpp)
+endif()
+if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
+   list(APPEND CONV2D_BWD_DATA_INSTANCES device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_f16_instance.cpp)
+   list(APPEND CONV2D_BWD_DATA_INSTANCES device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instance.cpp)
+endif()
+if(DTYPES MATCHES "int8" OR NOT DEFINED DTYPES)
+   list(APPEND CONV2D_BWD_DATA_INSTANCES device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instance.cpp)
+   list(APPEND CONV2D_BWD_DATA_INSTANCES device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_int8_instance.cpp)
+endif()
+add_instance_library(device_conv2d_bwd_data_instance ${CONV2D_BWD_DATA_INSTANCES})

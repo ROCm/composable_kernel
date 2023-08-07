@@ -5,6 +5,39 @@ project(composable_kernel)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
+if (DTYPES)
+        add_definitions(-DDTYPES)
+        if (DTYPES MATCHES "int8")
+                add_definitions(-D__int8__)
+        endif()
+        if (DTYPES MATCHES "fp8")
+                add_definitions(-D__fp8__)
+        endif()
+        if (DTYPES MATCHES "fp16")
+                add_definitions(-D__fp16__)
+        endif()
+        if (DTYPES MATCHES "fp32")
+                add_definitions(-D__fp32__)
+        endif()
+        if (DTYPES MATCHES "fp64")
+                add_definitions(-D__fp64__)
+        endif()
+        if (DTYPES MATCHES "bf16")
+                add_definitions(-D__bf16__)
+        endif()
+        message("DTYPES macro set to ${DTYPES}")
+else()
+        add_definitions(-D__int8__ -D__fp8__ -D__fp16__ -D__fp32__ -D__fp64__ -D__bf16__)
+endif()
+
+if(DL_KERNELS)
+    add_definitions(-DDL_KERNELS)
+endif()
+
+if(INSTANCES_ONLY)
+    add_definitions(-DINSTANCES_ONLY)
+endif()
+
 enable_testing()
 
 set(ROCM_SYMLINK_LIBS OFF)
@@ -16,10 +49,46 @@ include(ROCMSetupVersion)
 include(ROCMInstallSymlinks)
 include(ROCMCreatePackage)
 include(CheckCXXCompilerFlag)
-
+include(ROCMCheckTargetIds)
 rocm_setup_version(VERSION 0.2.0)
 include(TargetFlags)
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip)
+
+message("GPU_TARGETS= ${GPU_TARGETS}")
+
+message("checking which targets are supported")
+#This is the list of targets to be used in case GPU_TARGETS is not set on command line
+#These targets will be filtered and only supported ones will be used
+#Setting GPU_TARGETS on command line will override this list
+if(NOT PROFILER_ONLY)
+    rocm_check_target_ids(DEFAULT_GPU_TARGETS
+        TARGETS "gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
+else()
+    add_definitions(-DPROFILER_ONLY)
+    if(GPU_TARGETS)
+        message(FATAL_ERROR "For PROFILE_ONLY build, please do not set GPU_TARGETS, use GPU_ARCH = gfx9, gfx10, or gfx11")
+    endif()
+    if(GPU_ARCH MATCHES "gfx9")
+        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942")
+    elseif(GPU_ARCH MATCHES "gfx10")
+        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx1030")
+    elseif(GPU_ARCH MATCHES "gfx11")
+        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx1100;gfx1101;gfx1102")
+    else()
+        message(FATAL_ERROR "For PROFILE_ONLY build, please specify GPU_ARCH as gfx9, gfx10, or gfx11")
+    endif()
+endif()
+
+message("Supported GPU_TARGETS= ${DEFAULT_GPU_TARGETS}")
+
+set(AMDGPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " ")
+
+if(GPU_TARGETS)
+    message("Building CK for the following targets: ${GPU_TARGETS}")
+else()
+    message("Building CK for the following targets: ${AMDGPU_TARGETS}")
+endif()
+find_package(hip)
 
 option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
 option(USE_OPT_NAVI3X, "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
@@ -258,31 +327,76 @@ file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp"
 file(GLOB dir_list RELATIVE ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/*)
 set(CK_DEVICE_INSTANCES)
 FOREACH(subdir_path ${dir_list})
-    IF(IS_DIRECTORY "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/${subdir_path}")
-       list(APPEND CK_DEVICE_INSTANCES device_${subdir_path}_instance)
-    ENDIF()
+set(target_dir)
+IF(IS_DIRECTORY "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/${subdir_path}")
+    set(cmake_instance)
+    file(READ "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/${subdir_path}/CMakeLists.txt" cmake_instance)
+    set(add_inst 0)
+    if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp8\" " AND DTYPES MATCHES "fp8")
+            #message("fp8 instance found!")
+            set(add_inst 1)
+    endif()
+    if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp16\"" AND DTYPES MATCHES "fp16")
+            #message("fp16 instance found!")
+            set(add_inst 1)
+    endif()
+    if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp32\"" AND DTYPES MATCHES "fp32")
+            #message("fp32 instance found!")
+            set(add_inst 1)
+    endif()
+    if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp64\"" AND DTYPES MATCHES "fp64")
+            #message("fp64 instance found!")
+            set(add_inst 1)
+    endif()
+    if("${cmake_instance}" MATCHES "DTYPES MATCHES \"bf16\"" AND DTYPES MATCHES "bf16")
+            #message("bf16 instance found!")
+            set(add_inst 1)
+    endif()
+    if("${cmake_instance}" MATCHES "DTYPES MATCHES \"int8\"" AND DTYPES MATCHES "int8")
+            #message("int8 instance found!")
+            set(add_inst 1)
+    endif()
+    if(NOT "${cmake_instance}" MATCHES "DTYPES")
+            #message("instance should be built for all types!")
+            set(add_inst 1)
+    endif()
+    if(add_inst EQUAL 1 OR NOT DEFINED DTYPES)
+      list(APPEND CK_DEVICE_INSTANCES device_${subdir_path}_instance)
+    endif()
+ENDIF()
 ENDFOREACH()
-add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
 
-rocm_package_setup_component(tests
+add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
+add_subdirectory(library)
+
+if(NOT DEFINED INSTANCES_ONLY)
+ if(NOT DEFINED PROFILER_ONLY)
+   rocm_package_setup_component(tests
         LIBRARY_NAME composablekernel
         PACKAGE_NAME tests # Prevent -static suffix on package name
-)
+   )
 
-rocm_package_setup_component(examples
+   rocm_package_setup_component(examples
         LIBRARY_NAME composablekernel
         PACKAGE_NAME examples
-)
+   )
+   add_subdirectory(example)
+   add_subdirectory(test)
 
-rocm_package_setup_component(profiler
+   rocm_package_setup_component(profiler
         LIBRARY_NAME composablekernel
         PACKAGE_NAME ckProfiler
-)
-
-add_subdirectory(library)
-add_subdirectory(example)
-add_subdirectory(test)
-add_subdirectory(profiler)
+   )
+   add_subdirectory(profiler)
+  else()
+    #When building PROFILER_ONLY, label the package with GPU_ARCH
+    rocm_package_setup_component(profiler
+       LIBRARY_NAME composablekernel
+       PACKAGE_NAME ckProfiler_${GPU_ARCH}
+    )
+    add_subdirectory(profiler)
+  endif()
+endif()
 
 #Create an interface target for the include only files and call it "composablekernels"
 include(CMakePackageConfigHelpers)

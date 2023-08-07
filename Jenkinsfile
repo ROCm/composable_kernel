@@ -509,8 +509,7 @@ def Build_CK(Map conf=[:]){
                     cmake_build(conf)
                     dir("build"){
                         //run tests and examples
-                        def nt = nthreads()	
-                        sh 'make -j${nt} check'
+                        sh 'make -j check'
                         if (navi_node == 0 ){
                             //we only need the ckProfiler to run the performance tests, so we pack and stash it
                             //do not stash profiler on Navi nodes
@@ -741,8 +740,24 @@ pipeline {
                     }
                     agent{ label rocmnode("navi21") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1030" """ 
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1030" -DDL_KERNELS=ON """ 
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1030" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
+
+                    }
+                    steps{
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                    }
+                }
+                stage("Build CK and run Tests on Navi32")
+                {
+                    when {
+                        beforeAgent true
+                        expression { !params.RUN_FULL_QA.toBoolean() }
+                    }
+                    agent{ label rocmnode("navi32") }
+                    environment{
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DDTYPES="fp16;fp32;bf16" -DGPU_TARGETS="gfx1101" """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1101" -DDTYPES="fp16;fp32;bf16" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
 
                     }
                     steps{

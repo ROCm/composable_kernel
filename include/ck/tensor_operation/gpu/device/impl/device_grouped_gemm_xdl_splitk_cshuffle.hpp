@@ -496,6 +496,11 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(!ck::is_xdl_supported())
+        {
+            return false;
+        }
+
         if((ck::type_convert<ck::index_t>(arg.gemm_kernel_args_.size()) +
             arg.skipped_group_count_) != arg.group_count_)
         {
