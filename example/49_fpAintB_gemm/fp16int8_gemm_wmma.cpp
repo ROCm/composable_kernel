@@ -14,7 +14,7 @@
 // The DeviceOp is CDataType = ADataType * Dequant(BDataType) * ScaleDataType
 // The HostRef  is CDataType = ADataType * Dequant(QuantDataType) * ScaleDataType
 
-//TODO: Current implementation consume more VGPR than expected.
+// TODO: Current implementation consume more VGPR than expected.
 
 using ADataType        = ck::half_t;
 using QuantDataType    = int8_t;
