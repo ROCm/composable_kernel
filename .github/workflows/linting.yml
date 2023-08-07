@@ -1,0 +1,13 @@
+name: Linting
+
+on:
+  push:
+    branches: [lwpck-841]
+  pull_request:
+    branches: [lwpck-841]
+
+jobs:
+  call-workflow-passing-data:
+    name: Documentation
+    uses: RadeonOpenCompute/rocm-docs-core/.github/workflows/linting.yml@develop
+
