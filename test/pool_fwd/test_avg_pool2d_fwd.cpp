@@ -41,8 +41,12 @@ class TestAvgPool2dFwd : public ::testing::Test
     }
 };
 
+#ifdef __fp16__
 using KernelTypes =
     ::testing::Types<std::tuple<F16, F16, F32, I32>, std::tuple<F32, F32, F32, I32>>;
+#else
+using KernelTypes = ::testing::Types<std::tuple<F32, F32, F32, I32>>;
+#endif
 
 TYPED_TEST_SUITE(TestAvgPool2dFwd, KernelTypes);
 TYPED_TEST(TestAvgPool2dFwd, Test_Pool)
