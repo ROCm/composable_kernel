@@ -95,6 +95,10 @@ template <typename FloatAB,
           PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2
 {
+    static_assert(D0BlockTransferSrcScalarPerVector == 1 ||
+                      D0BlockTransferSrcScalarPerVector == 2 ||
+                      D0BlockTransferSrcScalarPerVector == 4,
+                  "D0BlockTransferSrcScalarPerVector must be 1 or 2 or 4");
     using DDataType = FloatAB;
     static_assert(LoopSched == LoopScheduler::Default,
                   "Non-default loop scheduler is currently not supported");
