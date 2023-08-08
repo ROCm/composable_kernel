@@ -89,6 +89,8 @@ else()
     message("Building CK for the following targets: ${AMDGPU_TARGETS}")
 endif()
 find_package(hip)
+# No assumption that HIP kernels are launched with uniform block size for backward compatibility
+# SWDEV-413293 and https://reviews.llvm.org/D155213
 math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
 message("hip_version_flat=${hip_VERSION_FLAT}")
 if(${hip_VERSION_FLAT} GREATER 500700000)
