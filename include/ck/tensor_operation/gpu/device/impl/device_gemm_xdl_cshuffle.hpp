@@ -66,7 +66,7 @@ template <typename ALayout,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched     = make_default_loop_scheduler(),
           PipelineVersion PipelineVer = PipelineVersion::v1,
-          bool EnableMixedPrecision   = false>
+          typename ComputeType        = CDataType>
 struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                                                    BLayout,
                                                    CLayout,
@@ -131,7 +131,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
         PipelineVer,
-        EnableMixedPrecision>;
+        ComputeType>;
 
     using Argument = typename GridwiseGemm::Argument;
 

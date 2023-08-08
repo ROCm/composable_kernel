@@ -108,7 +108,7 @@ template <typename ALayout,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched,
           PipelineVersion PipelineVer = PipelineVersion::v1,
-          bool EnableMixedPrecision   = false>
+          typename ComputeType        = FloatC>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 {
     static constexpr auto I0 = Number<0>{};
@@ -127,12 +127,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     static constexpr auto BK1Number = Number<BK1Value>{};
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
-
-    // convert f8 to f16 if mixed precision enabled
-    using FloatAAdjusted =
-        conditional_t<EnableMixedPrecision && is_same_v<FloatA, ck::f8_t>, ck::half_t, FloatA>;
-    using FloatBAdjusted =
-        conditional_t<EnableMixedPrecision && is_same_v<FloatB, ck::f8_t>, ck::half_t, FloatB>;
 
     __host__ static auto CalculateGridSize(index_t M, index_t N)
     {
@@ -553,8 +547,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
-        return math::max((a_block_space_size_aligned * sizeof(FloatAAdjusted) +
-                          b_block_space_size_aligned * sizeof(FloatBAdjusted)),
+        return math::max((a_block_space_size_aligned * sizeof(ComputeType) +
+                          b_block_space_size_aligned * sizeof(ComputeType)),
                          c_block_size * sizeof(FloatCShuffle));
     }
 
@@ -756,7 +750,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
                                                 FloatA,
-                                                FloatAAdjusted,
+                                                ComputeType,
                                                 decltype(a_grid_desc_ak0_m_ak1),
                                                 decltype(a_block_desc_ak0_m_ak1),
                                                 ABlockTransferSrcAccessOrder,
@@ -787,7 +781,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                 BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 BBlockTransferThreadClusterArrangeOrder,
                                                 FloatB,
-                                                FloatBAdjusted,
+                                                ComputeType,
                                                 decltype(b_grid_desc_bk0_n_bk1),
                                                 decltype(b_block_desc_bk0_n_bk1),
                                                 BBlockTransferSrcAccessOrder,
@@ -808,10 +802,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 make_multi_index(0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{});
 
-        // check if A and B types are same
-        static_assert(std::is_same<FloatAAdjusted, FloatBAdjusted>::value,
-                      "The A and B types do not match!");
-
         // GEMM definition
         //   c_mtx += transpose(a_mtx) * b_mtx
         //     a_mtx[K0PerBlock, MPerBlock] is in LDS
@@ -821,11 +811,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         // sanity check
         constexpr index_t KPack =
             math::max(math::lcm(AK1Number, BK1Number),
-                      MfmaSelector<FloatAAdjusted, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+                      MfmaSelector<ComputeType, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
-            FloatAAdjusted,
+            ComputeType,
             FloatGemmAcc,
             decltype(a_block_desc_ak0_m_ak1),
             decltype(b_block_desc_bk0_n_bk1),
@@ -843,10 +833,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatAAdjusted*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<ComputeType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatBAdjusted*>(p_shared) + a_block_space_size_aligned,
+            static_cast<ComputeType*>(p_shared) + a_block_space_size_aligned,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
