@@ -10,6 +10,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "ck/utility/type_convert.hpp"
 #include "ck/utility/data_type.hpp"
 
 namespace ck {
