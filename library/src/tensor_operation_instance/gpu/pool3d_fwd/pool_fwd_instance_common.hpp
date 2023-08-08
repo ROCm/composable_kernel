@@ -4,8 +4,8 @@
 #pragma once
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_impl.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_pool3d_fwd_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_nhwc_nhwc.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_pool3d_fwd_ndhwc_ndhwc.hpp"
 #include "ck/utility/data_type.hpp"
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
@@ -28,9 +28,9 @@ template <typename InDataType,
 using device_pool2d_fwd_nhwc_instances =
     // clang-format off
     std::tuple <
-        DevicePool2dFwdImpl<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 1, 1, 1, false>,
-        DevicePool2dFwdImpl<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 2, 1, 2, false>,
-        DevicePool2dFwdImpl<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 4, 1, 4, false>
+        DevicePool2dFwd_NHWC_NHWC<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 1, 1, 1, false>,
+        DevicePool2dFwd_NHWC_NHWC<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 2, 1, 2, false>,
+        DevicePool2dFwd_NHWC_NHWC<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 4, 1, 4, false>
                // clang-format on
                >;
 
@@ -43,9 +43,9 @@ template <typename InDataType,
 using device_pool3d_fwd_ndhwc_instances =
     // clang-format off
     std::tuple <
-        DevicePool3dFwdImpl<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 1, 1, 1, false>,
-        DevicePool3dFwdImpl<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 2, 1, 2, false>,
-        DevicePool3dFwdImpl<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 4, 1, 4, false>
+        DevicePool3dFwd_NDHWC_NDHWC<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 1, 1, 1, false>,
+        DevicePool3dFwd_NDHWC_NDHWC<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 2, 1, 2, false>,
+        DevicePool3dFwd_NDHWC_NDHWC<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 4, 1, 4, false>
                // clang-format on
                >;
 

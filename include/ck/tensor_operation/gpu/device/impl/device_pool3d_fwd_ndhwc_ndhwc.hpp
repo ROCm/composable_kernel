@@ -23,6 +23,8 @@ template <typename InDataType,
           typename OutDataType,
           typename IndexDataType, // enable if OutputIndex == true
           typename ComputeDataType,
+          typename InLayout,
+          typename OutLayout,
           ck::ReduceTensorOp ReduceOpId,
           bool OutputIndex,
           ck::index_t BlockSize,
@@ -30,11 +32,14 @@ template <typename InDataType,
           ck::index_t KThreadClusterSize,
           ck::index_t MThreadSliceSize,
           ck::index_t KThreadSliceSize,
-          ck::index_t InSrcOutDstVectorSize,
-          bool IsFastestDimReduced>
-struct DevicePool3dFwdImpl
+          ck::index_t InSrcOutDstVectorSize>
+struct DevicePool3dFwd_NDHWC_NDHWC
     : public DevicePoolFwd<5, 3, InDataType, OutDataType, IndexDataType, ReduceOpId, OutputIndex>
 {
+    // This implementation is compatatible with other layout, but need to causion about vector size
+    static_assert(is_same_v<InLayout, tensor_layout::convolution::NDHWC>);
+    static_assert(is_same_v<OutLayout, tensor_layout::convolution::NDHWC>);
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -248,10 +253,9 @@ struct DevicePool3dFwdImpl
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            // for NDHWC, the dim C is the vector Dim for both input and output in memory, which is
-            // not reduced.
-            // reduce [D, H, W]
-            static constexpr index_t InSrcOutDstVectorDim = IsFastestDimReduced ? 1 : 0;
+            // for NDHWC, the dim C is the fastest dimension, and is not reduced.
+            // Hence, it is in M dimension for reduction kernel.
+            static constexpr index_t InSrcOutDstVectorDim = 0; // 0: M, 1: K
 
             using gridwise_reduce =
                 GridwiseReduction_mk_to_m_threadwise<InDataType,
@@ -318,20 +322,9 @@ struct DevicePool3dFwdImpl
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        // Reduced dimension = [D, H, W]
-        if constexpr(IsFastestDimReduced)
-        {
-            // One of [D, H, W] should be fastest dimension
-            if(pArg->input_ncdhw_stride_[2] != 1 && pArg->input_ncdhw_stride_[3] != 1 &&
-               pArg->input_ncdhw_stride_[4] != 1)
-                return false;
-        }
-        else
-        {
-            // One of [N, C] should be fastest dimension
-            if(pArg->input_ncdhw_stride_[0] != 1 && pArg->input_ncdhw_stride_[1] != 1)
-                return false;
-        }
+        // C should be fastest dimension
+        if(pArg->input_ncdhw_stride_[1] != 1)
+            return false;
 
         for(int i = 0; i < InOutRank; ++i)
         {
@@ -401,7 +394,7 @@ struct DevicePool3dFwdImpl
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DevicePool3dFwdImpl<" << BlockSize << ",";
+        str << "DevicePool3dFwd_NDHWC_NDHWC<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
         str <<"InSrcOutDstVectorSize_" << InSrcOutDstVectorSize << ">";

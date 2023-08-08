@@ -9,7 +9,7 @@
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/utility/reduction_functions_accumulate.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_nhwc_nhwc.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -47,19 +47,20 @@ bool pool_test(bool do_verification,
                ck::index_t in_right_pad_w)
 {
     using DevicePoolFwdInstance =
-        ck::tensor_operation::device::DevicePool2dFwdImpl<InDataType,      // InDataType
-                                                          OutDataType,     // OutDataType
-                                                          IndexDataType,   // IndexDataType
-                                                          ComputeDataType, // ComputeDataType
-                                                          ReduceOpId,
-                                                          OutputIndex,
-                                                          64,     // BlockSize
-                                                          64,     // ReduceMThreadClusterSize
-                                                          1,      // ReduceKThreadClusterSize
-                                                          4,      // ReduceMThreadSliceSize
-                                                          1,      // ReduceKThreadSliceSize
-                                                          1,      // InSrcOutDstVectorSize
-                                                          false>; // IsFastestDimReduced
+        ck::tensor_operation::device::DevicePool2dFwd_NHWC_NHWC<InDataType,
+                                                                OutDataType,
+                                                                IndexDataType,
+                                                                ComputeDataType,
+                                                                InLayout,
+                                                                OutLayout,
+                                                                ReduceOpId,
+                                                                OutputIndex,
+                                                                64, // BlockSize
+                                                                64, // ReduceMThreadClusterSize
+                                                                1,  // ReduceKThreadClusterSize
+                                                                4,  // ReduceMThreadSliceSize
+                                                                1,  // ReduceKThreadSliceSize
+                                                                1>; // InSrcOutDstVectorSize
 
     const ck::index_t Ys = (Y - 1) * window_dilation_h + 1;
     const ck::index_t Xs = (X - 1) * window_dilation_w + 1;
@@ -150,7 +151,7 @@ bool pool_test(bool do_verification,
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB / s "
               << std::endl;
 
     bool pass = true;

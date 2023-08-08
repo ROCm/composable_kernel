@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "ck/tensor_operation/gpu/device/impl/device_pool3d_fwd_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_pool3d_fwd_ndhwc_ndhwc.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -13,6 +13,8 @@ template <typename InDataType,
           typename OutDataType,
           typename IndexDataType, // enable if OutputIndex == true
           typename ComputeDataType,
+          typename InLayout,
+          typename OutLayout,
           ck::ReduceTensorOp ReduceOpId,
           bool OutputIndex,
           ck::index_t BlockSize,
@@ -20,35 +22,40 @@ template <typename InDataType,
           ck::index_t ReduceKThreadClusterSize,
           ck::index_t ReduceMThreadSliceSize,
           ck::index_t ReduceKThreadSliceSize,
-          ck::index_t InSrcOutDstVectorSize,
-          bool IsFastestDimReduced>
-struct DevicePool2dFwdImpl : public DevicePool3dFwdImpl<InDataType,
-                                                        OutDataType,
-                                                        IndexDataType,
-                                                        ComputeDataType,
-                                                        ReduceOpId,
-                                                        OutputIndex,
-                                                        BlockSize,
-                                                        ReduceMThreadClusterSize,
-                                                        ReduceKThreadClusterSize,
-                                                        ReduceMThreadSliceSize,
-                                                        ReduceKThreadSliceSize,
-                                                        InSrcOutDstVectorSize,
-                                                        IsFastestDimReduced>
+          ck::index_t InSrcOutDstVectorSize>
+struct DevicePool2dFwd_NHWC_NHWC
+    : public DevicePool3dFwd_NDHWC_NDHWC<InDataType,
+                                         OutDataType,
+                                         IndexDataType,
+                                         ComputeDataType,
+                                         tensor_layout::convolution::NDHWC,
+                                         tensor_layout::convolution::NDHWC,
+                                         ReduceOpId,
+                                         OutputIndex,
+                                         BlockSize,
+                                         ReduceMThreadClusterSize,
+                                         ReduceKThreadClusterSize,
+                                         ReduceMThreadSliceSize,
+                                         ReduceKThreadSliceSize,
+                                         InSrcOutDstVectorSize>
 {
-    using DevicePool3D = DevicePool3dFwdImpl<InDataType,
-                                             OutDataType,
-                                             IndexDataType,
-                                             ComputeDataType,
-                                             ReduceOpId,
-                                             OutputIndex,
-                                             BlockSize,
-                                             ReduceMThreadClusterSize,
-                                             ReduceKThreadClusterSize,
-                                             ReduceMThreadSliceSize,
-                                             ReduceKThreadSliceSize,
-                                             InSrcOutDstVectorSize,
-                                             IsFastestDimReduced>;
+    static_assert(is_same_v<InLayout, tensor_layout::convolution::NHWC>);
+    static_assert(is_same_v<OutLayout, tensor_layout::convolution::NHWC>);
+
+    using DevicePool3D = DevicePool3dFwd_NDHWC_NDHWC<InDataType,
+                                                     OutDataType,
+                                                     IndexDataType,
+                                                     ComputeDataType,
+                                                     tensor_layout::convolution::NDHWC,
+                                                     tensor_layout::convolution::NDHWC,
+                                                     ReduceOpId,
+                                                     OutputIndex,
+                                                     BlockSize,
+                                                     ReduceMThreadClusterSize,
+                                                     ReduceKThreadClusterSize,
+                                                     ReduceMThreadSliceSize,
+                                                     ReduceKThreadSliceSize,
+                                                     InSrcOutDstVectorSize>;
 
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_in_dev,

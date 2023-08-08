@@ -15,41 +15,33 @@ using ComputeDataType = float;
 
 using IndexDataType = int32_t;
 
-#if 1
 using InLayout  = ck::tensor_layout::convolution::NDHWC;
 using OutLayout = ck::tensor_layout::convolution::NDHWC;
-
-static constexpr bool IsFastestDimReduced = false;
-#else
-using InLayout  = ck::tensor_layout::convolution::NCDHW;
-using OutLayout = ck::tensor_layout::convolution::NCDHW;
-
-static constexpr bool IsFastestDimReduced = true;
-#endif
 
 #if 1
 static constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
 #else
-static constexpr auto ReduceOpId          = ck::ReduceTensorOp::AVG;
+static constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
 #endif
 
 static constexpr bool OutputIndex  = false;
 static constexpr bool PropagateNan = false;
 
 using DevicePoolFwdInstance =
-    ck::tensor_operation::device::DevicePool3dFwdImpl<InDataType,      // InDataType
-                                                      OutDataType,     // OutDataType
-                                                      IndexDataType,   // IndexDataType
-                                                      ComputeDataType, // ComputeDataType
-                                                      ReduceOpId,
-                                                      OutputIndex,
-                                                      64, // BlockSize
-                                                      64, // ReduceMThreadClusterSize
-                                                      1,  // ReduceKThreadClusterSize
-                                                      1,  // ReduceMThreadSliceSize
-                                                      1,  // ReduceKThreadSliceSize
-                                                      1,  // InSrcOutDstVectorSize
-                                                      IsFastestDimReduced>;
+    ck::tensor_operation::device::DevicePool3dFwd_NDHWC_NDHWC<InDataType,
+                                                                  OutDataType,
+                                                                  IndexDataType,
+                                                                  ComputeDataType,
+                                                                  InLayout,
+                                                                  OutLayout,
+                                                                  ReduceOpId,
+                                                                  OutputIndex,
+                                                                  64, // BlockSize
+                                                                  64, // ReduceMThreadClusterSize
+                                                                  1,  // ReduceKThreadClusterSize
+                                                                  1,  // ReduceMThreadSliceSize
+                                                                  1,  // ReduceKThreadSliceSize
+                                                                  1>; // InSrcOutDstVectorSize
 
 int main()
 {
