@@ -5,7 +5,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_avgpool3d_bwd_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_avgpool3d_bwd_ndhwc_ndhwc.hpp"
 
 #include "avgpool3d_bwd_common.hpp"
 
@@ -16,27 +16,23 @@ using ComputeDataType = float;
 #if 1
 using DOutLayout = ck::tensor_layout::convolution::NDHWC;
 using DInLayout  = ck::tensor_layout::convolution::NDHWC;
-
-static constexpr bool IsFastestDimReduced = false;
 #else
 using DOutLayout = ck::tensor_layout::convolution::NCDHW;
 using DInLayout  = ck::tensor_layout::convolution::NCDHW;
-
-static constexpr bool IsFastestDimReduced = true;
 #endif
 
 using DevicePoolBwdInstance =
-    ck::tensor_operation::device::DeviceAvgPool3dBwdImpl<3,
-                                                         DOutDataType,
-                                                         DInDataType,
-                                                         ComputeDataType, // ComputeDataType
-                                                         64,              // BlockSize
-                                                         64, // ReduceMThreadClusterSize
-                                                         1,  // ReduceKThreadClusterSize
-                                                         1,  // ReduceMThreadSliceSize
-                                                         1,  // ReduceKThreadSliceSize
-                                                         1,  // InSrcOutDstVectorSize
-                                                         IsFastestDimReduced>;
+    ck::tensor_operation::device::DeviceAvgPool3dBwd_NDHWC_NDHWC<DOutDataType,
+                                                                 DInDataType,
+                                                                 ComputeDataType,
+                                                                 DOutLayout,
+                                                                 DInLayout,
+                                                                 64, // BlockSize
+                                                                 64, // ReduceMThreadClusterSize
+                                                                 1,  // ReduceKThreadClusterSize
+                                                                 1,  // ReduceMThreadSliceSize
+                                                                 1,  // ReduceKThreadSliceSize
+                                                                 1>; // InSrcOutDstVectorSize
 
 int main()
 {

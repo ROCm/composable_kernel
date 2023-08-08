@@ -8,6 +8,7 @@
 
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/device/device_avgpool_bwd.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_threadwise.hpp"
@@ -23,24 +24,31 @@ namespace device {
 // Out = AvgPoolFwd(In)
 // Din = AvgPoolBwd(Dout)
 // Pooling dimension = D, H, W
-template <index_t NDimSpatial,
-          typename DOutDataType,
+template <typename DOutDataType,
           typename DInDataType,
           typename ComputeDataType,
+          typename DOutLayout,
+          typename DInLayout,
           ck::index_t BlockSize,
           ck::index_t MThreadClusterSize,
           ck::index_t KThreadClusterSize,
           ck::index_t MThreadSliceSize,
           ck::index_t KThreadSliceSize,
-          ck::index_t InSrcOutDstVectorSize,
-          bool IsFastestDimReduced>
-struct DeviceAvgPool3dBwdImpl : public DeviceAvgPoolBwd<NDimSpatial, DOutDataType, DInDataType>
+          ck::index_t InSrcOutDstVectorSize>
+struct DeviceAvgPool3dBwd_NDHWC_NDHWC
+    : public DeviceAvgPoolBwd<3, DOutDataType, DInDataType, DOutLayout, DInLayout>
 {
+    static constexpr ck::index_t NDimSpatial = 3;
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
 
     static constexpr ck::index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr ck::index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
+
+    // this implementation is compatatible with NCDHW, but need to causion about vector size
+    static_assert(is_same_v<DOutLayout, tensor_layout::convolution::NDHWC>);
+    static_assert(is_same_v<DInLayout, tensor_layout::convolution::NDHWC>);
 
     static auto
     Make3DGridDescriptor_Out_M_K_In_M(const std::vector<ck::index_t>& dout_n_c_wos_lengths,
@@ -315,9 +323,9 @@ struct DeviceAvgPool3dBwdImpl : public DeviceAvgPoolBwd<NDimSpatial, DOutDataTyp
     using DinGridDesc_M    = remove_cvref_t<tuple_element_t<1, DoutDinGridDesc>>;
 
     // FIXME
-    // for NDHWC, the dim C is the vector Dim for both input and output in memory, which is not
-    // reduced. Assume C is the fastest dimension
-    static constexpr index_t OutSrcInDstVectorDim = IsFastestDimReduced ? 1 : 0;
+    // for NDHWC, the dim C is the fastest dimension, and is not reduced.
+    // Hence, it is in M dimension for reduction kernel.
+    static constexpr index_t OutSrcInDstVectorDim = 0; // 0: M, 1: K
 
     using PassThrough = tensor_operation::element_wise::PassThrough;
     using Div         = tensor_operation::element_wise::UnaryDivide;
