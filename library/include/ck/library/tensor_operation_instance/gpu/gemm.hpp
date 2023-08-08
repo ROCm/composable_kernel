@@ -343,6 +343,7 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_nk_mn_instances(op_ptrs);
             }
         }
+#ifdef __fp16__
         else if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                           is_same_v<CDataType, half_t>)
         {
@@ -388,6 +389,8 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(op_ptrs);
             }
         }
+#endif
+#ifdef __bf16__
         else if constexpr(is_same_v<ADataType, ck::bhalf_t> && is_same_v<BDataType, ck::bhalf_t> &&
                           is_same_v<CDataType, ck::bhalf_t>)
         {
@@ -412,6 +415,7 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_nk_mn_instances(op_ptrs);
             }
         }
+#endif
 #ifdef __int8__
         else if constexpr(is_same_v<ADataType, int8_t> && is_same_v<BDataType, int8_t> &&
                           is_same_v<CDataType, int8_t>)
