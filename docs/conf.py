@@ -32,5 +32,5 @@ mathjax3_config = {
 for sphinx_var in ROCmDocs.SPHINX_VARS:
     globals()[sphinx_var] = getattr(docs_core, sphinx_var)
 
-extensions += ['sphinxcontrib.bibtex','m2r2']
+extensions += ['sphinxcontrib.bibtex']
 bibtex_bibfiles = ['refs.bib']
