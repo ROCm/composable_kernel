@@ -8,6 +8,7 @@
 
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/device/device_pool_fwd.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
