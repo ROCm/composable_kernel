@@ -59,10 +59,12 @@ class TestMaxPool2dFwd : public ::testing::Test
         }
     }
 };
-
+#ifdef __fp16__
 using KernelTypes =
     ::testing::Types<std::tuple<F16, F16, F16, I32>, std::tuple<F32, F32, F32, I32>>;
-
+#else
+using KernelTypes = ::testing::Types<std::tuple<F32, F32, F32, I32>>;
+#endif
 TYPED_TEST_SUITE(TestMaxPool2dFwd, KernelTypes);
 TYPED_TEST(TestMaxPool2dFwd, Test_Pool)
 {
