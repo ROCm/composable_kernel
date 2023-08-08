@@ -10,7 +10,6 @@
 #include "ck/utility/philox_rand.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
-// #include "ck/tensor_operation/gpu/device/device_batched_multihead_attention_backward.hpp" // TODO
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
@@ -21,8 +20,6 @@
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
-
-#include "ck/library/utility/host_tensor.hpp"
 
 namespace ck {
 namespace tensor_operation {

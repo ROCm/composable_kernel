@@ -22,8 +22,6 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
-#include "ck/library/utility/host_tensor.hpp"
-
 namespace ck {
 namespace tensor_operation {
 namespace device {

@@ -19,6 +19,8 @@ __device__ index_t get_thread_global_1d_id() { return blockIdx.x * blockDim.x + 
 
 __device__ index_t get_warp_local_1d_id() { return threadIdx.x / get_warp_size(); }
 
+__device__ index_t get_lane_local_1d_id() { return threadIdx.x % get_warp_size(); }
+
 __device__ index_t get_block_1d_id() { return blockIdx.x; }
 
 __device__ index_t get_grid_size() { return gridDim.x; }
