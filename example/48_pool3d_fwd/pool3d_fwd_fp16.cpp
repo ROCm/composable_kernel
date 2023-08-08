@@ -29,19 +29,19 @@ static constexpr bool PropagateNan = false;
 
 using DevicePoolFwdInstance =
     ck::tensor_operation::device::DevicePool3dFwd_NDHWC_NDHWC<InDataType,
-                                                                  OutDataType,
-                                                                  IndexDataType,
-                                                                  ComputeDataType,
-                                                                  InLayout,
-                                                                  OutLayout,
-                                                                  ReduceOpId,
-                                                                  OutputIndex,
-                                                                  64, // BlockSize
-                                                                  64, // ReduceMThreadClusterSize
-                                                                  1,  // ReduceKThreadClusterSize
-                                                                  1,  // ReduceMThreadSliceSize
-                                                                  1,  // ReduceKThreadSliceSize
-                                                                  1>; // InSrcOutDstVectorSize
+                                                              OutDataType,
+                                                              IndexDataType,
+                                                              ComputeDataType,
+                                                              InLayout,
+                                                              OutLayout,
+                                                              ReduceOpId,
+                                                              OutputIndex,
+                                                              64, // BlockSize
+                                                              64, // ReduceMThreadClusterSize
+                                                              1,  // ReduceKThreadClusterSize
+                                                              1,  // ReduceMThreadSliceSize
+                                                              1,  // ReduceKThreadSliceSize
+                                                              1>; // InSrcOutDstVectorSize
 
 int main()
 {

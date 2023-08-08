@@ -151,8 +151,8 @@ bool pool_test(bool do_verification,
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB / s "
-              << std::endl;
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+              << " GB / s " << std::endl;
 
     bool pass = true;
 
