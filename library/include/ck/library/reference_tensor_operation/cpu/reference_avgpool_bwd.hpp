@@ -62,6 +62,29 @@ struct ReferenceAvgPoolBwd : public device::BaseOperator
                   typename std::enable_if<NDimSpatial_ == 1, bool>::type = false>
         float RunAvgPoolBwd(const Argument& arg)
         {
+            // Let input = x, outpu = y
+            // shape of x = [10], y = [6]
+            // window_size = 5, pad = 0, stride = 1, dilation = 1
+            // Forward:
+            // y0 = 1/5 * (x0 + x1 + x2 + x3 + x4)
+            // y1 = 1/5 * (x1 + x2 + x3 + x4 + x5)
+            // ...
+            // y5 = 1/5 * (x5 + x6 + x7 + x8 + x9)
+            // y6 = 1/5 * (x6 + x7 + x8 + x9)
+            // ...
+            // y9 = 1/5 * (x9)
+
+            // Backward:
+            // shape of dy = [6], dx = [10]
+            // dx0 = 1/5 * dy0
+            // dx1 = 1/5 * (dy0 + dy1)
+            // dx2 = 1/5 * (dy0 + dy1 + dy2)
+            // ...
+            // dx4 = 1/5 * (dy0 + dy1 + dy2 + dy3 + dy4)
+            // dx5 = 1/5 * (dy1 + dy2 + dy3 + dy4 + dy5)
+            // ...
+            // dx9 = 1/5 * (dy5 + dy6 + dy7 + dy8 + dy9)
+
             auto f_ncw = [&](auto n, auto c, auto wi) {
                 std::size_t X  = arg.window_spatial_lengths_[0];
                 std::size_t Wo = arg.doutput_.GetLengths()[2];
@@ -70,15 +93,18 @@ struct ReferenceAvgPoolBwd : public device::BaseOperator
 
                 for(std::size_t x = 0; x < X; ++x)
                 {
+                    // Out_Position = (In_Position + pad - x * dilation) / stride
                     auto w_tmp = static_cast<ck::long_index_t>(wi) +
                                  static_cast<ck::long_index_t>(arg.in_left_pads_[0]) -
                                  static_cast<ck::long_index_t>(x * arg.window_dilations_[0]);
 
+                    // if stride > 1, each dinput have different reduction length
                     if(w_tmp % arg.window_strides_[0] == 0)
                     {
                         auto wo = static_cast<ck::long_index_t>(w_tmp) /
                                   static_cast<ck::long_index_t>(arg.window_strides_[0]);
 
+                        // do not write gradient into padding position
                         if(wo >= 0 && ck::type_convert<std::size_t>(wo) < Wo)
                         {
                             v_acc += ck::type_convert<float>(arg.doutput_(n, c, wo));
@@ -114,13 +140,18 @@ struct ReferenceAvgPoolBwd : public device::BaseOperator
 
                 for(std::size_t y = 0; y < Y; ++y)
                 {
+                    // Out_Position = (In_Position + pad - x * dilation) / stride
                     auto h_tmp = static_cast<ck::long_index_t>(hi) +
                                  static_cast<ck::long_index_t>(arg.in_left_pads_[0]) -
                                  static_cast<ck::long_index_t>(y * arg.window_dilations_[0]);
+
+                    // if stride > 1, each dinput have different reduction length
                     if(h_tmp % arg.window_strides_[0] == 0)
                     {
                         auto ho = static_cast<ck::long_index_t>(h_tmp) /
                                   static_cast<ck::long_index_t>(arg.window_strides_[0]);
+
+                        // do not write gradient into padding position
                         if(ho >= 0 && ck::type_convert<std::size_t>(ho) < Ho)
                         {
                             for(std::size_t x = 0; x < X; ++x)
@@ -175,13 +206,18 @@ struct ReferenceAvgPoolBwd : public device::BaseOperator
 
                 for(std::size_t z = 0; z < Z; ++z)
                 {
+                    // Out_Position = (In_Position + pad - x * dilation) / stride
                     auto d_tmp = static_cast<ck::long_index_t>(di) +
                                  static_cast<ck::long_index_t>(arg.in_left_pads_[0]) -
                                  static_cast<ck::long_index_t>(z * arg.window_dilations_[0]);
+
+                    // if stride > 1, each dinput have different reduction length
                     if(d_tmp % arg.window_strides_[0] == 0)
                     {
                         auto do_ = static_cast<ck::long_index_t>(d_tmp) /
                                    static_cast<ck::long_index_t>(arg.window_strides_[0]);
+
+                        // do not write gradient into padding position
                         if(do_ >= 0 && ck::type_convert<std::size_t>(do_) < Do)
                         {
                             for(std::size_t y = 0; y < Y; ++y)
