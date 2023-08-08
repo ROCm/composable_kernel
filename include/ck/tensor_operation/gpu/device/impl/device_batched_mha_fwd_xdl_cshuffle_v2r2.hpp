@@ -274,6 +274,7 @@ template <index_t NumDimG,
           index_t BBlockTransferSrcScalarPerVector,
           index_t BBlockTransferDstScalarPerVector_BK1,
           bool BBlockLdsExtraN,
+          index_t Acc0BiasTransferSrcScalarPerVector,
           typename B1BlockTransferThreadClusterLengths_BK0_N_BK1,
           typename B1BlockTransferThreadClusterArrangeOrder,
           typename B1BlockTransferSrcAccessOrder,
@@ -285,6 +286,7 @@ template <index_t NumDimG,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
+          index_t Acc1BiasTransferSrcScalarPerVector,
           MaskingSpecialization MaskingSpec,
           bool Deterministic,
           LoopScheduler LoopSched = LoopScheduler::Default>
@@ -343,6 +345,14 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2
         Sequence<NumDimG, NumDimM, NumDimN, NumDimK, NumDimO>,
         Sequence<MPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock>,
         GemmSpec,
+        ASpec,
+        BSpec,
+        B1Spec,
+        CSpec>;
+    using RawTransform = TransformBatchedContractionContractionToBatchedGemmGemm<
+        Sequence<NumDimG, NumDimM, NumDimN, NumDimK, NumDimO>,
+        Sequence<MPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock>,
+        GemmSpecialization::Default,
         ASpec,
         BSpec,
         B1Spec,
@@ -552,6 +562,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2
         BBlockTransferDstScalarPerVector_BK1,
         true,
         BBlockLdsExtraN,
+        Acc0BiasTransferSrcScalarPerVector,
         B1BlockTransferThreadClusterLengths_BK0_N_BK1,
         B1BlockTransferThreadClusterArrangeOrder,
         B1BlockTransferSrcAccessOrder,
@@ -564,6 +575,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2
         CShuffleNXdlPerWavePerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
+        Acc1BiasTransferSrcScalarPerVector,
         LoopSched,
         Transform::matrix_padder.PadN,
         MaskingSpec != MaskingSpecialization::MaskDisabled,
@@ -670,7 +682,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2
                   c_grid_desc_g_m_n_,
                   d_grid_desc_g_m_n_,
                   z_grid_desc_g_m_n_,
-                  type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize())}
+                  type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize())},
+              raw_d0_n_(0)
         {
             // TODO ANT: implement bias addition
             ignore = p_acc1_biases;
@@ -708,6 +721,12 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2
             if(p_lse_grid == nullptr)
             {
                 is_lse_storing_ = false;
+            }
+            if constexpr(NumD0Tensor)
+            {
+                const auto d0_grid_desc_m_n = RawTransform::MakeCGridDescriptor_M_N(
+                    acc0_biases_gs_ms_ns_lengths[0], acc0_biases_gs_ms_ns_strides[0]);
+                raw_d0_n_ = d0_grid_desc_m_n.GetLength(I1);
             }
         }
 
@@ -794,6 +813,9 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2
 
         index_t m_raw_padded_;
         index_t n_raw_padded_;
+
+        // raw data
+        int raw_d0_n_;
     };
 
     // Invoker
@@ -996,6 +1018,11 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2
         const index_t b1_gemm1n = arg.b1_grid_desc_bk0_n_bk1_.GetLength(I1);
 
         if(!(c_g == arg.batch_count_ && c_m == a_m && c_gemm1n == b1_gemm1n))
+        {
+            return false;
+        }
+
+        if(arg.raw_d0_n_ % Acc0BiasTransferSrcScalarPerVector != 0)
         {
             return false;
         }
