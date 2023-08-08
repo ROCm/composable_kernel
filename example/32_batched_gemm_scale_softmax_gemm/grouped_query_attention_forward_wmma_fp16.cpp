@@ -2,10 +2,12 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 /*
-Multi-Query Attention
-Shazeer, Noam. “Fast Transformer Decoding: One Write-Head Is All You Need.” arXiv.org, November 6,
-2019. https://arxiv.org/abs/1911.02150v1.
+Grouped Query Attention,
+Ainslie, Joshua, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebrón, and Sumit
+Sanghai. “GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints.”
+arXiv, May 22, 2023. https://doi.org/10.48550/arXiv.2305.13245.
 
+Example is GQA-4
 */
 
 #include <iostream>
@@ -16,7 +18,7 @@ Shazeer, Noam. “Fast Transformer Decoding: One Write-Head Is All You Need.” 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_multi_query_attention_forward_wmma.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_query_attention_forward_wmma.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -45,11 +47,12 @@ using CDataType        = F16;
 using Acc0BiasDataType = ck::Tuple<>;
 using Acc1BiasDataType = ck::Tuple<>;
 
-static constexpr ck::index_t NumDimG = 2;
-static constexpr ck::index_t NumDimM = 1;
-static constexpr ck::index_t NumDimN = 1;
-static constexpr ck::index_t NumDimK = 1;
-static constexpr ck::index_t NumDimO = 1;
+static constexpr ck::index_t NumDimG          = 2;
+static constexpr ck::index_t NumDimM          = 1;
+static constexpr ck::index_t NumDimN          = 1;
+static constexpr ck::index_t NumDimK          = 1;
+static constexpr ck::index_t NumDimO          = 1;
+static constexpr ck::index_t QueryGroupNumber = 4;
 
 using AElementOp    = PassThrough;
 using B0ElementOp   = PassThrough;
@@ -75,11 +78,12 @@ using DeviceMHAFactory =
     std::tuple<
 #ifdef CK_MHA_USE_WAVE_1
         // 1 wave, mrepeat = 1, nrepeat = 2, k/o repeat = 1~5
-        ck::tensor_operation::device::DeviceMultiQueryAttentionForward_Wmma<
+        ck::tensor_operation::device::DeviceGroupedQueryAttentionForward_Wmma<
             NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
             ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            QueryGroupNumber,
             32,
             //      Gemm 0
             16, 128, 64, 8,  8,
@@ -97,11 +101,12 @@ using DeviceMHAFactory =
             // CShuffleBlockTransfer MN
             1, 1, S<1, 16, 1, 2>, 8,             
             MaskingSpec>,
-        ck::tensor_operation::device::DeviceMultiQueryAttentionForward_Wmma<
+        ck::tensor_operation::device::DeviceGroupedQueryAttentionForward_Wmma<
             NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
             ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            QueryGroupNumber,
             32,
             //      Gemm 0
             16, 64, 64, 8,  8,
@@ -121,11 +126,12 @@ using DeviceMHAFactory =
             MaskingSpec>,
 #endif
 #ifdef CK_MHA_USE_WAVE_2
-         ck::tensor_operation::device::DeviceMultiQueryAttentionForward_Wmma<
+         ck::tensor_operation::device::DeviceGroupedQueryAttentionForward_Wmma<
             NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
             ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            QueryGroupNumber,
             64,
             //      Gemm 0
             32, 128, 64, 8, 8,
@@ -143,11 +149,12 @@ using DeviceMHAFactory =
             // CShuffleBlockTransfer MN
             1, 1, S<1, 32, 1, 2>, 8,             
             MaskingSpec>,
-        ck::tensor_operation::device::DeviceMultiQueryAttentionForward_Wmma<
+        ck::tensor_operation::device::DeviceGroupedQueryAttentionForward_Wmma<
             NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
             ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            QueryGroupNumber,
             64,
             //      Gemm 0
             32, 64, 64, 8, 8,
@@ -167,11 +174,12 @@ using DeviceMHAFactory =
             MaskingSpec>,
 #endif
 #ifdef CK_MHA_USE_WAVE_4
-        ck::tensor_operation::device::DeviceMultiQueryAttentionForward_Wmma<
+        ck::tensor_operation::device::DeviceGroupedQueryAttentionForward_Wmma<
             NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
             ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            QueryGroupNumber,
             128,
             //      Gemm 0
             64, 128, 64, 8, 8,
@@ -189,11 +197,12 @@ using DeviceMHAFactory =
             // CShuffleBlockTransfer MN
             1, 1, S<1, 64, 1, 2>, 8,
             MaskingSpec>,
-        ck::tensor_operation::device::DeviceMultiQueryAttentionForward_Wmma<
+        ck::tensor_operation::device::DeviceGroupedQueryAttentionForward_Wmma<
             NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
             ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            QueryGroupNumber,
             128,
             //      Gemm 0
             64, 64, 64, 8, 8,
@@ -213,11 +222,12 @@ using DeviceMHAFactory =
             MaskingSpec>,
 #endif
 #ifdef CK_MHA_USE_WAVE_8
-        ck::tensor_operation::device::DeviceMultiQueryAttentionForward_Wmma<
+        ck::tensor_operation::device::DeviceGroupedQueryAttentionForward_Wmma<
             NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
             ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            QueryGroupNumber,
             256,
             //      Gemm 0
             128, 128, 64, 8, 8,   
@@ -235,11 +245,12 @@ using DeviceMHAFactory =
             // CShuffleBlockTransfer MN
             1, 1, S<1, 128, 1, 2>, 8,             
             MaskingSpec>,
-        ck::tensor_operation::device::DeviceMultiQueryAttentionForward_Wmma<
+        ck::tensor_operation::device::DeviceGroupedQueryAttentionForward_Wmma<
             NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
             ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            QueryGroupNumber,
             256,
             //      Gemm 0
             128, 128, 64, 8, 8,   
@@ -261,27 +272,31 @@ using DeviceMHAFactory =
     >;
 // clang-format on
 // Ref Gemm0: fp16 in, fp32 out
-using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm_MQA<ADataType,
-                                                                                    B0DataType,
-                                                                                    Acc0DataType,
-                                                                                    Acc1DataType,
-                                                                                    AElementOp,
-                                                                                    B0ElementOp,
-                                                                                    Acc0ElementOp>;
+using ReferenceGemm0Instance =
+    ck::tensor_operation::host::ReferenceBatchedGemm_GQA<ADataType,
+                                                         B0DataType,
+                                                         Acc0DataType,
+                                                         Acc1DataType,
+                                                         AElementOp,
+                                                         B0ElementOp,
+                                                         Acc0ElementOp,
+                                                         QueryGroupNumber>;
 
 // Ref Softmax: fp32 in, fp16 out
 using ReferenceSoftmaxInstance =
     ck::tensor_operation::host::ReferenceSoftmax<Acc0DataType, ADataType, Acc0DataType>;
 
 // Ref Gemm1: fp16 in, fp16 out
-using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm_MQA<ADataType,
-                                                                                    B1DataType,
-                                                                                    CDataType,
-                                                                                    Acc1DataType,
-                                                                                    AElementOp,
-                                                                                    B1ElementOp,
-                                                                                    CElementOp>;
+using ReferenceGemm1Instance =
+    ck::tensor_operation::host::ReferenceBatchedGemm_GQA<ADataType,
+                                                         B1DataType,
+                                                         CDataType,
+                                                         Acc1DataType,
+                                                         AElementOp,
+                                                         B1ElementOp,
+                                                         CElementOp,
+                                                         QueryGroupNumber>;
 
-#include "run_multi_query_attention_forward_wmma.inc"
+#include "run_grouped_query_attention_forward_wmma.inc"
 
 int main(int argc, char* argv[]) { return run(argc, argv); }
