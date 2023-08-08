@@ -1,25 +1,25 @@
 ===================
-CK docker hub
+CK Docker Hub
 ===================
-
-`Docker hub <https://hub.docker.com/r/rocm/composable_kernel>`_
 
 -------------------------------------
 Why do I need this?
 -------------------------------------
 
-To make our lives easier and bring Composable Kernel dependencies together, we recommend using docker images.
+To make our lives easier and bring Composable Kernel dependencies together, we recommend using
+docker images that can be found on `Docker Hub <https://hub.docker.com/r/rocm/composable_kernel>`_.
 
 -------------------------------------
 So what is Composable Kernel?
 -------------------------------------
 
-Composable Kernel (CK) library aims to provide a programming model for writing performance critical kernels for machine learning workloads across multiple architectures including GPUs, CPUs, etc, through general purpose kernel languages, like HIP C++.
+Composable Kernel (CK) library aims to provide a programming model for writing performance critical
+kernels for machine learning workloads across multiple architectures including GPUs, CPUs, etc,
+through general purpose kernel languages, like HIP C++.
 
 To get the CK library::
 
     git clone https://github.com/ROCmSoftwarePlatform/composable_kernel.git
-
 
 
 run a docker container::
@@ -30,7 +30,7 @@ run a docker container::
     --group-add sudo                                                      \
     -w /root/workspace                                                    \
     -v ${PATH_TO_LOCAL_WORKSPACE}:/root/workspace                         \
-    rocm/composable_kernel:ck_ub20.04_rocm5.3_release                     \
+    rocm/composable_kernel:ck_ub20.04_rocm5.6                             \
     /bin/bash
 
 and build the CK::
@@ -58,7 +58,9 @@ We can also run specific examples or tests like::
     ./bin/example_gemm_xdl_fp16
     ./bin/test_gemm_fp16
 
-For more details visit `CK github repo <https://github.com/ROCmSoftwarePlatform/composable_kernel>`_, `CK examples <https://github.com/ROCmSoftwarePlatform/composable_kernel/tree/develop/example)>`_, `even more CK examples <https://github.com/ROCmSoftwarePlatform/composable_kernel/tree/develop/client_example>`_.
+For more details visit `CK github repository <https://github.com/ROCmSoftwarePlatform/composable_kernel>`_,
+`CK examples <https://github.com/ROCmSoftwarePlatform/composable_kernel/tree/develop/example)>`_,
+`even more CK examples <https://github.com/ROCmSoftwarePlatform/composable_kernel/tree/develop/client_example>`_.
 
 -------------------------------------
 And what is inside?
@@ -74,12 +76,11 @@ The docker images have everything you need for running CK including:
 Which image is right for me?
 -------------------------------------
 
-Let's take a look at the image naming, for example "ck_ub20.04_rocm5.4_release". The image specs are:
+Let's take a look at the image naming, for example ``ck_ub20.04_rocm5.6``. The image specs are:
 
-* "ck" - made for running Composable Kernel
-* "ub20.04" - based on Ubuntu 20.04
-* "rocm5.4" - ROCm platform version 5.4
-* "release" - compiler version is release
+* ``ck`` - made for running Composable Kernel;
+* ``ub20.04`` - based on Ubuntu 20.04;
+* ``rocm5.6`` - ROCm platform version 5.6.
 
 So just pick the right image for your project dependencies and you're all set.
 
@@ -87,7 +88,9 @@ So just pick the right image for your project dependencies and you're all set.
 DIY starts here
 -------------------------------------
 
-If you need to customize a docker image or just can't stop tinkering, feel free to adjust the `Dockerfile <https://github.com/ROCmSoftwarePlatform/composable_kernel/blob/develop/Dockerfile>`_ for your needs.
+If you need to customize a docker image or just can't stop tinkering, feel free to adjust the
+`Dockerfile <https://github.com/ROCmSoftwarePlatform/composable_kernel/blob/develop/Dockerfile>`_
+for your needs.
 
 -------------------------------------
 License
