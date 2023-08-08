@@ -939,14 +939,14 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2
                                              D0BlockTransferSrcScalarPerVector,
                                              1,
                                              false>(d_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                                    make_multi_index(block_work_idx[I0], // MBlockId
-                                                                     0,                  // NBlockId
-                                                                     0,                  // mrepeat
-                                                                     0,                  // nrepeat
-                                                                     wave_id[I0],        // MWaveId
-                                                                     wave_id[I1],        // NWaveId
-                                                                     wave_m_n_id[I1],    // MPerXdl
-                                                                     0,                  // group
+                                                    make_multi_index(block_work_idx_m, // MBlockId
+                                                                     0,                // NBlockId
+                                                                     0,                // mrepeat
+                                                                     0,                // nrepeat
+                                                                     wave_id[I0],      // MWaveId
+                                                                     wave_id[I1],      // NWaveId
+                                                                     wave_m_n_id[I1],  // MPerXdl
+                                                                     0,                // group
                                                                      wave_m_n_id[I0], // NInputIndex
                                                                      0)); // register number
 
