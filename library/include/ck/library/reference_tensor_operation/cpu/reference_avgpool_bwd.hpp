@@ -98,13 +98,15 @@ struct ReferenceAvgPoolBwd : public device::BaseOperator
                                  static_cast<ck::long_index_t>(arg.in_left_pads_[0]) -
                                  static_cast<ck::long_index_t>(x * arg.window_dilations_[0]);
 
-                    // if stride > 1, each dinput have different reduction length
+                    // Check the input pixel validity (in perspective of being affected by some
+                    // doutput pixel)
                     if(w_tmp % arg.window_strides_[0] == 0)
                     {
                         auto wo = static_cast<ck::long_index_t>(w_tmp) /
                                   static_cast<ck::long_index_t>(arg.window_strides_[0]);
 
-                        // do not write gradient into padding position
+                        // Get the doutput pixel in valid range to accumulate the gradients for this
+                        // input pixel
                         if(wo >= 0 && ck::type_convert<std::size_t>(wo) < Wo)
                         {
                             v_acc += ck::type_convert<float>(arg.doutput_(n, c, wo));
@@ -145,13 +147,15 @@ struct ReferenceAvgPoolBwd : public device::BaseOperator
                                  static_cast<ck::long_index_t>(arg.in_left_pads_[0]) -
                                  static_cast<ck::long_index_t>(y * arg.window_dilations_[0]);
 
-                    // if stride > 1, each dinput have different reduction length
+                    // Check the input pixel validity (in perspective of being affected by some
+                    // doutput pixel)
                     if(h_tmp % arg.window_strides_[0] == 0)
                     {
                         auto ho = static_cast<ck::long_index_t>(h_tmp) /
                                   static_cast<ck::long_index_t>(arg.window_strides_[0]);
 
-                        // do not write gradient into padding position
+                        // Get the doutput pixel in valid range to accumulate the gradients for this
+                        // input pixel
                         if(ho >= 0 && ck::type_convert<std::size_t>(ho) < Ho)
                         {
                             for(std::size_t x = 0; x < X; ++x)
@@ -211,13 +215,15 @@ struct ReferenceAvgPoolBwd : public device::BaseOperator
                                  static_cast<ck::long_index_t>(arg.in_left_pads_[0]) -
                                  static_cast<ck::long_index_t>(z * arg.window_dilations_[0]);
 
-                    // if stride > 1, each dinput have different reduction length
+                    // Check the input pixel validity (in perspective of being affected by some
+                    // doutput pixel)
                     if(d_tmp % arg.window_strides_[0] == 0)
                     {
                         auto do_ = static_cast<ck::long_index_t>(d_tmp) /
                                    static_cast<ck::long_index_t>(arg.window_strides_[0]);
 
-                        // do not write gradient into padding position
+                        // Get the doutput pixel in valid range to accumulate the gradients for this
+                        // input pixel
                         if(do_ >= 0 && ck::type_convert<std::size_t>(do_) < Do)
                         {
                             for(std::size_t y = 0; y < Y; ++y)
