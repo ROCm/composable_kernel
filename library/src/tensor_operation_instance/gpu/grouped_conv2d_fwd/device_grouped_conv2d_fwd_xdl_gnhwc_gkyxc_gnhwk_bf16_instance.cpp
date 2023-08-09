@@ -2,7 +2,7 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
-#include "device_grouped_conv2d_fwd_xdl_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_xdl_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -24,40 +24,36 @@ void add_device_grouped_conv1d_fwd_xdl_gnhwc_gkyxc_gnhwk_bf16_instances(
                                                               PassThrough>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_fwd_xdl_bf16_instances<GNHWC,
-                                                                                GKYXC,
-                                                                                Empty_Tuple,
-                                                                                GNHWK,
-                                                                                Empty_Tuple,
-                                                                                PassThrough,
-                                                                                ConvFwdDefault>{});
+                                   device_grouped_conv_fwd_xdl_bf16_instances<2,
+                                                                              GNHWC,
+                                                                              GKYXC,
+                                                                              Empty_Tuple,
+                                                                              GNHWK,
+                                                                              ConvFwdDefault>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_fwd_xdl_bf16_instances<GNHWC,
-                                                                                GKYXC,
-                                                                                Empty_Tuple,
-                                                                                GNHWK,
-                                                                                Empty_Tuple,
-                                                                                PassThrough,
-                                                                                ConvFwd1x1P0>{});
+                                   device_grouped_conv_fwd_xdl_bf16_instances<2,
+                                                                              GNHWC,
+                                                                              GKYXC,
+                                                                              Empty_Tuple,
+                                                                              GNHWK,
+                                                                              ConvFwd1x1P0>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_fwd_xdl_bf16_instances<GNHWC,
-                                                                                GKYXC,
-                                                                                Empty_Tuple,
-                                                                                GNHWK,
-                                                                                Empty_Tuple,
-                                                                                PassThrough,
-                                                                                ConvFwd1x1S1P0>{});
+                                   device_grouped_conv_fwd_xdl_bf16_instances<2,
+                                                                              GNHWC,
+                                                                              GKYXC,
+                                                                              Empty_Tuple,
+                                                                              GNHWK,
+                                                                              ConvFwd1x1S1P0>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv2d_fwd_xdl_bf16_instances<GNHWC,
-                                                                                GKYXC,
-                                                                                Empty_Tuple,
-                                                                                GNHWK,
-                                                                                Empty_Tuple,
-                                                                                PassThrough,
-                                                                                ConvFwdOddC>{});
+                                   device_grouped_conv_fwd_xdl_bf16_instances<2,
+                                                                              GNHWC,
+                                                                              GKYXC,
+                                                                              Empty_Tuple,
+                                                                              GNHWK,
+                                                                              ConvFwdOddC>{});
 }
 
 } // namespace instance
