@@ -26,8 +26,6 @@ struct DevicePool2dFwd_NHWC_NHWC
                                          OutDataType,
                                          IndexDataType,
                                          ComputeDataType,
-                                         tensor_layout::convolution::NDHWC,
-                                         tensor_layout::convolution::NDHWC,
                                          ReduceOpId,
                                          OutputIndex,
                                          BlockSize,
@@ -37,15 +35,10 @@ struct DevicePool2dFwd_NHWC_NHWC
                                          ReduceKThreadSliceSize,
                                          InSrcOutDstVectorSize>
 {
-    static_assert(is_same_v<InLayout, tensor_layout::convolution::NHWC>);
-    static_assert(is_same_v<OutLayout, tensor_layout::convolution::NHWC>);
-
     using DevicePool3D = DevicePool3dFwd_NDHWC_NDHWC<InDataType,
                                                      OutDataType,
                                                      IndexDataType,
                                                      ComputeDataType,
-                                                     tensor_layout::convolution::NDHWC,
-                                                     tensor_layout::convolution::NDHWC,
                                                      ReduceOpId,
                                                      OutputIndex,
                                                      BlockSize,
