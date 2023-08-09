@@ -31,7 +31,7 @@ RUN if [ "$ROCMVERSION" != "5.7" ]; then \
         amdgpu-repo --amdgpu-build=1609671 --rocm-build=compute-rocm-npi-mi300/1354; \
     elif [ "$ROCMVERSION" = "5.7" ] && [ "$compiler_version" = "rc1" ]; then \
         sh -c "wget http://artifactory-cdn.amd.com/artifactory/list/amdgpu-deb/amdgpu-install-internal_5.7-20.04-1_all.deb" && \
-        apt update && apt-get install ./amdgpu-install-internal_5.7-20.04-1_all.deb && \
+        apt update && apt-get install -y ./amdgpu-install-internal_5.7-20.04-1_all.deb && \
         sh -c 'echo deb [arch=amd64 trusted=yes] http://compute-artifactory.amd.com/artifactory/list/rocm-release-archive-20.04-deb/ 5.7 rel-19 > /etc/apt/sources.list.d/rocm-build.list' && \
         amdgpu-repo --amdgpu-build=1637781; \
     fi
