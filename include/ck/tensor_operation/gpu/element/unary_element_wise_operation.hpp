@@ -404,6 +404,13 @@ struct FastNumericArrayConverter<uint8_t, ck::half_t, 4>
         half_2[0] = __builtin_amdgcn_perm(fp16_adder, uint8_4, byte_selector_01);
         half_2[1] = __builtin_amdgcn_perm(fp16_adder, uint8_4, byte_selector_23);
 
+        // static constexpr ck::half_t fp16_subtract = -1152;
+        // Output.template AsType<ck::half_t>()(Number<0>{}) += fp16_subtract;
+        // Output.template AsType<ck::half_t>()(Number<1>{}) += fp16_subtract;
+        // Output.template AsType<ck::half_t>()(Number<2>{}) += fp16_subtract;
+        // Output.template AsType<ck::half_t>()(Number<3>{}) += fp16_subtract;
+
+        // inline assembly get very poor performance as no chance to global scheduling
         static constexpr uint32_t I8s_TO_F16s_MAGIC_NUM = 0x64806480;
         asm volatile("v_pk_add_f16 %0, %1, %2 neg_lo:[0,1] neg_hi:[0,1]\n"
                      : "=v"(half_2[0])

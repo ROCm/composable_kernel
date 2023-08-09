@@ -21,7 +21,7 @@ using QuantDataType    = int8_t;
 using BDataType        = uint8_t;
 using ScaleDataType    = ck::half_t;
 using AccDataType      = float;
-using CShuffleDataType = ck::half_t;
+using CShuffleDataType = float;
 using CDataType        = ck::half_t;
 
 using ALayout = Row;
