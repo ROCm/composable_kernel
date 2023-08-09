@@ -149,7 +149,7 @@ using DeviceGemmInstance =
         S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         4,
-        MaskingSpec,    // MaskingSpecialization
+        MaskingSpec, // MaskingSpecialization
         Deterministic>;
 #elif(DIM <= 64)
 using DeviceGemmInstance =
@@ -222,7 +222,7 @@ using DeviceGemmInstance =
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         4,
-        MaskingSpec,    // MaskingSpecialization
+        MaskingSpec, // MaskingSpecialization
         Deterministic>;
 #elif(DIM <= 128)
 using DeviceGemmInstance =
@@ -295,7 +295,7 @@ using DeviceGemmInstance =
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         4,
-        MaskingSpec,    // MaskingSpecialization
+        MaskingSpec, // MaskingSpecialization
         Deterministic>;
 #endif
 
