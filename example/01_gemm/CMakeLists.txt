@@ -64,3 +64,6 @@ if(DTYPES MATCHES "fp8" OR NOT DEFINED DTYPES)
     add_dependencies(example_gemm_xdl example_gemm_xdl_f8)
   endif()
 endif()
+
+add_example_executable(example_gemm_xdl_fp16_f8 gemm_xdl_fp16_f8.cpp)
+add_dependencies(example_gemm_xdl example_gemm_xdl_fp16_f8)
