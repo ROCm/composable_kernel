@@ -32,8 +32,6 @@ using DevicePoolFwdInstance =
                                                               OutDataType,
                                                               IndexDataType,
                                                               ComputeDataType,
-                                                              InLayout,
-                                                              OutLayout,
                                                               ReduceOpId,
                                                               OutputIndex,
                                                               64, // BlockSize

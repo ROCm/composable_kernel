@@ -15,10 +15,9 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using I32   = int32_t;
-using F16   = ck::half_t;
-using F32   = float;
-using NDHWC = ck::tensor_layout::convolution::NDHWC;
+using I32 = int32_t;
+using F16 = ck::half_t;
+using F32 = float;
 
 template <typename InDataType,
           typename OutDataType,
@@ -29,9 +28,9 @@ template <typename InDataType,
 using device_pool3d_fwd_ndhwc_instances =
     // clang-format off
     std::tuple <
-        DevicePool3dFwd_NDHWC_NDHWC<InDataType, OutDataType, IndexDataType, ComputeDataType, NDHWC, NDHWC, ReduceOpId, OutputIndex, 256, 256, 1, 1, 1, 1>,
-        DevicePool3dFwd_NDHWC_NDHWC<InDataType, OutDataType, IndexDataType, ComputeDataType, NDHWC, NDHWC, ReduceOpId, OutputIndex, 256, 256, 1, 2, 1, 2>,
-        DevicePool3dFwd_NDHWC_NDHWC<InDataType, OutDataType, IndexDataType, ComputeDataType, NDHWC, NDHWC, ReduceOpId, OutputIndex, 256, 256, 1, 4, 1, 4>
+        DevicePool3dFwd_NDHWC_NDHWC<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 1, 1, 1>,
+        DevicePool3dFwd_NDHWC_NDHWC<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 2, 1, 2>,
+        DevicePool3dFwd_NDHWC_NDHWC<InDataType, OutDataType, IndexDataType, ComputeDataType, ReduceOpId, OutputIndex, 256, 256, 1, 4, 1, 4>
                // clang-format on
                >;
 

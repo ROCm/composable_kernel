@@ -13,8 +13,6 @@ template <typename InDataType,
           typename OutDataType,
           typename IndexDataType, // enable if OutputIndex == true
           typename ComputeDataType,
-          typename InLayout,
-          typename OutLayout,
           ck::ReduceTensorOp ReduceOpId,
           bool OutputIndex,
           ck::index_t BlockSize,

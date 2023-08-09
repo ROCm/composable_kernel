@@ -24,8 +24,6 @@ template <typename InDataType,
           typename OutDataType,
           typename IndexDataType, // enable if OutputIndex == true
           typename ComputeDataType,
-          typename InLayout,
-          typename OutLayout,
           ck::ReduceTensorOp ReduceOpId,
           bool OutputIndex,
           ck::index_t BlockSize,
@@ -34,13 +32,16 @@ template <typename InDataType,
           ck::index_t MThreadSliceSize,
           ck::index_t KThreadSliceSize,
           ck::index_t InSrcOutDstVectorSize>
-struct DevicePool3dFwd_NDHWC_NDHWC
-    : public DevicePoolFwd<5, 3, InDataType, OutDataType, IndexDataType, ReduceOpId, OutputIndex>
+struct DevicePool3dFwd_NDHWC_NDHWC : public DevicePoolFwd<5,
+                                                          3,
+                                                          InDataType,
+                                                          OutDataType,
+                                                          IndexDataType,
+                                                          tensor_layout::convolution::NDHWC,
+                                                          tensor_layout::convolution::NDHWC,
+                                                          ReduceOpId,
+                                                          OutputIndex>
 {
-    // This implementation is compatatible with other layout, but need to causion about vector size
-    static_assert(is_same_v<InLayout, tensor_layout::convolution::NDHWC>);
-    static_assert(is_same_v<OutLayout, tensor_layout::convolution::NDHWC>);
-
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};

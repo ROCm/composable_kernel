@@ -51,8 +51,6 @@ bool pool_test(bool do_verification,
                                                                 OutDataType,
                                                                 IndexDataType,
                                                                 ComputeDataType,
-                                                                InLayout,
-                                                                OutLayout,
                                                                 ReduceOpId,
                                                                 OutputIndex,
                                                                 64, // BlockSize

@@ -17,6 +17,8 @@ template <index_t InOutRank,
           typename InDataType,
           typename OutDataType,
           typename IndexDataType,
+          typename InLayout,
+          typename OutLayout,
           ReduceTensorOp ReduceOpId,
           bool OutputIndex>
 struct DevicePoolFwd : public BaseOperator
