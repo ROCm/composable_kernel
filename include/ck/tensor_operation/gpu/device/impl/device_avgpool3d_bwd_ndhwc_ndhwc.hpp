@@ -27,16 +27,17 @@ namespace device {
 template <typename DOutDataType,
           typename DInDataType,
           typename ComputeDataType,
-          typename DOutLayout,
-          typename DInLayout,
           ck::index_t BlockSize,
           ck::index_t MThreadClusterSize,
           ck::index_t KThreadClusterSize,
           ck::index_t MThreadSliceSize,
           ck::index_t KThreadSliceSize,
           ck::index_t InSrcOutDstVectorSize>
-struct DeviceAvgPool3dBwd_NDHWC_NDHWC
-    : public DeviceAvgPoolBwd<3, DOutDataType, DInDataType, DOutLayout, DInLayout>
+struct DeviceAvgPool3dBwd_NDHWC_NDHWC : public DeviceAvgPoolBwd<3,
+                                                                DOutDataType,
+                                                                DInDataType,
+                                                                tensor_layout::convolution::NDHWC,
+                                                                tensor_layout::convolution::NDHWC>
 {
     static constexpr ck::index_t NDimSpatial = 3;
 
@@ -45,10 +46,6 @@ struct DeviceAvgPool3dBwd_NDHWC_NDHWC
 
     static constexpr ck::index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr ck::index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
-
-    // this implementation is compatatible with NCDHW, but need to causion about vector size
-    static_assert(is_same_v<DOutLayout, tensor_layout::convolution::NDHWC>);
-    static_assert(is_same_v<DInLayout, tensor_layout::convolution::NDHWC>);
 
     static auto
     Make3DGridDescriptor_Out_M_K_In_M(const std::vector<ck::index_t>& dout_n_c_wos_lengths,

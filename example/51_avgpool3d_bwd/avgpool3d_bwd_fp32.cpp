@@ -25,8 +25,6 @@ using DevicePoolBwdInstance =
     ck::tensor_operation::device::DeviceAvgPool3dBwd_NDHWC_NDHWC<DOutDataType,
                                                                  DInDataType,
                                                                  ComputeDataType,
-                                                                 DOutLayout,
-                                                                 DInLayout,
                                                                  64, // BlockSize
                                                                  64, // ReduceMThreadClusterSize
                                                                  1,  // ReduceKThreadClusterSize
