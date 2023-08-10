@@ -45,21 +45,19 @@ bool maxpool_bwd_test(bool do_verification,
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-    using DevicePoolFwdInstance = ck::tensor_operation::device::DevicePool2dFwd_NHWC_NHWC<
-        InDataType,      // InDataType
-        OutDataType,     // OutDataType
-        IndexDataType,   // IndexDataType
-        ComputeDataType, // ComputeDataType
-        ck::tensor_layout::convolution::NHWC,
-        ck::tensor_layout::convolution::NHWC,
-        ck::ReduceTensorOp::MAX,
-        true,
-        64, // BlockSize
-        64, // ReduceMThreadClusterSize
-        1,  // ReduceKThreadClusterSize
-        4,  // ReduceMThreadSliceSize
-        1,  // ReduceKThreadSliceSize
-        1>; // InSrcOutDstVectorSize
+    using DevicePoolFwdInstance =
+        ck::tensor_operation::device::DevicePool2dFwd_NHWC_NHWC<InDataType,      // InDataType
+                                                                OutDataType,     // OutDataType
+                                                                IndexDataType,   // IndexDataType
+                                                                ComputeDataType, // ComputeDataType
+                                                                ck::ReduceTensorOp::MAX,
+                                                                true,
+                                                                64, // BlockSize
+                                                                64, // ReduceMThreadClusterSize
+                                                                1,  // ReduceKThreadClusterSize
+                                                                4,  // ReduceMThreadSliceSize
+                                                                1,  // ReduceKThreadSliceSize
+                                                                1>; // InSrcOutDstVectorSize
 
     using DeviceMaxPoolBwdInstance = ck::tensor_operation::device::
         DeviceIndexPoolBwdImpl<DOutDataType, IndexDataType, DInDataType, 4>;

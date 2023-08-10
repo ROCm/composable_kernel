@@ -15,9 +15,10 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using I32 = int32_t;
-using F16 = ck::half_t;
-using F32 = float;
+using I32   = int32_t;
+using F16   = ck::half_t;
+using F32   = float;
+using NDHWC = ck::tensor_layout::convolution::NDHWC;
 
 template <typename InDataType,
           typename OutDataType,
