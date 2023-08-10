@@ -8,12 +8,12 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-/**
- * @brief      Structure representing single GEMM problem arguments.
- *
- *             The pointer to the vector of those structures is passed
- *             to the GroupedGEMM entry point kernel.
- */
+///
+/// @brief      Structure representing single GEMM problem arguments.
+///
+///             The pointer to the vector of those structures is passed
+///             to the GroupedGEMM entry point kernel.
+///
 struct GroupedGemmKernelArguments
 {
     __host__ __device__ GroupedGemmKernelArguments(const void* p_a_grid_,
