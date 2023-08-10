@@ -2,7 +2,96 @@
 Contributor's Guide
 ===================
 
-Pull-request guidelines
-=======================
+This chapter explains how to get started contributing to the Composable Kernel project and what are
+the contributing rules.
 
-[TODO]
+Getting started
+===============
+
+#. **Documentation:** Before contributing to the library, familiarize yourself with the
+   `Composable Kernel User Guide <https://rocm.docs.amd.com/projects/composable_kernel/en/latest/>`_.
+   It provides insight into the core concepts, environment configuration, and steps to obtain or
+   build the library. You can also find some of this information in the
+   `README file <https://github.com/ROCmSoftwarePlatform/composable_kernel/blob/develop/README.md>`_
+   on the project's GitHub page.
+#. **Additional reading:** We also recommend reading a `blog post
+   <https://community.amd.com/t5/instinct-accelerators/amd-composable-kernel-library-efficient-fused-kernels-for-ai/ba-p/553224>`_
+   from the AMD Community portal. It offers a deeper understanding of the library's objectives and
+   showcases its performance capabilities.
+#. **General information:** For broader information about AMD products, consider exploring the
+   `AMD Developer Central portal <https://www.amd.com/en/developer.html>`_.
+
+How do I contribute
+===================
+
+We deeply value contributions from our users. You can make an impact by reporting issues or
+proposing code enhancements through pull requests.
+
+Reporting issues
+----------------
+
+We use `Github issues <https://github.com/ROCmSoftwarePlatform/composable_kernel/issues>`_
+to track public bugs and enhancement requests.
+
+If you encounter an issue with the library, please check if the problem has already been
+reported by searching existing issues on GitHub. If your issue seems unique, please submit a new
+issue. All reported issues must include:
+
+* A comprehensive description of the problem, including:
+
+  * What did you observe?
+  * Why do you think it is a bug (if it seems like one)?
+  * What did you expect to happen? What would indicate the resolution of the problem?
+  * Are there any known workarounds?
+
+* Your configuration details, including:
+
+  * Which GPU are you using?
+  * Which OS version are you on?
+  * Which ROCm version are you using?
+  * Are you using a Docker image? If so, which one?
+
+* Steps to reproduce the issue, including:
+
+  * What actions trigger the issue? What are the reproduction steps?
+
+    * If you build the library from scratch, what CMake command did you use?
+
+  * How frequently does this issue happen? Does it reproduce every time? Or is it a sporadic issue?
+
+Before sumbitting any issue, ensure you have addressed all relevant questions from the checklist.
+
+Creating Pull Requests
+----------------------
+
+You can submit `Pull Requests (PR) on GitHub
+<https://github.com/ROCmSoftwarePlatform/composable_kernel/pulls>`_.
+
+All contributors are required to develop their changes on a separate branch and then create a
+pull requrest to merge their changes into the `develop` branch, which is the default
+development branch in the Composable Kernel project.
+
+When submitting a Pull Request you should:
+
+* Describe the change providing information about the motivation for the change and a general
+  description of all code modifications.
+
+* Verify and test the change:
+
+  * Run any relevant existing tests.
+  * Write new tests if the existing ones do not exist or do not cover the functionality entirely.
+
+* Link your PR to any related issues:
+
+  * If there is an issue that is resolved by your change, please provide a link to the issue in
+    the description of your pull request.
+  * If there is no issue related to your change, we recommend creating a new issue and then
+    providing a link to the issue in the description of your pull request.
+
+* For larger contributions, structure your change into a sequence of smaller, focused commits, each
+  addressing a particular aspect or fix.
+
+Following the above guidelines ensures a seamless review process and faster assistance from our
+end.
+
+Thank you for your commitment to enhancing the Composable Kernel project! We look forward to collaborating with you.
