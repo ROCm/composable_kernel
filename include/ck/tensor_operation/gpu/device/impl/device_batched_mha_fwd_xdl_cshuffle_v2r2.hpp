@@ -346,14 +346,6 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2
         BSpec,
         B1Spec,
         CSpec>;
-    using RawTransform = TransformBatchedContractionContractionToBatchedGemmGemm<
-        Sequence<NumDimG, NumDimM, NumDimN, NumDimK, NumDimO>,
-        Sequence<MPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock>,
-        GemmSpecialization::Default,
-        ASpec,
-        BSpec,
-        B1Spec,
-        CSpec>;
 
     static auto MakeAGridDescriptor_AK0_M_AK1(const std::vector<index_t>& a_gs_ms_ks_lengths_vec,
                                               const std::vector<index_t>& a_gs_ms_ks_strides_vec)

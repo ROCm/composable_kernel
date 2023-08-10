@@ -19,7 +19,7 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_batched_mha_fwd_xdl_cshuffle_v2r2.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_mha_fwd_xdl_cshuffle_v2.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -80,7 +80,7 @@ static constexpr bool Deterministic = false;
 
 #if(DIM <= 32)
 using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2<
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -153,7 +153,7 @@ using DeviceGemmInstance =
         Deterministic>;
 #elif(DIM <= 64)
 using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2<
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2<
         NumDimG,
         NumDimM,
         NumDimN,
@@ -226,7 +226,7 @@ using DeviceGemmInstance =
         Deterministic>;
 #elif(DIM <= 128)
 using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2R2<
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2<
         NumDimG,
         NumDimM,
         NumDimN,
