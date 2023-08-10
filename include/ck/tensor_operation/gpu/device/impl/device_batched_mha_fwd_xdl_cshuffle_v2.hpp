@@ -721,9 +721,9 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                 // D0 pointer
                 p_d0s_grid_(i) = static_cast<const D0DataType*>(p_acc0_biases[i]);
                 // for  check
-                d0s_nl_ns_lengths_strides_[i].push_back(
+                d0s_n_length_stride_[i].push_back(
                     acc0_biases_gs_ms_ns_lengths[i][NumDimG + NumDimM]);
-                d0s_nl_ns_lengths_strides_[i].push_back(
+                d0s_n_length_stride_[i].push_back(
                     acc0_biases_gs_ms_ns_strides[i][NumDimG + NumDimM]);
             });
             is_dropout_          = p_dropout > 0.0; //
@@ -830,7 +830,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         index_t n_raw_padded_;
 
         // raw data
-        std::array<std::vector<ck::index_t>, NumD0Tensor> d0s_nl_ns_lengths_strides_;
+        std::array<std::vector<ck::index_t>, NumD0Tensor> d0s_n_length_stride_;
     };
 
     // Invoker
@@ -1039,12 +1039,12 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
 
         for(int i = 0; i < NumD0Tensor; i++)
         {
-            if(arg.d0s_nl_ns_lengths_strides_[i][1] == 1 &&
-               arg.d0s_nl_ns_lengths_strides_[i][0] % Acc0BiasTransferSrcScalarPerVector != 0)
+            if(arg.d0s_n_length_stride_[i][1] == 1 &&
+               arg.d0s_n_length_stride_[i][0] % Acc0BiasTransferSrcScalarPerVector != 0)
             {
                 return false;
             }
-            if(arg.d0s_nl_ns_lengths_strides_[i][1] != 1 && Acc0BiasTransferSrcScalarPerVector != 1)
+            if(arg.d0s_n_length_stride_[i][1] != 1 && Acc0BiasTransferSrcScalarPerVector != 1)
             {
                 return false;
             }

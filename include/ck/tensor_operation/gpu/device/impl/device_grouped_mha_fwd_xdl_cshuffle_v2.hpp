@@ -658,7 +658,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
         CGridDesc_M_N c_grid_desc_m_n_;
 
         // raw data
-        std::array<std::vector<ck::index_t>, NumD0Tensor> d0s_nl_ns_lengths_strides_;
+        std::array<std::vector<ck::index_t>, NumD0Tensor> d0s_n_length_stride_;
     };
 
     // Argument
@@ -708,16 +708,16 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
                 const auto p_b_grid = static_cast<const BDataType*>(p_b_vec[i]);
 
                 const auto& problem_desc = problem_desc_vec[i];
-                std::array<std::vector<ck::index_t>, NumD0Tensor> d0s_nl_ns_lengths_strides;
+                std::array<std::vector<ck::index_t>, NumD0Tensor> d0s_n_length_stride;
                 typename GridwiseGemm::D0sGridPointer p_d0s_grid;
                 static_for<0, NumD0Tensor, 1>{}([&](auto j) {
                     using D0DataType = remove_cvref_t<tuple_element_t<j.value, Acc0BiasDataType>>;
                     // D0 pointer
                     p_d0s_grid(j) = static_cast<const D0DataType*>(p_acc0_biases_vec[i][j]);
                     // for  check
-                    d0s_nl_ns_lengths_strides[j].push_back(
+                    d0s_n_length_stride[j].push_back(
                         problem_desc.acc0_biases_gs_ms_ns_lengths[j][NumDimG + NumDimM]);
-                    d0s_nl_ns_lengths_strides[j].push_back(
+                    d0s_n_length_stride[j].push_back(
                         problem_desc.acc0_biases_gs_ms_ns_strides[j][NumDimG + NumDimM]);
                 });
 
@@ -859,7 +859,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
                      {problem_desc.c_gs_ms_os_strides[NumDimG + NumDimM - 1],
                       problem_desc.c_gs_ms_os_strides[NumDimG + NumDimM + NumDimO - 1]},
                      c_grid_desc_m_n,
-                     d0s_nl_ns_lengths_strides});
+                     d0s_n_length_stride});
             }
 
             is_dropout_          = p_dropout > 0.0; //
@@ -1081,14 +1081,12 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
 
             for(int In = 0; In < NumD0Tensor; In++)
             {
-                if(device_arg.d0s_nl_ns_lengths_strides_[In][1] == 1 &&
-                   device_arg.d0s_nl_ns_lengths_strides_[In][0] %
-                           Acc0BiasTransferSrcScalarPerVector !=
-                       0)
+                if(device_arg.d0s_n_length_stride_[In][1] == 1 &&
+                   device_arg.d0s_n_length_stride_[In][0] % Acc0BiasTransferSrcScalarPerVector != 0)
                 {
                     return false;
                 }
-                if(device_arg.d0s_nl_ns_lengths_strides_[In][1] != 1 &&
+                if(device_arg.d0s_n_length_stride_[In][1] != 1 &&
                    Acc0BiasTransferSrcScalarPerVector != 1)
                 {
                     return false;
