@@ -48,11 +48,12 @@ using ADataType        = DataType;
 using B0DataType       = DataType;
 using B1DataType       = DataType;
 using AccDataType      = F32;
+using DDataType        = F16;
 using CShuffleDataType = F32;
 using CDataType        = DataType;
 using ZDataType        = U16; // INT32
 using LSEDataType      = F32;
-using Acc0BiasDataType = ck::Tuple<>;
+using Acc0BiasDataType = ck::Tuple<DDataType>;
 using Acc1BiasDataType = ck::Tuple<>;
 
 static constexpr ck::index_t NumDimG = 2;
@@ -75,7 +76,7 @@ static constexpr auto TensorSpecA   = ck::tensor_operation::device::TensorSpecia
 static constexpr auto TensorSpecB0  = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecB1  = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecC   = ck::tensor_operation::device::TensorSpecialization::Default;
-static constexpr bool Deterministic = true;
+static constexpr bool Deterministic = false;
 
 #if(DIM <= 32)
 using DeviceGemmInstance =
@@ -324,6 +325,6 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
 using ReferenceDropoutInstance =
     ck::tensor_operation::host::ReferenceDropout<ZDataType, ADataType, ADataType>;
 
-#include "run_grouped_multihead_attention_forward.inc"
+#include "run_grouped_multihead_attention_bias_forward.inc"
 
 int main(int argc, char* argv[]) { return run(argc, argv); }
