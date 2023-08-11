@@ -122,6 +122,7 @@ using DeviceGemmInstance =
         1,           // MXdlPerWave
         4,           // NXdlPerWave
         1,           // Gemm1NXdlPerWave
+        1,           // DropoutStep
         S<4, 64, 1>, // ABlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
@@ -195,6 +196,7 @@ using DeviceGemmInstance =
         1,           // MXdlPerWave
         4,           // NXdlPerWave
         2,           // Gemm1NXdlPerWave
+        1,           // DropoutStep
         S<4, 64, 1>, // ABlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
@@ -268,6 +270,7 @@ using DeviceGemmInstance =
         1,           // MXdlPerWave
         4,           // NXdlPerWave
         4,           // Gemm1NXdlPerWave
+        1,           // DropoutStep
         S<4, 64, 1>, // ABlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
