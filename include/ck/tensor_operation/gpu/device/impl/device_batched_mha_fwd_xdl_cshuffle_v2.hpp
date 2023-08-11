@@ -40,7 +40,7 @@ template <typename GridwiseGemm,
           typename D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
           typename B1GridDesc_BK0_N_BK1,
           typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-          typename ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
+          typename ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_M4_N4_N5_N6,
           typename LSEGridDescriptor_M,
           typename Block2CTileMap,
           typename ComputeBasePtrOfStridedBatch,
@@ -73,8 +73,8 @@ __global__ void
             const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
             const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
-            const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
-                z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+            const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_M4_N4_N5_N6
+                z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6,
             const LSEGridDescriptor_M lse_grid_desc_m,
             const Block2CTileMap block_2_ctile_map,
             const index_t batch_count,
@@ -141,7 +141,7 @@ __global__ void
                 d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                 b1_grid_desc_bk0_n_bk1,
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
-                z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6,
                 lse_grid_desc_m,
                 block_2_ctile_map,
                 c0_matrix_mask,
@@ -174,7 +174,7 @@ __global__ void
             d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
             b1_grid_desc_bk0_n_bk1,
             c_grid_desc_mblock_mperblock_nblock_nperblock,
-            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6,
             lse_grid_desc_m,
             block_2_ctile_map,
             c0_matrix_mask,
@@ -203,7 +203,7 @@ __global__ void
     ignore = d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
     ignore = b1_grid_desc_bk0_n_bk1;
     ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore = z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
+    ignore = z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6;
     ignore = lse_grid_desc_m;
     ignore = block_2_ctile_map;
     ignore = batch_count;
@@ -263,6 +263,7 @@ template <index_t NumDimG,
           index_t MXdlPerWave,
           index_t NXdlPerWave,
           index_t Gemm1NXdlPerWave,
+          index_t DropoutStep,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -564,6 +565,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         MXdlPerWave,
         NXdlPerWave,
         Gemm1NXdlPerWave,
+        DropoutStep,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -735,8 +737,9 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             seed_   = std::get<0>(seeds);
             offset_ = std::get<1>(seeds);
 
-            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
-                GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(z_grid_desc_m_n_);
+            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6_ =
+                GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_M4_N4_N5_N6(
+                    z_grid_desc_m_n_);
 
             m_raw_padded_ = GridwiseGemm::GetPaddedSize(raw_lengths_mz_nz_kz_gemm1nz_[0]);
             n_raw_padded_ = GridwiseGemm::GetPaddedSize(raw_lengths_mz_nz_kz_gemm1nz_[1]);
@@ -791,8 +794,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
 
-        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
-            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
+        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_M4_N4_N5_N6
+            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6_;
 
         // block-to-c-tile map
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
@@ -876,7 +879,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                         typename GridwiseGemm::D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
                         DeviceOp::B1GridDesc_BK0_N_BK1,
                         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
+                        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_M4_N4_N5_N6,
                         DeviceOp::LSEGridDesc_M,
                         typename GridwiseGemm::DefaultBlock2CTileMap,
                         ComputeBasePtrOfStridedBatch,
@@ -909,7 +912,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                         arg.d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
                         arg.b1_grid_desc_bk0_n_bk1_,
                         arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                        arg.z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
+                        arg.z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6_,
                         arg.lse_grid_desc_m_,
                         arg.block_2_ctile_map_,
                         arg.batch_count_,

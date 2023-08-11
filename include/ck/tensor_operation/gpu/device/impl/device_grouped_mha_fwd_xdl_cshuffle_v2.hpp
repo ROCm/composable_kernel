@@ -135,7 +135,7 @@ __global__ void
                 arg_ptr[group_id].d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
                 arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
                 arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
+                arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6_,
                 arg_ptr[group_id].lse_grid_desc_m_,
                 arg_ptr[group_id].block_2_ctile_map_,
                 arg_ptr[group_id].c0_matrix_mask_,
@@ -173,7 +173,7 @@ __global__ void
             arg_ptr[group_id].d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
             arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
             arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
-            arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
+            arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6_,
             arg_ptr[group_id].lse_grid_desc_m_,
             arg_ptr[group_id].block_2_ctile_map_,
             arg_ptr[group_id].c0_matrix_mask_,
@@ -244,6 +244,7 @@ template <index_t NumDimG,
           index_t MXdlPerWave,
           index_t NXdlPerWave,
           index_t Gemm1NXdlPerWave,
+          index_t DropoutStep,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -566,6 +567,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
         MXdlPerWave,
         NXdlPerWave,
         Gemm1NXdlPerWave,
+        DropoutStep,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -622,8 +624,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
-            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
+        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_M4_N4_N5_N6
+            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6_;
         ZGridDesc_M_N z_grid_desc_m_n_;
         LSEGridDesc_M lse_grid_desc_m_;
 
@@ -768,12 +770,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         c_grid_desc_m_n);
 
-                // typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
-                //    z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
-
-                const auto z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
-
-                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
+                const auto z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6 =
+                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_M4_N4_N5_N6(
                         z_grid_desc_m_n);
 
                 const index_t BlockStart     = grid_size_;
@@ -829,7 +827,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
                                               d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                                               b1_grid_desc_bk0_n_bk1,
                                               c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                              z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                              z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6,
                                               z_grid_desc_m_n,
                                               lse_grid_desc_m,
                                               block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n),
