@@ -17,6 +17,8 @@ void add_device_normalization_rank_2_1_f16_instances(
     add_device_operation_instances(instances,
                                    device_normalization_f16_generic_instance<Pass, 2, 1>{});
     add_device_operation_instances(instances, device_normalization_f16_instances<Pass, 2, 1>{});
+    add_device_operation_instances(instances,
+                                   device_normalization_splitk_f16_instances<Pass, 2, 1>{});
 }
 
 } // namespace instance
