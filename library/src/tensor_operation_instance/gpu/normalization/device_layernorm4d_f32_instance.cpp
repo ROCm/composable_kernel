@@ -17,6 +17,8 @@ void add_device_normalization_rank_4_3_f32_instances(
     add_device_operation_instances(instances,
                                    device_normalization_f32_generic_instance<Pass, 4, 3>{});
     add_device_operation_instances(instances, device_normalization_f32_instances<Pass, 4, 3>{});
+    add_device_operation_instances(instances,
+                                   device_normalization_splitk_f32_instances<Pass, 4, 3>{});
 }
 
 } // namespace instance
