@@ -16,6 +16,9 @@ using InDataType    = ck::half_t;
 using OutDataType   = ck::half_t;
 using IndexDataType = int32_t;
 
+using InLayout  = ck::tensor_layout::convolution::NDHWC;
+using OutLayout = ck::tensor_layout::convolution::NDHWC;
+
 constexpr ck::index_t InOutRank  = 5;
 constexpr ck::index_t WindowRank = 3;
 #if 0
@@ -98,6 +101,8 @@ int main(int argc, char* argv[])
                                                                  InDataType,
                                                                  OutDataType,
                                                                  IndexDataType,
+                                                                 InLayout,
+                                                                 OutLayout,
                                                                  ReduceOpId,
                                                                  OutputIndex>;
 

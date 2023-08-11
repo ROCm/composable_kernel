@@ -25,6 +25,8 @@ class TestAvgPool3dFwd : public ::testing::Test
                                                       OutDataType,
                                                       ComputeDataType,
                                                       IndexDataType,
+                                                      ck::tensor_layout::convolution::NDHWC,
+                                                      ck::tensor_layout::convolution::NDHWC,
                                                       ck::ReduceTensorOp::AVG,
                                                       false,
                                                       false>(true,

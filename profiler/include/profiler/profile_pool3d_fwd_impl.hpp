@@ -21,6 +21,8 @@ template <typename InDataType,
           typename OutDataType,
           typename ComputeDataType,
           typename IndexDataType,
+          typename InLayout,
+          typename OutLayout,
           ck::ReduceTensorOp ReduceOpId,
           bool PropagateNan,
           bool OutputIndex>
@@ -107,6 +109,8 @@ bool profile_pool3d_fwd_impl(int do_verification,
                                                                  InDataType,
                                                                  OutDataType,
                                                                  IndexDataType,
+                                                                 InLayout,
+                                                                 OutLayout,
                                                                  ReduceOpId,
                                                                  OutputIndex>;
 

@@ -109,9 +109,11 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
         pad2      = arg_parser.long_opts["pad2"];
     }
 
-    using F16 = ck::half_t;
-    using F32 = float;
-    using I32 = int32_t;
+    using F16   = ck::half_t;
+    using F32   = float;
+    using I32   = int32_t;
+    using NDHWC = ck::tensor_layout::convolution::NDHWC;
+
 #if 1
     constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
 #else
@@ -121,56 +123,60 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
     if(data_type == ck::DataTypeEnum::Half)
     {
         if(return_index)
-            ck::profiler::profile_pool3d_fwd_impl<F16, F16, F16, I32, ReduceOpId, false, true>(
-                do_verification,
-                init_method,
-                do_log,
-                time_kernel,
-                in_length,
-                wsize,
-                wstride,
-                wdilation,
-                pad1,
-                pad2);
+            ck::profiler::
+                profile_pool3d_fwd_impl<F16, F16, F16, I32, NDHWC, NDHWC, ReduceOpId, false, true>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
         else
-            ck::profiler::profile_pool3d_fwd_impl<F16, F16, F16, I32, ReduceOpId, false, false>(
-                do_verification,
-                init_method,
-                do_log,
-                time_kernel,
-                in_length,
-                wsize,
-                wstride,
-                wdilation,
-                pad1,
-                pad2);
+            ck::profiler::
+                profile_pool3d_fwd_impl<F16, F16, F16, I32, NDHWC, NDHWC, ReduceOpId, false, false>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
     }
     else if(data_type == ck::DataTypeEnum::Float)
     {
         if(return_index)
-            ck::profiler::profile_pool3d_fwd_impl<F32, F32, F32, I32, ReduceOpId, false, true>(
-                do_verification,
-                init_method,
-                do_log,
-                time_kernel,
-                in_length,
-                wsize,
-                wstride,
-                wdilation,
-                pad1,
-                pad2);
+            ck::profiler::
+                profile_pool3d_fwd_impl<F32, F32, F32, I32, NDHWC, NDHWC, ReduceOpId, false, true>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
         else
-            ck::profiler::profile_pool3d_fwd_impl<F32, F32, F32, I32, ReduceOpId, false, false>(
-                do_verification,
-                init_method,
-                do_log,
-                time_kernel,
-                in_length,
-                wsize,
-                wstride,
-                wdilation,
-                pad1,
-                pad2);
+            ck::profiler::
+                profile_pool3d_fwd_impl<F32, F32, F32, I32, NDHWC, NDHWC, ReduceOpId, false, false>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
     }
     else
     {
