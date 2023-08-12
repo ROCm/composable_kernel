@@ -190,8 +190,8 @@ int run(int argc, char* argv[])
         static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
         static_cast<ZDataType*>(nullptr),
         static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-        std::array<void*, 1>{d_device_buf.GetDeviceBuffer()}, // std::array<void*, 1> p_acc0_biases;
-        {},                                                   // std::array<void*, 1> p_acc1_biases;
+        static_cast<DDataType*>(d_device_buf.GetDeviceBuffer()), //
+        nullptr,                                                  
         a_gs_ms_ks_lengths,
         a_gs_ms_ks_strides,
         b0_gs_ns_ks_lengths,
@@ -203,10 +203,10 @@ int run(int argc, char* argv[])
         z_gs_ms_ns_lengths,
         z_gs_ms_ns_strides,
         lse_gs_ms_lengths,
-        std::array<std::vector<ck::index_t>, 1>{d_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
-        std::array<std::vector<ck::index_t>, 1>{d_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+        d_gs_ms_ns_lengths, // acc0_biases_gs_ms_ns_lengths
+        d_gs_ms_ns_strides, // acc0_biases_gs_ms_ns_strides
+        {}, // std::vector<ck::index_t>
+        {}, // std::vector<ck::index_t>
         a_element_op,
         b0_element_op,
         acc0_element_op,
@@ -230,7 +230,7 @@ int run(int argc, char* argv[])
     std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
     std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
                              sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O + 
-                             sizeof(DDataType) * M * N * Acc0BiasDataType::Size()) *
+                             sizeof(DDataType) * M * N * std::is_void<DDataType>::value?1:0) *
                             BatchCount;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
@@ -250,9 +250,8 @@ int run(int argc, char* argv[])
             static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
             static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
             static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-            std::array<void*, 1>{
-                d_device_buf.GetDeviceBuffer()}, // std::array<void*, 1> p_acc0_biases;
-            {},                                  // std::array<void*, 1> p_acc1_biases;
+            static_cast<DDataType*>(d_device_buf.GetDeviceBuffer()),
+            nullptr,                                 
             a_gs_ms_ks_lengths,
             a_gs_ms_ks_strides,
             b0_gs_ns_ks_lengths,
@@ -264,12 +263,10 @@ int run(int argc, char* argv[])
             z_gs_ms_ns_lengths,
             z_gs_ms_ns_strides,
             lse_gs_ms_lengths,
-            std::array<std::vector<ck::index_t>, 1>{
-                d_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
-            std::array<std::vector<ck::index_t>, 1>{
-                d_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+            d_gs_ms_ns_lengths,
+            d_gs_ms_ns_strides,
+            {}, 
+            {},
             a_element_op,
             b0_element_op,
             acc0_element_op,
