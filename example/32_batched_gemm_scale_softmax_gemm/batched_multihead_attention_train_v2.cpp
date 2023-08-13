@@ -79,8 +79,8 @@ using AccDataType      = F32;
 using ShuffleDataType  = F32;
 using LSEDataType      = F32;
 using ZDataType        = U16; // INT32
-using Acc0BiasDataType = ck::Tuple<>;
-using Acc1BiasDataType = ck::Tuple<>;
+using Acc0BiasDataType = void;
+using Acc1BiasDataType = void;
 
 static constexpr ck::index_t NumDimG = 2;
 static constexpr ck::index_t NumDimM = 1;
@@ -534,8 +534,8 @@ int run(int argc, char* argv[])
             static_cast<InputDataType*>(y_device_buf.GetDeviceBuffer()),
             static_cast<ZDataType*>(nullptr),
             static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-            {}, // std::array<void*, 1> p_acc0_biases;
-            {}, // std::array<void*, 1> p_acc1_biases;
+            nullptr, //  p_acc0_biases;
+            nullptr, //  p_acc1_biases;
             q_gs_ms_ks_lengths,
             q_gs_ms_ks_strides,
             k_gs_ns_ks_lengths,
@@ -594,8 +594,8 @@ int run(int argc, char* argv[])
             static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
-            {}, // std::array<void*, 1> p_acc0_biases;
-            {}, // std::array<void*, 1> p_acc1_biases;
+            nullptr, //  p_acc0_biases;
+            nullptr, //  p_acc1_biases;
             q_gs_ms_ks_lengths,
             q_gs_ms_ks_strides,
             k_gs_ns_ks_lengths,
