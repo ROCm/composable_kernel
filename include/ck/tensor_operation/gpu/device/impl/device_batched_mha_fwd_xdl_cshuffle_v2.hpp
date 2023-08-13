@@ -685,11 +685,6 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                 c_grid_desc_mblock_mperblock_nblock_nperblock_ =
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         c_grid_desc_m_n_);
-
-                D0GridDesc_M_N d0_grid_desc_m_n{};
-                d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
-                    GridwiseGemm::MakeD0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
-                        d0_grid_desc_m_n);
             }
 
             d0_n_length_stride_.push_back(acc0_biases_gs_ms_ns_lengths[NumDimG + NumDimM]);
@@ -724,6 +719,13 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             std::cout << "b_grid_desc_g_n_k_: " << b_grid_desc_g_n_k_.GetLength(I0) << ", "
                       << b_grid_desc_g_n_k_.GetLength(I1) << ", "
                       << b_grid_desc_g_n_k_.GetLength(I2) << '\n';
+            std::cout << "d0_grid_desc_g_m_n_: " << d0_grid_desc_g_m_n_.GetLength(I0) << ", "
+                      << d0_grid_desc_g_m_n_.GetLength(I1) << ", "
+                      << d0_grid_desc_g_m_n_.GetLength(I2) << '\n';
+
+            std::cout << "d0_grid_desc_m_n_: " << d0_grid_desc_m_n_.GetLength(I0) << ", "
+                      << d0_grid_desc_m_n_.GetLength(I1) << '\n';
+
             std::cout << "b1_grid_desc_g_n_k_: " << b1_grid_desc_g_n_k_.GetLength(I0) << ", "
                       << b1_grid_desc_g_n_k_.GetLength(I1) << ", "
                       << b1_grid_desc_g_n_k_.GetLength(I2) << '\n';

@@ -111,11 +111,11 @@ struct DeviceGroupedMultiheadAttentionForward : public BaseOperator
         std::vector<index_t> lse_gs_ms_lengths;
         std::vector<index_t> lse_gs_ms_strides;
 
-        std::vector<std::vector<index_t>> acc0_biases_gs_ms_ns_lengths;
-        std::vector<std::vector<index_t>> acc0_biases_gs_ms_ns_strides;
+        std::vector<index_t> acc0_biases_gs_ms_ns_lengths;
+        std::vector<index_t> acc0_biases_gs_ms_ns_strides;
 
-        std::vector<std::vector<index_t>> acc1_biases_gs_ms_os_lengths;
-        std::vector<std::vector<index_t>> acc1_biases_gs_ms_os_strides;
+        std::vector<index_t> acc1_biases_gs_ms_os_lengths;
+        std::vector<index_t> acc1_biases_gs_ms_os_strides;
     };
 
     virtual std::unique_ptr<BaseArgument>
@@ -125,9 +125,9 @@ struct DeviceGroupedMultiheadAttentionForward : public BaseOperator
                         std::vector<void*> p_c_vec,
                         std::vector<void*> p_z_vec,
                         std::vector<void*> p_lse_vec,
-                        std::vector<std::vector<const void*>> p_acc0_biases_vec,
-                        std::vector<std::vector<const void*>> p_acc1_biases_vec,
-                        std::vector<ProblemDesc> problem_desc_vec,
+                        std::vector<const void*> p_acc0_biases_vec,
+                        std::vector<const void*> p_acc1_biases_vec,
+                        std::vector<ProblemDesc>& problem_desc_vec,
                         AElementwiseOperation a_element_op,
                         B0ElementwiseOperation b0_element_op,
                         Acc0ElementwiseOperation acc0_element_op,

@@ -1291,7 +1291,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
 
             // add bias
-            if constexpr(std::is_void<D0DataType>::value)
+            if constexpr(!std::is_void<D0DataType>::value)
             {
                 // get register
                 StaticBuffer<AddressSpaceEnum::Vgpr,
