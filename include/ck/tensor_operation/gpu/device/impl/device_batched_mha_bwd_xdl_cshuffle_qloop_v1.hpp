@@ -291,11 +291,11 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
 
-    static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();
-    static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
+    using D0DataType = Acc0BiasDataType;
+    using D1DataType = Acc1BiasDataType;
 
     // TODO: implement bias combination
-    static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
+    static_assert(std::is_void<D1DataType>::value, "Acc1 Bias addition is unimplemented");
 
     using DeviceOp = DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1;
 
@@ -702,43 +702,42 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
     // Argument
     struct Argument : public BaseArgument
     {
-        Argument(
-            const InputDataType* p_a_grid,
-            const InputDataType* p_b_grid,
-            ZDataType* p_z_grid,
-            const InputDataType* p_b1_grid,
-            const InputDataType* p_c_grid, // for dS
-            const LSEDataType* p_lse_grid,
-            const InputDataType* p_ygrad_grid,
-            OutputDataType* p_qgrad_grid,
-            OutputDataType* p_kgrad_grid,
-            OutputDataType* p_vgrad_grid,
-            const std::array<void*, NumAcc0Bias> p_acc0_biases,
-            const std::array<void*, NumAcc1Bias> p_acc1_biases,
-            const std::vector<index_t>& a_gs_ms_ks_lengths,
-            const std::vector<index_t>& a_gs_ms_ks_strides,
-            const std::vector<index_t>& b_gs_ns_ks_lengths,
-            const std::vector<index_t>& b_gs_ns_ks_strides,
-            const std::vector<index_t>& z_gs_ms_ns_lengths,
-            const std::vector<index_t>& z_gs_ms_ns_strides,
-            const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
-            const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
-            const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
-            const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-            const std::vector<index_t>& lse_gs_ms_lengths,
-            const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
-            const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
-            const std::array<std::vector<ck::index_t>, NumAcc1Bias>
-                acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
-            const std::array<std::vector<ck::index_t>, NumAcc1Bias>
-                acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
-            AElementwiseOperation a_element_op,
-            BElementwiseOperation b_element_op,
-            AccElementwiseOperation acc_element_op,
-            B1ElementwiseOperation b1_element_op,
-            CElementwiseOperation c_element_op,
-            float p_drop,
-            std::tuple<unsigned long long, unsigned long long> seeds)
+        Argument(const InputDataType* p_a_grid,
+                 const InputDataType* p_b_grid,
+                 ZDataType* p_z_grid,
+                 const InputDataType* p_b1_grid,
+                 const InputDataType* p_c_grid, // for dS
+                 const LSEDataType* p_lse_grid,
+                 const InputDataType* p_ygrad_grid,
+                 OutputDataType* p_qgrad_grid,
+                 OutputDataType* p_kgrad_grid,
+                 OutputDataType* p_vgrad_grid,
+                 const D0DataType* p_acc0_biases,
+                 const D1DataType* p_acc1_biases,
+                 const std::vector<index_t>& a_gs_ms_ks_lengths,
+                 const std::vector<index_t>& a_gs_ms_ks_strides,
+                 const std::vector<index_t>& b_gs_ns_ks_lengths,
+                 const std::vector<index_t>& b_gs_ns_ks_strides,
+                 const std::vector<index_t>& z_gs_ms_ns_lengths,
+                 const std::vector<index_t>& z_gs_ms_ns_strides,
+                 const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
+                 const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
+                 const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
+                 const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+                 const std::vector<index_t>& lse_gs_ms_lengths,
+                 const std::vector<ck::index_t>& acc0_biases_gs_ms_ns_lengths,
+                 const std::vector<ck::index_t>& acc0_biases_gs_ms_ns_strides,
+                 const std::vector<ck::index_t>&
+                     acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
+                 const std::vector<ck::index_t>&
+                     acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
+                 AElementwiseOperation a_element_op,
+                 BElementwiseOperation b_element_op,
+                 AccElementwiseOperation acc_element_op,
+                 B1ElementwiseOperation b1_element_op,
+                 CElementwiseOperation c_element_op,
+                 float p_drop,
+                 std::tuple<unsigned long long, unsigned long long> seeds)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_z_grid_{p_z_grid},
@@ -1108,43 +1107,43 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto MakeArgument(
-        const InputDataType* p_a,
-        const InputDataType* p_b,
-        ZDataType* p_z,
-        const InputDataType* p_b1,
-        const InputDataType* p_c,
-        const LSEDataType* p_lse,
-        const InputDataType* p_ygrad_grid,
-        OutputDataType* p_qgrad_grid,
-        OutputDataType* p_kgrad_grid,
-        OutputDataType* p_vgrad_grid,
-        const std::array<void*, NumAcc0Bias> p_acc0_biases,
-        const std::array<void*, NumAcc1Bias> p_acc1_biases,
-        const std::vector<index_t>& a_gs_ms_ks_lengths,
-        const std::vector<index_t>& a_gs_ms_ks_strides,
-        const std::vector<index_t>& b_gs_ns_ks_lengths,
-        const std::vector<index_t>& b_gs_ns_ks_strides,
-        const std::vector<index_t>& z_gs_ms_ns_lengths,
-        const std::vector<index_t>& z_gs_ms_ns_strides,
-        const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
-        const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
-        const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
-        const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-        const std::vector<index_t>& lse_gs_ms_lengths,
-        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
-        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
-        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
-            acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
-        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
-            acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
-        AElementwiseOperation a_element_op,
-        BElementwiseOperation b_element_op,
-        AccElementwiseOperation acc_element_op,
-        B1ElementwiseOperation b1_element_op,
-        CElementwiseOperation c_element_op,
-        float p_drop,
-        std::tuple<unsigned long long, unsigned long long> seeds)
+    static auto
+    MakeArgument(const InputDataType* p_a,
+                 const InputDataType* p_b,
+                 ZDataType* p_z,
+                 const InputDataType* p_b1,
+                 const InputDataType* p_c,
+                 const LSEDataType* p_lse,
+                 const InputDataType* p_ygrad_grid,
+                 OutputDataType* p_qgrad_grid,
+                 OutputDataType* p_kgrad_grid,
+                 OutputDataType* p_vgrad_grid,
+                 const D0DataType* p_acc0_biases,
+                 const D1DataType* p_acc1_biases,
+                 const std::vector<index_t>& a_gs_ms_ks_lengths,
+                 const std::vector<index_t>& a_gs_ms_ks_strides,
+                 const std::vector<index_t>& b_gs_ns_ks_lengths,
+                 const std::vector<index_t>& b_gs_ns_ks_strides,
+                 const std::vector<index_t>& z_gs_ms_ns_lengths,
+                 const std::vector<index_t>& z_gs_ms_ns_strides,
+                 const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
+                 const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
+                 const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
+                 const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+                 const std::vector<index_t>& lse_gs_ms_lengths,
+                 const std::vector<ck::index_t>& acc0_biases_gs_ms_ns_lengths,
+                 const std::vector<ck::index_t>& acc0_biases_gs_ms_ns_strides,
+                 const std::vector<ck::index_t>&
+                     acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
+                 const std::vector<ck::index_t>&
+                     acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
+                 AElementwiseOperation a_element_op,
+                 BElementwiseOperation b_element_op,
+                 AccElementwiseOperation acc_element_op,
+                 B1ElementwiseOperation b1_element_op,
+                 CElementwiseOperation c_element_op,
+                 float p_drop,
+                 std::tuple<unsigned long long, unsigned long long> seeds)
     {
         return Argument{p_a,
                         p_b,
@@ -1197,8 +1196,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         void* p_qgrad_grid,
         void* p_kgrad_grid,
         void* p_vgrad_grid,
-        const std::array<void*, NumAcc0Bias> p_acc0_biases,
-        const std::array<void*, NumAcc1Bias> p_acc1_biases,
+        const D0DataType* p_acc0_biases,
+        const D1DataType* p_acc1_biases,
         const std::vector<index_t>& a_gs_ms_ks_lengths,
         const std::vector<index_t>& a_gs_ms_ks_strides,
         const std::vector<index_t>& b_gs_ns_ks_lengths,
@@ -1210,11 +1209,11 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
         const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
         const std::vector<index_t>& lse_gs_ms_lengths,
-        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
-        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
-        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
+        const std::vector<ck::index_t>& acc0_biases_gs_ms_ns_lengths,
+        const std::vector<ck::index_t>& acc0_biases_gs_ms_ns_strides,
+        const std::vector<ck::index_t>&
             acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
-        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
+        const std::vector<ck::index_t>&
             acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
         AElementwiseOperation a_element_op,
         BElementwiseOperation b_element_op,
@@ -1224,40 +1223,41 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         float p_drop,
         std::tuple<unsigned long long, unsigned long long> seeds) // override
     {
-        return std::make_unique<Argument>(static_cast<const InputDataType*>(p_a),
-                                          static_cast<const InputDataType*>(p_b),
-                                          static_cast<ZDataType*>(p_z),
-                                          static_cast<const InputDataType*>(p_b1),
-                                          static_cast<const InputDataType*>(p_c),
-                                          static_cast<const LSEDataType*>(p_lse),
-                                          static_cast<const InputDataType*>(p_ygrad_grid),
-                                          static_cast<OutputDataType*>(p_qgrad_grid),
-                                          static_cast<OutputDataType*>(p_kgrad_grid),
-                                          static_cast<OutputDataType*>(p_vgrad_grid),
-                                          p_acc0_biases, // cast in struct Argument
-                                          p_acc1_biases, // cast in struct Argument
-                                          a_gs_ms_ks_lengths,
-                                          a_gs_ms_ks_strides,
-                                          b_gs_ns_ks_lengths,
-                                          b_gs_ns_ks_strides,
-                                          z_gs_ms_ns_lengths,
-                                          z_gs_ms_ns_strides,
-                                          b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
-                                          b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
-                                          c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
-                                          c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-                                          lse_gs_ms_lengths,
-                                          acc0_biases_gs_ms_ns_lengths,
-                                          acc0_biases_gs_ms_ns_strides,
-                                          acc1_biases_gs_ms_gemm1ns_lengths,
-                                          acc1_biases_gs_ms_gemm1ns_strides,
-                                          a_element_op,
-                                          b_element_op,
-                                          acc_element_op,
-                                          b1_element_op,
-                                          c_element_op,
-                                          p_drop,
-                                          seeds);
+        return std::make_unique<Argument>(
+            static_cast<const InputDataType*>(p_a),
+            static_cast<const InputDataType*>(p_b),
+            static_cast<ZDataType*>(p_z),
+            static_cast<const InputDataType*>(p_b1),
+            static_cast<const InputDataType*>(p_c),
+            static_cast<const LSEDataType*>(p_lse),
+            static_cast<const InputDataType*>(p_ygrad_grid),
+            static_cast<OutputDataType*>(p_qgrad_grid),
+            static_cast<OutputDataType*>(p_kgrad_grid),
+            static_cast<OutputDataType*>(p_vgrad_grid),
+            static_cast<const D0DataType*>(p_acc0_biases), // cast in struct Argument
+            static_cast<const D1DataType*>(p_acc1_biases), // cast in struct Argument
+            a_gs_ms_ks_lengths,
+            a_gs_ms_ks_strides,
+            b_gs_ns_ks_lengths,
+            b_gs_ns_ks_strides,
+            z_gs_ms_ns_lengths,
+            z_gs_ms_ns_strides,
+            b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
+            b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
+            c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
+            c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+            lse_gs_ms_lengths,
+            acc0_biases_gs_ms_ns_lengths,
+            acc0_biases_gs_ms_ns_strides,
+            acc1_biases_gs_ms_gemm1ns_lengths,
+            acc1_biases_gs_ms_gemm1ns_strides,
+            a_element_op,
+            b_element_op,
+            acc_element_op,
+            b1_element_op,
+            c_element_op,
+            p_drop,
+            seeds);
     }
 
     // polymorphic

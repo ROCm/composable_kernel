@@ -71,8 +71,8 @@ using ShuffleDataType  = F32;
 using LSEDataType      = F32;
 using ZDataType        = U16; // INT32
 using DDataType        = F16;
-using Acc0BiasDataType = ck::Tuple<DDataType>;
-using Acc1BiasDataType = ck::Tuple<>;
+using Acc0BiasDataType = DDataType;
+using Acc1BiasDataType = void;
 
 static constexpr ck::index_t NumDimG = 2;
 static constexpr ck::index_t NumDimM = 1;
@@ -529,9 +529,8 @@ int run(int argc, char* argv[])
             static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
-            std::array<void*, 1>{
-                d_device_buf.GetDeviceBuffer()}, // std::array<void*, 1> p_acc0_biases;
-            {},                                  // std::array<void*, 1> p_acc1_biases;
+            static_cast<DDataType*>(d_device_buf.GetDeviceBuffer()), //  p_acc0_biases;
+            nullptr,                                                 //  p_acc1_biases;
             q_gs_ms_ks_lengths,
             q_gs_ms_ks_strides,
             k_gs_ns_ks_lengths,
@@ -543,12 +542,10 @@ int run(int argc, char* argv[])
             y_gs_ms_os_lengths,
             y_gs_ms_os_strides,
             lse_gs_ms_lengths,
-            std::array<std::vector<ck::index_t>, 1>{
-                d_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
-            std::array<std::vector<ck::index_t>, 1>{
-                d_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+            d_gs_ms_ns_lengths, // acc0_biases_gs_ms_ns_lengths
+            d_gs_ms_ns_strides, // acc0_biases_gs_ms_ns_strides
+            {},                 // acc1_biases_gs_ms_os_lengths,
+            {},                 // acc1_biases_gs_ms_os_strides,
             QKVElementOp{},
             QKVElementOp{},
             Scale{alpha},
@@ -566,41 +563,41 @@ int run(int argc, char* argv[])
         invoker.Run(argument, StreamConfig{nullptr, false});
     }
     // not need output z matrix
-    auto argument = gemm.MakeArgument(
-        static_cast<InputDataType*>(q_device_buf.GetDeviceBuffer()),
-        static_cast<InputDataType*>(k_device_buf.GetDeviceBuffer()),
-        static_cast<ZDataType*>(nullptr), // set to nullptr
-        static_cast<InputDataType*>(v_device_buf.GetDeviceBuffer()),
-        static_cast<InputDataType*>(y_device_buf.GetDeviceBuffer()),
-        static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-        static_cast<InputDataType*>(ygrad_device_buf.GetDeviceBuffer()),
-        static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
-        static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
-        static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
-        std::array<void*, 1>{d_device_buf.GetDeviceBuffer()}, // std::array<void*, 1> p_acc0_biases;
-        {},                                                   // std::array<void*, 1> p_acc1_biases;
-        q_gs_ms_ks_lengths,
-        q_gs_ms_ks_strides,
-        k_gs_ns_ks_lengths,
-        k_gs_ns_ks_strides,
-        z_gs_ms_ns_lengths,
-        z_gs_ms_ns_strides,
-        v_gs_os_ns_lengths,
-        v_gs_os_ns_strides,
-        y_gs_ms_os_lengths,
-        y_gs_ms_os_strides,
-        lse_gs_ms_lengths,
-        std::array<std::vector<ck::index_t>, 1>{d_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
-        std::array<std::vector<ck::index_t>, 1>{d_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
-        QKVElementOp{},
-        QKVElementOp{},
-        Scale{alpha},
-        QKVElementOp{},
-        YElementOp{},
-        p_drop,
-        std::tuple<unsigned long long, unsigned long long>(seed, offset));
+    auto argument =
+        gemm.MakeArgument(static_cast<InputDataType*>(q_device_buf.GetDeviceBuffer()),
+                          static_cast<InputDataType*>(k_device_buf.GetDeviceBuffer()),
+                          static_cast<ZDataType*>(nullptr), // set to nullptr
+                          static_cast<InputDataType*>(v_device_buf.GetDeviceBuffer()),
+                          static_cast<InputDataType*>(y_device_buf.GetDeviceBuffer()),
+                          static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
+                          static_cast<InputDataType*>(ygrad_device_buf.GetDeviceBuffer()),
+                          static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
+                          static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
+                          static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
+                          static_cast<DDataType*>(d_device_buf.GetDeviceBuffer()), // p_acc0_biases;
+                          nullptr,                                                 // p_acc1_biases;
+                          q_gs_ms_ks_lengths,
+                          q_gs_ms_ks_strides,
+                          k_gs_ns_ks_lengths,
+                          k_gs_ns_ks_strides,
+                          z_gs_ms_ns_lengths,
+                          z_gs_ms_ns_strides,
+                          v_gs_os_ns_lengths,
+                          v_gs_os_ns_strides,
+                          y_gs_ms_os_lengths,
+                          y_gs_ms_os_strides,
+                          lse_gs_ms_lengths,
+                          d_gs_ms_ns_lengths, // acc0_biases_gs_ms_ns_lengths
+                          d_gs_ms_ns_strides, // acc0_biases_gs_ms_ns_strides
+                          {},                 // acc1_biases_gs_ms_os_lengths,
+                          {},                 // acc1_biases_gs_ms_os_strides,
+                          QKVElementOp{},
+                          QKVElementOp{},
+                          Scale{alpha},
+                          QKVElementOp{},
+                          YElementOp{},
+                          p_drop,
+                          std::tuple<unsigned long long, unsigned long long>(seed, offset));
     qgrad_device_buf.SetZero();
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
