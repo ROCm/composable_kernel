@@ -21,6 +21,8 @@ template <typename InDataType,
           typename OutDataType,
           typename ComputeDataType,
           typename IndexDataType,
+          typename InLayout,
+          typename OutLayout,
           ck::ReduceTensorOp ReduceOpId,
           bool PropagateNan,
           bool OutputIndex>
@@ -31,6 +33,7 @@ bool profile_pool3d_fwd_impl(int do_verification,
                              std::vector<index_t> in_length, // NCDHW
                              std::vector<index_t> window_spatial_lengths,
                              std::vector<index_t> window_strides,
+                             std::vector<index_t> window_dilations,
                              std::vector<index_t> input_left_pads,
                              std::vector<index_t> input_right_pads)
 {
@@ -38,8 +41,8 @@ bool profile_pool3d_fwd_impl(int do_verification,
     constexpr index_t WindowRank = 3;
 
     if(in_length.size() != InOutRank || window_spatial_lengths.size() != WindowRank ||
-       window_strides.size() != WindowRank || input_left_pads.size() != WindowRank ||
-       input_right_pads.size() != WindowRank)
+       window_strides.size() != WindowRank || window_dilations.size() != WindowRank ||
+       input_left_pads.size() != WindowRank || input_right_pads.size() != WindowRank)
         return false;
 
     std::vector<index_t> out_length(InOutRank);
@@ -53,11 +56,13 @@ bool profile_pool3d_fwd_impl(int do_verification,
     // Calculate Do, Ho, Wo
     for(int i = 2; i < InOutRank; ++i)
     {
-        auto pad1           = input_left_pads[i - 2];
-        auto pad2           = input_right_pads[i - 2];
-        auto windows_size   = window_spatial_lengths[i - 2];
-        auto windows_stride = window_strides[i - 2];
-        out_length[i]       = (in_length[i] + pad1 + pad2 - windows_size) / windows_stride + 1;
+        auto pad1             = input_left_pads[i - 2];
+        auto pad2             = input_right_pads[i - 2];
+        auto windows_size     = window_spatial_lengths[i - 2];
+        auto windows_stride   = window_strides[i - 2];
+        auto windows_dilation = window_dilations[i - 2];
+        auto eff              = (windows_size - 1) * windows_dilation + 1;
+        out_length[i]         = (in_length[i] + pad1 + pad2 - eff) / windows_stride + 1;
     }
 
     int Di = in_length[2];
@@ -104,6 +109,8 @@ bool profile_pool3d_fwd_impl(int do_verification,
                                                                  InDataType,
                                                                  OutDataType,
                                                                  IndexDataType,
+                                                                 InLayout,
+                                                                 OutLayout,
                                                                  ReduceOpId,
                                                                  OutputIndex>;
 
@@ -136,6 +143,7 @@ bool profile_pool3d_fwd_impl(int do_verification,
                                              out_indices_n_c_do_ho_wo_host,
                                              window_spatial_lengths,
                                              window_strides,
+                                             window_dilations,
                                              input_left_pads,
                                              input_right_pads);
         auto ref_invoker  = ref.MakeInvoker();
@@ -157,6 +165,7 @@ bool profile_pool3d_fwd_impl(int do_verification,
             {Do * C * Ho * Wo, 1, C * Ho * Wo, Wo * C, C},
             {Do * C * Ho * Wo, 1, C * Ho * Wo, Wo * C, C},
             window_strides,
+            window_dilations,
             input_left_pads,
             input_right_pads,
             {2, 3, 4});
