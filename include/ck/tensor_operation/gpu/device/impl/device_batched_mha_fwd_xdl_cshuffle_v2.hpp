@@ -110,6 +110,13 @@ __global__ void
     const long_index_t d0_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetD0BasePtr(g_idx)));
 
+    const D0DataType* tmp_p_d0_grid = nullptr;
+
+    if constexpr(!is_same<D0DataType, void>::value)
+    {
+        tmp_p_d0_grid = p_d0_grid + d0_batch_offset;
+    }
+
     // const index_t global_thread_id = get_thread_global_1d_id();
     ck::philox ph(seed, 0, offset);
 
@@ -122,7 +129,7 @@ __global__ void
             GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout, IsLseStoring>(
                 p_a_grid + a_batch_offset,
                 p_b_grid + b_batch_offset,
-                p_d0_grid == nullptr ? nullptr : p_d0_grid + d0_batch_offset,
+                tmp_p_d0_grid,
                 p_b1_grid + b1_batch_offset,
                 p_c_grid + c_batch_offset,
                 p_z_grid == nullptr ? nullptr : p_z_grid + z_batch_offset,
@@ -155,7 +162,7 @@ __global__ void
         GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout, IsLseStoring>(
             p_a_grid + a_batch_offset,
             p_b_grid + b_batch_offset,
-            p_d0_grid == nullptr ? nullptr : p_d0_grid + d0_batch_offset,
+            tmp_p_d0_grid,
             p_b1_grid + b1_batch_offset,
             p_c_grid + c_batch_offset,
             p_z_grid == nullptr ? nullptr : p_z_grid + z_batch_offset,
@@ -618,11 +625,6 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                   DeviceOp::MakeAGridDescriptor_AK0_M_AK1(a_gs_ms_ks_lengths, a_gs_ms_ks_strides)},
               b_grid_desc_bk0_n_bk1_{
                   DeviceOp::MakeBGridDescriptor_BK0_N_BK1(b_gs_ns_ks_lengths, b_gs_ns_ks_strides)},
-              d0_grid_desc_m_n_{Transform::MakeCGridDescriptor_M_N(acc0_biases_gs_ms_ns_lengths,
-                                                                   acc0_biases_gs_ms_ns_strides)},
-              d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_{
-                  GridwiseGemm::MakeD0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
-                      d0_grid_desc_m_n_)},
               b1_grid_desc_bk0_n_bk1_{DeviceOp::MakeB1GridDescriptor_BK0_N_BK1(
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
               c_grid_desc_m_n_{Transform::MakeCGridDescriptor_M_N(c_gs_ms_gemm1ns_lengths,
@@ -633,8 +635,6 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                   Transform::MakeAGridDescriptor_G_M_K(a_gs_ms_ks_lengths, a_gs_ms_ks_strides)},
               b_grid_desc_g_n_k_{
                   Transform::MakeB0GridDescriptor_G_N_K(b_gs_ns_ks_lengths, b_gs_ns_ks_strides)},
-              d0_grid_desc_g_m_n_{Transform::MakeCGridDescriptor_G_M_N(
-                  acc0_biases_gs_ms_ns_lengths, acc0_biases_gs_ms_ns_strides)},
               b1_grid_desc_g_n_k_{Transform::MakeB1GridDescriptor_G_N_K(
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
               c_grid_desc_g_m_n_{Transform::MakeCGridDescriptor_G_M_N(c_gs_ms_gemm1ns_lengths,
@@ -685,10 +685,23 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                 c_grid_desc_mblock_mperblock_nblock_nperblock_ =
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         c_grid_desc_m_n_);
+
+                if constexpr(!is_same<D0DataType, void>::value)
+                {
+                    d0_grid_desc_m_n_ = Transform::MakeCGridDescriptor_M_N(
+                        acc0_biases_gs_ms_ns_lengths, acc0_biases_gs_ms_ns_strides);
+                    d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
+                        GridwiseGemm::MakeD0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
+                            d0_grid_desc_m_n_);
+
+                    d0_grid_desc_g_m_n_ = Transform::MakeCGridDescriptor_G_M_N(
+                        acc0_biases_gs_ms_ns_lengths, acc0_biases_gs_ms_ns_strides);
+
+                    d0_n_length_stride_.push_back(acc0_biases_gs_ms_ns_lengths[NumDimG + NumDimM]);
+                    d0_n_length_stride_.push_back(acc0_biases_gs_ms_ns_strides[NumDimG + NumDimM]);
+                }
             }
 
-            d0_n_length_stride_.push_back(acc0_biases_gs_ms_ns_lengths[NumDimG + NumDimM]);
-            d0_n_length_stride_.push_back(acc0_biases_gs_ms_ns_strides[NumDimG + NumDimM]);
             is_dropout_          = p_dropout > 0.0; //
             p_dropout_           = 1.f - p_dropout;
             p_dropout_in_16bits_ = uint16_t(std::floor(p_dropout_ * 65535.0));
@@ -1010,15 +1023,19 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             return false;
         }
 
-        if(arg.d0_n_length_stride_[1] == 1 &&
-           arg.d0_n_length_stride_[0] % Acc0BiasTransferSrcScalarPerVector != 0)
+        if constexpr(!is_same<D0DataType, void>::value)
         {
-            return false;
+            if(arg.d0_n_length_stride_[1] == 1 &&
+               arg.d0_n_length_stride_[0] % Acc0BiasTransferSrcScalarPerVector != 0)
+            {
+                return false;
+            }
+            if(arg.d0_n_length_stride_[1] != 1 && Acc0BiasTransferSrcScalarPerVector != 1)
+            {
+                return false;
+            }
         }
-        if(arg.d0_n_length_stride_[1] != 1 && Acc0BiasTransferSrcScalarPerVector != 1)
-        {
-            return false;
-        }
+
         // Note: we need raw lengths since threadwise copy can not handle vector load when part of
         // vector is out of bounds
         // Note: need lowest dim in Ms/Ns/Ks/Os, not merged M/N/K/O

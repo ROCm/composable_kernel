@@ -992,9 +992,6 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                                                                      wave_m_n_id[I0], // NInputIndex
                                                                      0)); // register number
 
-        const auto d0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_d0_grid, d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize());
-
         constexpr auto z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =       // for blockwise copy
             make_naive_tensor_descriptor_packed(make_tuple(m0,             // MRepeat
                                                            DropoutNRepeat, // NRepeat
@@ -1293,6 +1290,8 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             // add bias
             if constexpr(!std::is_void<D0DataType>::value)
             {
+                const auto d0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                    p_d0_grid, d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize());
                 // get register
                 StaticBuffer<AddressSpaceEnum::Vgpr,
                              D0DataType,
