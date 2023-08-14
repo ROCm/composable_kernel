@@ -87,9 +87,6 @@ template <index_t NumDimG,
           MaskingSpecialization MaskingSpec>
 struct DeviceBatchedMultiheadAttentionForward : public BaseOperator
 {
-    static constexpr index_t NumAcc0Bias = 1;
-    static constexpr index_t NumAcc1Bias = 0;
-
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(
         const void* p_a,
         const void* p_b0,

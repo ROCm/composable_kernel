@@ -698,7 +698,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
             {
                 const auto p_a_grid  = static_cast<const ADataType*>(p_a_vec[i]);
                 const auto p_b_grid  = static_cast<const BDataType*>(p_b_vec[i]);
-                const auto p_d0_grid = p_acc0_biases_vec.size()
+                const auto p_d0_grid = p_acc0_biases_vec.size() > 0
                                            ? static_cast<const D0DataType*>(p_acc0_biases_vec[i])
                                            : nullptr;
                 const auto p_b1_grid  = static_cast<const B1DataType*>(p_b1_vec[i]);

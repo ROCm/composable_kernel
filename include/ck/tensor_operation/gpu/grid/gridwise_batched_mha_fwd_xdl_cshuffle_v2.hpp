@@ -1288,7 +1288,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
 
             // add bias
-            if constexpr(!std::is_void<D0DataType>::value)
+            if constexpr(!is_same<D0DataType, void>::value)
             {
                 const auto d0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                     p_d0_grid, d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize());
