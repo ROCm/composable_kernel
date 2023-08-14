@@ -8,7 +8,7 @@
 
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/device/device_index_pool_bwd.hpp"
+#include "ck/tensor_operation/gpu/device/device_max_pool_bwd.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_put_element_1d.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_1d.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
@@ -25,7 +25,7 @@ template <typename DOutDataType,
           typename IndexDataType,
           typename DInDataType,
           ck::index_t InOutVectorSize>
-struct DeviceIndexPoolBwdImpl : public DeviceIndexPoolBwd<DOutDataType, IndexDataType, DInDataType>
+struct DeviceMaxPoolBwdImpl : public DeviceMaxPoolBwd<DOutDataType, IndexDataType, DInDataType>
 {
     using DInDataType_AutomicAddPreCast =
         conditional_t<is_same_v<DInDataType, float> || is_same_v<DInDataType, double>,

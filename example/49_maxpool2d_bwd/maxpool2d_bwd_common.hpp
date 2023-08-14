@@ -8,7 +8,7 @@
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_nhwc_nhwc.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_index_pool_bwd_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_max_pool_bwd_impl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -60,7 +60,7 @@ bool maxpool_bwd_test(bool do_verification,
                                                                 1>; // InSrcOutDstVectorSize
 
     using DeviceMaxPoolBwdInstance = ck::tensor_operation::device::
-        DeviceIndexPoolBwdImpl<DOutDataType, IndexDataType, DInDataType, 4>;
+        DeviceMaxPoolBwdImpl<DOutDataType, IndexDataType, DInDataType, 4>;
 
     const ck::index_t Ys = (Y - 1) * window_dilation_h + 1;
     const ck::index_t Xs = (X - 1) * window_dilation_w + 1;

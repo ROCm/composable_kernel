@@ -13,7 +13,7 @@ namespace device {
 
 // For pooling which used indexable operation, such as MaxPool, MinPool...etc
 template <typename DOutDataType, typename IndexDataType, typename DInDataType>
-struct DeviceIndexPoolBwd : public BaseOperator
+struct DeviceMaxPoolBwd : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_dout,

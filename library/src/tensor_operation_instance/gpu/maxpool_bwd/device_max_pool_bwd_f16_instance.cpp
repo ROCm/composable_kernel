@@ -9,7 +9,7 @@ namespace device {
 namespace instance {
 
 void add_device_maxpool_bwd_f16_instances(
-    std::vector<std::unique_ptr<DeviceIndexPoolBwd<F16, I32, F16>>>& instances)
+    std::vector<std::unique_ptr<DeviceMaxPoolBwd<F16, I32, F16>>>& instances)
 {
     add_device_operation_instances(instances, device_maxpool_bwd_instances<F16, I32, F16>{});
 }
