@@ -14,9 +14,10 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using I32 = int32_t;
-using F16 = ck::half_t;
-using F32 = float;
+using I32  = int32_t;
+using F16  = ck::half_t;
+using BF16 = ck::bhalf_t;
+using F32  = float;
 
 template <typename DOutDataType, typename IndexDataType, typename DInDataType>
 using device_maxpool_bwd_instances =
@@ -25,8 +26,8 @@ using device_maxpool_bwd_instances =
         DeviceMaxPoolBwdImpl<DOutDataType, IndexDataType, DInDataType, 1>,
         DeviceMaxPoolBwdImpl<DOutDataType, IndexDataType, DInDataType, 2>,
         DeviceMaxPoolBwdImpl<DOutDataType, IndexDataType, DInDataType, 4>
-               // clang-format on
-               >;
+                 // clang-format on
+                 >;
 
 } // namespace instance
 } // namespace device
