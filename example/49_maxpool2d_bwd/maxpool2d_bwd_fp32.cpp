@@ -24,18 +24,20 @@ int main()
     bool time_kernel     = false;
 
     // Pool shape
-    ck::index_t N               = 1;
-    ck::index_t C               = 1;
-    ck::index_t Y               = 2;
-    ck::index_t X               = 2;
-    ck::index_t Hi              = 32;
-    ck::index_t Wi              = 32;
-    ck::index_t window_stride_h = 2;
-    ck::index_t window_stride_w = 2;
-    ck::index_t in_left_pad_h   = 0;
-    ck::index_t in_left_pad_w   = 0;
-    ck::index_t in_right_pad_h  = 0;
-    ck::index_t in_right_pad_w  = 0;
+    ck::index_t N                 = 1;
+    ck::index_t C                 = 1;
+    ck::index_t Y                 = 2;
+    ck::index_t X                 = 2;
+    ck::index_t Hi                = 32;
+    ck::index_t Wi                = 32;
+    ck::index_t window_stride_h   = 2;
+    ck::index_t window_stride_w   = 2;
+    ck::index_t window_dilation_h = 1;
+    ck::index_t window_dilation_w = 1;
+    ck::index_t in_left_pad_h     = 0;
+    ck::index_t in_left_pad_w     = 0;
+    ck::index_t in_right_pad_h    = 0;
+    ck::index_t in_right_pad_w    = 0;
 
     bool pass = maxpool_bwd_test<InDataType,
                                  OutDataType,
@@ -53,6 +55,8 @@ int main()
                                                Wi,
                                                window_stride_h,
                                                window_stride_w,
+                                               window_dilation_h,
+                                               window_dilation_w,
                                                in_left_pad_h,
                                                in_left_pad_w,
                                                in_right_pad_h,
