@@ -101,12 +101,6 @@ __global__ void
 
     const index_t mn_blocks = local_grid_size / KBatch;
 
-    __shared__ index_t k_id_start, k_id_finished;
-
-    ignore = barrier_count;
-    ignore = k_id_start;
-    ignore = k_id_finished;
-
     while(id_local < local_grid_size)
     {
         const auto block_2_etile_map =
@@ -145,6 +139,8 @@ __global__ void
     }
 #else
     ignore = gemm_descs_const;
+    ignore = barrier_count;
+    ignore = barrier_size_grp;
     ignore = group_count;
     ignore = grid_size_grp;
     ignore = KBatch;
