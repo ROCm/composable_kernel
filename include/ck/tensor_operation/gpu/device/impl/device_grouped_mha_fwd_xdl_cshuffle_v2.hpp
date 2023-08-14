@@ -1069,15 +1069,20 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
                 return false;
             }
 
-            if(device_arg.d0_n_length_stride_[1] == 1 &&
-               device_arg.d0_n_length_stride_[0] % Acc0BiasTransferSrcScalarPerVector != 0)
+            if constexpr(!is_same<D0DataType, void>::value)
             {
-                return false;
+                if(device_arg.d0_n_length_stride_[1] == 1 &&
+                   device_arg.d0_n_length_stride_[0] % Acc0BiasTransferSrcScalarPerVector != 0)
+                {
+                    return false;
+                }
+                if(device_arg.d0_n_length_stride_[1] != 1 &&
+                   Acc0BiasTransferSrcScalarPerVector != 1)
+                {
+                    return false;
+                }
             }
-            if(device_arg.d0_n_length_stride_[1] != 1 && Acc0BiasTransferSrcScalarPerVector != 1)
-            {
-                return false;
-            }
+
             // Check if having main loop
             const auto K = kernel_arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) *
                            kernel_arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
