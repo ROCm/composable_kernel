@@ -39,31 +39,35 @@ bool pool_test(bool do_verification,
                ck::index_t Wi,
                ck::index_t window_stride_h,
                ck::index_t window_stride_w,
+               ck::index_t window_dilation_h,
+               ck::index_t window_dilation_w,
                ck::index_t in_left_pad_h,
                ck::index_t in_left_pad_w,
                ck::index_t in_right_pad_h,
                ck::index_t in_right_pad_w)
 {
     using DevicePoolFwdInstance =
-        ck::tensor_operation::device::DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<
-            InDataType,      // InDataType
-            OutDataType,     // OutDataType
-            IndexDataType,   // IndexDataType
-            ComputeDataType, // ComputeDataType
-            ReduceOpId,
-            OutputIndex,
-            64, // BlockSize
-            64, // ReduceMThreadClusterSize
-            1,  // ReduceKThreadClusterSize
-            4,  // ReduceMThreadSliceSize
-            1,  // ReduceKThreadSliceSize
-            4>; // InSrcOutDstVectorSize
+        ck::tensor_operation::device::DevicePool2dFwd_NHWC_NHWC<InDataType,
+                                                                OutDataType,
+                                                                IndexDataType,
+                                                                ComputeDataType,
+                                                                ReduceOpId,
+                                                                OutputIndex,
+                                                                64, // BlockSize
+                                                                64, // ReduceMThreadClusterSize
+                                                                1,  // ReduceKThreadClusterSize
+                                                                4,  // ReduceMThreadSliceSize
+                                                                1,  // ReduceKThreadSliceSize
+                                                                1>; // InSrcOutDstVectorSize
 
-    const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Y) / window_stride_h + 1;
-    const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - X) / window_stride_w + 1;
+    const ck::index_t Ys = (Y - 1) * window_dilation_h + 1;
+    const ck::index_t Xs = (X - 1) * window_dilation_w + 1;
+    const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Ys) / window_stride_h + 1;
+    const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - Xs) / window_stride_w + 1;
 
     const std::vector<ck::index_t> window_spatial_lengths{Y, X};
     const std::vector<ck::index_t> window_strides{window_stride_h, window_stride_w};
+    const std::vector<ck::index_t> window_dilations{window_dilation_h, window_dilation_w};
     const std::vector<ck::index_t> input_left_pads{in_left_pad_h, in_left_pad_w};
     const std::vector<ck::index_t> input_right_pads{in_right_pad_h, in_right_pad_w};
 
@@ -123,6 +127,7 @@ bool pool_test(bool do_verification,
         {C * Ho * Wo, 1, Wo * C, C},
         {C * Ho * Wo, 1, Wo * C, C},
         window_strides,
+        window_dilations,
         input_left_pads,
         input_right_pads,
         {2, 3});
@@ -144,8 +149,8 @@ bool pool_test(bool do_verification,
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
-              << std::endl;
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+              << " GB / s " << std::endl;
 
     bool pass = true;
 
@@ -169,6 +174,7 @@ bool pool_test(bool do_verification,
                                                              out_indices_n_c_ho_wo_host,
                                                              window_spatial_lengths,
                                                              window_strides,
+                                                             window_dilations,
                                                              input_left_pads,
                                                              input_right_pads);
 

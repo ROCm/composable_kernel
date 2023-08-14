@@ -25,8 +25,8 @@ Full documentation for Composable Kernel is not yet available.
 - Added multi-embeddings support (#542).
 - Added Navi3x blockwise GEMM and real GEMM support (#541).
 - Added Navi grouped ConvBwdWeight support (#505).
-- Added pool3d forward (#697).
-- Added maxpool backward (#750).
+- Added MaxPool, AvgPool forward (#815).
+- Added MaxPool backward (#750).
 
 ### Changed
 - Changed ...
