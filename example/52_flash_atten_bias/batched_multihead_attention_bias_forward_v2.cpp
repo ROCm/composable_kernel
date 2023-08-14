@@ -53,8 +53,8 @@ using CDataType        = DataType;
 using DDataType        = F16;
 using ZDataType        = U16; // INT32
 using LSEDataType      = F32;
-using Acc0BiasDataType = ck::Tuple<DDataType>;
-using Acc1BiasDataType = ck::Tuple<>;
+using Acc0BiasDataType = DDataType;
+using Acc1BiasDataType = void;
 
 static constexpr ck::index_t NumDimG = 2;
 static constexpr ck::index_t NumDimM = 1;

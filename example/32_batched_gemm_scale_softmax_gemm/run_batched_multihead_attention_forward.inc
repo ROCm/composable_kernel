@@ -177,8 +177,8 @@ int run(int argc, char* argv[])
         static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
         static_cast<ZDataType*>(nullptr),
         static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-        {}, // std::array<void*, 1> p_acc0_biases;
-        {}, // std::array<void*, 1> p_acc1_biases;
+        nullptr, // std::array<void*, 1> p_acc0_biases;
+        nullptr, // std::array<void*, 1> p_acc1_biases;
         a_gs_ms_ks_lengths,
         a_gs_ms_ks_strides,
         b0_gs_ns_ks_lengths,

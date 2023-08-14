@@ -25,7 +25,7 @@ namespace ck {
  *
  */
 template <typename FloatAB,
-          typename D0sDataType,
+          typename D0DataType,
           typename ZDataType,
           typename FloatGemm,
           typename FloatGemmAcc,
@@ -40,7 +40,7 @@ template <typename FloatAB,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
-          typename D0sGridDesc_M_N,
+          typename D0GridDesc_M_N,
           typename B1GridDesc_BK0_N_BK1,
           typename CGridDesc_M_N,
           typename ZGridDesc_M_N,
@@ -102,7 +102,6 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                       D0BlockTransferSrcScalarPerVector == 2 ||
                       D0BlockTransferSrcScalarPerVector == 4,
                   "D0BlockTransferSrcScalarPerVector must be 1 or 2 or 4");
-    static constexpr index_t NumD0Tensor = D0sDataType::Size();
     static_assert(LoopSched == LoopScheduler::Default,
                   "Non-default loop scheduler is currently not supported");
 
@@ -441,20 +440,9 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             c_grid_desc_m_n);
     }
 
-    static constexpr auto MakeD0sGridPointer()
-    {
-        return generate_tuple(
-            [&](auto i) {
-                using D0DataType = remove_cvref_t<tuple_element_t<i.value, D0sDataType>>;
-
-                return static_cast<const D0DataType*>(nullptr);
-            },
-            Number<NumD0Tensor>{});
-    }
     // D0 desc for source in blockwise copy
-    template <typename D0GridDesc_M_N>
     __host__ __device__ static constexpr auto
-    MakeGemm0D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const D0GridDesc_M_N& d0_grid_desc_m_n)
+    MakeD0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const D0GridDesc_M_N& d0_grid_desc_m_n)
     {
         const auto M = d0_grid_desc_m_n.GetLength(I0);
         const auto N = d0_grid_desc_m_n.GetLength(I1);
@@ -472,20 +460,8 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             make_tuple(Sequence<0, 2, 4, 6>{}, Sequence<1, 3, 5, 7, 8, 9>{}));
     }
 
-    // D0s desc for source in blockwise copy
-    __host__ __device__ static constexpr auto
-    MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const D0sGridDesc_M_N& ds_grid_desc_m_n)
-    {
-        return generate_tuple(
-            [&](auto i) {
-                return MakeGemm0D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(ds_grid_desc_m_n[i]);
-            },
-            Number<NumD0Tensor>{});
-    }
-
-    using D0sGridPointer                                    = decltype(MakeD0sGridPointer());
-    using D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5   = remove_cvref_t<decltype(
-        MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(D0sGridDesc_M_N{}))>;
+    using D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5    = remove_cvref_t<decltype(
+        MakeD0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(D0GridDesc_M_N{}))>;
     using CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
         MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}))>;
 
@@ -544,7 +520,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
               typename C0MatrixMask>
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
-                               D0sGridPointer p_d0s_grid,
+                               const D0DataType* __restrict__ p_d0_grid,
                                const FloatAB* __restrict__ p_b1_grid,
                                FloatC* __restrict__ p_c_grid,
                                ZDataType* __restrict__ p_z_grid,
@@ -557,8 +533,8 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                                const CElementwiseOperation& c_element_op,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
-                               const D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5&
-                                   d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                               const D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5&
+                                   d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                                const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
                                const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -985,49 +961,36 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                                                            n3,   // NInputNum
                                                            n4)); // RegisterNum
 
-        auto d0s_threadwise_copy = generate_tuple(
-            [&](auto i) {
-                using D0DataType = remove_cvref_t<tuple_element_t<i.value, D0sDataType>>;
-                return ThreadwiseTensorSliceTransfer_v2<
-                    D0DataType,
-                    D0DataType,
-                    decltype(d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i]),
-                    decltype(d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5),
-                    Sequence<I1, // MBlockId
-                             I1, // NBlockID
-                             m0, // MRepeat
-                             n0, // NRepeat
-                             m1, // MWaveId
-                             n1, // NWaveId
-                             m2, // MPerXdl
-                             n2, // NGroupNum
-                             n3, // NInputNum
-                             n4>,
-                    Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
-                    9,
-                    D0BlockTransferSrcScalarPerVector,
-                    1,
-                    false>(d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
-                           make_multi_index(block_work_idx_m, // MBlockId
-                                            0,                // NBlockId
-                                            0,                // mrepeat
-                                            0,                // nrepeat
-                                            wave_id[I0],      // MWaveId
-                                            wave_id[I1],      // NWaveId
-                                            wave_m_n_id[I1],  // MPerXdl
-                                            0,                // group
-                                            wave_m_n_id[I0],  // NInputIndex
-                                            0));              // register number
-            },
-            Number<NumD0Tensor>{});
-
-        const auto d0s_grid_buf = generate_tuple(
-            [&](auto i) {
-                return make_dynamic_buffer<AddressSpaceEnum::Global>(
-                    p_d0s_grid[i],
-                    d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i].GetElementSpaceSize());
-            },
-            Number<NumD0Tensor>{});
+        auto d0_threadwise_copy =
+            ThreadwiseTensorSliceTransfer_v2<D0DataType,
+                                             D0DataType,
+                                             decltype(d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5),
+                                             decltype(d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5),
+                                             Sequence<I1, // MBlockId
+                                                      I1, // NBlockID
+                                                      m0, // MRepeat
+                                                      n0, // NRepeat
+                                                      m1, // MWaveId
+                                                      n1, // NWaveId
+                                                      m2, // MPerXdl
+                                                      n2, // NGroupNum
+                                                      n3, // NInputNum
+                                                      n4>,
+                                             Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
+                                             9,
+                                             D0BlockTransferSrcScalarPerVector,
+                                             1,
+                                             false>(d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                                    make_multi_index(block_work_idx_m, // MBlockId
+                                                                     0,                // NBlockId
+                                                                     0,                // mrepeat
+                                                                     0,                // nrepeat
+                                                                     wave_id[I0],      // MWaveId
+                                                                     wave_id[I1],      // NWaveId
+                                                                     wave_m_n_id[I1],  // MPerXdl
+                                                                     0,                // group
+                                                                     wave_m_n_id[I0], // NInputIndex
+                                                                     0)); // register number
 
         constexpr auto z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =       // for blockwise copy
             make_naive_tensor_descriptor_packed(make_tuple(m0,             // MRepeat
@@ -1325,9 +1288,11 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
 
             // add bias
-            static_for<0, NumD0Tensor, 1>{}([&](auto i) {
+            if constexpr(!is_same<D0DataType, void>::value)
+            {
+                const auto d0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                    p_d0_grid, d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize());
                 // get register
-                using D0DataType = remove_cvref_t<tuple_element_t<i.value, D0sDataType>>;
                 StaticBuffer<AddressSpaceEnum::Vgpr,
                              D0DataType,
                              d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize(),
@@ -1335,20 +1300,20 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                     d0_thread_buf;
 
                 // load data from global
-                d0s_threadwise_copy(i).Run(d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
-                                           d0s_grid_buf[i],
-                                           d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                           make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                                           d0_thread_buf);
+                d0_threadwise_copy.Run(d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                       d0_grid_buf,
+                                       d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                       make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                                       d0_thread_buf);
 
                 // acc add bias
                 static_for<0, m0 * n0 * n2 * n4, 1>{}(
-                    [&](auto j) { acc_thread_buf(j) += d0_thread_buf[j]; });
+                    [&](auto i) { acc_thread_buf(i) += d0_thread_buf[i]; });
 
-                d0s_threadwise_copy(i).MoveSrcSliceWindow(
-                    d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5[i],
+                d0_threadwise_copy.MoveSrcSliceWindow(
+                    d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                     make_multi_index(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
-            });
+            }
             // softmax
             SoftmaxBuf& max = blockwise_softmax.max_value_buf;
             SoftmaxBuf& sum = blockwise_softmax.sum_value_buf;

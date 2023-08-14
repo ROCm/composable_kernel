@@ -287,8 +287,8 @@ int run(int argc, char* argv[])
                               p_c,
                               p_z,
                               p_lse,
-                              {}, // p_acc0_biases
-                              {}, // p_acc1_biases
+                              nullptr, // p_acc0_biases
+                              nullptr, // p_acc1_biases
                               problem_descs,
                               a_element_op,
                               b0_element_op,

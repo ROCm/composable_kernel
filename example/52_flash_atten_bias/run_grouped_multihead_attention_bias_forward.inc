@@ -57,7 +57,7 @@ int run(int argc, char* argv[])
     std::vector<const void*> p_b0;
     std::vector<const void*> p_b1;
     std::vector<void*> p_c;
-    std::vector<std::vector<const void*>> p_d;
+    std::vector<const void*> p_d;
     std::vector<void*> p_z;         // for result verification
     std::vector<void*> p_z_nullptr; // for time test
     std::vector<void*> p_lse;
@@ -147,10 +147,8 @@ int run(int argc, char* argv[])
                                  z_gs_ms_ns_strides,
                                  lse_gs_ms_lengths,
                                  lse_gs_ms_strides,
-                                 std::vector<std::vector<ck::index_t>>{
-                                     d_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
-                                 std::vector<std::vector<ck::index_t>>{
-                                     d_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
+                                 d_gs_ms_ns_lengths, // acc0_biases_gs_ms_ns_lengths
+                                 d_gs_ms_ns_strides, // acc0_biases_gs_ms_ns_strides
                                  {},                      // acc1_biases_gs_ms_os_lengths
                                  {}});                    // acc1_biases_gs_ms_os_strides
 
@@ -167,7 +165,7 @@ int run(int argc, char* argv[])
         flop += (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * Batch;
         num_byte += (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
                      sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O +
-                     sizeof(DDataType) * M * N * (Acc0BiasDataType::Size() ? 0 : 1)) *
+                     sizeof(DDataType) * M * N * (std::is_void<Acc0BiasDataType>::value ? 0 : 1)) *
                     Batch;
 
         if(i < 4)
@@ -244,9 +242,7 @@ int run(int argc, char* argv[])
         p_b0.push_back(b0_tensors_device[i]->GetDeviceBuffer());
         p_b1.push_back(b1_tensors_device[i]->GetDeviceBuffer());
         p_c.push_back(c_tensors_device[i]->GetDeviceBuffer());
-        p_d.push_back({d_tensors_device[i]->GetDeviceBuffer()});
-        // std::cout << "from host  group id: " << i << " d address: " <<
-        // d_tensors_device[i]->GetDeviceBuffer() << std::endl;
+        p_d.push_back(d_tensors_device[i]->GetDeviceBuffer());
         p_z.push_back(z_tensors_device[i]->GetDeviceBuffer());
         p_z_nullptr.push_back(nullptr);
         p_lse.push_back(lse_tensors_device[i]->GetDeviceBuffer());

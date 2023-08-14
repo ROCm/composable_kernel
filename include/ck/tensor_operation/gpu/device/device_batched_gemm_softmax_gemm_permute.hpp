@@ -87,9 +87,6 @@ template <index_t NumDimG,
           MaskingSpecialization MaskingSpec>
 struct DeviceBatchedMultiheadAttentionForward : public BaseOperator
 {
-    static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();
-    static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
-
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(
         const void* p_a,
         const void* p_b0,
@@ -97,8 +94,8 @@ struct DeviceBatchedMultiheadAttentionForward : public BaseOperator
         void* p_c,
         void* p_z,
         void* p_lse,
-        const std::array<void*, NumAcc0Bias> p_acc0_biases,
-        const std::array<void*, NumAcc1Bias> p_acc1_biases,
+        const void* p_acc0_biases,
+        const void* p_acc1_biases,
         const std::vector<index_t>& a_gs_ms_ks_lengths,
         const std::vector<index_t>& a_gs_ms_ks_strides,
         const std::vector<index_t>& b_gs_ns_ks_lengths,
@@ -110,11 +107,11 @@ struct DeviceBatchedMultiheadAttentionForward : public BaseOperator
         const std::vector<index_t>& z_gs_ms_ns_lengths,            // z_gs_ms_os_lengths
         const std::vector<index_t>& z_gs_ms_ns_strides,            // z_gs_ms_os_strides
         const std::vector<index_t>& lse_gs_ms_lengths,             // lse_gs_ms_lengths
-        const std::array<std::vector<index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
-        const std::array<std::vector<index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
-        const std::array<std::vector<index_t>, NumAcc1Bias>
+        const std::vector<index_t>& acc0_biases_gs_ms_ns_lengths,
+        const std::vector<index_t>& acc0_biases_gs_ms_ns_strides,
+        const std::vector<index_t>&
             acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
-        const std::array<std::vector<index_t>, NumAcc1Bias>
+        const std::vector<index_t>&
             acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
         AElementwiseOperation a_element_op,
         B0ElementwiseOperation b0_element_op,
