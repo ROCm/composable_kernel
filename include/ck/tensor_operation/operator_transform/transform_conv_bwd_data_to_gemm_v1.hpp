@@ -364,19 +364,19 @@ struct TransformConvBwdDataToGemm_v1
                     make_tuple(Sequence<1, 3, 5>{}, Sequence<0, 2, 4>{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-                const auto out_gemmak0_gemmmraw_gemmak1_grid_desc = transform_tensor_descriptor(
-                    out_gemmk_gemmmraw_grid_desc,
-                    make_tuple(
-                        make_unmerge_transform(make_tuple(AK0, AK1)),
-                        make_pass_through_transform(out_gemmk_gemmmraw_grid_desc.GetLength(I1))),
+                const auto out_gemmk_gemmm_padded_grid_desc =
+                    ck::tensor_operation::device::PadTensorDescriptor(
+                        out_gemmk_gemmmraw_grid_desc,
+                        make_tuple(AK1, GemmMPerBlock),
+                        Sequence<true, DoPadGemmM>{});
+
+                const auto out_gemmak0_gemmm_gemmak1_grid_desc = transform_tensor_descriptor(
+                    out_gemmk_gemmm_padded_grid_desc,
+                    make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
+                               make_pass_through_transform(
+                                   out_gemmk_gemmm_padded_grid_desc.GetLength(I1))),
                     make_tuple(Sequence<0>{}, Sequence<1>{}),
                     make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-                const auto out_gemmak0_gemmm_gemmak1_grid_desc =
-                    ck::tensor_operation::device::PadTensorDescriptor(
-                        out_gemmak0_gemmmraw_gemmak1_grid_desc,
-                        make_tuple(AK0, GemmMPerBlock, AK1),
-                        Sequence<false, DoPadGemmM, false>{});
 
                 return out_gemmak0_gemmm_gemmak1_grid_desc;
             }
@@ -457,19 +457,19 @@ struct TransformConvBwdDataToGemm_v1
                     make_tuple(Sequence<1, 3, 5, 7>{}, Sequence<0, 2, 4, 6>{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-                const auto out_gemmak0_gemmmraw_gemmak1_grid_desc = transform_tensor_descriptor(
-                    out_gemmk_gemmmraw_grid_desc,
-                    make_tuple(
-                        make_unmerge_transform(make_tuple(AK0, AK1)),
-                        make_pass_through_transform(out_gemmk_gemmmraw_grid_desc.GetLength(I1))),
+                const auto out_gemmk_gemmm_padded_grid_desc =
+                    ck::tensor_operation::device::PadTensorDescriptor(
+                        out_gemmk_gemmmraw_grid_desc,
+                        make_tuple(AK1, GemmMPerBlock),
+                        Sequence<true, DoPadGemmM>{});
+
+                const auto out_gemmak0_gemmm_gemmak1_grid_desc = transform_tensor_descriptor(
+                    out_gemmk_gemmm_padded_grid_desc,
+                    make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
+                               make_pass_through_transform(
+                                   out_gemmk_gemmm_padded_grid_desc.GetLength(I1))),
                     make_tuple(Sequence<0>{}, Sequence<1>{}),
                     make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-                const auto out_gemmak0_gemmm_gemmak1_grid_desc =
-                    ck::tensor_operation::device::PadTensorDescriptor(
-                        out_gemmak0_gemmmraw_gemmak1_grid_desc,
-                        make_tuple(AK0, GemmMPerBlock, AK1),
-                        Sequence<false, DoPadGemmM, false>{});
 
                 return out_gemmak0_gemmm_gemmak1_grid_desc;
             }
@@ -614,20 +614,19 @@ struct TransformConvBwdDataToGemm_v1
                     make_tuple(Sequence<1, 2, 0>{}, Sequence<3>{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-                const auto wei_gemmbk0_gemmnraw_gemmbk1_grid_desc = transform_tensor_descriptor(
-                    wei_gemmk_gemmnraw_grid_desc,
+                const auto wei_gemmk_gemmn_padded_grid_desc =
+                    ck::tensor_operation::device::PadTensorDescriptor(
+                        wei_gemmk_gemmnraw_grid_desc,
+                        make_tuple(BK1, GemmNPerBlock),
+                        Sequence<true, DoPadGemmN>{});
+
+                const auto wei_gemmbk0_gemmn_gemmbk1_grid_desc = transform_tensor_descriptor(
+                    wei_gemmk_gemmn_padded_grid_desc,
                     make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                               make_pass_through_transform(C)),
+                               make_pass_through_transform(
+                                   wei_gemmk_gemmn_padded_grid_desc.GetLength(I1))),
                     make_tuple(Sequence<0>{}, Sequence<1>{}),
                     make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-                const auto wei_gemmbk0_gemmn_gemmbk1_grid_desc =
-                    ck::tensor_operation::device::PadTensorDescriptor(
-                        wei_gemmbk0_gemmnraw_gemmbk1_grid_desc,
-                        make_tuple(wei_gemmbk0_gemmnraw_gemmbk1_grid_desc.GetLength(I0),
-                                   GemmNPerBlock,
-                                   BK1),
-                        Sequence<false, DoPadGemmN, false>{});
 
                 return wei_gemmbk0_gemmn_gemmbk1_grid_desc;
             }
@@ -691,22 +690,21 @@ struct TransformConvBwdDataToGemm_v1
                     make_tuple(Sequence<1, 2, 3, 0>{}, Sequence<4>{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-                const auto wei_gemmbk0_gemmnraw_gemmbk1_grid_desc = transform_tensor_descriptor(
-                    wei_gemmk_gemmnraw_grid_desc,
-                    make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                               make_pass_through_transform(C)),
+                const auto wei_gemmk_gemm_padded_grid_desc =
+                    ck::tensor_operation::device::PadTensorDescriptor(
+                        wei_gemmk_gemmnraw_grid_desc,
+                        make_tuple(BK1, GemmNPerBlock),
+                        Sequence<true, DoPadGemmN>{});
+
+                const auto wei_gemmbk0_gemm_gemmbk1_grid_desc = transform_tensor_descriptor(
+                    wei_gemmk_gemm_padded_grid_desc,
+                    make_tuple(
+                        make_unmerge_transform(make_tuple(BK0, BK1)),
+                        make_pass_through_transform(wei_gemmk_gemm_padded_grid_desc.GetLength(I1))),
                     make_tuple(Sequence<0>{}, Sequence<1>{}),
                     make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
-                const auto wei_gemmbk0_gemmn_gemmbk1_grid_desc =
-                    ck::tensor_operation::device::PadTensorDescriptor(
-                        wei_gemmbk0_gemmnraw_gemmbk1_grid_desc,
-                        make_tuple(wei_gemmbk0_gemmnraw_gemmbk1_grid_desc.GetLength(I0),
-                                   GemmNPerBlock,
-                                   BK1),
-                        Sequence<false, DoPadGemmN, false>{});
-
-                return wei_gemmbk0_gemmn_gemmbk1_grid_desc;
+                return wei_gemmbk0_gemm_gemmbk1_grid_desc;
             }
             else
             {
