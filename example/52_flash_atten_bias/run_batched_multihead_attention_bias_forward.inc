@@ -181,40 +181,40 @@ int run(int argc, char* argv[])
 
     // do GEMM
     // TODO ANT: replace array with vector?
-    auto gemm     = DeviceGemmInstance{};
-    auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(
-        static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-        static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
-        static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
-        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-        static_cast<ZDataType*>(nullptr),
-        static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-        static_cast<DDataType*>(d_device_buf.GetDeviceBuffer()), //
-        nullptr,                                                  
-        a_gs_ms_ks_lengths,
-        a_gs_ms_ks_strides,
-        b0_gs_ns_ks_lengths,
-        b0_gs_ns_ks_strides,
-        b1_gs_os_ns_lengths,
-        b1_gs_os_ns_strides,
-        c_gs_ms_os_lengths,
-        c_gs_ms_os_strides,
-        z_gs_ms_ns_lengths,
-        z_gs_ms_ns_strides,
-        lse_gs_ms_lengths,
-        d_gs_ms_ns_lengths, // acc0_biases_gs_ms_ns_lengths
-        d_gs_ms_ns_strides, // acc0_biases_gs_ms_ns_strides
-        {}, // std::vector<ck::index_t>
-        {}, // std::vector<ck::index_t>
-        a_element_op,
-        b0_element_op,
-        acc0_element_op,
-        b1_element_op,
-        c_element_op,
-        p_drop,          // dropout ratio
-        {seed, offset}); // dropout random seed and offset, offset should be at least the number of
-                         // elements on a thread
+    auto gemm    = DeviceGemmInstance{};
+    auto invoker = gemm.MakeInvoker();
+    auto argument =
+        gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                          static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
+                          static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
+                          static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                          static_cast<ZDataType*>(nullptr),
+                          static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
+                          static_cast<DDataType*>(d_device_buf.GetDeviceBuffer()), //
+                          nullptr,
+                          a_gs_ms_ks_lengths,
+                          a_gs_ms_ks_strides,
+                          b0_gs_ns_ks_lengths,
+                          b0_gs_ns_ks_strides,
+                          b1_gs_os_ns_lengths,
+                          b1_gs_os_ns_strides,
+                          c_gs_ms_os_lengths,
+                          c_gs_ms_os_strides,
+                          z_gs_ms_ns_lengths,
+                          z_gs_ms_ns_strides,
+                          lse_gs_ms_lengths,
+                          d_gs_ms_ns_lengths, // acc0_biases_gs_ms_ns_lengths
+                          d_gs_ms_ns_strides, // acc0_biases_gs_ms_ns_strides
+                          {},                 // std::vector<ck::index_t>
+                          {},                 // std::vector<ck::index_t>
+                          a_element_op,
+                          b0_element_op,
+                          acc0_element_op,
+                          b1_element_op,
+                          c_element_op,
+                          p_drop,          // dropout ratio
+                          {seed, offset}); // dropout random seed and offset, offset should be at
+                                           // least the number of elements on a thread
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -229,8 +229,10 @@ int run(int argc, char* argv[])
 
     std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
     std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
-                             sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O + 
-                             sizeof(DDataType) * M * N * std::is_void<DDataType>::value?1:0) *
+                                     sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O +
+                                     sizeof(DDataType) * M * N * std::is_void<DDataType>::value
+                                 ? 0
+                                 : 1) *
                             BatchCount;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
@@ -243,38 +245,38 @@ int run(int argc, char* argv[])
     if(do_verification)
     {
         // run for storing z tensor
-        argument = gemm.MakeArgument(
-            static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-            static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
-            static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
-            static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-            static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
-            static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-            static_cast<DDataType*>(d_device_buf.GetDeviceBuffer()),
-            nullptr,                                 
-            a_gs_ms_ks_lengths,
-            a_gs_ms_ks_strides,
-            b0_gs_ns_ks_lengths,
-            b0_gs_ns_ks_strides,
-            b1_gs_os_ns_lengths,
-            b1_gs_os_ns_strides,
-            c_gs_ms_os_lengths,
-            c_gs_ms_os_strides,
-            z_gs_ms_ns_lengths,
-            z_gs_ms_ns_strides,
-            lse_gs_ms_lengths,
-            d_gs_ms_ns_lengths,
-            d_gs_ms_ns_strides,
-            {}, 
-            {},
-            a_element_op,
-            b0_element_op,
-            acc0_element_op,
-            b1_element_op,
-            c_element_op,
-            p_drop,          // dropout ratio
-            {seed, offset}); // dropout random seed and offset, offset should be at least the number
-                             // of elements on a thread
+        argument =
+            gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                              static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
+                              static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
+                              static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                              static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
+                              static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
+                              static_cast<DDataType*>(d_device_buf.GetDeviceBuffer()),
+                              nullptr,
+                              a_gs_ms_ks_lengths,
+                              a_gs_ms_ks_strides,
+                              b0_gs_ns_ks_lengths,
+                              b0_gs_ns_ks_strides,
+                              b1_gs_os_ns_lengths,
+                              b1_gs_os_ns_strides,
+                              c_gs_ms_os_lengths,
+                              c_gs_ms_os_strides,
+                              z_gs_ms_ns_lengths,
+                              z_gs_ms_ns_strides,
+                              lse_gs_ms_lengths,
+                              d_gs_ms_ns_lengths,
+                              d_gs_ms_ns_strides,
+                              {},
+                              {},
+                              a_element_op,
+                              b0_element_op,
+                              acc0_element_op,
+                              b1_element_op,
+                              c_element_op,
+                              p_drop,          // dropout ratio
+                              {seed, offset}); // dropout random seed and offset, offset should be
+                                               // at least the number of elements on a thread
         c_device_buf.SetZero();
         lse_device_buf.SetZero();
         invoker.Run(argument, StreamConfig{nullptr, false});

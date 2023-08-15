@@ -697,6 +697,15 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                     d0_grid_desc_g_m_n_ = Transform::MakeCGridDescriptor_G_M_N(
                         acc0_biases_gs_ms_ns_lengths, acc0_biases_gs_ms_ns_strides);
 
+                    compute_base_ptr_of_batch_ = ComputeBasePtrOfStridedBatch(
+                        a_grid_desc_g_m_k_,
+                        b_grid_desc_g_n_k_,
+                        d0_grid_desc_g_m_n_,
+                        b1_grid_desc_g_n_k_,
+                        c_grid_desc_g_m_n_,
+                        z_grid_desc_g_m_n_,
+                        type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize()));
+
                     d0_n_length_stride_.push_back(acc0_biases_gs_ms_ns_lengths[NumDimG + NumDimM]);
                     d0_n_length_stride_.push_back(acc0_biases_gs_ms_ns_strides[NumDimG + NumDimM]);
                 }
