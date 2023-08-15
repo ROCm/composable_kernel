@@ -279,12 +279,6 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V1
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
 
-    static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();
-    static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
-
-    // TODO ANT: implement bias combination
-    static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
-
 #if 0
     // TODO ANT: use alias
     static constexpr index_t NumDimGemm0M = NumDimM;
@@ -603,8 +597,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V1
                  std::vector<void*> p_c_vec,
                  std::vector<void*> p_z_vec,
                  std::vector<void*> p_lse_vec,
-                 std::vector<std::vector<const void*>> p_acc0_biases_vec,
-                 std::vector<std::vector<const void*>> p_acc1_biases_vec,
+                 std::vector<const void*> p_acc0_bias_vec,
+                 std::vector<const void*> p_acc1_bias_vec,
                  std::vector<ProblemDesc> problem_desc_vec,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
@@ -619,6 +613,9 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V1
               b1_element_op_{b1_element_op},
               c_element_op_{c_element_op}
         {
+            ignore = p_acc0_bias_vec;
+            ignore = p_acc1_bias_vec;
+
             // TODO ANT: implement bias addition
             group_count_ = problem_desc_vec.size();
 
@@ -626,11 +623,6 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V1
                  group_count_ == p_b1_vec.size() && group_count_ == p_c_vec.size()))
             {
                 throw std::runtime_error("wrong! group_count_ != a/b/b1/c_vec.size");
-            }
-
-            if(!(p_acc0_biases_vec.size() == p_acc1_biases_vec.size()))
-            {
-                throw std::runtime_error("wrong! acc0_bias_vec.size != acc1_bias_vec.size");
             }
 
             grid_size_ = 0;
@@ -709,18 +701,6 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V1
                     C0MatrixMask(a_grid_desc_g_m_k.GetLength(I1), b_grid_desc_g_n_k.GetLength(I1));
 
                 grid_size_ += grid_size_grp;
-
-                // for each group, make sure acc0_biases_gs_ms_ns_lengths.size() == NumAcc0Bias and
-                // so on
-                if(!(problem_desc.acc0_biases_gs_ms_ns_lengths.size() == NumAcc0Bias &&
-                     problem_desc.acc0_biases_gs_ms_ns_strides.size() == NumAcc0Bias &&
-                     problem_desc.acc1_biases_gs_ms_os_lengths.size() == NumAcc1Bias &&
-                     problem_desc.acc1_biases_gs_ms_os_strides.size() == NumAcc1Bias))
-                {
-                    throw std::runtime_error(
-                        "wrong! number of biases in function argument does not "
-                        "match that in template argument");
-                }
 
                 group_kernel_args_.push_back({p_a_grid,
                                               p_b_grid,
@@ -1055,8 +1035,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V1
                              std::vector<void*> p_c_vec,
                              std::vector<void*> p_z_vec,
                              std::vector<void*> p_lse_vec,
-                             std::vector<std::vector<const void*>> p_acc0_biases_vec,
-                             std::vector<std::vector<const void*>> p_acc1_biases_vec,
+                             std::vector<const void*> p_acc0_bias_vec,
+                             std::vector<const void*> p_acc1_bias_vec,
                              std::vector<ProblemDesc> problem_desc_vec,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
@@ -1072,8 +1052,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V1
                         p_c_vec,
                         p_z_vec,
                         p_lse_vec,
-                        p_acc0_biases_vec,
-                        p_acc1_biases_vec,
+                        p_acc0_bias_vec,
+                        p_acc1_bias_vec,
                         problem_desc_vec,
                         a_element_op,
                         b_element_op,
@@ -1094,9 +1074,9 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V1
                         std::vector<void*> p_c_vec,
                         std::vector<void*> p_z_vec,
                         std::vector<void*> p_lse_vec,
-                        std::vector<std::vector<const void*>> p_acc0_biases_vec,
-                        std::vector<std::vector<const void*>> p_acc1_biases_vec,
-                        std::vector<ProblemDesc> problem_desc_vec,
+                        std::vector<const void*> p_acc0_bias_vec,
+                        std::vector<const void*> p_acc1_bias_vec,
+                        std::vector<ProblemDesc>& problem_desc_vec,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         AccElementwiseOperation acc_element_op,
@@ -1111,8 +1091,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V1
                                           p_c_vec,
                                           p_z_vec,
                                           p_lse_vec,
-                                          p_acc0_biases_vec,
-                                          p_acc1_biases_vec,
+                                          p_acc0_bias_vec,
+                                          p_acc1_bias_vec,
                                           problem_desc_vec,
                                           a_element_op,
                                           b_element_op,

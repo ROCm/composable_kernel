@@ -94,8 +94,8 @@ struct DeviceBatchedMultiheadAttentionForward : public BaseOperator
         void* p_c,
         void* p_z,
         void* p_lse,
-        const void* p_acc0_biases,
-        const void* p_acc1_biases,
+        const void* p_acc0_bias,
+        const void* p_acc1_bias,
         const std::vector<index_t>& a_gs_ms_ks_lengths,
         const std::vector<index_t>& a_gs_ms_ks_strides,
         const std::vector<index_t>& b_gs_ns_ks_lengths,
@@ -107,12 +107,10 @@ struct DeviceBatchedMultiheadAttentionForward : public BaseOperator
         const std::vector<index_t>& z_gs_ms_ns_lengths,            // z_gs_ms_os_lengths
         const std::vector<index_t>& z_gs_ms_ns_strides,            // z_gs_ms_os_strides
         const std::vector<index_t>& lse_gs_ms_lengths,             // lse_gs_ms_lengths
-        const std::vector<index_t>& acc0_biases_gs_ms_ns_lengths,
-        const std::vector<index_t>& acc0_biases_gs_ms_ns_strides,
-        const std::vector<index_t>&
-            acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
-        const std::vector<index_t>&
-            acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
+        const std::vector<index_t>& acc0_bias_gs_ms_ns_lengths,
+        const std::vector<index_t>& acc0_bias_gs_ms_ns_strides,
+        const std::vector<index_t>& acc1_bias_gs_ms_gemm1ns_lengths,
+        const std::vector<index_t>& acc1_bias_gs_ms_gemm1ns_strides,
         AElementwiseOperation a_element_op,
         B0ElementwiseOperation b0_element_op,
         Acc0ElementwiseOperation acc0_element_op,

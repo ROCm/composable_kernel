@@ -289,12 +289,6 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V1
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
 
-    static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();
-    static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
-
-    // TODO ANT: implement bias combination
-    static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
-
 #if 0
     // TODO ANT: use alias
     static constexpr index_t NumDimGemm0M = NumDimM;
@@ -535,39 +529,36 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V1
     // FIXME: constness
     struct Argument : public BaseArgument
     {
-        Argument(
-            const ADataType* p_a_grid,
-            const BDataType* p_b_grid,
-            const B1DataType* p_b1_grid,
-            CDataType* p_c_grid,
-            ZDataType* p_z_grid,
-            LSEDataType* p_lse_grid,
-            const std::array<void*, NumAcc0Bias> p_acc0_biases,
-            const std::array<void*, NumAcc1Bias> p_acc1_biases,
-            const std::vector<index_t>& a_gs_ms_ks_lengths,
-            const std::vector<index_t>& a_gs_ms_ks_strides,
-            const std::vector<index_t>& b_gs_ns_ks_lengths,
-            const std::vector<index_t>& b_gs_ns_ks_strides,
-            const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
-            const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
-            const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
-            const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-            const std::vector<index_t>& z_gs_ms_ns_lengths,
-            const std::vector<index_t>& z_gs_ms_ns_strides,
-            const std::vector<index_t>& lse_gs_ms_lengths,
-            const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
-            const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
-            const std::array<std::vector<ck::index_t>, NumAcc1Bias>
-                acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
-            const std::array<std::vector<ck::index_t>, NumAcc1Bias>
-                acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
-            AElementwiseOperation a_element_op,
-            BElementwiseOperation b_element_op,
-            AccElementwiseOperation acc_element_op,
-            B1ElementwiseOperation b1_element_op,
-            CElementwiseOperation c_element_op,
-            float p_dropout,
-            std::tuple<unsigned long long, unsigned long long> seeds)
+        Argument(const ADataType* p_a_grid,
+                 const BDataType* p_b_grid,
+                 const B1DataType* p_b1_grid,
+                 CDataType* p_c_grid,
+                 ZDataType* p_z_grid,
+                 LSEDataType* p_lse_grid,
+                 const void* p_acc0_bias,
+                 const void* p_acc1_bias,
+                 const std::vector<index_t>& a_gs_ms_ks_lengths,
+                 const std::vector<index_t>& a_gs_ms_ks_strides,
+                 const std::vector<index_t>& b_gs_ns_ks_lengths,
+                 const std::vector<index_t>& b_gs_ns_ks_strides,
+                 const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
+                 const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
+                 const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
+                 const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+                 const std::vector<index_t>& z_gs_ms_ns_lengths,
+                 const std::vector<index_t>& z_gs_ms_ns_strides,
+                 const std::vector<index_t>& lse_gs_ms_lengths,
+                 const std::vector<ck::index_t> acc0_bias_gs_ms_ns_lengths,
+                 const std::vector<ck::index_t> acc0_bias_gs_ms_ns_strides,
+                 const std::vector<ck::index_t> acc1_bias_gs_ms_gemm1ns_lengths,
+                 const std::vector<ck::index_t> acc1_bias_gs_ms_gemm1ns_strides,
+                 AElementwiseOperation a_element_op,
+                 BElementwiseOperation b_element_op,
+                 AccElementwiseOperation acc_element_op,
+                 B1ElementwiseOperation b1_element_op,
+                 CElementwiseOperation c_element_op,
+                 float p_dropout,
+                 std::tuple<unsigned long long, unsigned long long> seeds)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_b1_grid_{p_b1_grid},
@@ -624,12 +615,12 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V1
                   type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize())}
         {
             // TODO ANT: implement bias addition
-            ignore = p_acc0_biases;
-            ignore = p_acc1_biases;
-            ignore = acc0_biases_gs_ms_ns_lengths;
-            ignore = acc0_biases_gs_ms_ns_strides;
-            ignore = acc1_biases_gs_ms_gemm1ns_lengths;
-            ignore = acc1_biases_gs_ms_gemm1ns_strides;
+            ignore = p_acc0_bias;
+            ignore = p_acc1_bias;
+            ignore = acc0_bias_gs_ms_ns_lengths;
+            ignore = acc0_bias_gs_ms_ns_strides;
+            ignore = acc1_bias_gs_ms_gemm1ns_lengths;
+            ignore = acc1_bias_gs_ms_gemm1ns_strides;
 
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                            b_grid_desc_bk0_n_bk1_,
@@ -984,39 +975,37 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V1
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto MakeArgument(
-        const ADataType* p_a,
-        const BDataType* p_b,
-        const B1DataType* p_b1,
-        CDataType* p_c,
-        ZDataType* p_z,
-        LSEDataType* p_lse,
-        const std::array<void*, NumAcc0Bias> p_acc0_biases,
-        const std::array<void*, NumAcc1Bias> p_acc1_biases,
-        const std::vector<index_t>& a_gs_ms_ks_lengths,
-        const std::vector<index_t>& a_gs_ms_ks_strides,
-        const std::vector<index_t>& b_gs_ns_ks_lengths,
-        const std::vector<index_t>& b_gs_ns_ks_strides,
-        const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
-        const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
-        const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
-        const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-        const std::vector<index_t>& z_gs_ms_ns_lengths,
-        const std::vector<index_t>& z_gs_ms_ns_strides,
-        const std::vector<index_t>& lse_gs_ms_lengths,
-        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
-        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
-        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
-            acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
-        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
-            acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
-        AElementwiseOperation a_element_op,
-        BElementwiseOperation b_element_op,
-        AccElementwiseOperation acc_element_op,
-        B1ElementwiseOperation b1_element_op,
-        CElementwiseOperation c_element_op,
-        float p_dropout,
-        std::tuple<unsigned long long, unsigned long long> seeds)
+    static auto
+    MakeArgument(const ADataType* p_a,
+                 const BDataType* p_b,
+                 const B1DataType* p_b1,
+                 CDataType* p_c,
+                 ZDataType* p_z,
+                 LSEDataType* p_lse,
+                 const void* p_acc0_bias,
+                 const void* p_acc1_bias,
+                 const std::vector<index_t>& a_gs_ms_ks_lengths,
+                 const std::vector<index_t>& a_gs_ms_ks_strides,
+                 const std::vector<index_t>& b_gs_ns_ks_lengths,
+                 const std::vector<index_t>& b_gs_ns_ks_strides,
+                 const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
+                 const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
+                 const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
+                 const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+                 const std::vector<index_t>& z_gs_ms_ns_lengths,
+                 const std::vector<index_t>& z_gs_ms_ns_strides,
+                 const std::vector<index_t>& lse_gs_ms_lengths,
+                 const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_lengths,
+                 const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_strides,
+                 const std::vector<ck::index_t>& acc1_bias_gs_ms_gemm1ns_lengths,
+                 const std::vector<ck::index_t>& acc1_bias_gs_ms_gemm1ns_strides,
+                 AElementwiseOperation a_element_op,
+                 BElementwiseOperation b_element_op,
+                 AccElementwiseOperation acc_element_op,
+                 B1ElementwiseOperation b1_element_op,
+                 CElementwiseOperation c_element_op,
+                 float p_dropout,
+                 std::tuple<unsigned long long, unsigned long long> seeds)
     {
         return Argument{p_a,
                         p_b,
@@ -1024,8 +1013,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V1
                         p_c,
                         p_z,
                         p_lse,
-                        p_acc0_biases,
-                        p_acc1_biases,
+                        p_acc0_bias,
+                        p_acc1_bias,
                         a_gs_ms_ks_lengths,
                         a_gs_ms_ks_strides,
                         b_gs_ns_ks_lengths,
@@ -1037,10 +1026,10 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V1
                         z_gs_ms_ns_lengths,
                         z_gs_ms_ns_strides,
                         lse_gs_ms_lengths,
-                        acc0_biases_gs_ms_ns_lengths,
-                        acc0_biases_gs_ms_ns_strides,
-                        acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
-                        acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
+                        acc0_bias_gs_ms_ns_lengths,
+                        acc0_bias_gs_ms_ns_strides,
+                        acc1_bias_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
+                        acc1_bias_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
                         a_element_op,
                         b_element_op,
                         acc_element_op,
@@ -1061,8 +1050,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V1
         void* p_c,
         void* p_z,
         void* p_lse,
-        const std::array<void*, NumAcc0Bias> p_acc0_biases,
-        const std::array<void*, NumAcc1Bias> p_acc1_biases,
+        const void* p_acc0_bias,
+        const void* p_acc1_bias,
         const std::vector<index_t>& a_gs_ms_ks_lengths,
         const std::vector<index_t>& a_gs_ms_ks_strides,
         const std::vector<index_t>& b_gs_ns_ks_lengths,
@@ -1074,12 +1063,10 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V1
         const std::vector<index_t>& z_gs_ms_ns_lengths,
         const std::vector<index_t>& z_gs_ms_ns_strides,
         const std::vector<index_t>& lse_gs_ms_lengths,
-        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
-        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
-        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
-            acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
-        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
-            acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
+        const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_lengths,
+        const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_strides,
+        const std::vector<ck::index_t>& acc1_bias_gs_ms_gemm1ns_lengths,
+        const std::vector<ck::index_t>& acc1_bias_gs_ms_gemm1ns_strides,
         AElementwiseOperation a_element_op,
         BElementwiseOperation b_element_op,
         AccElementwiseOperation acc_element_op,
@@ -1094,8 +1081,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V1
                                           static_cast<CDataType*>(p_c),
                                           static_cast<ZDataType*>(p_z),
                                           static_cast<LSEDataType*>(p_lse),
-                                          p_acc0_biases, // cast in struct Argument
-                                          p_acc1_biases, // cast in struct Argument
+                                          p_acc0_bias, // cast in struct Argument
+                                          p_acc1_bias, // cast in struct Argument
                                           a_gs_ms_ks_lengths,
                                           a_gs_ms_ks_strides,
                                           b_gs_ns_ks_lengths,
@@ -1107,10 +1094,10 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V1
                                           z_gs_ms_ns_lengths,
                                           z_gs_ms_ns_strides,
                                           lse_gs_ms_lengths,
-                                          acc0_biases_gs_ms_ns_lengths,
-                                          acc0_biases_gs_ms_ns_strides,
-                                          acc1_biases_gs_ms_gemm1ns_lengths,
-                                          acc1_biases_gs_ms_gemm1ns_strides,
+                                          acc0_bias_gs_ms_ns_lengths,
+                                          acc0_bias_gs_ms_ns_strides,
+                                          acc1_bias_gs_ms_gemm1ns_lengths,
+                                          acc1_bias_gs_ms_gemm1ns_strides,
                                           a_element_op,
                                           b_element_op,
                                           acc_element_op,
