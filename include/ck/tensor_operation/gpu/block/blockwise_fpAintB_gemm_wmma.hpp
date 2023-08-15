@@ -315,7 +315,7 @@ struct Blockwise_fpAintB_GemmWMMA
             fast_numeric_converter;
 
         // basic intrinsic to determine loopover direction
-        if constexpr(MRepeat < NRepeat)
+        if constexpr( 0 )
         {
             static_for<0, KPerBlock / WmmaK, 1>{}(
                 [&](auto k) { // k=0,1,2 instead of k=0,kpack*1, ...
