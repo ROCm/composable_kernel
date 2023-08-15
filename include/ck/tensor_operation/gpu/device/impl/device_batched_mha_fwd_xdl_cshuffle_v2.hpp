@@ -442,6 +442,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
 
     struct ComputeBasePtrOfStridedBatch
     {
+        ComputeBasePtrOfStridedBatch() {}
         ComputeBasePtrOfStridedBatch(const AGridDesc_G_M_K& a_grid_desc_g_m_k,
                                      const BGridDesc_G_N_K& b_grid_desc_g_n_k,
                                      const D0GridDesc_G_M_N& d0_grid_desc_g_m_n,
@@ -661,15 +662,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                                 b1_gs_gemm1ns_gemm1ks_strides[NumDimG + NumDimO + NumDimN - 1]},
               c_mz_gemm1nz_strides_{c_gs_ms_gemm1ns_strides[NumDimG + NumDimM - 1],
                                     c_gs_ms_gemm1ns_strides[NumDimG + NumDimM + NumDimO - 1]},
-              batch_count_{c_grid_desc_g_m_n_.GetLength(I0)},
-              compute_base_ptr_of_batch_{
-                  a_grid_desc_g_m_k_,
-                  b_grid_desc_g_n_k_,
-                  d0_grid_desc_g_m_n_,
-                  b1_grid_desc_g_n_k_,
-                  c_grid_desc_g_m_n_,
-                  z_grid_desc_g_m_n_,
-                  type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize())}
+              batch_count_{c_grid_desc_g_m_n_.GetLength(I0)}
         {
             // TODO ANT: implement bias addition
             ignore = p_acc1_biases;
@@ -697,15 +690,6 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                     d0_grid_desc_g_m_n_ = Transform::MakeCGridDescriptor_G_M_N(
                         acc0_biases_gs_ms_ns_lengths, acc0_biases_gs_ms_ns_strides);
 
-                    compute_base_ptr_of_batch_ = ComputeBasePtrOfStridedBatch(
-                        a_grid_desc_g_m_k_,
-                        b_grid_desc_g_n_k_,
-                        d0_grid_desc_g_m_n_,
-                        b1_grid_desc_g_n_k_,
-                        c_grid_desc_g_m_n_,
-                        z_grid_desc_g_m_n_,
-                        type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize()));
-
                     d0_n_length_stride_.push_back(acc0_biases_gs_ms_ns_lengths[NumDimG + NumDimM]);
                     d0_n_length_stride_.push_back(acc0_biases_gs_ms_ns_strides[NumDimG + NumDimM]);
                 }
@@ -731,6 +715,15 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             {
                 is_lse_storing_ = false;
             }
+
+            compute_base_ptr_of_batch_ = ComputeBasePtrOfStridedBatch(
+                a_grid_desc_g_m_k_,
+                b_grid_desc_g_n_k_,
+                d0_grid_desc_g_m_n_,
+                b1_grid_desc_g_n_k_,
+                c_grid_desc_g_m_n_,
+                z_grid_desc_g_m_n_,
+                type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize()));
         }
 
         void Print() const

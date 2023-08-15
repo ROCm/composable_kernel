@@ -50,10 +50,9 @@ using B1DataType       = DataType;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using CDataType        = DataType;
-using DDataType        = F16;
 using ZDataType        = U16; // INT32
 using LSEDataType      = F32;
-using Acc0BiasDataType = DDataType;
+using Acc0BiasDataType = F16;
 using Acc1BiasDataType = void;
 
 static constexpr ck::index_t NumDimG = 2;
