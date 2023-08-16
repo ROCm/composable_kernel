@@ -17,6 +17,7 @@ namespace instance {
 using F64  = double;
 using F32  = float;
 using F16  = ck::half_t;
+using F8   = ck::f8_t;
 using BF16 = ck::bhalf_t;
 using I8   = int8_t;
 using I32  = int32_t;
