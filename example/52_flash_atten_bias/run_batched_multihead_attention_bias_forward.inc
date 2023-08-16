@@ -322,12 +322,12 @@ int run(int argc, char* argv[])
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
         // bias
-        acc0_g_m_n.ForEach([&](auto& self, auto idx) { self(idx) += d_g_m_n(idx); });
+        acc0_g_m_n.ForEach([&](auto& self, auto idx) { self(idx) += ck::type_convert<AccDataType>(d_g_m_n(idx)); });
         // masking
         const auto mask = DeviceGemmInstance::C0MatrixMask(M, N);
         acc0_g_m_n.ForEach([&](auto& self, auto idx) {
             if(mask.IsMaskedElement(idx[1], idx[2]))
-                self(idx) = -ck::NumericLimits<float>::Infinity();
+                self(idx) = -ck::NumericLimits<AccDataType>::Infinity();
         });
 
         // softmax

@@ -1307,8 +1307,9 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                                        d0_thread_buf);
 
                 // acc add bias
-                static_for<0, m0 * n0 * n2 * n4, 1>{}(
-                    [&](auto i) { acc_thread_buf(i) += d0_thread_buf[i]; });
+                static_for<0, m0 * n0 * n2 * n4, 1>{}([&](auto i) {
+                    acc_thread_buf(i) += ck::type_convert<FloatGemmAcc>(d0_thread_buf[i]);
+                });
 
                 d0_threadwise_copy.MoveSrcSliceWindow(
                     d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
