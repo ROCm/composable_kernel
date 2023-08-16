@@ -60,12 +60,43 @@ message("checking which targets are supported")
 #This is the list of targets to be used in case GPU_TARGETS is not set on command line
 #These targets will be filtered and only supported ones will be used
 #Setting GPU_TARGETS on command line will override this list
-rocm_check_target_ids(DEFAULT_GPU_TARGETS
-    TARGETS "gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102"
-)
+if(NOT PROFILER_ONLY)
+    rocm_check_target_ids(DEFAULT_GPU_TARGETS
+        TARGETS "gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
+else()
+    add_definitions(-DPROFILER_ONLY)
+    if(GPU_TARGETS)
+        message(FATAL_ERROR "For PROFILE_ONLY build, please do not set GPU_TARGETS, use GPU_ARCH = gfx9, gfx10, or gfx11")
+    endif()
+    if(GPU_ARCH MATCHES "gfx9")
+        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942")
+    elseif(GPU_ARCH MATCHES "gfx10")
+        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx1030")
+    elseif(GPU_ARCH MATCHES "gfx11")
+        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx1100;gfx1101;gfx1102")
+    else()
+        message(FATAL_ERROR "For PROFILE_ONLY build, please specify GPU_ARCH as gfx9, gfx10, or gfx11")
+    endif()
+endif()
+
 message("Supported GPU_TARGETS= ${DEFAULT_GPU_TARGETS}")
+
 set(AMDGPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " ")
+
+if(GPU_TARGETS)
+    message("Building CK for the following targets: ${GPU_TARGETS}")
+else()
+    message("Building CK for the following targets: ${AMDGPU_TARGETS}")
+endif()
 find_package(hip)
+# No assumption that HIP kernels are launched with uniform block size for backward compatibility
+# SWDEV-413293 and https://reviews.llvm.org/D155213
+math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
+message("hip_version_flat=${hip_VERSION_FLAT}")
+if(${hip_VERSION_FLAT} GREATER 500723302)
+   message("Adding the fno-offload-uniform-block compiler flag")
+   add_compile_options(-fno-offload-uniform-block)
+endif()
 
 option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
 option(USE_OPT_NAVI3X, "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
@@ -347,6 +378,7 @@ add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${IN
 add_subdirectory(library)
 
 if(NOT DEFINED INSTANCES_ONLY)
+ if(NOT DEFINED PROFILER_ONLY)
    rocm_package_setup_component(tests
         LIBRARY_NAME composablekernel
         PACKAGE_NAME tests # Prevent -static suffix on package name
@@ -356,15 +388,22 @@ if(NOT DEFINED INSTANCES_ONLY)
         LIBRARY_NAME composablekernel
         PACKAGE_NAME examples
    )
+   add_subdirectory(example)
+   add_subdirectory(test)
 
    rocm_package_setup_component(profiler
         LIBRARY_NAME composablekernel
         PACKAGE_NAME ckProfiler
    )
-
-   add_subdirectory(example)
-   add_subdirectory(test)
    add_subdirectory(profiler)
+  else()
+    #When building PROFILER_ONLY, label the package with GPU_ARCH
+    rocm_package_setup_component(profiler
+       LIBRARY_NAME composablekernel
+       PACKAGE_NAME ckProfiler_${GPU_ARCH}
+    )
+    add_subdirectory(profiler)
+  endif()
 endif()
 
 #Create an interface target for the include only files and call it "composablekernels"

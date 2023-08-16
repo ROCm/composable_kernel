@@ -26,6 +26,8 @@ class TestMaxPool3dFwd : public ::testing::Test
                                                       OutDataType,
                                                       ComputeDataType,
                                                       IndexDataType,
+                                                      ck::tensor_layout::convolution::NDHWC,
+                                                      ck::tensor_layout::convolution::NDHWC,
                                                       ck::ReduceTensorOp::MAX,
                                                       false,
                                                       false>(true,
@@ -35,6 +37,7 @@ class TestMaxPool3dFwd : public ::testing::Test
                                                              param.length_,
                                                              param.window_spatial_lengths_,
                                                              param.window_strides_,
+                                                             param.window_dilations_,
                                                              param.input_left_pads_,
                                                              param.input_right_pads_);
             EXPECT_TRUE(success);
@@ -44,6 +47,8 @@ class TestMaxPool3dFwd : public ::testing::Test
                                                             OutDataType,
                                                             ComputeDataType,
                                                             IndexDataType,
+                                                            ck::tensor_layout::convolution::NDHWC,
+                                                            ck::tensor_layout::convolution::NDHWC,
                                                             ck::ReduceTensorOp::MAX,
                                                             false,
                                                             true>(true,
@@ -53,6 +58,7 @@ class TestMaxPool3dFwd : public ::testing::Test
                                                                   param.length_,
                                                                   param.window_spatial_lengths_,
                                                                   param.window_strides_,
+                                                                  param.window_dilations_,
                                                                   param.input_left_pads_,
                                                                   param.input_right_pads_);
             EXPECT_TRUE(success);
@@ -60,16 +66,21 @@ class TestMaxPool3dFwd : public ::testing::Test
     }
 };
 
+#ifdef __fp16__
 using KernelTypes =
-    ::testing::Types<std::tuple<F16, F16, F16, I32>, std::tuple<F32, F32, F32, I32>>;
+    ::testing::Types<std::tuple<F16, F16, F32, I32>, std::tuple<F32, F32, F32, I32>>;
+#else
+using KernelTypes = ::testing::Types<std::tuple<F32, F32, F32, I32>>;
+#endif
 
 TYPED_TEST_SUITE(TestMaxPool3dFwd, KernelTypes);
 TYPED_TEST(TestMaxPool3dFwd, Test_Pool)
 {
-    // length, window_length, window_stride, left_pad, right_pad
-    this->params = {{{1, 1, 1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}},
-                    {{2, 16, 64, 64, 64}, {64, 64, 64}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}},
-                    {{2, 32, 30, 30, 30}, {2, 2, 2}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}}};
+    // length, window_length, window_stride, window_dilation, left_pad, right_pad
+    this->params = {{{1, 1, 1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}},
+                    {{2, 16, 64, 64, 64}, {64, 64, 64}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}},
+                    {{2, 16, 64, 64, 64}, {4, 4, 4}, {4, 4, 4}, {2, 2, 2}, {0, 0, 0}, {0, 0, 0}},
+                    {{2, 32, 30, 30, 30}, {2, 2, 2}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}}};
 
     this->Run();
 }

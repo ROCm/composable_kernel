@@ -214,13 +214,17 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
+    using ComputeType = EDataType;
+
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_splitk_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
+        BDataType,
         AccDataType,
         CShuffleDataType,
         DsDataType,
         EDataType,
+        ComputeType,
         AElementwiseOperation,
         BElementwiseOperation,
         CDEElementwiseOperation,
