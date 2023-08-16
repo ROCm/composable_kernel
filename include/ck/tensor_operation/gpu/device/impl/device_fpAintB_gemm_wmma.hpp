@@ -66,7 +66,7 @@ template <typename ALayout,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           ck::LoopScheduler LoopSched     = make_default_loop_scheduler(),
-          ck::PipelineVersion PipelineVer = ck::PipelineVersion::dequant_v1>
+          ck::PipelineVersion PipelineVer = ck::PipelineVersion::weight_only>
 struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
                                                                     BLayout,
                                                                     CLayout,
@@ -95,7 +95,7 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
     static constexpr auto BEnableLds_auto = MWaves == 1 ? false : true;
 
     // If true, LDS is used unconditionally
-    // LDS bypass feature not checked.
+    // LDS bypass feature not implemented for dequantization pipeline.
     static constexpr auto AEnableLds_manu = true;
     static constexpr auto BEnableLds_manu = true;
 
@@ -677,7 +677,7 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
         std::map<PipelineVersion, std::string> PipelineVersionToString{
             {PipelineVersion::v1, "v1"},
             {PipelineVersion::v2, "v2"},
-            {PipelineVersion::dequant_v1, "dequant_v1"}};
+            {PipelineVersion::weight_only, "weight_only"}};
 
         // clang-format off
         str << "DeviceFpAintBGemm_Wmma_CShuffle"

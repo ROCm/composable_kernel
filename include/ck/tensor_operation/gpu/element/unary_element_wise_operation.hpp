@@ -405,10 +405,10 @@ struct FastNumericArrayConverter<uint8_t, ck::half_t, 4>
         half_2[1] = __builtin_amdgcn_perm(fp16_adder, uint8_4, byte_selector_23);
 
         static constexpr uint32_t I8s_TO_F16s_MAGIC_NUM = 0x64806480;
-        asm volatile("v_pk_add_f16 %0, %1, %2 neg_lo:[0,1] neg_hi:[0,1]\n"
+        asm volatile("v_pk_add_f16 %0, %1, %2 neg_lo:[0,1] neg_hi:[0,1]"
                      : "=v"(half_2[0])
                      : "v"(half_2[0]), "s"(I8s_TO_F16s_MAGIC_NUM));
-        asm volatile("v_pk_add_f16 %0, %1, %2 neg_lo:[0,1] neg_hi:[0,1]\n"
+        asm volatile("v_pk_add_f16 %0, %1, %2 neg_lo:[0,1] neg_hi:[0,1]"
                      : "=v"(half_2[1])
                      : "v"(half_2[1]), "s"(I8s_TO_F16s_MAGIC_NUM));
 

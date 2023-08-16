@@ -27,7 +27,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle
            BLayout,             
            CLayout,             
            ADataType, 
-           BDataType, 
+           BDataType,
            CDataType, 
            AccDataType, 
            CShuffleDataType,  
@@ -35,16 +35,16 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle
            BElementOp,  
            CElementOp,    
            GemmDefault, 
-           2,           // Prefetch stage
+           1,           // Prefetch stage
            128,         // BlockSize
-           128,         // MPerBlock
-           64,          // NPerBlock
+           64,          // MPerBlock
+           128,         // NPerBlock
            64,          // KPerBlock
            8,           // K1
            16,          // MPerWmma
            16,          // NPerWmma
-           4,           // M-Repeat // M-PerWmma / M-Repeat = M-Wave
-           2,           // N-Repeat // N-PerWmma / N-Repeat = N-Wave
+           2,           // M-Repeat // M-PerWmma / M-Repeat = M-Wave
+           4,           // N-Repeat // N-PerWmma / N-Repeat = N-Wave
            S<4, 32, 1>,     
            S<1, 0, 2>,     
            S<1, 0, 2>,              

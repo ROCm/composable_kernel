@@ -12,7 +12,7 @@ enum struct PipelineVersion
 {
     v1,
     v2,
-    dequant_v1,
+    weight_only,
 };
 
 template <PipelineVersion PipelineVer,
@@ -37,9 +37,9 @@ constexpr auto GridwiseGemmPipeline_Selector()
     {
         return GridwiseGemmPipeline_v2{};
     }
-    else if constexpr(PipelineVer == PipelineVersion::dequant_v1)
+    else if constexpr(PipelineVer == PipelineVersion::weight_only)
     {
-        return GridwiseGemmPipeline_v1_dequant<NumPrefetch, AEnableLds, BEnableLds>{};
+        return GridwiseGemmPipeline_v1_WeightOnly<NumPrefetch, AEnableLds, BEnableLds>{};
     }
     else
     {
