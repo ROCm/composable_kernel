@@ -84,9 +84,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1_dequant
     static constexpr index_t nDim = SliceLengths::Size();
     using Index                   = MultiIndex<nDim>;
 
-    using SrcCoord = decltype(make_tensor_coordinate(SrcDesc{}, Index{}));
+    using SrcCoord   = decltype(make_tensor_coordinate(SrcDesc{}, Index{}));
     using ScaleCoord = decltype(make_tensor_coordinate(SrcDesc{}, Index{}));
-    using DstCoord = decltype(make_tensor_coordinate(DstDesc{}, Index{}));
+    using DstCoord   = decltype(make_tensor_coordinate(DstDesc{}, Index{}));
 
     static constexpr auto I0 = Number<0>{};
 
@@ -114,7 +114,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1_dequant
         src_coord_ = make_tensor_coordinate(src_desc, src_slice_origin_idx);
     }
 
-    __device__ void SetScaleSliceOrigin(const ScaleDesc& scale_desc, const Index& scale_slice_origin_idx)
+    __device__ void SetScaleSliceOrigin(const ScaleDesc& scale_desc,
+                                        const Index& scale_slice_origin_idx)
     {
         scale_coord_ = make_tensor_coordinate(scale_desc, scale_slice_origin_idx);
     }
@@ -274,8 +275,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_dequant
     }
 
     template <typename ScaleBuffer>
-    __device__ void RunScaleRead(const ScaleDesc& scale_desc,
-                                 const ScaleBuffer& scale_buf)
+    __device__ void RunScaleRead(const ScaleDesc& scale_desc, const ScaleBuffer& scale_buf)
     {
         static_assert(ScaleBuffer::GetAddressSpace() == AddressSpaceEnum::Global or
                           ScaleBuffer::GetAddressSpace() == AddressSpaceEnum::Lds,
@@ -358,11 +358,12 @@ struct ThreadwiseTensorSliceTransfer_v3r1_dequant
                        scale_scalar_per_access;
             }();
 
-            constexpr auto scale_data_idx_seq = generate_sequence_v2(
-                [&](auto i) { return Number<scale_data_idx[i]>{}; }, Number<scale_data_idx.Size()>{});
+            constexpr auto scale_data_idx_seq =
+                generate_sequence_v2([&](auto i) { return Number<scale_data_idx[i]>{}; },
+                                     Number<scale_data_idx.Size()>{});
 
-            const bool is_scale_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(scale_desc, scale_coord_);
+            const bool is_scale_valid = coordinate_has_valid_offset_assuming_visible_index_is_valid(
+                scale_desc, scale_coord_);
 
             using scale_vector_type = vector_type_maker_t<ScaleData, ScaleScalarPerVector>;
             using scale_vector_t    = typename scale_vector_type::type;
@@ -372,16 +373,16 @@ struct ThreadwiseTensorSliceTransfer_v3r1_dequant
                 scale_buf.template Get<scale_vector_t>(scale_coord_.GetOffset(), is_scale_valid)};
 
             // copy data from scale_vector_container into scale_thread_scratch_
-            scale_thread_scratch_
-                .template SetAsType<scale_vector_t>(
-                    scale_data_idx_seq, scale_vector_container.template AsType<scale_vector_t>()[I0]);
+            scale_thread_scratch_.template SetAsType<scale_vector_t>(
+                scale_data_idx_seq, scale_vector_container.template AsType<scale_vector_t>()[I0]);
 
             constexpr auto move_on_dim = [&]() constexpr
             {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
-                    move_on_dim_(i) = ordered_scale_access_idx[i] < ordered_scale_access_lengths[i] - 1;
+                    move_on_dim_(i) =
+                        ordered_scale_access_idx[i] < ordered_scale_access_lengths[i] - 1;
 
                     static_for<i + 1, nDim, 1>{}([&](auto j) {
                         move_on_dim_(i) &=
@@ -399,13 +400,15 @@ struct ThreadwiseTensorSliceTransfer_v3r1_dequant
                 {
                     if constexpr(forward_sweep[i])
                     {
-                        move_tensor_coordinate(
-                            scale_desc, scale_coord_, scale_forward_steps[scale_dim_access_order[i]]);
+                        move_tensor_coordinate(scale_desc,
+                                               scale_coord_,
+                                               scale_forward_steps[scale_dim_access_order[i]]);
                     }
                     else
                     {
-                        move_tensor_coordinate(
-                            scale_desc, scale_coord_, scale_backward_steps[scale_dim_access_order[i]]);
+                        move_tensor_coordinate(scale_desc,
+                                               scale_coord_,
+                                               scale_backward_steps[scale_dim_access_order[i]]);
                     }
                 }
             });
@@ -462,9 +465,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1_dequant
 
             constexpr auto scalar_per_access = generate_sequence(
                 detail::lambda_scalar_per_access_for_src_and_dst_idle<SrcVectorDim,
-                                                                 SrcScalarPerVector,
-                                                                 DstVectorDim,
-                                                                 DstScalarPerVector>{},
+                                                                      SrcScalarPerVector,
+                                                                      DstVectorDim,
+                                                                      DstScalarPerVector>{},
                 Number<nDim>{});
 
             constexpr auto access_lengths = SliceLengths{} / scalar_per_access;
@@ -500,20 +503,46 @@ struct ThreadwiseTensorSliceTransfer_v3r1_dequant
                 // do data transpose
                 transpose_vectors<SrcData, DstScalarPerVector, SrcScalarPerVector>{}(
                     src_vector_refs, dst_vector_refs);
-                
-                // do fast numeric convert
-                src_converted_thread_scratch_.template SetAsType<SrcThreadConvertedScratch::V>(access_idx,
-                    fast_numeric_converter(
-                        src_thread_scratch_tuple_[thread_scratch_id].template GetAsType<SrcThreadScratch::V>(access_idx)));
             });
         }
 
+        // Do fast numeric convert
+        constexpr auto scalar_per_access = generate_sequence(
+            detail::lambda_scalar_per_access_for_src_and_dst_idle<SrcVectorDim,
+                                                                  SrcScalarPerVector,
+                                                                  DstVectorDim,
+                                                                  DstScalarPerVector>{},
+            Number<nDim>{});
+
+        constexpr auto access_lengths = SliceLengths{} / scalar_per_access;
+
+        using src_vector_type = vector_type_maker_t<SrcData, SrcScalarPerVector>;
+        using src_vector_t    = typename src_vector_type::type;
+
+        using src_converted_vector_type = vector_type_maker_t<DstData, SrcScalarPerVector>;
+        using src_converted_vector_t    = typename src_converted_vector_type::type;
+        // Vector-wise type convert
+        static_ford<decltype(access_lengths)>{}([&](auto access_idx) {
+            auto src_vector_container = src_vector_type{
+                src_thread_scratch_tuple_[thread_scratch_id].template GetAsType<src_vector_t>(
+                    access_idx)};
+
+            auto src_converted_vector_container =
+                src_converted_vector_type{fast_numeric_converter(src_vector_container)};
+
+            src_converted_thread_scratch_.template SetAsType<src_converted_vector_t>(
+                access_idx,
+                src_converted_vector_container.template AsType<src_converted_vector_t>()[I0]);
+        });
+
+        // Element-scale operation, expect packed multiplication
         static_ford<SliceLengths>{}([&](auto idx) {
-            // apply the src elementwise op and convert to DstData under the hood if needed
-            // Scale is dynamic, could not implement through element_op.
             DstData dst_v;
             constexpr auto scale_idx = Sequence<I0, idx.At(1), I0>{};
-            src_element_op_(dst_v, src_converted_thread_scratch_[idx] * scale_thread_scratch_[scale_idx]);
+            // printf("Tid: %03d, scale: %04x\n", get_thread_local_1d_id(),
+            // *(reinterpret_cast<const uint16_t*>(&scale_thread_scratch_[scale_idx])));
+            src_element_op_(dst_v,
+                            src_converted_thread_scratch_[idx] * scale_thread_scratch_[scale_idx]);
             dst_thread_scratch_(idx) = dst_v;
         });
 #endif
@@ -978,13 +1007,14 @@ struct ThreadwiseTensorSliceTransfer_v3r1_dequant
 
     private:
     static constexpr auto src_thread_scratch_desc_ = decltype(GetSrcThreadScratchDescriptor()){};
-    static constexpr auto scale_thread_scratch_desc_ = decltype(GetScaleThreadScratchDescriptor()){};
+    static constexpr auto scale_thread_scratch_desc_ =
+        decltype(GetScaleThreadScratchDescriptor()){};
     static constexpr auto dst_thread_scratch_desc_ = decltype(GetDstThreadScratchDescriptor()){};
 
-/*
-    template <bool kLastDim>
-    struct ScaleThreadScratchDesc{};
-*/   
+    /*
+        template <bool kLastDim>
+        struct ScaleThreadScratchDesc{};
+    */
 
     // Registers, contain raw data loaded from global buffer
     using SrcThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
@@ -992,20 +1022,21 @@ struct ThreadwiseTensorSliceTransfer_v3r1_dequant
                                                              SrcScalarPerVector,
                                                              decltype(src_thread_scratch_desc_),
                                                              true>;
-    
+
     // Registers, contain fast converted data
-    using SrcThreadConvertedScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
-                                                             DstData,
-                                                             SrcScalarPerVector,
-                                                             decltype(src_thread_scratch_desc_),
-                                                             true>;
+    using SrcThreadConvertedScratch =
+        StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
+                                        DstData,
+                                        SrcScalarPerVector,
+                                        decltype(src_thread_scratch_desc_),
+                                        true>;
 
     // Registers, contain scale data
     using ScaleThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
-                                                             ScaleData,
-                                                             ScaleScalarPerVector,
-                                                             decltype(scale_thread_scratch_desc_),
-                                                             true>;
+                                                               ScaleData,
+                                                               ScaleScalarPerVector,
+                                                               decltype(scale_thread_scratch_desc_),
+                                                               true>;
 
     // Registers, contain dequantized data
     using DstThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
@@ -1013,8 +1044,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1_dequant
                                                              DstScalarPerVector,
                                                              decltype(dst_thread_scratch_desc_),
                                                              true>;
-    
-    using FastTypeConverter = tensor_operation::element_wise::FastNumericArrayConverter<SrcData, DstData, SrcScalarPerVector>;
+
+    using FastTypeConverter = tensor_operation::element_wise::
+        FastNumericArrayConverter<SrcData, DstData, SrcScalarPerVector>;
 
     StaticallyIndexedArray<SrcThreadScratch, NumThreadScratch> src_thread_scratch_tuple_;
     SrcThreadConvertedScratch src_converted_thread_scratch_;

@@ -544,9 +544,9 @@ struct GridwiseFpAintBGemm_Wmma
     {
         // LDS allocation for A and Dequantized B: be careful of DataType
         // scale would not put into LDS.
-        using LDS_ADataType = ADataType;
-        using LDS_BDataType = ADataType;
-        using LDS_CDataType = CShuffleDataType;
+        using LDS_ADataType                 = ADataType;
+        using LDS_BDataType                 = ADataType;
+        using LDS_CDataType                 = CShuffleDataType;
         static constexpr auto max_lds_align = K1;
 
         static constexpr auto a_block_space_size_aligned =

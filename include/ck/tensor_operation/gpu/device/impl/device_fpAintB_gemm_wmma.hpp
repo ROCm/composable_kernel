@@ -677,7 +677,6 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
         std::map<PipelineVersion, std::string> PipelineVersionToString{
             {PipelineVersion::v1, "v1"},
             {PipelineVersion::v2, "v2"},
-            {PipelineVersion::dequant_v1, "dequant_v1"},
             {PipelineVersion::weight_only, "weight_only"}};
 
         // clang-format off

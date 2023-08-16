@@ -17,7 +17,7 @@ namespace ck {
  * RunRead  would load low-precision data and scale data.
  * RunWrite would process dequantization process.
  * Assume Scale is identical along K-dimension
- * 
+ *
  * This version does following things to avoid scratch memory issue
  * 1. Use StaticallyIndexedArray instead of C array for thread buffer
  * 2. ThreadwiseTensorSliceTransfer_v3 does not keep reference to tensor descriptor
@@ -57,7 +57,8 @@ struct ThreadGroupTensorSliceTransfer_v4r1_dequant
     static constexpr index_t nDim = remove_reference_t<SrcDesc>::GetNumOfDimension();
 
     static constexpr auto thread_slice_lengths = BlockSliceLengths{} / ThreadClusterLengths{};
-    static constexpr auto scale_thread_slice_lengths = BlockScaleSliceLengths{} / ThreadClusterLengths{};
+    static constexpr auto scale_thread_slice_lengths =
+        BlockScaleSliceLengths{} / ThreadClusterLengths{};
 
     using Index = MultiIndex<nDim>;
 
@@ -83,7 +84,7 @@ struct ThreadGroupTensorSliceTransfer_v4r1_dequant
 
     {
         static_assert(nDim == remove_cvref_t<SrcDesc>::GetNumOfDimension() &&
-                      nDim == remove_cvref_t<ScaleDesc>::GetNumOfDimension() &&
+                          nDim == remove_cvref_t<ScaleDesc>::GetNumOfDimension() &&
                           nDim == remove_cvref_t<DstDesc>::GetNumOfDimension() &&
                           nDim == ThreadClusterLengths::Size() &&
                           nDim == ThreadClusterArrangeOrder::Size() &&
@@ -91,8 +92,9 @@ struct ThreadGroupTensorSliceTransfer_v4r1_dequant
                       "wrong! nDim not consistent");
 
         static_assert(
-            is_same<BlockSliceLengths, decltype(thread_slice_lengths * ThreadClusterLengths{})>{} && 
-            is_same<BlockScaleSliceLengths, decltype(scale_thread_slice_lengths * ThreadClusterLengths{})>{} ,
+            is_same<BlockSliceLengths, decltype(thread_slice_lengths * ThreadClusterLengths{})>{} &&
+                is_same<BlockScaleSliceLengths,
+                        decltype(scale_thread_slice_lengths * ThreadClusterLengths{})>{},
             "wrong! threads should be mapped to cover entire slicing window");
 
         static_assert(ThreadGroup::GetNumOfThread() >= thread_cluster_desc_.GetElementSize(),
@@ -108,8 +110,8 @@ struct ThreadGroupTensorSliceTransfer_v4r1_dequant
 
             threadwise_transfer_.SetSrcSliceOrigin(src_desc,
                                                    src_block_slice_origin + thread_data_idx_begin);
-            threadwise_transfer_.SetScaleSliceOrigin(scale_desc,
-                                                   scale_block_slice_origin + thread_data_idx_begin);
+            threadwise_transfer_.SetScaleSliceOrigin(
+                scale_desc, scale_block_slice_origin + thread_data_idx_begin);
             threadwise_transfer_.SetDstSliceOrigin(dst_desc,
                                                    dst_block_slice_origin + thread_data_idx_begin);
         }
@@ -129,8 +131,7 @@ struct ThreadGroupTensorSliceTransfer_v4r1_dequant
 
     // With the assumption, scale scratch is always one
     template <typename ScaleBuffer>
-    __device__ void RunScaleRead(const ScaleDesc& scale_desc,
-                            const ScaleBuffer& scale_buf)
+    __device__ void RunScaleRead(const ScaleDesc& scale_desc, const ScaleBuffer& scale_buf)
     {
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
@@ -191,30 +192,30 @@ struct ThreadGroupTensorSliceTransfer_v4r1_dequant
 
     using ThreadwiseTransfer =
         ThreadwiseTensorSliceTransfer_v3r1_dequant<decltype(thread_slice_lengths),
-                                           decltype(scale_thread_slice_lengths),
-                                           SrcElementwiseOperation,
-                                           ScaleElementwiseOperation,
-                                           DstElementwiseOperation,
-                                           DstInMemOp,
-                                           SrcData,
-                                           ScaleData,
-                                           DstData,
-                                           SrcDesc,
-                                           ScaleDesc,
-                                           DstDesc,
-                                           SrcDimAccessOrder,
-                                           DstDimAccessOrder,
-                                           SrcVectorDim,
-                                           DstVectorDim,
-                                           SrcScalarPerVector,
-                                           ScaleScalarPerVector,
-                                           DstScalarPerVector,
-                                           SrcScalarStrideInVector,
-                                           ScaleScalarStrideInVector,
-                                           DstScalarStrideInVector,
-                                           ThreadTransferSrcResetCoordinateAfterRun,
-                                           ThreadTransferDstResetCoordinateAfterRun,
-                                           NumThreadScratch>;
+                                                   decltype(scale_thread_slice_lengths),
+                                                   SrcElementwiseOperation,
+                                                   ScaleElementwiseOperation,
+                                                   DstElementwiseOperation,
+                                                   DstInMemOp,
+                                                   SrcData,
+                                                   ScaleData,
+                                                   DstData,
+                                                   SrcDesc,
+                                                   ScaleDesc,
+                                                   DstDesc,
+                                                   SrcDimAccessOrder,
+                                                   DstDimAccessOrder,
+                                                   SrcVectorDim,
+                                                   DstVectorDim,
+                                                   SrcScalarPerVector,
+                                                   ScaleScalarPerVector,
+                                                   DstScalarPerVector,
+                                                   SrcScalarStrideInVector,
+                                                   ScaleScalarStrideInVector,
+                                                   DstScalarStrideInVector,
+                                                   ThreadTransferSrcResetCoordinateAfterRun,
+                                                   ThreadTransferDstResetCoordinateAfterRun,
+                                                   NumThreadScratch>;
 
     ThreadwiseTransfer threadwise_transfer_;
 };
