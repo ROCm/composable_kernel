@@ -109,9 +109,15 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
         pad2      = arg_parser.long_opts["pad2"];
     }
 
-    using F16   = ck::half_t;
-    using BF16  = ck::bhalf_t;
-    using F32   = float;
+#ifdef __fp16__
+    using F16 = ck::half_t;
+#endif
+#ifdef __bf16__
+    using BF16 = ck::bhalf_t;
+#endif
+#ifdef __fp32__
+    using F32 = float;
+#endif
     using I32   = int32_t;
     using NDHWC = ck::tensor_layout::convolution::NDHWC;
 
@@ -121,8 +127,10 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
     constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
 #endif
 
+    if(false)
+        ;
 #ifdef __fp16__
-    if(data_type == ck::DataTypeEnum::Half)
+    else if(data_type == ck::DataTypeEnum::Half)
     {
         if(return_index)
             ck::profiler::
