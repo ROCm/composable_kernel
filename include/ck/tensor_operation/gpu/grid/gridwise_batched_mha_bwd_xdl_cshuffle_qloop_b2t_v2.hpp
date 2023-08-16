@@ -21,6 +21,7 @@
 namespace ck {
 
 template <typename InputDataType,
+          typename D0DataType,
           typename OutputDataType,
           typename ZDataType,
           typename GemmDataType,
@@ -36,6 +37,7 @@ template <typename InputDataType,
           typename QGridDesc_K0_M_K1,
           typename KGridDesc_K0_N_K1,
           typename KGridDesc_N_K,
+          typename D0GridDesc_M_N,
           typename ZGridDesc_M_N,
           typename VGridDesc_N0_O_N1,
           typename YGridDesc_M_O,
@@ -119,6 +121,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
     // Gemm1
     static constexpr auto B1K0 = Number<Gemm1KPerBlock / B1K1Value>{};
     static constexpr auto B1K1 = Number<B1K1Value>{};
+
+    // D0
+    static constexpr auto D0M3 = Number<2>{};
+    static constexpr auto D0M2 = Number<MPerXdl / D0M3.value>{};
+    static constexpr auto D0M1 = Number<MPerBlock / MPerXdl>{};
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -1152,6 +1159,32 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                          softmax_bytes_end,
                          c_block_bytes_end);
     }
+
+    __host__ __device__ static constexpr auto
+    MakeD0GridDescriptor_M0_N0_M1_M2_N1_M3(const D0GridDesc_M_N& d0_grid_desc_m_n)
+    {
+        const auto M = d0_grid_desc_m_n.GetLength(I0);
+        const auto N = d0_grid_desc_m_n.GetLength(I1);
+
+        const auto MBlock = M / MPerBlock;
+        const auto NBlock = N / NPerBlock;
+
+        const auto d0_grid_desc_m0_n0_m1_m2_n1_m3 = transform_tensor_descriptor(
+            d0_grid_desc_m_n,
+            make_tuple(make_unmerge_transform(make_tuple(MBlock, D0M1, D0M2, D0M3)),
+                       make_unmerge_transform(make_tuple(NBlock, Number<NPerBlock>{}))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0, 2, 3, 5>{}, Sequence<1, 4>{}));
+
+        return d0_grid_desc_m0_n0_m1_m2_n1_m3;
+    }
+
+    struct D0
+    {
+    };
+
+    using D0GridDescriptor_M0_N0_M1_M2_N1_M3 =
+        remove_cvref_t<decltype(MakeD0GridDescriptor_M0_N0_M1_M2_N1_M3(D0GridDesc_M_N{}))>;
 
     template <bool HasMainKBlockLoop,
               bool IsDropout,

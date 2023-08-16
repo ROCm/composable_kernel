@@ -70,8 +70,7 @@ using AccDataType      = F32;
 using ShuffleDataType  = F32;
 using LSEDataType      = F32;
 using ZDataType        = U16; // INT32
-using DDataType        = F16;
-using Acc0BiasDataType = DDataType;
+using Acc0BiasDataType = F16;
 using Acc1BiasDataType = void;
 
 static constexpr ck::index_t NumDimG = 2;
@@ -414,35 +413,35 @@ int run(int argc, char* argv[])
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<DDataType>{-2, 2});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<Acc0BiasDataType>{-2, 2});
         break;
     case 2:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<InputDataType>{0.0, 1.0});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_3<InputDataType>{0.0, 1.0});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_3<InputDataType>{-0.5, 0.5});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_3<InputDataType>{-0.5, 0.5});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<DDataType>{-0.5, 0.5});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<Acc0BiasDataType>{-0.5, 0.5});
         break;
     case 3:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-5, 5});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DDataType>{1});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         break;
     case 4:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DDataType>{1});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         break;
     case 5:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<2>{}); // dy[g0, g1, m, o]
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DDataType>{1});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         // dO dot O = [0; 1; 2; ...]
         break;
     case 6:
@@ -450,7 +449,7 @@ int run(int argc, char* argv[])
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<3>{}); // dy[g0, g1, m, o]
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DDataType>{1});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         // assume mnko = 256
         // P = softmax(QK) = 0.0039 * ones
         // O = P V = 0.0039 * ones
@@ -464,7 +463,7 @@ int run(int argc, char* argv[])
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1}); // dy[g0, g1, m, o]
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DDataType>{1});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         // assume mnko = 256
         // P = softmax(QK) = 0.0039 * ones
         // O = P V = 0.0039 * ones
@@ -477,7 +476,7 @@ int run(int argc, char* argv[])
 
     Tensor<InputDataType> q_g_m_k({BatchCount, M, K});
     Tensor<InputDataType> k_g_n_k({BatchCount, N, K});
-    Tensor<DDataType> d_g_m_n({G0 * G1, M, N});
+    Tensor<Acc0BiasDataType> d_g_m_n({G0 * G1, M, N});
     Tensor<ZDataType> z_g_m_n({BatchCount, M, N});
     Tensor<InputDataType> v_g_n_o({BatchCount, N, O});
     Tensor<AccDataType> s_g_m_n({BatchCount, M, N});
@@ -498,7 +497,7 @@ int run(int argc, char* argv[])
     // qkv gradients have the same descriptor as with qkv
     DeviceMem q_device_buf(sizeof(InputDataType) * q_gs_ms_ks.mDesc.GetElementSpaceSize());
     DeviceMem k_device_buf(sizeof(InputDataType) * k_gs_ns_ks.mDesc.GetElementSpaceSize());
-    DeviceMem d_device_buf(sizeof(DDataType) * d_gs_ms_ns.mDesc.GetElementSpaceSize());
+    DeviceMem d_device_buf(sizeof(Acc0BiasDataType) * d_gs_ms_ns.mDesc.GetElementSpaceSize());
     DeviceMem z_device_buf(sizeof(ZDataType) * z_gs_ms_ns.mDesc.GetElementSpaceSize());
     DeviceMem v_device_buf(sizeof(InputDataType) * v_gs_os_ns.mDesc.GetElementSpaceSize());
     DeviceMem y_device_buf(sizeof(InputDataType) * y_gs_ms_os.mDesc.GetElementSpaceSize());
@@ -529,8 +528,8 @@ int run(int argc, char* argv[])
             static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
-            static_cast<DDataType*>(d_device_buf.GetDeviceBuffer()), //  p_acc0_biases;
-            nullptr,                                                 //  p_acc1_biases;
+            static_cast<Acc0BiasDataType*>(d_device_buf.GetDeviceBuffer()), //  p_acc0_biases;
+            nullptr,                                                        //  p_acc1_biases;
             q_gs_ms_ks_lengths,
             q_gs_ms_ks_strides,
             k_gs_ns_ks_lengths,
@@ -563,41 +562,41 @@ int run(int argc, char* argv[])
         invoker.Run(argument, StreamConfig{nullptr, false});
     }
     // not need output z matrix
-    auto argument =
-        gemm.MakeArgument(static_cast<InputDataType*>(q_device_buf.GetDeviceBuffer()),
-                          static_cast<InputDataType*>(k_device_buf.GetDeviceBuffer()),
-                          static_cast<ZDataType*>(nullptr), // set to nullptr
-                          static_cast<InputDataType*>(v_device_buf.GetDeviceBuffer()),
-                          static_cast<InputDataType*>(y_device_buf.GetDeviceBuffer()),
-                          static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-                          static_cast<InputDataType*>(ygrad_device_buf.GetDeviceBuffer()),
-                          static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
-                          static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
-                          static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
-                          static_cast<DDataType*>(d_device_buf.GetDeviceBuffer()), // p_acc0_biases;
-                          nullptr,                                                 // p_acc1_biases;
-                          q_gs_ms_ks_lengths,
-                          q_gs_ms_ks_strides,
-                          k_gs_ns_ks_lengths,
-                          k_gs_ns_ks_strides,
-                          z_gs_ms_ns_lengths,
-                          z_gs_ms_ns_strides,
-                          v_gs_os_ns_lengths,
-                          v_gs_os_ns_strides,
-                          y_gs_ms_os_lengths,
-                          y_gs_ms_os_strides,
-                          lse_gs_ms_lengths,
-                          d_gs_ms_ns_lengths, // acc0_biases_gs_ms_ns_lengths
-                          d_gs_ms_ns_strides, // acc0_biases_gs_ms_ns_strides
-                          {},                 // acc1_biases_gs_ms_os_lengths,
-                          {},                 // acc1_biases_gs_ms_os_strides,
-                          QKVElementOp{},
-                          QKVElementOp{},
-                          Scale{alpha},
-                          QKVElementOp{},
-                          YElementOp{},
-                          p_drop,
-                          std::tuple<unsigned long long, unsigned long long>(seed, offset));
+    auto argument = gemm.MakeArgument(
+        static_cast<InputDataType*>(q_device_buf.GetDeviceBuffer()),
+        static_cast<InputDataType*>(k_device_buf.GetDeviceBuffer()),
+        static_cast<ZDataType*>(nullptr), // set to nullptr
+        static_cast<InputDataType*>(v_device_buf.GetDeviceBuffer()),
+        static_cast<InputDataType*>(y_device_buf.GetDeviceBuffer()),
+        static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
+        static_cast<InputDataType*>(ygrad_device_buf.GetDeviceBuffer()),
+        static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
+        static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
+        static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
+        static_cast<Acc0BiasDataType*>(d_device_buf.GetDeviceBuffer()), // p_acc0_biases;
+        nullptr,                                                        // p_acc1_biases;
+        q_gs_ms_ks_lengths,
+        q_gs_ms_ks_strides,
+        k_gs_ns_ks_lengths,
+        k_gs_ns_ks_strides,
+        z_gs_ms_ns_lengths,
+        z_gs_ms_ns_strides,
+        v_gs_os_ns_lengths,
+        v_gs_os_ns_strides,
+        y_gs_ms_os_lengths,
+        y_gs_ms_os_strides,
+        lse_gs_ms_lengths,
+        d_gs_ms_ns_lengths, // acc0_biases_gs_ms_ns_lengths
+        d_gs_ms_ns_strides, // acc0_biases_gs_ms_ns_strides
+        {},                 // acc1_biases_gs_ms_os_lengths,
+        {},                 // acc1_biases_gs_ms_os_strides,
+        QKVElementOp{},
+        QKVElementOp{},
+        Scale{alpha},
+        QKVElementOp{},
+        YElementOp{},
+        p_drop,
+        std::tuple<unsigned long long, unsigned long long>(seed, offset));
     qgrad_device_buf.SetZero();
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
