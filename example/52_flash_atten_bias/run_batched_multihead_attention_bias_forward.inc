@@ -116,7 +116,7 @@ int run(int argc, char* argv[])
     Tensor<B1DataType> b1_gs_os_ns(b1_gs_os_ns_lengths, b1_gs_os_ns_strides);
     Tensor<CDataType> c_gs_ms_os_host_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
     Tensor<CDataType> c_gs_ms_os_device_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
-    Tensor<DDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, z_gs_ms_ns_strides);
+    Tensor<Acc0BiasDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, z_gs_ms_ns_strides);
     Tensor<ZDataType> z_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
     Tensor<LSEDataType> lse_gs_ms_host_result(lse_gs_ms_lengths, lse_gs_ms_strides);
     Tensor<LSEDataType> lse_gs_ms_device_result(lse_gs_ms_lengths, lse_gs_ms_strides);
@@ -137,25 +137,25 @@ int run(int argc, char* argv[])
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<DDataType>{-2, 2});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<Acc0BiasDataType>{-1, 1});
         break;
     case 2:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<DDataType>{-0.5, 0.5});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<Acc0BiasDataType>{-0.5, 0.5});
         break;
     case 3:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DDataType>{1});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         break;
     default:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_Sequential<2>{});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DDataType>{1});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
     }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_gs_ms_ks.mDesc.GetElementSpaceSize());
@@ -163,7 +163,7 @@ int run(int argc, char* argv[])
     DeviceMem b1_device_buf(sizeof(B1DataType) * b1_gs_os_ns.mDesc.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(CDataType) *
                            c_gs_ms_os_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem d_device_buf(sizeof(DDataType) * d_gs_ms_ns.mDesc.GetElementSpaceSize());
+    DeviceMem d_device_buf(sizeof(Acc0BiasDataType) * d_gs_ms_ns.mDesc.GetElementSpaceSize());
     DeviceMem z_device_buf(sizeof(ZDataType) * z_gs_ms_ns.mDesc.GetElementSpaceSize());
     DeviceMem lse_device_buf(sizeof(LSEDataType) *
                              lse_gs_ms_device_result.mDesc.GetElementSpaceSize());
@@ -181,40 +181,40 @@ int run(int argc, char* argv[])
 
     // do GEMM
     // TODO ANT: replace array with vector?
-    auto gemm     = DeviceGemmInstance{};
-    auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(
-        static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-        static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
-        static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
-        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-        static_cast<ZDataType*>(nullptr),
-        static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-        std::array<void*, 1>{d_device_buf.GetDeviceBuffer()}, // std::array<void*, 1> p_acc0_biases;
-        {},                                                   // std::array<void*, 1> p_acc1_biases;
-        a_gs_ms_ks_lengths,
-        a_gs_ms_ks_strides,
-        b0_gs_ns_ks_lengths,
-        b0_gs_ns_ks_strides,
-        b1_gs_os_ns_lengths,
-        b1_gs_os_ns_strides,
-        c_gs_ms_os_lengths,
-        c_gs_ms_os_strides,
-        z_gs_ms_ns_lengths,
-        z_gs_ms_ns_strides,
-        lse_gs_ms_lengths,
-        std::array<std::vector<ck::index_t>, 1>{d_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
-        std::array<std::vector<ck::index_t>, 1>{d_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
-        a_element_op,
-        b0_element_op,
-        acc0_element_op,
-        b1_element_op,
-        c_element_op,
-        p_drop,          // dropout ratio
-        {seed, offset}); // dropout random seed and offset, offset should be at least the number of
-                         // elements on a thread
+    auto gemm    = DeviceGemmInstance{};
+    auto invoker = gemm.MakeInvoker();
+    auto argument =
+        gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                          static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
+                          static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
+                          static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                          static_cast<ZDataType*>(nullptr),
+                          static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
+                          static_cast<Acc0BiasDataType*>(d_device_buf.GetDeviceBuffer()), //
+                          nullptr,
+                          a_gs_ms_ks_lengths,
+                          a_gs_ms_ks_strides,
+                          b0_gs_ns_ks_lengths,
+                          b0_gs_ns_ks_strides,
+                          b1_gs_os_ns_lengths,
+                          b1_gs_os_ns_strides,
+                          c_gs_ms_os_lengths,
+                          c_gs_ms_os_strides,
+                          z_gs_ms_ns_lengths,
+                          z_gs_ms_ns_strides,
+                          lse_gs_ms_lengths,
+                          d_gs_ms_ns_lengths, // acc0_biases_gs_ms_ns_lengths
+                          d_gs_ms_ns_strides, // acc0_biases_gs_ms_ns_strides
+                          {},                 // std::vector<ck::index_t>
+                          {},                 // std::vector<ck::index_t>
+                          a_element_op,
+                          b0_element_op,
+                          acc0_element_op,
+                          b1_element_op,
+                          c_element_op,
+                          p_drop,          // dropout ratio
+                          {seed, offset}); // dropout random seed and offset, offset should be at
+                                           // least the number of elements on a thread
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -227,15 +227,16 @@ int run(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
-    std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
-                             sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O + 
-                             sizeof(DDataType) * M * N * Acc0BiasDataType::Size()) *
-                            BatchCount;
+    std::size_t flop = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
+    std::size_t num_bytes =
+        (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N + sizeof(B1DataType) * N * O +
+         sizeof(CDataType) * M * O +
+         sizeof(Acc0BiasDataType) * M * N * (std::is_void<Acc0BiasDataType>::value ? 0 : 1)) *
+        BatchCount;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
+    float gb_per_sec = num_bytes / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
@@ -243,41 +244,38 @@ int run(int argc, char* argv[])
     if(do_verification)
     {
         // run for storing z tensor
-        argument = gemm.MakeArgument(
-            static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-            static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
-            static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
-            static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-            static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
-            static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-            std::array<void*, 1>{
-                d_device_buf.GetDeviceBuffer()}, // std::array<void*, 1> p_acc0_biases;
-            {},                                  // std::array<void*, 1> p_acc1_biases;
-            a_gs_ms_ks_lengths,
-            a_gs_ms_ks_strides,
-            b0_gs_ns_ks_lengths,
-            b0_gs_ns_ks_strides,
-            b1_gs_os_ns_lengths,
-            b1_gs_os_ns_strides,
-            c_gs_ms_os_lengths,
-            c_gs_ms_os_strides,
-            z_gs_ms_ns_lengths,
-            z_gs_ms_ns_strides,
-            lse_gs_ms_lengths,
-            std::array<std::vector<ck::index_t>, 1>{
-                d_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
-            std::array<std::vector<ck::index_t>, 1>{
-                d_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
-            a_element_op,
-            b0_element_op,
-            acc0_element_op,
-            b1_element_op,
-            c_element_op,
-            p_drop,          // dropout ratio
-            {seed, offset}); // dropout random seed and offset, offset should be at least the number
-                             // of elements on a thread
+        argument =
+            gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                              static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
+                              static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
+                              static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                              static_cast<ZDataType*>(z_device_buf.GetDeviceBuffer()),
+                              static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
+                              static_cast<Acc0BiasDataType*>(d_device_buf.GetDeviceBuffer()),
+                              nullptr,
+                              a_gs_ms_ks_lengths,
+                              a_gs_ms_ks_strides,
+                              b0_gs_ns_ks_lengths,
+                              b0_gs_ns_ks_strides,
+                              b1_gs_os_ns_lengths,
+                              b1_gs_os_ns_strides,
+                              c_gs_ms_os_lengths,
+                              c_gs_ms_os_strides,
+                              z_gs_ms_ns_lengths,
+                              z_gs_ms_ns_strides,
+                              lse_gs_ms_lengths,
+                              d_gs_ms_ns_lengths,
+                              d_gs_ms_ns_strides,
+                              {},
+                              {},
+                              a_element_op,
+                              b0_element_op,
+                              acc0_element_op,
+                              b1_element_op,
+                              c_element_op,
+                              p_drop,          // dropout ratio
+                              {seed, offset}); // dropout random seed and offset, offset should be
+                                               // at least the number of elements on a thread
         c_device_buf.SetZero();
         lse_device_buf.SetZero();
         invoker.Run(argument, StreamConfig{nullptr, false});
@@ -294,7 +292,7 @@ int run(int argc, char* argv[])
         Tensor<ADataType> a1_g_m_n_drop({G0 * G1, M, N});
         Tensor<LSEDataType> lse_g_m_host_result(
             {BatchCount, M}); // scratch object after max + ln(sum)
-        Tensor<DDataType> d_g_m_n({G0 * G1, M, N});
+        Tensor<Acc0BiasDataType> d_g_m_n({G0 * G1, M, N});
         Tensor<ZDataType> z_g_m_n({G0 * G1, M, N});
         Tensor<CDataType> c_g_m_o_host_result({BatchCount, M, O}); // scratch object after gemm1
 
@@ -324,12 +322,12 @@ int run(int argc, char* argv[])
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
         // bias
-        acc0_g_m_n.ForEach([&](auto& self, auto idx) { self(idx) += d_g_m_n(idx); });
+        acc0_g_m_n.ForEach([&](auto& self, auto idx) { self(idx) += ck::type_convert<AccDataType>(d_g_m_n(idx)); });
         // masking
         const auto mask = DeviceGemmInstance::C0MatrixMask(M, N);
         acc0_g_m_n.ForEach([&](auto& self, auto idx) {
             if(mask.IsMaskedElement(idx[1], idx[2]))
-                self(idx) = -ck::NumericLimits<float>::Infinity();
+                self(idx) = -ck::NumericLimits<AccDataType>::Infinity();
         });
 
         // softmax

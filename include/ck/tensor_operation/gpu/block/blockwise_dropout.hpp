@@ -138,12 +138,12 @@ struct BlockwiseDropout
 
         constexpr int tmp_size = MRepeat * KRepeat;
 
-        int philox_calls = tmp_size / 4;
+        int philox_calls = tmp_size / 8;
 
         ushort tmp[tmp_size];
         for(int i = 0; i < philox_calls; i++)
         {
-            ph.get_random_4x16((tmp + i * 4), element_global_1d_id + i * Offset{} * MRaw);
+            ph.get_random_8x16((tmp + i * 8), element_global_1d_id + i * Offset{} * MRaw);
         }
 
         block_sync_lds();
@@ -179,12 +179,12 @@ struct BlockwiseDropout
 
         constexpr int tmp_size = MRepeat * KRepeat;
 
-        int philox_calls = tmp_size / 4;
+        int philox_calls = tmp_size / 8;
 
         ushort tmp[tmp_size];
         for(int i = 0; i < philox_calls; i++)
         {
-            ph.get_random_4x16((tmp + i * 4), element_global_1d_id + i * Offset{} * MRaw);
+            ph.get_random_8x16((tmp + i * 8), element_global_1d_id + i * Offset{} * MRaw);
         }
 
         block_sync_lds();
@@ -218,21 +218,19 @@ struct BlockwiseDropout
     }
 
     // get raw z matrix with random number for shuffle
-    template <typename ZThreadBuffer,
-              typename Step,
-              typename Offset> // N3*N4=8
+    template <typename ZThreadBuffer, typename Step, typename Offset>
     __host__ __device__ void GenerateZMatrixAttnFwd(ck::philox& ph,
                                                     index_t element_global_1d_id,
                                                     ZThreadBuffer& z_thread_buf)
     {
         constexpr int tmp_size = MRepeat * KRepeat / Step{}.value;
 
-        int philox_calls = tmp_size / 4;
+        int philox_calls = tmp_size / 8;
 
         ushort tmp[tmp_size];
         for(int i = 0; i < philox_calls; i++)
         {
-            ph.get_random_4x16((tmp + i * 4), element_global_1d_id + i * Offset{});
+            ph.get_random_8x16((tmp + i * 8), element_global_1d_id + i * Offset{});
         }
 
         static_for<0, tmp_size, 1>{}([&](auto i) { z_thread_buf(i) = tmp[i.value]; });

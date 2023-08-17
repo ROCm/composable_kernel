@@ -1533,8 +1533,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V1
                      unsigned short,
                      z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize(),
                      true>
-            z_tenor_buffer;
-        z_tenor_buffer.Clear();
+            z_tensor_buffer;
+        z_tensor_buffer.Clear();
         // z matrix global desc
         /*const auto M = q_grid_desc_k0_m_k1.GetLength(I1);
         const auto N = k_grid_desc_k0_n_k1.GetLength(I1);
@@ -1966,16 +1966,16 @@ struct GridwiseBatchedMultiheadAttentionBackward_Kloop_Xdl_CShuffle_V1
                 // P_dropped
                 static_for<0, n0, 1>{}([&](auto i) {
                     blockwise_dropout.template ApplyDropout<decltype(s_slash_p_thread_buf),
-                                                            decltype(z_tenor_buffer),
+                                                            decltype(z_tensor_buffer),
                                                             true,
                                                             decltype(n0),
                                                             decltype(i)>(
-                        s_slash_p_thread_buf, ph, z_tenor_buffer);
+                        s_slash_p_thread_buf, ph, z_tensor_buffer);
 
                     z_thread_copy_vgpr_to_global.Run(
                         z_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                         make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                        z_tenor_buffer,
+                        z_tensor_buffer,
                         z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                         z_grid_buf);
                     z_thread_copy_vgpr_to_global.MoveDstSliceWindow(

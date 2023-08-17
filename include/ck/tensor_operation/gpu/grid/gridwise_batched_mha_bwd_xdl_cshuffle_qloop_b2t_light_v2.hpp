@@ -121,6 +121,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
     static constexpr auto B1K0 = Number<Gemm1KPerBlock / B1K1Value>{};
     static constexpr auto B1K1 = Number<B1K1Value>{};
 
+    static constexpr auto mfma = MfmaSelector<GemmDataType, MPerXdl, NPerXdl>::selected_mfma;
+    static constexpr auto DropoutNThread = mfma.num_input_blks; // 2
+    // get_random_8x16() generates 8 random numbers each time
+    static constexpr auto DropoutTile = Number<DropoutNThread * 8>{}; // 16
+
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     using GridwiseGemmPipe = remove_cvref_t<decltype(
@@ -133,10 +138,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
         const auto M = z_grid_desc_m_n.GetLength(I0);
         const auto N = z_grid_desc_m_n.GetLength(I1);
 
-        constexpr auto mfma = MfmaSelector<GemmDataType, MPerXdl, NPerXdl>::selected_mfma;
-        constexpr auto M3   = mfma.num_groups_per_blk;
-        constexpr auto M4   = mfma.num_input_blks;
-        constexpr auto M5   = mfma.group_size;
+        constexpr auto M3 = mfma.num_groups_per_blk;
+        constexpr auto M4 = mfma.num_input_blks;
+        constexpr auto M5 = mfma.group_size;
 
         return transform_tensor_descriptor(
             z_grid_desc_m_n,
@@ -150,9 +154,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
 
     __host__ __device__ static constexpr auto GetPaddedSize(const index_t size)
     {
-        constexpr auto mfma       = MfmaSelector<GemmDataType, MPerXdl, NPerXdl>::selected_mfma;
-        constexpr auto group_size = mfma.group_size;
-        return math::integer_divide_ceil(size, group_size) * group_size;
+        return math::integer_divide_ceil(size, DropoutTile) * DropoutTile;
     }
 
     __device__ static auto GetGemm0WaveIdx()
@@ -522,9 +524,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
                                                 true, // DstResetCoord
                                                 NumGemmKPrefetchStage>;
 
-        static constexpr index_t KPack =
-            math::max(math::lcm(AK1, BK1),
-                      MfmaSelector<GemmDataType, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+        static constexpr index_t KPack = math::max(math::lcm(AK1, BK1), mfma.k_per_blk);
 
         // Blockwise gemm with transposed XDL output
         using BlockwiseGemm = BlockwiseGemmXdlops_v2<
@@ -657,8 +657,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
         // with 'group_size' amount of contiguous elements. Having Gemm1KPack greater than A1K1 will
         // cause mismatch in summation index for example c[0:7] = a1[[0:3, 8:11]] * b1[0:7].
         // therefore we may just as well assign Gemm1KPack = group_size
-        static constexpr index_t GemmKPack =
-            MfmaSelector<GemmDataType, MPerXdl, NPerXdl>::selected_mfma.group_size;
+        static constexpr index_t GemmKPack = mfma.group_size;
 
         using BlockwiseGemm = BlockwiseGemmXdlops_v2<
             BlockSize,
@@ -709,9 +708,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
         static constexpr index_t GemmMWave   = BlockSize / get_warp_size() / GemmNWave;
         static constexpr index_t GemmNRepeat = Gemm2NXdlPerWave;
         static constexpr index_t GemmMRepeat = Gemm2_M / GemmMWave / MPerXdl;
-        static constexpr index_t GemmKPack =
-            math::max(math::lcm(A_K1, B_K1),
-                      MfmaSelector<GemmDataType, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+        static constexpr index_t GemmKPack   = math::max(math::lcm(A_K1, B_K1), mfma.k_per_blk);
 
         using BBlockSliceLengths = Sequence<B_K0, Gemm2_N, B_K1>;
         using BThreadClusterLengths =
@@ -1554,8 +1551,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
                      ushort,
                      z_thread_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3.GetElementSpaceSize(),
                      true>
-            z_tenor_buffer;
-        z_tenor_buffer.Clear();
+            z_tensor_buffer;
+        z_tensor_buffer.Clear();
 
         auto z_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_z_grid, z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3.GetElementSpaceSize());
@@ -1722,7 +1719,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
             // scaling is already performed in the preceding statements with s_element_op
             blockwise_softmax.RunWithPreCalcStats(s_slash_p_thread_buf, lse_thread_buf);
 
-            constexpr auto position_offset = M3 * M4;
             // save z to global
             if constexpr(IsDropout)
             {
@@ -1737,23 +1733,27 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
                     auto m_global = m_local + m_block_data_idx_on_grid;
                     auto n_global = n_local + n_block_data_idx_on_grid;
 
-                    auto global_elem_id_raw = z_random_matrix_offset + m_global * raw_n_padded +
-                                              n_global; // unique element global 1d id
+                    auto global_tile_id = z_random_matrix_offset +
+                                          (m_global / DropoutTile) * DropoutTile * raw_n_padded +
+                                          (n_global / DropoutTile) * DropoutTile;
 
-                    auto global_elem_id =
-                        (global_elem_id_raw % M4) * raw_n_padded + (global_elem_id_raw / M4) * M4;
+                    auto global_elem_id = global_tile_id + (wave_m_n_id[I0] * M4) +
+                                          (n_global % DropoutTile) * raw_n_padded;
 
                     blockwise_dropout
                         .template ApplyDropoutAttnBwdSaveZ<decltype(s_slash_p_thread_buf),
-                                                           decltype(z_tenor_buffer),
-                                                           decltype(position_offset),
-                                                           true>(
-                            s_slash_p_thread_buf, ph, global_elem_id, z_tenor_buffer, raw_n_padded);
+                                                           decltype(z_tensor_buffer),
+                                                           decltype(DropoutTile),
+                                                           true>(s_slash_p_thread_buf,
+                                                                 ph,
+                                                                 global_elem_id,
+                                                                 z_tensor_buffer,
+                                                                 raw_n_padded);
 
                     z_thread_copy_vgpr_to_global.Run(
                         z_thread_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                         make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                        z_tenor_buffer,
+                        z_tensor_buffer,
                         z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                         z_grid_buf);
                 }
@@ -1769,14 +1769,16 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
                     auto m_global = m_local + m_block_data_idx_on_grid;
                     auto n_global = n_local + n_block_data_idx_on_grid;
 
-                    auto global_elem_id_raw = z_random_matrix_offset + m_global * raw_n_padded +
-                                              n_global; // unique element global 1d id
+                    auto global_tile_id = z_random_matrix_offset +
+                                          (m_global / DropoutTile) * DropoutTile * raw_n_padded +
+                                          (n_global / DropoutTile) * DropoutTile;
 
-                    auto global_elem_id =
-                        (global_elem_id_raw % M4) * raw_n_padded + (global_elem_id_raw / M4) * M4;
+                    auto global_elem_id = global_tile_id + (wave_m_n_id[I0] * M4) +
+                                          (n_global % DropoutTile) * raw_n_padded;
+
                     // P_dropped
                     blockwise_dropout.template ApplyDropoutAttnBwd<decltype(s_slash_p_thread_buf),
-                                                                   decltype(position_offset),
+                                                                   decltype(DropoutTile),
                                                                    true>(
                         s_slash_p_thread_buf, ph, global_elem_id, raw_n_padded);
                 }

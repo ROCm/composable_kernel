@@ -57,7 +57,7 @@ int run(int argc, char* argv[])
     std::vector<const void*> p_b0;
     std::vector<const void*> p_b1;
     std::vector<void*> p_c;
-    std::vector<std::vector<const void*>> p_d;
+    std::vector<const void*> p_d;
     std::vector<void*> p_z;         // for result verification
     std::vector<void*> p_z_nullptr; // for time test
     std::vector<void*> p_lse;
@@ -67,7 +67,7 @@ int run(int argc, char* argv[])
     std::vector<Tensor<B0DataType>> b0_tensors;
     std::vector<Tensor<B1DataType>> b1_tensors;
     std::vector<Tensor<CDataType>> c_tensors;
-    std::vector<Tensor<DDataType>> d_tensors;
+    std::vector<Tensor<Acc0BiasDataType>> d_tensors;
     std::vector<Tensor<ZDataType>> z_tensors;
     std::vector<Tensor<LSEDataType>> lse_tensors;
 
@@ -147,10 +147,8 @@ int run(int argc, char* argv[])
                                  z_gs_ms_ns_strides,
                                  lse_gs_ms_lengths,
                                  lse_gs_ms_strides,
-                                 std::vector<std::vector<ck::index_t>>{
-                                     d_gs_ms_ns_lengths}, // acc0_biases_gs_ms_ns_lengths
-                                 std::vector<std::vector<ck::index_t>>{
-                                     d_gs_ms_ns_strides}, // acc0_biases_gs_ms_ns_strides
+                                 d_gs_ms_ns_lengths, // acc0_biases_gs_ms_ns_lengths
+                                 d_gs_ms_ns_strides, // acc0_biases_gs_ms_ns_strides
                                  {},                      // acc1_biases_gs_ms_os_lengths
                                  {}});                    // acc1_biases_gs_ms_os_strides
 
@@ -159,7 +157,7 @@ int run(int argc, char* argv[])
         Tensor<B0DataType> b0_gs_ns_ks(b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides);
         Tensor<B1DataType> b1_gs_os_ns(b1_gs_os_ns_lengths, b1_gs_os_ns_strides);
         Tensor<CDataType> c_gs_ms_os_device_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
-        Tensor<DDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
+        Tensor<Acc0BiasDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
         Tensor<ZDataType> z_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
         Tensor<LSEDataType> lse_gs_ms_device_result(lse_gs_ms_lengths, lse_gs_ms_strides);
 
@@ -167,7 +165,7 @@ int run(int argc, char* argv[])
         flop += (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * Batch;
         num_byte += (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
                      sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O +
-                     sizeof(DDataType) * M * N * (Acc0BiasDataType::Size() ? 0 : 1)) *
+                     sizeof(Acc0BiasDataType) * M * N * (std::is_void<Acc0BiasDataType>::value ? 0 : 1)) *
                     Batch;
 
         if(i < 4)
@@ -191,25 +189,25 @@ int run(int argc, char* argv[])
             a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
             b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
             b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
-            d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<DDataType>{-1, 1});
+            d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<Acc0BiasDataType>{-1, 1});
             break;
         case 2:
             a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
             b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
             b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
-            d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<DDataType>{-0.5, 0.5});
+            d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<Acc0BiasDataType>{-0.5, 0.5});
             break;
         case 3:
             a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
             b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
             b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
-            d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DDataType>{1});
+            d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
             break;
         default:
             a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
             b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
             b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
-            d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<DDataType>{1});
+            d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         }
 
         a_tensors.push_back(a_gs_ms_ks);
@@ -229,7 +227,7 @@ int run(int argc, char* argv[])
         c_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(CDataType) * c_gs_ms_os_device_result.mDesc.GetElementSpaceSize()));
         d_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(DDataType) * d_gs_ms_ns.mDesc.GetElementSpaceSize()));
+            sizeof(Acc0BiasDataType) * d_gs_ms_ns.mDesc.GetElementSpaceSize()));
         z_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(ZDataType) * z_gs_ms_ns.mDesc.GetElementSpaceSize()));
         lse_tensors_device.emplace_back(std::make_unique<DeviceMem>(
@@ -244,9 +242,7 @@ int run(int argc, char* argv[])
         p_b0.push_back(b0_tensors_device[i]->GetDeviceBuffer());
         p_b1.push_back(b1_tensors_device[i]->GetDeviceBuffer());
         p_c.push_back(c_tensors_device[i]->GetDeviceBuffer());
-        p_d.push_back({d_tensors_device[i]->GetDeviceBuffer()});
-        // std::cout << "from host  group id: " << i << " d address: " <<
-        // d_tensors_device[i]->GetDeviceBuffer() << std::endl;
+        p_d.push_back(d_tensors_device[i]->GetDeviceBuffer());
         p_z.push_back(z_tensors_device[i]->GetDeviceBuffer());
         p_z_nullptr.push_back(nullptr);
         p_lse.push_back(lse_tensors_device[i]->GetDeviceBuffer());
@@ -363,7 +359,7 @@ int run(int argc, char* argv[])
             Tensor<B0DataType> b0_g_k_n({G0 * G1, K, N});
             Tensor<B1DataType> b1_g_n_o({G0 * G1, N, O});
             Tensor<AccDataType> acc0_g_m_n({G0 * G1, M, N}); // scratch object after gemm0
-            Tensor<AccDataType> d_g_m_n({G0 * G1, M, N});
+            Tensor<Acc0BiasDataType> d_g_m_n({G0 * G1, M, N});
             Tensor<ADataType> a1_g_m_n({G0 * G1, M, N});            // scratch object after softmax
             Tensor<ADataType> a1_g_m_n_drop({G0 * G1, M, N});       // scratch object after softmax
             Tensor<CDataType> c_g_m_o_host_result({G0 * G1, M, O}); // scratch object after gemm1
@@ -400,12 +396,12 @@ int run(int argc, char* argv[])
             ref_gemm0_invoker.Run(ref_gemm0_argument);
 
             // bias
-            acc0_g_m_n.ForEach([&](auto& self, auto idx) { self(idx) += d_g_m_n(idx); });
+            acc0_g_m_n.ForEach([&](auto& self, auto idx) { self(idx) += ck::type_convert<AccDataType>(d_g_m_n(idx)); });
             // masking
             const auto mask = DeviceGemmInstance::C0MatrixMask(M, N);
             acc0_g_m_n.ForEach([&](auto& self, auto idx) {
                 if(mask.IsMaskedElement(idx[1], idx[2]))
-                    self(idx) = -ck::NumericLimits<float>::Infinity();
+                    self(idx) = -ck::NumericLimits<AccDataType>::Infinity();
             });
 
             // softmax
