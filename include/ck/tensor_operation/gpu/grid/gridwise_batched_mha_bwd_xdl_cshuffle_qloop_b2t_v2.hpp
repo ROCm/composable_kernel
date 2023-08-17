@@ -1191,43 +1191,44 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
               typename Block2CTileMap,
               typename C0MatrixMask,
               typename YGradGridDesc_M0_O_M1>
-    __device__ static void Run(const InputDataType* __restrict__ p_q_grid,
-                               const InputDataType* __restrict__ p_k_grid,
-                               const D0DataType* __restrict__ p_d_grid,
-                               ZDataType* __restrict__ p_z_grid,
-                               const InputDataType* __restrict__ p_v_grid,
-                               const InputDataType* __restrict__ p_y_grid,
-                               const FloatLSE* __restrict__ p_lse_grid,
-                               const InputDataType* __restrict__ p_ygrad_grid,
-                               OutputDataType* __restrict__ p_qgrad_grid,
-                               OutputDataType* __restrict__ p_kgrad_grid,
-                               OutputDataType* __restrict__ p_vgrad_grid,
-                               void* __restrict__ p_shared,
-                               const AElementwiseOperation& a_element_op,
-                               const BElementwiseOperation& b_element_op,
-                               const SElementwiseOperation& s_element_op,
-                               const B1ElementwiseOperation& b1_element_op,
-                               const CElementwiseOperation& c_element_op,
-                               const QGridDesc_K0_M_K1& q_grid_desc_k0_m_k1,
-                               const KGridDesc_K0_N_K1& k_grid_desc_k0_n_k1,
-                               const D0GridDescriptor_M0_N0_M1_M2_N1_M3& d0_grid_desc_m0_n0_m1_m2_n1_m3,
-                               const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3&
-                                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
-                               const VGridDesc_N0_O_N1& v_grid_desc_n0_o_n1,
-                               const YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock&
-                                   y_grid_desc_mblock_mperblock_oblock_operblock,
-                               const LSEGridDesc_M& lse_grid_desc_m,
-                               const YGradGridDesc_M0_O_M1& ygrad_grid_desc_m0_o_m1,
-                               const Block2CTileMap& block_2_ctile_map,
-                               const C0MatrixMask& c0_matrix_mask,
-                               const float p_drop,
-                               ck::philox& ph,
-                               const index_t z_random_matrix_offset,
-                               const index_t raw_n_padded,
-                               const index_t block_idx_n)
+    __device__ static void
+    Run(const InputDataType* __restrict__ p_q_grid,
+        const InputDataType* __restrict__ p_k_grid,
+        const D0DataType* __restrict__ p_d_grid,
+        ZDataType* __restrict__ p_z_grid,
+        const InputDataType* __restrict__ p_v_grid,
+        const InputDataType* __restrict__ p_y_grid,
+        const FloatLSE* __restrict__ p_lse_grid,
+        const InputDataType* __restrict__ p_ygrad_grid,
+        OutputDataType* __restrict__ p_qgrad_grid,
+        OutputDataType* __restrict__ p_kgrad_grid,
+        OutputDataType* __restrict__ p_vgrad_grid,
+        void* __restrict__ p_shared,
+        const AElementwiseOperation& a_element_op,
+        const BElementwiseOperation& b_element_op,
+        const SElementwiseOperation& s_element_op,
+        const B1ElementwiseOperation& b1_element_op,
+        const CElementwiseOperation& c_element_op,
+        const QGridDesc_K0_M_K1& q_grid_desc_k0_m_k1,
+        const KGridDesc_K0_N_K1& k_grid_desc_k0_n_k1,
+        const D0GridDescriptor_M0_N0_M1_M2_N1_M3& d0_grid_desc_m0_n0_m1_m2_n1_m3,
+        const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3&
+            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
+        const VGridDesc_N0_O_N1& v_grid_desc_n0_o_n1,
+        const YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock&
+            y_grid_desc_mblock_mperblock_oblock_operblock,
+        const LSEGridDesc_M& lse_grid_desc_m,
+        const YGradGridDesc_M0_O_M1& ygrad_grid_desc_m0_o_m1,
+        const Block2CTileMap& block_2_ctile_map,
+        const C0MatrixMask& c0_matrix_mask,
+        const float p_drop,
+        ck::philox& ph,
+        const index_t z_random_matrix_offset,
+        const index_t raw_n_padded,
+        const index_t block_idx_n)
     {
-        ignore = d0_grid_desc_m0_n0_m1_m2_n1_m3;
-        ignore = p_d_grid;
+        ignore                        = d0_grid_desc_m0_n0_m1_m2_n1_m3;
+        ignore                        = p_d_grid;
         const FloatGemmAcc p_dropout  = type_convert<FloatGemmAcc>(1.0f - p_drop);
         const FloatGemmAcc rp_dropout = type_convert<FloatGemmAcc>(1.0f / p_dropout);
         const ushort p_dropout_in_16bits =
