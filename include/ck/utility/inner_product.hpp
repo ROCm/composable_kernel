@@ -94,8 +94,8 @@ __device__ void inner_product<half2_t, half2_t, float>(const half2_t& a, const h
     const vector_type<half_t, 2> b_vector{b};
 
     static_for<0, 2, 1>{}([&](auto i) {
-        c += type_convert<int32_t>(a_vector.AsType<half_t>()[i]) *
-             type_convert<int32_t>(b_vector.AsType<half_t>()[i]);
+        c += type_convert<float>(a_vector.AsType<half_t>()[i]) *
+             type_convert<float>(b_vector.AsType<half_t>()[i]);
     });
 #endif
 }
