@@ -1193,6 +1193,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
               typename YGradGridDesc_M0_O_M1>
     __device__ static void Run(const InputDataType* __restrict__ p_q_grid,
                                const InputDataType* __restrict__ p_k_grid,
+                               const D0DataType* __restrict__ p_d_grid,
                                ZDataType* __restrict__ p_z_grid,
                                const InputDataType* __restrict__ p_v_grid,
                                const InputDataType* __restrict__ p_y_grid,
@@ -1209,6 +1210,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                const CElementwiseOperation& c_element_op,
                                const QGridDesc_K0_M_K1& q_grid_desc_k0_m_k1,
                                const KGridDesc_K0_N_K1& k_grid_desc_k0_n_k1,
+                               const D0GridDescriptor_M0_N0_M1_M2_N1_M3& d0_grid_desc_m0_n0_m1_m2_n1_m3,
                                const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3&
                                    z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                                const VGridDesc_N0_O_N1& v_grid_desc_n0_o_n1,
@@ -1224,6 +1226,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                const index_t raw_n_padded,
                                const index_t block_idx_n)
     {
+        ignore = d0_grid_desc_m0_n0_m1_m2_n1_m3;
+        ignore = p_d_grid;
         const FloatGemmAcc p_dropout  = type_convert<FloatGemmAcc>(1.0f - p_drop);
         const FloatGemmAcc rp_dropout = type_convert<FloatGemmAcc>(1.0f / p_dropout);
         const ushort p_dropout_in_16bits =

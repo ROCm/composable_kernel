@@ -104,8 +104,6 @@ __global__ void
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetABasePtr(g_idx)));
     const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetBBasePtr(g_idx)));
-    const long_index_t d0_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetD0BasePtr(g_idx)));
     const long_index_t z_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetZBasePtr(g_idx)));
     const long_index_t b1_batch_offset = __builtin_amdgcn_readfirstlane(
@@ -120,9 +118,13 @@ __global__ void
 
     const index_t z_random_matrix_offset = g_idx * raw_m_padded * raw_n_padded;
 
-    ignore = p_d0_grid;
-    ignore = d0_grid_desc_m0_n0_m1_m2_n1_m3;
-    ignore = d0_batch_offset;
+    const D0DataType* tmp_p_d0_grid = nullptr;
+    if constexpr(!is_same<D0DataType,void>::value){
+        const long_index_t d0_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(compute_base_ptr_of_batch.GetD0BasePtr(g_idx)));
+        tmp_p_d0_grid = p_d0_grid + d0_batch_offset;
+    }
+   
     if constexpr(Deterministic)
     {
         for(index_t i = 0; i < nblock; i++)
@@ -130,6 +132,7 @@ __global__ void
             GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
                 p_a_grid + a_batch_offset,
                 p_b_grid + b_batch_offset,
+                tmp_p_d0_grid,
                 z_matrix_ptr,
                 p_b1_grid + b1_batch_offset,
                 p_c_grid + c_batch_offset,
@@ -146,6 +149,7 @@ __global__ void
                 c_element_op,
                 a_grid_desc_ak0_m_ak1,
                 b_grid_desc_bk0_n_bk1,
+                d0_grid_desc_m0_n0_m1_m2_n1_m3,
                 c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                 b1_grid_desc_bk0_n_bk1,
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -165,6 +169,7 @@ __global__ void
         GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
             p_a_grid + a_batch_offset,
             p_b_grid + b_batch_offset,
+            tmp_p_d0_grid,
             z_matrix_ptr,
             p_b1_grid + b1_batch_offset,
             p_c_grid + c_batch_offset,
@@ -181,6 +186,7 @@ __global__ void
             c_element_op,
             a_grid_desc_ak0_m_ak1,
             b_grid_desc_bk0_n_bk1,
+            d0_grid_desc_m0_n0_m1_m2_n1_m3
             c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
             b1_grid_desc_bk0_n_bk1,
             c_grid_desc_mblock_mperblock_nblock_nperblock,
