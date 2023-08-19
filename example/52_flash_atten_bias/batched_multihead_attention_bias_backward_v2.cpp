@@ -199,6 +199,7 @@ using ReferenceDropoutInstance =
 template <typename TensorQ,
           typename TensorK,
           typename TensorV,
+          typename TensorD,
           typename TensorS,
           typename TensorP,
           typename TensorZ,
@@ -207,6 +208,7 @@ template <typename TensorQ,
 void run_attention_fwd_host(const TensorQ& q_g_m_k,
                             const TensorK& k_g_n_k,
                             const TensorV& v_g_n_o,
+                            const TensorD& d_g_m_n,
                             const float alpha,
                             TensorS& s_g_m_n,
                             TensorP& p_g_m_n,
@@ -226,6 +228,9 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
 
     ref_gemm0_invoker.Run(ref_gemm0_argument);
 
+    // bias
+    s_g_m_n.ForEach(
+        [&](auto& self, auto idx) { self(idx) += ck::type_convert<AccDataType>(d_g_m_n(idx)); });
     // masking
     auto M          = s_g_m_n.GetLengths()[1];
     auto N          = s_g_m_n.GetLengths()[2];
@@ -261,7 +266,7 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
 int run(int argc, char* argv[])
 {
     bool do_verification = true;
-    int init_method      = 2; // method 1 will have slightly higher error; TODO: to investigate
+    int init_method      = 1; // method 1 will have slightly higher error; TODO: to investigate
     bool time_kernel     = true;
 
     // Overall QKV matrices shape
@@ -409,11 +414,13 @@ int run(int argc, char* argv[])
     {
     case 0: break;
     case 1:
+        // q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
         d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<Acc0BiasDataType>{-2, 2});
+        // d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{0});
         break;
     case 2:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<InputDataType>{0.0, 1.0});
@@ -509,6 +516,7 @@ int run(int argc, char* argv[])
 
     q_device_buf.ToDevice(q_gs_ms_ks.mData.data());
     k_device_buf.ToDevice(k_gs_ns_ks.mData.data());
+    d_device_buf.ToDevice(d_gs_ms_ns.mData.data());
     z_device_buf.ToDevice(z_gs_ms_ns.mData.data());
     v_device_buf.ToDevice(v_gs_os_ns.mData.data());
     ygrad_device_buf.ToDevice(ygrad_gs_ms_os.mData.data());
@@ -611,7 +619,7 @@ int run(int argc, char* argv[])
         (sizeof(InputDataType) * M * K + sizeof(InputDataType) * K * N +
          sizeof(InputDataType) * N * O + sizeof(InputDataType) * M * O * size_t(2) +
          sizeof(OutputDataType) * M * K + sizeof(OutputDataType) * K * N +
-         sizeof(OutputDataType) * N * O) *
+         sizeof(OutputDataType) * N * O + sizeof(Acc0BiasDataType) * M * N) *
             BatchCount +
         sizeof(LSEDataType) * M * BatchCount;
 
@@ -635,6 +643,7 @@ int run(int argc, char* argv[])
         run_attention_fwd_host(q_g_m_k,
                                k_g_n_k,
                                v_g_n_o,
+                               d_g_m_n,
                                alpha,
                                s_g_m_n,
                                p_g_m_n,

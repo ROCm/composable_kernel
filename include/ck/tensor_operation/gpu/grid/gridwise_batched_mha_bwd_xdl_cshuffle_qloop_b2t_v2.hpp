@@ -1181,7 +1181,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
     struct D0Loader
     {
-        __host__ __device__ static constexpr auto GetD0BlockDescriptor_M0_N0_M1_M2_N1_M()
+        __host__ __device__ static constexpr auto GetD0BlockDescriptor_M0_N0_M1_M2_N1_M3()
         {
             // B1 matrix in LDS memory, dst of blockwise copy
             return make_naive_tensor_descriptor(
@@ -1193,8 +1193,28 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                            D0M3,
                            I1));
         }
+        __host__ __device__ static constexpr auto GetD0BlockReadDescriptor_N0_N1_M0_M1_M2_M3()
+        {
+            constexpr auto d0_raw_m0_n_m1 =
+                make_naive_tensor_descriptor(make_tuple(D0M2, Number<NPerBlock>{}, D0M3),
+                                             make_tuple(Number<NPerBlock>{} * D0M3, D0M3, I1));
+            constexpr auto d0_n0_n1_m0_m1_m2_m3 = transform_tensor_descriptor(
+                d0_raw_m0_n_m1,
+                make_tuple(make_unmerge_transform(make_tuple((D0M2 * D0M3) / I8, I2, I4 / D0M3)),
+                           make_unmerge_transform(
+                               make_tuple(Number<NPerBlock / NPerXdl>{}, Number<NPerXdl>{})),
+                           make_pass_through_transform(D0M3)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                make_tuple(Sequence<2, 3, 4>{}, Sequence<0, 1>{}, Sequence<5>{}));
+            return d0_n0_n1_m0_m1_m2_m3;
+        }
         static constexpr auto d0_block_desc_m0_n0_m1_m2_n1_m3 =
-            GetD0BlockDescriptor_M0_N0_M1_M2_N1_M();
+            GetD0BlockDescriptor_M0_N0_M1_M2_N1_M3();
+        static constexpr auto d0_block_desc_n0_n1_m0_m1_m2_m3 =
+            GetD0BlockReadDescriptor_N0_N1_M0_M1_M2_M3();
+
+        static constexpr auto d0_thread_desc_ =
+            make_naive_tensor_descriptor_packed(make_tuple(I1, I1, I4, I1, I4 / D0M3, D0M3));
 
         using D0BlockwiseCopy = ThreadGroupTensorSliceTransfer_v4r1<
             ThisThreadBlock,
@@ -1219,6 +1239,17 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             false,
             true, // DstResetCoord
             1>;
+
+        using D0ThreadCopy =
+            ThreadwiseTensorSliceTransfer_v4<D0DataType,                                // SrcData
+                                             D0DataType,                                // DstData
+                                             decltype(d0_block_desc_n0_n1_m0_m1_m2_m3), // SrcDesc
+                                             decltype(d0_thread_desc_),                 // DstDesc
+                                             Sequence<1, 1, 4, 1, 2, 2>, // SliceLengths
+                                             Sequence<0, 1, 2, 3, 4, 5>, // DimAccessOrder
+                                             5,                          // SrcVectorDim
+                                             D0M3.value,                 // SrcScalarPerVector
+                                             D0M3.value>;
     };
 
     template <bool HasMainKBlockLoop,
@@ -1546,14 +1577,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                         qgrad_thread_origin_on_grid_m0_o0_m1_o1_m2_o2_o3_o4,
                                         scale_rp_dropout);
 
-        // D0
-        auto d0_block_copy_global_to_lds =
-            typename D0Loader::D0BlockwiseCopy(d0_grid_desc_m0_n0_m1_m2_n1_m3,
-                                               make_multi_index(0, block_work_idx_n, 0, 0, 0, 0),
-                                               tensor_operation::element_wise::PassThrough{},
-                                               D0Loader::d0_block_desc_m0_n0_m1_m2_n1_m3,
-                                               make_multi_index(0, 0, 0, 0, 0, 0),
-                                               tensor_operation::element_wise::PassThrough{});
         //
         // Blockwise softmax
         //
@@ -1703,7 +1726,27 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                    0,                                //
                                    wave_m_n_id[I1]),                 // NPerXdl
                   tensor_operation::element_wise::PassThrough{}};
-
+        // if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 46)
+        // {
+        //     printf("get_thread_local_1d_id(): %d, wave_id[I0]: %d  wave_id[I1]: %d "
+        //            "wave_m_n_id[I0]: %d wave_m_n_id[I1]: %d \n",
+        //            get_thread_local_1d_id(),
+        //            wave_id[I0],
+        //            wave_id[I1],
+        //            wave_m_n_id[I0],
+        //            wave_m_n_id[I1]);
+        // }
+        // D0
+        auto d0_block_copy_global_to_lds =
+            typename D0Loader::D0BlockwiseCopy(d0_grid_desc_m0_n0_m1_m2_n1_m3,
+                                               make_multi_index(0, block_work_idx_n, 0, 0, 0, 0),
+                                               tensor_operation::element_wise::PassThrough{},
+                                               D0Loader::d0_block_desc_m0_n0_m1_m2_n1_m3,
+                                               make_multi_index(0, 0, 0, 0, 0, 0),
+                                               tensor_operation::element_wise::PassThrough{});
+        auto d0_thread_copy_lds_to_vgpr = typename D0Loader::D0ThreadCopy(
+            make_tuple(wave_id[I1], wave_m_n_id[I1], 0, wave_m_n_id[I0], 0, 0));
+        ignore = d0_thread_copy_lds_to_vgpr;
         //
         // set up Y dot dY
         //
@@ -1940,6 +1983,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             // add bias
             if constexpr(!is_same<D0DataType, void>::value)
             {
+                static constexpr auto c_thread_desc_ =
+                    make_naive_tensor_descriptor_packed(make_tuple(D0M1, Number<16>{}));
+
                 const auto d0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                     p_d0_grid, d0_grid_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize());
 
@@ -1947,15 +1993,47 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                     static_cast<GemmDataType*>(p_shared) + SharedMemTrait::a_block_space_offset,
                     D0Loader::d0_block_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize());
 
-                static_for<0, D0M1, 1>{}([&](auto) {
+                auto d0_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, D0DataType>(
+                    D0Loader::d0_thread_desc_.GetElementSpaceSize());
+                ignore = d0_thread_buf;
+
+                static_for<0, D0M1, 1>{}([&](auto mr) {
+                    // load data to lds
                     d0_block_copy_global_to_lds.RunRead(d0_grid_desc_m0_n0_m1_m2_n1_m3,
                                                         d0_grid_buf);
 
                     d0_block_copy_global_to_lds.MoveSrcSliceWindow(
                         d0_grid_desc_m0_n0_m1_m2_n1_m3, make_multi_index(0, 0, 1, 0, 0, 0));
-                        
+
                     d0_block_copy_global_to_lds.RunWrite(D0Loader::d0_block_desc_m0_n0_m1_m2_n1_m3,
                                                          d0_block_buf);
+                    block_sync_lds();
+                    // read data form lds
+                    d0_thread_copy_lds_to_vgpr.Run(D0Loader::d0_block_desc_n0_n1_m0_m1_m2_m3,
+                                                   make_tuple(I0, I0, I0, I0, I0, I0),
+                                                   d0_block_buf,
+                                                   D0Loader::d0_thread_desc_,
+                                                   make_tuple(I0, I0, I0, I0, I0, I0),
+                                                   d0_thread_buf);
+
+                    // bias add
+                    static_for<0, D0Loader::d0_thread_desc_.GetElementSpaceSize(), 1>{}(
+                        [&](auto i) {
+                            constexpr index_t c_offset =
+                                c_thread_desc_.CalculateOffset(make_tuple(mr, i));
+                            s_slash_p_thread_buf(Number<c_offset>{}) +=
+                                ck::type_convert<FloatGemmAcc>(d0_thread_buf[i]);
+
+                            // if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0)
+                            // {
+                            //     printf("c_offset: %d s_slash_p_thread_buf(Number<c_offset>{}):
+                            //     %f, "
+                            //            "d0_thread_buf[i]: %f\n",
+                            //            c_offset,
+                            //            s_slash_p_thread_buf(Number<c_offset>{}),
+                            //            ck::type_convert<FloatGemmAcc>(d0_thread_buf[i]));
+                            // }
+                        });
                 });
 
                 d0_block_copy_global_to_lds.MoveSrcSliceWindow(
@@ -2036,11 +2114,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             // dV = P_drop^T * dY
             {
                 // TODO: explore using dynamic buffer for a1 thread buffer
-                // For a1_blockwise_copy, the goal is to satisfy pipeline requirements RunRead(),
-                // RunWrite(), and MoveSliceWindow(). But it is impossible to implement given that
-                // the A1 source buffer is static buffer holding the output of first GEMM and
-                // requires constexpr offset by design. Therefore, we pass tensor coordinate offset
-                // explicitly in Run() below.
+                // For a1_blockwise_copy, the goal is to satisfy pipeline requirements
+                // RunRead(), RunWrite(), and MoveSliceWindow(). But it is impossible to
+                // implement given that the A1 source buffer is static buffer holding the output
+                // of first GEMM and requires constexpr offset by design. Therefore, we pass
+                // tensor coordinate offset explicitly in Run() below.
 
                 // preload data into LDS
                 vgrad_gemm_tile_ygrad_blockwise_copy.RunRead(ygrad_grid_desc_m0_o_m1,
@@ -2196,11 +2274,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             // dK = scalar * dS^T * Q
             {
                 // TODO: explore using dynamic buffer for a1 thread buffer
-                // For a1_blockwise_copy, the goal is to satisfy pipeline requirements RunRead(),
-                // RunWrite(), and MoveSliceWindow(). But it is impossible to implement given that
-                // the A1 source buffer is static buffer holding the output of first GEMM and
-                // requires constexpr offset by design. Therefore, we pass tensor coordinate offset
-                // explicitly in Run() below.
+                // For a1_blockwise_copy, the goal is to satisfy pipeline requirements
+                // RunRead(), RunWrite(), and MoveSliceWindow(). But it is impossible to
+                // implement given that the A1 source buffer is static buffer holding the output
+                // of first GEMM and requires constexpr offset by design. Therefore, we pass
+                // tensor coordinate offset explicitly in Run() below.
 
                 // preload data into LDS
                 kgrad_gemm_tile_q_blockwise_copy.RunRead(q_grid_desc_m0_k_m1, q_grid_buf);
@@ -2286,7 +2364,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
                 z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                 make_multi_index(-1, 0, 0, 0, 0, 0, 0, 0, 0, 0));
-
         } while(0 < gemm0_m_block_outer_index--); // end j loop
 
         // shuffle dK&dV and write

@@ -111,6 +111,11 @@ struct StaticBufferTupleOfVector
 
         return base::operator()(i_v).template AsType<S>()(i_s);
     }
+    template <index_t I>
+    __host__ __device__ constexpr S& operator()(Number<I> i_v, Number<I> i_s)
+    {
+        return base::operator()(i_v).template AsType<S>()(i_s);
+    }
 
     // Get X
     // i is offset of S, not X. i should be aligned to X
