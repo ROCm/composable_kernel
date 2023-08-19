@@ -532,11 +532,12 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             float ave_time = 0;
 
             const auto Run = [&](const auto& kernel) {
-                hipGetErrorString(hipMemset(
+                hipGetErrorString(hipMemsetAsync(
                     arg.p_c_grid_,
                     0,
                     arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
-                        sizeof(CDataType)));
+                        sizeof(CDataType),
+                    stream_config.stream_id_));
 
                 ave_time =
                     launch_and_time_kernel(stream_config,

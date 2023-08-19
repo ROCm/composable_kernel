@@ -886,11 +886,12 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                     typename GridwiseGemmAtomicAdd::DefaultBlock2ETileMap,
                     has_main_loop>;
 
-                hipGetErrorString(hipMemset(
+                hipGetErrorString(hipMemsetAsync(
                     arg.p_e_grid_,
                     0,
                     arg.e_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
-                        sizeof(EDataType)));
+                        sizeof(EDataType),
+                    stream_config.stream_id_));
 
                 return launch_and_time_kernel(stream_config,
                                               kernel,
