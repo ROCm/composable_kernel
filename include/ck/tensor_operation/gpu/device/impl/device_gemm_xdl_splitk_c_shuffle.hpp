@@ -158,8 +158,10 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
 
             const auto Run = [&](const auto& kernel) {
                 if(kbatch > 1)
-                    hipGetErrorString(
-                        hipMemset(karg.p_c_grid, 0, karg.M * karg.N * sizeof(CDataType)));
+                    hipGetErrorString(hipMemsetAsync(karg.p_c_grid,
+                                                     0,
+                                                     karg.M * karg.N * sizeof(CDataType),
+                                                     stream_config.stream_id_));
 
                 ave_time = launch_and_time_kernel(
                     stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg, b2c_map);

@@ -13,8 +13,12 @@ using ck::index_t;
 
 struct maxPoolFwdArgParser
 {
-    std::unordered_map<std::string, std::vector<int>> long_opts = {
-        {"length", {}}, {"wsize", {}}, {"wstride", {}}, {"pad1", {}}, {"pad2", {}}};
+    std::unordered_map<std::string, std::vector<int>> long_opts = {{"length", {}},
+                                                                   {"wsize", {}},
+                                                                   {"wstride", {}},
+                                                                   {"wdilation", {}},
+                                                                   {"pad1", {}},
+                                                                   {"pad2", {}}};
 
     bool parse_opt(int argc, char* argv[], const std::string& key, int i)
     {
@@ -56,10 +60,11 @@ void print_help_max_pool3d_fwd()
               << "--length: input tensor length for NCDHW(e.g, --length 2 32 30 30 30) \n"
               << "--wsize: window size for ZYX (e.g, --wsize 2 2 2) \n"
               << "--wstride: window stride for DHW (e.g, --wstride 2 2 2) \n"
+              << "--wdilation: window dilation for DHW (e.g, --wdilation 1 1 1) \n"
               << "--pad1: left side of padding in DHW (e.g, --pad1 1 1 1) \n"
               << "--pad2: right side of padding in DHW (e.g, --pad2 1 1 1) \n"
               << "eg: ckProfiler max_pool3d_fwd 0 1 2 0 1 0 --length 2 32 30 30 30 --wsize 2 2 2 "
-                 "--wstride 2 2 2 --pad1 1 1 1 --pad2 1 1 1"
+                 "--wstride 2 2 2 --wdilation 1 1 1 --pad1 1 1 1 --pad2 1 1 1"
               << std::endl;
 }
 
@@ -75,15 +80,16 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
     std::vector<index_t> in_length = {2, 32, 30, 30, 30};
     std::vector<index_t> wsize     = {2, 2, 2};
     std::vector<index_t> wstride   = {2, 2, 2};
+    std::vector<index_t> wdilation = {1, 1, 1};
     std::vector<index_t> pad1      = {1, 1, 1};
     std::vector<index_t> pad2      = {1, 1, 1};
 
-    if(argc != 2 && argc != 30)
+    if(argc != 2 && argc != 34)
     {
         print_help_max_pool3d_fwd();
         return 0;
     }
-    else if(argc == 30)
+    else if(argc == 34)
     {
         data_type       = static_cast<ck::DataTypeEnum>(std::stoi(argv[2]));
         do_verification = std::stoi(argv[3]);
@@ -98,64 +104,79 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
         in_length = arg_parser.long_opts["length"];
         wsize     = arg_parser.long_opts["wsize"];
         wstride   = arg_parser.long_opts["wstride"];
+        wdilation = arg_parser.long_opts["wdilation"];
         pad1      = arg_parser.long_opts["pad1"];
         pad2      = arg_parser.long_opts["pad2"];
     }
 
-    using F16                 = ck::half_t;
-    using F32                 = float;
-    using I32                 = int32_t;
+    using F16   = ck::half_t;
+    using F32   = float;
+    using I32   = int32_t;
+    using NDHWC = ck::tensor_layout::convolution::NDHWC;
+
+#if 1
     constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
+#else
+    constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
+#endif
 
     if(data_type == ck::DataTypeEnum::Half)
     {
         if(return_index)
-            ck::profiler::profile_pool3d_fwd_impl<F16, F16, F16, I32, ReduceOpId, false, true>(
-                do_verification,
-                init_method,
-                do_log,
-                time_kernel,
-                in_length,
-                wsize,
-                wstride,
-                pad1,
-                pad2);
+            ck::profiler::
+                profile_pool3d_fwd_impl<F16, F16, F16, I32, NDHWC, NDHWC, ReduceOpId, false, true>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
         else
-            ck::profiler::profile_pool3d_fwd_impl<F16, F16, F16, I32, ReduceOpId, false, false>(
-                do_verification,
-                init_method,
-                do_log,
-                time_kernel,
-                in_length,
-                wsize,
-                wstride,
-                pad1,
-                pad2);
+            ck::profiler::
+                profile_pool3d_fwd_impl<F16, F16, F16, I32, NDHWC, NDHWC, ReduceOpId, false, false>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
     }
     else if(data_type == ck::DataTypeEnum::Float)
     {
         if(return_index)
-            ck::profiler::profile_pool3d_fwd_impl<F32, F32, F32, I32, ReduceOpId, false, true>(
-                do_verification,
-                init_method,
-                do_log,
-                time_kernel,
-                in_length,
-                wsize,
-                wstride,
-                pad1,
-                pad2);
+            ck::profiler::
+                profile_pool3d_fwd_impl<F32, F32, F32, I32, NDHWC, NDHWC, ReduceOpId, false, true>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
         else
-            ck::profiler::profile_pool3d_fwd_impl<F32, F32, F32, I32, ReduceOpId, false, false>(
-                do_verification,
-                init_method,
-                do_log,
-                time_kernel,
-                in_length,
-                wsize,
-                wstride,
-                pad1,
-                pad2);
+            ck::profiler::
+                profile_pool3d_fwd_impl<F32, F32, F32, I32, NDHWC, NDHWC, ReduceOpId, false, false>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
     }
     else
     {

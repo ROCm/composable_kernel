@@ -93,7 +93,7 @@ find_package(hip)
 # SWDEV-413293 and https://reviews.llvm.org/D155213
 math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
 message("hip_version_flat=${hip_VERSION_FLAT}")
-if(${hip_VERSION_FLAT} GREATER 500700000)
+if(${hip_VERSION_FLAT} GREATER 500723302)
    message("Adding the fno-offload-uniform-block compiler flag")
    add_compile_options(-fno-offload-uniform-block)
 endif()
