@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ck/config.h"
+
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
