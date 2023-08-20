@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
 
+set(version 1.1.0)
 # Check support for CUDA/HIP in Cmake
-project(composable_kernel)
+project(composable_kernel VERSION ${version})
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -48,6 +49,10 @@ endif()
 configure_file("${PROJECT_SOURCE_DIR}/include/ck/config.h.in" "${PROJECT_BINARY_DIR}/include/ck/config.h")
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
+find_package(Git REQUIRED)
+execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD OUTPUT_VARIABLE COMMIT_ID OUTPUT_STRIP_TRAILING_WHITESPACE)
+configure_file("${PROJECT_SOURCE_DIR}/include/ck/version.h.in" "${PROJECT_BINARY_DIR}/include/ck/version.h")
+
 enable_testing()
 
 set(ROCM_SYMLINK_LIBS OFF)
@@ -60,8 +65,8 @@ include(ROCMInstallSymlinks)
 include(ROCMCreatePackage)
 include(CheckCXXCompilerFlag)
 include(ROCMCheckTargetIds)
-rocm_setup_version(VERSION 0.2.0)
 include(TargetFlags)
+
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip)
 
 message("GPU_TARGETS= ${GPU_TARGETS}")
@@ -419,7 +424,6 @@ endif()
 #Create an interface target for the include only files and call it "composablekernels"
 include(CMakePackageConfigHelpers)
 
-set(version 1.0.0)
 write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfigVersion.cmake"
     VERSION "${version}"
