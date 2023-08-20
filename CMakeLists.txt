@@ -7,35 +7,35 @@ project(composable_kernel VERSION ${version})
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 if (DTYPES)
-        add_definitions(-DDTYPES)
-        if (DTYPES MATCHES "int8")
-                add_definitions(-D__int8__)
-                set(__int8__ "ON")
-        endif()
-        if (DTYPES MATCHES "fp8")
-                add_definitions(-D__fp8__)
-                set(__fp8__ "ON")
-        endif()
-        if (DTYPES MATCHES "fp16")
-                add_definitions(-D__fp16__)
-                set(__fp16__ "ON")
-        endif()
-        if (DTYPES MATCHES "fp32")
-                add_definitions(-D__fp32__)
-                set(__fp32__ "ON")
-        endif()
-        if (DTYPES MATCHES "fp64")
-                add_definitions(-D__fp64__)
-                set(__fp64__ "ON")
-        endif()
-        if (DTYPES MATCHES "bf16")
-                add_definitions(-D__bf16__)
-                set(__bf16__ "ON")
-        endif()
-        message("DTYPES macro set to ${DTYPES}")
+    add_definitions(-DDTYPES)
+    if (DTYPES MATCHES "int8")
+        add_definitions(-D__int8__)
+        set(__int8__ "ON")
+    endif()
+    if (DTYPES MATCHES "fp8")
+        add_definitions(-D__fp8__)
+        set(__fp8__ "ON")
+    endif()
+    if (DTYPES MATCHES "fp16")
+        add_definitions(-D__fp16__)
+        set(__fp16__ "ON")
+    endif()
+    if (DTYPES MATCHES "fp32")
+        add_definitions(-D__fp32__)
+        set(__fp32__ "ON")
+    endif()
+    if (DTYPES MATCHES "fp64")
+        add_definitions(-D__fp64__)
+        set(__fp64__ "ON")
+    endif()
+    if (DTYPES MATCHES "bf16")
+        add_definitions(-D__bf16__)
+        set(__bf16__ "ON")
+    endif()
+    message("DTYPES macro set to ${DTYPES}")
 else()
-        add_definitions(-D__int8__ -D__fp8__ -D__fp16__ -D__fp32__ -D__fp64__ -D__bf16__)
-        set(__dtypes_all__ "ON")
+    add_definitions(-D__int8__ -D__fp8__ -D__fp16__ -D__fp32__ -D__fp64__ -D__bf16__)
+    set(__dtypes_all__ "ON")
 endif()
 
 if(DL_KERNELS)
@@ -45,8 +45,6 @@ endif()
 if(INSTANCES_ONLY)
     add_definitions(-DINSTANCES_ONLY)
 endif()
-
-include_directories(${PROJECT_BINARY_DIR}/include)
 
 # CK config file to record supported datatypes, etc.
 configure_file("${PROJECT_SOURCE_DIR}/include/ck/config.h.in" "${PROJECT_BINARY_DIR}/include/ck/config.h")
@@ -333,12 +331,13 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 
+# set CK project include directories
 include_directories(BEFORE
+    ${PROJECT_BINARY_DIR}/include
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/library/include
     ${HIP_INCLUDE_DIRS}
 )
-
 
 SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
 if(BUILD_DEV)
@@ -359,35 +358,35 @@ IF(IS_DIRECTORY "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu
     file(READ "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/${subdir_path}/CMakeLists.txt" cmake_instance)
     set(add_inst 0)
     if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp8\" " AND DTYPES MATCHES "fp8")
-            #message("fp8 instance found!")
-            set(add_inst 1)
+        #message("fp8 instance found!")
+        set(add_inst 1)
     endif()
     if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp16\"" AND DTYPES MATCHES "fp16")
-            #message("fp16 instance found!")
-            set(add_inst 1)
+        #message("fp16 instance found!")
+        set(add_inst 1)
     endif()
     if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp32\"" AND DTYPES MATCHES "fp32")
-            #message("fp32 instance found!")
-            set(add_inst 1)
+        #message("fp32 instance found!")
+        set(add_inst 1)
     endif()
     if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp64\"" AND DTYPES MATCHES "fp64")
-            #message("fp64 instance found!")
-            set(add_inst 1)
+        #message("fp64 instance found!")
+        set(add_inst 1)
     endif()
     if("${cmake_instance}" MATCHES "DTYPES MATCHES \"bf16\"" AND DTYPES MATCHES "bf16")
-            #message("bf16 instance found!")
-            set(add_inst 1)
+        #message("bf16 instance found!")
+        set(add_inst 1)
     endif()
     if("${cmake_instance}" MATCHES "DTYPES MATCHES \"int8\"" AND DTYPES MATCHES "int8")
-            #message("int8 instance found!")
-            set(add_inst 1)
+        #message("int8 instance found!")
+        set(add_inst 1)
     endif()
     if(NOT "${cmake_instance}" MATCHES "DTYPES")
-            #message("instance should be built for all types!")
-            set(add_inst 1)
+        #message("instance should be built for all types!")
+        set(add_inst 1)
     endif()
     if(add_inst EQUAL 1 OR NOT DEFINED DTYPES)
-      list(APPEND CK_DEVICE_INSTANCES device_${subdir_path}_instance)
+        list(APPEND CK_DEVICE_INSTANCES device_${subdir_path}_instance)
     endif()
 ENDIF()
 ENDFOREACH()
@@ -434,15 +433,22 @@ write_basic_package_version_file(
 )
 
 configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in
-        "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfig.cmake"
-        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
-        NO_CHECK_REQUIRED_COMPONENTS_MACRO
+    "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+    NO_CHECK_REQUIRED_COMPONENTS_MACRO
 )
 
 rocm_install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfigVersion.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+)
+
+# Install CK version and configuration files
+install(FILES
+    ${PROJECT_BINARY_DIR}/include/ck/version.h
+    ${PROJECT_BINARY_DIR}/include/ck/config.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck/
 )
 
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
