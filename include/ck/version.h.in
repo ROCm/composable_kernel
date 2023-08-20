@@ -24,8 +24,7 @@
  *
  *******************************************************************************/
 
-/* the configured version and settings for miopen
- *  */
+/* the configured version and settings for miopen- Composable Kernel */
 
 #ifndef CK_VERSION_H_
 #define CK_VERSION_H_
