@@ -57,7 +57,8 @@ template <typename ADataType,
           index_t CShuffleMRepeatPerShuffle,
           index_t CShuffleNRepeatPerShuffle,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-          index_t CBlockTransferScalarPerVector_NWaveNPerXDL>
+          index_t CBlockTransferScalarPerVector_NWaveNPerXDL,
+          PipelineVersion PipelineVer = PipelineVersion::v1>
 struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                                              BLayout,
                                                              CLayout,
@@ -76,7 +77,6 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
     // TODO: should be exposed as Tparams.
     static constexpr index_t NumGemmKPrefetchStage = 1;
     static constexpr LoopScheduler LoopSched       = make_default_loop_scheduler();
-    static constexpr PipelineVersion PipelineVer   = PipelineVersion::v1;
 
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
