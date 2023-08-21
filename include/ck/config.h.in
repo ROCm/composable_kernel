@@ -33,12 +33,24 @@
 #ifndef __dtypes_all__
 #cmakedefine __dtypes_all__ "@__dtypes_all__@"
 #if defined(__dtypes_all__)
+#ifndef __int8__
 #define __int8__ "ON"
+#endif
+#ifndef __fp8__
 #define __fp8__ "ON"
+#endif
+#ifndef __fp16__
 #define __fp16__ "ON"
+#endif
+#ifndef __bf16__
 #define __bf16__ "ON"
+#endif
+#ifndef __fp32__
 #define __fp32__ "ON"
+#endif
+#ifndef __fp64__
 #define __fp64__ "ON"
+#endif
 #endif
 #endif
 
