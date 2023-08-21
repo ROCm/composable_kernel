@@ -40,10 +40,12 @@ endif()
 
 if(DL_KERNELS)
     add_definitions(-DDL_KERNELS)
+    set(CK_ENABLE_DL_KERNELS 1)
 endif()
 
 if(INSTANCES_ONLY)
     add_definitions(-DINSTANCES_ONLY)
+    set(CK_ENABLE_INSTANCES_ONLY 1)
 endif()
 
 # CK config file to record supported datatypes, etc.
