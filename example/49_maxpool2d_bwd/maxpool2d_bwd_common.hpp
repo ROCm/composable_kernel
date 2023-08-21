@@ -155,7 +155,8 @@ bool maxpool_bwd_test(bool do_verification,
         dout_n_c_ho_wo.mDesc.GetElementSpaceSize(),
         din_n_c_hi_wi_device.mDesc.GetElementSpaceSize(),
         window_spatial_lengths,
-        window_strides);
+        window_strides,
+        window_dilations);
 
     if(!pool_bwd.IsSupportedArgument(pool_bwd_argument_ptr.get()))
     {

@@ -22,7 +22,8 @@ struct DeviceMaxPoolBwd : public BaseOperator
                         index_t dout_length,
                         index_t din_length,
                         std::vector<ck::index_t> window_lengths,
-                        std::vector<ck::index_t> window_strides) = 0;
+                        std::vector<ck::index_t> window_strides,
+                        std::vector<ck::index_t> window_dilations) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };

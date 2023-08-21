@@ -91,7 +91,8 @@ struct DeviceMaxPoolBwdImpl : public DeviceMaxPoolBwd<DOutDataType, IndexDataTyp
                  index_t dout_length,
                  index_t din_length,
                  const std::vector<ck::index_t>& window_lengths,
-                 const std::vector<ck::index_t>& window_strides)
+                 const std::vector<ck::index_t>& window_strides,
+                 const std::vector<ck::index_t>& window_dilations)
             : p_dout_{p_dout},
               p_indices_{p_indices},
               p_din_{p_din},
@@ -102,7 +103,8 @@ struct DeviceMaxPoolBwdImpl : public DeviceMaxPoolBwd<DOutDataType, IndexDataTyp
         {
             for(size_t i = 0; i < window_lengths.size(); ++i)
             {
-                windowOverlap_ |= window_lengths.at(i) > window_strides.at(i);
+                auto eff = (window_lengths.at(i) - 1) * window_dilations.at(i) + 1;
+                windowOverlap_ |= eff > window_strides.at(i);
             }
         }
 
@@ -228,6 +230,11 @@ struct DeviceMaxPoolBwdImpl : public DeviceMaxPoolBwd<DOutDataType, IndexDataTyp
                 }
                 else
                 {
+                    hip_check_error(hipMemsetAsync(arg.p_din_,
+                                                   0,
+                                                   arg.din_length_raw_ * sizeof(DInDataType),
+                                                   stream_config.stream_id_));
+
                     const auto put_kernel = kernel_put_element_1d<GridwisePutElementSet,
                                                                   InOutGrid1dDesc,
                                                                   DOutDataType,
@@ -292,7 +299,8 @@ struct DeviceMaxPoolBwdImpl : public DeviceMaxPoolBwd<DOutDataType, IndexDataTyp
                         index_t dout_length,
                         index_t din_length,
                         std::vector<ck::index_t> window_lengths,
-                        std::vector<ck::index_t> window_strides) override
+                        std::vector<ck::index_t> window_strides,
+                        std::vector<ck::index_t> window_dilations) override
     {
         // Assume p_dout, p_indices, p_din are packed memory space, dout_length and din_length are
         // physical size of the packed tensor
@@ -302,7 +310,8 @@ struct DeviceMaxPoolBwdImpl : public DeviceMaxPoolBwd<DOutDataType, IndexDataTyp
                                           dout_length,
                                           din_length,
                                           window_lengths,
-                                          window_strides);
+                                          window_strides,
+                                          window_dilations);
     }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override

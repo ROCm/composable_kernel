@@ -184,7 +184,8 @@ bool profile_max_pool3d_bwd_impl(int do_verification,
             dout_n_c_do_ho_wo.mDesc.GetElementSpaceSize(),
             din_n_c_di_hi_wi_device.mDesc.GetElementSpaceSize(),
             window_spatial_lengths,
-            window_strides);
+            window_strides,
+            window_dilations);
 
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
