@@ -422,8 +422,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     for(const auto& trans_arg : arg.gemm_kernel_args_)
                     {
                         const auto& karg = trans_arg.karg_;
-                        hip_check_error(
-                            hipMemset(karg.p_c_grid, 0, karg.M * karg.N * sizeof(EDataType)));
+                        hip_check_error(hipMemsetAsync(karg.p_c_grid,
+                                                       0,
+                                                       karg.M * karg.N * sizeof(EDataType),
+                                                       stream_config.stream_id_));
                     }
                 }
 
