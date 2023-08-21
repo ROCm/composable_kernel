@@ -21,7 +21,6 @@ namespace profiler {
 
 template <typename InDataType,
           typename OutDataType,
-          typename ComputeDataType,
           typename IndexDataType,
           typename DOutDataType,
           typename DInDataType,
@@ -37,6 +36,9 @@ bool profile_max_pool3d_bwd_impl(int do_verification,
                                  std::vector<index_t> input_left_pads,
                                  std::vector<index_t> input_right_pads)
 {
+    // AtomicAdd only support f32 for now. ComputeDataType must be float32
+    using ComputeDataType = float;
+
     constexpr index_t InOutRank  = 5;
     constexpr index_t WindowRank = 3;
 

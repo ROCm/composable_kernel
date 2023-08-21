@@ -123,23 +123,22 @@ int profile_max_pool3d_bwd(int argc, char* argv[])
 #ifdef __fp16__
     else if(data_type == ck::DataTypeEnum::Half)
     {
-        ck::profiler::profile_max_pool3d_bwd_impl<F16, F16, F16, I32, F16, F16, false>(
-            do_verification,
-            init_method,
-            do_log,
-            time_kernel,
-            in_length,
-            wsize,
-            wstride,
-            wdilation,
-            pad1,
-            pad2);
+        ck::profiler::profile_max_pool3d_bwd_impl<F16, F16, I32, F16, F16, false>(do_verification,
+                                                                                  init_method,
+                                                                                  do_log,
+                                                                                  time_kernel,
+                                                                                  in_length,
+                                                                                  wsize,
+                                                                                  wstride,
+                                                                                  wdilation,
+                                                                                  pad1,
+                                                                                  pad2);
     }
 #endif
 #ifdef __bf16__
     else if(data_type == ck::DataTypeEnum::BFloat16)
     {
-        ck::profiler::profile_max_pool3d_bwd_impl<BF16, BF16, BF16, I32, BF16, BF16, false>(
+        ck::profiler::profile_max_pool3d_bwd_impl<BF16, BF16, I32, BF16, BF16, false>(
             do_verification,
             init_method,
             do_log,
@@ -155,17 +154,16 @@ int profile_max_pool3d_bwd(int argc, char* argv[])
 #ifdef __fp32__
     else if(data_type == ck::DataTypeEnum::Float)
     {
-        ck::profiler::profile_max_pool3d_bwd_impl<F32, F32, F32, I32, F32, F32, false>(
-            do_verification,
-            init_method,
-            do_log,
-            time_kernel,
-            in_length,
-            wsize,
-            wstride,
-            wdilation,
-            pad1,
-            pad2);
+        ck::profiler::profile_max_pool3d_bwd_impl<F32, F32, I32, F32, F32, false>(do_verification,
+                                                                                  init_method,
+                                                                                  do_log,
+                                                                                  time_kernel,
+                                                                                  in_length,
+                                                                                  wsize,
+                                                                                  wstride,
+                                                                                  wdilation,
+                                                                                  pad1,
+                                                                                  pad2);
     }
 #endif
     else
