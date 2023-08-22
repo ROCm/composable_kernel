@@ -69,7 +69,8 @@ You can submit `Pull Requests (PR) on GitHub
 
 All contributors are required to develop their changes on a separate branch and then create a
 pull requrest to merge their changes into the `develop` branch, which is the default
-development branch in the Composable Kernel project.
+development branch in the Composable Kernel project. All external contributors must use their own
+forks of the project to develop their changes.
 
 When submitting a Pull Request you should:
 
@@ -79,14 +80,18 @@ When submitting a Pull Request you should:
 * Verify and test the change:
 
   * Run any relevant existing tests.
-  * Write new tests if the existing ones do not exist or do not cover the functionality entirely.
+  * Write new tests if added functionality is not covered by current tests.
+
+* Ensure your changes align with the coding style defined in the ``.clang-format`` file located in
+  the project's root directory. We leverage `pre-commit` to run `clang-format` automatically. We
+  highly recommend contributors utilize this method to maintain consistent code formatting.
+  Instructions on setting up `pre-commit` can be found in the project's
+  `README file <https://github.com/ROCmSoftwarePlatform/composable_kernel/blob/develop/README.md>`_
 
 * Link your PR to any related issues:
 
   * If there is an issue that is resolved by your change, please provide a link to the issue in
     the description of your pull request.
-  * If there is no issue related to your change, we recommend creating a new issue and then
-    providing a link to the issue in the description of your pull request.
 
 * For larger contributions, structure your change into a sequence of smaller, focused commits, each
   addressing a particular aspect or fix.
