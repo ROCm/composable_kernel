@@ -273,12 +273,12 @@ int run(int argc, char* argv[])
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
     // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
     // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t M  = 512;
-    ck::index_t N  = 512;
+    ck::index_t M  = 64;
+    ck::index_t N  = 128;
     ck::index_t K  = DIM;
     ck::index_t O  = DIM;
-    ck::index_t G0 = 4;
-    ck::index_t G1 = 6;
+    ck::index_t G0 = 1;
+    ck::index_t G1 = 1;
 
     bool input_permute  = false;
     bool output_permute = false;
@@ -395,7 +395,7 @@ int run(int argc, char* argv[])
 
     Tensor<InputDataType> q_gs_ms_ks(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
     Tensor<InputDataType> k_gs_ns_ks(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
-    Tensor<ZDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
+    Tensor<Acc0BiasDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
     Tensor<ZDataType> z_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
     Tensor<InputDataType> v_gs_os_ns(v_gs_os_ns_lengths, v_gs_os_ns_strides);
     Tensor<InputDataType> y_gs_ms_os(y_gs_ms_os_lengths, y_gs_ms_os_strides);
@@ -404,6 +404,7 @@ int run(int argc, char* argv[])
 
     std::cout << "q_gs_ms_ks: " << q_gs_ms_ks.mDesc << std::endl;
     std::cout << "k_gs_ns_ks: " << k_gs_ns_ks.mDesc << std::endl;
+    std::cout << "d_gs_ms_ns: " << d_gs_ms_ns.mDesc << std::endl;
     std::cout << "z_gs_ms_ns: " << z_gs_ms_ns.mDesc << std::endl;
     std::cout << "v_gs_os_ns: " << v_gs_os_ns.mDesc << std::endl;
     std::cout << "y_gs_ms_os: " << y_gs_ms_os.mDesc << std::endl;
@@ -414,13 +415,12 @@ int run(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        // q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
         d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<Acc0BiasDataType>{-2, 2});
-        // d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{0});
+        //d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         break;
     case 2:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<InputDataType>{0.0, 1.0});
@@ -469,7 +469,7 @@ int run(int argc, char* argv[])
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
-        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1}); // dy[g0, g1, m, o]
+        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1}); //dy[g0,g1, m, o]
         d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         // assume mnko = 256
         // P = softmax(QK) = 0.0039 * ones
@@ -480,26 +480,6 @@ int run(int argc, char* argv[])
         //    = 0.0039 * ones * (ones - 1)
         //    = 0
     }
-
-    Tensor<InputDataType> q_g_m_k({BatchCount, M, K});
-    Tensor<InputDataType> k_g_n_k({BatchCount, N, K});
-    Tensor<Acc0BiasDataType> d_g_m_n({G0 * G1, M, N});
-    Tensor<ZDataType> z_g_m_n({BatchCount, M, N});
-    Tensor<InputDataType> v_g_n_o({BatchCount, N, O});
-    Tensor<AccDataType> s_g_m_n({BatchCount, M, N});
-    Tensor<InputDataType> p_g_m_n({BatchCount, M, N});
-    Tensor<InputDataType> p_drop_g_m_n({BatchCount, M, N});
-    Tensor<InputDataType> y_g_m_o({BatchCount, M, O});
-    Tensor<LSEDataType> lse_g_m({BatchCount, M});
-
-    q_gs_ms_ks.ForEach(
-        [&](auto& self, auto idx) { q_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
-    k_gs_ns_ks.ForEach(
-        [&](auto& self, auto idx) { k_g_n_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
-    v_gs_os_ns.ForEach(
-        [&](auto& self, auto idx) { v_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx); });
-    d_gs_ms_ns.ForEach(
-        [&](auto& self, auto idx) { d_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
 
     // qkv gradients have the same descriptor as with qkv
     DeviceMem q_device_buf(sizeof(InputDataType) * q_gs_ms_ks.mDesc.GetElementSpaceSize());
@@ -517,7 +497,6 @@ int run(int argc, char* argv[])
     q_device_buf.ToDevice(q_gs_ms_ks.mData.data());
     k_device_buf.ToDevice(k_gs_ns_ks.mData.data());
     d_device_buf.ToDevice(d_gs_ms_ns.mData.data());
-    z_device_buf.ToDevice(z_gs_ms_ns.mData.data());
     v_device_buf.ToDevice(v_gs_os_ns.mData.data());
     ygrad_device_buf.ToDevice(ygrad_gs_ms_os.mData.data());
 
@@ -630,15 +609,39 @@ int run(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    // copy z matirx data form device
-    z_device_buf.FromDevice(z_gs_ms_ns.mData.data());
-    z_gs_ms_ns.ForEach(
-        [&](auto& self, auto idx) { z_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
-
     //       std::cout << "z_g_m_n ref:\n" << z_g_m_n;
     bool pass = true;
     if(do_verification)
     {
+        // copy z matirx data form device
+
+        Tensor<InputDataType> q_g_m_k({BatchCount, M, K});
+        Tensor<InputDataType> k_g_n_k({BatchCount, N, K});
+        Tensor<Acc0BiasDataType> d_g_m_n({G0 * G1, M, N});
+        Tensor<ZDataType> z_g_m_n({BatchCount, M, N});
+        Tensor<InputDataType> v_g_n_o({BatchCount, N, O});
+        Tensor<AccDataType> s_g_m_n({BatchCount, M, N});
+        Tensor<InputDataType> p_g_m_n({BatchCount, M, N});
+        Tensor<InputDataType> p_drop_g_m_n({BatchCount, M, N});
+        Tensor<InputDataType> y_g_m_o({BatchCount, M, O});
+        Tensor<LSEDataType> lse_g_m({BatchCount, M});
+
+        z_device_buf.FromDevice(z_gs_ms_ns.mData.data());
+        z_gs_ms_ns.ForEach([&](auto& self, auto idx) {
+            z_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        });
+        q_gs_ms_ks.ForEach([&](auto& self, auto idx) {
+            q_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        });
+        k_gs_ns_ks.ForEach([&](auto& self, auto idx) {
+            k_g_n_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        });
+        v_gs_os_ns.ForEach([&](auto& self, auto idx) {
+            v_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+        });
+        d_gs_ms_ns.ForEach([&](auto& self, auto idx) {
+            d_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        });
         // run fwd again for y, cause z_g_m_n update
         run_attention_fwd_host(q_g_m_k,
                                k_g_n_k,

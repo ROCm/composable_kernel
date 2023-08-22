@@ -118,7 +118,7 @@ __global__ void
 
     const index_t z_random_matrix_offset = g_idx * raw_m_padded * raw_n_padded;
 
-    const D0DataType* tmp_p_d0_grid = nullptr;
+    const D0DataType* tmp_p_d0_grid = p_d0_grid;
     if constexpr(!is_same<D0DataType, void>::value)
     {
         const long_index_t d0_batch_offset = __builtin_amdgcn_readfirstlane(
@@ -850,10 +850,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
               p_drop_{p_drop}
         {
             // TODO: implement bias addition
-            ignore = p_acc0_biases;
             ignore = p_acc1_biases;
-            ignore = acc0_biases_gs_ms_ns_lengths;
-            ignore = acc0_biases_gs_ms_ns_strides;
             ignore = acc1_biases_gs_ms_gemm1ns_lengths;
             ignore = acc1_biases_gs_ms_gemm1ns_strides;
 
@@ -1042,7 +1039,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                         has_main_k_block_loop_,
                         is_dropout_,
                         Deterministic>;
-
+                std::cout << "device address : " << arg.p_d0_grid_ << std::endl;
                 return launch_and_time_kernel(
                     stream_config,
                     kernel,
