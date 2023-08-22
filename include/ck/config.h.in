@@ -26,6 +26,7 @@
 #ifndef CK_CONFIG_H_IN
 #define CK_CONFIG_H_IN
 
+// clang-format off
 //
 // DataType supports in the current CK build
 //
@@ -95,5 +96,7 @@
 #ifndef CK_ENABLE_INSTANCES_ONLY
 #cmakedefine CK_ENABLE_INSTANCES_ONLY @CK_ENABLE_INSTANCES_ONLY@
 #endif
+
+// clang-format on
 
 #endif // CK_CONFIG_H_IN
