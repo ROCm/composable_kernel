@@ -58,7 +58,9 @@ template <typename ADataType,
           index_t CShuffleNRepeatPerShuffle,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CBlockTransferScalarPerVector_NWaveNPerXDL,
+          typename ComputeType        = CDataType,
           PipelineVersion PipelineVer = PipelineVersion::v1>
+
 struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                                              BLayout,
                                                              CLayout,
@@ -80,7 +82,8 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
 
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
-        ADataType, // TODO: distinguish A/B datatype
+        ADataType,
+        BDataType,
         AccDataType,
         CDataType,
         ALayout,
@@ -120,7 +123,8 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
         CBlockTransferScalarPerVector_NWaveNPerXDL,
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         LoopSched,
-        PipelineVer>;
+        PipelineVer,
+        ComputeType>;
 
     using Argument              = typename GridwiseGemm::Argument;
     using DefaultBlock2CTileMap = typename GridwiseGemm::DefaultBlock2CTileMap;

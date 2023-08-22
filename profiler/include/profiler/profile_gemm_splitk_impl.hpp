@@ -214,6 +214,21 @@ bool profile_gemm_splitk_impl(int do_verification,
                           << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", KBatch "
                           << kbatch_curr << std::endl;
 
+                // set softer tolerances for fp8
+                if constexpr(is_same_v<ADataType, f8_t> || is_same_v<BDataType, f8_t> ||
+                             is_same_v<CDataType, f8_t>)
+                {
+                    std::string msg = "Error: Incorrect results!";
+                    double rtol     = 1e-1;
+                    double atol     = 1e-1;
+                    pass            = pass & ck::utils::check_err(
+                                      c_m_n_device_result, c_m_n_host_result, msg, rtol, atol);
+                }
+                else
+                {
+                    pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+                }
+
                 if(tflops > best_tflops)
                 {
                     best_op_name    = op_name;
