@@ -903,7 +903,8 @@ std::ostream& operator<<(std::ostream& os, const ck::Sequence<Is...>)
 {
     using S = ck::Sequence<Is...>;
     os << "{";
-    ck::static_for<0, S::Size(), 1>{}([&](auto i) { os << S::At(i).value << ", "; });
-    os << "}";
+    ck::static_for<0, S::Size() - ck::Number<1>{}, 1>{}(
+        [&](auto i) { os << S::At(i).value << ", "; });
+    os << S::At(S::Size() - ck::Number<1>{}).value << "}";
     return os;
 }
