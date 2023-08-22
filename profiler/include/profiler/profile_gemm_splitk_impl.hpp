@@ -191,7 +191,20 @@ bool profile_gemm_splitk_impl(int do_verification,
             {
                 c_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-                pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+                // set softer tolerances for fp8
+                if constexpr(is_same_v<ADataType, f8_t> || is_same_v<BDataType, f8_t> ||
+                             is_same_v<CDataType, f8_t>)
+                {
+                    std::string msg = "Error: Incorrect results!";
+                    double rtol     = 1e-1;
+                    double atol     = 1e-1;
+                    pass            = pass & ck::utils::check_err(
+                                      c_m_n_device_result, c_m_n_host_result, msg, rtol, atol);
+                }
+                else
+                {
+                    pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+                }
 
                 if(do_log)
                 {
