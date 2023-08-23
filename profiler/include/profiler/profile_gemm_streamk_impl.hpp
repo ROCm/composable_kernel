@@ -170,6 +170,25 @@ bool profile_gemm_streamk_impl(int do_verification,
             // re-init C to zero before profiling next kernel
             c_device_buf.SetZero();
 
+            invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
+
+            if(do_verification)
+            {
+                c_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+                pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+
+                if(do_log)
+                {
+                    LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
+                        << std::endl;
+                    LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result.mData, ",")
+                        << std::endl;
+                }
+            }
+
             std::string op_name = op_ptr->GetTypeString();
 
             float ave_time =
@@ -193,23 +212,6 @@ bool profile_gemm_streamk_impl(int do_verification,
                 best_tflops     = tflops;
                 best_ave_time   = ave_time;
                 best_gb_per_sec = gb_per_sec;
-            }
-
-            if(do_verification)
-            {
-                c_device_buf.FromDevice(c_m_n_device_result.mData.data());
-
-                pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
-
-                if(do_log)
-                {
-                    LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result.mData, ",")
-                        << std::endl;
-                }
             }
         }
         else

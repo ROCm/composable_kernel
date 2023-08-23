@@ -71,6 +71,6 @@ TYPED_TEST_SUITE(TestBatchedGemmMultiD, KernelTypes);
 #ifdef __fp16
 TYPED_TEST(TestBatchedGemmMultiD, f16) { this->template Run<F16>(); }
 #endif
-#ifdef __int8__
+#ifdef CK_ENABLE_INT8
 TYPED_TEST(TestBatchedGemmMultiD, int8) { this->template Run<int8_t>(); }
 #endif

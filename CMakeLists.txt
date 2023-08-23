@@ -1,42 +1,60 @@
 cmake_minimum_required(VERSION 3.14)
 
+set(version 1.1.0)
 # Check support for CUDA/HIP in Cmake
-project(composable_kernel)
+project(composable_kernel VERSION ${version})
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 if (DTYPES)
-        add_definitions(-DDTYPES)
-        if (DTYPES MATCHES "int8")
-                add_definitions(-D__int8__)
-        endif()
-        if (DTYPES MATCHES "fp8")
-                add_definitions(-D__fp8__)
-        endif()
-        if (DTYPES MATCHES "fp16")
-                add_definitions(-D__fp16__)
-        endif()
-        if (DTYPES MATCHES "fp32")
-                add_definitions(-D__fp32__)
-        endif()
-        if (DTYPES MATCHES "fp64")
-                add_definitions(-D__fp64__)
-        endif()
-        if (DTYPES MATCHES "bf16")
-                add_definitions(-D__bf16__)
-        endif()
-        message("DTYPES macro set to ${DTYPES}")
+    add_definitions(-DDTYPES)
+    if (DTYPES MATCHES "int8")
+        add_definitions(-DCK_ENABLE_INT8)
+        set(CK_ENABLE_INT8 "ON")
+    endif()
+    if (DTYPES MATCHES "fp8")
+        add_definitions(-DCK_ENABLE_FP8)
+        set(CK_ENABLE_FP8 "ON")
+    endif()
+    if (DTYPES MATCHES "fp16")
+        add_definitions(-DCK_ENABLE_FP16)
+        set(CK_ENABLE_FP16 "ON")
+    endif()
+    if (DTYPES MATCHES "fp32")
+        add_definitions(-DCK_ENABLE_FP32)
+        set(CK_ENABLE_FP32 "ON")
+    endif()
+    if (DTYPES MATCHES "fp64")
+        add_definitions(-DCK_ENABLE_FP64)
+        set(CK_ENABLE_FP64 "ON")
+    endif()
+    if (DTYPES MATCHES "bf16")
+        add_definitions(-DCK_ENABLE_BF16)
+        set(CK_ENABLE_BF16 "ON")
+    endif()
+    message("DTYPES macro set to ${DTYPES}")
 else()
-        add_definitions(-D__int8__ -D__fp8__ -D__fp16__ -D__fp32__ -D__fp64__ -D__bf16__)
+    add_definitions(-DCK_ENABLE_INT8 -DCK_ENABLE_FP8 -DCK_ENABLE_FP16 -DCK_ENABLE_FP32 -DCK_ENABLE_FP64 -DCK_ENABLE_BF16)
+    set(CK_ENABLE_ALL_DTYPES "ON")
 endif()
 
 if(DL_KERNELS)
     add_definitions(-DDL_KERNELS)
+    set(CK_ENABLE_DL_KERNELS "ON")
 endif()
 
 if(INSTANCES_ONLY)
     add_definitions(-DINSTANCES_ONLY)
+    set(CK_ENABLE_INSTANCES_ONLY "ON")
 endif()
+
+# CK config file to record supported datatypes, etc.
+configure_file("${PROJECT_SOURCE_DIR}/include/ck/config.h.in" "${PROJECT_BINARY_DIR}/include/ck/config.h")
+
+# CK version file to record release version as well as git commit hash
+find_package(Git REQUIRED)
+execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD OUTPUT_VARIABLE COMMIT_ID OUTPUT_STRIP_TRAILING_WHITESPACE)
+configure_file("${PROJECT_SOURCE_DIR}/include/ck/version.h.in" "${PROJECT_BINARY_DIR}/include/ck/version.h")
 
 enable_testing()
 
@@ -50,8 +68,10 @@ include(ROCMInstallSymlinks)
 include(ROCMCreatePackage)
 include(CheckCXXCompilerFlag)
 include(ROCMCheckTargetIds)
-rocm_setup_version(VERSION 0.2.1)
 include(TargetFlags)
+
+rocm_setup_version(VERSION ${version})
+
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip)
 
 message("GPU_TARGETS= ${GPU_TARGETS}")
@@ -315,12 +335,13 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 
+# set CK project include directories
 include_directories(BEFORE
+    ${PROJECT_BINARY_DIR}/include
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/library/include
     ${HIP_INCLUDE_DIRS}
 )
-
 
 SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
 if(BUILD_DEV)
@@ -341,35 +362,35 @@ IF(IS_DIRECTORY "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu
     file(READ "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/${subdir_path}/CMakeLists.txt" cmake_instance)
     set(add_inst 0)
     if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp8\" " AND DTYPES MATCHES "fp8")
-            #message("fp8 instance found!")
-            set(add_inst 1)
+        #message("fp8 instance found!")
+        set(add_inst 1)
     endif()
     if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp16\"" AND DTYPES MATCHES "fp16")
-            #message("fp16 instance found!")
-            set(add_inst 1)
+        #message("fp16 instance found!")
+        set(add_inst 1)
     endif()
     if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp32\"" AND DTYPES MATCHES "fp32")
-            #message("fp32 instance found!")
-            set(add_inst 1)
+        #message("fp32 instance found!")
+        set(add_inst 1)
     endif()
     if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp64\"" AND DTYPES MATCHES "fp64")
-            #message("fp64 instance found!")
-            set(add_inst 1)
+        #message("fp64 instance found!")
+        set(add_inst 1)
     endif()
     if("${cmake_instance}" MATCHES "DTYPES MATCHES \"bf16\"" AND DTYPES MATCHES "bf16")
-            #message("bf16 instance found!")
-            set(add_inst 1)
+        #message("bf16 instance found!")
+        set(add_inst 1)
     endif()
     if("${cmake_instance}" MATCHES "DTYPES MATCHES \"int8\"" AND DTYPES MATCHES "int8")
-            #message("int8 instance found!")
-            set(add_inst 1)
+        #message("int8 instance found!")
+        set(add_inst 1)
     endif()
     if(NOT "${cmake_instance}" MATCHES "DTYPES")
-            #message("instance should be built for all types!")
-            set(add_inst 1)
+        #message("instance should be built for all types!")
+        set(add_inst 1)
     endif()
     if(add_inst EQUAL 1 OR NOT DEFINED DTYPES)
-      list(APPEND CK_DEVICE_INSTANCES device_${subdir_path}_instance)
+        list(APPEND CK_DEVICE_INSTANCES device_${subdir_path}_instance)
     endif()
 ENDIF()
 ENDFOREACH()
@@ -409,7 +430,6 @@ endif()
 #Create an interface target for the include only files and call it "composablekernels"
 include(CMakePackageConfigHelpers)
 
-set(version 1.0.0)
 write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfigVersion.cmake"
     VERSION "${version}"
@@ -417,15 +437,22 @@ write_basic_package_version_file(
 )
 
 configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in
-        "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfig.cmake"
-        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
-        NO_CHECK_REQUIRED_COMPONENTS_MACRO
+    "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+    NO_CHECK_REQUIRED_COMPONENTS_MACRO
 )
 
 rocm_install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfigVersion.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+)
+
+# Install CK version and configuration files
+install(FILES
+    ${PROJECT_BINARY_DIR}/include/ck/version.h
+    ${PROJECT_BINARY_DIR}/include/ck/config.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck/
 )
 
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
