@@ -26,7 +26,9 @@ namespace ck {
 //   E = cde_op(C, D0, D1, ...)
 // Assume:
 //   D0, D1, ... and E have the same layout
-template <typename ABDataType, // FIXME: don't assume A/B have same datatype
+template <typename ADataType,
+          typename BDataType,
+          typename ComputeDataType_,
           typename AccDataType,
           typename CShuffleDataType,
           typename DsDataType,
@@ -92,15 +94,11 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
     using GridwiseGemmPipe = remove_cvref_t<decltype(
         GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
-    // denorm test fix, required to work around fp16 mfma issue
-    // we convert fp16->fp32->bf16 and execute bf16 mfma instruction
-    // when mfma if fixed, remove this section and update
-    // ABDataTypeAdjusted -> ABDataType throughout this file
 #if CK_WORKAROUND_DENORM_FIX
-    using ABDataTypeAdjusted =
-        conditional_t<is_same_v<ABDataType, ck::half_t>, ck::bhalf_t, ABDataType>;
+    using ComputeDataType =
+        conditional_t<is_same_v<ComputeDataType_, ck::half_t>, ck::bhalf_t, ComputeDataType_>;
 #else
-    using ABDataTypeAdjusted = ABDataType;
+    using ComputeDataType = ComputeDataType_;
 #endif
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
@@ -169,8 +167,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
-        return math::max((a_block_space_size_aligned + b_block_space_size_aligned) *
-                             sizeof(ABDataType),
+        return math::max(a_block_space_size_aligned * sizeof(ADataType) +
+                             b_block_space_size_aligned * sizeof(BDataType),
                          c_block_size * sizeof(CShuffleDataType));
     }
 
@@ -313,8 +311,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         // check tensor size: cannot be larger than 2GB each
         constexpr long_index_t TwoGB = (long_index_t{1} << 31);
 
-        if(!(a_grid_desc_m_k.GetElementSpaceSize() * sizeof(ABDataType) <= TwoGB &&
-             b_grid_desc_n_k.GetElementSpaceSize() * sizeof(ABDataType) <= TwoGB &&
+        if(!(a_grid_desc_m_k.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
+             b_grid_desc_n_k.GetElementSpaceSize() * sizeof(BDataType) <= TwoGB &&
              e_grid_desc_m_n.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
         {
             return false;
@@ -338,8 +336,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
               typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
               typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
               typename Block2ETileMap>
-    __device__ static void Run(const ABDataType* __restrict__ p_a_grid,
-                               const ABDataType* __restrict__ p_b_grid,
+    __device__ static void Run(const ADataType* __restrict__ p_a_grid,
+                               const BDataType* __restrict__ p_b_grid,
                                DsGridPointer p_ds_grid,
                                EDataType* __restrict__ p_e_grid,
                                void* __restrict__ p_shared,
@@ -408,8 +406,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                 Sequence<AK0PerBlock, MPerBlock, AK1>,
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
-                                                ABDataType,
-                                                ABDataTypeAdjusted,
+                                                ADataType,
+                                                ComputeDataType,
                                                 decltype(a_grid_desc_ak0_m_ak1),
                                                 decltype(a_block_desc_ak0_m_ak1),
                                                 ABlockTransferSrcAccessOrder,
@@ -439,8 +437,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                 Sequence<BK0PerBlock, NPerBlock, BK1>,
                                                 BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 BBlockTransferThreadClusterArrangeOrder,
-                                                ABDataType,
-                                                ABDataTypeAdjusted,
+                                                BDataType,
+                                                ComputeDataType,
                                                 decltype(b_grid_desc_bk0_n_bk1),
                                                 decltype(b_block_desc_bk0_n_bk1),
                                                 BBlockTransferSrcAccessOrder,
@@ -470,11 +468,11 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         // sanity check
         constexpr index_t KPack =
             math::max(math::lcm(AK1, BK1),
-                      MfmaSelector<ABDataTypeAdjusted, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+                      MfmaSelector<ComputeDataType, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
-            ABDataTypeAdjusted,
+            ComputeDataType,
             AccDataType,
             decltype(a_block_desc_ak0_m_ak1),
             decltype(b_block_desc_bk0_n_bk1),
@@ -492,11 +490,10 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ABDataTypeAdjusted*>(p_shared),
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<ComputeDataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ABDataTypeAdjusted*>(p_shared) + a_block_space_size_aligned,
+            static_cast<ComputeDataType*>(p_shared) + a_block_space_size_aligned,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);

@@ -356,6 +356,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
         ABDataType, // TODO: distinguish A/B datatype
+        ABDataType, // TODO: distinguish A/B datatype
+        ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
         CShuffleDataType,
         DsDataType,

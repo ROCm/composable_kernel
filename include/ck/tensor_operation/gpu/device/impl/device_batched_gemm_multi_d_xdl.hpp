@@ -324,8 +324,12 @@ struct DeviceBatchedGemmMultiD_Xdl : public DeviceBatchedGemmMultiD<ALayout,
         index_t BatchStrideE_;
     };
 
+    using ComputeDataType = ADataType;
+
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
+        BDataType,
+        ComputeDataType,
         AccDataType,
         CShuffleDataType,
         DsDataType,
