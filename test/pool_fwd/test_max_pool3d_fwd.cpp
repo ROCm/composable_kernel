@@ -66,7 +66,7 @@ class TestMaxPool3dFwd : public ::testing::Test
     }
 };
 
-#ifdef __fp16__
+#ifdef CK_ENABLE_FP16
 using KernelTypes =
     ::testing::Types<std::tuple<F16, F16, F32, I32>, std::tuple<F32, F32, F32, I32>>;
 #else

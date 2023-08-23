@@ -136,8 +136,8 @@ struct GridwiseMultiblockBatchNormForward
     using ThreadReduceDstDesc_M =
         decltype(make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{})));
 
-    using ThreadReduceSrcDesc_M_1 = decltype(
-        make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{}, Number<1>{})));
+    using ThreadReduceSrcDesc_M_1 = decltype(make_naive_tensor_descriptor_packed(
+        make_tuple(Number<MThreadSliceSize>{}, Number<1>{})));
 
     using ThreadwiseWelford1 =
         ThreadwiseWelford<AccDataType, ThreadReduceSrcDesc_M_K, ThreadReduceDstDesc_M>;

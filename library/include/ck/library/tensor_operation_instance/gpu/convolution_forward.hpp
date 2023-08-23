@@ -18,7 +18,7 @@ namespace device {
 namespace instance {
 
 // conv2d forward
-#ifdef __fp16__
+#ifdef CK_ENABLE_FP16
 void add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(
     std::vector<std::unique_ptr<
         DeviceConvFwd<2, NHWC, KYXC, NHWK, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
@@ -28,7 +28,7 @@ void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(
         DeviceConvFwd<2, NHWC, KYXC, NHWK, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 #endif
-#ifdef __bf16__
+#ifdef CK_ENABLE_BF16
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvFwd<2,
                                               NHWC,
@@ -41,13 +41,13 @@ void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(
                                               PassThrough,
                                               PassThrough>>>& instances);
 #endif
-#ifdef __fp32__
+#ifdef CK_ENABLE_FP32
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(
     std::vector<std::unique_ptr<
         DeviceConvFwd<2, NHWC, KYXC, NHWK, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
         instances);
 #endif
-#ifdef __int8__
+#ifdef CK_ENABLE_INT8
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(
     std::vector<std::unique_ptr<DeviceConvFwd<2,
                                               NHWC,
@@ -103,7 +103,7 @@ struct DeviceOperationInstanceFactory<
             {
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(op_ptrs);
             }
-#ifdef __fp16__
+#ifdef CK_ENABLE_FP16
             else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
                               is_same_v<OutDataType, half_t>)
             {
@@ -111,7 +111,7 @@ struct DeviceOperationInstanceFactory<
                 add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(op_ptrs);
             }
 #endif
-#ifdef __bf16__
+#ifdef CK_ENABLE_BF16
             else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
                               is_same_v<WeiDataType, ck::bhalf_t> &&
                               is_same_v<OutDataType, ck::bhalf_t>)
@@ -119,7 +119,7 @@ struct DeviceOperationInstanceFactory<
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(op_ptrs);
             }
 #endif
-#ifdef __int8__
+#ifdef CK_ENABLE_INT8
             else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
                               is_same_v<OutDataType, int8_t>)
             {
