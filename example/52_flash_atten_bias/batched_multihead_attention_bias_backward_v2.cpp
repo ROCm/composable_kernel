@@ -273,8 +273,8 @@ int run(int argc, char* argv[])
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
     // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
     // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t M  = 64;
-    ck::index_t N  = 128;
+    ck::index_t M  = 128;
+    ck::index_t N  = 512;
     ck::index_t K  = DIM;
     ck::index_t O  = DIM;
     ck::index_t G0 = 1;
@@ -468,7 +468,7 @@ int run(int argc, char* argv[])
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
-        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1}); //dy[g0,g1, m, o]
+        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1}); // dy[g0,g1, m, o]
         d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         // assume mnko = 256
         // P = softmax(QK) = 0.0039 * ones
