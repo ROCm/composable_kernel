@@ -56,8 +56,8 @@ std::string getPipelineVersionString(const PipelineVersion& pv)
 
 } // namespace ck
 
-std::ostream& operator<<(std::ostream& os, const PipelineVersion pv)
+std::ostream& operator<<(std::ostream& os, const ck::PipelineVersion pv)
 {
-    os << getPipelineVersionString(pv);
+    os << ck::getPipelineVersionString(pv);
     return os;
 }
