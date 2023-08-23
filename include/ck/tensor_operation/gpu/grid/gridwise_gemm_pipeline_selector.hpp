@@ -44,7 +44,7 @@ constexpr auto GridwiseGemmPipeline_Selector()
     }
 }
 
-std::string getPipelineVersionString(const PipelineVersion& pv)
+inline std::string getPipelineVersionString(const PipelineVersion& pv)
 {
     switch(pv)
     {
