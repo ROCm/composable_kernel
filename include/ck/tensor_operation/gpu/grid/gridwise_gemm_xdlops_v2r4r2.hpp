@@ -566,8 +566,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
               typename Block2CTileMap>
-    __device__ static void Run(const FloatAB* p_a_grid,
-                               const FloatAB* p_b_grid,
+    __device__ static void Run(const FloatA* p_a_grid,
+                               const FloatB* p_b_grid,
                                FloatC* p_c_grid,
                                index_t M,
                                index_t N,
