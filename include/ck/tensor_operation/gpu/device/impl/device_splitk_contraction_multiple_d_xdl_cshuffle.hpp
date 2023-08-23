@@ -617,10 +617,12 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
 
-    using AGridDesc_AKB_AK0_M_AK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultAGridDescriptor_AKB_AK0_M_AK1(AGridDesc_M_K{}, 1))>;
-    using BGridDesc_BKB_BK0_N_BK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultBGridDescriptor_BKB_BK0_N_BK1(BGridDesc_N_K{}, 1))>;
+    using AGridDesc_AKB_AK0_M_AK1 =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultAGridDescriptor_AKB_AK0_M_AK1(
+            AGridDesc_M_K{}, 1))>;
+    using BGridDesc_BKB_BK0_N_BK1 =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBGridDescriptor_BKB_BK0_N_BK1(
+            BGridDesc_N_K{}, 1))>;
 
     using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
 

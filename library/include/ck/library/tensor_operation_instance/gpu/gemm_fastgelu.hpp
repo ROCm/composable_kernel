@@ -10,7 +10,7 @@
 #include "ck/ck.hpp"
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
-#ifdef __fp16__
+#ifdef CK_ENABLE_FP16
 namespace ck {
 namespace tensor_operation {
 namespace device {

@@ -90,14 +90,14 @@ void add_device_reduce_instance_multiblock_atomic_add(
     static_for<0,
                std::tuple_size<reduce_configuration_1_instances_multiblock_atomic_add>::value,
                1>{}([&](auto i) {
-        using cfg1 = remove_cvref_t<decltype(
-            std::get<i.value>(reduce_configuration_1_instances_multiblock_atomic_add{}))>;
+        using cfg1 = remove_cvref_t<decltype(std::get<i.value>(
+            reduce_configuration_1_instances_multiblock_atomic_add{}))>;
 
         static_for<0,
                    std::tuple_size<reduce_configuration_2_instances_multiblock_atomic_add>::value,
                    1>{}([&](auto j) {
-            using cfg2 = remove_cvref_t<decltype(
-                std::get<j.value>(reduce_configuration_2_instances_multiblock_atomic_add{}))>;
+            using cfg2 = remove_cvref_t<decltype(std::get<j.value>(
+                reduce_configuration_2_instances_multiblock_atomic_add{}))>;
 
             using ReduceOpInstance = DeviceReduceMultiBlock<InDataType,
                                                             AccDataType,
