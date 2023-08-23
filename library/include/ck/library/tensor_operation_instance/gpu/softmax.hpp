@@ -40,7 +40,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceSoftma
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-#ifdef __fp16__
+#ifdef CK_ENABLE_FP16
         if constexpr(std::is_same_v<InDataType, F16> && std::is_same_v<AccDataType, F32> &&
                      std::is_same_v<OutDataType, F16>)
         {
@@ -66,7 +66,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceSoftma
             }
         }
 #endif
-#ifdef __fp32__
+#ifdef CK_ENABLE_FP32
         if constexpr(std::is_same_v<InDataType, F32> && std::is_same_v<AccDataType, F32> &&
                      std::is_same_v<OutDataType, F32>)
         {

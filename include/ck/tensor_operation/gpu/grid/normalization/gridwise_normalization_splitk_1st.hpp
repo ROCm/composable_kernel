@@ -87,9 +87,9 @@ struct GridwiseNormalizationSplitK1st
             int left_kPerBlock  = math::integer_divide_ceil(k, kGridSize);
             int kRightmostBlock = kRaw - left_kPerBlock * (kGridSize - 1);
             int kPerThread      = kRightmostBlock < K_BlockTileSize
-                                 ? 0
-                                 : KThreadSliceSize * (kRightmostBlock / K_BlockTileSize);
-            int kPerBlockTail = kRightmostBlock - kPerThread * KThreadClusterSize;
+                                      ? 0
+                                      : KThreadSliceSize * (kRightmostBlock / K_BlockTileSize);
+            int kPerBlockTail   = kRightmostBlock - kPerThread * KThreadClusterSize;
 
             if(kPerBlockTail > 0)
             {

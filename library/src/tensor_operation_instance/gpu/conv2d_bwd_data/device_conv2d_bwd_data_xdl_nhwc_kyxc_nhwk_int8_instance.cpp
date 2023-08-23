@@ -11,7 +11,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
-#ifdef __int8__
+#ifdef CK_ENABLE_INT8
 namespace ck {
 namespace tensor_operation {
 namespace device {

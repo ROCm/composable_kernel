@@ -22,7 +22,7 @@ static constexpr auto WindowRank = 3;
 
 static constexpr auto MaxOp = ck::ReduceTensorOp::MAX;
 static constexpr auto AvgOp = ck::ReduceTensorOp::AVG;
-#ifdef __fp16__
+#ifdef CK_ENABLE_FP16
 // FP16
 void add_device_pool3d_fwd_ndhwc_f16_instances(
     std::vector<std::unique_ptr<
@@ -37,7 +37,7 @@ void add_device_pool3d_fwd_ndhwc_index_f16_instances(
     std::vector<std::unique_ptr<
         DevicePoolFwd<InOutRank, WindowRank, F16, F16, I32, NDHWC, NDHWC, MaxOp, true>>>&);
 #endif
-#ifdef __fp32__
+#ifdef CK_ENABLE_FP32
 // FP32
 void add_device_pool3d_fwd_ndhwc_f32_instances(
     std::vector<std::unique_ptr<
@@ -84,7 +84,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
         if constexpr(is_same_v<InLayout, NDHWC> && is_same_v<OutLayout, NDHWC>)
         {
-#ifdef __fp16__
+#ifdef CK_ENABLE_FP16
             if constexpr(is_same_v<InDataType, F16> && is_same_v<OutDataType, F16> &&
                          is_same_v<IndexDataType, I32>)
             {
@@ -98,7 +98,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
                 }
             }
 #endif
-#ifdef __fp32__
+#ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, F32> && is_same_v<OutDataType, F32> &&
                          is_same_v<IndexDataType, I32>)
             {

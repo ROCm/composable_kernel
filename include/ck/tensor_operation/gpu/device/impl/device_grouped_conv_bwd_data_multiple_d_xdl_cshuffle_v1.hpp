@@ -422,10 +422,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     using AGridDesc_M_K = decltype(transform_k0_m_k1_to_m_k(AGridDesc_AK0_M_AK1{}));
     using BGridDesc_N_K = decltype(transform_k0_m_k1_to_m_k(BGridDesc_BK0_N_BK1{}));
 
-    using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = decltype(
-        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}));
-    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = decltype(
-        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}));
+    using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
+        decltype(GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            DsGridDesc_M_N{}));
+    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
+        decltype(GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            EGridDesc_M_N{}));
 
     // block-to-e-tile map
     using Block2ETileMap =

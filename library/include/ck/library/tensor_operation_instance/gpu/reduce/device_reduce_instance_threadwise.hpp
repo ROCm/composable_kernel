@@ -77,8 +77,8 @@ void add_device_reduce_instance_threadwise(
 
     static_for<0, std::tuple_size<reduce_configuration_2_instances_threadwise>::value, 1>{}(
         [&](auto j) {
-            using cfg2 = remove_cvref_t<decltype(
-                std::get<j.value>(reduce_configuration_2_instances_threadwise{}))>;
+            using cfg2 = remove_cvref_t<decltype(std::get<j.value>(
+                reduce_configuration_2_instances_threadwise{}))>;
 
             using ReduceOpInstance = DeviceReduceThreadWise<InDataType,
                                                             AccDataType,
