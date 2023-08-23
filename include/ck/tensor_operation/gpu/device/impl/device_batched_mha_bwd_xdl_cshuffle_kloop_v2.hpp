@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <numeric>
 
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/philox_rand.hpp"
