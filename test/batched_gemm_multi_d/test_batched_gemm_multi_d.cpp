@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <gtest/gtest.h>
@@ -68,7 +68,9 @@ using KernelTypes = ::testing::Types<std::tuple<Row, Row, Row>,
 } // namespace
 
 TYPED_TEST_SUITE(TestBatchedGemmMultiD, KernelTypes);
-
+#ifdef __fp16
 TYPED_TEST(TestBatchedGemmMultiD, f16) { this->template Run<F16>(); }
-
+#endif
+#ifdef CK_ENABLE_INT8
 TYPED_TEST(TestBatchedGemmMultiD, int8) { this->template Run<int8_t>(); }
+#endif

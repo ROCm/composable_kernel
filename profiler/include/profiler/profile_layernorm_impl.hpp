@@ -155,6 +155,10 @@ bool profile_layernorm_impl(int do_verification,
             continue;
         }
 
+        size_t workspace_sz = inst_ptr->GetWorkSpaceSize(argument_ptr.get());
+        DeviceMem workspace_dev(workspace_sz);
+        inst_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
+
         auto invoker_ptr = inst_ptr->MakeInvokerPointer();
 
         float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});

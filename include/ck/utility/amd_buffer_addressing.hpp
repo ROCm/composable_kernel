@@ -629,7 +629,7 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
 {
     static_assert(
         (is_same<T, double>::value && (N == 1 || N == 2)) ||
-            (is_same<T, float>::value && (N == 1 || N == 2 || N == 4)) ||
+            (is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, half_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, bhalf_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4)) ||
@@ -680,6 +680,20 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
                                                 dst_wave_buffer_resource,
                                                 dst_thread_addr_offset,
                                                 dst_wave_addr_offset,
+                                                static_cast<index_t>(coherence));
+        }
+        else if constexpr(N == 8)
+        {
+            vector_type<float, 8> tmp{src_thread_data};
+            llvm_amdgcn_raw_buffer_store_fp32x4(tmp.AsType<float4_t>()[Number<0>{}],
+                                                dst_wave_buffer_resource,
+                                                dst_thread_addr_offset,
+                                                dst_wave_addr_offset,
+                                                static_cast<index_t>(coherence));
+            llvm_amdgcn_raw_buffer_store_fp32x4(tmp.AsType<float4_t>()[Number<1>{}],
+                                                dst_wave_buffer_resource,
+                                                dst_thread_addr_offset,
+                                                dst_wave_addr_offset + 4 * sizeof(float),
                                                 static_cast<index_t>(coherence));
         }
     }
@@ -1114,13 +1128,30 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
 #if CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK
     uint32_t src_addr_shift = src_thread_element_valid ? 0 : 0x80000000;
 
-    return amd_buffer_load_impl<scalar_t, vector_size, coherence>(
-        src_wave_buffer_resource, src_addr_shift + src_thread_addr_offset, 0);
+    if constexpr(is_same<scalar_t, f8_t>::value)
+    {
+        auto tmp = amd_buffer_load_impl<int8_t, vector_size, coherence>(
+            src_wave_buffer_resource, src_addr_shift + src_thread_addr_offset, 0);
+        return bit_cast<vector_t>(tmp);
+    }
+    else
+    {
+        return amd_buffer_load_impl<scalar_t, vector_size, coherence>(
+            src_wave_buffer_resource, src_addr_shift + src_thread_addr_offset, 0);
+    }
 #else
-    vector_t tmp = amd_buffer_load_impl<scalar_t, vector_size, coherence>(
-        src_wave_buffer_resource, src_thread_addr_offset, 0);
-
-    return src_thread_element_valid ? tmp : vector_t(0);
+    if constexpr(is_same<scalar_t, f8_t>::value)
+    {
+        auto tmp = amd_buffer_load_impl<int8_t, vector_size, coherence>(
+            src_wave_buffer_resource, src_thread_addr_offset, 0);
+        return src_thread_element_valid ? bit_cast<vector_t>(tmp) : vector_t(0);
+    }
+    else
+    {
+        vector_t tmp = amd_buffer_load_impl<scalar_t, vector_size, coherence>(
+            src_wave_buffer_resource, src_thread_addr_offset, 0);
+        return src_thread_element_valid ? tmp : vector_t(0);
+    }
 #endif
 }
 
@@ -1179,13 +1210,33 @@ __device__ void amd_buffer_store(const typename vector_type_maker<T, N>::type::t
 #if CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK
     uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x80000000;
 
-    amd_buffer_store_impl<scalar_t, vector_size, coherence>(
-        src_thread_data, dst_wave_buffer_resource, dst_addr_shift + dst_thread_addr_offset, 0);
+    if constexpr(is_same<scalar_t, f8_t>::value)
+    {
+        auto tmp =
+            bit_cast<typename vector_type_maker<int8_t, vector_size>::type::type>(src_thread_data);
+        amd_buffer_store_impl<int8_t, vector_size, coherence>(
+            tmp, dst_wave_buffer_resource, dst_addr_shift + dst_thread_addr_offset, 0);
+    }
+    else
+    {
+        amd_buffer_store_impl<scalar_t, vector_size, coherence>(
+            src_thread_data, dst_wave_buffer_resource, dst_addr_shift + dst_thread_addr_offset, 0);
+    }
 #else
     if(dst_thread_element_valid)
     {
-        amd_buffer_store_impl<scalar_t, vector_size, coherence>(
-            src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
+        if constexpr(is_same<scalar_t, f8_t>::value)
+        {
+            auto tmp = bit_cast<typename vector_type_maker<int8_t, vector_size>::type::type>(
+                src_thread_data);
+            amd_buffer_store_impl<int8_t, vector_size, coherence>(
+                tmp, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
+        }
+        else
+        {
+            amd_buffer_store_impl<scalar_t, vector_size, coherence>(
+                src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
+        }
     }
 #endif
 }
