@@ -26,8 +26,8 @@ using device_maxpool_bwd_instances =
         DeviceMaxPoolBwdImpl<DOutDataType, IndexDataType, DInDataType, 1>,
         DeviceMaxPoolBwdImpl<DOutDataType, IndexDataType, DInDataType, 2>,
         DeviceMaxPoolBwdImpl<DOutDataType, IndexDataType, DInDataType, 4>
-                 // clang-format on
-                 >;
+               // clang-format on
+               >;
 
 } // namespace instance
 } // namespace device

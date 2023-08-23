@@ -28,8 +28,8 @@ using device_avgpool_bwd_ndhwc_f16_instances =
         DeviceAvgPool3dBwd_NDHWC_NDHWC<F16, F16, F32, 256, 256, 1, 4, 4, 4>,
         DeviceAvgPool3dBwd_NDHWC_NDHWC<F16, F16, F32, 256, 256, 1, 8, 8, 8>,
         DeviceAvgPool3dBwd_NDHWC_NDHWC<F16, F16, F32, 256, 32, 8, 8, 8, 8>
-                 // clang-format on
-                 >;
+               // clang-format on
+               >;
 
 using device_avgpool_bwd_ndhwc_bf16_instances =
     // clang-format off
@@ -39,8 +39,8 @@ using device_avgpool_bwd_ndhwc_bf16_instances =
         DeviceAvgPool3dBwd_NDHWC_NDHWC<BF16, BF16, F32, 256, 256, 1, 4, 4, 4>,
         DeviceAvgPool3dBwd_NDHWC_NDHWC<BF16, BF16, F32, 256, 256, 1, 8, 8, 8>,
         DeviceAvgPool3dBwd_NDHWC_NDHWC<BF16, BF16, F32, 256, 32, 8, 8, 8, 8>
-                 // clang-format on
-                 >;
+               // clang-format on
+               >;
 
 using device_avgpool_bwd_ndhwc_f32_instances =
     // clang-format off
@@ -50,8 +50,8 @@ using device_avgpool_bwd_ndhwc_f32_instances =
         DeviceAvgPool3dBwd_NDHWC_NDHWC<F32, F32, F32, 256, 256, 1, 4, 4, 4>,
         DeviceAvgPool3dBwd_NDHWC_NDHWC<F32, F32, F32, 256, 256, 1, 8, 8, 8>,
         DeviceAvgPool3dBwd_NDHWC_NDHWC<F32, F32, F32, 256, 32, 8, 8, 8, 8>
-                 // clang-format on
-                 >;
+               // clang-format on
+               >;
 
 } // namespace instance
 } // namespace device
