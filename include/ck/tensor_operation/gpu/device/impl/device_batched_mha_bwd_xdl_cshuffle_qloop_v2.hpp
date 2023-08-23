@@ -735,6 +735,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         BBlockTransferDstScalarPerVector_BK1,
         true,
         BBlockLdsExtraN,
+        D0BlockTransferSrcScalarPerVector,
         B1BlockTransferThreadClusterLengths_BK0_N_BK1,
         B1BlockTransferThreadClusterArrangeOrder,
         B1BlockTransferSrcAccessOrder,

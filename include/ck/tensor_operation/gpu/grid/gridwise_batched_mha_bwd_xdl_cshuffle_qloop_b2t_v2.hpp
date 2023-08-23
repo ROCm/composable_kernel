@@ -74,6 +74,7 @@ template <typename InputDataType,
           index_t BBlockTransferDstScalarPerVector_BK1,
           bool BThreadTransferSrcResetCoordinateAfterRun, // ignored
           index_t BBlockLdsExtraN,
+          index_t D0BlockTransferSrcScalarPerVector,
           typename B1BlockTransferThreadClusterLengths_BK0_N_BK1,
           typename B1BlockTransferThreadClusterArrangeOrder,
           typename B1BlockTransferSrcAccessOrder,
@@ -1180,6 +1181,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
     struct D0Loader
     {
+        static constexpr index_t NThreadClusterLengths = 32;
+        static_assert(D0BlockTransferSrcScalarPerVector * NThreadClusterLengths == NPerBlock,
+                      "D0BlockTransferSrcScalarPerVector * NThreadClusterLengths == NPerBlock");
         __host__ __device__ static constexpr auto GetD0BlockDescriptor_M0_N0_M1_M2_N1_M3()
         {
             // B1 matrix in LDS memory, dst of blockwise copy
@@ -1229,7 +1233,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             Sequence<0, 1, 3, 2, 4>,                   // DstDimAccessOrder
             3,                                         // SrcVectorDim
             4,                                         // DstVectorDim
-            4,                                         // SrcScalarPerVector
+            D0BlockTransferSrcScalarPerVector,         // SrcScalarPerVector
             4,                                         // DstScalarPerVector
             1,
             1,
