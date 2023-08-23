@@ -1226,8 +1226,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             Sequence<1, 0, 2>,                         // DstDimAccessOrder
             1,                                         // SrcVectorDim
             2,                                         // DstVectorDim
-            1,                                         // SrcScalarPerVector
-            1,                                         // DstScalarPerVector
+            4,                                         // SrcScalarPerVector
+            4,                                         // DstScalarPerVector
             1,
             1,
             true,
@@ -1242,8 +1242,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                              Sequence<1, 1, 8, 1, 4>, // SliceLengths
                                              Sequence<0, 1, 2, 3, 4>, // DimAccessOrder
                                              4,                       // SrcVectorDim
-                                             1,              // SrcScalarPerVector
-                                             1>;
+                                             4,              // SrcScalarPerVector
+                                             4>;
     };
 
     template <bool HasMainKBlockLoop,
