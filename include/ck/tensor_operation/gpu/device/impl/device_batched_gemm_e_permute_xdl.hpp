@@ -383,13 +383,16 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
 
-    using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}))>;
-    using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
+    using AGridDesc_AK0_M_AK1 =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(
+            AGridDesc_M_K{}))>;
+    using BGridDesc_BK0_N_BK1 =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(
+            BGridDesc_N_K{}))>;
 
-    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = decltype(
-        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}));
+    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
+        decltype(GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            EGridDesc_M_N{}));
     using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
 
     // Argument
