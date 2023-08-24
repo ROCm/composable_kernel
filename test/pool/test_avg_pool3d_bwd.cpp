@@ -41,24 +41,24 @@ class TestAvgPool3dBwd : public ::testing::Test
     }
 };
 
-#if defined(__fp16__) && defined(__bf16__) && defined(__fp32__)
+#if defined(CK_ENABLE_FP16) && defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP32)
 using KernelTypes = ::testing::Types<std::tuple<F16, F16, F32, NDHWC, NDHWC>,
                                      std::tuple<BF16, BF16, F32, NDHWC, NDHWC>,
                                      std::tuple<F32, F32, F32, NDHWC, NDHWC>>;
-#elif defined(__fp16__) && defined(__fp32__)
+#elif defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP32)
 using KernelTypes = ::testing::Types<std::tuple<F16, F16, F32, NDHWC, NDHWC>,
                                      std::tuple<F32, F32, F32, NDHWC, NDHWC>>;
-#elif defined(__bf16__) && defined(__fp32__)
+#elif defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP32)
 using KernelTypes = ::testing::Types<std::tuple<BF16, BF16, F32, NDHWC, NDHWC>,
                                      std::tuple<F32, F32, F32, NDHWC, NDHWC>>;
-#elif defined(__fp16__) && defined(__bf16__)
+#elif defined(CK_ENABLE_FP16) && defined(CK_ENABLE_BF16)
 using KernelTypes = ::testing::Types<std::tuple<F16, F16, F32, NDHWC, NDHWC>,
                                      std::tuple<BF16, BF16, F32, NDHWC, NDHWC>>;
-#elif defined(__fp16__)
+#elif defined(CK_ENABLE_FP16)
 using KernelTypes = ::testing::Types<std::tuple<F16, F16, F32, NDHWC, NDHWC>>;
-#elif defined(__bf16__)
+#elif defined(CK_ENABLE_BF16)
 using KernelTypes = ::testing::Types<std::tuple<BF16, BF16, F32, NDHWC, NDHWC>>;
-#elif defined(__fp32__)
+#elif defined(CK_ENABLE_FP32)
 using KernelTypes = ::testing::Types<std::tuple<F32, F32, F32, NDHWC, NDHWC>>;
 #endif
 

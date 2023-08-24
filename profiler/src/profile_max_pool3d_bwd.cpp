@@ -107,20 +107,20 @@ int profile_max_pool3d_bwd(int argc, char* argv[])
         pad2      = arg_parser.long_opts["pad2"];
     }
 
-#ifdef __fp16__
+#ifdef CK_ENABLE_FP16
     using F16 = ck::half_t;
 #endif
-#ifdef __bf16__
+#ifdef CK_ENABLE_BF16
     using BF16 = ck::bhalf_t;
 #endif
-#ifdef __fp32__
+#ifdef CK_ENABLE_FP32
     using F32 = float;
 #endif
     using I32 = int32_t;
 
     if(false)
         ;
-#ifdef __fp16__
+#ifdef CK_ENABLE_FP16
     else if(data_type == ck::DataTypeEnum::Half)
     {
         ck::profiler::profile_max_pool3d_bwd_impl<F16, F16, I32, F16, F16, false>(do_verification,
@@ -135,7 +135,7 @@ int profile_max_pool3d_bwd(int argc, char* argv[])
                                                                                   pad2);
     }
 #endif
-#ifdef __bf16__
+#ifdef CK_ENABLE_BF16
     else if(data_type == ck::DataTypeEnum::BFloat16)
     {
         ck::profiler::profile_max_pool3d_bwd_impl<BF16, BF16, I32, BF16, BF16, false>(
@@ -151,7 +151,7 @@ int profile_max_pool3d_bwd(int argc, char* argv[])
             pad2);
     }
 #endif
-#ifdef __fp32__
+#ifdef CK_ENABLE_FP32
     else if(data_type == ck::DataTypeEnum::Float)
     {
         ck::profiler::profile_max_pool3d_bwd_impl<F32, F32, I32, F32, F32, false>(do_verification,
