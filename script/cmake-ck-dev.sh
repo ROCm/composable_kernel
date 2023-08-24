@@ -12,8 +12,8 @@ cmake                                                                           
 -save-temps=$PWD"                                                                                 \
 -D CMAKE_BUILD_TYPE=Release                                                                       \
 -D BUILD_DEV=ON                                                                                   \
--D DTYPES="fp32;fp16;bf16;fp8" \
--D GPU_TARGETS="gfx90a"                                                             \
+-D GPU_TARGETS="gfx908;gfx90a;gfx940"                                                             \
 -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON                                                                 \
 -D USE_BITINT_EXTENSION_INT4=OFF                                                                  \
 ${MY_PROJECT_SOURCE}
+
