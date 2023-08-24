@@ -769,6 +769,7 @@ struct BlockwiseGemmXdlops_v2
         c_thread_buf_;
 
     __host__ __device__ constexpr auto& GetCThreadBuffer() { return c_thread_buf_; }
+    __host__ __device__ constexpr auto& GetCThreadDesc() { return c_thread_desc_; }
 
     __device__ static auto GetWaveIdx()
     {
