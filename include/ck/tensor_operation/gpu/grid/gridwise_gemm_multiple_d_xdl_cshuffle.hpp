@@ -91,8 +91,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using GridwiseGemmPipe = remove_cvref_t<
-        decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
+    using GridwiseGemmPipe = remove_cvref_t<decltype(
+        GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
 #if CK_WORKAROUND_DENORM_FIX
     using ComputeDataType =
@@ -167,8 +167,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
-        return math::max(a_block_space_size_aligned * sizeof(ADataType) +
-                             b_block_space_size_aligned * sizeof(BDataType),
+        return math::max((a_block_space_size_aligned + b_block_space_size_aligned) *
+                             sizeof(ComputeDataType),
                          c_block_size * sizeof(CShuffleDataType));
     }
 
