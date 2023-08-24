@@ -22,7 +22,8 @@ int profile_gemm_multiply_add(int argc, char* argv[])
 
     enum struct MatrixDataType
     {
-        F16_F16_F16_F16_F16,      // 0
+        F16_F16_F16_F16_F16, // 0
+        F16_F8_F32_F32_F16,  // 1
     };
 
     if(argc != 16)
@@ -58,6 +59,7 @@ int profile_gemm_multiply_add(int argc, char* argv[])
     const int StrideD1 = std::stoi(argv[14]);
     const int StrideE  = std::stoi(argv[15]);
 
+    using F8  = ck::f8_t;
     using F16 = ck::half_t;
     using F32 = float;
 
@@ -94,7 +96,7 @@ int profile_gemm_multiply_add(int argc, char* argv[])
         const int DefaultStrideD1 = ck::is_same_v<D1Layout, Row> ? N : M;
         const int DefaultStrideE  = ck::is_same_v<ELayout, Row> ? N : M;
 
-        bool pass = ck::profiler::profile_gemm_add_multiply_impl<ADataType,
+        bool pass = ck::profiler::profile_gemm_multiply_add_impl<ADataType,
                                                                  BDataType,
                                                                  AccDataType,
                                                                  D0DataType,
@@ -129,6 +131,16 @@ int profile_gemm_multiply_add(int argc, char* argv[])
             layout == MatrixLayout::MK_NK_MN_MN_MN)
     {
         return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Row{}, Col{}, Row{}, Row{}, Row{});
+    }
+    else if(data_type == MatrixDataType::F16_F8_F32_F32_F16 &&
+            layout == MatrixLayout::MK_KN_MN_MN_MN)
+    {
+        return profile(F16{}, F8{}, F32{}, F32{}, F32{}, F16{}, Row{}, Row{}, Row{}, Row{}, Row{});
+    }
+    else if(data_type == MatrixDataType::F16_F8_F32_F32_F16 &&
+            layout == MatrixLayout::MK_NK_MN_MN_MN)
+    {
+        return profile(F16{}, F8{}, F32{}, F32{}, F32{}, F16{}, Row{}, Col{}, Row{}, Row{}, Row{});
     }
     else
     {

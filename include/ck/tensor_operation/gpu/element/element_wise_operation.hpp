@@ -229,9 +229,16 @@ struct MultiplyAdd
         const float y = c * d0 + d1;
         e             = y;
     }
+    template <>
+    __host__ __device__ void operator()<half_t, float, float, float>(half_t& e,
+                                                                     const float& c,
+                                                                     const float& d0,
+                                                                     const float& d1) const
+    {
+        const float y = c * d0 + d1;
+        e             = y;
+    }
 };
-
-
 
 // E = FastGelu(C + D0 + D1)
 struct AddAddFastGelu

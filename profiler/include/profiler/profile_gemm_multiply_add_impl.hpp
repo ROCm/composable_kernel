@@ -10,7 +10,7 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/gemm_add_multiply.hpp"
+#include "ck/library/tensor_operation_instance/gpu/gemm_multiply_add.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -33,7 +33,7 @@ template <typename ADataType,
           typename D0Layout,
           typename D1Layout,
           typename ELayout>
-bool profile_gemm_add_multiply_impl(int do_verification,
+bool profile_gemm_multiply_add_impl(int do_verification,
                                     int init_method,
                                     bool /*do_log*/,
                                     bool time_kernel,
@@ -90,11 +90,11 @@ bool profile_gemm_add_multiply_impl(int do_verification,
     }
 
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-    using AddMultiply = ck::tensor_operation::element_wise::AddMultiply;
+    using MultiplyAdd = ck::tensor_operation::element_wise::MultiplyAdd;
 
     using AElementOp   = PassThrough;
     using BElementOp   = PassThrough;
-    using CDEElementOp = AddMultiply;
+    using CDEElementOp = MultiplyAdd;
 
     const auto a_element_op   = AElementOp{};
     const auto b_element_op   = BElementOp{};
