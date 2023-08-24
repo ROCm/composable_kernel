@@ -34,6 +34,11 @@ RUN if [ "$ROCMVERSION" != "5.7" ]; then \
         apt update && apt-get install -y ./amdgpu-install-internal_5.7-20.04-1_all.deb && \
         sh -c 'echo deb [arch=amd64 trusted=yes] http://compute-artifactory.amd.com/artifactory/list/rocm-release-archive-20.04-deb/ 5.7 rel-19 > /etc/apt/sources.list.d/rocm-build.list' && \
         amdgpu-repo --amdgpu-build=1637781; \
+    elif [ "$ROCMVERSION" = "5.7" ] && [ "$compiler_version" = "rc2" ]; then \
+        sh -c "wget http://artifactory-cdn.amd.com/artifactory/list/amdgpu-deb/amdgpu-install-internal_5.7-20.04-1_all.deb" && \
+        apt update && apt-get install -y ./amdgpu-install-internal_5.7-20.04-1_all.deb && \
+        sh -c 'echo deb [arch=amd64 trusted=yes] http://compute-artifactory.amd.com/artifactory/list/rocm-release-archive-20.04-deb/ 5.7 rel-36 > /etc/apt/sources.list.d/rocm-build.list' && \
+        amdgpu-repo --amdgpu-build=1643266; \
     fi
 
 RUN sh -c "echo deb http://mirrors.kernel.org/ubuntu focal main universe | tee -a /etc/apt/sources.list"
