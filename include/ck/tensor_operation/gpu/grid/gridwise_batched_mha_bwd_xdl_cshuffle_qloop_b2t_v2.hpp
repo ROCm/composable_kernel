@@ -1746,16 +1746,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                    0,                                //
                                    wave_m_n_id[I1]),                 // NPerXdl
                   tensor_operation::element_wise::PassThrough{}};
-        // if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 46)
-        // {
-        //     printf("get_thread_local_1d_id(): %d, wave_id[I0]: %d  wave_id[I1]: %d "
-        //            "wave_m_n_id[I0]: %d wave_m_n_id[I1]: %d \n",
-        //            get_thread_local_1d_id(),
-        //            wave_id[I0],
-        //            wave_id[I1],
-        //            wave_m_n_id[I0],
-        //            wave_m_n_id[I1]);
-        // }
         //
         // set up Y dot dY
         //
@@ -1942,22 +1932,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                 s_slash_p_thread_buf,
                 num_k_block_main_loop);
 
-            // if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0)
-            // {
-            //     auto p_lds = static_cast<D0DataType*>(p_shared);
-            //     for(int idx = 0; idx < 32; idx++)
-            //     {
-            //         float tmp_gbl = ck::type_convert<float>(p_d0_grid[idx]);
-            //         float tmp_lds = ck::type_convert<float>(p_lds[idx]);
-            //         block_sync_lds();
-            //         printf("p_d0_grid: %p, index: %d, gbl[idx]: %f, lds[idx]: %f  \n",
-            //                ck::type_convert<const void*>(p_d0_grid),
-            //                idx,
-            //                tmp_gbl,
-            //                tmp_lds);
-            //     }
-            // }
-
             // 8d thread_desc in thread scope
             constexpr auto c_thread_lengths =
                 s_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2().GetLengths();
@@ -2055,22 +2029,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                     static_for<0, d0_thread_buf.Size(), 1>{}([&](auto i) {
                         constexpr index_t c_offset =
                             c_thread_desc.CalculateOffset(make_tuple(mr, I0, i));
-
-                        // if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0)
-                        // if(ck::type_convert<FloatGemmAcc>(d0_thread_buf[i]) != 1.0f)
-                        // {
-                        //     float tmp_lds =
-                        //         ck::type_convert<float>(static_cast<D0DataType*>(p_shared)[i.value]);
-                        //     float tmp_gbl = ck::type_convert<float>(p_d0_grid[i.value]);
-                        //     block_sync_lds();
-                        //     printf("id: %d : i: %d, gbl[i]: %f "
-                        //            ",lds[i]: %f  d0_thread_buf[i]: %f\n",
-                        //            get_thread_local_1d_id(),
-                        //            i.value,
-                        //            tmp_gbl,
-                        //            tmp_lds,
-                        //            ck::type_convert<FloatGemmAcc>(d0_thread_buf[i]));
-                        // }
 
                         s_slash_p_thread_buf(Number<c_offset>{}) +=
                             ck::type_convert<FloatGemmAcc>(d0_thread_buf[i]);
