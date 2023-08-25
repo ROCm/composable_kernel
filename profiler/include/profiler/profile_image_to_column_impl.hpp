@@ -132,7 +132,8 @@ bool profile_image_to_column_impl(int do_verification,
     float best_gb_per_sec = 0;
 
     // profile device op instances
-    bool pass = true;
+    bool pass                   = true;
+    bool is_supporting_instance = false;
 
     for(auto& op_ptr : op_ptrs)
     {
@@ -153,6 +154,7 @@ bool profile_image_to_column_impl(int do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            is_supporting_instance = true;
             // re-init output to zero before profiling next kernel
             out_device_buf.SetZero();
 
@@ -204,7 +206,7 @@ bool profile_image_to_column_impl(int do_verification,
               << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
               << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << std::endl;
 
-    return pass;
+    return is_supporting_instance && pass;
 }
 
 } // namespace profiler

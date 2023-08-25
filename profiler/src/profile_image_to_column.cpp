@@ -47,7 +47,7 @@ static void print_helper_msg()
 
 } // namespace
 
-int profile_grouped_conv_fwd(int argc, char* argv[])
+int profile_image_to_column(int argc, char* argv[])
 {
     // 8 for control, 1 for num_dim_spatial
     if(argc < 9)
@@ -166,4 +166,4 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
     return 1;
 }
 
-REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_grouped_conv_fwd);
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_image_to_column);
