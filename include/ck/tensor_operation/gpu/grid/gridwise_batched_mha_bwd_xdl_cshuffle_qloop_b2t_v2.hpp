@@ -1180,7 +1180,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
     using D0GridDescriptor_M0_N0_M1_M2_N1_M3 =
         remove_cvref_t<decltype(MakeD0GridDescriptor_M0_N0_M1_M2_N1_M3(D0GridDesc_M_N{}))>;
 
-    // template<typename DataType>
     struct D0Loader
     {
         template <typename DataType>
