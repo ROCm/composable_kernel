@@ -756,7 +756,7 @@ pipeline {
                     }
                     agent{ label rocmnode("navi32") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DL_KERNELS=ON -DGPU_TARGETS="gfx1101" """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DDL_KERNELS=ON -DGPU_TARGETS="gfx1101" """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1101" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
 
                     }
