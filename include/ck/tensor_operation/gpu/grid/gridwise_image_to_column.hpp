@@ -24,7 +24,6 @@ template <typename InputGridDesc,
           index_t BlockSize,
           index_t MPerBlock,
           index_t KPerBlock,
-          typename SliceLengths,
           typename ThreadClusterLengths,
           index_t ScalarPerVector,
           typename Block2ETileMap>
@@ -65,7 +64,7 @@ struct GridwiseImageToColumn
             decltype(tie(out_grid_desc)),
             tensor_operation::element_wise::PassThrough,
             Sequence<static_cast<index_t>(InMemoryDataOperationEnum::Set)>,
-            SliceLengths,
+            Sequence<MPerBlock, KPerBlock>,
             ThreadClusterLengths,
             Sequence<0, 1>,
             Sequence<0, 1>,
@@ -83,7 +82,6 @@ struct GridwiseImageToColumn
             tie(in_grid_desc), tie(in_global_buf), tie(out_grid_desc), tie(out_global_buf));
     }
 
-    // template <typename... TsIn, typename... TsOut>
     __host__ static constexpr bool CheckValidity(const InputGridDesc& in_grid_desc,
                                                  const OutputGridDesc& out_grid_desc)
     {

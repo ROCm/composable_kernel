@@ -184,3 +184,42 @@ tflops: 95.337
 GB/s: 69.2301
 ```
 Note: This kernel use atomic add, this will cause output buffer to be accumulated multiple times, causing verification failure. To work around it, do not use CK's own timer and do verification at the same time.
+
+## Profile image to column kernels
+```bash
+# arg1: tensor operation (" OP_NAME ": " OP_DESC ")
+# arg2: data type (0: Input fp32, Weight fp32, Output fp32
+#                  1: Input fp16, Weight fp16, Output fp16
+#                  2: Input bf16, Weight bf16, Output bf16
+#                  3: Input int8, Weight int8, Output int8)
+# arg3: tensor layout (0: Input[N, Hi, Wi, C], Output[N * Ho * Wo, Y * X * C])
+# arg4: verification (0: no, 1: yes)
+# arg5: initialization (0: no init, 1: integer value, 2: decimal value)
+# arg6: print tensor value (0: no; 1: yes)
+# arg7: time kernel (0: no, 1: yes)
+# Following arguments (depending on number of spatial dims):
+#  Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
+#  G, N, K, C, 
+#  <filter spatial dimensions>, (ie Y, X for 2D)
+#  <input image spatial dimensions>, (ie Hi, Wi for 2D)
+#  <strides>, (ie Sy, Sx for 2D)
+#  <dilations>, (ie Dy, Dx for 2D)
+#  <left padding>, (ie LeftPy, LeftPx for 2D)
+#  <right padding>, (ie RightPy, RightPx for 2D)
+
+ ################             op   datatype  layout  verify  init  log  time  Ndims  G   N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx
+./bin/ckProfiler image_to_column          0       0       1     1    0     1      2  1 256   1 512  3  3   28  28   1   1   1   1        0       0       0        0
+
+ ```
+
+Result (MI250, FP32, NHWC)
+```
+input: dim 5, lengths {1, 256, 512, 28, 28}, strides {102760448, 401408, 1, 14336, 512}
+output: dim 2, lengths {173056, 4608}, strides {4608, 1}
+....
+Best configuration parameters:
+name: DeviceImageToColumn<256, 64, 64, 4>
+avg_time: 3.19792
+tflops: 0
+GB/s: 1125.99
+```

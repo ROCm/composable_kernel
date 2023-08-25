@@ -116,15 +116,15 @@ struct ReferenceImageToColumn : public device::BaseOperator
                                   static_cast<ck::long_index_t>(x * arg.conv_dilations_[0]) -
                                   static_cast<ck::long_index_t>(arg.in_left_pads_[0]);
 
-                        if(wi >= 0 &&
-                           ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[3])
+                        for(index_t c = 0; c < C; ++c)
                         {
-                            for(index_t c = 0; c < C; ++c)
+                            if(wi >= 0 &&
+                               ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[3])
                             {
-                                column++;
                                 InDataType v_in          = arg.input_(0, n, c, wi);
                                 arg.output_(row, column) = ck::type_convert<OutDataType>(v_in);
                             }
+                            column++;
                         }
                     }
                 };
@@ -154,18 +154,18 @@ struct ReferenceImageToColumn : public device::BaseOperator
                                       static_cast<ck::long_index_t>(x * arg.conv_dilations_[1]) -
                                       static_cast<ck::long_index_t>(arg.in_left_pads_[1]);
 
-                            if(hi >= 0 &&
-                               ck::type_convert<std::size_t>(hi) < arg.input_.GetLengths()[3] &&
-                               wi >= 0 &&
-                               ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[4])
+                            for(index_t c = 0; c < C; ++c)
                             {
-                                for(index_t c = 0; c < C; ++c)
-                                {
 
+                                if(hi >= 0 &&
+                                   ck::type_convert<std::size_t>(hi) < arg.input_.GetLengths()[3] &&
+                                   wi >= 0 &&
+                                   ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[4])
+                                {
                                     InDataType v_in          = arg.input_(0, n, c, hi, wi);
                                     arg.output_(row, column) = ck::type_convert<OutDataType>(v_in);
-                                    column++;
                                 }
+                                column++;
                             }
                         }
                     }
@@ -201,20 +201,23 @@ struct ReferenceImageToColumn : public device::BaseOperator
                                     static_cast<ck::long_index_t>(wo * arg.conv_strides_[2]) +
                                     static_cast<ck::long_index_t>(x * arg.conv_dilations_[2]) -
                                     static_cast<ck::long_index_t>(arg.in_left_pads_[2]);
-                                if(di >= 0 &&
-                                   ck::type_convert<std::size_t>(di) < arg.input_.GetLengths()[3] &&
-                                   hi >= 0 &&
-                                   ck::type_convert<std::size_t>(hi) < arg.input_.GetLengths()[4] &&
-                                   wi >= 0 &&
-                                   ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[5])
+                                for(index_t c = 0; c < C; ++c)
                                 {
-                                    for(index_t c = 0; c < C; ++c)
+                                    if(di >= 0 &&
+                                       ck::type_convert<std::size_t>(di) <
+                                           arg.input_.GetLengths()[3] &&
+                                       hi >= 0 &&
+                                       ck::type_convert<std::size_t>(hi) <
+                                           arg.input_.GetLengths()[4] &&
+                                       wi >= 0 &&
+                                       ck::type_convert<std::size_t>(wi) <
+                                           arg.input_.GetLengths()[5])
                                     {
                                         InDataType v_in = arg.input_(0, n, c, di, hi, wi);
                                         arg.output_(row, column) =
                                             ck::type_convert<OutDataType>(v_in);
-                                        column++;
                                     }
+                                    column++;
                                 }
                             }
                         }
