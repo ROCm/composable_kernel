@@ -20,7 +20,8 @@
 namespace ck {
 
 template <typename GridwiseGemm,
-          typename ABDataType,
+          typename ADataType,
+          typename BDataType,
           typename DsPointer,
           typename EDataType,
           typename AElementwiseOperation,
@@ -36,8 +37,8 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_multiple_d_xdl_cshuffle(const ABDataType* __restrict__ p_a_grid,
-                                            const ABDataType* __restrict__ p_b_grid,
+        kernel_gemm_multiple_d_xdl_cshuffle(const ADataType* __restrict__ p_a_grid,
+                                            const BDataType* __restrict__ p_b_grid,
                                             DsPointer p_ds_grid,
                                             EDataType* __restrict__ p_e_grid,
                                             const AElementwiseOperation a_element_op,
@@ -242,9 +243,13 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}, {}))>;
     using EGridDesc_M_N  = decltype(MakeEGridDescriptor_M_N<ELayout>(1, 1, 1));
 
+    using ComputeDataType = EDataType;
+
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
+        BDataType,
+        ComputeDataType,
         AccDataType,
         CShuffleDataType,
         DsDataType,
@@ -442,6 +447,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                 const auto kernel = kernel_gemm_multiple_d_xdl_cshuffle<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
+                    BDataType, // TODO: distiguish A/B datatype
                     typename GridwiseGemm::DsGridPointer,
                     EDataType,
                     AElementwiseOperation,
