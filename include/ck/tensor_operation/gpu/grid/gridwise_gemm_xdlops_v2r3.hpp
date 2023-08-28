@@ -247,8 +247,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         FloatC* p_c_grid;
     };
 
-    using GridwiseGemmPipe = remove_cvref_t<decltype(
-        GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
+    using GridwiseGemmPipe = remove_cvref_t<
+        decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
     // denorm test fix, required to work around fp16 mfma issue
     // we convert fp16->fp32->bf16 and execute bf16 mfma instruction

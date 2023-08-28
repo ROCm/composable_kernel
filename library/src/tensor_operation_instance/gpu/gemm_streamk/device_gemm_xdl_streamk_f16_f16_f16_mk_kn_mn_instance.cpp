@@ -29,6 +29,16 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 // static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 // static constexpr auto GemmMNPadding =
 // ck::tensor_operation::device::GemmSpecialization::MNPadding;
+using device_gemm_xdl_streamk_f16_f16_f16_mk_kn_mn_generic_instances = std::tuple<
+    // clang-format off
+        //##################|AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|
+        //##################| Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|
+        //##################|     |      |      |        |        |        |        |   Operation|   Operation|   Operation|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| _NBlock_NXdlPerWave_NWaveNPerXdl|   _NWaveNPerXdl|
+        //##################|     |      |      |        |        |        |        |            |            |            |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                 |                |
+        DeviceGemmXdlStreamK<  F16,   F16,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,   128,   128,   128,     4,  8,   32,   32,    4,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1,     S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1,           1,           1,                   S<1, 16, 1, 8>,               2>,
+        DeviceGemmXdlStreamK<  F16,   F16,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,   128,    32,    64,     4,  8,   32,   32,    1,    1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1,     S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1,           1,           1,                   S<1, 16, 1, 8>,               2>
+    // clang-format on
+    >;
 
 // Compilation parameters for a[m, k] * b[k, n] = c[m, n]
 using device_gemm_xdl_streamk_f16_f16_f16_mk_kn_mn_instances = std::tuple<
@@ -61,6 +71,8 @@ void add_device_gemm_xdl_streamk_f16_f16_f16_mk_kn_mn_instances(
         DeviceGemmStreamK<Row, Row, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances)
 {
+    add_device_operation_instances(
+        instances, device_gemm_xdl_streamk_f16_f16_f16_mk_kn_mn_generic_instances{});
     add_device_operation_instances(instances,
                                    device_gemm_xdl_streamk_f16_f16_f16_mk_kn_mn_instances{});
 }

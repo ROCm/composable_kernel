@@ -16,7 +16,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-
+#ifdef CK_ENABLE_FP16
 void add_device_gemm_xdl_streamk_f16_f16_f16_mk_kn_mn_instances(
     std::vector<std::unique_ptr<
         DeviceGemmStreamK<Row, Row, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
@@ -119,3 +119,4 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmSt
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#endif

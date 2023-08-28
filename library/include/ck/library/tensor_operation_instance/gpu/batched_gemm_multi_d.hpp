@@ -19,7 +19,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-
+#ifdef CK_ENABLE_FP16
 void add_device_batched_gemm_multi_d_dl_f16_f16_f16_gkm_gkn_gmn_instances(
     std::vector<std::unique_ptr<DeviceBatchedGemmMultiD<Col,
                                                         Row,
@@ -123,7 +123,8 @@ void add_device_batched_gemm_multi_d_dl_f16_f16_f16_gmk_gnk_gmn_irregular_instan
                                                         PassThrough,
                                                         PassThrough,
                                                         PassThrough>>>& instances);
-
+#endif
+#ifdef CK_ENABLE_INT8
 void add_device_batched_gemm_multi_d_dl_i8_i8_i8_gkm_gkn_gmn_instances(
     std::vector<std::unique_ptr<DeviceBatchedGemmMultiD<Col,
                                                         Row,
@@ -227,7 +228,7 @@ void add_device_batched_gemm_multi_d_dl_i8_i8_i8_gmk_gnk_gmn_irregular_instances
                                                         PassThrough,
                                                         PassThrough,
                                                         PassThrough>>>& instances);
-
+#endif
 template <typename ALayout,
           typename BLayout,
           typename ELayout,
@@ -262,7 +263,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceBatche
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-
+#ifdef CK_ENABLE_FP16
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<EDataType, half_t>)
         {
@@ -295,6 +296,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceBatche
                     op_ptrs);
             }
         }
+#endif
+#ifdef CK_ENABLE_INT8
         else if constexpr(is_same_v<ADataType, int8_t> && is_same_v<BDataType, int8_t> &&
                           is_same_v<EDataType, int8_t>)
         {
@@ -327,7 +330,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceBatche
                     op_ptrs);
             }
         }
-
+#endif
         return op_ptrs;
     }
 };

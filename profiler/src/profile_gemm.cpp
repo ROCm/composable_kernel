@@ -69,10 +69,10 @@ int profile_gemm(int argc, char* argv[])
 
     using F32 = float;
     using F16 = ck::half_t;
-#ifdef __bf16__
+#ifdef CK_ENABLE_BF16
     using BF16 = ck::bhalf_t;
 #endif
-#ifdef __int8__
+#ifdef CK_ENABLE_INT8
     using INT8  = int8_t;
     using INT32 = int32_t;
 #endif
@@ -121,7 +121,10 @@ int profile_gemm(int argc, char* argv[])
         return pass ? 0 : 1;
     };
 
-    if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
+    if(false)
+        ;
+#ifdef CK_ENABLE_FP32
+    else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(Row{}, Row{}, Row{}, F32{}, F32{}, F32{}, F32{});
     }
@@ -137,6 +140,8 @@ int profile_gemm(int argc, char* argv[])
     {
         return profile(Col{}, Col{}, Row{}, F32{}, F32{}, F32{}, F32{});
     }
+#endif
+#ifdef CK_ENABLE_FP16
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(Row{}, Row{}, Row{}, F16{}, F16{}, F32{}, F16{});
@@ -153,7 +158,8 @@ int profile_gemm(int argc, char* argv[])
     {
         return profile(Col{}, Col{}, Row{}, F16{}, F16{}, F32{}, F16{});
     }
-#ifdef __bf16__
+#endif
+#ifdef CK_ENABLE_BF16
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(Row{}, Row{}, Row{}, BF16{}, BF16{}, F32{}, BF16{});
@@ -171,7 +177,7 @@ int profile_gemm(int argc, char* argv[])
         return profile(Col{}, Col{}, Row{}, BF16{}, BF16{}, F32{}, BF16{});
     }
 #endif
-#ifdef __int8__
+#ifdef CK_ENABLE_INT8
     else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(Row{}, Row{}, Row{}, INT8{}, INT8{}, INT32{}, INT8{});
