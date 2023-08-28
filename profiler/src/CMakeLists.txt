@@ -5,6 +5,7 @@ set(PROFILER_SOURCES
     profile_gemm_splitk.cpp
     profile_gemm_bias_add_reduce.cpp
     profile_gemm_add_multiply.cpp
+    profile_gemm_multiply_add.cpp
     profile_gemm_reduce.cpp
     profile_batched_gemm.cpp
     profile_batched_gemm_reduce.cpp
@@ -51,6 +52,7 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE utility)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_splitk_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_multiply_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_multiply_add_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_reduce_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_bias_add_reduce_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_instance)
