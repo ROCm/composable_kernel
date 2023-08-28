@@ -26,6 +26,7 @@ namespace tensor_operation {
 namespace device {
 
 template <typename GridwiseGemm,
+          typename D0DataType,
           typename GroupKernelArg,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
@@ -100,6 +101,15 @@ __global__ void
         (arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
                                                 : arg_ptr[group_id].p_z_grid_ + z_batch_offset);
 
+    const D0DataType* tmp_p_d0_grid = nullptr;
+    if constexpr(!is_same<D0DataType, void>::value)
+    {
+        const long_index_t d0_batch_offset =
+            __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(
+                arg_ptr[group_id].compute_base_ptr_of_batch_.GetD0BasePtr(g_idx)));
+
+        tmp_p_d0_grid = arg_ptr[group_id].p_d0_grid_ + d0_batch_offset;
+    }
     if constexpr(Deterministic)
     {
         for(index_t i = 0; i < num_blocks_per_batch; i++)
@@ -107,6 +117,7 @@ __global__ void
             GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
                 arg_ptr[group_id].p_a_grid_ + a_batch_offset,
                 arg_ptr[group_id].p_b_grid_ + b_batch_offset,
+                tmp_p_d0_grid,
                 z_matrix_ptr,
                 arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
                 arg_ptr[group_id].p_c_grid_ + c_batch_offset,
@@ -143,6 +154,7 @@ __global__ void
         GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout>(
             arg_ptr[group_id].p_a_grid_ + a_batch_offset,
             arg_ptr[group_id].p_b_grid_ + b_batch_offset,
+            tmp_p_d0_grid,
             z_matrix_ptr,
             arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
             arg_ptr[group_id].p_c_grid_ + c_batch_offset,
@@ -258,11 +270,11 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
 
-    static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();
-    static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
+    using D0DataType = Acc0BiasDataType;
+    using D1DataType = Acc1BiasDataType;
 
     // TODO: implement bias combination
-    static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
+    static_assert(is_same<D1DataType, void>::value, "Bias1 addition is unimplemented");
 
     using DeviceOp = DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1;
     struct ProblemDesc
@@ -482,6 +494,12 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             return lse_grid_desc_mraw;
         }
     }
+    // D in Gemm0 C position
+    static auto MakeDGridDescriptor_M_N(const std::vector<index_t>& d_gs_ms_ns_lengths_vec,
+                                        const std::vector<index_t>& d_gs_ms_ns_strides_vec)
+    {
+        return Transform::MakeCGridDescriptor_M_N(d_gs_ms_ns_lengths_vec, d_gs_ms_ns_strides_vec);
+    }
 
     using AGridDesc_AK0_M_AK1  = decltype(MakeAGridDescriptor_AK0_M_AK1({}, {}));
     using BGridDesc_BK0_N_BK1  = decltype(MakeBGridDescriptor_BK0_N_BK1({}, {}));
@@ -495,6 +513,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
     using ZGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
 
     using KGridDesc_N_K         = decltype(Transform::MakeB0GridDescriptor_N_K({}, {}));
+    using D0GridDesc_M_N        = decltype(MakeDGridDescriptor_M_N({}, {}));
     using YGradGridDesc_O0_M_O1 = decltype(MakeYGradGridDescriptor_O0_M_O1({}, {}));
     using ZGridDesc_M_N         = decltype(MakeZGridDescriptor_M_N({}, {}));
 
@@ -574,6 +593,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
     // GridwiseGemm
     using GridwiseGemm = GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1<
         InputDataType, // TODO: distinguish A/B datatype
+        D0DataType,
         OutputDataType,
         ZDataType,
         GemmDataType,
@@ -589,6 +609,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         AGridDesc_AK0_M_AK1,
         BGridDesc_BK0_N_BK1,
         KGridDesc_N_K,
+        D0GridDesc_M_N,
         ZGridDesc_M_N,
         B1GridDesc_BK0_N_BK1,
         YGridDesc_M_O,
@@ -625,6 +646,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         BBlockTransferDstScalarPerVector_BK1,
         true,
         BBlockLdsExtraN,
+        D0BlockTransferSrcScalarPerVector,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -706,8 +728,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                  std::vector<void*>& p_Qgrads,
                  std::vector<void*>& p_Kgrads,
                  std::vector<void*>& p_Vgrads,
-                 const std::array<void*, NumAcc0Bias>& p_acc0_biases,
-                 const std::array<void*, NumAcc1Bias>& p_acc1_biases,
+                 const std::vector<const void*>& p_acc0_biases,
+                 const std::vector<const void*>& p_acc1_biases,
                  const std::vector<ProblemDesc>& problem_desc_vec,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
@@ -836,18 +858,6 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
 
                 grid_size_ += grid_size_grp;
 
-                // for each group, make sure acc0_biases_gs_ms_ns_lengths.size() == NumAcc0Bias and
-                // so on
-                if(!(problem_desc.acc0_biases_gs_ms_ns_lengths.size() == NumAcc0Bias &&
-                     problem_desc.acc0_biases_gs_ms_ns_strides.size() == NumAcc0Bias &&
-                     problem_desc.acc1_biases_gs_ms_os_lengths.size() == NumAcc1Bias &&
-                     problem_desc.acc1_biases_gs_ms_os_strides.size() == NumAcc1Bias))
-                {
-                    throw std::runtime_error(
-                        "wrong! number of biases in function argument does not "
-                        "match that in template argument");
-                }
-
                 const auto raw_m_padded = GridwiseGemm::GetPaddedSize(
                     problem_desc.a_gs_ms_ks_lengths[NumDimG + NumDimM - 1]);
                 const auto raw_n_padded = GridwiseGemm::GetPaddedSize(
@@ -964,6 +974,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                 const auto kernel =
                     kernel_grouped_multihead_attention_backward_qloop_xdl_cshuffle_v1<
                         GridwiseGemm,
+                        D0DataType,
                         GroupKernelArg,
                         AElementwiseOperation,
                         BElementwiseOperation,
@@ -1128,8 +1139,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                              std::vector<void*>& p_Qgrads,
                              std::vector<void*>& p_Kgrads,
                              std::vector<void*>& p_Vgrads,
-                             const std::array<void*, NumAcc0Bias>& p_acc0_biases,
-                             const std::array<void*, NumAcc1Bias>& p_acc1_biases,
+                             const std::vector<const void*>& p_acc0_biases,
+                             const std::vector<const void*>& p_acc1_biases,
                              const std::vector<ProblemDesc>& problem_desc_vec,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
@@ -1176,8 +1187,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                         std::vector<void*>& p_Qgrads,
                         std::vector<void*>& p_Kgrads,
                         std::vector<void*>& p_Vgrads,
-                        const std::array<void*, NumAcc0Bias>& p_acc0_biases,
-                        const std::array<void*, NumAcc1Bias>& p_acc1_biases,
+                        const std::vector<const void*>& p_acc0_biases,
+                        const std::vector<const void*>& p_acc1_biases,
                         const std::vector<ProblemDesc>& problem_desc_vec,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
