@@ -797,14 +797,10 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                  group_count_ == ck::type_convert<ck::index_t>(p_Vgrads.size()) &&
                  group_count_ == ck::type_convert<ck::index_t>(p_LSEs.size()) &&
                  (group_count_ == ck::type_convert<ck::index_t>(p_acc0_biases.size()) ||
-                  ck::type_convert<ck::index_t>(p_acc0_biases.size() == 0))))
+                  ck::type_convert<ck::index_t>(p_acc0_biases.size() == 0)) &&
+                 0 == p_acc1_biases.size()))
             {
                 throw std::runtime_error("wrong! group_count_ != p_As/b/b1/c.size");
-            }
-
-            if(!(p_acc0_biases.size() == p_acc1_biases.size()))
-            {
-                throw std::runtime_error("wrong! acc0_bias_vec.size != acc1_bias_vec.size");
             }
 
             grid_size_ = 0;
