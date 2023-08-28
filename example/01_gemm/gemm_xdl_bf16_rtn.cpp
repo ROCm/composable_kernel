@@ -16,26 +16,9 @@ using ALayout = Row;
 using BLayout = Col;
 using CLayout = Row;
 
-struct ConvertBF16RTN_
-{
-    // convert to bf16 using round to nearest (rtn)
-    template <typename Y, typename X>
-    __host__ __device__ void operator()(Y& y, const X& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    __host__ __device__ void operator()<ck::bhalf_t, float>(ck::bhalf_t& y, const float& x) const
-    {
-        y = ck::bf16_convert_rtn<ck::bhalf_t, float>(x);
-    }
-};
-
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
-using CElementOp = ConvertBF16RTN_;
-
+using CElementOp = ck::tensor_operation::element_wise::ConvertBF16RTN;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
