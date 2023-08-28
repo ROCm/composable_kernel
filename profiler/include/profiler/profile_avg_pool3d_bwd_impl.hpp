@@ -28,9 +28,7 @@ std::vector<ck::index_t> f_tensor_strides_ncdhw(ck::index_t N_,
 {
     using namespace ck::literals;
     (void)N_;
-    if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NCDHW>::value)
-        return {C_ * D * H * W, D * H * W, H * W, W, 1_uz};
-    else if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NDHWC>::value)
+    if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NDHWC>::value)
         return {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_};
     else
         throw std::runtime_error("not supported yet");
