@@ -89,8 +89,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using GridwiseGemmPipe = remove_cvref_t<decltype(
-        GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
+    using GridwiseGemmPipe = remove_cvref_t<
+        decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
     // denorm test fix, required to work around fp16 mfma issue
     // we convert fp16->fp32->bf16 and execute bf16 mfma instruction
