@@ -1135,6 +1135,19 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                 return false;
             }
 
+            if constexpr(!is_same<D0DataType, void>::value)
+            {
+                if(device_arg.d0_n_length_stride_[1] == 1 &&
+                   device_arg.d0_n_length_stride_[0] % D0BlockTransferSrcScalarPerVector != 0)
+                {
+                    return false;
+                }
+                if(device_arg.d0_n_length_stride_[1] != 1 && D0BlockTransferSrcScalarPerVector != 1)
+                {
+                    return false;
+                }
+            }
+
             // Note: we need raw lengths since threadwise copy can not handle vector load when part
             // of vector is out of bounds Note: need lowest dim in Ms/Ns/Ks/Os, not merged M/N/K/O
             const auto MzRaw      = device_arg.raw_lengths_mz_nz_kz_gemm1nz_[0];
