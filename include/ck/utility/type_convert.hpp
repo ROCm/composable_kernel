@@ -106,9 +106,9 @@ inline __host__ __device__ f8_t type_convert<f8_t, float>(float x)
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::standard;
     constexpr uint32_t rng           = 0;
-    return f8_t(
-        utils::cast_to_f8<float, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
-            x, rng));
+    return utils::
+        cast_to_f8<float, f8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(x,
+                                                                                               rng);
 }
 
 // convert fp8 to fp32
@@ -116,7 +116,7 @@ template <>
 inline __host__ __device__ float type_convert<float, f8_t>(f8_t x)
 {
     constexpr bool negative_zero_nan = true;
-    return utils::cast_from_f8<float, negative_zero_nan>(x.data);
+    return utils::cast_from_f8<f8_t, float, negative_zero_nan>(x);
 }
 
 // convert fp16 to fp8
@@ -127,9 +127,9 @@ inline __host__ __device__ f8_t type_convert<f8_t, half_t>(half_t x)
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::standard;
     constexpr uint32_t rng           = 0;
-    return f8_t(
-        utils::cast_to_f8<half_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
-            x, rng));
+    return utils::
+        cast_to_f8<half_t, f8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
+            x, rng);
 }
 
 // convert fp8 to fp16
@@ -137,7 +137,49 @@ template <>
 inline __host__ __device__ half_t type_convert<half_t, f8_t>(f8_t x)
 {
     constexpr bool negative_zero_nan = true;
-    return utils::cast_from_f8<half_t, negative_zero_nan>(x.data);
+    return utils::cast_from_f8<f8_t, half_t, negative_zero_nan>(x);
+}
+
+// convert fp32 to bf8
+template <>
+inline __host__ __device__ bf8_t type_convert<bf8_t, float>(float x)
+{
+    constexpr bool negative_zero_nan = true;
+    constexpr bool clip              = true;
+    constexpr f8_rounding_mode rm    = f8_rounding_mode::standard;
+    constexpr uint32_t rng           = 0;
+    return utils::
+        cast_to_f8<float, bf8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
+            x, rng);
+}
+
+// convert bf8 to fp32
+template <>
+inline __host__ __device__ float type_convert<float, bf8_t>(bf8_t x)
+{
+    constexpr bool negative_zero_nan = true;
+    return utils::cast_from_f8<bf8_t, float, negative_zero_nan>(x);
+}
+
+// convert fp16 to bf8
+template <>
+inline __host__ __device__ bf8_t type_convert<bf8_t, half_t>(half_t x)
+{
+    constexpr bool negative_zero_nan = true;
+    constexpr bool clip              = true;
+    constexpr f8_rounding_mode rm    = f8_rounding_mode::standard;
+    constexpr uint32_t rng           = 0;
+    return utils::
+        cast_to_f8<half_t, bf8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
+            x, rng);
+}
+
+// convert bf8 to fp16
+template <>
+inline __host__ __device__ half_t type_convert<half_t, bf8_t>(bf8_t x)
+{
+    constexpr bool negative_zero_nan = true;
+    return utils::cast_from_f8<bf8_t, half_t, negative_zero_nan>(x);
 }
 
 // Declare a template function for bf16 conversion using RTN
@@ -211,9 +253,9 @@ inline __host__ __device__ f8_t f8_convert_sr<f8_t, float>(float x)
     constexpr int seed               = 42;
     // as thread id is not available on host, use 0 for prn generation
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
-    return f8_t(
-        utils::cast_to_f8<float, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
-            x, rng));
+    return utils::
+        cast_to_f8<float, f8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(x,
+                                                                                               rng);
 }
 
 // convert fp16 to fp8 with stochastic rounding
@@ -226,9 +268,39 @@ inline __host__ __device__ f8_t f8_convert_sr<f8_t, half_t>(half_t x)
     constexpr int seed               = 42;
     // as thread id is not available on host, use 0 for prn generation
     uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
-    return f8_t(
-        utils::cast_to_f8<half_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
-            x, rng));
+    return utils::
+        cast_to_f8<half_t, f8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
+            x, rng);
+}
+
+// convert fp32 to bf8 with stochastic rounding
+template <>
+inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, float>(float x)
+{
+    constexpr bool negative_zero_nan = true;
+    constexpr bool clip              = true;
+    constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
+    constexpr int seed               = 42;
+    // as thread id is not available on host, use 0 for prn generation
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    return utils::
+        cast_to_f8<float, bf8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
+            x, rng);
+}
+
+// convert fp16 to bf8 with stochastic rounding
+template <>
+inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, half_t>(half_t x)
+{
+    constexpr bool negative_zero_nan = true;
+    constexpr bool clip              = true;
+    constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
+    constexpr int seed               = 42;
+    // as thread id is not available on host, use 0 for prn generation
+    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    return utils::
+        cast_to_f8<half_t, bf8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
+            x, rng);
 }
 
 } // namespace ck
