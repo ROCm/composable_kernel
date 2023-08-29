@@ -70,7 +70,7 @@ using AccDataType      = F32;
 using ShuffleDataType  = F32;
 using LSEDataType      = F32;
 using ZDataType        = U16; // INT32
-using Acc0BiasDataType = void;
+using Acc0BiasDataType = F16;
 using Acc1BiasDataType = void;
 
 static constexpr ck::index_t NumDimG = 2;
@@ -136,13 +136,13 @@ using DeviceGemmInstance =
     // ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, InputDataType, OutputDataType, GemmDataType, ZDataType, LSEDataType, Acc0BiasDataType, Acc1BiasDataType, AccDataType, ShuffleDataType, QKVElementOp, QKVElementOp,       Scale, QKVElementOp,  YElementOp,       GemmSpec,   TensorSpecQ,   TensorSpecK,   TensorSpecV,   TensorSpecY,        1,   256,    128,   128,    64,   128,    32,   8,   8,    2,   32,   32,     4,     1,     4,     2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,      S<8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>, CShuffleBlockTransferScalarPerVector_NPerBlock, MaskingSpec, Deterministic>;               
     // ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, InputDataType, OutputDataType, GemmDataType, ZDataType, LSEDataType, Acc0BiasDataType, Acc1BiasDataType, AccDataType, ShuffleDataType, QKVElementOp, QKVElementOp,       Scale, QKVElementOp,  YElementOp,       GemmSpec,   TensorSpecQ,   TensorSpecK,   TensorSpecV,   TensorSpecY,        1,   256,    128,   128,    64,   128,    32,   8,   8,    2,   32,   32,     4,     1,     4,     1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,      S<8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>, CShuffleBlockTransferScalarPerVector_NPerBlock, MaskingSpec, Deterministic>;               
     // ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, InputDataType, OutputDataType, GemmDataType, ZDataType, LSEDataType, Acc0BiasDataType, Acc1BiasDataType, AccDataType, ShuffleDataType, QKVElementOp, QKVElementOp,       Scale, QKVElementOp,  YElementOp,       GemmSpec,   TensorSpecQ,   TensorSpecK,   TensorSpecV,   TensorSpecY,        1,   256,    128,   128,    32,   128,    32,   8,   8,    2,   32,   32,     4,     1,     4,     2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,      S<8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>, CShuffleBlockTransferScalarPerVector_NPerBlock, MaskingSpec, Deterministic>;               
-    // ck::tensor_operation::device::<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, InputDataType, OutputDataType, GemmDataType, ZDataType, LSEDataType, Acc0BiasDataType, Acc1BiasDataType, AccDataType, ShuffleDataType, QKVElementOp, QKVElementOp,       Scale, QKVElementOp,  YElementOp,       GemmSpec,   TensorSpecQ,   TensorSpecK,   TensorSpecV,   TensorSpecY,        1,   256,    128,   128,    32,   128,    32,   8,   8,    2,   32,   32,     4,     1,     4,     4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,      S<8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>, CShuffleBlockTransferScalarPerVector_NPerBlock, MaskingSpec, Deterministic>;               
+    // ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, InputDataType, OutputDataType, GemmDataType, ZDataType, LSEDataType, Acc0BiasDataType, Acc1BiasDataType, AccDataType, ShuffleDataType, QKVElementOp, QKVElementOp,       Scale, QKVElementOp,  YElementOp,       GemmSpec,   TensorSpecQ,   TensorSpecK,   TensorSpecV,   TensorSpecY,        1,   256,    128,   128,    32,   128,    32,   8,   8,    2,   32,   32,     4,     1,     4,     4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,      S<8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>, CShuffleBlockTransferScalarPerVector_NPerBlock, MaskingSpec, Deterministic>;               
     // ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, InputDataType, OutputDataType, GemmDataType, ZDataType, LSEDataType, Acc0BiasDataType, Acc1BiasDataType, AccDataType, ShuffleDataType, QKVElementOp, QKVElementOp,       Scale, QKVElementOp,  YElementOp,       GemmSpec,   TensorSpecQ,   TensorSpecK,   TensorSpecV,   TensorSpecY,        1,   256,    128,   128,    32,   128,    32,   8,   8,    2,   32,   32,     4,     1,     4,     1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,      S<8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>, CShuffleBlockTransferScalarPerVector_NPerBlock, MaskingSpec, Deterministic>;               
 
     // ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, InputDataType, OutputDataType, GemmDataType, ZDataType, LSEDataType, Acc0BiasDataType, Acc1BiasDataType, AccDataType, ShuffleDataType, QKVElementOp, QKVElementOp,       Scale, QKVElementOp,  YElementOp,       GemmSpec,   TensorSpecQ,   TensorSpecK,   TensorSpecV,   TensorSpecY,        1,   256,     64,   128,    64,   128,    32,   8,   8,    2,   32,   32,     2,     1,     4,     1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,      S<8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>, CShuffleBlockTransferScalarPerVector_NPerBlock, MaskingSpec, Deterministic>;               
     // ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, InputDataType, OutputDataType, GemmDataType, ZDataType, LSEDataType, Acc0BiasDataType, Acc1BiasDataType, AccDataType, ShuffleDataType, QKVElementOp, QKVElementOp,       Scale, QKVElementOp,  YElementOp,       GemmSpec,   TensorSpecQ,   TensorSpecK,   TensorSpecV,   TensorSpecY,        1,   256,     64,   128,    64,   128,    32,   8,   8,    2,   32,   32,     2,     1,     4,     2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,      S<8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>, CShuffleBlockTransferScalarPerVector_NPerBlock, MaskingSpec, Deterministic>;               
     // ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, InputDataType, OutputDataType, GemmDataType, ZDataType, LSEDataType, Acc0BiasDataType, Acc1BiasDataType, AccDataType, ShuffleDataType, QKVElementOp, QKVElementOp,       Scale, QKVElementOp,  YElementOp,       GemmSpec,   TensorSpecQ,   TensorSpecK,   TensorSpecV,   TensorSpecY,        1,   256,     64,   128,    32,   128,    32,   8,   8,    2,   32,   32,     2,     1,     4,     1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,      S<8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>, CShuffleBlockTransferScalarPerVector_NPerBlock, MaskingSpec, Deterministic>;               
-    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, InputDataType, OutputDataType, GemmDataType, ZDataType, LSEDataType, Acc0BiasDataType, Acc1BiasDataType, AccDataType, ShuffleDataType, QKVElementOp, QKVElementOp,       Scale, QKVElementOp,  YElementOp,       GemmSpec,   TensorSpecQ,   TensorSpecK,   TensorSpecV,   TensorSpecY,        1,   256,     64,   128,   128,   128,    32,   8,   8,    2,   32,   32,     2,     1,     4,     1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,                4,      S<8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>, CShuffleBlockTransferScalarPerVector_NPerBlock, MaskingSpec, Deterministic>;               
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, InputDataType, OutputDataType, GemmDataType, ZDataType, LSEDataType, Acc0BiasDataType, Acc1BiasDataType, AccDataType, ShuffleDataType, QKVElementOp, QKVElementOp,       Scale, QKVElementOp,  YElementOp,       GemmSpec,   TensorSpecQ,   TensorSpecK,   TensorSpecV,   TensorSpecY,        1,   256,     64,   128,   128,   128,    32,   8,   8,    2,   32,   32,     2,     1,     4,     1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,               4,      S<8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>, CShuffleBlockTransferScalarPerVector_NPerBlock, MaskingSpec, Deterministic>;               
 
     // ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, InputDataType, OutputDataType, GemmDataType, ZDataType, LSEDataType, Acc0BiasDataType, Acc1BiasDataType, AccDataType, ShuffleDataType, QKVElementOp, QKVElementOp,       Scale, QKVElementOp,  YElementOp,       GemmSpec,   TensorSpecQ,   TensorSpecK,   TensorSpecV,   TensorSpecY,        1,   256,     32,   128,   128,   128,    32,   8,   8,    2,   32,   32,     1,     1,     4,     1,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,      S<8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>, CShuffleBlockTransferScalarPerVector_NPerBlock, MaskingSpec, Deterministic>;               
     // ck::tensor_operation::device::DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2<  NumDimG, NumDimM, NumDimN, NumDimK, NumDimO, InputDataType, OutputDataType, GemmDataType, ZDataType, LSEDataType, Acc0BiasDataType, Acc1BiasDataType, AccDataType, ShuffleDataType, QKVElementOp, QKVElementOp,       Scale, QKVElementOp,  YElementOp,       GemmSpec,   TensorSpecQ,   TensorSpecK,   TensorSpecV,   TensorSpecY,        1,   256,     32,   128,    64,   128,    32,   8,   8,    2,   32,   32,     1,     1,     4,     1,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,      S<4, 64, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               8,               8,       true,      S<8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           4,               S<1, 32, 1, 8>, CShuffleBlockTransferScalarPerVector_NPerBlock, MaskingSpec, Deterministic>;
@@ -198,6 +198,7 @@ using ReferenceDropoutInstance =
 
 template <typename TensorQ,
           typename TensorK,
+          typename TensorD,
           typename TensorV,
           typename TensorS,
           typename TensorP,
@@ -206,6 +207,7 @@ template <typename TensorQ,
           typename TensorLSE = TensorP>
 void run_attention_fwd_host(const TensorQ& q_g_m_k,
                             const TensorK& k_g_n_k,
+                            const TensorD& d_g_m_n,
                             const TensorV& v_g_n_o,
                             const float alpha,
                             TensorS& s_g_m_n,
@@ -226,6 +228,9 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
 
     ref_gemm0_invoker.Run(ref_gemm0_argument);
 
+    // bias
+    s_g_m_n.ForEach(
+        [&](auto& self, auto idx) { self(idx) += ck::type_convert<AccDataType>(d_g_m_n(idx)); });
     // masking
     auto M          = s_g_m_n.GetLengths()[1];
     auto N          = s_g_m_n.GetLengths()[2];
@@ -261,7 +266,7 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
 int run(int argc, char* argv[])
 {
     bool do_verification = true;
-    int init_method      = 2; // method 1 will have slightly higher error; TODO: to investigate
+    int init_method      = 1; // method 1 will have slightly higher error; TODO: to investigate
     bool time_kernel     = true;
 
     // Overall QKV matrices shape
@@ -368,6 +373,12 @@ int run(int argc, char* argv[])
             ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // Y layout [G0, M, G1, O]
             : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // Y layout [G0, G1, M, O]
 
+    std::vector<ck::index_t> d_gs_ms_ns_lengths{G0, G1, M, N};
+    std::vector<ck::index_t> d_gs_ms_ns_strides =
+        input_permute
+            ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // D layout [G0, M, G1, N]
+            : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // D layout [G0, G1, M, N]
+
     std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
     std::vector<ck::index_t> z_gs_ms_ns_strides =
         input_permute
@@ -384,6 +395,7 @@ int run(int argc, char* argv[])
 
     Tensor<InputDataType> q_gs_ms_ks(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
     Tensor<InputDataType> k_gs_ns_ks(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
+    Tensor<Acc0BiasDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
     Tensor<ZDataType> z_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
     Tensor<InputDataType> v_gs_os_ns(v_gs_os_ns_lengths, v_gs_os_ns_strides);
     Tensor<InputDataType> y_gs_ms_os(y_gs_ms_os_lengths, y_gs_ms_os_strides);
@@ -392,6 +404,7 @@ int run(int argc, char* argv[])
 
     std::cout << "q_gs_ms_ks: " << q_gs_ms_ks.mDesc << std::endl;
     std::cout << "k_gs_ns_ks: " << k_gs_ns_ks.mDesc << std::endl;
+    std::cout << "d_gs_ms_ns: " << d_gs_ms_ns.mDesc << std::endl;
     std::cout << "z_gs_ms_ns: " << z_gs_ms_ns.mDesc << std::endl;
     std::cout << "v_gs_os_ns: " << v_gs_os_ns.mDesc << std::endl;
     std::cout << "y_gs_ms_os: " << y_gs_ms_os.mDesc << std::endl;
@@ -406,30 +419,36 @@ int run(int argc, char* argv[])
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<Acc0BiasDataType>{-2, 2});
+        // d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         break;
     case 2:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<InputDataType>{0.0, 1.0});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_3<InputDataType>{0.0, 1.0});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_3<InputDataType>{-0.5, 0.5});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_3<InputDataType>{-0.5, 0.5});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<Acc0BiasDataType>{-0.5, 0.5});
         break;
     case 3:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-5, 5});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         break;
     case 4:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         break;
     case 5:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<2>{}); // dy[g0, g1, m, o]
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         // dO dot O = [0; 1; 2; ...]
         break;
     case 6:
@@ -437,6 +456,7 @@ int run(int argc, char* argv[])
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<3>{}); // dy[g0, g1, m, o]
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         // assume mnko = 256
         // P = softmax(QK) = 0.0039 * ones
         // O = P V = 0.0039 * ones
@@ -449,7 +469,8 @@ int run(int argc, char* argv[])
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
-        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1}); // dy[g0, g1, m, o]
+        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1}); // dy[g0,g1, m, o]
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         // assume mnko = 256
         // P = softmax(QK) = 0.0039 * ones
         // O = P V = 0.0039 * ones
@@ -460,26 +481,10 @@ int run(int argc, char* argv[])
         //    = 0
     }
 
-    Tensor<InputDataType> q_g_m_k({BatchCount, M, K});
-    Tensor<InputDataType> k_g_n_k({BatchCount, N, K});
-    Tensor<ZDataType> z_g_m_n({BatchCount, M, N});
-    Tensor<InputDataType> v_g_n_o({BatchCount, N, O});
-    Tensor<AccDataType> s_g_m_n({BatchCount, M, N});
-    Tensor<InputDataType> p_g_m_n({BatchCount, M, N});
-    Tensor<InputDataType> p_drop_g_m_n({BatchCount, M, N});
-    Tensor<InputDataType> y_g_m_o({BatchCount, M, O});
-    Tensor<LSEDataType> lse_g_m({BatchCount, M});
-
-    q_gs_ms_ks.ForEach(
-        [&](auto& self, auto idx) { q_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
-    k_gs_ns_ks.ForEach(
-        [&](auto& self, auto idx) { k_g_n_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
-    v_gs_os_ns.ForEach(
-        [&](auto& self, auto idx) { v_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx); });
-
     // qkv gradients have the same descriptor as with qkv
     DeviceMem q_device_buf(sizeof(InputDataType) * q_gs_ms_ks.mDesc.GetElementSpaceSize());
     DeviceMem k_device_buf(sizeof(InputDataType) * k_gs_ns_ks.mDesc.GetElementSpaceSize());
+    DeviceMem d_device_buf(sizeof(Acc0BiasDataType) * d_gs_ms_ns.mDesc.GetElementSpaceSize());
     DeviceMem z_device_buf(sizeof(ZDataType) * z_gs_ms_ns.mDesc.GetElementSpaceSize());
     DeviceMem v_device_buf(sizeof(InputDataType) * v_gs_os_ns.mDesc.GetElementSpaceSize());
     DeviceMem y_device_buf(sizeof(InputDataType) * y_gs_ms_os.mDesc.GetElementSpaceSize());
@@ -491,7 +496,7 @@ int run(int argc, char* argv[])
 
     q_device_buf.ToDevice(q_gs_ms_ks.mData.data());
     k_device_buf.ToDevice(k_gs_ns_ks.mData.data());
-    z_device_buf.ToDevice(z_gs_ms_ns.mData.data());
+    d_device_buf.ToDevice(d_gs_ms_ns.mData.data());
     v_device_buf.ToDevice(v_gs_os_ns.mData.data());
     ygrad_device_buf.ToDevice(ygrad_gs_ms_os.mData.data());
 
@@ -510,8 +515,8 @@ int run(int argc, char* argv[])
             static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
-            {}, // std::array<void*, 1> p_acc0_biases;
-            {}, // std::array<void*, 1> p_acc1_biases;
+            static_cast<Acc0BiasDataType*>(d_device_buf.GetDeviceBuffer()), //  p_acc0_bias;
+            nullptr,                                                        //  p_acc1_bias;
             q_gs_ms_ks_lengths,
             q_gs_ms_ks_strides,
             k_gs_ns_ks_lengths,
@@ -523,10 +528,10 @@ int run(int argc, char* argv[])
             y_gs_ms_os_lengths,
             y_gs_ms_os_strides,
             lse_gs_ms_lengths,
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+            d_gs_ms_ns_lengths, // acc0_bias_gs_ms_ns_lengths
+            d_gs_ms_ns_strides, // acc0_bias_gs_ms_ns_strides
+            {},                 // acc1_bias_gs_ms_os_lengths,
+            {},                 // acc1_bias_gs_ms_os_strides,
             QKVElementOp{},
             QKVElementOp{},
             Scale{alpha},
@@ -555,8 +560,8 @@ int run(int argc, char* argv[])
         static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
         static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
         static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
-        {}, // std::array<void*, 1> p_acc0_biases;
-        {}, // std::array<void*, 1> p_acc1_biases;
+        static_cast<Acc0BiasDataType*>(d_device_buf.GetDeviceBuffer()), // p_acc0_bias;
+        nullptr,                                                        // p_acc1_bias;
         q_gs_ms_ks_lengths,
         q_gs_ms_ks_strides,
         k_gs_ns_ks_lengths,
@@ -568,10 +573,10 @@ int run(int argc, char* argv[])
         y_gs_ms_os_lengths,
         y_gs_ms_os_strides,
         lse_gs_ms_lengths,
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
-        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+        d_gs_ms_ns_lengths, // acc0_bias_gs_ms_ns_lengths
+        d_gs_ms_ns_strides, // acc0_bias_gs_ms_ns_strides
+        {},                 // acc1_bias_gs_ms_os_lengths,
+        {},                 // acc1_bias_gs_ms_os_strides,
         QKVElementOp{},
         QKVElementOp{},
         Scale{alpha},
@@ -593,7 +598,7 @@ int run(int argc, char* argv[])
         (sizeof(InputDataType) * M * K + sizeof(InputDataType) * K * N +
          sizeof(InputDataType) * N * O + sizeof(InputDataType) * M * O * size_t(2) +
          sizeof(OutputDataType) * M * K + sizeof(OutputDataType) * K * N +
-         sizeof(OutputDataType) * N * O) *
+         sizeof(OutputDataType) * N * O + sizeof(Acc0BiasDataType) * M * N) *
             BatchCount +
         sizeof(LSEDataType) * M * BatchCount;
 
@@ -604,18 +609,43 @@ int run(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    // copy z matirx data form device
-    z_device_buf.FromDevice(z_gs_ms_ns.mData.data());
-    z_gs_ms_ns.ForEach(
-        [&](auto& self, auto idx) { z_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx); });
-
     //       std::cout << "z_g_m_n ref:\n" << z_g_m_n;
     bool pass = true;
     if(do_verification)
     {
+        // copy z matirx data form device
+
+        Tensor<InputDataType> q_g_m_k({BatchCount, M, K});
+        Tensor<InputDataType> k_g_n_k({BatchCount, N, K});
+        Tensor<Acc0BiasDataType> d_g_m_n({G0 * G1, M, N});
+        Tensor<ZDataType> z_g_m_n({BatchCount, M, N});
+        Tensor<InputDataType> v_g_n_o({BatchCount, N, O});
+        Tensor<AccDataType> s_g_m_n({BatchCount, M, N});
+        Tensor<InputDataType> p_g_m_n({BatchCount, M, N});
+        Tensor<InputDataType> p_drop_g_m_n({BatchCount, M, N});
+        Tensor<InputDataType> y_g_m_o({BatchCount, M, O});
+        Tensor<LSEDataType> lse_g_m({BatchCount, M});
+
+        z_device_buf.FromDevice(z_gs_ms_ns.mData.data());
+        z_gs_ms_ns.ForEach([&](auto& self, auto idx) {
+            z_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        });
+        q_gs_ms_ks.ForEach([&](auto& self, auto idx) {
+            q_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        });
+        k_gs_ns_ks.ForEach([&](auto& self, auto idx) {
+            k_g_n_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        });
+        v_gs_os_ns.ForEach([&](auto& self, auto idx) {
+            v_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+        });
+        d_gs_ms_ns.ForEach([&](auto& self, auto idx) {
+            d_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        });
         // run fwd again for y, cause z_g_m_n update
         run_attention_fwd_host(q_g_m_k,
                                k_g_n_k,
+                               d_g_m_n,
                                v_g_n_o,
                                alpha,
                                s_g_m_n,
