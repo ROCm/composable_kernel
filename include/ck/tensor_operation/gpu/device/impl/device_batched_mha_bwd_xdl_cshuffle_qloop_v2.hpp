@@ -874,6 +874,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
                 d0_grid_desc_g_m_n_ = Transform::MakeCGridDescriptor_G_M_N(
                     acc0_bias_gs_ms_ns_lengths, acc0_bias_gs_ms_ns_strides);
+
+                d0_n_length_stride_.push_back(acc0_bias_gs_ms_ns_lengths[NumDimG + NumDimM]);
+                d0_n_length_stride_.push_back(acc0_bias_gs_ms_ns_strides[NumDimG + NumDimM]);
             }
 
             compute_base_ptr_of_batch_ = ComputeBasePtrOfStridedBatch(
@@ -987,6 +990,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
         index_t m_raw_padded_;
         index_t n_raw_padded_;
+
+        // raw data
+        std::vector<ck::index_t> d0_n_length_stride_;
     };
 
     // Invoker
@@ -1148,6 +1154,18 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             return false;
         }
 
+        if constexpr(!is_same<D0DataType, void>::value)
+        {
+            if(arg.d0_n_length_stride_[1] == 1 &&
+               arg.d0_n_length_stride_[0] % D0BlockTransferSrcScalarPerVector != 0)
+            {
+                return false;
+            }
+            if(arg.d0_n_length_stride_[1] != 1 && D0BlockTransferSrcScalarPerVector != 1)
+            {
+                return false;
+            }
+        }
         // Note: we need raw lengths since threadwise copy can not handle vector load when part of
         // vector is out of bounds
         // Note: need lowest dim in Ms/Ns/Ks/Os, not merged M/N/K/O
