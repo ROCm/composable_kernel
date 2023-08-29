@@ -48,11 +48,14 @@ int main()
     bool do_verification = true;
     bool time_kernel     = true;
 
-    const int N = 120;
-    const int C = 128;
-    const int H = 32;
-    const int W = 1024;
-
+    //const int N = 120;
+    //const int C = 128;
+    //const int H = 32;
+    //const int W = 1024;
+    const int N = 16;
+    const int C = 8;
+    const int H = 8;
+    const int W = 8;
     /**const int N = 120;
     const int H = 32;
     const int W = 64;
@@ -107,6 +110,8 @@ int main()
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
+    LogRangeAsType<float>(std::cout << "A  : ", a.mData, ",") << std::endl;
+    //LogRangeAsType<float>(std::cout << "B  : ", b.mData, ",") << std::endl;
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
 
@@ -120,6 +125,7 @@ int main()
         Tensor<BDataType> host_b(nhwc);
         host_elementwise4D<Tensor<ADataType>, Tensor<BDataType>, PassThrough>(
             host_b, a, nchw, PassThrough{});
+	//LogRangeAsType<float>(std::cout << "Host_b  : ", host_b.mData, ",") << std::endl;
 
         // LogRangeAsType<float>(std::cout << "Host b  : ", host_b.mData, ",") << std::endl;
         pass &=
