@@ -92,11 +92,11 @@ struct ReferenceGemm : public device::BaseOperator
                         ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                 }
 
-                AccDataType v_c;
+                CDataType v_c;
 
                 arg.c_element_op_(v_c, v_acc);
 
-                arg.c_m_n_(m, n) = ck::type_convert<CDataType>(v_c);
+                arg.c_m_n_(m, n) = v_c;
             };
 
             make_ParallelTensorFunctor(
