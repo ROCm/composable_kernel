@@ -437,8 +437,8 @@ int run(int argc, char* argv[])
             lse_gs_ms_strides,
             d0_gs_ms_ns_lengths,
             d0_gs_ms_ns_strides,
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
-            {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+            {}, // acc1_bias_gs_ms_os_lengths,
+            {}, // acc1_bias_gs_ms_os_strides,
         });
 
         int BatchCount = G0 * G1;

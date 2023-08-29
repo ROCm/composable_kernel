@@ -515,8 +515,8 @@ int run(int argc, char* argv[])
             static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
-            static_cast<Acc0BiasDataType*>(d_device_buf.GetDeviceBuffer()), //  p_acc0_biases;
-            nullptr,                                                        //  p_acc1_biases;
+            static_cast<Acc0BiasDataType*>(d_device_buf.GetDeviceBuffer()), //  p_acc0_bias;
+            nullptr,                                                        //  p_acc1_bias;
             q_gs_ms_ks_lengths,
             q_gs_ms_ks_strides,
             k_gs_ns_ks_lengths,
@@ -528,10 +528,10 @@ int run(int argc, char* argv[])
             y_gs_ms_os_lengths,
             y_gs_ms_os_strides,
             lse_gs_ms_lengths,
-            d_gs_ms_ns_lengths, // acc0_biases_gs_ms_ns_lengths
-            d_gs_ms_ns_strides, // acc0_biases_gs_ms_ns_strides
-            {},                 // acc1_biases_gs_ms_os_lengths,
-            {},                 // acc1_biases_gs_ms_os_strides,
+            d_gs_ms_ns_lengths, // acc0_bias_gs_ms_ns_lengths
+            d_gs_ms_ns_strides, // acc0_bias_gs_ms_ns_strides
+            {},                 // acc1_bias_gs_ms_os_lengths,
+            {},                 // acc1_bias_gs_ms_os_strides,
             QKVElementOp{},
             QKVElementOp{},
             Scale{alpha},
@@ -560,8 +560,8 @@ int run(int argc, char* argv[])
         static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
         static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
         static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
-        static_cast<Acc0BiasDataType*>(d_device_buf.GetDeviceBuffer()), // p_acc0_biases;
-        nullptr,                                                        // p_acc1_biases;
+        static_cast<Acc0BiasDataType*>(d_device_buf.GetDeviceBuffer()), // p_acc0_bias;
+        nullptr,                                                        // p_acc1_bias;
         q_gs_ms_ks_lengths,
         q_gs_ms_ks_strides,
         k_gs_ns_ks_lengths,
@@ -573,10 +573,10 @@ int run(int argc, char* argv[])
         y_gs_ms_os_lengths,
         y_gs_ms_os_strides,
         lse_gs_ms_lengths,
-        d_gs_ms_ns_lengths, // acc0_biases_gs_ms_ns_lengths
-        d_gs_ms_ns_strides, // acc0_biases_gs_ms_ns_strides
-        {},                 // acc1_biases_gs_ms_os_lengths,
-        {},                 // acc1_biases_gs_ms_os_strides,
+        d_gs_ms_ns_lengths, // acc0_bias_gs_ms_ns_lengths
+        d_gs_ms_ns_strides, // acc0_bias_gs_ms_ns_strides
+        {},                 // acc1_bias_gs_ms_os_lengths,
+        {},                 // acc1_bias_gs_ms_os_strides,
         QKVElementOp{},
         QKVElementOp{},
         Scale{alpha},
