@@ -3,5 +3,8 @@ if (USE_BITINT_EXTENSION_INT4)
   target_link_libraries(test_int4 PRIVATE utility)
 endif()
 
-add_gtest_executable(test_fp8 fp8.cpp)
-target_link_libraries(test_fp8 PRIVATE utility)
+add_gtest_executable(test_f8 f8.cpp)
+target_link_libraries(test_f8 PRIVATE utility)
+
+add_gtest_executable(test_bf8 bf8.cpp)
+target_link_libraries(test_bf8 PRIVATE utility)
