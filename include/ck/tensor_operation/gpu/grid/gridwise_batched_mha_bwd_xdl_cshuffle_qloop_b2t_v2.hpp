@@ -1196,23 +1196,17 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         static_assert(NPerXdl == 32);
         static_assert(D0BlockTransferSrcScalarPerVector * NThreadClusterLengths <= NPerBlock,
                       "D0BlockTransferSrcScalarPerVector * NThreadClusterLengths <= NPerBlock");
-        __host__ __device__ static constexpr auto GetD0BlockDescriptor_M0_N0_M1_M2_N1_M3()
+        __host__ __device__ static constexpr auto GetD0BlockWriteDescriptor_M0_N0_M1_M2_N1_M3()
         {
             // B1 matrix in LDS memory, dst of blockwise copy
-            return make_naive_tensor_descriptor(
-                make_tuple(I1, I1, I1, D0M1, Number<NPerBlock>{}, D0M2),
-                make_tuple(Number<NPerBlock>{} * D0M2,
-                           Number<NPerBlock>{} * D0M2,
-                           Number<NPerBlock>{} * D0M2,
-                           Number<NPerBlock>{} * D0M2,
-                           D0M2,
-                           I1));
+            return make_naive_tensor_descriptor_packed(
+                make_tuple(I1, I1, I1, D0M1, Number<NPerBlock>{}, D0M2));
         }
         __host__ __device__ static constexpr auto GetD0BlockReadDescriptor_N0_N1_M0_M1_M2()
         {
             constexpr auto d0_raw_m0_n_m1 =
-                make_naive_tensor_descriptor(make_tuple(D0M1, Number<NPerBlock>{}, D0M2),
-                                             make_tuple(Number<NPerBlock>{} * D0M2, D0M2, I1));
+                make_naive_tensor_descriptor_packed(make_tuple(D0M1, Number<NPerBlock>{}, D0M2));
+
             constexpr auto d0_n0_n1_m0_m1_m2 = transform_tensor_descriptor(
                 d0_raw_m0_n_m1,
                 make_tuple(make_unmerge_transform(make_tuple(D0M1 / I2, I2)),
@@ -1224,7 +1218,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             return d0_n0_n1_m0_m1_m2;
         }
         static constexpr auto d0_block_desc_m0_n0_m1_m2_n1_m3 =
-            GetD0BlockDescriptor_M0_N0_M1_M2_N1_M3();
+            GetD0BlockWriteDescriptor_M0_N0_M1_M2_N1_M3();
         static constexpr auto d0_block_desc_n0_n1_m0_m1_m2 =
             GetD0BlockReadDescriptor_N0_N1_M0_M1_M2();
 
