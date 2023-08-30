@@ -615,11 +615,9 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
             return false;
         }
 
-        bool supported = true;
-
         // If we use padding we do not support vector loads for dimensions not divisible by vector
         // load size.
-        if constexpr(GemmSpec != GemmSpecialization::Default)
+        // if constexpr(GemmSpec != GemmSpecialization::Default)
         {
             // [A|B]BlockTransferSrcVectorDim value define dimension in the block {K0,M,K1} layout,
             // thus we have to adapt it to the {M,K} or {N,K} layout.
@@ -631,12 +629,17 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 const auto a_vector_dim = arg.a_mtx_mraw_kraw_[i].At(Number<a_raw_vector_dim>{});
                 const auto b_vector_dim = arg.b_mtx_nraw_kraw_[i].At(Number<b_raw_vector_dim>{});
 
-                supported = supported & (a_vector_dim % ABlockTransferSrcScalarPerVector == 0);
-                supported = supported & (b_vector_dim % BBlockTransferSrcScalarPerVector == 0);
+                if(a_vector_dim % ABlockTransferSrcScalarPerVector != 0)
+                    ;
+                return false;
+
+                if(b_vector_dim % BBlockTransferSrcScalarPerVector != 0)
+                    ;
+                return false;
             }
         }
 
-        return supported;
+        return true;
     }
 
     // polymorphic

@@ -12,7 +12,7 @@ TEST_P(RRR_F16_F16_F16, TinyCases)
     const std::vector<int> StrideBs(Ms.size(), N);
     const std::vector<int> StrideCs(Ms.size(), N);
 
-    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs);
 }
 
 TEST_P(RRR_F16_F16_F16, SmallCases)
@@ -27,7 +27,7 @@ TEST_P(RRR_F16_F16_F16, SmallCases)
     const std::vector<int> StrideBs(Ms.size(), N);
     const std::vector<int> StrideCs(Ms.size(), N);
 
-    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs);
 }
 
 TEST_P(RRR_F16_F16_F16, MidCases)
@@ -42,7 +42,7 @@ TEST_P(RRR_F16_F16_F16, MidCases)
     const std::vector<int> StrideBs(Ms.size(), N);
     const std::vector<int> StrideCs(Ms.size(), N);
 
-    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs);
 }
 
 TEST_P(RRR_F16_F16_F16, Regular)
@@ -57,7 +57,7 @@ TEST_P(RRR_F16_F16_F16, Regular)
     const std::vector<int> StrideBs(Ms.size(), N);
     const std::vector<int> StrideCs(Ms.size(), N);
 
-    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs);
 }
 
 TEST_P(RRR_F16_F16_F16, MNKPadded)
@@ -72,7 +72,7 @@ TEST_P(RRR_F16_F16_F16, MNKPadded)
     const std::vector<int> StrideBs(Ms.size(), N);
     const std::vector<int> StrideCs(Ms.size(), N);
 
-    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs);
 }
 
 TEST_P(RCR_F16_F16_F16, TinyCases)
@@ -86,7 +86,7 @@ TEST_P(RCR_F16_F16_F16, TinyCases)
     const std::vector<int> StrideAs(Ms.size(), K);
     const std::vector<int> StrideBs(Ms.size(), K);
     const std::vector<int> StrideCs(Ms.size(), N);
-    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs);
 }
 
 TEST_P(RCR_F16_F16_F16, SmallCases)
@@ -101,7 +101,7 @@ TEST_P(RCR_F16_F16_F16, SmallCases)
     const std::vector<int> StrideBs(Ms.size(), K);
     const std::vector<int> StrideCs(Ms.size(), N);
 
-    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs);
 }
 
 TEST_P(RCR_F16_F16_F16, MidCases)
@@ -116,7 +116,7 @@ TEST_P(RCR_F16_F16_F16, MidCases)
     const std::vector<int> StrideBs(Ms.size(), K);
     const std::vector<int> StrideCs(Ms.size(), N);
 
-    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs);
 }
 
 TEST_P(RCR_F16_F16_F16, Regular)
@@ -131,7 +131,7 @@ TEST_P(RCR_F16_F16_F16, Regular)
     const std::vector<int> StrideBs(Ms.size(), K);
     const std::vector<int> StrideCs(Ms.size(), N);
 
-    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs);
 }
 
 TEST_P(RCR_F16_F16_F16, MNKPadded)
@@ -146,7 +146,7 @@ TEST_P(RCR_F16_F16_F16, MNKPadded)
     const std::vector<int> StrideBs(Ms.size(), K);
     const std::vector<int> StrideCs(Ms.size(), N);
 
-    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs);
 }
 
 TEST_P(RRR_F16_F16_F16_LargeK, TestLargeKBatch)
@@ -161,7 +161,7 @@ TEST_P(RRR_F16_F16_F16_LargeK, TestLargeKBatch)
     const std::vector<int> StrideBs(Ms.size(), N);
     const std::vector<int> StrideCs(Ms.size(), N);
 
-    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs);
 }
 
 TEST_P(RCR_F16_F16_F16_LargeK, TestLargeKBatch)
@@ -176,5 +176,5 @@ TEST_P(RCR_F16_F16_F16_LargeK, TestLargeKBatch)
     const std::vector<int> StrideBs(Ms.size(), K);
     const std::vector<int> StrideCs(Ms.size(), N);
 
-    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, this->GetParam());
+    this->Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs);
 }

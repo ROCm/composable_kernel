@@ -10,7 +10,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "test_grouped_gemm_util.hpp"
 
-class TestGGemmSplitKInterface_MKNKMN : public ::testing::Test
+class TestGGemmInterface_MKNKMN : public ::testing::Test
 {
     protected:
     using Row = ck::tensor_layout::gemm::RowMajor;
@@ -29,20 +29,20 @@ class TestGGemmSplitKInterface_MKNKMN : public ::testing::Test
               ck::index_t BBlockTransferSrcScalarPerVector,
               ck::index_t CDEBlockTransferScalarPerVector_NPerBlock>
     using GGemmInstance =
-        ck::test::DeviceGroupedGemmSplitkInstanceWrapper<ALayout,
-                                                         BLayout,
-                                                         ELayout,
-                                                         GemmSpec,
-                                                         KPerBlock,
-                                                         K1,
-                                                         ABlockTransferSrcScalarPerVector,
-                                                         BBlockTransferSrcScalarPerVector,
-                                                         CDEBlockTransferScalarPerVector_NPerBlock>;
+        ck::test::DeviceGroupedGemmInstanceWrapper<ALayout,
+                                                   BLayout,
+                                                   ELayout,
+                                                   GemmSpec,
+                                                   KPerBlock,
+                                                   K1,
+                                                   ABlockTransferSrcScalarPerVector,
+                                                   BBlockTransferSrcScalarPerVector,
+                                                   CDEBlockTransferScalarPerVector_NPerBlock>;
 
     using DefaultGGemmInstance = GGemmInstance<GemmDefault, 32, 8, 4, 8, 8>;
 };
 
-TEST_F(TestGGemmSplitKInterface_MKNKMN, TileSize)
+TEST_F(TestGGemmInterface_MKNKMN, TileSize)
 {
     std::vector<int> Ms{128, 256, 188, 512};
     constexpr int N = 256;
@@ -63,7 +63,7 @@ TEST_F(TestGGemmSplitKInterface_MKNKMN, TileSize)
     EXPECT_FALSE(DefaultGGemmInstance{}.IsSupported(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs));
 }
 
-TEST_F(TestGGemmSplitKInterface_MKNKMN, VectorLoadWidth)
+TEST_F(TestGGemmInterface_MKNKMN, VectorLoadWidth)
 {
     static constexpr auto GemmMNKPadding =
         ck::tensor_operation::device::GemmSpecialization::MNKPadding;
@@ -93,33 +93,7 @@ TEST_F(TestGGemmSplitKInterface_MKNKMN, VectorLoadWidth)
     EXPECT_FALSE(PaddedGGemmInstance{}.IsSupported(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs));
 }
 
-#if 0
-TEST_F(TestGGemmSplitKInterface_MKNKMN, KLoops)
-{
-    std::vector<int> Ms{128, 256, 256, 512};
-    constexpr int N      = 256;
-    constexpr int K      = 128;
-    constexpr int kbatch = 4;
-
-    std::vector<int> Ns(Ms.size(), N);
-    std::vector<int> Ks(Ms.size(), K);
-    std::vector<int> StrideAs(Ms.size(), K);
-    std::vector<int> StrideBs(Ms.size(), K);
-    std::vector<int> StrideCs(Ms.size(), N);
-
-    // kloops % 2
-    Ks = std::vector<int>{256, 512, 320, 768};
-    EXPECT_TRUE(
-        DefaultGGemmInstance{}.IsSupported(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, kbatch));
-
-    // Not all gemms have same value for main_k0_block_loop!
-    Ks = std::vector<int>{256, 512, 512, 512};
-    EXPECT_THROW(DefaultGGemmInstance{}.Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, kbatch),
-                 std::runtime_error);
-}
-#endif
-
-class TestGGemmSplitKInterface_KMKNNM : public ::testing::Test
+class TestGGemmInterface_KMKNNM : public ::testing::Test
 {
     protected:
     using Row = ck::tensor_layout::gemm::RowMajor;
@@ -138,20 +112,20 @@ class TestGGemmSplitKInterface_KMKNNM : public ::testing::Test
               ck::index_t BBlockTransferSrcScalarPerVector,
               ck::index_t CDEBlockTransferScalarPerVector_NPerBlock>
     using GGemmInstance =
-        ck::test::DeviceGroupedGemmSplitkInstanceWrapper<ALayout,
-                                                         BLayout,
-                                                         ELayout,
-                                                         GemmSpec,
-                                                         KPerBlock,
-                                                         K1,
-                                                         ABlockTransferSrcScalarPerVector,
-                                                         BBlockTransferSrcScalarPerVector,
-                                                         CDEBlockTransferScalarPerVector_NPerBlock>;
+        ck::test::DeviceGroupedGemmInstanceWrapper<ALayout,
+                                                   BLayout,
+                                                   ELayout,
+                                                   GemmSpec,
+                                                   KPerBlock,
+                                                   K1,
+                                                   ABlockTransferSrcScalarPerVector,
+                                                   BBlockTransferSrcScalarPerVector,
+                                                   CDEBlockTransferScalarPerVector_NPerBlock>;
 
     using DefaultGGemmInstance = GGemmInstance<GemmDefault, 32, 8, 4, 8, 4>;
 };
 
-TEST_F(TestGGemmSplitKInterface_KMKNNM, TileSize)
+TEST_F(TestGGemmInterface_KMKNNM, TileSize)
 {
     std::vector<int> Ms{128, 256, 188, 512};
     constexpr int N = 256;
@@ -172,7 +146,7 @@ TEST_F(TestGGemmSplitKInterface_KMKNNM, TileSize)
     EXPECT_FALSE(DefaultGGemmInstance{}.IsSupported(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs));
 }
 
-TEST_F(TestGGemmSplitKInterface_KMKNNM, VectorLoadWidth)
+TEST_F(TestGGemmInterface_KMKNNM, VectorLoadWidth)
 {
     static constexpr auto GemmMNKPadding =
         ck::tensor_operation::device::GemmSpecialization::MNKPadding;

@@ -14,7 +14,7 @@
 #include "ck/stream_config.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_gemm_xdl_splitk_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_gemm_xdl.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/utility/data_type.hpp"
@@ -85,7 +85,7 @@ template <typename ALayout,
           ck::index_t ABlockTransferSrcScalarPerVector,
           ck::index_t BBlockTransferSrcScalarPerVector,
           index_t CDEBlockTransferScalarPerVector_NPerBlock>
-struct DeviceGroupedGemmSplitkInstanceWrapper
+struct DeviceGroupedGemmInstanceWrapper
 {
     using F16         = half_t;
     using F32         = float;
@@ -102,68 +102,67 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
     using I = ck::Number<N>;
 
     using ABlockTransferThreadClusterArrageOrder =
-        std::conditional_t<std::is_same_v<ALayout, Row>, S<0, 2, 1, 3>, S<0, 1, 3, 2>>;
+        std::conditional_t<std::is_same_v<ALayout, Row>, S<1, 0, 2>, S<0, 2, 1>>;
     using ABlockTransferSrcAccessOrder =
-        std::conditional_t<std::is_same_v<ALayout, Row>, S<0, 2, 1, 3>, S<0, 1, 3, 2>>;
+        std::conditional_t<std::is_same_v<ALayout, Row>, S<1, 0, 2>, S<0, 2, 1>>;
     using ABlockTransferSrcVectorDim = std::conditional_t<std::is_same_v<ALayout, Row>, I<3>, I<2>>;
     using ABlockTransferDstScalarPerVector_K1 =
         std::conditional_t<std::is_same_v<ALayout, Row>, I<8>, I<2>>;
     using ABlockLdsAddExtraM = std::conditional_t<std::is_same_v<ALayout, Row>, I<1>, I<0>>;
 
     using BBlockTransferThreadClusterArrageOrder =
-        std::conditional_t<std::is_same_v<BLayout, Row>, S<0, 1, 3, 2>, S<0, 2, 1, 3>>;
+        std::conditional_t<std::is_same_v<BLayout, Row>, S<0, 2, 1>, S<1, 0, 2>>;
     using BBlockTransferSrcAccessOrder =
-        std::conditional_t<std::is_same_v<BLayout, Row>, S<0, 1, 3, 2>, S<0, 2, 1, 3>>;
+        std::conditional_t<std::is_same_v<BLayout, Row>, S<0, 2, 1>, S<1, 0, 2>>;
     using BBlockTransferSrcVectorDim = std::conditional_t<std::is_same_v<BLayout, Row>, I<2>, I<3>>;
     using BBlockTransferDstScalarPerVector_K1 =
         std::conditional_t<std::is_same_v<ALayout, Row>, I<2>, I<8>>;
     using BBlockLdsAddExtraM = std::conditional_t<std::is_same_v<ALayout, Row>, I<0>, I<1>>;
 
-    using DeviceGroupedGemmSplitKInstance =
-        tensor_operation::device::DeviceGroupedGemmXdlSplitKCShuffle<
-            ALayout,
-            BLayout,
-            EmptyTuple,
-            ELayout,
-            F16,
-            F16,
-            F32,
-            F16,
-            EmptyTuple,
-            F16,
-            PassThrough,
-            PassThrough,
-            PassThrough,
-            GemmSpec,
-            1,
-            128,
-            128,
-            128,
-            KPerBlock,
-            K1,
-            K1,
-            32,
-            32,
-            4,
-            2,
-            S<1, 4, 16, 1>,
-            ABlockTransferThreadClusterArrageOrder,
-            ABlockTransferSrcAccessOrder,
-            ABlockTransferSrcVectorDim::value,
-            ABlockTransferSrcScalarPerVector,
-            ABlockTransferDstScalarPerVector_K1::value,
-            ABlockLdsAddExtraM::value,
-            S<1, 4, 16, 1>,
-            BBlockTransferThreadClusterArrageOrder,
-            BBlockTransferSrcAccessOrder,
-            BBlockTransferSrcVectorDim::value,
-            BBlockTransferSrcScalarPerVector,
-            BBlockTransferDstScalarPerVector_K1::value,
-            BBlockLdsAddExtraM::value,
-            1,
-            1,
-            S<1, 16, 1, 8>,
-            CDEBlockTransferScalarPerVector_NPerBlock>;
+    using DeviceGroupedGemmInstance =
+        tensor_operation::device::DeviceGroupedGemm_Xdl<ALayout,
+                                                        BLayout,
+                                                        EmptyTuple,
+                                                        ELayout,
+                                                        F16,
+                                                        F16,
+                                                        F32,
+                                                        F16,
+                                                        EmptyTuple,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        GemmSpec,
+                                                        1,
+                                                        128,
+                                                        128,
+                                                        128,
+                                                        KPerBlock,
+                                                        K1,
+                                                        K1,
+                                                        32,
+                                                        32,
+                                                        4,
+                                                        2,
+                                                        S<4, 16, 1>,
+                                                        ABlockTransferThreadClusterArrageOrder,
+                                                        ABlockTransferSrcAccessOrder,
+                                                        ABlockTransferSrcVectorDim::value,
+                                                        ABlockTransferSrcScalarPerVector,
+                                                        ABlockTransferDstScalarPerVector_K1::value,
+                                                        ABlockLdsAddExtraM::value,
+                                                        S<4, 16, 1>,
+                                                        BBlockTransferThreadClusterArrageOrder,
+                                                        BBlockTransferSrcAccessOrder,
+                                                        BBlockTransferSrcVectorDim::value,
+                                                        BBlockTransferSrcScalarPerVector,
+                                                        BBlockTransferDstScalarPerVector_K1::value,
+                                                        BBlockLdsAddExtraM::value,
+                                                        1,
+                                                        1,
+                                                        S<1, 16, 1, 8>,
+                                                        CDEBlockTransferScalarPerVector_NPerBlock>;
 
     bool IsSupported(const std::vector<int>& Ms,
                      const std::vector<int>& Ns,
@@ -190,7 +189,7 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
         std::vector<void*> p_Cs(n_groups, nullptr);
         auto p_Ds = std::vector<std::array<const void*, 0>>{};
 
-        auto ggemm_instance = DeviceGroupedGemmSplitKInstance{};
+        auto ggemm_instance = DeviceGroupedGemmInstance{};
         auto argument       = ggemm_instance.MakeArgument(
             p_As, p_Bs, p_Ds, p_Cs, gemm_descs, PassThrough{}, PassThrough{}, PassThrough{});
 
@@ -222,7 +221,7 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
         std::vector<void*> p_Cs(n_groups, nullptr);
         auto p_Ds = std::vector<std::array<const void*, 0>>{};
 
-        auto ggemm_instance = DeviceGroupedGemmSplitKInstance{};
+        auto ggemm_instance = DeviceGroupedGemmInstance{};
         auto argument       = ggemm_instance.MakeArgument(
             p_As, p_Bs, p_Ds, p_Cs, gemm_descs, PassThrough{}, PassThrough{}, PassThrough{});
 
