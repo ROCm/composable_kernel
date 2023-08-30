@@ -15,19 +15,17 @@ namespace ck {
 namespace tensor_operation {
 namespace host {
 
-//
-// @brief      Reference implementation for image to column.
-//
-// @paragraph
-//             Tensor descriptor in NCHW dimensional order
-//
-// @tparam     InDataType               Input tensor data type.
-// @tparam     OutDataType              Output tensor data type.
-// @tparam     NDimSpatial  Number of spatial dimensions.
-//
-// input descriptor in [N, C, Di, Hi, Wi] order
-// output descriptor in [N * Do * Ho * Wo, C * Z * Y * X] order
-// phyiscal layout is [N, Di, Hi, Wi, C]
+/**
+ * \brief Reference implementation for image to column.
+ *
+ * Tensor descriptor has [G, N, C, Di, Hi, Wi] data layout.
+ * G must be equal to 1. Memory layout is [G, N, Di, Hi, Wi, C].
+ *
+ * \tparam NDimSpatial Number of spatial dimensions.
+ * \tparam InputLayout Input Layout.
+ * \tparam InDataType Input Data Type.
+ * \tparam OutDataType Output Data Type.
+ */
 template <ck::index_t NDimSpatial,
           typename InputLayout,
           typename InDataType,
@@ -242,12 +240,12 @@ struct ReferenceImageToColumn : public device::BaseOperator
     {
         using namespace tensor_layout::convolution;
 
-        if(!(std::is_same_v<InputLayout, GNWC> || std::is_same_v<InputLayout, GNHWC> ||
-             std::is_same_v<InputLayout, GNDHWC>))
+        if constexpr(!(std::is_same_v<InputLayout, GNWC> || std::is_same_v<InputLayout, GNHWC> ||
+                       std::is_same_v<InputLayout, GNDHWC>))
         {
             return false;
         }
-        if(!(NDimSpatial >= 1 && NDimSpatial <= 3))
+        if constexpr(!(NDimSpatial >= 1 && NDimSpatial <= 3))
         {
             return false;
         }

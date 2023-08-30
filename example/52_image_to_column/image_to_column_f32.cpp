@@ -107,11 +107,9 @@ bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::Conv
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-
-    std::size_t num_btype = NDoHoWo * CZYX * sizeof(InDataType);
-
+    std::size_t num_btype =
+        NDoHoWo * CZYX * sizeof(OutDataType) + conv_params.GetInputByte<InputDataType>();
     float gb_per_sec = num_btype / 1.E6 / ave_time;
-
     std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
 
     if(config.do_verification)
@@ -159,7 +157,7 @@ int RunImageToColumnExample(int argc, char* argv[])
 
     if(conv_params.num_dim_spatial_ != NDimSpatial)
     {
-        std::cerr << "unsupported # of spatials dimensions" << std::endl;
+        std::cerr << "unsupported # of spatial dimensions" << std::endl;
         return EXIT_FAILURE;
     }
 

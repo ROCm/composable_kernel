@@ -10,7 +10,6 @@
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
-#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"

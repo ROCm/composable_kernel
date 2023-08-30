@@ -7,9 +7,7 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/device_image_to_column.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_image_to_column.hpp"
-#include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
-#include "ck/host_utility/stream_utility.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_operation/operator_transform/transform_conv_fwd_to_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
@@ -284,24 +282,28 @@ struct DeviceImageToColumnImpl
             return false;
         }
 
-        const auto x_pad_left  = arg.input_left_pads_[NDimSpatial - I1];
-        const auto x_pad_right = arg.input_right_pads_[NDimSpatial - I1];
+        const auto w_pad_left  = arg.input_left_pads_[NDimSpatial - I1];
+        const auto w_pad_right = arg.input_right_pads_[NDimSpatial - I1];
         const auto dilation_x  = arg.conv_filter_dilations_[NDimSpatial - I1];
         const auto stride_x    = arg.conv_filter_strides_[NDimSpatial - I1];
-        bool is_c_packed       = arg.input_g_n_c_wis_strides_[NDimSpatial + I2] == arg.C_;
+        bool is_x_packed       = arg.input_g_n_c_wis_strides_[NDimSpatial + I2] == arg.C_;
+        bool is_c_packed       = arg.input_g_n_c_wis_strides_[I2] == 1;
 
+        // check vector acces with c not packed
+        if(!is_c_packed && ScalarPerVector != 1)
+            return false;
         // check vector access of filter window row (only C if C is not packed)
-        if(!is_c_packed && arg.C_ % ScalarPerVector != 0)
+        if(!is_x_packed && arg.C_ % ScalarPerVector != 0)
             return false;
         // check vector access of filter window row (X * C)
         if(arg.X_ * arg.C_ % ScalarPerVector != 0)
             return false;
-        // check vector access of pads (x_pad_left/x_pad_right * C)
-        if(x_pad_left * arg.C_ % ScalarPerVector != 0 ||
-           x_pad_right * arg.C_ % ScalarPerVector != 0)
+        // check vector access of pads (w_pad_left/w_pad_right * C)
+        if(w_pad_left * arg.C_ % ScalarPerVector != 0 ||
+           w_pad_right * arg.C_ % ScalarPerVector != 0)
             return false;
         // check vector access of with stride and pad
-        if((x_pad_left != 0 || x_pad_right != 0) && stride_x > 1 && arg.C_ % ScalarPerVector != 0)
+        if((w_pad_left != 0 || w_pad_right != 0) && stride_x > 1 && arg.C_ % ScalarPerVector != 0)
             return false;
         // check vector access of with dilation
         if(dilation_x > 1 && arg.C_ % ScalarPerVector != 0)
