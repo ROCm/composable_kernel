@@ -39,11 +39,17 @@ TEST(FP8, ConvertFP32Nearest)
     ASSERT_NEAR(type_convert<f8_t>(0x80),
                 type_convert<f8_t>(std::numeric_limits<float>::infinity()),
                 abs_tol);
-    // positive float value to fp8 and back, check if holds
-    float pos_float = 0.0078125f;
+    // positive norm float value to fp8 and back, check if holds
+    float pos_float = 0.017578125f;
     ASSERT_NEAR(pos_float, type_convert<float>(type_convert<f8_t>(pos_float)), abs_tol);
-    // negative float value to fp8 and back, check if holds
-    float neg_float = -0.0156250f;
+    // negative norm float value to fp8 and back, check if holds
+    float neg_float = -0.015625f;
+    ASSERT_NEAR(neg_float, type_convert<float>(type_convert<f8_t>(neg_float)), abs_tol);
+    // positive subnorm float value to fp8 and back, check if holds
+    pos_float = 0.00390625f;
+    ASSERT_NEAR(pos_float, type_convert<float>(type_convert<f8_t>(pos_float)), abs_tol);
+    // negative subnorm float value to fp8 and back, check if holds
+    neg_float = -0.001953125f;
     ASSERT_NEAR(neg_float, type_convert<float>(type_convert<f8_t>(neg_float)), abs_tol);
 }
 
@@ -67,11 +73,17 @@ TEST(FP8, ConvertFP32Stochastic)
     ASSERT_NEAR(type_convert<f8_t>(0x80),
                 f8_convert_sr<f8_t>(std::numeric_limits<float>::infinity()),
                 abs_tol);
-    // positive float value to fp8 and back, check if holds
-    float pos_float = 0.0078125f;
+    // positive norm float value to fp8 and back, check if holds
+    float pos_float = 0.017578125f;
     ASSERT_NEAR(pos_float, type_convert<float>(f8_convert_sr<f8_t>(pos_float)), abs_tol);
-    // negative float value to fp8 and back, check if holds
-    float neg_float = -0.0156250f;
+    // negative norm float value to fp8 and back, check if holds
+    float neg_float = -0.015625f;
+    ASSERT_NEAR(neg_float, type_convert<float>(f8_convert_sr<f8_t>(neg_float)), abs_tol);
+    // positive subnorm float value to fp8 and back, check if holds
+    pos_float = 0.00390625f;
+    ASSERT_NEAR(pos_float, type_convert<float>(f8_convert_sr<f8_t>(pos_float)), abs_tol);
+    // negative subnorm float value to fp8 and back, check if holds
+    neg_float = -0.001953125f;
     ASSERT_NEAR(neg_float, type_convert<float>(f8_convert_sr<f8_t>(neg_float)), abs_tol);
 }
 
@@ -95,11 +107,17 @@ TEST(FP8, ConvertFP16Nearest)
     ASSERT_NEAR(type_convert<f8_t>(0x80),
                 type_convert<f8_t>(ck::NumericLimits<half_t>::QuietNaN()),
                 abs_tol);
-    // positive fp16 value to fp8 and back, check if holds
-    half_t pos_half = half_t{0.0078125};
+    // positive norm fp16 value to fp8 and back, check if holds
+    half_t pos_half = half_t{0.017578125};
     ASSERT_NEAR(pos_half, type_convert<half_t>(type_convert<f8_t>(pos_half)), abs_tol);
-    // negative fp16 value to fp8 and back, check if holds
-    half_t neg_half = half_t{-0.0156250};
+    // negative norm fp16 value to fp8 and back, check if holds
+    half_t neg_half = half_t{-0.015625};
+    ASSERT_NEAR(neg_half, type_convert<half_t>(type_convert<f8_t>(neg_half)), abs_tol);
+    // positive subnorm fp16 value to fp8 and back, check if holds
+    pos_half = half_t{0.00390625};
+    ASSERT_NEAR(pos_half, type_convert<half_t>(type_convert<f8_t>(pos_half)), abs_tol);
+    // negative subnorm fp16 value to fp8 and back, check if holds
+    neg_half = half_t{-0.001953125};
     ASSERT_NEAR(neg_half, type_convert<half_t>(type_convert<f8_t>(neg_half)), abs_tol);
 }
 
@@ -123,10 +141,16 @@ TEST(FP8, ConvertFP16Stochastic)
     ASSERT_NEAR(type_convert<f8_t>(0x80),
                 f8_convert_sr<f8_t>(ck::NumericLimits<half_t>::QuietNaN()),
                 abs_tol);
-    // positive fp16 value to fp8 and back, check if holds
-    half_t pos_half = half_t{0.0078125};
+    // positive norm fp16 value to fp8 and back, check if holds
+    half_t pos_half = half_t{0.017578125};
     ASSERT_NEAR(pos_half, type_convert<half_t>(f8_convert_sr<f8_t>(pos_half)), abs_tol);
-    // negative fp16 value to fp8 and back, check if holds
-    half_t neg_half = half_t{-0.0156250};
+    // negative norm fp16 value to fp8 and back, check if holds
+    half_t neg_half = half_t{-0.015625};
+    ASSERT_NEAR(neg_half, type_convert<half_t>(f8_convert_sr<f8_t>(neg_half)), abs_tol);
+    // positive subnorm fp16 value to fp8 and back, check if holds
+    pos_half = half_t{0.00390625};
+    ASSERT_NEAR(pos_half, type_convert<half_t>(f8_convert_sr<f8_t>(pos_half)), abs_tol);
+    // negative subnorm fp16 value to fp8 and back, check if holds
+    neg_half = half_t{-0.001953125};
     ASSERT_NEAR(neg_half, type_convert<half_t>(f8_convert_sr<f8_t>(neg_half)), abs_tol);
 }
