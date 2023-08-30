@@ -212,14 +212,13 @@ Note: This kernel use atomic add, this will cause output buffer to be accumulate
 
  ```
 
-Result (MI250, FP32, NHWC)
+Result (MI210, FP32, NHWC)
 ```
 input: dim 5, lengths {1, 256, 512, 28, 28}, strides {102760448, 401408, 1, 14336, 512}
 output: dim 2, lengths {173056, 4608}, strides {4608, 1}
 ....
 Best configuration parameters:
-name: DeviceImageToColumn<256, 64, 64, 4>
-avg_time: 3.19792
-tflops: 0
-GB/s: 1125.99
+name: DeviceImageToColumn<128, 32, 64, 4>
+avg_time: 3.12326
+GB/s: 2042.59
 ```

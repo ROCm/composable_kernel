@@ -240,7 +240,7 @@ struct DeviceImageToColumnImpl
 
             const auto block_2_tile_map =
                 BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, KPerBlock, OutputGridDesc>(
-                    arg.out_grid_desc_m_k_, I1 /*M01*/);
+                    arg.out_grid_desc_m_k_);
             const index_t grid_size = block_2_tile_map.CalculateGridSize(arg.out_grid_desc_m_k_);
             const auto kernel       = kernel_image_to_column<InputGridDesc,
                                                        InputDataType,
