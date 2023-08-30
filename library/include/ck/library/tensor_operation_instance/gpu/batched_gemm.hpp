@@ -16,7 +16,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-
+#ifdef CK_ENABLE_BF16
 void add_device_batched_gemm_xdl_bf16_bf16_bf16_gkm_gkn_gmn_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemm<Col, Row, Row, BF16, BF16, BF16, PassThrough, PassThrough, PassThrough>>>&
@@ -36,7 +36,8 @@ void add_device_batched_gemm_xdl_bf16_bf16_bf16_gmk_gnk_gmn_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemm<Row, Col, Row, BF16, BF16, BF16, PassThrough, PassThrough, PassThrough>>>&
         instances);
-
+#endif
+#ifdef CK_ENABLE_FP16
 void add_device_batched_gemm_xdl_f16_f16_f16_gkm_gkn_gmn_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemm<Col, Row, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
@@ -56,7 +57,8 @@ void add_device_batched_gemm_xdl_f16_f16_f16_gmk_gnk_gmn_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemm<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
-
+#endif
+#ifdef CK_ENABLE_FP32
 void add_device_batched_gemm_xdl_f32_f32_f32_gkm_gkn_gmn_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemm<Col, Row, Row, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
@@ -76,7 +78,8 @@ void add_device_batched_gemm_xdl_f32_f32_f32_gmk_gnk_gmn_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemm<Row, Col, Row, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
         instances);
-
+#endif
+#ifdef CK_ENABLE_INT8
 void add_device_batched_gemm_xdl_int8_int8_int8_gkm_gkn_gmn_instances(
     std::vector<std::unique_ptr<DeviceBatchedGemm<Col,
                                                   Row,
@@ -120,7 +123,7 @@ void add_device_batched_gemm_xdl_int8_int8_int8_gmk_gnk_gmn_instances(
                                                   PassThrough,
                                                   PassThrough,
                                                   PassThrough>>>& instances);
-
+#endif
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -151,7 +154,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceBatche
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-
+#ifdef CK_ENABLE_FP32
         if constexpr(is_same_v<ADataType, float> && is_same_v<BDataType, float> &&
                      is_same_v<CDataType, float>)
         {
@@ -176,8 +179,10 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceBatche
                 add_device_batched_gemm_xdl_f32_f32_f32_gkm_gnk_gmn_instances(op_ptrs);
             }
         }
-        else if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
-                          is_same_v<CDataType, half_t>)
+#endif
+#ifdef CK_ENABLE_FP16
+        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
+                     is_same_v<CDataType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
@@ -200,8 +205,10 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceBatche
                 add_device_batched_gemm_xdl_f16_f16_f16_gkm_gnk_gmn_instances(op_ptrs);
             }
         }
-        else if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, bhalf_t> &&
-                          is_same_v<CDataType, bhalf_t>)
+#endif
+#ifdef CK_ENABLE_BF16
+        if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, bhalf_t> &&
+                     is_same_v<CDataType, bhalf_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
@@ -224,8 +231,10 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceBatche
                 add_device_batched_gemm_xdl_bf16_bf16_bf16_gkm_gnk_gmn_instances(op_ptrs);
             }
         }
-        else if constexpr(is_same_v<ADataType, int8_t> && is_same_v<BDataType, int8_t> &&
-                          is_same_v<CDataType, int8_t>)
+#endif
+#ifdef CK_ENABLE_INT8
+        if constexpr(is_same_v<ADataType, int8_t> && is_same_v<BDataType, int8_t> &&
+                     is_same_v<CDataType, int8_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
@@ -248,7 +257,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceBatche
                 add_device_batched_gemm_xdl_int8_int8_int8_gkm_gnk_gmn_instances(op_ptrs);
             }
         }
-
+#endif
         return op_ptrs;
     }
 };

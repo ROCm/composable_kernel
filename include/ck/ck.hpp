@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ck/config.h"
+
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
@@ -25,6 +27,21 @@
 // for wavelet GEMM kernel
 #define CK_WAVELET_MAX_THREAD_PER_BLOCK 512
 #define CK_WAVELET_MIN_BLOCK_PER_CU 2
+#endif
+
+// kernel attribute: amdgpu_waves_per_eu()
+#ifdef CK_USE_WAVES_PER_EU
+// for 1-wave kernels, control arguments of amdgpu_waves_per_eu() attribute
+#ifndef CK_MIN_WAVES_PER_EU
+#define CK_MIN_WAVES_PER_EU 0
+#endif
+
+#ifndef CK_MAX_WAVES_PER_EU
+#define CK_MAX_WAVES_PER_EU 0
+#endif
+
+#else
+#define CK_USE_WAVES_PER_EU 0
 #endif
 
 // buffer resource
@@ -103,8 +120,15 @@
 // inline asm
 #define CK_USE_AMD_INLINE_ASM 1
 
-// inner product (DLOP)
-#define CK_USE_AMD_INNER_PRODUCT_INLINE_ASM 1
+// inner product (V_MAC/V_FMAC)
+#define CK_USE_AMD_V_MAC_INLINE_ASM 1
+
+// V_DOT inline instructions, less efficient since they require adding
+// `s_nop`s to avoid hazard
+#define CK_USE_AMD_V_DOT_INLINE_ASM 0
+
+// inner product using V_DOT with DPP8 modifiers
+#define CK_USE_AMD_V_DOT_DPP8_INLINE_ASM 1
 
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
 #define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
@@ -148,6 +172,10 @@
 #define CK_EXPERIMENTAL_INTER_WAVE_INSTANCES 1
 // experimental feature: add instances using pipeline v2
 #define CK_EXPERIMENTAL_PIPELINE_V2_INSTANCES 1
+// experimental feature: optimize pipeline v2 by IGLP strategy (value=ID of strategy)
+#ifndef CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT
+#define CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT 0
+#endif
 
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug
 // hack for forcing register to keep idx_diff_low_const in SGPR. idx_diff_low_const must be
@@ -173,9 +201,6 @@
 
 // workaround: compiler issue on gfx908
 #define CK_WORKAROUND_SWDEV_388832 1
-
-// workaround: Grouped Conv2d_bwd_data fails for already implemented instance
-#define CK_WORKAROUND_SWDEV_3318619 0
 
 // flag to enable (1) or disable (0) the debugging output in some kernels
 #define DEBUG_LOG 0

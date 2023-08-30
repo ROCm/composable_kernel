@@ -28,6 +28,9 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
+#if CK_USE_WAVES_PER_EU
+        __attribute__((amdgpu_waves_per_eu(CK_MIN_WAVES_PER_EU, CK_MAX_WAVES_PER_EU)))
+#endif
         kernel_gemm_xdlops_v2r3(const FloatAB* __restrict__ p_a_grid,
                                 const FloatAB* __restrict__ p_b_grid,
                                 FloatC* __restrict__ p_c_grid,
@@ -60,6 +63,9 @@ template <typename GridwiseGemm, bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+#if CK_USE_WAVES_PER_EU
+        __attribute__((amdgpu_waves_per_eu(CK_MIN_WAVES_PER_EU, CK_MAX_WAVES_PER_EU)))
 #endif
         kernel_gemm_xdlops_v2r3(const typename GridwiseGemm::Argument karg)
 {
@@ -241,8 +247,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         FloatC* p_c_grid;
     };
 
-    using GridwiseGemmPipe = remove_cvref_t<decltype(
-        GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
+    using GridwiseGemmPipe = remove_cvref_t<
+        decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
     // denorm test fix, required to work around fp16 mfma issue
     // we convert fp16->fp32->bf16 and execute bf16 mfma instruction
