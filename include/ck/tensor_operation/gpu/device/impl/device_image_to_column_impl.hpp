@@ -286,14 +286,14 @@ struct DeviceImageToColumnImpl
         const auto w_pad_right = arg.input_right_pads_[NDimSpatial - I1];
         const auto dilation_x  = arg.conv_filter_dilations_[NDimSpatial - I1];
         const auto stride_x    = arg.conv_filter_strides_[NDimSpatial - I1];
-        bool is_x_packed       = arg.input_g_n_c_wis_strides_[NDimSpatial + I2] == arg.C_;
+        bool is_w_packed       = arg.input_g_n_c_wis_strides_[NDimSpatial + I2] == arg.C_;
         bool is_c_packed       = arg.input_g_n_c_wis_strides_[I2] == 1;
 
         // check vector acces with c not packed
         if(!is_c_packed && ScalarPerVector != 1)
             return false;
         // check vector access of filter window row (only C if C is not packed)
-        if(!is_x_packed && arg.C_ % ScalarPerVector != 0)
+        if(!is_w_packed && arg.C_ % ScalarPerVector != 0)
             return false;
         // check vector access of filter window row (X * C)
         if(arg.X_ * arg.C_ % ScalarPerVector != 0)
