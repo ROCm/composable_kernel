@@ -87,7 +87,7 @@ int profile_grouped_gemm(int argc, char* argv[])
     const auto StrideAs = argToIntArray(argv[11]);
     const auto StrideBs = argToIntArray(argv[12]);
     const auto StrideCs = argToIntArray(argv[13]);
-    const int kbatch    = argc == 15 ? std::stoi(argv[14]) : 1;
+
 #ifdef CK_ENABLE_FP16
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
@@ -106,8 +106,7 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                                                    Ks,
                                                                                    StrideAs,
                                                                                    StrideBs,
-                                                                                   StrideCs,
-                                                                                   kbatch);
+                                                                                   StrideCs);
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
@@ -126,8 +125,7 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                                                    Ks,
                                                                                    StrideAs,
                                                                                    StrideBs,
-                                                                                   StrideCs,
-                                                                                   kbatch);
+                                                                                   StrideCs);
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_KN_MN)
     {
@@ -146,8 +144,7 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                                                    Ks,
                                                                                    StrideAs,
                                                                                    StrideBs,
-                                                                                   StrideCs,
-                                                                                   kbatch);
+                                                                                   StrideCs);
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
@@ -166,8 +163,7 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                                                    Ks,
                                                                                    StrideAs,
                                                                                    StrideBs,
-                                                                                   StrideCs,
-                                                                                   kbatch);
+                                                                                   StrideCs);
     }
     else
     {

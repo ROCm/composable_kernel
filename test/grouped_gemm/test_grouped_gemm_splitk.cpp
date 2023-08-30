@@ -8,7 +8,7 @@
 #include "ck/utility/data_type.hpp"
 
 #include "gtest/gtest.h"
-#include "test_grouped_gemm_util.hpp"
+#include "test_grouped_gemm_splitk_util.hpp"
 
 using F16 = ck::half_t;
 using Row = ck::tensor_layout::gemm::RowMajor;

@@ -59,17 +59,17 @@ using device_grouped_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_irregular_tile_instanc
     >;
 
 void add_device_grouped_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_irregular_instances(
-    std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
-                                                  Col,
-                                                  Empty_Tuple,
-                                                  Row,
-                                                  F16,
-                                                  F16,
-                                                  Empty_Tuple,
-                                                  F16,
-                                                  PassThrough,
-                                                  PassThrough,
-                                                  PassThrough>>>& instances)
+    std::vector<std::unique_ptr<DeviceGroupedGemmSplitK<Row,
+                                                        Col,
+                                                        Empty_Tuple,
+                                                        Row,
+                                                        F16,
+                                                        F16,
+                                                        Empty_Tuple,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances)
 {
     add_device_operation_instances(
         instances, device_grouped_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_irregular_tile_instances{});

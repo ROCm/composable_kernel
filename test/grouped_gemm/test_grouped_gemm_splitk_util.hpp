@@ -21,7 +21,7 @@
 #include "ck/utility/sequence.hpp"
 #include "ck/utility/tuple.hpp"
 #include "ck/utility/number.hpp"
-#include "profiler/profile_grouped_gemm_impl.hpp"
+#include "profiler/profile_grouped_gemm_splitk_impl.hpp"
 
 namespace ck {
 namespace test {
@@ -62,16 +62,17 @@ class TestGroupedGemm : public testing::TestWithParam<int>
              const std::vector<int>& Ks,
              const std::vector<int>& StrideAs,
              const std::vector<int>& StrideBs,
-             const std::vector<int>& StrideCs)
+             const std::vector<int>& StrideCs,
+             int kbatch = 1)
     {
-        bool pass = ck::profiler::profile_grouped_gemm_impl<ADataType,
-                                                            BDataType,
-                                                            EDataType,
-                                                            float,
-                                                            ALayout,
-                                                            BLayout,
-                                                            ELayout>(
-            verify_, init_method_, log_, bench_, Ms, Ns, Ks, StrideAs, StrideBs, StrideCs);
+        bool pass = ck::profiler::profile_grouped_gemm_splitk_impl<ADataType,
+                                                                   BDataType,
+                                                                   EDataType,
+                                                                   float,
+                                                                   ALayout,
+                                                                   BLayout,
+                                                                   ELayout>(
+            verify_, init_method_, log_, bench_, Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, kbatch);
         EXPECT_TRUE(pass);
     }
 };
@@ -170,7 +171,8 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
                      const std::vector<int>& Ks,
                      const std::vector<int>& StrideAs,
                      const std::vector<int>& StrideBs,
-                     const std::vector<int>& StrideCs) const
+                     const std::vector<int>& StrideCs,
+                     int kbatch = 1) const
     {
         std::size_t n_groups = Ms.size();
         EXPECT_TRUE(Ns.size() == n_groups && Ks.size() == n_groups && StrideAs.size() == n_groups &&
@@ -193,6 +195,10 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
         auto ggemm_instance = DeviceGroupedGemmSplitKInstance{};
         auto argument       = ggemm_instance.MakeArgument(
             p_As, p_Bs, p_Ds, p_Cs, gemm_descs, PassThrough{}, PassThrough{}, PassThrough{});
+        if(kbatch > 1)
+        {
+            ggemm_instance.SetKBatchSize(argument, kbatch);
+        }
 
         return ggemm_instance.IsSupportedArgument(argument);
     }
@@ -202,7 +208,8 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
               const std::vector<int>& Ks,
               const std::vector<int>& StrideAs,
               const std::vector<int>& StrideBs,
-              const std::vector<int>& StrideCs) const
+              const std::vector<int>& StrideCs,
+              int kbatch = 1) const
     {
         std::size_t n_groups = Ms.size();
         EXPECT_TRUE(Ns.size() == n_groups && Ks.size() == n_groups && StrideAs.size() == n_groups &&
@@ -225,6 +232,10 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
         auto ggemm_instance = DeviceGroupedGemmSplitKInstance{};
         auto argument       = ggemm_instance.MakeArgument(
             p_As, p_Bs, p_Ds, p_Cs, gemm_descs, PassThrough{}, PassThrough{}, PassThrough{});
+        if(kbatch > 1)
+        {
+            ggemm_instance.SetKBatchSize(argument, kbatch);
+        }
 
         EXPECT_TRUE(ggemm_instance.IsSupportedArgument(argument));
         auto invoker = ggemm_instance.MakeInvoker();

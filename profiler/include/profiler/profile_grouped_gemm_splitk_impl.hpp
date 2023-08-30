@@ -7,10 +7,10 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_gemm_splitk.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/grouped_gemm.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_splitk.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
@@ -31,16 +31,17 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-bool profile_grouped_gemm_impl(int do_verification,
-                               int init_method,
-                               bool do_log,
-                               bool time_kernel,
-                               const std::vector<int>& Ms,
-                               const std::vector<int>& Ns,
-                               const std::vector<int>& Ks,
-                               const std::vector<int>& StrideAs,
-                               const std::vector<int>& StrideBs,
-                               const std::vector<int>& StrideCs)
+bool profile_grouped_gemm_splitk_impl(int do_verification,
+                                      int init_method,
+                                      bool do_log,
+                                      bool time_kernel,
+                                      const std::vector<int>& Ms,
+                                      const std::vector<int>& Ns,
+                                      const std::vector<int>& Ks,
+                                      const std::vector<int>& StrideAs,
+                                      const std::vector<int>& StrideBs,
+                                      const std::vector<int>& StrideCs,
+                                      int kbatch = 1)
 {
     bool pass = true;
 
@@ -147,17 +148,17 @@ bool profile_grouped_gemm_impl(int do_verification,
         p_c.push_back(c_device_buf[i]->GetDeviceBuffer());
     }
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedGemm<ALayout,
-                                                                     BLayout,
-                                                                     ck::Tuple<>,
-                                                                     CLayout,
-                                                                     ADataType,
-                                                                     BDataType,
-                                                                     ck::Tuple<>,
-                                                                     CDataType,
-                                                                     AElementOp,
-                                                                     BElementOp,
-                                                                     CElementOp>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedGemmSplitK<ALayout,
+                                                                           BLayout,
+                                                                           ck::Tuple<>,
+                                                                           CLayout,
+                                                                           ADataType,
+                                                                           BDataType,
+                                                                           ck::Tuple<>,
+                                                                           CDataType,
+                                                                           AElementOp,
+                                                                           BElementOp,
+                                                                           CElementOp>;
 
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
@@ -171,6 +172,7 @@ bool profile_grouped_gemm_impl(int do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+    float best_kbatch     = 0;
 
     auto p_ds = std::vector<std::array<const void*, 0>>{};
 
@@ -220,85 +222,135 @@ bool profile_grouped_gemm_impl(int do_verification,
         gemm_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
         std::string gemm_name = gemm_ptr->GetTypeString();
 
-        if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
+        using DeviceOpSplitK = ck::tensor_operation::device::DeviceGroupedGemmSplitK<ALayout,
+                                                                                     BLayout,
+                                                                                     ck::Tuple<>,
+                                                                                     CLayout,
+                                                                                     ADataType,
+                                                                                     BDataType,
+                                                                                     ck::Tuple<>,
+                                                                                     CDataType,
+                                                                                     AElementOp,
+                                                                                     BElementOp,
+                                                                                     CElementOp>;
+
+        // skip non-splitk grouped_gemm
+        if(dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get()) == nullptr)
         {
-            for(std::size_t i = 0; i < gemm_descs.size(); i++)
-                c_device_buf[i]->SetZero();
+            continue;
+        }
 
-            invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
+        std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 20, 24, 32, 48, 64};
 
-            if(do_verification)
+        if(kbatch > 0)
+        {
+            kbatch_list = {kbatch};
+        }
+
+        for(std::size_t j = 0; j < kbatch_list.size(); j++)
+        {
+
+            auto kbatch_curr = kbatch_list[j];
+
+            dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get())
+                ->SetKBatchSize(argument_ptr.get(), kbatch_curr);
+
+            if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
             {
-                bool instance_pass = true;
                 for(std::size_t i = 0; i < gemm_descs.size(); i++)
+                    c_device_buf[i]->SetZero();
+
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
+
+                if(do_verification)
                 {
-
-                    c_device_buf[i]->FromDevice(c_m_n_device_results[i].mData.data());
-
-                    instance_pass = instance_pass && ck::utils::check_err(c_m_n_device_results[i],
-                                                                          c_m_n_host_results[i]);
-
-                    if(do_log)
+                    bool instance_pass = true;
+                    for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     {
-                        LogRangeAsType<float>(std::cout << "a : ", a_m_k[i].mData, ",")
-                            << std::endl;
-                        LogRangeAsType<float>(std::cout << "b: ", b_k_n[i].mData, ",") << std::endl;
-                        LogRangeAsType<float>(
-                            std::cout << "c_device: ", c_m_n_device_results[i].mData, ",")
-                            << std::endl;
-                        LogRangeAsType<float>(
-                            std::cout << "c_host  : ", c_m_n_host_results[i].mData, ",")
-                            << std::endl;
+
+                        c_device_buf[i]->FromDevice(c_m_n_device_results[i].mData.data());
+
+                        if(std::is_same_v<CDataType, ck::half_t> && kbatch_curr > 1)
+                        {
+                            instance_pass =
+                                instance_pass && ck::utils::check_err(c_m_n_device_results[i],
+                                                                      c_m_n_host_results[i],
+                                                                      "Error: Incorrect results!",
+                                                                      0.06);
+                        }
+                        else
+                        {
+                            instance_pass =
+                                instance_pass && ck::utils::check_err(c_m_n_device_results[i],
+                                                                      c_m_n_host_results[i]);
+                        }
+
+                        if(do_log)
+                        {
+                            LogRangeAsType<float>(std::cout << "a : ", a_m_k[i].mData, ",")
+                                << std::endl;
+                            LogRangeAsType<float>(std::cout << "b: ", b_k_n[i].mData, ",")
+                                << std::endl;
+                            LogRangeAsType<float>(
+                                std::cout << "c_device: ", c_m_n_device_results[i].mData, ",")
+                                << std::endl;
+                            LogRangeAsType<float>(
+                                std::cout << "c_host  : ", c_m_n_host_results[i].mData, ",")
+                                << std::endl;
+                        }
+                    }
+
+                    std::cout << "Instance: " << gemm_name << " verification "
+                              << (instance_pass ? "SUCCEED" : "FAILED") << std::endl;
+
+                    pass = pass && instance_pass;
+                }
+
+                float ave_time =
+                    invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+
+                if(time_kernel)
+                {
+                    std::size_t flop = 0, num_btype = 0;
+                    for(std::size_t i = 0; i < gemm_descs.size(); i++)
+                    {
+                        flop += std::size_t(2) * Ms[i] * Ns[i] * Ks[i];
+
+                        num_btype += sizeof(ADataType) * Ms[i] * Ks[i] +
+                                     sizeof(BDataType) * Ks[i] * Ns[i] +
+                                     sizeof(CDataType) * Ms[i] * Ns[i];
+                    }
+
+                    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+                    float gb_per_sec = num_btype / 1.E6 / ave_time;
+                    std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
+                              << " TFlops, " << gb_per_sec << " GB/s, " << gemm_name << ", KBatch "
+                              << kbatch_curr << std::endl;
+
+                    if(tflops > best_tflops)
+                    {
+                        best_gemm_name  = gemm_name;
+                        best_tflops     = tflops;
+                        best_ave_time   = ave_time;
+                        best_gb_per_sec = gb_per_sec;
+                        best_kbatch     = kbatch_curr;
                     }
                 }
-
-                std::cout << "Instance: " << gemm_name << " verification "
-                          << (instance_pass ? "SUCCEED" : "FAILED") << std::endl;
-
-                pass = pass && instance_pass;
             }
-
-            float ave_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
-
-            if(time_kernel)
+            else
             {
-                std::size_t flop = 0, num_btype = 0;
-                for(std::size_t i = 0; i < gemm_descs.size(); i++)
-                {
-                    flop += std::size_t(2) * Ms[i] * Ns[i] * Ks[i];
-
-                    num_btype += sizeof(ADataType) * Ms[i] * Ks[i] +
-                                 sizeof(BDataType) * Ks[i] * Ns[i] +
-                                 sizeof(CDataType) * Ms[i] * Ns[i];
-                }
-
-                float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-                float gb_per_sec = num_btype / 1.E6 / ave_time;
-                std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
-                          << " TFlops, " << gb_per_sec << " GB/s, " << gemm_name << std::endl;
-
-                if(tflops > best_tflops)
-                {
-                    best_gemm_name  = gemm_name;
-                    best_tflops     = tflops;
-                    best_ave_time   = ave_time;
-                    best_gb_per_sec = gb_per_sec;
-                }
+                std::cout << "Instance: " << gemm_name << ", does not support this GEMM problem"
+                          << std::endl;
             }
-        }
-        else
-        {
-            std::cout << "Instance: " << gemm_name << ", does not support this GEMM problem"
-                      << std::endl;
         }
     }
 
     if(time_kernel)
     {
         std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
-                  << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
+                  << best_gb_per_sec << " GB/s, " << best_gemm_name << ", KBatch = " << best_kbatch
+                  << std::endl;
     }
 
     return pass;

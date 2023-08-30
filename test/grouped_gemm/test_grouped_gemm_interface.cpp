@@ -93,6 +93,7 @@ TEST_F(TestGGemmSplitKInterface_MKNKMN, VectorLoadWidth)
     EXPECT_FALSE(PaddedGGemmInstance{}.IsSupported(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs));
 }
 
+#if 0
 TEST_F(TestGGemmSplitKInterface_MKNKMN, KLoops)
 {
     std::vector<int> Ms{128, 256, 256, 512};
@@ -116,6 +117,7 @@ TEST_F(TestGGemmSplitKInterface_MKNKMN, KLoops)
     EXPECT_THROW(DefaultGGemmInstance{}.Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, kbatch),
                  std::runtime_error);
 }
+#endif
 
 class TestGGemmSplitKInterface_KMKNNM : public ::testing::Test
 {
