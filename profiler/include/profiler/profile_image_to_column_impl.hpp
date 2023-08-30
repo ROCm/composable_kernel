@@ -7,15 +7,11 @@
 #include <iostream>
 #include <typeinfo>
 #include <limits>
-
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_image_to_column.hpp"
-
 #include "ck/tensor_operation/gpu/device/impl/device_image_to_column_impl.hpp"
-
 #include "ck/library/tensor_operation_instance/gpu/image_to_column.hpp"
-
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -126,9 +122,7 @@ bool profile_image_to_column_impl(int do_verification,
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     std::string best_op_name;
-    float best_avg_time = std::numeric_limits<float>::max();
-    ;
-    float best_tflops     = 0;
+    float best_avg_time   = std::numeric_limits<float>::max();
     float best_gb_per_sec = 0;
 
     // profile device op instances
@@ -157,19 +151,12 @@ bool profile_image_to_column_impl(int do_verification,
             is_supporting_instance = true;
             // re-init output to zero before profiling next kernel
             out_device_buf.SetZero();
-
             std::string op_name = op_ptr->GetTypeString();
-
-            auto invoker_ptr = op_ptr->MakeInvokerPointer();
-
+            auto invoker_ptr    = op_ptr->MakeInvokerPointer();
             float avg_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
-
-            std::size_t num_btype =
-                conv_param.GetInputByte<InputDataType>() + NDoHoWo * CZYX * sizeof(OutputDataType);
-
-            float gb_per_sec = num_btype / 1.E6 / avg_time;
-
+            std::size_t num_btype = 2 * NDoHoWo * CZYX * sizeof(OutputDataType);
+            float gb_per_sec      = num_btype / 1.E6 / avg_time;
             std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << gb_per_sec << " GB/s, "
                       << op_name << std::endl;
 
@@ -183,7 +170,6 @@ bool profile_image_to_column_impl(int do_verification,
             if(do_verification)
             {
                 out_device_buf.FromDevice(device_output.mData.data());
-
                 pass = pass & ck::utils::check_err(device_output, host_output);
 
                 if(do_log)
@@ -204,7 +190,7 @@ bool profile_image_to_column_impl(int do_verification,
 
     std::cout << "Best configuration parameters:"
               << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
-              << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << std::endl;
+              << "\nGB/s: " << best_gb_per_sec << std::endl;
 
     return is_supporting_instance && pass;
 }
