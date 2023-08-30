@@ -367,16 +367,16 @@ include_directories(BEFORE
     ${HIP_INCLUDE_DIRS}
 )
 
-SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
-if(BUILD_DEV)
-    add_compile_options(-Werror)
-    add_compile_options(-Weverything)
-endif()
-message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
-
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
 
 if (NOT CK_BUILD_JIT_LIB)
+    SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
+    if(BUILD_DEV)
+        add_compile_options(-Werror)
+        add_compile_options(-Weverything)
+    endif()
+    message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+
     file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp")
     file(GLOB dir_list RELATIVE ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/*)
     set(CK_DEVICE_INSTANCES)

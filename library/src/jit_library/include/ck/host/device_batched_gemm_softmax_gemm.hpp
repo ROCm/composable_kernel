@@ -29,7 +29,6 @@ struct Problem
     DataType BDataType               = DataType::Half;
     DataType B1DataType              = DataType::Half;
     DataType CDataType               = DataType::Half;
-    DataType AccDataType             = DataType::Float;
     std::string AElementOp           = "ck::tensor_operation::element_wise::PassThrough";
     std::string BElementOp           = "ck::tensor_operation::element_wise::PassThrough";
     std::string B1ElementOp          = "ck::tensor_operation::element_wise::PassThrough";
