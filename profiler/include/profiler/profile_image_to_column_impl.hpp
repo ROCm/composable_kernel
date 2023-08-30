@@ -155,8 +155,9 @@ bool profile_image_to_column_impl(int do_verification,
             auto invoker_ptr    = op_ptr->MakeInvokerPointer();
             float avg_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
-            std::size_t num_btype = 2 * NDoHoWo * CZYX * sizeof(OutputDataType);
-            float gb_per_sec      = num_btype / 1.E6 / avg_time;
+            std::size_t num_btype =
+                NDoHoWo * CZYX * (sizeof(OutputDataType) + sizeof(InputDataType));
+            float gb_per_sec = num_btype / 1.E6 / avg_time;
             std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << gb_per_sec << " GB/s, "
                       << op_name << std::endl;
 
