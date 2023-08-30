@@ -31,7 +31,7 @@ using D0Layout = Row;
 using DsLayout = ck::Tuple<D0Layout>;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Add         = ck::tensor_operation::element_wise::AddBias;
+using Add         = ck::tensor_operation::element_wise::Add;
 
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 

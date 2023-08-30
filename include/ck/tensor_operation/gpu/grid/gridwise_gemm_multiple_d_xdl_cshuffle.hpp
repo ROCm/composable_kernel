@@ -876,8 +876,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                const index_t StrideE,
                                const Block2ETileMap& block_2_etile_map)
     {
-        const auto p_a_grid = reinterpret_cast<const ABDataType*>(p_a_grid_);
-        const auto p_b_grid = reinterpret_cast<const ABDataType*>(p_b_grid_);
+        const auto p_a_grid = reinterpret_cast<const ADataType*>(p_a_grid_);
+        const auto p_b_grid = reinterpret_cast<const BDataType*>(p_b_grid_);
         const auto p_e_grid = reinterpret_cast<EDataType*>(p_e_grid_);
 
         // tensor descriptors for problem definiton
@@ -902,8 +902,9 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 
         const auto b_grid_desc_bk0_n_bk1 = MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
 
-        using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
-            MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}))>;
+        using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
+            remove_cvref_t<decltype(MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                DsGridDesc_M_N{}))>;
 
         DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock ds_grid_desc_mblock_mperblock_nblock_nperblock;
 
