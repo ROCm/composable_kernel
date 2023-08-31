@@ -220,11 +220,11 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_splitk_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
         BDataType,
+        ComputeType,
         AccDataType,
         CShuffleDataType,
         DsDataType,
         EDataType,
-        ComputeType,
         AElementwiseOperation,
         BElementwiseOperation,
         CDEElementwiseOperation,

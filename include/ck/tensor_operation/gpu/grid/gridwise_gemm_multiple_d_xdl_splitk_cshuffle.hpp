@@ -29,13 +29,13 @@ namespace ck {
 //   E = cde_op(C, D0, D1, ...)
 // Assume:
 //   D0, D1, ... and E have the same layout
-template <typename ADataType, // FIXME: don't assume A/B have same datatype
+template <typename ADataType,
           typename BDataType,
+          typename ComputeType,
           typename AccDataType,
           typename CShuffleDataType,
           typename DsDataType,
           typename EDataType,
-          typename ComputeType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
@@ -186,8 +186,8 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
-        return math::max(a_block_space_size_aligned * sizeof(ADataType) +
-                             b_block_space_size_aligned * sizeof(BDataType),
+        return math::max((a_block_space_size_aligned + b_block_space_size_aligned) *
+                             sizeof(ComputeType),
                          c_block_size * sizeof(CShuffleDataType));
     }
 
