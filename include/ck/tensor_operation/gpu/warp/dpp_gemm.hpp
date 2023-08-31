@@ -11,9 +11,9 @@ namespace ck {
 
 enum struct DppInstr
 {
-    dpp8_16x16x2 = 0,
-    dpp8_8x32x2,
-    dpp8_32x8x2
+    dpp8_f16_16x16x2 = 0,
+    dpp8_f16_8x32x2,
+    dpp8_f16_32x8x2
 };
 
 /**
@@ -42,7 +42,7 @@ template <DppInstr instr>
 struct dpp_type;
 
 template <>
-struct dpp_type<DppInstr::dpp8_32x8x2>
+struct dpp_type<DppInstr::dpp8_f16_32x8x2>
 {
     static constexpr index_t wave_size       = 32;
     static constexpr index_t lanegroup_size  = 8;
@@ -54,17 +54,25 @@ struct dpp_type<DppInstr::dpp8_32x8x2>
     static constexpr index_t n_per_thread    = 1;
     static constexpr index_t k_per_dpp       = 2;
     static constexpr bool share_a            = true;
+    using base_type                          = half_t;
 
     template <index_t MPerDpp, index_t NPerDpp, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        dpp8::RunGemm<m_per_lanegroup, n_per_lanegroup, k_per_dpp, FloatA, FloatB, FloatC, share_a>(
-            a, b, reg_c);
+        dpp8::DppInstrRunner<m_per_thread,
+                             n_per_thread,
+                             k_per_dpp,
+                             base_type,
+                             FloatA,
+                             FloatB,
+                             FloatC,
+                             share_a>{}
+            .Run(a, b, reg_c);
     }
 };
 
 template <>
-struct dpp_type<DppInstr::dpp8_8x32x2>
+struct dpp_type<DppInstr::dpp8_f16_8x32x2>
 {
     static constexpr index_t wave_size       = 32;
     static constexpr index_t lanegroup_size  = 8;
@@ -76,17 +84,25 @@ struct dpp_type<DppInstr::dpp8_8x32x2>
     static constexpr index_t n_per_thread    = 1;
     static constexpr index_t k_per_dpp       = 2;
     static constexpr bool share_a            = true;
+    using base_type                          = half_t;
 
     template <index_t MPerDpp, index_t NPerDpp, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        dpp8::RunGemm<m_per_lanegroup, n_per_lanegroup, k_per_dpp, FloatA, FloatB, FloatC, share_a>(
-            a, b, reg_c);
+        dpp8::DppInstrRunner<m_per_thread,
+                             n_per_thread,
+                             k_per_dpp,
+                             base_type,
+                             FloatA,
+                             FloatB,
+                             FloatC,
+                             share_a>{}
+            .Run(a, b, reg_c);
     }
 };
 
 template <>
-struct dpp_type<DppInstr::dpp8_16x16x2>
+struct dpp_type<DppInstr::dpp8_f16_16x16x2>
 {
     static constexpr index_t wave_size       = 32;
     static constexpr index_t lanegroup_size  = 8;
@@ -98,12 +114,20 @@ struct dpp_type<DppInstr::dpp8_16x16x2>
     static constexpr index_t n_per_thread    = 1;
     static constexpr index_t k_per_dpp       = 2;
     static constexpr bool share_a            = true;
+    using base_type                          = half_t;
 
     template <index_t MPerDpp, index_t NPerDpp, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        dpp8::RunGemm<m_per_lanegroup, n_per_lanegroup, k_per_dpp, FloatA, FloatB, FloatC, share_a>(
-            a, b, reg_c);
+        dpp8::DppInstrRunner<m_per_thread,
+                             n_per_thread,
+                             k_per_dpp,
+                             base_type,
+                             FloatA,
+                             FloatB,
+                             FloatC,
+                             share_a>{}
+            .Run(a, b, reg_c);
     }
 };
 
@@ -116,19 +140,19 @@ struct DppSelector
     template <>
     static constexpr auto GetDpp<half_t, 8, 32>()
     {
-        return DppInstr::dpp8_8x32x2;
+        return DppInstr::dpp8_f16_8x32x2;
     }
 
     template <>
     static constexpr auto GetDpp<half_t, 16, 16>()
     {
-        return DppInstr::dpp8_16x16x2;
+        return DppInstr::dpp8_f16_16x16x2;
     }
 
     template <>
     static constexpr auto GetDpp<half_t, 32, 8>()
     {
-        return DppInstr::dpp8_32x8x2;
+        return DppInstr::dpp8_f16_32x8x2;
     }
 
     static constexpr auto selected_dpp = dpp_type<GetDpp<base_type, MPerDpp, NPerDpp>()>{};
