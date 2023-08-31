@@ -11,7 +11,7 @@
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_fixed_nk.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_bias.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_fixed_nk.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -20,23 +20,20 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using AddBias     = ck::tensor_operation::element_wise::AddBias;
 
 using ADataType  = F16;
 using BDataType  = F16;
-using D0DataType = F32;
-using DsDataType = ck::Tuple<D0DataType>;
-using EDataType  = F32;
+using DsDataType = ck::Tuple<>;
+using EDataType  = F16;
 
 using ALayout  = Row;
 using BLayout  = Row;
-using D0Layout = Row;
-using DsLayout = ck::Tuple<D0Layout>;
+using DsLayout = ck::Tuple<>;
 using ELayout  = Row;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
-using CDEElementOp = AddBias;
+using CDEElementOp = PassThrough;
 
 struct SimpleDeviceMem
 {
@@ -60,7 +57,8 @@ int main()
 
     int sum_of_m = 0;
 
-    Ms = {167, 183, 177, 181, 153, 139, 156, 173, 163, 150, 204, 184, 168, 156, 168, 148};
+    // Ms = {167, 183, 177, 181, 153, 139, 156, 173, 163, 150, 204, 184, 168, 156, 168, 148};
+    Ms = {0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0};
 
     int group_count = Ms.size();
 
@@ -90,11 +88,10 @@ int main()
             }
         };
 
-    std::vector<SimpleDeviceMem> a_dev_bufs, b_dev_bufs, d0_dev_bufs, e_dev_bufs;
+    std::vector<SimpleDeviceMem> a_dev_bufs, b_dev_bufs, e_dev_bufs;
 
     a_dev_bufs.reserve(group_count);
     b_dev_bufs.reserve(group_count);
-    d0_dev_bufs.reserve(group_count);
     e_dev_bufs.reserve(group_count);
 
     std::vector<void*> p_e;
@@ -115,8 +112,6 @@ int main()
                                 f_matrix_space_size(Ms[i], Ks[i], StrideAs[i], ALayout{}));
         b_dev_bufs.emplace_back(sizeof(BDataType) *
                                 f_matrix_space_size(Ks[i], Ns[i], StrideBs[i], BLayout{}));
-        d0_dev_bufs.emplace_back(sizeof(D0DataType) *
-                                 f_matrix_space_size(Ms[i], Ns[i], 0, D0Layout{}));
         e_dev_bufs.emplace_back(sizeof(EDataType) *
                                 f_matrix_space_size(Ms[i], Ns[i], StrideEs[i], ELayout{}));
 
@@ -124,18 +119,17 @@ int main()
 
         p_e.push_back(e_dev_bufs[i].GetDeviceBuffer());
 
-        grouped_gemm_kernel_args_.push_back(
-            {a_dev_bufs[i].GetDeviceBuffer(),
-             b_dev_bufs[i].GetDeviceBuffer(),
-             std::array<const void*, 1>{d0_dev_bufs[i].GetDeviceBuffer()},
-             e_dev_bufs[i].GetDeviceBuffer(),
-             Ms[i],
-             Ns[i],
-             Ks[i],
-             StrideAs[i],
-             StrideBs[i],
-             std::array<ck::index_t, 1>{0},
-             StrideEs[i]});
+        grouped_gemm_kernel_args_.push_back({a_dev_bufs[i].GetDeviceBuffer(),
+                                             b_dev_bufs[i].GetDeviceBuffer(),
+                                             {},
+                                             e_dev_bufs[i].GetDeviceBuffer(),
+                                             Ms[i],
+                                             Ns[i],
+                                             Ks[i],
+                                             StrideAs[i],
+                                             StrideBs[i],
+                                             {},
+                                             StrideEs[i]});
     }
 
     using DeviceOp = ck::tensor_operation::device::DeviceGroupedGemmFixedNK<ALayout,
@@ -171,7 +165,7 @@ int main()
     std::cout << "Run all instances and do timing" << std::endl;
 
     std::vector<const void*> p_a = {}, p_b = {};
-    std::vector<std::array<const void*, 1>> p_ds = {};
+    std::vector<std::array<const void*, 0>> p_ds = {};
 
     for(int i = 0; i < op_ptrs.size(); ++i)
     {
@@ -200,7 +194,7 @@ int main()
         op_ptr->SetDeviceKernelArgs(argument_ptr.get(),
                                     grouped_gemm_kernel_args_dev.GetDeviceBuffer());
 
-        op_ptr->SetKBatch(argument_ptr.get(), 2);
+        op_ptr->SetKBatch(argument_ptr.get(), 32);
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {

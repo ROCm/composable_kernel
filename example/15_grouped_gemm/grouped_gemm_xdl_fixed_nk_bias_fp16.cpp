@@ -30,7 +30,7 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using AddBias     = ck::tensor_operation::element_wise::AddBias;
+using Add         = ck::tensor_operation::element_wise::Add;
 
 using ADataType        = F16;
 using BDataType        = F16;
@@ -49,7 +49,7 @@ using ELayout  = Row;
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
 
-using CDEElementOp = AddBias;
+using CDEElementOp = Add;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MPadding;
 

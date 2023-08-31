@@ -510,12 +510,15 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         CDE1ShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
 
-    using A0GridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultA0GridDescriptor_AK0_M_AK1(A0GridDesc_M_K{}))>;
-    using B0GridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultB0GridDescriptor_BK0_N_BK1(B0GridDesc_N_K{}))>;
-    using B1GridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultB1GridDescriptor_BK0_N_BK1(B1GridDesc_N_K{}))>;
+    using A0GridDesc_AK0_M_AK1 =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultA0GridDescriptor_AK0_M_AK1(
+            A0GridDesc_M_K{}))>;
+    using B0GridDesc_BK0_N_BK1 =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultB0GridDescriptor_BK0_N_BK1(
+            B0GridDesc_N_K{}))>;
+    using B1GridDesc_BK0_N_BK1 =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultB1GridDescriptor_BK0_N_BK1(
+            B1GridDesc_N_K{}))>;
 
     // Argument
     struct Argument : public BaseArgument

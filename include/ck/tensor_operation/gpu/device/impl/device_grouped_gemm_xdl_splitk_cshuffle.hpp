@@ -114,7 +114,8 @@ template <typename ALayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched = make_default_loop_scheduler(),
+          PipelineVersion PipelineVer = PipelineVersion::v1,
+          LoopScheduler LoopSched     = make_default_loop_scheduler(),
           // Current implementation does not support multiple D fusions.
           enable_if_t<AK1 == BK1 && is_same_v<DsLayout, ck::Tuple<>> &&
                           is_same_v<DsDataType, ck::Tuple<>>,
@@ -142,7 +143,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
-        ADataType, // TODO: distinguish A/B datatype
+        ADataType,
+        BDataType,
         AccDataType,
         EDataType,
         ALayout,
@@ -182,7 +184,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         CDEBlockTransferScalarPerVector_NPerBlock,
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         LoopSched,
-        PipelineVersion::v1>;
+        PipelineVer>;
 
     using CGridDesc_M_N = typename GridwiseGemm::CGridDesc_M_N;
     using Block2ETileMapKSplit =
@@ -421,8 +423,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     for(const auto& trans_arg : arg.gemm_kernel_args_)
                     {
                         const auto& karg = trans_arg.karg_;
-                        hip_check_error(
-                            hipMemset(karg.p_c_grid, 0, karg.M * karg.N * sizeof(EDataType)));
+                        hip_check_error(hipMemsetAsync(karg.p_c_grid,
+                                                       0,
+                                                       karg.M * karg.N * sizeof(EDataType),
+                                                       stream_config.stream_id_));
                     }
                 }
 

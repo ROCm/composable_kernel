@@ -28,7 +28,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_mk_kn_mn_instances(
                                                          F16,
                                                          PassThrough,
                                                          PassThrough,
-                                                         AddBias>>>& instances);
+                                                         Add>>>& instances);
 
 void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_mk_nk_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
@@ -41,7 +41,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f16_mk_nk_mn_instances(
                                                          F16,
                                                          PassThrough,
                                                          PassThrough,
-                                                         AddBias>>>& instances);
+                                                         Add>>>& instances);
 
 // fp32_output
 void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f32_mk_kn_mn_instances(
@@ -55,7 +55,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f32_mk_kn_mn_instances(
                                                          F32,
                                                          PassThrough,
                                                          PassThrough,
-                                                         AddBias>>>& instances);
+                                                         Add>>>& instances);
 
 void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f32_mk_nk_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
@@ -68,7 +68,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_bias_f16_f16_f32_mk_nk_mn_instances(
                                                          F32,
                                                          PassThrough,
                                                          PassThrough,
-                                                         AddBias>>>& instances);
+                                                         Add>>>& instances);
 
 template <typename ALayout,
           typename BLayout,
@@ -87,7 +87,7 @@ struct DeviceOperationInstanceFactory<
                                                            EDataType,
                                                            PassThrough,
                                                            PassThrough,
-                                                           AddBias>>
+                                                           Add>>
 {
     using DeviceOp = DeviceGroupedGemmFixedNK<ALayout,
                                               BLayout,
@@ -99,7 +99,7 @@ struct DeviceOperationInstanceFactory<
                                               EDataType,
                                               PassThrough,
                                               PassThrough,
-                                              AddBias>;
+                                              Add>;
 
     static auto GetInstances()
     {

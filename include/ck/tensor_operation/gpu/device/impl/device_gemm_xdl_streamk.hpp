@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -147,7 +147,10 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
             if constexpr(GridwiseGemm::Block2CTileMap::ReductionStrategy ==
                          StreamKReductionStrategy::Atomic)
             {
-                hipGetErrorString(hipMemset(karg.p_c_grid, 0, karg.M * karg.N * sizeof(CDataType)));
+                hipGetErrorString(hipMemsetAsync(karg.p_c_grid,
+                                                 0,
+                                                 karg.M * karg.N * sizeof(CDataType),
+                                                 stream_config.stream_id_));
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,
                                                   grid_dims,

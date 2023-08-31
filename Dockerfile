@@ -63,7 +63,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     nano \
     zlib1g-dev \
     openssh-server \
-    clang-format-10 \
+    clang-format-12 \
     kmod && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

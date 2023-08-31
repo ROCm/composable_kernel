@@ -40,6 +40,12 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
+    {
+        y = type_convert<half_t>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x) const
     {
         y = x;
@@ -49,12 +55,6 @@ struct PassThrough
     __host__ __device__ void operator()<int32_t, int32_t>(int32_t& y, const int32_t& x) const
     {
         y = x;
-    }
-
-    template <>
-    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
-    {
-        y = type_convert<half_t>(x);
     }
 
     template <>
@@ -129,34 +129,6 @@ struct PassThrough
     __host__ __device__ void operator()<f8_t, half_t>(f8_t& y, const half_t& x) const
     {
         y = type_convert<f8_t>(x);
-    }
-};
-
-struct AddBias
-{
-    template <typename E, typename C, typename D0>
-    __host__ __device__ void operator()(E& e, const C& c, const D0& d0) const;
-
-    template <>
-    __host__ __device__ void
-    operator()<ck::half_t, float, float>(ck::half_t& e, const float& c, const float& d0) const
-    {
-        e = c + d0;
-    }
-
-    template <>
-    __host__ __device__ void operator()<ck::half_t, ck::half_t, float>(ck::half_t& e,
-                                                                       const ck::half_t& c,
-                                                                       const float& d0) const
-    {
-        e = c + d0;
-    }
-
-    template <>
-    __host__ __device__ void
-    operator()<float, float, float>(float& e, const float& c, const float& d0) const
-    {
-        e = c + d0;
     }
 };
 
