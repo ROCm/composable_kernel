@@ -211,18 +211,10 @@ struct GridwiseBatchedDropout
         const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3&
             z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
         const Block2CTileMap& block_2_ctile_map,
-        const float p_drop,
         ck::philox& ph,
         const index_t z_random_matrix_offset,
         const index_t raw_n_padded)
     {
-        const FloatGemmAcc p_dropout  = type_convert<FloatGemmAcc>(1.0f - p_drop);
-        const FloatGemmAcc rp_dropout = type_convert<FloatGemmAcc>(1.0f / p_dropout);
-        const ushort p_dropout_in_16bits =
-            __builtin_amdgcn_readfirstlane(std::floor(p_dropout * 65535.0));
-        const tensor_operation::element_wise::Scale scale_rp_dropout(s_element_op.Value() *
-                                                                     rp_dropout);
-
         // divide block work by [N, K]
         const auto block_work_idx =
             block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
