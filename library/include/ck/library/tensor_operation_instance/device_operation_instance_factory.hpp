@@ -101,6 +101,7 @@ using MultiplyAdd    = ck::tensor_operation::element_wise::MultiplyAdd;
 using ScaleAdd       = ck::tensor_operation::element_wise::ScaleAdd;
 using Gelu           = ck::tensor_operation::element_wise::Gelu;
 using Swish          = ck::tensor_operation::element_wise::Swish;
+using Add            = ck::tensor_operation::element_wise::Add;
 
 template <typename Activation>
 using Activation_Mul_Clamp = ck::tensor_operation::element_wise::Activation_Mul_Clamp<Activation>;

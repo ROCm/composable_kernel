@@ -1,4 +1,5 @@
 add_custom_target(example_grouped_gemm_xdl)
+
 if(DTYPES MATCHES "fp32" OR NOT DEFINED DTYPES)
   add_example_executable(example_grouped_gemm_xdl_fp32 grouped_gemm_xdl_fp32.cpp)
   add_dependencies(example_grouped_gemm_xdl example_grouped_gemm_xdl_fp32)
@@ -7,10 +8,14 @@ if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
   add_example_executable(example_grouped_gemm_xdl_fp16 grouped_gemm_xdl_fp16.cpp)
   add_example_executable(example_grouped_gemm_multiple_d_dl_fp16 grouped_gemm_multiple_d_dl_fp16.cpp)
   add_example_executable(example_grouped_gemm_xdl_splitk_fp16 grouped_gemm_xdl_splitk_fp16.cpp)
+  add_example_executable(example_grouped_gemm_xdl_fixed_nk_fp16 grouped_gemm_xdl_fixed_nk_fp16.cpp)
+  add_example_executable(example_grouped_gemm_xdl_fixed_nk_bias_fp16 grouped_gemm_xdl_fixed_nk_bias_fp16.cpp)
   add_dependencies(example_grouped_gemm_xdl 
                    example_grouped_gemm_xdl_fp16
                    example_grouped_gemm_multiple_d_dl_fp16
-                   example_grouped_gemm_xdl_splitk_fp16)
+                   example_grouped_gemm_xdl_splitk_fp16
+                   example_grouped_gemm_xdl_fixed_nk_fp16
+                   example_grouped_gemm_xdl_fixed_nk_bias_fp16)
 endif()
 if(DTYPES MATCHES "bf16" OR NOT DEFINED DTYPES)
   add_example_executable(example_grouped_gemm_xdl_bfp16 grouped_gemm_xdl_bfp16.cpp)
