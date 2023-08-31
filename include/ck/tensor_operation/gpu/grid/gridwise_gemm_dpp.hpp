@@ -12,6 +12,7 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_dpp.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
+#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -30,14 +31,12 @@ __global__ void
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1030__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    const auto a_grid_desc_k0_m_k1 =
-        amd_wave_read_first_lane(GridwiseGemm::MakeAGridDescriptor_K0_M_K1(
-            karg.M, karg.MPadded, karg.K, karg.K0, karg.StrideA));
-    const auto b_grid_desc_k0_n_k1 =
-        amd_wave_read_first_lane(GridwiseGemm::MakeBGridDescriptor_K0_N_K1(
-            karg.K, karg.N, karg.NPadded, karg.K0, karg.StrideB));
-    const auto c_grid_desc_m_n = amd_wave_read_first_lane(GridwiseGemm::MakeCGridDescriptor_M_N(
-        karg.M, karg.MPadded, karg.N, karg.NPadded, karg.StrideC));
+    const auto a_grid_desc_k0_m_k1 = amd_wave_read_first_lane(
+        GridwiseGemm::MakeAGridDescriptor_K0_M_K1(karg.M, karg.K, karg.K0, karg.StrideA));
+    const auto b_grid_desc_k0_n_k1 = amd_wave_read_first_lane(
+        GridwiseGemm::MakeBGridDescriptor_K0_N_K1(karg.K, karg.N, karg.K0, karg.StrideB));
+    const auto c_grid_desc_m_n = amd_wave_read_first_lane(
+        GridwiseGemm::MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC));
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(karg.p_a_grid,
                                                   karg.p_b_grid,
@@ -361,10 +360,14 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
         return BlockwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2(c_grid_desc_m_n);
     }
 
+    static constexpr auto matrix_padder =
+        ck::tensor_operation::device::MatrixPadder<GemmSpec, index_t, index_t, index_t>{
+            MPerBlock, NPerBlock, K0PerBlock* K1};
+
     __device__ static auto
-    MakeAGridDescriptor_K0_M_K1(index_t M, index_t MPad, index_t K, index_t K0, index_t StrideA)
+    MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t K0, index_t StrideA)
     {
-        const auto a_grid_desc_m_k = [&]() {
+        const auto a_grid_desc_mraw_kraw = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(StrideA, I1));
@@ -375,64 +378,41 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
             }
         }();
 
-        if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding)
-        {
-            return transform_tensor_descriptor(
-                a_grid_desc_m_k,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Value)),
-                           make_right_pad_transform(M, MPad - M)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-        }
-        else
-        {
-            return transform_tensor_descriptor(
-                a_grid_desc_m_k,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Value)),
-                           make_pass_through_transform(M)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-        }
+        const auto a_grid_desc_m_k = matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
+        return transform_tensor_descriptor(
+            a_grid_desc_m_k,
+            make_tuple(make_unmerge_transform(make_tuple(K0, K1Value)),
+                       make_pass_through_transform(M)),
+            make_tuple(Sequence<1>{}, Sequence<0>{}),
+            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
     __device__ static auto
-    MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t NPad, index_t K0, index_t StrideB)
+    MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t K0, index_t StrideB)
     {
-        const auto b_grid_desc_k_n = [&]() {
+        const auto b_grid_desc_nraw_kraw = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(StrideB, I1));
+                return make_naive_tensor_descriptor(make_tuple(N, K), make_tuple(I1, StrideB));
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(I1, StrideB));
+                return make_naive_tensor_descriptor(make_tuple(N, K), make_tuple(StrideB, I1));
             }
         }();
 
-        if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding)
-        {
-            return transform_tensor_descriptor(
-                b_grid_desc_k_n,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Value)),
-                           make_right_pad_transform(N, NPad - N)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-        }
-        else
-        {
-            return transform_tensor_descriptor(
-                b_grid_desc_k_n,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Value)),
-                           make_pass_through_transform(N)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-        }
+        const auto b_grid_desc_n_k = matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
+        return transform_tensor_descriptor(
+            b_grid_desc_n_k,
+            make_tuple(make_pass_through_transform(N),
+                       make_unmerge_transform(make_tuple(K0, K1Value))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<1>{}, Sequence<0, 2>{}));
     }
 
-    __device__ static auto
-    MakeCGridDescriptor_M_N(index_t M, index_t MPad, index_t N, index_t NPad, index_t StrideC)
+    __device__ static auto MakeCGridDescriptor_M_N(index_t M, index_t N, index_t StrideC)
     {
-        const auto c_grid_desc_m_n = [&]() {
+        const auto c_grid_desc_mraw_nraw = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC, I1));
@@ -443,23 +423,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
             }
         }();
 
-        if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding)
-        {
-            return transform_tensor_descriptor(c_grid_desc_m_n,
-                                               make_tuple(make_right_pad_transform(M, MPad - M),
-                                                          make_right_pad_transform(N, NPad - N)),
-                                               make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                               make_tuple(Sequence<0>{}, Sequence<1>{}));
-        }
-        else
-        {
-
-            return transform_tensor_descriptor(
-                c_grid_desc_m_n,
-                make_tuple(make_pass_through_transform(M), make_pass_through_transform(N)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
-        }
+        return matrix_padder.PadCDescriptor_M_N(c_grid_desc_mraw_nraw);
     }
 
     template <bool HasMainKBlockLoop,
