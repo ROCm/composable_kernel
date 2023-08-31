@@ -160,7 +160,7 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
                                                            Number<MPerDpp>{},
                                                            Number<NPerDpp>{}));
 
-        return dpp_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_N2(c_block_desc_m0_n0_m1_n1_m2_n2);
+        return c_block_desc_m0_n0_m1_n1_m2_n2;
     }
 
     __host__ __device__ static constexpr auto GetCBlockDescriptor_G_M0_N0_M1_N1_M2_N2()
@@ -173,8 +173,7 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
                                                            Number<NWaves>{},
                                                            Number<MPerDpp>{},
                                                            Number<NPerDpp>{}));
-
-        return dpp_gemm.MakeCDescriptor_G_M0_N0_M1_N1_M2_N2(c_block_desc_g_m0_n0_m1_n1_m2_n2);
+        return c_block_desc_g_m0_n0_m1_n1_m2_n2;
     }
 
     template <typename CGridDesc_M_N>
@@ -191,7 +190,7 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}));
 
-        return dpp_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_N2(c_grid_desc_m0_n0_m1_n1_m2_n2);
+        return c_grid_desc_m0_n0_m1_n1_m2_n2;
     }
 
     template <typename CGridDesc_G_M_N>
@@ -210,7 +209,7 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
             make_tuple(Sequence<0>{}, Sequence<1, 3, 5>{}, Sequence<2, 4, 6>{}));
 
-        return dpp_gemm.MakeCDescriptor_G_M0_N0_M1_N1_M2_N2(c_grid_desc_g_m0_n0_m1_n1_m2_n2);
+        return c_grid_desc_g_m0_n0_m1_n1_m2_n2;
     }
 
     __host__ __device__ static constexpr auto MakeABlockDescriptor_M0_M1_M2_K()
