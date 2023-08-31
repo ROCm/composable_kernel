@@ -17,14 +17,6 @@ using f8_t  = _BitInt(8);
 using bf8_t = unsigned _BitInt(8);
 #endif
 
-template <typename T>
-inline __host__ __device__ constexpr auto is_native()
-{
-    return std::is_same<T, half_t>::value || std::is_same<T, float>::value ||
-           std::is_same<T, double>::value || std::is_same<T, bhalf_t>::value ||
-           std::is_same<T, int32_t>::value || std::is_same<T, int8_t>::value;
-}
-
 // vector_type
 template <typename T, index_t N>
 struct vector_type;
