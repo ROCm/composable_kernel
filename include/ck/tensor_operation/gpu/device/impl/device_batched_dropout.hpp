@@ -25,7 +25,8 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename ZDataType,
+template <typename GridwiseDropout_,
+          typename ZDataType,
           typename AGridDesc_AK0_M_AK1,
           typename ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3,
           typename Block2CTileMap,
@@ -60,13 +61,13 @@ __global__ void
 
     const index_t z_random_matrix_offset = g_idx * raw_m_padded * raw_n_padded;
 
-    GridwiseDropout::Run(z_matrix_ptr,
-                         a_grid_desc_ak0_m_ak1,
-                         c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
-                         block_2_ctile_map,
-                         ph,
-                         z_random_matrix_offset,
-                         raw_n_padded);
+    GridwiseDropout_::Run(z_matrix_ptr,
+                          a_grid_desc_ak0_m_ak1,
+                          c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
+                          block_2_ctile_map,
+                          ph,
+                          z_random_matrix_offset,
+                          raw_n_padded);
 #else
     ignore = p_z_grid;
     ignore = a_grid_desc_ak0_m_ak1;
@@ -109,7 +110,7 @@ template <index_t NumDimG,
           index_t NPerXDL,
           index_t MXdlPerWave,
           index_t NXdlPerWave>
-struct DeviceBatchedDropout : public BaseOperator
+struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
@@ -220,7 +221,7 @@ struct DeviceBatchedDropout : public BaseOperator
               raw_lengths_mz_nz_kz_gemm1nz_{a_gs_ms_ks_lengths[NumDimG + NumDimM - 1],
                                             b_gs_ns_ks_lengths[NumDimG + NumDimN - 1],
                                             b_gs_ns_ks_lengths[NumDimG + NumDimN + NumDimK - 1]},
-              batch_count_{c_grid_desc_g_m_n_.GetLength(I0)}
+              batch_count_{z_grid_desc_g_m_n_.GetLength(I0)}
         {
 
             compute_base_ptr_of_batch_ = ComputeBasePtrOfStridedBatch(z_grid_desc_g_m_n_);
@@ -228,21 +229,13 @@ struct DeviceBatchedDropout : public BaseOperator
             seed_   = std::get<0>(seeds);
             offset_ = std::get<1>(seeds);
 
-            c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_ =
+            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_ =
                 GridwiseDropout::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3(
                     z_grid_desc_m_n_);
             // Print();
 
             m_raw_padded_ = GridwiseDropout::GetPaddedSize(raw_lengths_mz_nz_kz_gemm1nz_[0]);
             n_raw_padded_ = GridwiseDropout::GetPaddedSize(raw_lengths_mz_nz_kz_gemm1nz_[1]);
-        }
-
-        void Print() const
-        {
-            std::cout << "a_grid_desc_g_m_k_: " << a_grid_desc_g_m_k_.GetLength(I0) << ", "
-                      << a_grid_desc_g_m_k_.GetLength(I1) << ", "
-                      << a_grid_desc_g_m_k_.GetLength(I2) << '\n';
-            // a_grid_desc_g_m_k_.Print();
         }
 
         // pointers
@@ -257,7 +250,7 @@ struct DeviceBatchedDropout : public BaseOperator
         ZGridDesc_G_M_N z_grid_desc_g_m_n_;
 
         typename GridwiseDropout::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3
-            c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_;
+            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_;
 
         // block-to-c-tile map
         typename GridwiseDropout::DefaultBlock2CTileMap block_2_ctile_map_;
@@ -294,6 +287,7 @@ struct DeviceBatchedDropout : public BaseOperator
 
             auto launch_kernel = [&]() {
                 const auto kernel = kernel_batched_dropout<
+                    GridwiseDropout,
                     ZDataType,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     typename GridwiseDropout::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3,
@@ -307,7 +301,7 @@ struct DeviceBatchedDropout : public BaseOperator
                                               0,
                                               arg.p_z_grid_,
                                               arg.a_grid_desc_ak0_m_ak1_,
-                                              arg.c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_,
+                                              arg.z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_,
                                               arg.block_2_ctile_map_,
                                               arg.batch_count_,
                                               arg.compute_base_ptr_of_batch_,
@@ -336,9 +330,7 @@ struct DeviceBatchedDropout : public BaseOperator
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-#if DEBUG_LOG
-        arg.Print();
-#endif
+        (void)arg;
 
         if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
              ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
@@ -425,8 +417,7 @@ struct DeviceBatchedDropout : public BaseOperator
             << "ASpec" << getTensorSpecializationString(ASpec) << ", "
             << "B0Spec" << getTensorSpecializationString(BSpec) << ", "
             << "B1Spec" << getTensorSpecializationString(B1Spec) << ", "
-            << "CSpec" << getTensorSpecializationString(CSpec) << ", "
-            << getMaskingSpecializationString(MaskingSpec) << ">";
+            << "CSpec" << getTensorSpecializationString(CSpec);
         // clang-format on
 
         return str.str();

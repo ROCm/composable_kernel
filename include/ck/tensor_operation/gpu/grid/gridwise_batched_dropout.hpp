@@ -238,6 +238,14 @@ struct GridwiseBatchedDropout
         constexpr auto m4 = thread_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I6);
         constexpr auto n2 = thread_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I7);
 
+        // only used for BlockwiseDropout
+        constexpr auto thread_slice_desc_m_n =
+            make_naive_tensor_descriptor_packed(make_tuple(m0 * m1 * m2 * m3 * m4, n0 * n1 * n2));
+
+        // only used for providing ApplyDropoutAttnBwdSaveZ
+        auto blockwise_dropout = BlockwiseDropout<FloatGemmAcc, decltype(thread_slice_desc_m_n)>{
+            static_cast<unsigned short>(0.8f * 65535.f), static_cast<FloatGemmAcc>(1.0f / 0.8f)};
+
         //
         // z vgpr copy to global
         //
@@ -332,6 +340,9 @@ struct GridwiseBatchedDropout
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2, 4, 5, 6>{}, Sequence<1, 3, 7>{}));
 
+        auto acc0_thread_origin = s_blockwise_gemm.CalculateCThreadOriginDataIndex8D(
+            Number<0>{}, Number<0>{}, Number<0>{}, Number<0>{});
+
         // gemm0 M loop
         index_t gemm0_m_block_outer_index = num_gemm0_m_block_outer_loop - 1;
 
@@ -372,5 +383,6 @@ struct GridwiseBatchedDropout
                 make_multi_index(-1, 0, 0, 0, 0, 0, 0, 0, 0, 0));
         } while(0 < gemm0_m_block_outer_index--); // end j loop
     };
+};
 
 } // namespace ck
