@@ -4,10 +4,12 @@
 #include "gtest/gtest.h"
 #include "ck/ck.hpp"
 
-using F16 = ck::half_t;
-using F32 = float;
-using I32 = int32_t;
+using F16  = ck::half_t;
+using BF16 = ck::bhalf_t;
+using F32  = float;
+using I32  = int32_t;
 using ck::index_t;
+using NDHWC = ck::tensor_layout::convolution::NDHWC;
 
 struct PoolingParam
 {
