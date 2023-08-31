@@ -39,6 +39,9 @@ endif()
 if(DTYPES MATCHES "bf16" OR NOT DEFINED DTYPES)
   add_example_executable(example_gemm_xdl_bf16 gemm_xdl_bf16.cpp)
   add_dependencies(example_gemm_xdl example_gemm_xdl_bf16)
+
+  add_example_executable(example_gemm_xdl_bf16_rtn gemm_xdl_bf16_rtn.cpp)
+  add_dependencies(example_gemm_xdl example_gemm_xdl_bf16_rtn)
 endif()
 
 if(DTYPES MATCHES "int8" OR NOT DEFINED DTYPES)

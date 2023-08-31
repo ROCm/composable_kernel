@@ -331,8 +331,13 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
         EGridDesc_G0_G1_M_N e_grid_desc_g0_g1_m_n_;
     };
 
+    using ComputeDataType = ADataType;
+
+    // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
-        ADataType, // TODO: distinguish A/B datatype
+        ADataType,
+        BDataType,
+        ComputeDataType,
         AccDataType,
         CShuffleDataType,
         ck::Tuple<>, // DsDataType,
