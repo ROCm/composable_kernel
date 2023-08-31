@@ -546,7 +546,7 @@ struct TransformConvBwdDataToGemm_v1
             const auto wei_gemmbk0_gemmn_gemmbk1_grid_desc =
                 ck::tensor_operation::device::PadTensorDescriptor(
                     wei_gemmbk0_gemmnraw_gemmbk1_grid_desc,
-                    make_tuple(GemmKPerBlock, GemmNPerBlock, BK1),
+                    make_tuple(BK0, GemmNPerBlock, BK1),
                     Sequence<false, DoPadGemmN, false>{});
 
             return wei_gemmbk0_gemmn_gemmbk1_grid_desc;
