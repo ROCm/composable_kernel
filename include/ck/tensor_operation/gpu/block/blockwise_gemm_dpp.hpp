@@ -279,13 +279,13 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
                             [Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
                     });
 
-                    using mfma_input_type = typename vector_type<FloatAB, dpp_gemm.K1PerDpp>::type;
+                    using dpp_input_type = typename vector_type<FloatAB, dpp_gemm.K1PerDpp>::type;
 
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                    dpp_gemm.template Run(a_thread_vec.template AsType<mfma_input_type>(),
-                                          b_thread_vec.template AsType<mfma_input_type>(),
+                    dpp_gemm.template Run(a_thread_vec.template AsType<dpp_input_type>(),
+                                          b_thread_vec.template AsType<dpp_input_type>(),
                                           c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                 });
             });
