@@ -132,22 +132,22 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
 
     __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_N2()
     {
-        constexpr auto c_m0_m1_m2_n_tblk_lens = dpp_gemm.GetCMNThreadBlkLengths();
-        constexpr auto M0                     = c_m0_m1_m2_n_tblk_lens[I0];
-        constexpr auto N                      = c_m0_m1_m2_n_tblk_lens[I1];
+        constexpr auto c_m_n_tblk_lens = dpp_gemm.GetCMNThreadBlkLengths();
+        constexpr auto M               = c_m_n_tblk_lens[I0];
+        constexpr auto N               = c_m_n_tblk_lens[I1];
 
         return make_naive_tensor_descriptor_packed(
-            make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, N));
+            make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M, N));
     }
 
     __host__ __device__ static constexpr auto GetCThreadDescriptor_G_M0_N0_M1_N1_M2_N2()
     {
-        constexpr auto c_m0_m1_m2_n_tblk_lens = dpp_gemm.GetCMNThreadBlkLengths();
-        constexpr auto M0                     = c_m0_m1_m2_n_tblk_lens[I0];
-        constexpr auto N                      = c_m0_m1_m2_n_tblk_lens[I1];
+        constexpr auto c_m_n_tblk_lens = dpp_gemm.GetCMNThreadBlkLengths();
+        constexpr auto M               = c_m_n_tblk_lens[I0];
+        constexpr auto N               = c_m_n_tblk_lens[I1];
 
         return make_naive_tensor_descriptor_packed(
-            make_tuple(I1, Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, N));
+            make_tuple(I1, Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M, N));
     }
 
     __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_N0_M1_N1_M2_N2()
