@@ -26,6 +26,7 @@ template <typename ZDataType,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
+          index_t Gemm1NPerBlock,
           index_t AK1Value,
           index_t BK1Value,
           index_t MPerXdl,
@@ -113,21 +114,18 @@ struct GridwiseBatchedDropout
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
         // A matrix in LDS memory, dst of blockwise copy
-        return make_naive_tensor_descriptor(
-            make_tuple(AK0, Number<MPerBlock>{}, AK1),
-            make_tuple(Number<MPerBlock + I1>{} * AK1, AK1, I1));
+        return make_naive_tensor_descriptor(make_tuple(AK0, Number<MPerBlock>{}, AK1),
+                                            make_tuple(Number<MPerBlock + I1>{} * AK1, AK1, I1));
     }
 
     __host__ __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
         // B matrix in LDS memory, dst of blockwise copy
-        return make_naive_tensor_descriptor(
-            make_tuple(BK0, Number<NPerBlock>{}, BK1),
-            make_tuple(Number<NPerBlock + I1>{} * BK1, BK1, I1));
+        return make_naive_tensor_descriptor(make_tuple(BK0, Number<NPerBlock>{}, BK1),
+                                            make_tuple(Number<NPerBlock + I1>{} * BK1, BK1, I1));
     }
 
-    __host__ __device__ static constexpr bool
-    CheckValidity()
+    __host__ __device__ static constexpr bool CheckValidity()
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
@@ -141,7 +139,7 @@ struct GridwiseBatchedDropout
     __host__ __device__ static constexpr auto
     MakeDefaultBlock2CTileMap(const KGridDesc_N_K& k_grid_desc_n_k)
     {
-        return BlockToCTileMap_M00_N0_M01Adapt<NPerBlock, KPerBlock, KGridDesc_N_K>(
+        return BlockToCTileMap_M00_N0_M01Adapt<NPerBlock, Gemm1NPerBlock, KGridDesc_N_K>(
             k_grid_desc_n_k);
     }
 
@@ -150,7 +148,6 @@ struct GridwiseBatchedDropout
 
     using ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3 = remove_cvref_t<decltype(
         MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3(ZGridDesc_M_N{}))>;
-
 
     // S Gemm
     struct Gemm0
@@ -205,15 +202,14 @@ struct GridwiseBatchedDropout
     };
 
     template <typename Block2CTileMap>
-    __device__ static void
-    Run(ZDataType* __restrict__ p_z_grid,
-        const QGridDesc_K0_M_K1& q_grid_desc_k0_m_k1,
-        const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3&
-            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
-        const Block2CTileMap& block_2_ctile_map,
-        ck::philox& ph,
-        const index_t z_random_matrix_offset,
-        const index_t raw_n_padded)
+    __device__ static void Run(ZDataType* __restrict__ p_z_grid,
+                               const QGridDesc_K0_M_K1& q_grid_desc_k0_m_k1,
+                               const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3&
+                                   z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
+                               const Block2CTileMap& block_2_ctile_map,
+                               ck::philox& ph,
+                               const index_t z_random_matrix_offset,
+                               const index_t raw_n_padded)
     {
         // divide block work by [N, K]
         const auto block_work_idx =
@@ -294,7 +290,7 @@ struct GridwiseBatchedDropout
             1, // DstScalarStrideInVector
             true>{z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                   make_multi_index(num_gemm0_m_block_outer_loop - 1, // MBlockId
-                                   block_work_idx[I0],                 // NBlockId
+                                   block_work_idx[I0],               // NBlockId
                                    0,                                // MRepeat
                                    0,                                // NRepeat
                                    wave_id[I0],                      // MWaveId
@@ -308,7 +304,7 @@ struct GridwiseBatchedDropout
         // 8d thread_desc in thread scope
         constexpr auto c_thread_lengths =
             s_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2().GetLengths();
-        
+
         // 8d block_desc in block scope
         constexpr auto c_block_lengths =
             s_blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2().GetLengths();
@@ -324,15 +320,15 @@ struct GridwiseBatchedDropout
 
         // works like multi-dimension static_for (static_ford), but provides both the linear
         // index as well as n-d index
-        using Acc0TileIterator = SpaceFillingCurve<
-            decltype(c_thread_lengths),
-            typename arithmetic_sequence_gen<0, c_thread_lengths.Size(), 1>::type,
-            typename uniform_sequence_gen<c_thread_lengths.Size(), 1>::type,
-            false>; // SnakeCurved
+        using Acc0TileIterator =
+            SpaceFillingCurve<decltype(c_thread_lengths),
+                              typename arithmetic_sequence_gen<0, c_thread_lengths.Size(), 1>::type,
+                              typename uniform_sequence_gen<c_thread_lengths.Size(), 1>::type,
+                              false>; // SnakeCurved
 
         constexpr auto block_idx_to_m_n_adaptor = make_single_stage_tensor_adaptor(
             make_tuple(make_unmerge_transform(make_tuple(M0, M1, M2, M3, M4)),
-                        make_unmerge_transform(make_tuple(N0, N1, N2))),
+                       make_unmerge_transform(make_tuple(N0, N1, N2))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2, 4, 5, 6>{}, Sequence<1, 3, 7>{}));
 
@@ -346,36 +342,29 @@ struct GridwiseBatchedDropout
 
             // save z to global
             auto acc0_thread_idx = Acc0TileIterator::GetIndex(I0) + acc0_thread_origin;
-            auto m_local =
-                block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
-            auto n_local =
-                block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
+            auto m_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
+            auto n_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
             auto m_global = m_local + m_block_data_idx_on_grid;
             auto n_global = n_local + n_block_data_idx_on_grid;
 
             auto global_tile_id = z_random_matrix_offset +
-                                    (m_global / DropoutTile) * DropoutTile * raw_n_padded +
-                                    (n_global / DropoutTile) * DropoutTile;
+                                  (m_global / DropoutTile) * DropoutTile * raw_n_padded +
+                                  (n_global / DropoutTile) * DropoutTile;
 
-            auto global_elem_id = global_tile_id + (wave_m_n_id[I0] * M4) +
-                                    (n_global % DropoutTile) * raw_n_padded;
+            auto global_elem_id =
+                global_tile_id + (wave_m_n_id[I0] * M4) + (n_global % DropoutTile) * raw_n_padded;
 
-            blockwise_dropout
-                .template ApplyDropoutAttnBwdSaveZ<decltype(s_slash_p_thread_buf),
-                                                    decltype(z_tensor_buffer),
-                                                    decltype(DropoutTile),
-                                                    true>(s_slash_p_thread_buf,
-                                                            ph,
-                                                            global_elem_id,
-                                                            z_tensor_buffer,
-                                                            raw_n_padded);
+            blockwise_dropout.template ApplyDropoutAttnBwdSaveZ<decltype(s_slash_p_thread_buf),
+                                                                decltype(z_tensor_buffer),
+                                                                decltype(DropoutTile),
+                                                                true>(
+                s_slash_p_thread_buf, ph, global_elem_id, z_tensor_buffer, raw_n_padded);
 
-            z_thread_copy_vgpr_to_global.Run(
-                z_thread_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
-                make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                z_tensor_buffer,
-                z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
-                z_grid_buf);
+            z_thread_copy_vgpr_to_global.Run(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
+                                             make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                                             z_tensor_buffer,
+                                             z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
+                                             z_grid_buf);
 
             // move slice window
             z_thread_copy_vgpr_to_global.MoveDstSliceWindow(
