@@ -20,14 +20,14 @@ enum struct DppInstr
  * Structure representing DPP GEMM executed by a single wavefront.
  *
  * Each structure instantiation must contain the following fields:
- * - wave_size - number of threads that execute single DPP GEMM operation, usually equal to the
+ * - wave_size - number of threads that execute a single DPP GEMM operation, usually equal to the
  *               number of threads in a wavefront;
  * - lanegroup_size - number of threads (lanes) that share data using DPP instruction modifier,
  *                    it's 8 in case of DPP8;
  * - m_per_wave - size along M dimension of matrix C that is processed in a single DPP GEMM
- * operation;
+ *                operation;
  * - n_per_wave - size along N dimension of matrix C that is processed in a single DPP GEMM
- * operation;
+ *                operation;
  * - m_per_lanegroup - size along M dimension that is processed by a single lanegroup;
  * - n_per_lanegroup - size along N dimension that is processed by a single lanegroup;
  * - m_per_thread - size along M dimension of the tile calculated by a single thread;
@@ -254,16 +254,15 @@ struct DppGemm
         return make_tuple(m_dpp_idx, n_dpp_idx);
     }
 
-    __host__ __device__ static auto CalculateAThreadOriginDataIndex()
+    __host__ __device__ static auto CalculateAThreadOriginDataIndex_K_M()
     {
         const auto laneId   = get_thread_local_1d_id();
         const auto wave_row = laneId / dpp_instr.n_per_wave;
         auto m_idx          = dpp_instr.m_per_thread * wave_row + GetLaneIdInLaneGroup();
         return make_tuple(0, m_idx % dpp_instr.m_per_wave);
-        return make_tuple(0, laneId % dpp_instr.m_per_lanegroup);
     }
 
-    __host__ __device__ static auto CalculateBThreadOriginDataIndex()
+    __host__ __device__ static auto CalculateBThreadOriginDataIndex_K_N()
     {
         const auto laneId = get_thread_local_1d_id();
         return make_tuple(0, laneId % dpp_instr.n_per_wave);
@@ -271,13 +270,13 @@ struct DppGemm
 
     __device__ static CIndex GetBeginOfThreadBlk()
     {
-        const auto dpp_idx = GetDppOpIdx();
+        const auto dpp_op_idx = GetDppOpIdx();
 
-        const auto m_dpp_idx = dpp_idx[I0];
-        const auto n_dpp_idx = dpp_idx[I1];
+        const auto m_dpp_op_idx = dpp_op_idx[I0];
+        const auto n_dpp_op_idx = dpp_op_idx[I1];
 
-        index_t n_offset = n_dpp_idx * dpp_instr.n_per_lanegroup + GetLaneIdInLaneGroup();
-        index_t m_offset = m_dpp_idx * dpp_instr.m_per_lanegroup;
+        index_t n_offset = n_dpp_op_idx * dpp_instr.n_per_lanegroup + GetLaneIdInLaneGroup();
+        index_t m_offset = m_dpp_op_idx * dpp_instr.m_per_lanegroup;
 
         return CIndex{m_offset, n_offset};
     }

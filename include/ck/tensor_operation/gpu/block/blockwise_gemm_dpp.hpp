@@ -10,6 +10,15 @@
 
 namespace ck {
 
+/**
+ * Blockwise GEMM that uses DPP instruction modifier to limit the amount of data loaded for each
+ * thread by sharing the data between threads in a lanegroup.
+ *
+ * In every iteration, each wave calculates a C tile of size `MPerDpp` * `NPerDpp`, there are
+ * `MRepeat` iterations for `M` dimension and `NRepeat` for `N` one.
+ * In total, the algorithm runs using
+ * `MPerBlock / (MRepeat * MPerDpp) * NPerBlock / (NRepeat * NPerDpp)` waves.
+ */
 template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
@@ -69,20 +78,24 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
         return threadid_to_wave_idx_adaptor.CalculateBottomIndex(make_multi_index(thread_id));
     }
 
-    __device__ static auto CalculateAThreadOriginDataIndex()
+    __device__ static auto CalculateAThreadOriginDataIndex_M0_M1_M2_K()
     {
-        const auto wave_idx  = GetWaveIdx();
-        const auto waveId_m  = wave_idx[I0];
-        const auto dpp_a_idx = dpp_gemm.CalculateAThreadOriginDataIndex();
-        return make_tuple(0, waveId_m, dpp_a_idx[I1], KPerThread * dpp_a_idx[I0]);
+        const auto wave_idx    = GetWaveIdx();
+        const auto waveId_m    = wave_idx[I0];
+        const auto dpp_a_idx   = dpp_gemm.CalculateAThreadOriginDataIndex_K_M();
+        const auto dpp_a_idx_k = dpp_a_idx[I0];
+        const auto dpp_a_idx_m = dpp_a_idx[I1];
+        return make_tuple(0, waveId_m, dpp_a_idx_m, KPerThread * dpp_a_idx_k);
     }
 
-    __device__ static auto CalculateBThreadOriginDataIndex()
+    __device__ static auto CalculateBThreadOriginDataIndex_N0_N1_N2_K()
     {
-        const auto wave_idx  = GetWaveIdx();
-        const auto waveId_n  = wave_idx[I1];
-        const auto dpp_b_idx = dpp_gemm.CalculateBThreadOriginDataIndex();
-        return make_tuple(0, waveId_n, dpp_b_idx[I1], KPerThread * dpp_b_idx[I0]);
+        const auto wave_idx    = GetWaveIdx();
+        const auto waveId_n    = wave_idx[I1];
+        const auto dpp_b_idx   = dpp_gemm.CalculateBThreadOriginDataIndex_K_N();
+        const auto dpp_b_idx_k = dpp_b_idx[I0];
+        const auto dpp_b_idx_n = dpp_b_idx[I1];
+        return make_tuple(0, waveId_n, dpp_b_idx_n, KPerThread * dpp_b_idx_k);
     }
 
     template <index_t m0, index_t n0>
@@ -91,7 +104,10 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
         const auto wave_idx = GetWaveIdx();
         const auto waveId_m = wave_idx[I0];
         const auto waveId_n = wave_idx[I1];
-        const auto blk_idx  = dpp_gemm.GetBeginOfThreadBlk();
+
+        const auto blk_idx      = dpp_gemm.GetBeginOfThreadBlk();
+        const auto blk_m_offset = blk_idx[I0];
+        const auto blk_n_offset = blk_idx[I1];
 
         constexpr auto mrepeat_mwave_MPerDpp_to_m_adaptor = make_single_stage_tensor_adaptor(
             make_tuple(make_unmerge_transform(make_tuple(MRepeat, MWaves, MPerDpp))),
@@ -104,9 +120,9 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
             make_tuple(Sequence<0, 1, 2>{}));
 
         const index_t c_thread_m = mrepeat_mwave_MPerDpp_to_m_adaptor.CalculateBottomIndex(
-            make_tuple(m0, waveId_m, blk_idx[I0]))[I0];
+            make_tuple(m0, waveId_m, blk_m_offset))[I0];
         const index_t c_thread_n = nrepeat_nwave_NPerDpp_to_n_adaptor.CalculateBottomIndex(
-            make_tuple(n0, waveId_n, blk_idx[I1]))[I0];
+            make_tuple(n0, waveId_n, blk_n_offset))[I0];
 
         return make_tuple(c_thread_m, c_thread_n);
     }
@@ -324,8 +340,8 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
                                                          B_K1,
                                                          B_K1>;
 
-    AThreadCopy a_thread_copy_{CalculateAThreadOriginDataIndex()};
-    BThreadCopy b_thread_copy_{CalculateBThreadOriginDataIndex()};
+    AThreadCopy a_thread_copy_{CalculateAThreadOriginDataIndex_M0_M1_M2_K()};
+    BThreadCopy b_thread_copy_{CalculateBThreadOriginDataIndex_N0_N1_N2_K()};
 };
 
 } // namespace ck
