@@ -260,11 +260,14 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
     __host__ static constexpr bool CheckValidity(const Problem& problem)
     {
         static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
-                      "wrong! K1 need to be known at compile-time");
+                      "Wrong! K1 must be known at the time of compilation.");
 
-        static_assert((MPerBlock % (MPerDpp * MDppPerWave) == 0) &&
-                          (NPerBlock % (NDppPerWave * NPerDpp)) == 0,
-                      "Invalid tuning param!");
+        static_assert(
+            MPerBlock % (MPerDpp * MDppPerWave) == 0,
+            "Invalid tuning parameters! MPerBlock must be divisible by MPerDpp * MDppPerWave.");
+        static_assert(
+            NPerBlock % (NPerDpp * NDppPerWave) == 0,
+            "Invalid tuning parameters! NPerBlock must be divisible by NPerDpp * NDppPerWave.");
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||

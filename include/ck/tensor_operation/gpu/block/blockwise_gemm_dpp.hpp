@@ -123,7 +123,7 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
     {
         static_assert(AK0MK1BlockDesc::IsKnownAtCompileTime() &&
                           BK0NK1BlockDesc::IsKnownAtCompileTime(),
-                      "wrong! Desc should be known at compile-time");
+                      "Wrong! Block descriptors should be known at the time of compilation.");
 
 #if defined(__HIP_DEVICE_COMPILE__)
         // Host wave size can be different than the device one and this assert could fail for host,
@@ -132,8 +132,10 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
                       "ThisThreadBlock::GetNumOfThread() != MWaves * NWaves * WaveSize\n");
 #endif
 
-        static_assert(MPerBlock % (MPerDpp * MRepeat) == 0 && NPerBlock % (NPerDpp * NRepeat) == 0,
-                      "wrong!");
+        static_assert(MPerBlock % (MPerDpp * MRepeat) == 0,
+                      "Invalid parameters. MPerBlock must be divisible by MPerDpp * MRepeat.");
+        static_assert(NPerBlock % (NPerDpp * NRepeat) == 0,
+                      "Invalid parameters. NPerBlock must be divisible by NPerDpp * NRepeat.");
     }
 
     __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_N2()
