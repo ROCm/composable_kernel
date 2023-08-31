@@ -17,6 +17,7 @@ namespace instance {
 
 using I32   = int32_t;
 using F16   = ck::half_t;
+using BF16  = ck::bhalf_t;
 using F32   = float;
 using NDHWC = ck::tensor_layout::convolution::NDHWC;
 
