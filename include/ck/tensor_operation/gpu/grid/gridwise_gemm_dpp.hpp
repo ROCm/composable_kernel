@@ -466,9 +466,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
               typename AGridDesc_K0_M_K1,
               typename BGridDesc_K0_N_K1,
               typename CGridDesc_M_N>
-    __device__ static void Run(const FloatAB* p_a_grid,
-                               const FloatAB* p_b_grid,
-                               FloatC* p_c_grid,
+    __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
+                               const FloatAB* __restrict__ p_b_grid,
+                               FloatC* __restrict__ p_c_grid,
                                void* __restrict__ p_shared,
                                const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
                                const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
