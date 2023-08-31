@@ -7,6 +7,7 @@
 #arg3: run kernel # of times (>1)
 #arg4: number of splitK batches
 ./bin/example_gemm_xdl 0 1 5 151
+
 ```
 
 Result (MI100 @ 1087Mhz, 133.5TFlops peak FP16)
