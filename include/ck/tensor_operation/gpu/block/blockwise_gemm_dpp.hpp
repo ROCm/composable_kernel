@@ -71,23 +71,17 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
 
     __device__ static auto CalculateAThreadOriginDataIndex()
     {
-        const auto wave_idx = GetWaveIdx();
-
-        const auto waveId_m = wave_idx[I0];
-
+        const auto wave_idx  = GetWaveIdx();
+        const auto waveId_m  = wave_idx[I0];
         const auto dpp_a_idx = dpp_gemm.CalculateAThreadOriginDataIndex();
-
         return make_tuple(0, waveId_m, dpp_a_idx[I1], KPerThread * dpp_a_idx[I0]);
     }
 
     __device__ static auto CalculateBThreadOriginDataIndex()
     {
-        const auto wave_idx = GetWaveIdx();
-
-        const auto waveId_n = wave_idx[I1];
-
+        const auto wave_idx  = GetWaveIdx();
+        const auto waveId_n  = wave_idx[I1];
         const auto dpp_b_idx = dpp_gemm.CalculateBThreadOriginDataIndex();
-
         return make_tuple(0, waveId_n, dpp_b_idx[I1], KPerThread * dpp_b_idx[I0]);
     }
 
@@ -95,11 +89,9 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
     __device__ static auto CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>)
     {
         const auto wave_idx = GetWaveIdx();
-
         const auto waveId_m = wave_idx[I0];
         const auto waveId_n = wave_idx[I1];
-
-        const auto blk_idx = dpp_gemm.GetBeginOfThreadBlk();
+        const auto blk_idx  = dpp_gemm.GetBeginOfThreadBlk();
 
         constexpr auto mrepeat_mwave_MPerDpp_to_m_adaptor = make_single_stage_tensor_adaptor(
             make_tuple(make_unmerge_transform(make_tuple(MRepeat, MWaves, MPerDpp))),
@@ -141,9 +133,8 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
     __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_N2()
     {
         constexpr auto c_m0_m1_m2_n_tblk_lens = dpp_gemm.GetCMNThreadBlkLengths();
-
-        constexpr auto M0 = c_m0_m1_m2_n_tblk_lens[I0];
-        constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I1];
+        constexpr auto M0                     = c_m0_m1_m2_n_tblk_lens[I0];
+        constexpr auto N                      = c_m0_m1_m2_n_tblk_lens[I1];
 
         return make_naive_tensor_descriptor_packed(
             make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, N));
@@ -152,9 +143,8 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
     __host__ __device__ static constexpr auto GetCThreadDescriptor_G_M0_N0_M1_N1_M2_N2()
     {
         constexpr auto c_m0_m1_m2_n_tblk_lens = dpp_gemm.GetCMNThreadBlkLengths();
-
-        constexpr auto M0 = c_m0_m1_m2_n_tblk_lens[I0];
-        constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I1];
+        constexpr auto M0                     = c_m0_m1_m2_n_tblk_lens[I0];
+        constexpr auto N                      = c_m0_m1_m2_n_tblk_lens[I1];
 
         return make_naive_tensor_descriptor_packed(
             make_tuple(I1, Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, N));

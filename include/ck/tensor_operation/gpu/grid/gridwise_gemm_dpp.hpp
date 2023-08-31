@@ -243,14 +243,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
     {
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_desc_k0_m_k1 = GetABlockDescriptor_K0PerBlock_MPerBlock_K1();
-
         constexpr auto b_block_desc_k0_n_k1 = GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
-
-        constexpr auto max_lds_align = K1;
+        constexpr auto max_lds_align        = K1;
 
         constexpr auto a_block_space_size_aligned =
             math::integer_least_multiple(a_block_desc_k0_m_k1.GetElementSpaceSize(), max_lds_align);
-
         constexpr auto b_block_space_size_aligned =
             math::integer_least_multiple(b_block_desc_k0_n_k1.GetElementSpaceSize(), max_lds_align);
 
@@ -539,7 +536,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
-
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
 
@@ -547,7 +543,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
 
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_k0_m_k1 = GetABlockDescriptor_K0PerBlock_MPerBlock_K1();
-
         // B matrix in LDS memory, dst of blockwise copy
         constexpr auto b_block_desc_k0_n_k1 = GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
 
