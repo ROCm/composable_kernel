@@ -54,18 +54,18 @@ struct dpp_type<DppInstr::dpp8_f16_32x8x2>
     static constexpr index_t n_per_thread    = 1;
     static constexpr index_t k_per_dpp       = 2;
     static constexpr bool share_a            = true;
-    using base_type                          = half_t;
+    using BaseType                           = half_t;
 
-    template <index_t MPerDpp, index_t NPerDpp, class FloatA, class FloatB, class FloatC>
-    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    template <index_t MPerDpp, index_t NPerDpp, class ADataType, class BDataType, class CDataType>
+    __device__ void run(const ADataType& a, const BDataType& b, CDataType& reg_c) const
     {
         dpp8::DppInstrRunner<m_per_thread,
                              n_per_thread,
                              k_per_dpp,
-                             base_type,
-                             FloatA,
-                             FloatB,
-                             FloatC,
+                             BaseType,
+                             ADataType,
+                             BDataType,
+                             CDataType,
                              share_a>{}
             .Run(a, b, reg_c);
     }
@@ -84,18 +84,18 @@ struct dpp_type<DppInstr::dpp8_f16_8x32x2>
     static constexpr index_t n_per_thread    = 1;
     static constexpr index_t k_per_dpp       = 2;
     static constexpr bool share_a            = true;
-    using base_type                          = half_t;
+    using BaseType                           = half_t;
 
-    template <index_t MPerDpp, index_t NPerDpp, class FloatA, class FloatB, class FloatC>
-    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    template <index_t MPerDpp, index_t NPerDpp, class ADataType, class BDataType, class CDataType>
+    __device__ void run(const ADataType& a, const BDataType& b, CDataType& reg_c) const
     {
         dpp8::DppInstrRunner<m_per_thread,
                              n_per_thread,
                              k_per_dpp,
-                             base_type,
-                             FloatA,
-                             FloatB,
-                             FloatC,
+                             BaseType,
+                             ADataType,
+                             BDataType,
+                             CDataType,
                              share_a>{}
             .Run(a, b, reg_c);
     }
@@ -114,27 +114,27 @@ struct dpp_type<DppInstr::dpp8_f16_16x16x2>
     static constexpr index_t n_per_thread    = 1;
     static constexpr index_t k_per_dpp       = 2;
     static constexpr bool share_a            = true;
-    using base_type                          = half_t;
+    using BaseType                           = half_t;
 
-    template <index_t MPerDpp, index_t NPerDpp, class FloatA, class FloatB, class FloatC>
-    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    template <index_t MPerDpp, index_t NPerDpp, class ADataType, class BDataType, class CDataType>
+    __device__ void run(const ADataType& a, const BDataType& b, CDataType& reg_c) const
     {
         dpp8::DppInstrRunner<m_per_thread,
                              n_per_thread,
                              k_per_dpp,
-                             base_type,
-                             FloatA,
-                             FloatB,
-                             FloatC,
+                             BaseType,
+                             ADataType,
+                             BDataType,
+                             CDataType,
                              share_a>{}
             .Run(a, b, reg_c);
     }
 };
 
-template <typename base_type, index_t MPerDpp, index_t NPerDpp>
+template <typename BaseType, index_t MPerDpp, index_t NPerDpp>
 struct DppSelector
 {
-    template <typename base_type_, index_t MPerDpp_, index_t NPerDpp_>
+    template <typename BaseType_, index_t MPerDpp_, index_t NPerDpp_>
     static constexpr auto GetDpp();
 
     template <>
@@ -155,7 +155,7 @@ struct DppSelector
         return DppInstr::dpp8_f16_32x8x2;
     }
 
-    static constexpr auto selected_dpp = dpp_type<GetDpp<base_type, MPerDpp, NPerDpp>()>{};
+    static constexpr auto selected_dpp = dpp_type<GetDpp<BaseType, MPerDpp, NPerDpp>()>{};
 
     __host__ __device__ constexpr DppSelector()
     {
@@ -200,7 +200,7 @@ struct DppSelector
     static constexpr index_t GetK1PerDpp() { return selected_dpp.k_per_dpp; }
 };
 
-template <typename base_type, index_t MPerDpp, index_t NPerDpp, index_t KPack>
+template <typename BaseType, index_t MPerDpp, index_t NPerDpp, index_t KPack>
 struct DppGemm
 {
     static constexpr auto I0 = Number<0>{};
@@ -228,13 +228,14 @@ struct DppGemm
         return MPerDpp * NPerDpp / dpp_instr.wave_size;
     }
 
-    template <class FloatA, class FloatB, class FloatC>
-    __device__ void Run(const FloatA& p_a_wave, const FloatB& p_b_wave, FloatC& p_c_thread) const
+    template <class ADataType, class BDataType, class CDataType>
+    __device__ void
+    Run(const ADataType& p_a_wave, const BDataType& p_b_wave, CDataType& p_c_thread) const
     {
-        static_assert(is_same<base_type, double>::value || is_same<base_type, float>::value ||
-                          is_same<base_type, half_t>::value || is_same<base_type, bhalf_t>::value ||
-                          is_same<base_type, int8_t>::value || is_same<base_type, f8_t>::value,
-                      "base base_type must be double, float, half, bfloat16, and int8_t!");
+        static_assert(is_same<BaseType, double>::value || is_same<BaseType, float>::value ||
+                          is_same<BaseType, half_t>::value || is_same<BaseType, bhalf_t>::value ||
+                          is_same<BaseType, int8_t>::value || is_same<BaseType, f8_t>::value,
+                      "base BaseType must be double, float, half, bfloat16, and int8_t!");
 
         static_for<0, KPack / dpp_instr.k_per_dpp, 1>{}([&](auto k) {
             dpp_instr.template run<MPerDpp, NPerDpp>(p_a_wave[k], p_b_wave[k], p_c_thread);
@@ -305,7 +306,7 @@ struct DppGemm
         return CIndex{m_offset, n_offset};
     }
 
-    static constexpr auto dpp = DppSelector<base_type, MPerDpp, NPerDpp>{};
+    static constexpr auto dpp = DppSelector<BaseType, MPerDpp, NPerDpp>{};
 
     static constexpr auto dpp_instr = dpp.selected_dpp;
 

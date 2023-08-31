@@ -51,9 +51,9 @@ __global__ void
 }
 
 template <index_t BlockSize,
-          typename FloatAB,
-          typename FloatAcc,
-          typename FloatC,
+          typename ABDataType,
+          typename AccDataType,
+          typename CDataType,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename ALayout,
           typename BLayout,
@@ -172,9 +172,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
     // Argument
     struct Argument : public Problem, public tensor_operation::device::BaseArgument
     {
-        __host__ Argument(const FloatAB* p_a_grid_,
-                          const FloatAB* p_b_grid_,
-                          FloatC* p_c_grid_,
+        __host__ Argument(const ABDataType* p_a_grid_,
+                          const ABDataType* p_b_grid_,
+                          CDataType* p_c_grid_,
                           index_t M_,
                           index_t N_,
                           index_t K_,
@@ -188,9 +188,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
         {
         }
 
-        const FloatAB* p_a_grid;
-        const FloatAB* p_b_grid;
-        FloatC* p_c_grid;
+        const ABDataType* p_a_grid;
+        const ABDataType* p_b_grid;
+        CDataType* p_c_grid;
     };
 
     using GridwiseGemmPipe = remove_cvref_t<
@@ -252,7 +252,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
         constexpr auto b_block_space_size_aligned =
             math::integer_least_multiple(b_block_desc_k0_n_k1.GetElementSpaceSize(), max_lds_align);
 
-        return (a_block_space_size_aligned + b_block_space_size_aligned) * sizeof(FloatAB);
+        return (a_block_space_size_aligned + b_block_space_size_aligned) * sizeof(ABDataType);
     }
 
     __host__ static constexpr bool CheckValidity(const Problem& problem)
@@ -347,8 +347,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
 
         using BlockwiseGemm =
             BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2<BlockSize,
-                                                      FloatAB,
-                                                      FloatAcc,
+                                                      ABDataType,
+                                                      AccDataType,
                                                       decltype(a_block_desc_k0_m_k1),
                                                       decltype(b_block_desc_k0_n_k1),
                                                       MPerDpp,
@@ -430,9 +430,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
               typename AGridDesc_K0_M_K1,
               typename BGridDesc_K0_N_K1,
               typename CGridDesc_M_N>
-    __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
-                               const FloatAB* __restrict__ p_b_grid,
-                               FloatC* __restrict__ p_c_grid,
+    __device__ static void Run(const ABDataType* __restrict__ p_a_grid,
+                               const ABDataType* __restrict__ p_b_grid,
+                               CDataType* __restrict__ p_c_grid,
                                void* __restrict__ p_shared,
                                const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
                                const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
@@ -488,8 +488,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
                                                 Sequence<K0PerBlock, MPerBlock, K1>,
                                                 ABlockTransferThreadClusterLengths_K0_M_K1,
                                                 ABlockTransferThreadClusterArrangeOrder,
-                                                FloatAB,
-                                                FloatAB,
+                                                ABDataType,
+                                                ABDataType,
                                                 decltype(a_grid_desc_k0_m_k1),
                                                 decltype(a_block_desc_k0_m_k1),
                                                 ABlockTransferSrcAccessOrder,
@@ -518,8 +518,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
                                                 Sequence<K0PerBlock, NPerBlock, K1>,
                                                 BBlockTransferThreadClusterLengths_K0_N_K1,
                                                 BBlockTransferThreadClusterArrangeOrder,
-                                                FloatAB,
-                                                FloatAB,
+                                                ABDataType,
+                                                ABDataType,
                                                 decltype(b_grid_desc_k0_n_k1),
                                                 decltype(b_block_desc_k0_n_k1),
                                                 BBlockTransferSrcAccessOrder,
@@ -548,8 +548,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
         //       register
         auto blockwise_gemm =
             BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2<BlockSize,
-                                                      FloatAB,
-                                                      FloatAcc,
+                                                      ABDataType,
+                                                      AccDataType,
                                                       decltype(a_block_desc_k0_m_k1),
                                                       decltype(b_block_desc_k0_n_k1),
                                                       MPerDpp,
@@ -565,10 +565,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
             math::integer_least_multiple(a_block_desc_k0_m_k1.GetElementSpaceSize(), max_lds_align);
 
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatAB*>(p_shared), a_block_desc_k0_m_k1.GetElementSpaceSize());
+            static_cast<ABDataType*>(p_shared), a_block_desc_k0_m_k1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatAB*>(p_shared) + a_block_space_size_aligned,
+            static_cast<ABDataType*>(p_shared) + a_block_space_size_aligned,
             b_block_desc_k0_n_k1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
@@ -642,8 +642,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
                     make_multi_index(n_thread_data_on_grid));
 
             auto c_thread_copy =
-                ThreadwiseTensorSliceTransfer_v1r3<FloatAcc,
-                                                   FloatC,
+                ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
+                                                   CDataType,
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_n2),
                                                    decltype(c_grid_desc_m0_n0_m1_n1_m2_n2),
                                                    CElementwiseOperation,
