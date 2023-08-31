@@ -104,6 +104,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
     static constexpr auto K1 = Number<K1Value>{};
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
+    // return block_id to C matrix tile idx (m0, n0) mapping
+    using Block2CTileMap = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock>;
 
     __host__ static auto CalculateGridSize(index_t M, index_t N)
     {
@@ -341,37 +343,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
     __host__ __device__ static constexpr auto
     MakeCGridDescriptor_M0_N0_M1_N1_M2_N2(const CGridDesc& c_grid_desc_m_n)
     {
-        constexpr auto max_lds_align = K1;
-
-        // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_k0_m_k1 = [&]() {
-            if constexpr(ABlockLdsExtraM)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
-                    make_tuple(Number<MPerBlock + 1>{} * K1, K1, I1));
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
-            }
-        }();
-
-        // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_k0_n_k1 = [&]() {
-            if constexpr(BBlockLdsExtraN)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                    make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
-            }
-        }();
+        constexpr auto a_block_desc_k0_m_k1 = GetABlockDescriptor_K0PerBlock_MPerBlock_K1();
+        constexpr auto b_block_desc_k0_n_k1 = GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
 
         using BlockwiseGemm =
             BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2<BlockSize,
@@ -488,9 +461,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_dpp
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
     }
-
-    // return block_id to C matrix tile idx (m0, n0) mapping
-    using Block2CTileMap = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock>;
 
     template <bool HasMainKBlockLoop,
               typename AGridDesc_K0_M_K1,
