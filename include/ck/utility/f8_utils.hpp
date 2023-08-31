@@ -5,6 +5,7 @@
 
 #include "ck/utility/data_type.hpp"
 
+#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
 namespace ck {
 
 // fp8 rounding modes
@@ -283,3 +284,4 @@ __host__ __device__ Y cast_from_f8(X x)
 }
 
 } // namespace ck::utils
+#endif

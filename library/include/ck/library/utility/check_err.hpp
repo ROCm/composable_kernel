@@ -230,6 +230,7 @@ check_err(const Range& out,
     return res;
 }
 
+#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
 template <typename Range, typename RefRange>
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
                   (std::is_same_v<ranges::range_value_t<Range>, f8_t> ||
@@ -276,6 +277,7 @@ check_err(const Range& out,
     }
     return res;
 }
+#endif
 
 } // namespace utils
 } // namespace ck
