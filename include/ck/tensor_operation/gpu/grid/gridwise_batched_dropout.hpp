@@ -19,7 +19,6 @@ namespace ck {
 template <typename ZDataType,
           typename GemmDataType,
           typename FloatGemmAcc,
-          typename QGridDesc_K0_M_K1,
           typename KGridDesc_N_K,
           typename ZGridDesc_M_N,
           index_t BlockSize,
@@ -203,11 +202,11 @@ struct GridwiseBatchedDropout
 
     template <typename Block2CTileMap>
     __device__ static void Run(ZDataType* __restrict__ p_z_grid,
-                               const QGridDesc_K0_M_K1& q_grid_desc_k0_m_k1,
                                const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3&
                                    z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                                const Block2CTileMap& block_2_ctile_map,
                                ck::philox& ph,
+                               const index_t num_gemm0_m_block_outer_loop,
                                const index_t z_random_matrix_offset,
                                const index_t raw_n_padded)
     {
@@ -218,8 +217,6 @@ struct GridwiseBatchedDropout
         // HACK: this force n_block_data_idx_on_grid into SGPR
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I0] * NPerBlock);
-
-        const index_t num_gemm0_m_block_outer_loop = q_grid_desc_k0_m_k1.GetLength(I1) / MPerBlock;
 
         // S: blockwise gemm
         auto s_blockwise_gemm = typename Gemm0::BlockwiseGemm{};
