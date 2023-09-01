@@ -3,14 +3,14 @@
 
 int run(int argc, char* argv[])
 {
-    using ck::host_common::dumpBufferToFile;
+    // using ck::host_common::dumpBufferToFile;
 
     int init_method = 1;
 
     // GEMM shape for A/B0/B1/C
     // C_g_m_o = A_g_m_k * B0_g_k_n * B1_g_n_o
-    ck::index_t M = 200; // 120
-    ck::index_t N = 200; // 1000
+    ck::index_t M = 1000; // 120
+    ck::index_t N = 1000; // 1000
     ck::index_t K = DIM;
     ck::index_t O = DIM;
 
@@ -225,7 +225,7 @@ int run(int argc, char* argv[])
 
     z_device_buf.FromDevice(z_gs_ms_ns.mData.data());
 
-    dumpBufferToFile("forward_z.dat", z_gs_ms_ns.mData.data(), z_gs_ms_ns.mData.size());
+    // dumpBufferToFile("forward_z.dat", z_gs_ms_ns.mData.data(), z_gs_ms_ns.mData.size());
 
     // do Dropout
     auto dropout_op      = DeviceDropoutInstance();
@@ -245,7 +245,7 @@ int run(int argc, char* argv[])
 
     z_device_buf_2.FromDevice(z_gs_ms_ns_2.mData.data());
 
-    dumpBufferToFile("canonic_z.dat", z_gs_ms_ns_2.mData.data(), z_gs_ms_ns_2.mData.size());
+    // dumpBufferToFile("canonic_z.dat", z_gs_ms_ns_2.mData.data(), z_gs_ms_ns_2.mData.size());
 
     return ck::utils::check_integer_err(z_gs_ms_ns.mData, z_gs_ms_ns_2.mData, 1.0e-5);
 }
