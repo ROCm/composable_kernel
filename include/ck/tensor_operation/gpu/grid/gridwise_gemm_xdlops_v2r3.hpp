@@ -966,11 +966,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext
             }
         }
 
-        if(problem.K % K1 != 0)
-        {
-            return false;
-        }
-
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
