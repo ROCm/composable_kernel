@@ -274,6 +274,7 @@ template <index_t NumDimG,
           index_t KPerBlock, // Gemm0KPerBlock
           index_t Gemm1NPerBlock,
           index_t Gemm1KPerBlock,
+          index_t Gemm2KPerBlock,
           index_t AK1,
           index_t BK1,
           index_t B1K1,
@@ -330,9 +331,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static constexpr index_t V_O1 = 8;
-    static constexpr index_t Y_O1 = 8;
-    static constexpr index_t Y_M1 = 2;
+    static constexpr index_t V_O1 = BK1;
+    static constexpr index_t Y_O1 = AK1;
+    static constexpr index_t Y_M1 = B1K1;
 
     static constexpr auto padder = GemmGemmPadder<GemmSpec,
                                                   Number<MPerBlock>,
@@ -584,7 +585,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
     using AGridDesc_AK0_M_AK1  = decltype(MakeAGridDescriptor_AK0_M_AK1({}, {}));
     using BGridDesc_BK0_N_BK1  = decltype(MakeBGridDescriptor_BK0_N_BK1({}, {}));
     using D0GridDesc_G_M_N     = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
-    using B1GridDesc_BK0_N_BK1 = decltype(MakeB1GridDescriptor_BK0_N_BK1({}, {}));
+    using B1GridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1({}, {}));
     using YGridDesc_M_O        = decltype(Transform::MakeCGridDescriptor_M_N({}, {}));
     using LSEGridDesc_M        = decltype(MakeLSEGridDescriptor_M(1));
     using AGridDesc_G_M_K      = decltype(Transform::MakeAGridDescriptor_G_M_K({}, {}));
@@ -711,6 +712,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         KPerBlock,
         Gemm1NPerBlock,
         Gemm1KPerBlock,
+        Gemm2KPerBlock,
         AK1,
         BK1,
         B1K1,
@@ -809,7 +811,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
               b_grid_desc_bk0_n_bk1_{
                   DeviceOp::MakeBGridDescriptor_BK0_N_BK1(b_gs_ns_ks_lengths, b_gs_ns_ks_strides)},
               z_grid_desc_m_n_{MakeZGridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
-              b1_grid_desc_bk0_n_bk1_{DeviceOp::MakeB1GridDescriptor_BK0_N_BK1(
+              b1_grid_desc_bk0_n_bk1_{DeviceOp::MakeVGridDescriptor_O0_N_O1(
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
               y_grid_desc_m_o_{Transform::MakeCGridDescriptor_M_N(c_gs_ms_gemm1ns_lengths,
                                                                   c_gs_ms_gemm1ns_strides)},
@@ -1144,11 +1146,12 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         // TODO: Check if tensor specialization & strides mismatch
 
         // Check if C permute dimension matches GEMM + GEMM shape
-        const index_t c_g       = arg.c_grid_desc_g_m_n_.GetLength(I0); // unpadded
-        const index_t c_m       = arg.y_grid_desc_m_o_.GetLength(I0);
-        const index_t c_gemm1n  = arg.y_grid_desc_m_o_.GetLength(I1);
-        const index_t a_m       = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
-        const index_t b1_gemm1n = arg.b1_grid_desc_bk0_n_bk1_.GetLength(I1);
+        const index_t c_g      = arg.c_grid_desc_g_m_n_.GetLength(I0); // unpadded
+        const index_t c_m      = arg.y_grid_desc_m_o_.GetLength(I0);
+        const index_t c_gemm1n = arg.y_grid_desc_m_o_.GetLength(I1);
+        const index_t a_m      = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
+        const index_t b1_gemm1n =
+            arg.b1_grid_desc_bk0_n_bk1_.GetLength(I0) * arg.b1_grid_desc_bk0_n_bk1_.GetLength(I2);
 
         if(!(c_g == arg.batch_count_ && c_m == a_m && c_gemm1n == b1_gemm1n))
         {
@@ -1393,6 +1396,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             << MPerBlock << ", "
             << Gemm1NPerBlock << ", "
             << Gemm1KPerBlock << ", "
+            << Gemm2KPerBlock << ", "
             << B1K1 << ", "
             << getGemmSpecializationString(GemmSpec) << ", "
             << "ASpec" << getTensorSpecializationString(ASpec) << ", "

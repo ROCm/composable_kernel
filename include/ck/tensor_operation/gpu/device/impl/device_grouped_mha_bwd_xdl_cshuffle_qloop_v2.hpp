@@ -236,6 +236,7 @@ template <index_t NumDimG,
           index_t KPerBlock, // Gemm0KPerBlock
           index_t Gemm1NPerBlock,
           index_t Gemm1KPerBlock,
+          index_t Gemm2KPerBlock,
           index_t AK1,
           index_t BK1,
           index_t B1K1,
@@ -317,9 +318,9 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static constexpr index_t V_O1 = 8;
-    static constexpr index_t Y_O1 = 8;
-    static constexpr index_t Y_M1 = 2;
+    static constexpr index_t V_O1 = BK1;
+    static constexpr index_t Y_O1 = AK1;
+    static constexpr index_t Y_M1 = B1K1;
 
     static constexpr auto padder = GemmGemmPadder<GemmSpec,
                                                   Number<MPerBlock>,
@@ -441,6 +442,69 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
+
+    //
+    // dP = dY * V^T
+    //
+
+    // YGrad in Gemm A position
+    static auto MakeYGradGridDescriptor_O0_M_O1(const std::vector<index_t>& y_gs_ms_os_lengths,
+                                                const std::vector<index_t>& y_gs_ms_os_strides)
+    {
+        return Transform::MakeAGridDescriptor_AK0_M_AK1(
+            Transform::MakeAGridDescriptor_M_K(y_gs_ms_os_lengths, y_gs_ms_os_strides),
+            Number<Y_O1>{});
+    }
+
+    // V in Gemm B position
+    static auto MakeVGridDescriptor_O0_N_O1(const std::vector<index_t>& v_gs_os_ns_lengths,
+                                            const std::vector<index_t>& v_gs_os_ns_strides)
+    {
+        // v_gs_os_ns -> vgrad_gs_ns_os. O dims last because output is row-major.
+        // Here directly rearrange lengths/strides before constructing tensor descriptor to reduce
+        // transformation overhead
+        // TODO: This will be much easier when inputs are Gs, Ms, Ns, Os. So there's no need to
+        // extract subsequence and shuffle them.
+        const index_t num_dims = NumDimG + NumDimN + NumDimO;
+
+        // 0, 1, .. NumDimG - 1
+        std::vector<index_t> gs_ids(NumDimG);
+        std::iota(gs_ids.begin(), gs_ids.end(), 0);
+
+        // NumDimG, NumDimG + 1, ... NumDimG + NumDimO - 1
+        std::vector<index_t> os_ids(NumDimO);
+        std::iota(os_ids.begin(), os_ids.end(), NumDimG);
+
+        // NumDimG + NumDimO, NumDimG + NumDimO + 1, ... NumDimG + NumDimO + NumDimN - 1
+        std::vector<index_t> ns_ids(NumDimN);
+        std::iota(ns_ids.begin(), ns_ids.end(), NumDimG + NumDimO);
+
+        std::vector<index_t> ids_old2new;
+        ids_old2new.insert(ids_old2new.end(), gs_ids.begin(), gs_ids.end());
+        ids_old2new.insert(ids_old2new.end(), ns_ids.begin(), ns_ids.end());
+        ids_old2new.insert(ids_old2new.end(), os_ids.begin(), os_ids.end());
+
+        std::vector<index_t> v_gs_ns_os_lengths(num_dims), v_gs_ns_os_strides(num_dims);
+        for(int i = 0; i < num_dims; i++)
+        {
+            index_t id_new        = ids_old2new[i];
+            v_gs_ns_os_lengths[i] = v_gs_os_ns_lengths[id_new];
+            v_gs_ns_os_strides[i] = v_gs_os_ns_strides[id_new];
+        }
+
+        const auto v_grid_desc_nraw_oraw =
+            MakeGridDescriptorPair<NumDimG, NumDimN, NumDimO, TensorSpecialization::Default>(
+                v_gs_ns_os_lengths, v_gs_ns_os_strides)
+                .second;
+
+        const auto v_grid_desc_n_o = PadTensorDescriptor(v_grid_desc_nraw_oraw,
+                                                         make_tuple(NPerBlock, Gemm1NPerBlock),
+                                                         Sequence<padder.PadN, padder.PadO>{});
+
+        // N_O to O0_N_O1; to refactor
+        return Transform::MakeB0GridDescriptor_BK0_N_BK1(v_grid_desc_n_o, Number<V_O1>{});
+    }
+
     //
     // dS_i_j = P_i_j .* (dP_i_j - dY_i dot Y_i)
     //
@@ -517,7 +581,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
     using AGridDesc_AK0_M_AK1  = decltype(MakeAGridDescriptor_AK0_M_AK1({}, {}));
     using BGridDesc_BK0_N_BK1  = decltype(MakeBGridDescriptor_BK0_N_BK1({}, {}));
-    using B1GridDesc_BK0_N_BK1 = decltype(MakeB1GridDescriptor_BK0_N_BK1({}, {}));
+    using B1GridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1({}, {}));
     using YGridDesc_M_O        = decltype(Transform::MakeCGridDescriptor_M_N({}, {}));
     using LSEGridDesc_M        = decltype(MakeLSEGridDescriptor_M(1));
     using AGridDesc_G_M_K      = decltype(Transform::MakeAGridDescriptor_G_M_K({}, {}));
@@ -644,6 +708,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         KPerBlock,
         Gemm1NPerBlock,
         Gemm1KPerBlock,
+        Gemm2KPerBlock,
         AK1,
         BK1,
         B1K1,
@@ -849,7 +914,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                     GridwiseGemm::MakeD0GridDescriptor_M0_N0_M1_M2_N1_M3(d0_grid_desc_m_n);
                 const auto z_grid_desc_m_n = DeviceOp::MakeZGridDescriptor_M_N(
                     problem_desc.z_gs_ms_ns_lengths, problem_desc.z_gs_ms_ns_strides);
-                const auto b1_grid_desc_bk0_n_bk1 = DeviceOp::MakeB1GridDescriptor_BK0_N_BK1(
+                const auto b1_grid_desc_bk0_n_bk1 = DeviceOp::MakeVGridDescriptor_O0_N_O1(
                     problem_desc.b1_gs_gemm1ns_gemm1ks_lengths,
                     problem_desc.b1_gs_gemm1ns_gemm1ks_strides);
                 const auto y_grid_desc_m_o = Transform::MakeCGridDescriptor_M_N(
@@ -1129,7 +1194,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             const index_t c_m       = kernel_arg.y_grid_desc_m_o_.GetLength(I0);
             const index_t c_gemm1n  = kernel_arg.y_grid_desc_m_o_.GetLength(I1);
             const index_t a_m       = kernel_arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
-            const index_t b1_gemm1n = kernel_arg.b1_grid_desc_bk0_n_bk1_.GetLength(I1);
+            const index_t b1_gemm1n = kernel_arg.b1_grid_desc_bk0_n_bk1_.GetLength(I0) *
+                                      kernel_arg.b1_grid_desc_bk0_n_bk1_.GetLength(I2);
 
             if(!(c_g == device_arg.batch_count_ && c_m == a_m && c_gemm1n == b1_gemm1n))
             {
@@ -1326,6 +1392,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             << MPerBlock << ", "
             << Gemm1NPerBlock << ", "
             << Gemm1KPerBlock << ", "
+            << Gemm2KPerBlock << ", "
             << B1K1 << ", "
             << getGemmSpecializationString(GemmSpec) << ", "
             << "ASpec" << getTensorSpecializationString(ASpec) << ", "

@@ -880,6 +880,18 @@ struct BlockwiseGemmXdlops_v2
         b_thread_copy_.SetSrcCoord(b_origin);
     }
 
+    template <typename SrcSliceMoveStepIdx>
+    __device__ void MoveABlockSrcSliceWindow(const SrcSliceMoveStepIdx& src_slice_move_step_idx)
+    {
+        a_thread_copy_.MoveSrcSliceWindow(a_block_desc_m0_m1_m2_k, src_slice_move_step_idx);
+    }
+
+    template <typename SrcSliceMoveStepIdx>
+    __device__ void MoveBBlockSrcSliceWindow(const SrcSliceMoveStepIdx& src_slice_move_step_idx)
+    {
+        b_thread_copy_.MoveSrcSliceWindow(b_block_desc_n0_n1_n2_k, src_slice_move_step_idx);
+    }
+
     // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'
     __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4()
     {
