@@ -343,6 +343,10 @@ struct GridwiseBatchedDropout
         auto acc0_thread_origin = s_blockwise_gemm.CalculateCThreadOriginDataIndex8D(
             Number<0>{}, Number<0>{}, Number<0>{}, Number<0>{});
 
+        auto acc0_thread_idx = Acc0TileIterator::GetIndex(I0) + acc0_thread_origin;
+        auto m_local         = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
+        auto n_local         = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
+
         // gemm0 M loop
         index_t gemm0_m_block_outer_index = num_gemm0_m_block_outer_loop - 1;
 
@@ -352,9 +356,6 @@ struct GridwiseBatchedDropout
                 __builtin_amdgcn_readfirstlane(gemm0_m_block_outer_index * MPerBlock);
 
             // save z to global
-            auto acc0_thread_idx = Acc0TileIterator::GetIndex(I0) + acc0_thread_origin;
-            auto m_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
-            auto n_local  = block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
             auto m_global = m_local + m_block_data_idx_on_grid;
             auto n_global = n_local + n_block_data_idx_on_grid;
 

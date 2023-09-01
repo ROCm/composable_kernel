@@ -29,7 +29,7 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 
-#include "ck/library/utility/host_common_util.hpp"
+//#include "ck/library/utility/host_common_util.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -316,17 +316,16 @@ using DeviceDropoutInstance =
                                                        TensorSpecB1,
                                                        TensorSpecC,
                                                        256, // BlockSize
-                                                       128, // MPerBlock
+                                                       64,  // MPerBlock
                                                        128, // NPerBlock
                                                        32,  // KPerBlock
                                                        128, // Gemm1NPerBlock
                                                        8,   // AK1
                                                        8,   // BK1
-                                                       2,   // B1K1
                                                        32,  // MPerXDL
                                                        32,  // NPerXDL
-                                                       1,   // MXdlPerWave
-                                                       4>;  // NXdlPerWave
+                                                       2,   // MXdlPerWave
+                                                       1>;  // NXdlPerWave
 
 #include "run_batched_multihead_attention_bias_forward_zcheck.inc"
 
