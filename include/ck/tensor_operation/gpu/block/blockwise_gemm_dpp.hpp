@@ -29,7 +29,7 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack>
-struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
+struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -127,7 +127,7 @@ struct BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2
         return make_tuple(c_thread_m, c_thread_n);
     }
 
-    __host__ __device__ BlockwiseGemmDpp_k0mk1_k0nk1_m0n0m1n1m2n2()
+    __host__ __device__ BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2()
     {
         static_assert(AK0MK1BlockDesc::IsKnownAtCompileTime() &&
                           BK0NK1BlockDesc::IsKnownAtCompileTime(),

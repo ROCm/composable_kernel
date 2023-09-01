@@ -33,8 +33,9 @@ template <typename ADataType,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
-          ck::index_t K0PerBlock,
-          ck::index_t K1,
+          ck::index_t KPerBlock,
+          ck::index_t AK1,
+          ck::index_t BK1,
           ck::index_t MPerDpp,
           ck::index_t NPerDpp,
           ck::index_t MDppPerWave,
@@ -67,7 +68,7 @@ struct DeviceGemmDpp : public DeviceGemm<ALayout,
                                          BElementwiseOperation,
                                          CElementwiseOperation>
 {
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_dpp<
+    using GridwiseGemm = GridwiseGemm_ak0mak1_bk0nbk1_mn_dpp<
         BlockSize,
         ADataType,
         AccDataType,
@@ -82,10 +83,11 @@ struct DeviceGemmDpp : public DeviceGemm<ALayout,
         GemmSpec,
         MPerBlock,
         NPerBlock,
-        K0PerBlock,
+        KPerBlock,
         MPerDpp,
         NPerDpp,
-        K1,
+        AK1,
+        BK1,
         MDppPerWave,
         NDppPerWave,
         ABlockTransferThreadClusterLengths_K0_M_K1,
@@ -242,8 +244,9 @@ struct DeviceGemmDpp : public DeviceGemm<ALayout,
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock << ", "
-            << K1 << ", "
+            << KPerBlock << ", "
+            << AK1 << ", "
+            << BK1 << ", "
             << MPerDpp << ", "
             << NPerDpp << ", "
             << MDppPerWave << ", "
