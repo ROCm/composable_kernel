@@ -234,9 +234,9 @@ int run(int argc, char* argv[])
     auto dropout_arg =
         dropout_op.MakeArgument(static_cast<ZDataType*>(z_device_buf_2.GetDeviceBuffer()),
                                 a_gs_ms_ks_lengths,
-                                a_gs_ms_ks_strides,
+                                {0, 0, 0, 0},
                                 b0_gs_ns_ks_lengths,
-                                b0_gs_ns_ks_strides,
+                                {0, 0, 0, 0},
                                 z_gs_ms_ns_lengths,
                                 z_gs_ms_ns_strides,
                                 {seed, offset});

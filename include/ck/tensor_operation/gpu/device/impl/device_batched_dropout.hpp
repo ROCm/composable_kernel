@@ -27,7 +27,6 @@ namespace device {
 
 template <typename GridwiseDropout_,
           typename ZDataType,
-          typename AGridDesc_AK0_M_AK1,
           typename ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3,
           typename Block2CTileMap,
           typename ComputeBasePtrOfStridedBatch>
@@ -36,10 +35,10 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
         kernel_batched_dropout(ZDataType* __restrict__ p_z_grid,
-                               const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
                                const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3
                                    c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                                const Block2CTileMap block_2_ctile_map,
+                               const index_t num_gemm0_m_block_outer_loop,
                                const index_t batch_count,
                                const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
                                const unsigned long long seed,
@@ -62,10 +61,10 @@ __global__ void
     const index_t z_random_matrix_offset = g_idx * raw_m_padded * raw_n_padded;
 
     GridwiseDropout_::Run(z_matrix_ptr,
-                          a_grid_desc_ak0_m_ak1,
                           c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                           block_2_ctile_map,
                           ph,
+                          num_gemm0_m_block_outer_loop,
                           z_random_matrix_offset,
                           raw_n_padded);
 #else
@@ -156,8 +155,7 @@ struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
         return Transform::MakeCGridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
     }
 
-    using AGridDesc_AK0_M_AK1 = decltype(MakeAGridDescriptor_AK0_M_AK1({}, {}));
-    using ZGridDesc_G_M_N     = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
+    using ZGridDesc_G_M_N = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
 
     using KGridDesc_N_K = decltype(Transform::MakeB0GridDescriptor_N_K({}, {}));
     using ZGridDesc_M_N = decltype(MakeZGridDescriptor_M_N({}, {}));
@@ -182,7 +180,6 @@ struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
     using GridwiseDropout = GridwiseBatchedDropout<ZDataType,
                                                    GemmDataType,
                                                    GemmAccDataType,
-                                                   AGridDesc_AK0_M_AK1,
                                                    KGridDesc_N_K,
                                                    ZGridDesc_M_N,
                                                    BlockSize,
@@ -209,8 +206,6 @@ struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
                  const std::vector<index_t>& z_gs_ms_ns_strides,
                  std::tuple<unsigned long long, unsigned long long> seeds)
             : p_z_grid_{p_z_grid},
-              a_grid_desc_ak0_m_ak1_{
-                  DeviceOp::MakeAGridDescriptor_AK0_M_AK1(a_gs_ms_ks_lengths, a_gs_ms_ks_strides)},
               z_grid_desc_m_n_{MakeZGridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
               k_grid_desc_n_k_{
                   Transform::MakeB0GridDescriptor_N_K(b_gs_ns_ks_lengths, b_gs_ns_ks_strides)},
@@ -233,6 +228,11 @@ struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
                     z_grid_desc_m_n_);
             // Print();
 
+            auto a_grid_desc_k0_m_k1 =
+                DeviceOp::MakeAGridDescriptor_AK0_M_AK1(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
+
+            num_gemm0_m_block_outer_loop_ = a_grid_desc_k0_m_k1.GetLength(I1) / MPerBlock;
+
             m_raw_padded_ = GridwiseDropout::GetPaddedSize(raw_lengths_mz_nz_kz_gemm1nz_[0]);
             n_raw_padded_ = GridwiseDropout::GetPaddedSize(raw_lengths_mz_nz_kz_gemm1nz_[1]);
         }
@@ -241,7 +241,6 @@ struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
         ZDataType* p_z_grid_;
 
         // tensor descriptor
-        AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         ZGridDesc_M_N z_grid_desc_m_n_;
         KGridDesc_N_K k_grid_desc_n_k_;
 
@@ -256,6 +255,8 @@ struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
 
         // For robust IsSupportedArgument() check
         std::vector<index_t> raw_lengths_mz_nz_kz_gemm1nz_;
+
+        index_t num_gemm0_m_block_outer_loop_;
 
         index_t batch_count_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
@@ -288,7 +289,6 @@ struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
                 const auto kernel = kernel_batched_dropout<
                     GridwiseDropout,
                     ZDataType,
-                    DeviceOp::AGridDesc_AK0_M_AK1,
                     typename GridwiseDropout::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3,
                     typename GridwiseDropout::DefaultBlock2CTileMap,
                     ComputeBasePtrOfStridedBatch>;
@@ -299,9 +299,9 @@ struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
                                               dim3(BlockSize),
                                               0,
                                               arg.p_z_grid_,
-                                              arg.a_grid_desc_ak0_m_ak1_,
                                               arg.z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_,
                                               arg.block_2_ctile_map_,
+                                              arg.num_gemm0_m_block_outer_loop_,
                                               arg.batch_count_,
                                               arg.compute_base_ptr_of_batch_,
                                               arg.seed_,
