@@ -301,31 +301,25 @@ using DeviceGemmInstance =
         Deterministic>;
 #endif
 
-using DeviceDropoutInstance =
-    ck::tensor_operation::device::DeviceBatchedDropout<NumDimG,
-                                                       NumDimM,
-                                                       NumDimN,
-                                                       NumDimK,
-                                                       NumDimO,
-                                                       GemmDataType,
-                                                       ZDataType,
-                                                       GemmDataType,
-                                                       GemmSpec,
-                                                       TensorSpecA,
-                                                       TensorSpecB0,
-                                                       TensorSpecB1,
-                                                       TensorSpecC,
-                                                       256, // BlockSize
-                                                       64,  // MPerBlock
-                                                       128, // NPerBlock
-                                                       32,  // KPerBlock
-                                                       128, // Gemm1NPerBlock
-                                                       8,   // AK1
-                                                       8,   // BK1
-                                                       32,  // MPerXDL
-                                                       32,  // NPerXDL
-                                                       2,   // MXdlPerWave
-                                                       1>;  // NXdlPerWave
+using DeviceDropoutInstance = ck::tensor_operation::device::DeviceBatchedDropout<NumDimG,
+                                                                                 GemmDataType,
+                                                                                 ZDataType,
+                                                                                 GemmDataType,
+                                                                                 GemmSpec,
+                                                                                 TensorSpecA,
+                                                                                 TensorSpecB0,
+                                                                                 TensorSpecB1,
+                                                                                 TensorSpecC,
+                                                                                 256, // BlockSize
+                                                                                 64,  // MPerBlock
+                                                                                 128, // NPerBlock
+                                                                                 32,  // KPerBlock
+                                                                                 8,   // AK1
+                                                                                 8,   // BK1
+                                                                                 32,  // MPerXDL
+                                                                                 32,  // NPerXDL
+                                                                                 2,   // MXdlPerWave
+                                                                                 1>;  // NXdlPerWave
 
 #include "run_batched_multihead_attention_bias_forward_zcheck.inc"
 
