@@ -518,9 +518,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         return Transform::MakeB0GridDescriptor_BK0_N_BK1(v_grid_desc_n_o, Number<V_O1>{});
     }
 
-    // D in Gemm0 C position
-    static auto MakeDGridDescriptor_M_N(const std::vector<index_t>& d_gs_ms_ns_lengths,
-                                        const std::vector<index_t>& d_gs_ms_ns_strides)
+    // D0 in Gemm0 C position
+    static auto MakeD0GridDescriptor_M_N(const std::vector<index_t>& d_gs_ms_ns_lengths,
+                                         const std::vector<index_t>& d_gs_ms_ns_strides)
     {
         return Transform::MakeCGridDescriptor_M_N(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
     }
@@ -594,7 +594,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
     using CGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
     using ZGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
 
-    using D0GridDesc_M_N        = decltype(MakeDGridDescriptor_M_N({}, {}));
+    using D0GridDesc_M_N        = decltype(MakeD0GridDescriptor_M_N({}, {}));
     using KGridDesc_N_K         = decltype(Transform::MakeB0GridDescriptor_N_K({}, {}));
     using YGradGridDesc_M0_O_M1 = decltype(MakeYGradGridDescriptor_M0_O_M1(YGridDesc_M_O{}));
     using ZGridDesc_M_N         = decltype(MakeZGridDescriptor_M_N({}, {}));
@@ -870,8 +870,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
             if constexpr(!is_same<D0DataType, void>::value)
             {
-                const auto d0_grid_desc_m_n =
-                    MakeDGridDescriptor_M_N(acc0_bias_gs_ms_ns_lengths, acc0_bias_gs_ms_ns_strides);
+                const auto d0_grid_desc_m_n = MakeD0GridDescriptor_M_N(acc0_bias_gs_ms_ns_lengths,
+                                                                       acc0_bias_gs_ms_ns_strides);
                 d0_grid_desc_m0_n0_m1_m2_n1_m3_ =
                     GridwiseGemm::MakeD0GridDescriptor_M0_N0_M1_M2_N1_M3(d0_grid_desc_m_n);
 

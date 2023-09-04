@@ -498,7 +498,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             return lse_grid_desc_mraw;
         }
     }
-    // D in Gemm0 C position
+    // D0 in Gemm0 C position
     static auto MakeD0GridDescriptor_M_N(const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_lengths,
                                          const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_strides)
     {
