@@ -33,7 +33,7 @@ template <index_t MPerThread,
           class BVecDataType,
           class CVecDataType,
           bool ShareA>
-struct DppInstrRunner
+struct DppLanegroupGemm
 {
     using datatypes_conf = dpp_datatypes<BaseInputType>;
     using ADataType      = typename datatypes_conf::a_dtype;

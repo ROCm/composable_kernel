@@ -59,14 +59,14 @@ struct dpp_type<DppInstr::dpp8_f16_32x8x2>
     template <index_t MPerDpp, index_t NPerDpp, class ADataType, class BDataType, class CDataType>
     __device__ void run(const ADataType& a, const BDataType& b, CDataType& reg_c) const
     {
-        dpp8::DppInstrRunner<m_per_thread,
-                             n_per_thread,
-                             k_per_dpp,
-                             BaseType,
-                             ADataType,
-                             BDataType,
-                             CDataType,
-                             share_a>{}
+        dpp8::DppLanegroupGemm<m_per_thread,
+                               n_per_thread,
+                               k_per_dpp,
+                               BaseType,
+                               ADataType,
+                               BDataType,
+                               CDataType,
+                               share_a>{}
             .Run(a, b, reg_c);
     }
 };
@@ -89,14 +89,14 @@ struct dpp_type<DppInstr::dpp8_f16_8x32x2>
     template <index_t MPerDpp, index_t NPerDpp, class ADataType, class BDataType, class CDataType>
     __device__ void run(const ADataType& a, const BDataType& b, CDataType& reg_c) const
     {
-        dpp8::DppInstrRunner<m_per_thread,
-                             n_per_thread,
-                             k_per_dpp,
-                             BaseType,
-                             ADataType,
-                             BDataType,
-                             CDataType,
-                             share_a>{}
+        dpp8::DppLanegroupGemm<m_per_thread,
+                               n_per_thread,
+                               k_per_dpp,
+                               BaseType,
+                               ADataType,
+                               BDataType,
+                               CDataType,
+                               share_a>{}
             .Run(a, b, reg_c);
     }
 };
@@ -119,14 +119,14 @@ struct dpp_type<DppInstr::dpp8_f16_16x16x2>
     template <index_t MPerDpp, index_t NPerDpp, class ADataType, class BDataType, class CDataType>
     __device__ void run(const ADataType& a, const BDataType& b, CDataType& reg_c) const
     {
-        dpp8::DppInstrRunner<m_per_thread,
-                             n_per_thread,
-                             k_per_dpp,
-                             BaseType,
-                             ADataType,
-                             BDataType,
-                             CDataType,
-                             share_a>{}
+        dpp8::DppLanegroupGemm<m_per_thread,
+                               n_per_thread,
+                               k_per_dpp,
+                               BaseType,
+                               ADataType,
+                               BDataType,
+                               CDataType,
+                               share_a>{}
             .Run(a, b, reg_c);
     }
 };
