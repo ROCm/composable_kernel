@@ -1191,56 +1191,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
             KPack>;
     };
 
-    struct SharedMemTrait
-    {
-        // // LDS allocation for A and B: be careful of alignment
-        static constexpr auto q_block_desc_k0_m_k1 =
-            GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
-        static constexpr auto k_block_desc_k0_n_k1 =
-            GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
-        static constexpr auto ygrad_block_desc_k0_m_k1 =
-            GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
-        static constexpr auto p_slash_sgrad_block_desc_k0_m_k1 =
-            GetA2BlockDescriptor_K0_M_K1<Gemm2Params>();
-
-        static constexpr auto max_lds_align = Number<16 / sizeof(GemmDataType)>{};
-
-        static constexpr auto q_block_space_size_aligned =
-            math::integer_least_multiple(q_block_desc_k0_m_k1.GetElementSpaceSize(), max_lds_align);
-        static constexpr auto k_block_space_size_aligned =
-            math::integer_least_multiple(k_block_desc_k0_n_k1.GetElementSpaceSize(), max_lds_align);
-        static constexpr auto ygrad_block_space_size_aligned = math::integer_least_multiple(
-            ygrad_block_desc_k0_m_k1.GetElementSpaceSize(), max_lds_align);
-        static constexpr auto p_slash_sgrad_block_space_size_aligned = math::integer_least_multiple(
-            p_slash_sgrad_block_desc_k0_m_k1.GetElementSpaceSize(), max_lds_align);
-
-        static constexpr auto k_block_space_offset     = 0;
-        static constexpr auto ygrad_block_space_offset = k_block_space_size_aligned.value;
-        static constexpr auto q_block_space_offset =
-            k_block_space_size_aligned.value + ygrad_block_space_size_aligned.value;
-        static constexpr auto p_slash_sgrad_block_space_offset =
-            k_block_space_size_aligned.value + ygrad_block_space_size_aligned.value +
-            q_block_space_size_aligned.value;
-
-        // LDS allocation for C shuffle in LDS
-        static constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
-            GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
-        static constexpr auto c_block_space_size =
-            c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
-    };
-
-    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
-    {
-        const index_t p_slash_sgrad_bytes_end =
-            (SharedMemTrait::p_slash_sgrad_block_space_offset +
-             SharedMemTrait::p_slash_sgrad_block_space_size_aligned) *
-            sizeof(GemmDataType);
-        const index_t c_block_bytes_end =
-            SharedMemTrait::c_block_space_size * sizeof(FloatCShuffle);
-
-        return math::max(p_slash_sgrad_bytes_end, c_block_bytes_end);
-    }
-
     // D0
     static constexpr auto D0M2 = Number<4>{};
     static constexpr auto D0M1 = Number<MPerXdl>{} / D0M2;
@@ -1273,12 +1223,16 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
         template <typename DataType>
         struct TypeTransform
         {
-            using Type = DataType;
+            using Type                     = DataType;
+            static constexpr index_t Size0 = sizeof(DataType);
+            static constexpr index_t Size  = sizeof(DataType);
         };
         template <>
         struct TypeTransform<void>
         {
-            using Type = ck::half_t;
+            using Type                     = ck::half_t;
+            static constexpr index_t Size0 = 0;
+            static constexpr index_t Size  = sizeof(ck::half_t);
         };
         static constexpr index_t NThreadClusterLengths = MPerXdl;
         static_assert(MPerXdl <= KPerBlock);
@@ -1353,6 +1307,66 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                                              2,                       // SrcScalarPerVector
                                              2>;
     };
+
+    struct SharedMemTrait
+    {
+        // // LDS allocation for A and B: be careful of alignment
+        static constexpr auto q_block_desc_k0_m_k1 =
+            GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
+        static constexpr auto k_block_desc_k0_n_k1 =
+            GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
+        static constexpr auto ygrad_block_desc_k0_m_k1 =
+            GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
+        static constexpr auto p_slash_sgrad_block_desc_k0_m_k1 =
+            GetA2BlockDescriptor_K0_M_K1<Gemm2Params>();
+
+        static constexpr auto max_lds_align = Number<16 / sizeof(GemmDataType)>{};
+
+        static constexpr auto q_block_space_size_aligned =
+            math::integer_least_multiple(q_block_desc_k0_m_k1.GetElementSpaceSize(), max_lds_align);
+        static constexpr auto k_block_space_size_aligned =
+            math::integer_least_multiple(k_block_desc_k0_n_k1.GetElementSpaceSize(), max_lds_align);
+        static constexpr auto ygrad_block_space_size_aligned = math::integer_least_multiple(
+            ygrad_block_desc_k0_m_k1.GetElementSpaceSize(), max_lds_align);
+        static constexpr auto p_slash_sgrad_block_space_size_aligned = math::integer_least_multiple(
+            p_slash_sgrad_block_desc_k0_m_k1.GetElementSpaceSize(), max_lds_align);
+
+        static constexpr auto k_block_space_offset     = 0;
+        static constexpr auto ygrad_block_space_offset = k_block_space_size_aligned.value;
+        static constexpr auto q_block_space_offset =
+            k_block_space_size_aligned.value + ygrad_block_space_size_aligned.value;
+        static constexpr auto p_slash_sgrad_block_space_offset =
+            k_block_space_size_aligned.value + ygrad_block_space_size_aligned.value +
+            q_block_space_size_aligned.value;
+
+        static constexpr auto d0_block_space_size_aligned = math::integer_least_multiple(
+            D0Loader::d0_block_write_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize(), max_lds_align);
+        static constexpr auto d0_block_space_offset =
+            (k_block_space_size_aligned.value + ygrad_block_space_size_aligned.value +
+             q_block_space_size_aligned.value) *
+            sizeof(GemmDataType) / D0Loader::template TypeTransform<D0DataType>::Size;
+
+        // LDS allocation for C shuffle in LDS
+        static constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
+            GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
+        static constexpr auto c_block_space_size =
+            c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
+    };
+
+    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
+    {
+        const index_t p_slash_sgrad_bytes_end =
+            (SharedMemTrait::p_slash_sgrad_block_space_offset +
+             SharedMemTrait::p_slash_sgrad_block_space_size_aligned) *
+            sizeof(GemmDataType);
+        const index_t d0_bytes_end =
+            (SharedMemTrait::d0_block_space_offset + SharedMemTrait::d0_block_space_size_aligned) *
+            D0Loader::template TypeTransform<D0DataType>::Size0;
+        const index_t c_block_bytes_end =
+            SharedMemTrait::c_block_space_size * sizeof(FloatCShuffle);
+
+        return math::max(p_slash_sgrad_bytes_end, d0_bytes_end, c_block_bytes_end);
+    }
 
     template <bool HasMainKBlockLoop,
               bool IsDropout,
@@ -1987,8 +2001,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                     p_d0_grid, d0_grid_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize());
 
                 auto d0_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                    static_cast<D0DataType*>(p_shared) +
-                        SharedMemTrait::p_slash_sgrad_block_space_offset,
+                    static_cast<D0DataType*>(p_shared) + SharedMemTrait::d0_block_space_offset,
                     D0Loader::d0_block_write_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize());
 
                 auto d0_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, D0DataType>(
@@ -2022,10 +2035,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                             ck::type_convert<FloatGemmAcc>(d0_thread_buf[i]);
                     });
                 });
-
-                // load k
-                gemm_tile_k_blockwise_copy.RunWrite(GemmBlockwiseCopy::k_block_desc_k0_n_k1,
-                                                    k_block_buf);
 
                 d0_block_copy_global_to_lds.MoveSrcSliceWindow(
                     d0_grid_desc_m0_n0_m1_m2_n1_m3, make_multi_index(-1, 0, -D0M0.value, 0, 0, 0));
