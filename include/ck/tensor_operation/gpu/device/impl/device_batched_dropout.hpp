@@ -85,10 +85,6 @@ __global__ void
 //              ^^^^^^ (Acc0)
 //              ^^^^^^^^^^^ (Acc1)
 template <index_t NumDimG,
-          index_t NumDimM,
-          index_t NumDimN,
-          index_t NumDimK,
-          index_t NumDimO, // NumDimGemm1N
           typename GemmDataType,
           typename ZDataType,
           typename GemmAccDataType,
@@ -101,7 +97,6 @@ template <index_t NumDimG,
           index_t MPerBlock,
           index_t NPerBlock, // Gemm0NPerBlock
           index_t KPerBlock, // Gemm0KPerBlock
-          index_t Gemm1NPerBlock,
           index_t AK1,
           index_t BK1,
           index_t MPerXDL,
@@ -110,17 +105,18 @@ template <index_t NumDimG,
           index_t NXdlPerWave>
 struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
 {
-    static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
-                  "Number of dimension must be greater than 0");
+    static_assert(NumDimG > 0, "Number of dimension must be greater than 0");
 
     using DeviceOp = DeviceBatchedDropout;
+
+    static constexpr index_t Gemm1NPerBlock = 128;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
     using Transform = TransformBatchedContractionContractionToBatchedGemmGemm<
-        Sequence<NumDimG, NumDimM, NumDimN, NumDimK, NumDimO>,
+        Sequence<NumDimG, 1, 1, 1, 1>, // NumDimM, NumDimN, NumDimK, NumDimO
         Sequence<MPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock>,
         GemmSpec,
         ASpec,
@@ -128,31 +124,19 @@ struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
         B1Spec,
         CSpec>;
 
-    /*
-    Descriptors for inputs:
-
-      Q, K, V, Y, dY, per-row softmax stats
-
-    Descriptors for outputs:
-
-      dQ, dK, dV
-
-    */
-
     // Q in Gemm A position
-    static auto MakeAGridDescriptor_AK0_M_AK1(const std::vector<index_t>& a_gs_ms_ks_lengths,
-                                              const std::vector<index_t>& a_gs_ms_ks_strides)
+    static auto MakeAGridDescriptor_AK0_M_AK1(const std::vector<index_t>& a_gs_m_k_lengths,
+                                              const std::vector<index_t>& a_gs_m_k_strides)
     {
         return Transform::MakeAGridDescriptor_AK0_M_AK1(
-            Transform::MakeAGridDescriptor_M_K(a_gs_ms_ks_lengths, a_gs_ms_ks_strides),
-            Number<AK1>{});
+            Transform::MakeAGridDescriptor_M_K(a_gs_m_k_lengths, a_gs_m_k_strides), Number<AK1>{});
     }
 
     // Z in Gemm0 C position
-    static auto MakeZGridDescriptor_M_N(const std::vector<index_t>& z_gs_ms_ns_lengths,
-                                        const std::vector<index_t>& z_gs_ms_ns_strides)
+    static auto MakeZGridDescriptor_M_N(const std::vector<index_t>& z_gs_m_n_lengths,
+                                        const std::vector<index_t>& z_gs_m_n_strides)
     {
-        return Transform::MakeCGridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
+        return Transform::MakeCGridDescriptor_M_N(z_gs_m_n_lengths, z_gs_m_n_strides);
     }
 
     using ZGridDesc_G_M_N = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
@@ -198,23 +182,18 @@ struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
     struct Argument : public BaseArgument
     {
         Argument(ZDataType* p_z_grid,
-                 const std::vector<index_t>& a_gs_ms_ks_lengths,
-                 const std::vector<index_t>& a_gs_ms_ks_strides,
-                 const std::vector<index_t>& b_gs_ns_ks_lengths,
-                 const std::vector<index_t>& b_gs_ns_ks_strides,
-                 const std::vector<index_t>& z_gs_ms_ns_lengths,
-                 const std::vector<index_t>& z_gs_ms_ns_strides,
+                 const std::vector<index_t>& b_gs_n_k_lengths,
+                 const std::vector<index_t>& b_gs_n_k_strides,
+                 const std::vector<index_t>& z_gs_m_n_lengths,
+                 const std::vector<index_t>& z_gs_m_n_strides,
                  std::tuple<unsigned long long, unsigned long long> seeds)
             : p_z_grid_{p_z_grid},
-              z_grid_desc_m_n_{MakeZGridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
+              z_grid_desc_m_n_{MakeZGridDescriptor_M_N(z_gs_m_n_lengths, z_gs_m_n_strides)},
               k_grid_desc_n_k_{
-                  Transform::MakeB0GridDescriptor_N_K(b_gs_ns_ks_lengths, b_gs_ns_ks_strides)},
+                  Transform::MakeB0GridDescriptor_N_K(b_gs_n_k_lengths, b_gs_n_k_strides)},
               z_grid_desc_g_m_n_{
-                  Transform::MakeCGridDescriptor_G_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
+                  Transform::MakeCGridDescriptor_G_M_N(z_gs_m_n_lengths, z_gs_m_n_strides)},
               block_2_ctile_map_{GridwiseDropout::MakeDefaultBlock2CTileMap(k_grid_desc_n_k_)},
-              raw_lengths_mz_nz_kz_gemm1nz_{a_gs_ms_ks_lengths[NumDimG + NumDimM - 1],
-                                            b_gs_ns_ks_lengths[NumDimG + NumDimN - 1],
-                                            b_gs_ns_ks_lengths[NumDimG + NumDimN + NumDimK - 1]},
               batch_count_{z_grid_desc_g_m_n_.GetLength(I0)}
         {
 
@@ -226,15 +205,22 @@ struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
             z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_ =
                 GridwiseDropout::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3(
                     z_grid_desc_m_n_);
-            // Print();
+
+            auto m_raw = z_gs_m_n_lengths[NumDimG];
+            auto n_raw = z_gs_m_n_lengths[NumDimG + 1];
+
+            m_raw_padded_ = GridwiseDropout::GetPaddedSize(m_raw);
+            n_raw_padded_ = GridwiseDropout::GetPaddedSize(n_raw);
+
+            std::vector<index_t> a_gs_m_k_strides(NumDimG + 2, 0);
+            std::vector<index_t> a_gs_m_k_lengths = z_gs_m_n_lengths;
+
+            a_gs_m_k_lengths[NumDimG + 1] = 1;
 
             auto a_grid_desc_k0_m_k1 =
-                DeviceOp::MakeAGridDescriptor_AK0_M_AK1(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
+                DeviceOp::MakeAGridDescriptor_AK0_M_AK1(a_gs_m_k_lengths, a_gs_m_k_strides);
 
             num_gemm0_m_block_outer_loop_ = a_grid_desc_k0_m_k1.GetLength(I1) / MPerBlock;
-
-            m_raw_padded_ = GridwiseDropout::GetPaddedSize(raw_lengths_mz_nz_kz_gemm1nz_[0]);
-            n_raw_padded_ = GridwiseDropout::GetPaddedSize(raw_lengths_mz_nz_kz_gemm1nz_[1]);
         }
 
         // pointers
@@ -252,9 +238,6 @@ struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
 
         // block-to-c-tile map
         typename GridwiseDropout::DefaultBlock2CTileMap block_2_ctile_map_;
-
-        // For robust IsSupportedArgument() check
-        std::vector<index_t> raw_lengths_mz_nz_kz_gemm1nz_;
 
         index_t num_gemm0_m_block_outer_loop_;
 
@@ -348,45 +331,39 @@ struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
     }
 
     static auto MakeArgument(ZDataType* p_z,
-                             const std::vector<index_t>& a_gs_ms_ks_lengths,
-                             const std::vector<index_t>& a_gs_ms_ks_strides,
-                             const std::vector<index_t>& b_gs_ns_ks_lengths,
-                             const std::vector<index_t>& b_gs_ns_ks_strides,
-                             const std::vector<index_t>& z_gs_ms_ns_lengths,
-                             const std::vector<index_t>& z_gs_ms_ns_strides,
+                             const std::vector<index_t>& z_gs_m_n_lengths,
+                             const std::vector<index_t>& z_gs_m_n_strides,
                              std::tuple<unsigned long long, unsigned long long> seeds)
     {
-        return Argument{p_z,
-                        a_gs_ms_ks_lengths,
-                        a_gs_ms_ks_strides,
-                        b_gs_ns_ks_lengths,
-                        b_gs_ns_ks_strides,
-                        z_gs_ms_ns_lengths,
-                        z_gs_ms_ns_strides,
-                        seeds};
+        std::vector<index_t> b_gs_n_k_strides(NumDimG + 2, 0);
+        std::vector<index_t> b_gs_n_k_lengths = z_gs_m_n_lengths;
+
+        b_gs_n_k_lengths[NumDimG]     = z_gs_m_n_lengths[NumDimG + 1];
+        b_gs_n_k_lengths[NumDimG + 1] = 1;
+
+        return Argument{
+            p_z, b_gs_n_k_lengths, b_gs_n_k_strides, z_gs_m_n_lengths, z_gs_m_n_strides, seeds};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
 
-    // polymorphic
-    // FIXME: constness
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(void* p_z,
-                        const std::vector<index_t>& a_gs_ms_ks_lengths,
-                        const std::vector<index_t>& a_gs_ms_ks_strides,
-                        const std::vector<index_t>& b_gs_ns_ks_lengths,
-                        const std::vector<index_t>& b_gs_ns_ks_strides,
-                        const std::vector<index_t>& z_gs_ms_ns_lengths,
-                        const std::vector<index_t>& z_gs_ms_ns_strides,
+                        const std::vector<index_t>& z_gs_m_n_lengths,
+                        const std::vector<index_t>& z_gs_m_n_strides,
                         std::tuple<unsigned long long, unsigned long long> seeds) // override
     {
+        std::vector<index_t> b_gs_n_k_strides(NumDimG + 2, 0);
+        std::vector<index_t> b_gs_n_k_lengths = z_gs_m_n_lengths;
+
+        b_gs_n_k_lengths[NumDimG]     = z_gs_m_n_lengths[NumDimG + 1];
+        b_gs_n_k_lengths[NumDimG + 1] = 1;
+
         return std::make_unique<Argument>(static_cast<ZDataType*>(p_z),
-                                          a_gs_ms_ks_lengths,
-                                          a_gs_ms_ks_strides,
-                                          b_gs_ns_ks_lengths,
-                                          b_gs_ns_ks_strides,
-                                          z_gs_ms_ns_lengths,
-                                          z_gs_ms_ns_strides,
+                                          b_gs_n_k_lengths,
+                                          b_gs_n_k_strides,
+                                          z_gs_m_n_lengths,
+                                          z_gs_m_n_strides,
                                           seeds);
     }
 
