@@ -35,10 +35,10 @@ template <index_t MPerThread,
           bool ShareA>
 struct DppInstrRunner
 {
-    static constexpr auto datatypes_conf = dpp_datatypes<BaseInputType>{};
-    using ADataType                      = typename decltype(datatypes_conf)::a_dtype;
-    using BDataType                      = typename decltype(datatypes_conf)::b_dtype;
-    using CDataType                      = typename decltype(datatypes_conf)::c_dtype;
+    using datatypes_conf = dpp_datatypes<BaseInputType>;
+    using ADataType      = typename datatypes_conf::a_dtype;
+    using BDataType      = typename datatypes_conf::b_dtype;
+    using CDataType      = typename datatypes_conf::c_dtype;
 
     __device__ void Run(const AVecDataType& a_vec, const BVecDataType& b_vec, CVecDataType& c_vec)
     {
@@ -51,7 +51,7 @@ struct DppInstrRunner
             float c = c_vec.template AsType<CDataType>()(c_idx);
             // Next `c_idx` implies that we need to pull data from the next lane.
             constexpr index_t source_lane = c_idx;
-            static_for<0, KPerThread / datatypes_conf.k_per_instr, 1>{}([&](auto k_chunk) {
+            static_for<0, KPerThread / datatypes_conf::k_per_instr, 1>{}([&](auto k_chunk) {
                 const auto a_k_vec = a_vector.template AsType<AVecDataType>()[k_chunk];
                 const auto b_k_vec = b_vector.template AsType<BVecDataType>()[k_chunk];
                 ck::dpp8::
