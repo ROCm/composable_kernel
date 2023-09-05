@@ -151,8 +151,9 @@ struct DeviceImageToColumnImpl
         remove_cvref_t<decltype(MakeInputDescriptor_M_K(1, 1, {}, {}, {}, {}, {}, {}, {}, {}))>;
     using OutputGridDesc = remove_cvref_t<decltype(MakeOutDescriptor_M_K(1, 1, {}, {}, {}))>;
 
-    using Block2ETileMap = remove_cvref_t<decltype(
-        BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, KPerBlock, OutputGridDesc>(OutputGridDesc{}))>;
+    using Block2ETileMap = remove_cvref_t<
+        decltype(BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, KPerBlock, OutputGridDesc>(
+            OutputGridDesc{}))>;
 
     using GridwiseImageToColumnKernel = GridwiseImageToColumn<InputGridDesc,
                                                               InputDataType,
