@@ -268,6 +268,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
+        static_assert(KPerBlock % AK1Value == 0 && KPerBlock % BK1Value == 0,
+                      "KPerBlock must be divisible by AK1Value and BK1Value!");
 
         const auto M  = a_grid_desc_m_k.GetLength(I0);
         const auto N  = b_grid_desc_n_k.GetLength(I0);
