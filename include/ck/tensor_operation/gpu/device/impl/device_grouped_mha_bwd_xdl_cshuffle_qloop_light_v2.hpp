@@ -32,7 +32,9 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, /*CK_MIN_BLOCK_PER_CU*/ 1)
 #endif
         kernel_grouped_multihead_attention_backward_ydotygrad_v2(
-            const void CK_CONSTANT_ADDRESS_SPACE* group_kernel_args, const index_t group_count)
+            const void CK_CONSTANT_ADDRESS_SPACE* group_kernel_args,
+            const index_t group_count,
+            const float p_dropout)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
@@ -73,10 +75,12 @@ __global__ void
                       arg_ptr[group_id].p_d_grid_ + d_batch_offset,
                       arg_ptr[group_id].d_y_grid_desc_mblock_mperblock_nblock_nperblock_,
                       arg_ptr[group_id].d_grid_desc_m_,
-                      arg_ptr[group_id].d_block_2_ctile_map_);
+                      arg_ptr[group_id].d_block_2_ctile_map_,
+                      p_dropout);
 #else
     ignore = group_kernel_args;
     ignore = group_count;
+    ignore = p_dropout;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -1244,7 +1248,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
                         dim3(BlockSize),
                         0,
                         cast_pointer_to_constant_address_space(arg.p_workspace_),
-                        arg.group_count_);
+                        arg.group_count_,
+                        arg.p_dropout_);
                 };
                 ave_time = launch_kernel();
             }

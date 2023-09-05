@@ -46,7 +46,8 @@ __global__ void
             const DGridDescriptor_M d_grid_desc_m,
             const Block2CTileMap block_2_ctile_map,
             const index_t batch_count,
-            const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch)
+            const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
+            const float p_drop)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
@@ -66,7 +67,8 @@ __global__ void
                       p_d_grid + d_batch_offset,
                       y_grid_desc_mblock_mperblock_nblock_nperblock,
                       d_grid_desc_m,
-                      block_2_ctile_map);
+                      block_2_ctile_map,
+                      p_drop);
 
 #else
     ignore = p_y_grid;
@@ -77,6 +79,7 @@ __global__ void
     ignore = block_2_ctile_map;
     ignore = batch_count;
     ignore = compute_base_ptr_of_batch;
+    ignore = p_drop;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -1131,7 +1134,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                         arg.d_grid_desc_m_,
                         arg.d_block_2_ctile_map_,
                         arg.batch_count_,
-                        arg.compute_base_ptr_of_batch_);
+                        arg.compute_base_ptr_of_batch_,
+                        arg.p_drop_);
                 };
 
                 ave_time = launch_kernel();
