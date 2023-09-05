@@ -7,6 +7,7 @@
 #include "ck/utility/static_assert.hpp"
 #include "ck/utility/remove_cvref.hpp"
 #include "ck/utility/is_static.hpp"
+#include "ck/utility/bit_cast.hpp"
 #include "ck/utility/print.hpp"
 #include "ck/utility/array.hpp"
 #include "ck/utility/container_helper.hpp"

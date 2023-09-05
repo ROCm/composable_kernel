@@ -32,13 +32,4 @@ inline constexpr bool is_pointer_v = std::is_pointer<T>::value;
 template <typename T>
 inline constexpr bool is_empty_v = std::is_empty<T>::value;
 
-// bit_cast
-template <typename Y, typename X, typename enable_if<sizeof(X) == sizeof(Y), bool>::type = false>
-__host__ __device__ constexpr Y bit_cast(const X& x)
-{
-    static_assert(__has_builtin(__builtin_bit_cast), "");
-
-    return __builtin_bit_cast(Y, x);
-}
-
 } // namespace ck

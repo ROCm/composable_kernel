@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ck/ck.hpp"
+#include "ck/utility/bit_cast.hpp"
 #include "ck/utility/statically_indexed_array.hpp"
 
 namespace ck {

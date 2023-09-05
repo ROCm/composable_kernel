@@ -8,24 +8,34 @@
 namespace ck {
 
 template <typename T>
-__device__ T warp_shuffle_up(const T& var, uint32_t delta)
+__device__ T warp_shuffle_up(const T& v_local, uint32_t lane_delta)
 {
 #if 0
-    return  __shfl_up(var, delta);
+    return  __shfl_up(v_local, lane_delta);
 #elif 1
-    const uint32_t wrap_around_delta = warpSize - delta;
+    static_assert(sizeof(T) == sizeof(int32_t), "wrong!");
 
-    return __builtin_amdgcn_ds_bpermute((__lane_id() << 2) + (wrap_around_delta << 2), var);
+    const uint32_t wrap_around_lane_delta = warpSize - lane_delta;
+
+    const int32_t v_remote_tmp = __builtin_amdgcn_ds_bpermute(
+        (__lane_id() << 2) + (wrap_around_lane_delta << 2), bit_cast<int32_t>(v_local));
+
+    return bit_cast<T>(v_remote_tmp);
 #endif
 }
 
 template <typename T>
-__device__ T warp_shuffle_down(const T& var, uint32_t delta)
+__device__ T warp_shuffle_down(const T& v_local, uint32_t lane_delta)
 {
 #if 0
-    return  __shfl_down(var, delta);
+    return  __shfl_down(v_local, lane_delta);
 #elif 1
-    return __builtin_amdgcn_ds_bpermute((__lane_id() << 2) + (delta << 2), var);
+    static_assert(sizeof(T) == sizeof(int32_t), "wrong!");
+
+    const int32_t v_remote_tmp = __builtin_amdgcn_ds_bpermute(
+        (__lane_id() << 2) + (lane_delta << 2), bit_cast<int32_t>(v_local));
+
+    return bit_cast<T>(v_remote_tmp);
 #endif
 }
 
