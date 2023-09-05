@@ -9,52 +9,36 @@
 
 namespace ck {
 
-template <typename X, typename Y>
-struct is_same : public integral_constant<bool, false>
-{
-};
+// is_same
+static_assert(__has_builtin(__is_same), "");
 
-template <typename X>
-struct is_same<X, X> : public integral_constant<bool, true>
-{
-};
+template <typename X, typename Y>
+using is_same = integral_constant<bool, __is_same(X, Y)>;
 
 template <typename X, typename Y>
 inline constexpr bool is_same_v = is_same<X, Y>::value;
 
-template <typename T>
-using remove_reference_t = typename std::remove_reference<T>::type;
+static_assert(__has_builtin(__type_pack_element), "");
 
-template <typename T>
-using remove_cv_t = typename std::remove_cv<T>::type;
+// type_pack_element
+template <index_t I, typename... Ts>
+using type_pack_element = __type_pack_element<I, Ts...>;
 
-template <typename T>
-using remove_cvref_t = remove_cv_t<std::remove_reference_t<T>>;
-
-template <typename T>
-using remove_pointer_t = typename std::remove_pointer<T>::type;
-
+// is_pointer
 template <typename T>
 inline constexpr bool is_pointer_v = std::is_pointer<T>::value;
 
+// is_empty
+template <typename T>
+inline constexpr bool is_empty_v = std::is_empty<T>::value;
+
+// bit_cast
 template <typename Y, typename X, typename enable_if<sizeof(X) == sizeof(Y), bool>::type = false>
 __host__ __device__ constexpr Y bit_cast(const X& x)
 {
-#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST
-    Y y;
+    static_assert(__has_builtin(__builtin_bit_cast), "");
 
-    __builtin_memcpy(&y, &x, sizeof(X));
-
-    return y;
-#else
-    union AsType
-    {
-        X x;
-        Y y;
-    };
-
-    return AsType{x}.y;
-#endif
+    return __builtin_bit_cast(Y, x);
 }
 
 } // namespace ck

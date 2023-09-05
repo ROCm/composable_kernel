@@ -9,13 +9,14 @@ namespace ck {
 
 // static buffer for scalar
 template <AddressSpaceEnum AddressSpace,
-          typename T,
+          typename S_,
           index_t N,
           bool InvalidElementUseNumericalZeroValue> // TODO remove this bool, no longer needed
-struct StaticBuffer : public StaticallyIndexedArray<T, N>
+struct StaticBuffer : public StaticallyIndexedArray<remove_cvref_t<S_>, N>
 {
-    using type = T;
-    using base = StaticallyIndexedArray<T, N>;
+    using S    = remove_cvref_t<S_>;
+    using type = S;
+    using base = StaticallyIndexedArray<S, N>;
 
     __host__ __device__ constexpr StaticBuffer() : base{} {}
 
@@ -28,39 +29,84 @@ struct StaticBuffer : public StaticallyIndexedArray<T, N>
         return x;
     }
 
-    __host__ __device__ constexpr StaticBuffer& operator=(const T& y)
-    {
-        StaticBuffer& x = *this;
-        static_for<0, base::Size(), 1>{}([&](auto i) { x(i) = y; });
-        return x;
-    }
-
     __host__ __device__ static constexpr AddressSpaceEnum GetAddressSpace() { return AddressSpace; }
+
+    __host__ __device__ static constexpr index_t Size() { return N; }
 
     __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }
 
     __host__ __device__ static constexpr bool IsDynamicBuffer() { return false; }
 
-    // read access
+    // read access to scalar
     template <index_t I>
-    __host__ __device__ constexpr const T& operator[](Number<I> i) const
+    __host__ __device__ constexpr const S& operator[](Number<I> i) const
     {
         return base::operator[](i);
     }
 
-    // write access
+    // write access to scalar
     template <index_t I>
-    __host__ __device__ constexpr T& operator()(Number<I> i)
+    __host__ __device__ constexpr S& operator()(Number<I> i)
     {
         return base::operator()(i);
     }
 
-    __host__ __device__ void Set(T x)
+    // Get a vector (type X)
+    // "is" is offset of S, not X.
+    // "is" should be aligned to X
+    template <typename X_,
+              index_t Is,
+              typename enable_if<has_same_scalar_type<S, X_>::value, bool>::type = false>
+    __host__ __device__ constexpr remove_reference_t<X_> GetAsType(Number<Is> is) const
     {
-        static_for<0, N, 1>{}([&](auto i) { operator()(i) = T{x}; });
+        using X = remove_cvref_t<X_>;
+
+        constexpr index_t kSPerX = scalar_type<X>::vector_size;
+
+        static_assert(Is % kSPerX == 0, "wrong! \"Is\" should be aligned to X");
+
+        vector_type<S, kSPerX> vx;
+
+        static_for<0, kSPerX, 1>{}(
+            [&](auto j) { vx.template AsType<S>()(j) = base::operator[](is + j); });
+
+        return vx.template AsType<X>().template At<0>();
     }
 
-    __host__ __device__ void Clear() { Set(T{0}); }
+    // Set a vector (type X)
+    // "is" is offset of S, not X.
+    // "is" should be aligned to X
+    template <typename X_,
+              index_t Is,
+              typename enable_if<has_same_scalar_type<S, X_>::value, bool>::type = false>
+    __host__ __device__ constexpr void SetAsType(Number<Is> is, X_ x)
+    {
+        using X = remove_cvref_t<X_>;
+
+        constexpr index_t kSPerX = scalar_type<X>::vector_size;
+
+        static_assert(Is % kSPerX == 0, "wrong! \"Is\" should be aligned to X");
+
+        const vector_type<S, kSPerX> vx{x};
+
+        static_for<0, kSPerX, 1>{}(
+            [&](auto j) { base::operator()(is + j) = vx.template AsType<S>()[j]; });
+    }
+
+    __host__ __device__ void Initialize(const S& x)
+    {
+        static_for<0, N, 1>{}([&](auto i) { operator()(i) = S{x}; });
+    }
+
+    // FIXME: deprecated
+    __host__ __device__ void Clear() { Initialize(0); }
+
+    // FIXME: deprecated
+    __host__ __device__ constexpr StaticBuffer& operator=(const S& v)
+    {
+        Initialize(v);
+        return *this;
+    }
 };
 
 // static buffer for vector

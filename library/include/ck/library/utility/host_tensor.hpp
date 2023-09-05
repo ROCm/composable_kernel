@@ -219,10 +219,10 @@ struct ParallelTensorFunctor
             std::size_t iw_begin = it * work_per_thread;
             std::size_t iw_end   = std::min((it + 1) * work_per_thread, mN1d);
 
-            auto f = [=] {
+            auto f = [this, iw_begin, iw_end] {
                 for(std::size_t iw = iw_begin; iw < iw_end; ++iw)
                 {
-                    call_f_unpack_args(mF, GetNdIndices(iw));
+                    call_f_unpack_args(this->mF, this->GetNdIndices(iw));
                 }
             };
             threads[it] = joinable_thread(f);

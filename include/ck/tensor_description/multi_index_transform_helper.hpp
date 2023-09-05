@@ -52,31 +52,10 @@ __host__ __device__ constexpr auto make_embed_transform(const UpLengths& up_leng
 }
 
 template <typename LowLengths>
-__host__ __device__ constexpr auto make_merge_transform(const LowLengths& low_lengths)
-{
-#if CK_EXPERIMENTAL_MERGE_USE_MAGIC_DIVISION
-    return make_merge_transform_v2_magic_division(low_lengths);
-#else
-    return make_merge_transform_v1_carry_check(low_lengths);
-#endif
-}
-
-template <typename LowLengths>
-__host__ __device__ constexpr auto
-make_merge_transform_v1_carry_check(const LowLengths& low_lengths)
-{
-    return Merge_v1_carry_check<LowLengths>{low_lengths};
-}
-
-template <typename LowLengths>
 __host__ __device__ constexpr auto
 make_merge_transform_v2_magic_division(const LowLengths& low_lengths)
 {
-#if 1
     return Merge_v2_magic_division<LowLengths>{low_lengths};
-#else
-    return Merge_v2r2_magic_division<LowLengths>{low_lengths};
-#endif
 }
 
 template <typename LowLengths>
@@ -84,6 +63,12 @@ __host__ __device__ constexpr auto
 make_merge_transform_v3_division_mod(const LowLengths& low_lengths)
 {
     return Merge_v3_division_mod<LowLengths>{low_lengths};
+}
+
+template <typename LowLengths>
+__host__ __device__ constexpr auto make_merge_transform(const LowLengths& low_lengths)
+{
+    return make_merge_transform_v2_magic_division(low_lengths);
 }
 
 template <typename UpLengths, bool Use24BitIntegerCalculation = false>
@@ -100,10 +85,10 @@ __host__ __device__ constexpr auto make_freeze_transform(const LowerIndex& low_i
     return Freeze<LowerIndex>{low_idx};
 }
 
-template <typename UpperIndex>
-__host__ __device__ constexpr auto make_insert_transform(const UpperIndex& up_idx)
+template <typename UpLengths>
+__host__ __device__ constexpr auto make_replicate_transform(const UpLengths& up_lengths)
 {
-    return Insert<UpperIndex>{up_idx};
+    return Replicate<UpLengths>{up_lengths};
 }
 
 template <typename LowLength, typename SliceBegin, typename SliceEnd>
@@ -114,17 +99,18 @@ __host__ __device__ constexpr auto make_slice_transform(const LowLength& low_len
     return Slice<LowLength, SliceBegin, SliceEnd>{low_length, slice_begin, slice_end};
 }
 
-template <typename VectorSize, typename UpLength>
-__host__ __device__ constexpr auto make_vectorize_transform(const VectorSize& vector_size,
-                                                            const UpLength& up_length)
-{
-    return Vectorize<VectorSize, UpLength>{vector_size, up_length};
-}
-
 template <typename Modulus, typename UpLength>
 __host__ __device__ constexpr auto make_modulo_transform(const Modulus& modulus,
                                                          const UpLength& up_length)
 {
     return Modulo<Modulus, UpLength>{modulus, up_length};
 }
+
+template <typename LowLengths, typename RightShift>
+__host__ __device__ constexpr auto make_xor_transform(const LowLengths& low_lengths,
+                                                      const RightShift& right_shift)
+{
+    return Xor<LowLengths, RightShift>{low_lengths, right_shift};
+}
+
 } // namespace ck

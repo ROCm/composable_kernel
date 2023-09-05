@@ -1,0 +1,5 @@
+add_example_executable(example_hello_world hello_world.cpp)
+add_example_executable(example_im2col im2col.cpp)
+add_example_executable(example_gemm gemm.cpp)
+add_example_executable(example_gemm_gemm gemm_gemm.cpp)
+add_example_executable(example_reduce reduce.cpp)

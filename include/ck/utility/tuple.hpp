@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ck/utility/is_static.hpp"
+#include "ck/utility/print.hpp"
 #include "ck/utility/integral_constant.hpp"
 #include "ck/utility/sequence.hpp"
 #include "ck/utility/type.hpp"
@@ -138,6 +140,22 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
 
     // read access
     template <index_t I>
+    __host__ __device__ constexpr const auto& At() const
+    {
+        static_assert(I < base::Size(), "wrong! out of range");
+        return base::GetElementDataByKey(detail::TupleElementKey<I>{});
+    }
+
+    // write access
+    template <index_t I>
+    __host__ __device__ constexpr auto& At()
+    {
+        static_assert(I < base::Size(), "wrong! out of range");
+        return base::GetElementDataByKey(detail::TupleElementKey<I>{});
+    }
+
+    // read access
+    template <index_t I>
     __host__ __device__ constexpr const auto& At(Number<I>) const
     {
         static_assert(I < base::Size(), "wrong! out of range");
@@ -166,6 +184,20 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
         return At(i);
     }
 
+    // WARNING: needed by compiler for C++ structured binding support only, don't use this function!
+    template <std::size_t I>
+    __host__ __device__ constexpr const auto& get() const
+    {
+        return this->template At<I>();
+    }
+
+    // WARNING: needed bu compiler for C++ structured binding support only, don't use this function!
+    template <std::size_t I>
+    __host__ __device__ constexpr auto& get()
+    {
+        return this->template At<I>();
+    }
+
     template <typename T>
     __host__ __device__ constexpr auto operator=(const T& a)
     {
@@ -176,7 +208,35 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
         return *this;
     }
 
+    __host__ __device__ static constexpr bool IsStatic()
+    {
+        bool flag = true;
+
+        static_for<0, sizeof...(Xs), 1>{}([&flag](auto i) {
+            flag &= is_static_v<remove_cvref_t<type_pack_element<i.value, Xs...>>>;
+        });
+
+        return flag;
+    }
+
+    // FIXME: remove
     __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }
+
+    __host__ __device__ void Print() const
+    {
+        printf("Tuple{size: %d, data: [", static_cast<index_t>(Size()));
+
+        static_for<0, Size(), 1>{}([&](auto i) {
+            print(At(i));
+
+            if(i < Size() - 1)
+            {
+                printf(", ");
+            }
+        });
+
+        printf("]}");
+    }
 };
 
 template <>
@@ -192,6 +252,9 @@ struct Tuple<>
         return *this;
     }
 
+    __host__ __device__ static constexpr bool IsStatic() { return true; }
+
+    // FIXME: remove
     __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }
 };
 
@@ -219,3 +282,19 @@ constexpr Tuple<Args&...> tie(Args&... args) noexcept
 }
 
 } // namespace ck
+
+namespace std {
+
+// WARNING: needed by compiler for C++ structured binding support only, don't use this
+template <typename... Ts>
+struct tuple_size<ck::Tuple<Ts...>> : std::integral_constant<std::size_t, sizeof...(Ts)>
+{
+};
+
+// WARNING: needed by compiler for C++ structured binding support only, don't use this
+template <std::size_t I, typename... Ts>
+struct tuple_element<I, ck::Tuple<Ts...>> : ck::tuple_element<I, ck::Tuple<Ts...>>
+{
+};
+
+} // namespace std

@@ -66,7 +66,7 @@ struct BlockwiseSoftmax
                             reduce::Add,
                             false>>::type;
 
-    using ThreadClusterLengths_M_K = decltype(ThreadClusterDesc_M_K{}.GetLengths());
+    using ThreadClusterLengths_M_K = decltype(to_sequence(ThreadClusterDesc_M_K{}.GetLengths()));
 
     using BlockwiseMaxReduce = PartitionedBlockwiseReduction_v2<AccDataType,
                                                                 BlockSize,

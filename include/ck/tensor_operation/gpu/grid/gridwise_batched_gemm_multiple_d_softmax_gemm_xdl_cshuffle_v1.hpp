@@ -796,7 +796,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
             Gemm1KPack, // AMmaKStride
             Gemm1KPack * XdlopsGemm<FloatAB, MPerXdl, NPerXdl, Gemm1KPack, false>{}.K0PerXdlops>{
             // BMmaKStride
-            make_tuple(0, 0, 0, 0)}; // A_origin
+            make_multi_index(0, 0, 0, 0)}; // A_origin
 
         auto acc1_thread_buf = gemm1_blockwise_gemm.GetCThreadBuffer();
 
@@ -953,7 +953,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                 // works like multi-dimension static_for (static_ford), but provides both the linear
                 // index as well as n-d index
                 using Acc0TileIterator = SpaceFillingCurve<
-                    decltype(c_thread_lengths),
+                    decltype(to_sequence(c_thread_lengths)),
                     typename arithmetic_sequence_gen<0, c_thread_lengths.Size(), 1>::type,
                     typename uniform_sequence_gen<c_thread_lengths.Size(), 1>::type,
                     false>; // SnakeCurved

@@ -13,14 +13,15 @@ __host__ __device__ constexpr auto make_sequence(Number<Is>...)
     return Sequence<Is...>{};
 }
 
-// F returns index_t
+// F() returns index_t
+// F use default constructor
 template <typename F, index_t N>
 __host__ __device__ constexpr auto generate_sequence(F, Number<N>)
 {
     return typename sequence_gen<N, F>::type{};
 }
 
-// F returns Number<>
+// F() returns Number<>
 template <typename F, index_t N>
 __host__ __device__ constexpr auto generate_sequence_v2(F&& f, Number<N>)
 {

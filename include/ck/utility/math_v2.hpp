@@ -114,7 +114,7 @@ static inline __device__ int8_t abs(int8_t x)
     return (x ^ sgn) - sgn;
 };
 
-static inline __device__ int32_t abs(int32_t x)
+static inline __device__ constexpr int32_t abs(int32_t x)
 {
     int32_t sgn = x >> (32 - 1);
 

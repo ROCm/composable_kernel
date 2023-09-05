@@ -86,7 +86,7 @@ struct BlockToCTileMap_M00_N0_M01
         const auto M00 = math::integer_divide_ceil(M0, M01);
 
         const auto m00_n0_m01_to_m0_n0_block_cluster_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_insert_transform(1),
+            make_tuple(make_replicate_transform(make_tuple(1)),
                        make_unmerge_transform(make_tuple(M00, M01)),
                        make_pass_through_transform(make_tuple(N0))),
             make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
@@ -402,7 +402,8 @@ struct BlockToCTileMap_M00_N00_M01_N01
 
         const auto m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
             make_single_stage_tensor_adaptor(
-                make_tuple(make_insert_transform(1), // swallow the carry from lower dimensions
+                make_tuple(make_replicate_transform(
+                               make_tuple(1)), // swallow the carry from lower dimensions
                            make_unmerge_transform(make_tuple(M00, M01)),
                            make_unmerge_transform(make_tuple(N00, N01))),
                 make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),

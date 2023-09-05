@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifndef CK_FUNCTIONAL4_HPP
-#define CK_FUNCTIONAL4_HPP
+#pragma once
 
 #include "sequence.hpp"
 #include "tuple.hpp"
@@ -21,7 +20,11 @@ struct unpack_impl<Sequence<Is...>>
     template <typename F, typename X>
     __host__ __device__ constexpr auto operator()(F&& f, X&& x) const
     {
+#if 0
         return std::forward<F>(f)(std::forward<X>(x).At(Number<Is>{})...);
+#else
+        return std::forward<F>(f)(std::forward<X>(x).template At<Is>()...);
+#endif
     }
 };
 
@@ -35,8 +38,13 @@ struct unpack2_impl<Sequence<Is...>, Sequence<Js...>>
     template <typename F, typename X, typename Y>
     __host__ __device__ constexpr auto operator()(F&& f, X&& x, Y&& y) const
     {
+#if 0
         return std::forward<F>(f)(std::forward<X>(x).At(Number<Is>{})...,
                                   std::forward<Y>(y).At(Number<Js>{})...);
+#else
+        return std::forward<F>(f)(std::forward<X>(x).template At<Is>()...,
+                                  std::forward<Y>(y).template At<Js>()...);
+#endif
     }
 };
 
@@ -62,4 +70,3 @@ __host__ __device__ constexpr auto unpack2(F&& f, X&& x, Y&& y)
 }
 
 } // namespace ck
-#endif

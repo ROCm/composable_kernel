@@ -178,7 +178,7 @@ struct ThreadwiseTensorSliceTransfer_v5r1
             using src_vector_t = typename decltype(src_vector)::type;
 
             const bool is_src_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
+                coordinate_has_valid_offset_assuming_top_index_is_valid(src_desc, src_coord_);
 
             // copy data from src_buf to src_vector
             src_vector.template AsType<src_vector_t>()(I0) =
@@ -361,7 +361,7 @@ struct ThreadwiseTensorSliceTransfer_v5r1
 
             // copy data from dst_vector to dst_buf
             const bool is_dst_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
+                coordinate_has_valid_offset_assuming_top_index_is_valid(dst_desc, dst_coord_);
 
             dst_buf.template Set<dst_vector_t>(
                 dst_coord_.GetOffset(),

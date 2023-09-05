@@ -45,7 +45,7 @@ struct ThreadwiseTensorSliceSet_v1
             constexpr auto coord = make_tensor_coordinate(desc, origin_idx + access_idx);
 
             constexpr bool is_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(desc, coord);
+                coordinate_has_valid_offset_assuming_top_index_is_valid(desc, coord);
 
             constexpr index_t offset = coord.GetOffset();
 

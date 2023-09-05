@@ -240,20 +240,37 @@ struct less
     __host__ __device__ constexpr bool operator()(T x, T y) const { return x < y; }
 };
 
-template <index_t X>
-__host__ __device__ constexpr auto next_power_of_two()
+__host__ __device__ constexpr int32_t next_power_of_two(int32_t x)
 {
-    // TODO: X need to be 2 ~ 0x7fffffff. 0, 1, or larger than 0x7fffffff will compile fail
-    constexpr index_t Y = 1 << (32 - __builtin_clz(X - 1));
-    return Y;
+    // TODO: x need to be 2 ~ 0x7fffffff. 0, 1, or larger than 0x7fffffff will compile fail
+    return 1 << (32 - __builtin_clz(x - 1));
 }
 
 template <index_t X>
-__host__ __device__ constexpr auto next_power_of_two(Number<X> x)
+__host__ __device__ constexpr auto next_power_of_two()
 {
-    // TODO: X need to be 2 ~ 0x7fffffff. 0, 1, or larger than 0x7fffffff will compile fail
-    constexpr index_t Y = 1 << (32 - __builtin_clz(x.value - 1));
-    return Number<Y>{};
+    constexpr index_t y = next_power_of_two(X);
+    return Number<y>{};
+}
+
+template <index_t X>
+__host__ __device__ constexpr auto next_power_of_two(Number<X>)
+{
+    constexpr index_t y = next_power_of_two(X);
+    return Number<y>{};
+}
+
+__host__ __device__ constexpr int32_t integer_log2_floor(int32_t x)
+{
+    // TODO: x need to be 1 ~ 0x7fffffff
+    // __builtin_clz will produce unexpected result if x is 0;
+    return 31 - __builtin_clz(x);
+}
+
+__host__ __device__ constexpr bool is_power_of_two_integer(int32_t x)
+{
+    // TODO: x need to be 1 ~ 0x7fffffff
+    return x == (1 << integer_log2_floor(x));
 }
 
 } // namespace math

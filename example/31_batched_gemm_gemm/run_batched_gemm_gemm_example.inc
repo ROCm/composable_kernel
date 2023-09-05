@@ -139,9 +139,9 @@ bool run_batched_gemm_gemm_example(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b0_g_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-5, 5});
-        b1_g_n_o.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-5, 5});
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-3.f, 3.f}(a_g_m_k);
+        ck::utils::FillUniformDistributionIntegerValue<B0DataType>{-3.f, 3.f}(b0_g_k_n);
+        ck::utils::FillUniformDistributionIntegerValue<B1DataType>{-3.f, 3.f}(b1_g_n_o);
         break;
     case 2:
         a_g_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});

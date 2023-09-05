@@ -42,8 +42,9 @@ struct Sequence
 
     static constexpr index_t mSize = sizeof...(Is);
 
-    __host__ __device__ static constexpr auto Size() { return Number<mSize>{}; }
+    __host__ __device__ static constexpr index_t Size() { return mSize; }
 
+    // TODO: deprecate
     __host__ __device__ static constexpr auto GetSize() { return Size(); }
 
     __host__ __device__ static constexpr index_t At(index_t I)
@@ -62,9 +63,17 @@ struct Sequence
     }
 
     template <index_t I>
+    __host__ __device__ static constexpr auto At()
+    {
+        static_assert(I < mSize, "wrong! I too large");
+
+        return Number<At(I)>{};
+    }
+
+    template <index_t I>
     __host__ __device__ static constexpr auto Get(Number<I>)
     {
-        return At(Number<I>{});
+        return At(I);
     }
 
     template <typename I>
@@ -171,12 +180,23 @@ struct Sequence
         return Sequence<f(Is)...>{};
     }
 
+    __host__ __device__ static constexpr bool IsStatic() { return true; };
+
     __host__ __device__ static void Print()
     {
-        printf("{");
-        printf("size %d, ", index_t{Size()});
-        static_for<0, Size(), 1>{}([&](auto i) { printf("%d ", At(i).value); });
-        printf("}");
+        printf("Sequence{size: %d, data: [", Size());
+
+        for(index_t i = 0; i < Size(); i++)
+        {
+            print(At(i));
+
+            if(i < Size() - 1)
+            {
+                printf(", ");
+            }
+        }
+
+        printf("]}");
     }
 };
 
@@ -890,8 +910,8 @@ __host__ __device__ constexpr bool sequence_all_of(Seq, F f)
     return flag;
 }
 
-template <typename Sx, typename Sy>
-using sequence_merge_t = typename sequence_merge<Sx, Sy>::type;
+template <typename... Seqs>
+using sequence_merge_t = typename sequence_merge<Seqs...>::type;
 
 template <index_t NSize, index_t I>
 using uniform_sequence_gen_t = typename uniform_sequence_gen<NSize, I>::type;

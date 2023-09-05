@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifndef CK_ARRAY_MULTI_INDEX_HPP
-#define CK_ARRAY_MULTI_INDEX_HPP
+#pragma once
 
 #include "common_header.hpp"
 
@@ -77,4 +76,3 @@ __host__ __device__ constexpr auto operator*(const MultiIndex<NSize>& a, const T
 }
 
 } // namespace ck
-#endif

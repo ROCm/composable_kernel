@@ -20,7 +20,7 @@ struct static_ford_impl
 {
     __host__ __device__ constexpr static_ford_impl()
     {
-        static_assert(RemainLengths::GetSize() > 0, "wrong! should not get here");
+        static_assert(RemainLengths::Size() > 0, "wrong! should not get here");
     }
 
     // F signature: F(Sequence<...>)
@@ -55,7 +55,7 @@ struct ford_impl
 {
     __host__ __device__ constexpr ford_impl()
     {
-        static_assert(RemainLengths::GetSize() > 0, "wrong! should not get here");
+        static_assert(RemainLengths::Size() > 0, "wrong! should not get here");
     }
 
     // F signature: F(Array<...> multi_id)
@@ -92,13 +92,13 @@ struct ford_impl<Sequence<>, Orders>
 // will loop over each
 // dimension
 template <class Lengths,
-          class Orders = typename arithmetic_sequence_gen<0, Lengths::GetSize(), 1>::type>
+          class Orders = typename arithmetic_sequence_gen<0, Lengths::Size(), 1>::type>
 struct static_ford
 {
     __host__ __device__ constexpr static_ford()
     {
-        static_assert(Lengths::GetSize() > 0, "wrong! Lengths is empty");
-        static_assert(Lengths::GetSize() == Orders::GetSize(), "wrong! inconsistent size");
+        static_assert(Lengths::Size() > 0, "wrong! Lengths is empty");
+        static_assert(Lengths::Size() == Orders::Size(), "wrong! inconsistent size");
     }
 
     // F signature: F(Sequence<...> multi_id)
@@ -117,13 +117,13 @@ struct static_ford
 // over each
 // dimension
 template <class Lengths,
-          class Orders = typename arithmetic_sequence_gen<0, Lengths::GetSize(), 1>::type>
+          class Orders = typename arithmetic_sequence_gen<0, Lengths::Size(), 1>::type>
 struct ford
 {
     __host__ __device__ constexpr ford()
     {
-        static_assert(Lengths::GetSize() > 0, "wrong! Lengths is empty");
-        static_assert(Lengths::GetSize() == Orders::GetSize(), "wrong! inconsistent size");
+        static_assert(Lengths::Size() > 0, "wrong! Lengths is empty");
+        static_assert(Lengths::Size() == Orders::Size(), "wrong! inconsistent size");
     }
 
     // F signature: F(Array<...> multi_id)

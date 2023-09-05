@@ -70,8 +70,6 @@ struct ThreadwiseTensorSliceTransfer_v1r3
 
     using DstCoord = decltype(make_tensor_coordinate(DstDesc{}, Index{}));
 
-    using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
-
     __device__ constexpr ThreadwiseTensorSliceTransfer_v1r3(const DstDesc& dst_desc,
                                                             const Index& dst_slice_origin_idx,
                                                             const ElementwiseOperation& element_op)
@@ -147,7 +145,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
             });
 
             const bool is_dst_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
+                coordinate_has_valid_offset_assuming_top_index_is_valid(dst_desc, dst_coord_);
 
             // copy data from dst_vector into dst_buf
             dst_buf.template Update<DstInMemOp, dst_vector_t>(
@@ -159,18 +157,14 @@ struct ThreadwiseTensorSliceTransfer_v1r3
             {
                 constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
 
-                move_tensor_coordinate(
-                    dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
+                move_tensor_coordinate(dst_desc, dst_coord_, forward_step);
             }
         });
 
         // move dst coordinate back to slice origin (or not)
         if constexpr(DstResetCoordinateAfterRun)
         {
-            const auto dst_reset_step =
-                make_tensor_coordinate_step(dst_desc, GetDstCoordinateResetStep());
-
-            move_tensor_coordinate(dst_desc, dst_coord_, dst_reset_step);
+            move_tensor_coordinate(dst_desc, dst_coord_, GetDstCoordinateResetStep());
         }
     }
 
@@ -250,8 +244,6 @@ struct ThreadwiseTensorSliceTransfer_v2
 
     using SrcCoord = decltype(make_tensor_coordinate(SrcDesc{}, Index{}));
 
-    using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
-
     __device__ constexpr ThreadwiseTensorSliceTransfer_v2(const SrcDesc& src_desc,
                                                           const Index& src_slice_origin_idx)
         : src_coord_(make_tensor_coordinate(src_desc, src_slice_origin_idx))
@@ -311,7 +303,7 @@ struct ThreadwiseTensorSliceTransfer_v2
             constexpr auto src_data_idx = SpaceFillingCurve::GetIndex(idx_1d);
 
             const bool is_src_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
+                coordinate_has_valid_offset_assuming_top_index_is_valid(src_desc, src_coord_);
 
             // copy data from src_buf into src_vector
             src_vector.template AsType<src_vector_t>()(Number<0>{}) =
@@ -341,18 +333,14 @@ struct ThreadwiseTensorSliceTransfer_v2
             {
                 constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
 
-                move_tensor_coordinate(
-                    src_desc, src_coord_, make_tensor_coordinate_step(src_desc, forward_step));
+                move_tensor_coordinate(src_desc, src_coord_, forward_step);
             }
         });
 
         // move src coordinate back to slice origin (or not)
         if constexpr(SrcResetCoordinateAfterRun)
         {
-            const auto src_reset_step =
-                make_tensor_coordinate_step(src_desc, GetSrcCoordinateResetStep());
-
-            move_tensor_coordinate(src_desc, src_coord_, src_reset_step);
+            move_tensor_coordinate(src_desc, src_coord_, GetSrcCoordinateResetStep());
         }
     }
 
@@ -388,29 +376,7 @@ struct ThreadwiseTensorSliceTransfer_v2
             SrcResetCoordinateAfterRun ? src_slice_origin_step_idx
                                        : src_slice_origin_step_idx + GetSrcCoordinateResetStep();
 
-        // is it OK to construct a new step every time?
-        const auto adjusted_step = make_tensor_coordinate_step(src_desc, adjusted_step_idx);
-
-        move_tensor_coordinate(src_desc, src_coord_, adjusted_step);
-    }
-
-    // src_slice_origin_step_idx need to be known at compile-time, for performance reason
-    template <typename SrcMoveSliceWindowStepHack>
-    __device__ void
-    MoveSrcSliceWindow(const SrcDesc& src_desc,
-                       const Index& src_slice_origin_step_idx,
-                       const SrcMoveSliceWindowStepHack& src_move_slice_window_step_hack)
-    {
-        // if src coord was not reset by RunRead(), then need to adjust the step here
-        const auto adjusted_step_idx =
-            SrcResetCoordinateAfterRun ? src_slice_origin_step_idx
-                                       : src_slice_origin_step_idx + GetSrcCoordinateResetStep();
-
-        // is it OK to construct a new step every time?
-        const auto adjusted_step = make_tensor_coordinate_step(
-            src_desc, adjusted_step_idx, src_move_slice_window_step_hack);
-
-        move_tensor_coordinate(src_desc, src_coord_, adjusted_step);
+        move_tensor_coordinate(src_desc, src_coord_, adjusted_step_idx);
     }
 
     private:
@@ -449,9 +415,6 @@ struct ThreadwiseTensorSliceTransfer_v3
 
     using SrcCoord = decltype(make_tensor_coordinate(SrcDesc{}, Index{}));
     using DstCoord = decltype(make_tensor_coordinate(DstDesc{}, Index{}));
-
-    using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
-    using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
     __device__ constexpr ThreadwiseTensorSliceTransfer_v3(const SrcDesc& src_desc,
                                                           const Index& src_slice_origin,
@@ -574,7 +537,7 @@ struct ThreadwiseTensorSliceTransfer_v3
             using src_vector_t = typename decltype(src_tmp_vector)::type;
 
             const bool is_src_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
+                coordinate_has_valid_offset_assuming_top_index_is_valid(src_desc, src_coord_);
 
             // copy data from src_buf to src_tmp_vector
             src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
@@ -741,7 +704,7 @@ struct ThreadwiseTensorSliceTransfer_v3
 
             // copy data from dst_tmp_vector to dst_buf
             const bool is_dst_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
+                coordinate_has_valid_offset_assuming_top_index_is_valid(dst_desc, dst_coord_);
 
             dst_buf.template Set<dst_vector_t>(
                 dst_coord_.GetOffset(),
@@ -1033,8 +996,6 @@ struct ThreadwiseTensorSliceTransfer_v4
 
     using SrcCoord = decltype(make_tensor_coordinate(SrcDesc{}, Index{}));
 
-    using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
-
     __device__ constexpr ThreadwiseTensorSliceTransfer_v4(const Index& src_ref_idx)
         : src_ref_coord_(make_tensor_coordinate(SrcDesc{}, src_ref_idx))
     {
@@ -1130,19 +1091,16 @@ struct ThreadwiseTensorSliceTransfer_v4
             constexpr auto src_ref_to_data_disp_idx =
                 src_ref_to_origin_disp_idx + data_to_origin_disp_idx;
 
-            constexpr auto src_ref_to_data_disp_coord_step =
-                make_tensor_coordinate_step(src_desc, src_ref_to_data_disp_idx);
-
             auto src_data_coord = src_ref_coord_;
 
-            move_tensor_coordinate(src_desc, src_data_coord, src_ref_to_data_disp_coord_step);
+            move_tensor_coordinate(src_desc, src_data_coord, src_ref_to_data_disp_idx);
 
             vector_type_maker_t<SrcData, SrcScalarPerVector> src_tmp_vector;
 
             using src_vector_t = typename decltype(src_tmp_vector)::type;
 
-            const bool is_src_valid = coordinate_has_valid_offset_assuming_visible_index_is_valid(
-                src_desc, src_data_coord);
+            const bool is_src_valid =
+                coordinate_has_valid_offset_assuming_top_index_is_valid(src_desc, src_data_coord);
 
             // copy data from src_buf into src_tmp_vector
             if constexpr(SrcBuffer::IsDynamicBuffer())

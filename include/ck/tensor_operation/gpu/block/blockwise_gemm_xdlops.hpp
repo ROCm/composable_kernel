@@ -108,7 +108,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
         const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_m, xdlops_a_idx[I1], KPerThread * xdlops_a_idx[I0]);
+        return make_multi_index(0, waveId_m, xdlops_a_idx[I1], KPerThread * xdlops_a_idx[I0]);
     }
 
     __device__ static auto CalculateBThreadOriginDataIndex()
@@ -119,7 +119,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
         const auto xdlops_b_idx = xdlops_gemm.CalculateBThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_n, xdlops_b_idx[I1], KPerThread * xdlops_b_idx[I0]);
+        return make_multi_index(0, waveId_n, xdlops_b_idx[I1], KPerThread * xdlops_b_idx[I0]);
     }
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
@@ -144,11 +144,12 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
             make_tuple(Sequence<0, 1, 2>{}));
 
         const index_t c_thread_m = mrepeat_mwave_mperxdl_to_m_adaptor.CalculateBottomIndex(
-            make_tuple(m0, waveId_m, blk_idx[I0]))[I0];
-        const index_t c_thread_n = nrepeat_nwave_nperxdl_to_n_adaptor.CalculateBottomIndex(
-            make_tuple(n0, waveId_n, blk_idx[I1]))[I0];
+            make_multi_index(m0, waveId_m, blk_idx[I0]))[I0];
 
-        return make_tuple(c_thread_m, c_thread_n);
+        const index_t c_thread_n = nrepeat_nwave_nperxdl_to_n_adaptor.CalculateBottomIndex(
+            make_multi_index(n0, waveId_n, blk_idx[I1]))[I0];
+
+        return make_multi_index(c_thread_m, c_thread_n);
     }
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
@@ -336,17 +337,19 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                     vector_type<FloatAB, KPack> b_thread_vec;
 
                     static_for<0, KPack, 1>{}([&](auto i) {
-                        a_thread_vec.template AsType<FloatAB>()(i) = a_thread_buf
-                            [Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
-                        b_thread_vec.template AsType<FloatAB>()(i) = b_thread_buf
-                            [Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
+                        a_thread_vec.template AsType<FloatAB>()(i) =
+                            a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                make_multi_index(0, 0, 0, k + i))>{}];
+                        b_thread_vec.template AsType<FloatAB>()(i) =
+                            b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                make_multi_index(0, 0, 0, k + i))>{}];
                     });
 
                     using mfma_input_type =
                         typename vector_type<FloatAB, xdlops_gemm.K1PerXdlops>::type;
 
                     constexpr index_t c_offset =
-                        c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+                        c_thread_desc_.CalculateOffset(make_multi_index(m0, n0, 0));
 
                     xdlops_gemm.template Run(
                         a_thread_vec.template AsType<mfma_input_type>(),
@@ -707,7 +710,7 @@ struct BlockwiseGemmXdlops_v2
 
         const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_m, xdlops_a_idx[I1], KPack * xdlops_a_idx[I0]);
+        return make_multi_index(0, waveId_m, xdlops_a_idx[I1], KPack * xdlops_a_idx[I0]);
     }
 
     __device__ static auto CalculateBThreadOriginDataIndex()
@@ -718,7 +721,7 @@ struct BlockwiseGemmXdlops_v2
 
         const auto xdlops_b_idx = xdlops_gemm.CalculateBThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_n, xdlops_b_idx[I1], KPack * xdlops_b_idx[I0]);
+        return make_multi_index(0, waveId_n, xdlops_b_idx[I1], KPack * xdlops_b_idx[I0]);
     }
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
@@ -765,10 +768,10 @@ struct BlockwiseGemmXdlops_v2
             m0, n0, waveId_m, waveId_n, blk_idx[I0], blk_idx[I1], blk_idx[I2], blk_idx[I3]);
     }
 
-    using Tuple4 = decltype(CalculateAThreadOriginDataIndex());
+    using Array4 = decltype(CalculateAThreadOriginDataIndex());
 
-    __host__ __device__ BlockwiseGemmXdlops_v2(Tuple4 a_origin = CalculateAThreadOriginDataIndex(),
-                                               Tuple4 b_origin = CalculateBThreadOriginDataIndex())
+    __host__ __device__ BlockwiseGemmXdlops_v2(Array4 a_origin = CalculateAThreadOriginDataIndex(),
+                                               Array4 b_origin = CalculateBThreadOriginDataIndex())
         : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
     {
         static_assert(AMmaTileDesc::IsKnownAtCompileTime() && BMmaTileDesc::IsKnownAtCompileTime(),

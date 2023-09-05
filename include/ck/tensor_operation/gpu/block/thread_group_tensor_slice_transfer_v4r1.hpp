@@ -50,6 +50,10 @@ struct ThreadGroupTensorSliceTransfer_v4r1
 
     using Index = MultiIndex<nDim>;
 
+#if 1 // debug
+    __host__ __device__ constexpr ThreadGroupTensorSliceTransfer_v4r1() : threadwise_transfer_{} {}
+#endif
+
     __device__ constexpr ThreadGroupTensorSliceTransfer_v4r1(
         const SrcDesc& src_desc,
         const Index& src_block_slice_origin,

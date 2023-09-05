@@ -138,9 +138,8 @@ struct ThreadwiseTensorSliceTransfer_v7
             static_for<0, nSrc, 1>{}([&](auto i) {
                 using src_vector_t = typename remove_cvref_t<decltype(src_vectors[i])>::type;
 
-                const bool is_src_valid =
-                    coordinate_has_valid_offset_assuming_visible_index_is_valid(src_descs[i],
-                                                                                src_coords_[i]);
+                const bool is_src_valid = coordinate_has_valid_offset_assuming_top_index_is_valid(
+                    src_descs[i], src_coords_[i]);
 
                 src_vectors(i).template AsType<src_vector_t>()(I0) =
                     src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(),
@@ -184,9 +183,8 @@ struct ThreadwiseTensorSliceTransfer_v7
             static_for<0, nDst, 1>{}([&](auto i) {
                 using dst_vector_t = typename remove_cvref_t<decltype(dst_vectors[i])>::type;
 
-                const bool is_dst_valid =
-                    coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_descs[i],
-                                                                                dst_coords_[i]);
+                const bool is_dst_valid = coordinate_has_valid_offset_assuming_top_index_is_valid(
+                    dst_descs[i], dst_coords_[i]);
 
                 constexpr InMemoryDataOperationEnum DstInMemOp =
                     static_cast<InMemoryDataOperationEnum>(DstInMemOps::At(i.value));
@@ -203,15 +201,11 @@ struct ThreadwiseTensorSliceTransfer_v7
                 constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(iAccess);
 
                 static_for<0, nSrc, 1>{}([&](auto i) {
-                    move_tensor_coordinate(src_descs[i],
-                                           src_coords_(i),
-                                           make_tensor_coordinate_step(src_descs[i], forward_step));
+                    move_tensor_coordinate(src_descs[i], src_coords_(i), forward_step);
                 });
 
                 static_for<0, nDst, 1>{}([&](auto i) {
-                    move_tensor_coordinate(dst_descs[i],
-                                           dst_coords_(i),
-                                           make_tensor_coordinate_step(dst_descs[i], forward_step));
+                    move_tensor_coordinate(dst_descs[i], dst_coords_(i), forward_step);
                 });
             }
         });
@@ -220,20 +214,14 @@ struct ThreadwiseTensorSliceTransfer_v7
         static_for<0, nSrc, 1>{}([&](auto i) {
             if constexpr(SrcResetCoordinateAfterRunFlags::At(i))
             {
-                const auto src_reset_step =
-                    make_tensor_coordinate_step(src_descs[i], GetCoordinateResetStep());
-
-                move_tensor_coordinate(src_descs[i], src_coords_(i), src_reset_step);
+                move_tensor_coordinate(src_descs[i], src_coords_(i), GetCoordinateResetStep());
             }
         });
 
         static_for<0, nDst, 1>{}([&](auto i) {
             if constexpr(DstResetCoordinateAfterRunFlags::At(i))
             {
-                const auto dst_reset_step =
-                    make_tensor_coordinate_step(dst_descs[i], GetCoordinateResetStep());
-
-                move_tensor_coordinate(dst_descs[i], dst_coords_(i), dst_reset_step);
+                move_tensor_coordinate(dst_descs[i], dst_coords_(i), GetCoordinateResetStep());
             }
         });
     }
@@ -266,10 +254,7 @@ struct ThreadwiseTensorSliceTransfer_v7
                                            ? src_slice_origin_step_idx
                                            : src_slice_origin_step_idx + GetCoordinateResetStep();
 
-        // is it OK to construct a new step every time?
-        const auto adjusted_step = make_tensor_coordinate_step(src_descs[iSrc], adjusted_step_idx);
-
-        move_tensor_coordinate(src_descs[iSrc], src_coords_(iSrc), adjusted_step);
+        move_tensor_coordinate(src_descs[iSrc], src_coords_(iSrc), adjusted_step_idx);
     }
 
     // dst_slice_origin_step_idx need to be known at compile-time, for performance reason
@@ -283,10 +268,7 @@ struct ThreadwiseTensorSliceTransfer_v7
                                            ? dst_slice_origin_step_idx
                                            : dst_slice_origin_step_idx + GetCoordinateResetStep();
 
-        // is it OK to construct a new step every time?
-        const auto adjusted_step = make_tensor_coordinate_step(dst_descs[iDst], adjusted_step_idx);
-
-        move_tensor_coordinate(dst_descs[iDst], dst_coords_(iDst), adjusted_step);
+        move_tensor_coordinate(dst_descs[iDst], dst_coords_(iDst), adjusted_step_idx);
     }
 
     private:

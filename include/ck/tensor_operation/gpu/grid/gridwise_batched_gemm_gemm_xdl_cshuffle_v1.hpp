@@ -630,7 +630,7 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
             Gemm1KPack, // AMmaKStride
             Gemm1KPack * XdlopsGemm<FloatAB, MPerXdl, NPerXdl, Gemm1KPack, false>{}.K0PerXdlops>{
             // BMmaKStride
-            make_tuple(0, 0, 0, 0)}; // A_origin
+            make_multi_index(0, 0, 0, 0)}; // A_origin
 
         auto c_thread_buf = gemm1_blockwise_gemm.GetCThreadBuffer();
 

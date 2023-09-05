@@ -87,7 +87,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
 
         const auto WMMA_a_idx = wmma_gemm.CalculateAThreadOriginDataIndex();
         //  |KRepeat   |MRepeat|MWave      |MLane       |KPack
-        return make_tuple(0, 0, waveId_m, WMMA_a_idx, 0);
+        return make_multi_index(0, 0, waveId_m, WMMA_a_idx, 0);
     }
 
     __device__ static auto CalculateBThreadOriginDataIndex()
@@ -98,7 +98,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
 
         const auto WMMA_b_idx = wmma_gemm.CalculateBThreadOriginDataIndex();
         //  |KRepeat   |NRepeat|Nwave      |NLane       |KPack
-        return make_tuple(0, 0, waveId_n, WMMA_b_idx, 0);
+        return make_multi_index(0, 0, waveId_n, WMMA_b_idx, 0);
     }
 
     template <index_t m0, index_t n0>

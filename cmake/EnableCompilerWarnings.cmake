@@ -93,6 +93,7 @@ else()
                 -Wno-unused-command-line-argument
                 -Wno-weak-vtables
                 -Wno-covered-switch-default
+                -Wno-unused-lambda-capture
                 -Wno-unsafe-buffer-usage
             )
         else()

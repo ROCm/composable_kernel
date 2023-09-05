@@ -131,13 +131,13 @@ struct ThreadwiseTensorSliceTransfer_v6r3
             using dst_vector_t    = typename dst_vector_type::type;
 
             const bool is_src0_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(src0_desc, src0_coord_);
+                coordinate_has_valid_offset_assuming_top_index_is_valid(src0_desc, src0_coord_);
 
             const bool is_src1_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(src1_desc, src1_coord_);
+                coordinate_has_valid_offset_assuming_top_index_is_valid(src1_desc, src1_coord_);
 
             const bool is_src2_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(src2_desc, src2_coord_);
+                coordinate_has_valid_offset_assuming_top_index_is_valid(src2_desc, src2_coord_);
 
             // copy data from src0_buf into src0_vector_container
             auto src0_vector_container = src0_vector_type{
@@ -160,7 +160,7 @@ struct ThreadwiseTensorSliceTransfer_v6r3
             });
 
             const bool is_dst_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
+                coordinate_has_valid_offset_assuming_top_index_is_valid(dst_desc, dst_coord_);
 
             dst_buf.template Update<DstInMemOp, dst_vector_t>(
                 dst_coord_.GetOffset(),

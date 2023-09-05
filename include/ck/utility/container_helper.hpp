@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifndef CK_CONTAINER_HELPER_HPP
-#define CK_CONTAINER_HELPER_HPP
+#pragma once
 
 #include "sequence.hpp"
 #include "sequence_helper.hpp"
@@ -10,7 +9,6 @@
 #include "tuple.hpp"
 #include "tuple_helper.hpp"
 #include "statically_indexed_array.hpp"
-#include "container_element_picker.hpp"
 
 namespace ck {
 
@@ -46,7 +44,7 @@ container_reorder_given_new2old(const Array<TData, NSize>& old_array, Sequence<I
 
     static_assert(is_valid_sequence_map<Sequence<IRs...>>{}, "wrong! invalid reorder map");
 
-    return make_array(old_array[Number<IRs>{}]...);
+    return make_array<remove_cvref_t<TData>>(old_array[IRs]...);
 }
 
 template <typename TData, index_t NSize, index_t... IRs>
@@ -208,10 +206,11 @@ container_reverse_inclusive_scan(const Array<TData, NSize>& x, Reduce f, TData i
     return y;
 }
 
-template <typename TData, index_t NSize, typename Reduce>
+template <typename TData, index_t NSize, typename Reduce, typename Init>
 __host__ __device__ constexpr auto
-container_reverse_exclusive_scan(const Array<TData, NSize>& x, Reduce f, TData init)
+container_reverse_exclusive_scan(const Array<TData, NSize>& x, Reduce f, Init init)
 {
+#if 0
     Array<TData, NSize> y;
 
     TData r = init;
@@ -224,6 +223,21 @@ container_reverse_exclusive_scan(const Array<TData, NSize>& x, Reduce f, TData i
     y(Number<0>{}) = r;
 
     return y;
+#else
+    Array<TData, NSize> y;
+
+    TData r = init;
+
+    for(index_t i = NSize - 1; i > 0; --i)
+    {
+        y(i) = r;
+        r    = f(r, x[i]);
+    }
+
+    y(0) = r;
+
+    return y;
+#endif
 }
 
 template <index_t... Is, typename Reduce, index_t Init>
@@ -326,7 +340,7 @@ template <typename T, index_t NX, index_t NY>
 __host__ __device__ constexpr auto container_concat(const Array<T, NX>& ax, const Array<T, NY>& ay)
 {
     return unpack2(
-        [&](auto&&... zs) { return make_array(std::forward<decltype(zs)>(zs)...); }, ax, ay);
+        [&](auto&&... zs) { return make_array<T>(std::forward<decltype(zs)>(zs)...); }, ax, ay);
 }
 
 template <typename... X, typename... Y>
@@ -345,35 +359,57 @@ __host__ __device__ constexpr auto container_concat(const Container& x)
 template <typename T, index_t N, index_t... Is>
 __host__ __device__ constexpr auto get_container_subset(const Array<T, N>& arr, Sequence<Is...>)
 {
-    static_assert(N >= sizeof...(Is), "wrong! size");
+    STATIC_ASSERT(N >= sizeof...(Is), "wrong! size");
 
-    return make_array(arr[Number<Is>{}]...);
+    if constexpr(sizeof...(Is) > 0)
+    {
+        return make_array<T>(arr[Is]...);
+    }
+    else
+    {
+        return Array<T, 0>{};
+    }
 }
 
 template <typename... Ts, index_t... Is>
 __host__ __device__ constexpr auto get_container_subset(const Tuple<Ts...>& tup, Sequence<Is...>)
 {
-    static_assert(sizeof...(Ts) >= sizeof...(Is), "wrong! size");
+    STATIC_ASSERT(sizeof...(Ts) >= sizeof...(Is), "wrong! size");
 
-    return make_tuple(tup[Number<Is>{}]...);
+    if constexpr(sizeof...(Is) > 0)
+    {
+        return make_tuple(tup[Number<Is>{}]...);
+    }
+    else
+    {
+        return Tuple<>{};
+    }
 }
 
 template <typename T, index_t N, index_t... Is>
 __host__ __device__ constexpr void
 set_container_subset(Array<T, N>& y, Sequence<Is...> picks, const Array<T, sizeof...(Is)>& x)
 {
-    static_assert(N >= sizeof...(Is), "wrong! size");
+    STATIC_ASSERT(N >= sizeof...(Is), "wrong! size");
 
-    static_for<0, sizeof...(Is), 1>{}([&](auto i) { y(picks[i]) = x[i]; });
+    if constexpr(sizeof...(Is) > 0)
+    {
+        for(index_t i = 0; i < picks.Size(); ++i)
+        {
+            y(picks[i]) = x[i];
+        }
+    }
 }
 
-template <typename... Ys, index_t... Is, typename... Xs>
-__host__ __device__ constexpr void
-set_container_subset(Tuple<Ys...>& y, Sequence<Is...> picks, const Tuple<Xs...>& x)
+template <typename Y, typename X, index_t... Is>
+__host__ __device__ constexpr void set_container_subset(Y& y, Sequence<Is...> picks, const X& x)
 {
-    static_assert(sizeof...(Ys) >= sizeof...(Is) && sizeof...(Is) == sizeof...(Xs), "wrong! size");
+    STATIC_ASSERT(Y::Size() >= sizeof...(Is) && X::Size() == sizeof...(Is), "wrong! size");
 
-    static_for<0, sizeof...(Is), 1>{}([&](auto i) { y(picks[i]) = x[i]; });
+    if constexpr(sizeof...(Is) > 0)
+    {
+        static_for<0, sizeof...(Is), 1>{}([&](auto i) { y(picks[i]) = x[i]; });
+    }
 }
 
 template <index_t... Is>
@@ -390,4 +426,3 @@ __host__ __device__ constexpr auto sequence_to_tuple_of_number(Sequence<Is...>)
 }
 
 } // namespace ck
-#endif

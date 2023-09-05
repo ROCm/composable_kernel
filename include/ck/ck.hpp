@@ -134,7 +134,7 @@
 #define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
 
 // experimental feature: multi index implemented as array
-#define CK_EXPERIMENTAL_USE_DYNAMICALLY_INDEXED_MULTI_INDEX 0
+#define CK_EXPERIMENTAL_USE_DYNAMICALLY_INDEXED_MULTI_INDEX 1
 
 // experimental feature: static tensor descriptor
 #define CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR 0
@@ -150,18 +150,12 @@
 #define CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK 1
 #define CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_MAX_OOB_CHECK_OFFSET_TRICK 1
 
-// experimental feature: in-regsiter sub-dword transpose
-#define CK_EXPERIMENTAL_USE_IN_REGISTER_SUB_DWORD_TRANSPOSE 1
-
 // experimental feature: merge transformation use magic number division
 #define CK_EXPERIMENTAL_MERGE_USE_MAGIC_DIVISION 1
 
 // experimental feature: use __builtin_memcpy instead of pointer cast to access a vector from
 // pointer of scalar
 #define CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS 0
-
-// experimental feature: use __builtin_memcpy instead of union to do bit_cast
-#define CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST 1
 
 // experimental feature: optimize for inter-wave scheduling policy
 #define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING 1
@@ -214,6 +208,11 @@
 #endif // CK_WORKAROUND_DENORM_FIX
 
 namespace ck {
+
+enum struct ArchEnum
+{
+    Gfx90a,
+};
 
 enum struct InMemoryDataOperationEnum
 {

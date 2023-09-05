@@ -133,8 +133,8 @@ struct ThreadwiseTensorSliceTransfer_v4r1
 
             using src_vector_t = typename decltype(src_vector)::type;
 
-            const bool is_src_valid = coordinate_has_valid_offset_assuming_visible_index_is_valid(
-                src_desc, src_data_coord);
+            const bool is_src_valid =
+                coordinate_has_valid_offset_assuming_top_index_is_valid(src_desc, src_data_coord);
 
             // copy data from src_buf into src_vector
             src_vector.template AsType<src_vector_t>()(I0) =

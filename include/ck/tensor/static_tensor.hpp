@@ -78,7 +78,9 @@ struct StaticTensor
 
     StaticBuffer<AddressSpace, T, element_space_size_, true> data_;
     static constexpr T zero_scalar_value_ = T{0};
+    // for read access of invalid element
     const T invalid_element_scalar_value_;
+    // for write access of invalid element
     T ignored_element_scalar_;
 };
 
@@ -101,12 +103,12 @@ struct StaticTensorTupleOfVectorBuffer
     using V = vector_type<S, ScalarPerVector>;
 
     __host__ __device__ constexpr StaticTensorTupleOfVectorBuffer()
-        : invalid_element_scalar_value_{0}
+        : invalid_element_scalar_value_{0}, ignored_element_scalar_{0}
     {
     }
 
     __host__ __device__ constexpr StaticTensorTupleOfVectorBuffer(S invalid_element_value)
-        : invalid_element_scalar_value_{invalid_element_value}
+        : invalid_element_scalar_value_{invalid_element_value}, ignored_element_scalar_{0}
     {
     }
 
@@ -244,7 +246,9 @@ struct StaticTensorTupleOfVectorBuffer
 
     StaticBufferTupleOfVector<AddressSpace, S, num_of_vector_, ScalarPerVector, true> data_;
     static constexpr S zero_scalar_value_ = S{0};
+    // for read access of invalid element
     const S invalid_element_scalar_value_ = S{0};
+    // for write access of invalid element
     S ignored_element_scalar_;
 };
 

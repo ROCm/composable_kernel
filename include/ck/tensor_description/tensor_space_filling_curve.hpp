@@ -6,7 +6,7 @@
 #include "ck/utility/math.hpp"
 #include "ck/utility/sequence.hpp"
 #include "ck/utility/sequence_helper.hpp"
-#include "ck/utility/statically_indexed_array_multi_index.hpp"
+#include "ck/utility/multi_index.hpp"
 #include "ck/utility/tuple_helper.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 
