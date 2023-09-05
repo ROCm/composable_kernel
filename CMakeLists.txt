@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
+cmake_policy(SET CMP0140 NEW)
 
 set(version 1.1.0)
 # Check support for CUDA/HIP in Cmake
