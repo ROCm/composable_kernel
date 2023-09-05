@@ -280,6 +280,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                       BK1,
                                       MPerBlock,
                                       NPerBlock,
+                                      KPerBlock,
                                       DoPadGemmM,
                                       DoPadGemmN>{};
 
