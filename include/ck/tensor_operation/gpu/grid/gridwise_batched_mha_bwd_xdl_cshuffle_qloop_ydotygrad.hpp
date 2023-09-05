@@ -142,8 +142,12 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
                                const YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                    y_grid_desc_mblock_mperblock_nblock_nperblock,
                                const DGridDesc_M& d_grid_desc_m,
-                               const Block2CTileMap& block_2_ctile_map)
+                               const Block2CTileMap& block_2_ctile_map,
+                               const float p_drop)
     {
+        const FloatD p_dropout = type_convert<FloatD>(1.0f - p_drop);
+        const tensor_operation::element_wise::Scale scale_p_dropout(p_dropout);
+
         const auto y_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_y_grid, y_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
         const auto ygrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -247,7 +251,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
                                                FloatD,
                                                decltype(d_thread_desc_mblock_m1),
                                                decltype(d_grid_desc_mblock_mperblock),
-                                               ck::tensor_operation::element_wise::PassThrough,
+                                               ck::tensor_operation::element_wise::Scale,
                                                Sequence<1, 1>,
                                                Sequence<0, 1>,
                                                1,
@@ -258,7 +262,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
                 d_grid_desc_mblock_mperblock,
                 make_multi_index(block_work_idx_m,          // mblock
                                  get_thread_local_1d_id()), // mperblock
-                ck::tensor_operation::element_wise::PassThrough{}};
+                scale_p_dropout};
 
         // copy from VGPR to Global
         d_thread_copy_vgpr_to_global.Run(d_thread_desc_mblock_m1,
