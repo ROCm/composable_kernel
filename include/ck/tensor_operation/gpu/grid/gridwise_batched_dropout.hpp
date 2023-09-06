@@ -57,8 +57,8 @@ struct GridwiseBatchedDropout
 
     static constexpr auto mfma = MfmaSelector<GemmDataType, MPerXdl, NPerXdl>::selected_mfma;
     static constexpr auto DropoutNThread = mfma.num_input_blks; // 2
-    // get_random_8x16() generates 8 random numbers each time
-    static constexpr auto DropoutTile = Number<DropoutNThread * 8>{}; // 16
+    // get_random_16x8() generates 16 random numbers each time
+    static constexpr auto DropoutTile = Number<DropoutNThread * 16>{}; // 32
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -241,7 +241,7 @@ struct GridwiseBatchedDropout
 
         // only used for providing ApplyDropoutAttnBwdSaveZ
         auto blockwise_dropout = BlockwiseDropout<FloatGemmAcc, decltype(thread_slice_desc_m_n)>{
-            static_cast<unsigned short>(0.8f * 65535.f), static_cast<FloatGemmAcc>(1.0f / 0.8f)};
+            static_cast<unsigned short>(0.8f * 255.f), static_cast<FloatGemmAcc>(1.0f / 0.8f)};
 
         //
         // z vgpr copy to global
@@ -260,7 +260,7 @@ struct GridwiseBatchedDropout
                                                            n2)); // NPerXdl
 
         StaticBuffer<AddressSpaceEnum::Vgpr,
-                     ushort,
+                     uint8_t,
                      z_thread_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3.GetElementSpaceSize(),
                      true>
             z_tensor_buffer;
@@ -273,7 +273,7 @@ struct GridwiseBatchedDropout
         const auto wave_m_n_id = GetGemm0WaveMNIdx(wave_id[I2]); // I2: 0~63
 
         auto z_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
-            ushort,
+            uint8_t,
             ZDataType,
             decltype(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3),
             decltype(z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3),

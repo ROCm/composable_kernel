@@ -43,9 +43,9 @@ int run(int argc, char* argv[])
         exit(0);
     }
 
-    float p_dropout              = 1 - p_drop;
-    uint16_t p_dropout_in_16bits = uint16_t(std::floor(p_dropout * 65535.0));
-    float rp_dropout             = 1.0 / p_dropout;
+    float p_dropout                = 1 - p_drop;
+    ZDataType p_dropout_in_uint8_t = ZDataType(std::floor(p_dropout * 255.0));
+    float rp_dropout               = 1.0 / p_dropout;
 
     float alpha = 1; // scaling after 1st gemm
 
@@ -149,8 +149,8 @@ int run(int argc, char* argv[])
                                  lse_gs_ms_strides,
                                  d_gs_ms_ns_lengths, // acc0_biases_gs_ms_ns_lengths
                                  d_gs_ms_ns_strides, // acc0_biases_gs_ms_ns_strides
-                                 {},                      // acc1_biases_gs_ms_os_lengths
-                                 {}});                    // acc1_biases_gs_ms_os_strides
+                                 {},                 // acc1_biases_gs_ms_os_lengths
+                                 {}});               // acc1_biases_gs_ms_os_strides
 
         // C_m_o = A_m_k * B0_k_n * B1_n_o
         Tensor<ADataType> a_gs_ms_ks(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
@@ -163,10 +163,11 @@ int run(int argc, char* argv[])
 
         int Batch = G0 * G1;
         flop += (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * Batch;
-        num_byte += (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
-                     sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O +
-                     sizeof(Acc0BiasDataType) * M * N * (std::is_void<Acc0BiasDataType>::value ? 0 : 1)) *
-                    Batch;
+        num_byte +=
+            (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N + sizeof(B1DataType) * N * O +
+             sizeof(CDataType) * M * O +
+             sizeof(Acc0BiasDataType) * M * N * (std::is_void<Acc0BiasDataType>::value ? 0 : 1)) *
+            Batch;
 
         if(i < 4)
         {
@@ -237,6 +238,7 @@ int run(int argc, char* argv[])
         b0_tensors_device[i]->ToDevice(b0_gs_ns_ks.mData.data());
         b1_tensors_device[i]->ToDevice(b1_gs_os_ns.mData.data());
         d_tensors_device[i]->ToDevice(d_gs_ms_ns.mData.data());
+        z_tensors_device[i]->ToDevice(z_gs_ms_ns.mData.data());
 
         p_a.push_back(a_tensors_device[i]->GetDeviceBuffer());
         p_b0.push_back(b0_tensors_device[i]->GetDeviceBuffer());
@@ -396,7 +398,9 @@ int run(int argc, char* argv[])
             ref_gemm0_invoker.Run(ref_gemm0_argument);
 
             // bias
-            acc0_g_m_n.ForEach([&](auto& self, auto idx) { self(idx) += ck::type_convert<AccDataType>(d_g_m_n(idx)); });
+            acc0_g_m_n.ForEach([&](auto& self, auto idx) {
+                self(idx) += ck::type_convert<AccDataType>(d_g_m_n(idx));
+            });
             // masking
             const auto mask = DeviceGemmInstance::C0MatrixMask(M, N);
             acc0_g_m_n.ForEach([&](auto& self, auto idx) {
@@ -419,7 +423,7 @@ int run(int argc, char* argv[])
             auto ref_dropout         = ReferenceDropoutInstance{};
             auto ref_dropout_invoker = ref_dropout.MakeInvoker();
             auto ref_dropout_argment = ref_dropout.MakeArgument(
-                z_g_m_n, a1_g_m_n, a1_g_m_n_drop, p_dropout_in_16bits, rp_dropout);
+                z_g_m_n, a1_g_m_n, a1_g_m_n_drop, p_dropout_in_uint8_t, rp_dropout);
             ref_dropout_invoker.Run(ref_dropout_argment);
 
             // gemm 1
