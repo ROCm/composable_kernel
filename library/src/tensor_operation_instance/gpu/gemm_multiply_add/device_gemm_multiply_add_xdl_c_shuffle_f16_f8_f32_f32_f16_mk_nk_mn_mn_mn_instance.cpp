@@ -33,6 +33,19 @@ using MultiplyAdd = ck::tensor_operation::element_wise::MultiplyAdd;
 
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
+using device_gemm_multiply_add_xdl_c_shuffle_f16_f8_f32_f32_f16_mk_nk_mn_mn_mn_generic_instances =
+    std::tuple<
+        // clang-format off
+        // M/N/K padding
+        // N % 8 == 0 && K % 1 == 0
+        //##############################|      A|      B|        Ds|      E| AData| BData| AccData| CShuffle|    DsData| EData|           A|           B|            CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+        //##############################| Layout| Layout|    Layout| Layout|  Type|  Type|    Type| DataType|      Type|  Type| Elementwise| Elementwise|    Elementwise| Specialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+        //##############################|       |       |          |       |      |      |        |         |          |      |   Operation|   Operation|      Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+        //##############################|       |       |          |       |      |      |        |         |          |      |            |            |               |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
+        DeviceGemmMultipleD_Xdl_CShuffle<    Row,    Col, Row_Tuple,    Row,   F16,    F8,     F32,      F32, F32_Tuple,   F16, PassThrough, PassThrough,    MultiplyAdd, GemmMNKPadding,        1,    64,    32,    64,    32,   8,   8,   32,   32,    1,    2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              8,         1,           1,           1,              S<1,  2, 1, 32>,               1>
+        // clang-format on
+        >;
+
 using device_gemm_multiply_add_xdl_c_shuffle_f16_f8_f32_f32_f16_mk_nk_mn_mn_mn_instances =
     std::tuple<
         // clang-format off
@@ -55,7 +68,6 @@ using device_gemm_multiply_add_xdl_c_shuffle_f16_f8_f32_f32_f16_mk_nk_mn_mn_mn_i
         DeviceGemmMultipleD_Xdl_CShuffle<    Row,    Col, Row_Tuple,    Row,   F16,    F8,     F32,      F32, F32_Tuple,   F16, PassThrough, PassThrough,    MultiplyAdd, GemmMNKPadding,        1,   128,    32,   128,    32,   8,   8,   32,   32,    1,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,              S<1,  2, 1, 64>,               1>,
         DeviceGemmMultipleD_Xdl_CShuffle<    Row,    Col, Row_Tuple,    Row,   F16,    F8,     F32,      F32, F32_Tuple,   F16, PassThrough, PassThrough,    MultiplyAdd, GemmMNKPadding,        1,    64,    64,    32,    32,   8,   8,   32,   32,    2,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,              S<1,  2, 1, 32>,               1>,
         DeviceGemmMultipleD_Xdl_CShuffle<    Row,    Col, Row_Tuple,    Row,   F16,    F8,     F32,      F32, F32_Tuple,   F16, PassThrough, PassThrough,    MultiplyAdd, GemmMNKPadding,        1,    64,    32,    64,    32,   8,   8,   32,   32,    1,    2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,              S<1,  2, 1, 32>,               1>
-
         // clang-format on
         >;
 
@@ -72,6 +84,10 @@ void add_device_gemm_multiply_add_xdl_c_shuffle_f16_f8_f32_f32_f16_mk_nk_mn_mn_m
                                                     PassThrough,
                                                     MultiplyAdd>>>& instances)
 {
+    add_device_operation_instances(
+        instances,
+        device_gemm_multiply_add_xdl_c_shuffle_f16_f8_f32_f32_f16_mk_nk_mn_mn_mn_generic_instances{});
+
     add_device_operation_instances(
         instances,
         device_gemm_multiply_add_xdl_c_shuffle_f16_f8_f32_f32_f16_mk_nk_mn_mn_mn_instances{});
