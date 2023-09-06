@@ -2,6 +2,7 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+
 #include "amd_gemm_dpp.hpp"
 #include "data_type.hpp"
 #include "type_convert.hpp"
@@ -9,6 +10,9 @@
 namespace ck {
 
 namespace dpp8 {
+
+/// Number of lanes that can share data using DPP8 modifiers.
+constexpr index_t lane_group_size = 8;
 
 template <int SrcLaneIdx>
 __device__ void inline_v_dot2c_dpp8_instr(const half2_t& a, const half2_t& b, float& c);
