@@ -98,7 +98,6 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
             desc_mnk,
             make_tuple(make_right_pad_transform(m, pad_m), make_right_pad_transform(n, pad_n), make_right_pad_transform(k, pad_k)),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
 	    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
         return desc_mnk_pad;
     }
@@ -225,8 +224,8 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
         {
             index_t gridSize      = getAvailableComputeUnitCount(stream_config);
             index_t num_threads_m = (gridSize * arg.blockSize_) / 16;
-            index_t num_threads_n = 4;
-	    index_t num_threads_k = 4;
+            index_t num_threads_n = 16;
+	    index_t num_threads_k = 16;
 
             auto in_grid_3d_desc_tuple = generate_tuple(
                 [&](auto I) {
@@ -235,7 +234,7 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
                                              gridSize,
                                              arg.blockSize_,
                                              num_threads_m,
-                                             num_threads_n,);
+                                             num_threads_n,
                                              num_threads_k);
                 },
                 Number<NumInput>{});
@@ -247,7 +246,7 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
                                              gridSize,
                                              arg.blockSize_,
                                              num_threads_m,
-                                             num_threads_n,);
+                                             num_threads_n,
                                              num_threads_k);
                 },
                 Number<NumOutput>{});
