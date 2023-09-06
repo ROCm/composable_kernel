@@ -175,7 +175,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext<
         BlockSize,
-        ADataType, // TODO: distinguish A/B datatype
+        ADataType,
         AccDataType,
         CDataType,
         InMemoryDataOperationEnum::Set,
@@ -185,7 +185,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
-        GemmSpecialization::MNPadding,
+        GemmSpecialization::MNKPadding,
         MPerBlock,
         NPerBlock,
         K0PerBlock,
