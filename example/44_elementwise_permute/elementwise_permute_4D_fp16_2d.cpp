@@ -54,8 +54,8 @@ int main()
     //const int W = 1024;
     const int N = 16;
     const int C = 8;
-    const int H = 8;
-    const int W = 8;
+    const int H = 32;
+    const int W = 64;
     /**const int N = 120;
     const int H = 32;
     const int W = 64;
@@ -110,13 +110,13 @@ int main()
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-    LogRangeAsType<float>(std::cout << "A  : ", a.mData, ",") << std::endl;
-    //LogRangeAsType<float>(std::cout << "B  : ", b.mData, ",") << std::endl;
+    //LogRangeAsType<float>(std::cout << "A  : ", a.mData, ",") << std::endl;
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
 
     bool pass = true;
 
+    //LogRangeAsType<float>(std::cout << "B  : ", b.mData, ",") << std::endl;
     if(do_verification)
     {
         b_device_buf.FromDevice(b.mData.data());
@@ -127,6 +127,7 @@ int main()
             host_b, a, nchw, PassThrough{});
 	//LogRangeAsType<float>(std::cout << "Host_b  : ", host_b.mData, ",") << std::endl;
 
+    	LogRangeAsType<float>(std::cout << "B  : ", b.mData, ",") << std::endl;
         // LogRangeAsType<float>(std::cout << "Host b  : ", host_b.mData, ",") << std::endl;
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
