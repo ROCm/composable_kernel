@@ -11,7 +11,6 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm.hpp"
-#include "ck/tensor_operation/gpu/device/gemm_dl_algorithm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_dl_v1r3.hpp"
 #include "ck/host_utility/device_prop.hpp"
@@ -60,7 +59,6 @@ template <
     typename CThreadTransferSrcDstAccessOrder,
     index_t CThreadTransferSrcDstVectorDim,
     index_t CThreadTransferDstScalarPerVector,
-    GemmDlAlgorithm GemmDlAlg = GemmDlAlgorithm::Default,
     enable_if_t<
         is_same_v<AElementwiseOperation, ck::tensor_operation::element_wise::PassThrough> &&
             is_same_v<BElementwiseOperation, ck::tensor_operation::element_wise::PassThrough> &&
@@ -238,8 +236,7 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
                                      BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1,
                                      CThreadTransferSrcDstAccessOrder,
                                      CThreadTransferSrcDstVectorDim,
-                                     CThreadTransferDstScalarPerVector,
-                                     GemmDlAlg>;
+                                     CThreadTransferDstScalarPerVector>;
 
     using AGridDesc_K0_M0_M1_K1 =
         decltype(GridwiseGemm::MakeAGridDescriptor_K0_M0_M1_K1(AGridDesc_K0_M_K1{}));
@@ -375,8 +372,7 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
                                         remove_reference_t<CGridDesc_M0_M10_M11_N0_N10_N11>,
                                         remove_reference_t<DefaultBlock2CTileMap>,
                                         true,
-                                        true,
-                                        GemmDlAlg>;
+                                        true>;
 
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,
@@ -402,8 +398,7 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
                                         remove_reference_t<CGridDesc_M0_M10_M11_N0_N10_N11>,
                                         remove_reference_t<DefaultBlock2CTileMap>,
                                         true,
-                                        false,
-                                        GemmDlAlg>;
+                                        false>;
 
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,
@@ -429,8 +424,7 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
                                         remove_reference_t<CGridDesc_M0_M10_M11_N0_N10_N11>,
                                         remove_reference_t<DefaultBlock2CTileMap>,
                                         false,
-                                        true,
-                                        GemmDlAlg>;
+                                        true>;
 
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,
@@ -456,8 +450,7 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
                                         remove_reference_t<CGridDesc_M0_M10_M11_N0_N10_N11>,
                                         remove_reference_t<DefaultBlock2CTileMap>,
                                         false,
-                                        false,
-                                        GemmDlAlg>;
+                                        false>;
 
                 ave_time = launch_and_time_kernel(stream_config,
                                                   kernel,
@@ -492,16 +485,6 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if constexpr(GemmDlAlg == GemmDlAlgorithm::Dpp8)
-        {
-            if(ck::get_device_name() == "gfx1030")
-            {
-                return GridwiseGemm::CheckValidity(
-                    arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.c_grid_desc_m_n_);
-            }
-            return false;
-        }
-
         if(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030" ||
            ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
            ck::get_device_name() == "gfx1102")
