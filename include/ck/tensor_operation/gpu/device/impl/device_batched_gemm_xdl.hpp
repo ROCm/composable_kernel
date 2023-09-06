@@ -185,7 +185,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
-        GemmSpecialization::MNPadding,
+        GemmSpecialization::MNKPadding,
         MPerBlock,
         NPerBlock,
         K0PerBlock,
@@ -315,11 +315,6 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
             return false;
         }
 
-        if(problem.K % K1 != 0)
-        {
-            return false;
-        }
-
         return GridwiseGemm::CheckValidity(problem);
     }
 
@@ -416,7 +411,12 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock
+            << K0PerBlock << ", "
+            << K1 << ", "
+            << MPerXDL << ", "
+            << NPerXDL << ", "
+            << MXdlPerWave << ", "
+            << NXdlPerWave << ", "
             << ">"
             << " NumGemmKPrefetchStage: "
             << NumGemmKPrefetchStage << ", "
