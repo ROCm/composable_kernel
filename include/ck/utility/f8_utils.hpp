@@ -232,9 +232,6 @@ __host__ __device__ Y cast_to_f8(X x, uint32_t rng)
     constexpr bool is_half  = std::is_same<X, half_t>::value;
     constexpr bool is_float = std::is_same<X, float>::value;
     static_assert(is_half || is_float, "Only half and float can be casted.");
-    // constexpr bool is_f8  = std::is_same<Y, f8_t>::value;
-    // constexpr bool is_bf8 = std::is_same<Y, bf8_t>::value;
-    // static_assert(is_f8 || is_bf8, "Casting to f8 and bf8 only is supported.");
 
     return run_cast_to_f8<X, Y, negative_zero_nan, clip, stoch>(x, rng);
 }
@@ -246,9 +243,6 @@ __host__ __device__ Y cast_from_f8(X x)
     constexpr bool is_half  = std::is_same<Y, half_t>::value;
     constexpr bool is_float = std::is_same<Y, float>::value;
     static_assert(is_half || is_float, "only half and float are supported.");
-    // constexpr bool is_f8  = std::is_same<X, f8_t>::value;
-    // constexpr bool is_bf8 = std::is_same<X, bf8_t>::value;
-    // static_assert(is_f8 || is_bf8, "Casting to f8 and bf8 only is supported.");
 
     return run_cast_from_f8<X, Y, negative_zero_nan>(x);
 }

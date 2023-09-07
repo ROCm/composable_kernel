@@ -1078,8 +1078,6 @@ struct NumericLimits<bf8_t>
 template <typename T>
 struct NumericUtils
 {
-    static constexpr int exp  = 0;
-    static constexpr int mant = 0;
 };
 
 template <>
