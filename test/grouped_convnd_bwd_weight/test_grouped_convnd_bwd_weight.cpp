@@ -14,6 +14,8 @@
 
 #include "profiler/profile_grouped_conv_bwd_weight_impl.hpp"
 
+using namespace ck::tensor_layout::convolution;
+
 template <typename Tuple>
 class TestGroupedConvndBwdWeight : public ::testing::Test
 {
@@ -35,7 +37,17 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         // dl kernel is only supported for split_k=1
         if constexpr(std::is_same_v<InDataType, ck::half_t>)
         {
-            if(split_k == 1 && (params.K_ == 1 || params.C_ == 1))
+            if(split_k != 1 && (params.K_ % 2 != 0 || params.C_ % 2 != 0))
+            {
+                return true;
+            }
+        }
+
+        // 1d nhwgc is only supported by dl kernel
+        // dl kernel is only supported for split_k=1
+        if constexpr(std::is_same_v<InLayout, NWGC> && std::is_same_v<OutLayout, NWGK>)
+        {
+            if(split_k != 1)
             {
                 return true;
             }
@@ -89,8 +101,6 @@ template <typename Tuple>
 class TestGroupedConvndBwdWeight3d : public TestGroupedConvndBwdWeight<Tuple>
 {
 };
-
-using namespace ck::tensor_layout::convolution;
 
 using KernelTypes1d = ::testing::Types<
     std::tuple<float, float, float, GNWC, GKXC, GNWK, ck::Number<1>>,
