@@ -28,6 +28,12 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<float, double>(float& y, const double& x) const
+    {
+        y = x;
+    }
+
+    template <>
     __host__ __device__ void operator()<float, float>(float& y, const float& x) const
     {
         y = x;
@@ -412,14 +418,14 @@ struct Swish
 {
     Swish(float beta = 1.0f) : beta_(beta) {}
 
-    template <typename T>
-    __host__ __device__ void operator()(T& y, const T& x) const
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const
     {
-        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, ck::half_t>::value,
+        static_assert(is_same<X, float>::value || is_same<X, double>::value ||
+                          is_same<X, ck::half_t>::value,
                       "Data type is not supported by this operation!");
 
-        y = x / (ck::type_convert<T>(1) + ck::math::exp(-beta_ * x));
+        y = x / (ck::type_convert<Y>(1) + ck::math::exp(-beta_ * x));
     };
 
     float beta_ = 1.0f;

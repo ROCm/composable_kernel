@@ -247,7 +247,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
-        ADataType, // TODO: distinguish A/B datatype
+        ADataType,
         BDataType,
         ComputeDataType,
         AccDataType,

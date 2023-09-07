@@ -55,6 +55,18 @@ struct GeneratorTensor_1<int8_t>
     }
 };
 
+template <>
+struct GeneratorTensor_1<ck::f8_t>
+{
+    float value = 1.0;
+
+    template <typename... Is>
+    ck::f8_t operator()(Is...)
+    {
+        return ck::type_convert<ck::f8_t>(value);
+    }
+};
+
 template <typename T>
 struct GeneratorTensor_2
 {
