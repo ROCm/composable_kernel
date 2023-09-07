@@ -15,7 +15,6 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                  const ck::utils::conv::ConvParam& conv_param)
 {
     // Dl op doesn't support split_k > 1
-    // TODO: Add Dl op split_k > 1 support
     constexpr ck::index_t split_k = 1;
 
     const auto in_g_n_c_wis_desc =
