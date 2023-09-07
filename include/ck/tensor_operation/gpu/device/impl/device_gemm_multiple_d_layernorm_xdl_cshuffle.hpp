@@ -364,11 +364,13 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}, {}))>;
     // We have to separate mean var descriptor for gemm and layernorm bacause of different grid
     // layout(different padding)
-    using GemmMeanVarGridDesc_M_NBlock = decltype(
-        MakeMeanVarDescriptor_M_N<Sequence<true, false>, GemmMPerBlock, GemmNPerBlock>(1, 1));
+    using GemmMeanVarGridDesc_M_NBlock =
+        decltype(MakeMeanVarDescriptor_M_N<Sequence<true, false>, GemmMPerBlock, GemmNPerBlock>(1,
+                                                                                                1));
 
-    using GemmCountGridDesc_M_NBlock = decltype(
-        MakeCountDescriptor_M_N<Sequence<true, false>, GemmMPerBlock, GemmNPerBlock>(1, 1));
+    using GemmCountGridDesc_M_NBlock =
+        decltype(MakeCountDescriptor_M_N<Sequence<true, false>, GemmMPerBlock, GemmNPerBlock>(1,
+                                                                                              1));
 
     using LayernormMeanVarGridDesc_M_NBlock =
         decltype(MakeMeanVarDescriptor_M_N<Sequence<true, true>,
@@ -855,9 +857,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
-             ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
-             ck::get_device_name() == "gfx942"))
+        if(!ck::is_xdl_supported())
         {
             return false;
         }

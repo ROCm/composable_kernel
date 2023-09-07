@@ -129,6 +129,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
+        static_assert(SliceLengths::At(SrcVectorDim) % SrcScalarPerVector == 0,
+                      "SliceLengths[SrcVectorDim] must be divisible by SrcScalarPerVector");
+
         constexpr auto src_dim_access_order = SrcDimAccessOrder{};
 
         constexpr auto ordered_src_access_lengths =

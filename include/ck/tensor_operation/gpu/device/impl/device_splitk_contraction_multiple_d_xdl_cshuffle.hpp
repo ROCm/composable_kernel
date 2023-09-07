@@ -617,10 +617,12 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
 
-    using AGridDesc_AKB_AK0_M_AK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultAGridDescriptor_AKB_AK0_M_AK1(AGridDesc_M_K{}, 1))>;
-    using BGridDesc_BKB_BK0_N_BK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultBGridDescriptor_BKB_BK0_N_BK1(BGridDesc_N_K{}, 1))>;
+    using AGridDesc_AKB_AK0_M_AK1 =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultAGridDescriptor_AKB_AK0_M_AK1(
+            AGridDesc_M_K{}, 1))>;
+    using BGridDesc_BKB_BK0_N_BK1 =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBGridDescriptor_BKB_BK0_N_BK1(
+            BGridDesc_N_K{}, 1))>;
 
     using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
 
@@ -886,11 +888,12 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                     typename GridwiseGemmAtomicAdd::DefaultBlock2ETileMap,
                     has_main_loop>;
 
-                hipGetErrorString(hipMemset(
+                hipGetErrorString(hipMemsetAsync(
                     arg.p_e_grid_,
                     0,
                     arg.e_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
-                        sizeof(EDataType)));
+                        sizeof(EDataType),
+                    stream_config.stream_id_));
 
                 return launch_and_time_kernel(stream_config,
                                               kernel,
@@ -939,9 +942,7 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
-             ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
-             ck::get_device_name() == "gfx942"))
+        if(!ck::is_xdl_supported())
         {
             return false;
         }

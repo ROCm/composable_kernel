@@ -70,10 +70,11 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
             ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
                 conv_param);
 
-        std::array<ck::index_t, NDimSpatial> input_spatial_lengths{};
-        std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
-        std::array<ck::index_t, NDimSpatial> output_spatial_lengths{};
+        std::array<ck::index_t, NDimSpatial + 3> input_lengths{};
+        std::array<ck::index_t, NDimSpatial + 3> filter_lengths{};
+        std::array<ck::index_t, NDimSpatial + 3> output_lengths{};
         std::array<ck::index_t, NDimSpatial + 3> input_strides{};
+        std::array<ck::index_t, NDimSpatial + 3> weights_strides{};
         std::array<ck::index_t, NDimSpatial + 3> output_strides{};
         std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
         std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
@@ -82,10 +83,11 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
         auto range_copy = [](const auto& from, auto to) { std::copy(begin(from), end(from), to); };
 
-        range_copy(conv_param.input_spatial_lengths_, begin(input_spatial_lengths));
-        range_copy(conv_param.filter_spatial_lengths_, begin(filter_spatial_lengths));
-        range_copy(conv_param.output_spatial_lengths_, begin(output_spatial_lengths));
+        range_copy(in_g_n_c_wis_desc.GetLengths(), begin(input_lengths));
         range_copy(in_g_n_c_wis_desc.GetStrides(), begin(input_strides));
+        range_copy(wei_g_k_c_xs_desc.GetLengths(), begin(filter_lengths));
+        range_copy(wei_g_k_c_xs_desc.GetStrides(), begin(weights_strides));
+        range_copy(out_g_n_k_wos_desc.GetLengths(), begin(output_lengths));
         range_copy(out_g_n_k_wos_desc.GetStrides(), begin(output_strides));
         range_copy(conv_param.conv_filter_strides_, begin(conv_filter_strides));
         range_copy(conv_param.conv_filter_dilations_, begin(conv_filter_dilations));
@@ -97,14 +99,11 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         auto argument = conv.MakeArgument(nullptr,
                                           nullptr,
                                           nullptr,
-                                          conv_param.G_,
-                                          conv_param.N_,
-                                          conv_param.K_,
-                                          conv_param.C_,
-                                          input_spatial_lengths,
-                                          filter_spatial_lengths,
-                                          output_spatial_lengths,
+                                          input_lengths,
                                           input_strides,
+                                          filter_lengths,
+                                          weights_strides,
+                                          output_lengths,
                                           output_strides,
                                           conv_filter_strides,
                                           conv_filter_dilations,

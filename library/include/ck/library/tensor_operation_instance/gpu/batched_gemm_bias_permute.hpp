@@ -13,7 +13,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
-
+#ifdef CK_ENABLE_FP16
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -91,3 +91,4 @@ struct DeviceOperationInstanceFactory<
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#endif

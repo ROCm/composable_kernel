@@ -185,7 +185,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
-        GemmSpecialization::MNPadding,
+        GemmSpecialization::MNKPadding,
         MPerBlock,
         NPerBlock,
         K0PerBlock,
@@ -310,7 +310,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
 
     static bool IsSupportedArgument(const Problem& problem)
     {
-        if(problem.K % K1 != 0)
+        if(!ck::is_xdl_supported())
         {
             return false;
         }
@@ -411,7 +411,12 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock
+            << K0PerBlock << ", "
+            << K1 << ", "
+            << MPerXDL << ", "
+            << NPerXDL << ", "
+            << MXdlPerWave << ", "
+            << NXdlPerWave << ", "
             << ">"
             << " NumGemmKPrefetchStage: "
             << NumGemmKPrefetchStage << ", "

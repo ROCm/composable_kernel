@@ -26,9 +26,14 @@ RUN if [ "$ROCMVERSION" != "5.7" ]; then \
         sh -c "echo deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/rocm-keyring.gpg] $DEB_ROCM_REPO focal main > /etc/apt/sources.list.d/rocm.list" && \
         sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/rocm-keyring.gpg] https://repo.radeon.com/amdgpu/$ROCMVERSION/ubuntu focal main > /etc/apt/sources.list.d/amdgpu.list'; \
     elif [ "$ROCMVERSION" = "5.7" ] && [ "$compiler_version" = "" ] || [ "$compiler_version" = "amd-stg-open" ]; then \
-         sh -c "wget http://artifactory-cdn.amd.com/artifactory/list/amdgpu-deb/amdgpu-install-internal_5.7-20.04-1_all.deb" && \
-         apt update && apt-get install -y ./amdgpu-install-internal_5.7-20.04-1_all.deb && \
-         amdgpu-repo --amdgpu-build=1609671 --rocm-build=compute-rocm-npi-mi300/1354; \
+        sh -c "wget http://artifactory-cdn.amd.com/artifactory/list/amdgpu-deb/amdgpu-install-internal_5.7-20.04-1_all.deb" && \
+        apt update && apt-get install -y ./amdgpu-install-internal_5.7-20.04-1_all.deb && \
+        amdgpu-repo --amdgpu-build=1609671 --rocm-build=compute-rocm-npi-mi300/1354; \
+    elif [ "$ROCMVERSION" = "5.7" ] && [ "$compiler_version" = "rc1" ]; then \
+        sh -c "wget http://artifactory-cdn.amd.com/artifactory/list/amdgpu-deb/amdgpu-install-internal_5.7-20.04-1_all.deb" && \
+        apt update && apt-get install -y ./amdgpu-install-internal_5.7-20.04-1_all.deb && \
+        sh -c 'echo deb [arch=amd64 trusted=yes] http://compute-artifactory.amd.com/artifactory/list/rocm-release-archive-20.04-deb/ 5.7 rel-19 > /etc/apt/sources.list.d/rocm-build.list' && \
+        amdgpu-repo --amdgpu-build=1637781; \
     fi
 
 RUN sh -c "echo deb http://mirrors.kernel.org/ubuntu focal main universe | tee -a /etc/apt/sources.list"
@@ -48,6 +53,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libpthread-stubs0-dev \
     llvm-amdgpu \
     pkg-config \
+    python \
     python3 \
     python3-dev \
     python3-pip \
@@ -57,12 +63,16 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     nano \
     zlib1g-dev \
     openssh-server \
-    clang-format-10 \
+    clang-format-12 \
     kmod && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 #Install latest version of cmake
+RUN wget -qO /usr/local/bin/ninja.gz https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip
+RUN gunzip /usr/local/bin/ninja.gz
+RUN chmod a+x /usr/local/bin/ninja
+RUN git clone https://github.com/nico/ninjatracing.git
 RUN apt purge --auto-remove -y cmake
 RUN apt update
 RUN apt install -y software-properties-common lsb-release

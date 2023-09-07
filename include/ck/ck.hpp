@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ck/config.h"
+
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
@@ -118,8 +120,15 @@
 // inline asm
 #define CK_USE_AMD_INLINE_ASM 1
 
-// inner product (DLOP)
-#define CK_USE_AMD_INNER_PRODUCT_INLINE_ASM 1
+// inner product (V_MAC/V_FMAC)
+#define CK_USE_AMD_V_MAC_INLINE_ASM 1
+
+// V_DOT inline instructions, less efficient since they require adding
+// `s_nop`s to avoid hazard
+#define CK_USE_AMD_V_DOT_INLINE_ASM 0
+
+// inner product using V_DOT with DPP8 modifiers
+#define CK_USE_AMD_V_DOT_DPP8_INLINE_ASM 1
 
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
 #define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
@@ -192,9 +201,6 @@
 
 // workaround: compiler issue on gfx908
 #define CK_WORKAROUND_SWDEV_388832 1
-
-// workaround: Grouped Conv2d_bwd_data fails for already implemented instance
-#define CK_WORKAROUND_SWDEV_3318619 0
 
 // flag to enable (1) or disable (0) the debugging output in some kernels
 #define DEBUG_LOG 0

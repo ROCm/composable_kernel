@@ -681,9 +681,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
-             ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
-             ck::get_device_name() == "gfx942"))
+        if(!ck::is_xdl_supported())
         {
             return false;
         }
@@ -737,12 +735,12 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
             }
 
             // Check vector load/store requirement
-            const auto a_stride_lowest = ABlockTransferSrcVectorDim == 2
-                                             ? device_arg.a_mz_kz_strides_[1]
-                                             : device_arg.a_mz_kz_strides_[0];
-            const auto b_stride_lowest = BBlockTransferSrcVectorDim == 2
-                                             ? device_arg.b_nz_kz_strides_[1]
-                                             : device_arg.b_nz_kz_strides_[0];
+            const auto a_stride_lowest  = ABlockTransferSrcVectorDim == 2
+                                              ? device_arg.a_mz_kz_strides_[1]
+                                              : device_arg.a_mz_kz_strides_[0];
+            const auto b_stride_lowest  = BBlockTransferSrcVectorDim == 2
+                                              ? device_arg.b_nz_kz_strides_[1]
+                                              : device_arg.b_nz_kz_strides_[0];
             const auto b1_stride_lowest = B1BlockTransferSrcVectorDim == 2
                                               ? device_arg.b1_nz_kz_strides_[1]
                                               : device_arg.b1_nz_kz_strides_[0];
