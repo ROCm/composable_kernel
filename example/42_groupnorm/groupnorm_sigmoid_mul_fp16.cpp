@@ -14,14 +14,14 @@ using ComputeDataType = float;
 
 struct YElementOp
 {
-    template <typename T>
-    __host__ __device__ void operator()(T& y, const T& x) const
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const
     {
-        static_assert(ck::is_same<T, float>::value || ck::is_same<T, double>::value ||
-                          ck::is_same<T, ck::half_t>::value,
+        static_assert(ck::is_same<X, float>::value || ck::is_same<X, double>::value ||
+                          ck::is_same<X, ck::half_t>::value,
                       "Data type is not supported by this operation!");
 
-        T a;
+        X a;
 
         ck::tensor_operation::element_wise::Sigmoid{}(a, x);
 
