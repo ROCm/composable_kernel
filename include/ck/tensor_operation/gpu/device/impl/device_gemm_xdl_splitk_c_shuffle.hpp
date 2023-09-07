@@ -260,9 +260,9 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                              index_t StrideA,
                              index_t StrideB,
                              index_t StrideC,
-                             AElementwiseOperation,
-                             BElementwiseOperation,
-                             CElementwiseOperation,
+                             AElementwiseOperation a_element_op,
+                             BElementwiseOperation b_element_op,
+                             CElementwiseOperation c_element_op,
                              index_t KBatch)
     {
         return Argument{p_a,
@@ -278,7 +278,10 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                         GridwiseGemm::CalculateNPadded(N),
                         GridwiseGemm::CalculateKPadded(K, KBatch),
                         GridwiseGemm::CalculateK0(K, KBatch),
-                        KBatch};
+                        KBatch,
+                        a_element_op,
+                        b_element_op,
+                        c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -293,9 +296,9 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                                       index_t StrideA,
                                                       index_t StrideB,
                                                       index_t StrideC,
-                                                      AElementwiseOperation,
-                                                      BElementwiseOperation,
-                                                      CElementwiseOperation,
+                                                      AElementwiseOperation a_element_op,
+                                                      BElementwiseOperation b_element_op,
+                                                      CElementwiseOperation c_element_op,
                                                       ck::index_t KBatch = 1) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
@@ -311,7 +314,10 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                           GridwiseGemm::CalculateNPadded(N),
                                           GridwiseGemm::CalculateKPadded(K, KBatch),
                                           GridwiseGemm::CalculateK0(K, KBatch),
-                                          KBatch);
+                                          KBatch,
+                                          a_element_op,
+                                          b_element_op,
+                                          c_element_op);
     }
 
     // polymorphic

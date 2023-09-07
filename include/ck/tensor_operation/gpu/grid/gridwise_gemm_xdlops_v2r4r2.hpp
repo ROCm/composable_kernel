@@ -129,6 +129,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         index_t KPadded;
         index_t K0;
         index_t k_batch;
+        AElementwiseOperation a_element_op;
+        BElementwiseOperation b_element_op;
+        CElementwiseOperation c_element_op;
 
         Argument(const FloatA* p_a_grid_,
                  const FloatB* p_b_grid_,
@@ -143,7 +146,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                  index_t NPadded_,
                  index_t KPadded_,
                  index_t K0_,
-                 index_t k_batch_)
+                 index_t k_batch_,
+                 AElementwiseOperation a_element_op_,
+                 BElementwiseOperation b_element_op_,
+                 CElementwiseOperation c_element_op_)
             : p_a_grid(p_a_grid_),
               p_b_grid(p_b_grid_),
               p_c_grid(p_c_grid_),
@@ -157,7 +163,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
               NPadded(NPadded_),
               KPadded(KPadded_),
               K0(K0_),
-              k_batch(k_batch_)
+              k_batch(k_batch_),
+              a_element_op(a_element_op_),
+              b_element_op(b_element_op_),
+              c_element_op(c_element_op_)
         {
         }
 
@@ -590,9 +599,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
-        const AElementwiseOperation a_element_op = AElementwiseOperation{};
-        const BElementwiseOperation b_element_op = BElementwiseOperation{};
-        const CElementwiseOperation c_element_op = CElementwiseOperation{};
 
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_b_k0_m_k1_grid_desc.GetElementSpaceSize());
@@ -716,7 +722,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                                 true>(
                 a_b_k0_m_k1_grid_desc,
                 make_multi_index(k_batch_id, 0, m_block_data_idx_on_grid, 0),
-                a_element_op,
+                karg.a_element_op,
                 a_b_k0_m_k1_block_desc,
                 make_multi_index(0, 0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{});
@@ -746,7 +752,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                                 true>(
                 b_b_k0_n_k1_grid_desc,
                 make_multi_index(k_batch_id, 0, n_block_data_idx_on_grid, 0),
-                b_element_op,
+                karg.b_element_op,
                 b_b_k0_n_k1_block_desc,
                 make_multi_index(0, 0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{});
@@ -940,7 +946,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                  make_multi_index(0, 0, 0, 0),
                  c_grid_desc_mblock_mperblock_nblock_nperblock,
                  make_multi_index(block_m_id, 0, block_n_id, 0),
-                 c_element_op};
+                 karg.c_element_op};
 
             constexpr auto mxdlperwave_forward_step =
                 make_multi_index(0, CShuffleMRepeatPerShuffle * MWave * MPerXDL, 0, 0);
