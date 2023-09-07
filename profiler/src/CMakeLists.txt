@@ -19,6 +19,8 @@ set(PROFILER_SOURCES
     profile_groupnorm.cpp
     profile_layernorm.cpp
     profile_max_pool3d_fwd.cpp
+    profile_avg_pool3d_bwd.cpp
+    profile_max_pool3d_bwd.cpp
     profile_softmax.cpp
     profile_batchnorm_fwd.cpp
     profile_batchnorm_bwd.cpp
@@ -26,6 +28,7 @@ set(PROFILER_SOURCES
     profile_contraction_bilinear.cpp
     profile_contraction_scale.cpp
     profile_grouped_conv_bwd_data.cpp
+    profile_image_to_column.cpp
 )
 if(DL_KERNELS)
   list(APPEND PROFILER_SOURCES profile_batched_gemm_multi_d.cpp)
@@ -76,8 +79,11 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batchnorm_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_bilinear_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_scale_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_pool3d_fwd_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_avg_pool3d_bwd_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_max_pool_bwd_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv2d_bwd_data_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_bwd_data_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_image_to_column_instance)
 if(DL_KERNELS)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_multi_d_instance)
 endif()
