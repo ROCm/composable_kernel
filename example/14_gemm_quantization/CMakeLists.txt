@@ -1,8 +1,7 @@
 if(DTYPES MATCHES "int8" OR NOT DEFINED DTYPES)
 # dlops
-if(DL_KERNELS)
-  add_example_executable(example_gemm_dl_quantization_int8 gemm_dl_quantization_int8.cpp)
-endif()
+add_example_executable(example_gemm_dl_quantization_int8 gemm_dl_quantization_int8.cpp)
+
 
 # xdlops
 list(APPEND gpu_list gfx908 gfx90a gfx940 gfx941 gfx942)
