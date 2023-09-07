@@ -1075,4 +1075,61 @@ struct NumericLimits<bf8_t>
 };
 #endif
 
+template <typename T>
+struct NumericUtils
+{
+    static constexpr int exp  = 0;
+    static constexpr int mant = 0;
+};
+
+template <>
+struct NumericUtils<float>
+{
+    static constexpr int exp            = 8;
+    static constexpr int mant           = 23;
+    static constexpr uint32_t nan_mask  = 0x7F800000;
+    static constexpr uint32_t head_mask = 0xFF800000;
+    static constexpr uint32_t mant_mask = 0x7FFFFF;
+    static constexpr uint32_t exp_mask  = 0xFF;
+    static constexpr uint32_t Inf       = 0x7F800000;
+    static constexpr uint32_t NegInf    = 0xFF800000;
+    static constexpr uint32_t NaN       = 0x7F800001;
+    static constexpr uint32_t Neg0      = 0x80000000;
+    using bitwise_type                  = uint32_t;
+};
+
+template <>
+struct NumericUtils<half_t>
+{
+    static constexpr int exp            = 5;
+    static constexpr int mant           = 10;
+    static constexpr uint16_t nan_mask  = 0x7C00;
+    static constexpr uint16_t head_mask = 0xFC00;
+    static constexpr uint16_t mant_mask = 0x3FF;
+    static constexpr uint16_t exp_mask  = 0x1F;
+    static constexpr uint32_t Inf       = 0x7C00;
+    static constexpr uint32_t NegInf    = 0xFC00;
+    static constexpr uint32_t NaN       = 0x7C01;
+    static constexpr uint32_t Neg0      = 0x8000;
+    using bitwise_type                  = uint16_t;
+};
+
+#if defined CK_ENABLE_FP8
+template <>
+struct NumericUtils<f8_t>
+{
+    static constexpr int exp  = 4;
+    static constexpr int mant = 3;
+};
+#endif
+
+#if defined CK_ENABLE_BF8
+template <>
+struct NumericUtils<bf8_t>
+{
+    static constexpr int exp  = 5;
+    static constexpr int mant = 2;
+};
+#endif
+
 } // namespace ck
