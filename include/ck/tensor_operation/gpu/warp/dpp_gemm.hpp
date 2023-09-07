@@ -11,8 +11,14 @@ namespace ck {
 
 enum struct DppInstr
 {
-    dpp8_f16_16x16x2 = 0,
+    dpp8_f16_1x32x2 = 0,
+    dpp8_f16_2x16x2,
+    dpp8_f16_2x32x2,
+    dpp8_f16_4x16x2,
+    dpp8_f16_4x32x2,
+    dpp8_f16_8x16x2,
     dpp8_f16_8x32x2,
+    dpp8_f16_16x16x2,
     dpp8_f16_32x8x2
 };
 
@@ -102,6 +108,36 @@ struct dpp_type<DppInstr::dpp8_f16_8x32x2>
 };
 
 template <>
+struct dpp_type<DppInstr::dpp8_f16_8x16x2>
+{
+    static constexpr index_t wave_size       = 32;
+    static constexpr index_t lanegroup_size  = 8;
+    static constexpr index_t m_per_wave      = 8;
+    static constexpr index_t n_per_wave      = 16;
+    static constexpr index_t m_per_lanegroup = 4;
+    static constexpr index_t n_per_lanegroup = 8;
+    static constexpr index_t m_per_thread    = 4;
+    static constexpr index_t n_per_thread    = 1;
+    static constexpr index_t k_per_dpp       = 2;
+    static constexpr bool share_a            = true;
+    using BaseType                           = half_t;
+
+    template <index_t MPerDpp, index_t NPerDpp, class ADataType, class BDataType, class CDataType>
+    __device__ void run(const ADataType& a, const BDataType& b, CDataType& reg_c) const
+    {
+        dpp8::DppLanegroupGemm<m_per_thread,
+                               n_per_thread,
+                               k_per_dpp,
+                               BaseType,
+                               ADataType,
+                               BDataType,
+                               CDataType,
+                               share_a>{}
+            .Run(a, b, reg_c);
+    }
+};
+
+template <>
 struct dpp_type<DppInstr::dpp8_f16_16x16x2>
 {
     static constexpr index_t wave_size       = 32;
@@ -111,6 +147,156 @@ struct dpp_type<DppInstr::dpp8_f16_16x16x2>
     static constexpr index_t m_per_lanegroup = 8;
     static constexpr index_t n_per_lanegroup = 8;
     static constexpr index_t m_per_thread    = 8;
+    static constexpr index_t n_per_thread    = 1;
+    static constexpr index_t k_per_dpp       = 2;
+    static constexpr bool share_a            = true;
+    using BaseType                           = half_t;
+
+    template <index_t MPerDpp, index_t NPerDpp, class ADataType, class BDataType, class CDataType>
+    __device__ void run(const ADataType& a, const BDataType& b, CDataType& reg_c) const
+    {
+        dpp8::DppLanegroupGemm<m_per_thread,
+                               n_per_thread,
+                               k_per_dpp,
+                               BaseType,
+                               ADataType,
+                               BDataType,
+                               CDataType,
+                               share_a>{}
+            .Run(a, b, reg_c);
+    }
+};
+
+template <>
+struct dpp_type<DppInstr::dpp8_f16_4x32x2>
+{
+    static constexpr index_t wave_size       = 32;
+    static constexpr index_t lanegroup_size  = 8;
+    static constexpr index_t m_per_wave      = 4;
+    static constexpr index_t n_per_wave      = 32;
+    static constexpr index_t m_per_lanegroup = 4;
+    static constexpr index_t n_per_lanegroup = 8;
+    static constexpr index_t m_per_thread    = 4;
+    static constexpr index_t n_per_thread    = 1;
+    static constexpr index_t k_per_dpp       = 2;
+    static constexpr bool share_a            = true;
+    using BaseType                           = half_t;
+
+    template <index_t MPerDpp, index_t NPerDpp, class ADataType, class BDataType, class CDataType>
+    __device__ void run(const ADataType& a, const BDataType& b, CDataType& reg_c) const
+    {
+        dpp8::DppLanegroupGemm<m_per_thread,
+                               n_per_thread,
+                               k_per_dpp,
+                               BaseType,
+                               ADataType,
+                               BDataType,
+                               CDataType,
+                               share_a>{}
+            .Run(a, b, reg_c);
+    }
+};
+
+template <>
+struct dpp_type<DppInstr::dpp8_f16_4x16x2>
+{
+    static constexpr index_t wave_size       = 32;
+    static constexpr index_t lanegroup_size  = 8;
+    static constexpr index_t m_per_wave      = 4;
+    static constexpr index_t n_per_wave      = 16;
+    static constexpr index_t m_per_lanegroup = 2;
+    static constexpr index_t n_per_lanegroup = 8;
+    static constexpr index_t m_per_thread    = 2;
+    static constexpr index_t n_per_thread    = 1;
+    static constexpr index_t k_per_dpp       = 2;
+    static constexpr bool share_a            = true;
+    using BaseType                           = half_t;
+
+    template <index_t MPerDpp, index_t NPerDpp, class ADataType, class BDataType, class CDataType>
+    __device__ void run(const ADataType& a, const BDataType& b, CDataType& reg_c) const
+    {
+        dpp8::DppLanegroupGemm<m_per_thread,
+                               n_per_thread,
+                               k_per_dpp,
+                               BaseType,
+                               ADataType,
+                               BDataType,
+                               CDataType,
+                               share_a>{}
+            .Run(a, b, reg_c);
+    }
+};
+
+template <>
+struct dpp_type<DppInstr::dpp8_f16_1x32x2>
+{
+    static constexpr index_t wave_size       = 32;
+    static constexpr index_t lanegroup_size  = 8;
+    static constexpr index_t m_per_wave      = 1;
+    static constexpr index_t n_per_wave      = 32;
+    static constexpr index_t m_per_lanegroup = 1;
+    static constexpr index_t n_per_lanegroup = 8;
+    static constexpr index_t m_per_thread    = 1;
+    static constexpr index_t n_per_thread    = 1;
+    static constexpr index_t k_per_dpp       = 2;
+    static constexpr bool share_a            = true;
+    using BaseType                           = half_t;
+
+    template <index_t MPerDpp, index_t NPerDpp, class ADataType, class BDataType, class CDataType>
+    __device__ void run(const ADataType& a, const BDataType& b, CDataType& reg_c) const
+    {
+        dpp8::DppLanegroupGemm<m_per_thread,
+                               n_per_thread,
+                               k_per_dpp,
+                               BaseType,
+                               ADataType,
+                               BDataType,
+                               CDataType,
+                               share_a>{}
+            .Run(a, b, reg_c);
+    }
+};
+
+template <>
+struct dpp_type<DppInstr::dpp8_f16_2x32x2>
+{
+    static constexpr index_t wave_size       = 32;
+    static constexpr index_t lanegroup_size  = 8;
+    static constexpr index_t m_per_wave      = 2;
+    static constexpr index_t n_per_wave      = 32;
+    static constexpr index_t m_per_lanegroup = 2;
+    static constexpr index_t n_per_lanegroup = 8;
+    static constexpr index_t m_per_thread    = 2;
+    static constexpr index_t n_per_thread    = 1;
+    static constexpr index_t k_per_dpp       = 2;
+    static constexpr bool share_a            = true;
+    using BaseType                           = half_t;
+
+    template <index_t MPerDpp, index_t NPerDpp, class ADataType, class BDataType, class CDataType>
+    __device__ void run(const ADataType& a, const BDataType& b, CDataType& reg_c) const
+    {
+        dpp8::DppLanegroupGemm<m_per_thread,
+                               n_per_thread,
+                               k_per_dpp,
+                               BaseType,
+                               ADataType,
+                               BDataType,
+                               CDataType,
+                               share_a>{}
+            .Run(a, b, reg_c);
+    }
+};
+
+template <>
+struct dpp_type<DppInstr::dpp8_f16_2x16x2>
+{
+    static constexpr index_t wave_size       = 32;
+    static constexpr index_t lanegroup_size  = 8;
+    static constexpr index_t m_per_wave      = 2;
+    static constexpr index_t n_per_wave      = 16;
+    static constexpr index_t m_per_lanegroup = 1;
+    static constexpr index_t n_per_lanegroup = 8;
+    static constexpr index_t m_per_thread    = 1;
     static constexpr index_t n_per_thread    = 1;
     static constexpr index_t k_per_dpp       = 2;
     static constexpr bool share_a            = true;
@@ -144,6 +330,12 @@ struct DppSelector
     }
 
     template <>
+    static constexpr auto GetDpp<half_t, 8, 16>()
+    {
+        return DppInstr::dpp8_f16_8x16x2;
+    }
+
+    template <>
     static constexpr auto GetDpp<half_t, 16, 16>()
     {
         return DppInstr::dpp8_f16_16x16x2;
@@ -153,6 +345,36 @@ struct DppSelector
     static constexpr auto GetDpp<half_t, 32, 8>()
     {
         return DppInstr::dpp8_f16_32x8x2;
+    }
+
+    template <>
+    static constexpr auto GetDpp<half_t, 1, 32>()
+    {
+        return DppInstr::dpp8_f16_1x32x2;
+    }
+
+    template <>
+    static constexpr auto GetDpp<half_t, 2, 32>()
+    {
+        return DppInstr::dpp8_f16_2x32x2;
+    }
+
+    template <>
+    static constexpr auto GetDpp<half_t, 2, 16>()
+    {
+        return DppInstr::dpp8_f16_2x16x2;
+    }
+
+    template <>
+    static constexpr auto GetDpp<half_t, 4, 16>()
+    {
+        return DppInstr::dpp8_f16_4x16x2;
+    }
+
+    template <>
+    static constexpr auto GetDpp<half_t, 4, 32>()
+    {
+        return DppInstr::dpp8_f16_4x32x2;
     }
 
     static constexpr auto selected_dpp = dpp_type<GetDpp<BaseType, MPerDpp, NPerDpp>()>{};
@@ -191,7 +413,6 @@ struct DppSelector
         // in the future when the implementation is more generalized.
         static_assert(selected_dpp.share_a);
         static_assert(selected_dpp.n_per_thread == 1);
-        static_assert(selected_dpp.m_per_thread == selected_dpp.lanegroup_size);
         static_assert(selected_dpp.m_per_lanegroup == selected_dpp.m_per_thread);
         static_assert(selected_dpp.n_per_lanegroup ==
                       selected_dpp.n_per_thread * selected_dpp.lanegroup_size);
@@ -215,11 +436,6 @@ struct DppGemm
 
     __host__ __device__ constexpr DppGemm()
     {
-        static_assert(MPerDpp == 8 || MPerDpp == 16 || MPerDpp == 32,
-                      "MPerDpp must be either 8, 16 or 32.");
-        static_assert(NPerDpp == 8 || NPerDpp == 16 || NPerDpp == 32,
-                      "NPerDpp must be either 8, 16 or 32.");
-
         static_assert(KPack % dpp_instr.k_per_dpp == 0, "KPack must be divisible by k_per_dpp.");
     }
 
