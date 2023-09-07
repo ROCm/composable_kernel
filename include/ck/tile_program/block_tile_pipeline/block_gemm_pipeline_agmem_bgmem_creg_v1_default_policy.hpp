@@ -115,20 +115,22 @@ struct BlockGemmPipelineAGmemBGmemCRegV1DefaultPolicy
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
         constexpr auto a_lds_block_desc_d1_d2_d3 = make_naive_tensor_descriptor_packed(
-            make_tuple(kMPerBlock / 2, 2, kKPerBlock), Number<kKPerBlock>{});
+            make_tuple(Number<kMPerBlock / 2>{}, Number<2>{}, Number<kKPerBlock>{}),
+            Number<kKPerBlock>{});
 
         constexpr index_t kK1 = 16 / sizeof(ADataType);
 
         constexpr auto a_lds_block_desc_d4_d5_d6 = transform_tensor_descriptor(
             a_lds_block_desc_d1_d2_d3,
-            make_tuple(make_xor_transform(make_tuple(kMPerBlock / 2, kKPerBlock), kK1),
-                       make_pass_through_transform(2)),
+            make_tuple(
+                make_xor_transform(make_tuple(Number<kMPerBlock / 2>{}, Number<kKPerBlock>{}), kK1),
+                make_pass_through_transform(2)),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
         constexpr auto a_lds_block_desc_m_k = transform_tensor_descriptor(
             a_lds_block_desc_d4_d5_d6,
-            make_tuple(make_merge_transform(make_tuple(kMPerBlock / 2, 2)),
+            make_tuple(make_merge_transform(make_tuple(Number<kMPerBlock / 2>{}, Number<2>{})),
                        make_pass_through_transform(kKPerBlock)),
             make_tuple(Sequence<0, 1>{}, Sequence<2>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
@@ -148,20 +150,22 @@ struct BlockGemmPipelineAGmemBGmemCRegV1DefaultPolicy
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
         constexpr auto b_lds_block_desc_d1_d2_d3 = make_naive_tensor_descriptor_packed(
-            make_tuple(kNPerBlock / 2, 2, kKPerBlock), Number<kKPerBlock>{});
+            make_tuple(Number<kNPerBlock / 2>{}, Number<2>{}, Number<kKPerBlock>{}),
+            Number<kKPerBlock>{});
 
         constexpr index_t kK1 = 16 / sizeof(BDataType);
 
         constexpr auto b_lds_block_desc_d4_d5_d6 = transform_tensor_descriptor(
             b_lds_block_desc_d1_d2_d3,
-            make_tuple(make_xor_transform(make_tuple(kNPerBlock / 2, kKPerBlock), kK1),
-                       make_pass_through_transform(2)),
+            make_tuple(
+                make_xor_transform(make_tuple(Number<kNPerBlock / 2>{}, Number<kKPerBlock>{}), kK1),
+                make_pass_through_transform(2)),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
         constexpr auto b_lds_block_desc_n_k = transform_tensor_descriptor(
             b_lds_block_desc_d4_d5_d6,
-            make_tuple(make_merge_transform(make_tuple(kNPerBlock / 2, 2)),
+            make_tuple(make_merge_transform(make_tuple(Number<kNPerBlock / 2>{}, Number<2>{})),
                        make_pass_through_transform(kKPerBlock)),
             make_tuple(Sequence<0, 1>{}, Sequence<2>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
