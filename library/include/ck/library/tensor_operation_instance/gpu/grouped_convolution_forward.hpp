@@ -123,6 +123,7 @@ void add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f32_instances(
                                                               PassThrough,
                                                               PassThrough>>>& instances);
 #endif
+#ifdef DL_KERNELS
 #ifdef CK_ENABLE_FP16
 void add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
@@ -152,6 +153,7 @@ void add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f32_instances(
                                                               PassThrough,
                                                               PassThrough,
                                                               PassThrough>>>& instances);
+#endif
 #endif
 #ifdef CK_ENABLE_BF16
 // grouped conv2d forward, NHWGC/GKYXC/NHWGK
@@ -401,7 +403,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, float>)
             {
                 add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f32_instances(op_ptrs);
+#ifdef DL_KERNELS
                 add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f32_instances(op_ptrs);
+#endif
             }
 #endif
 #ifdef CK_ENABLE_FP16
@@ -409,7 +413,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                               is_same_v<OutDataType, half_t>)
             {
                 add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f16_instances(op_ptrs);
+#ifdef DL_KERNELS
                 add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f16_instances(op_ptrs);
+#endif
             }
 #endif
 #ifdef CK_ENABLE_BF16
