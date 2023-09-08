@@ -25,7 +25,7 @@ struct YElementOp
 
         ck::tensor_operation::element_wise::Sigmoid{}(a, x);
 
-        y = x * a;
+        y = type_convert<Y>(x * a);
     };
 };
 

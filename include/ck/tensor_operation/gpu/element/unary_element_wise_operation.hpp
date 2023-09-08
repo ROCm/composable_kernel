@@ -30,7 +30,7 @@ struct PassThrough
     template <>
     __host__ __device__ void operator()<float, double>(float& y, const double& x) const
     {
-        y = x;
+        y = type_convert<float>(x);
     }
 
     template <>
@@ -431,7 +431,8 @@ struct Swish
                           is_same<X, ck::half_t>::value,
                       "Data type is not supported by this operation!");
 
-        y = x / (ck::type_convert<Y>(1) + ck::math::exp(-beta_ * x));
+        float bx = -beta_ * type_convert<float>(x);
+        y        = type_convert<Y>(x / (1.f + ck::math::exp(bx)));
     };
 
     float beta_ = 1.0f;
