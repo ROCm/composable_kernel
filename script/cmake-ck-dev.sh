@@ -15,5 +15,4 @@ cmake                                                                           
 -D GPU_TARGETS="gfx908;gfx90a;gfx940"                                                             \
 -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON                                                                 \
 -D USE_BITINT_EXTENSION_INT4=OFF                                                                  \
--D DL_KERNELS=ON \
 ${MY_PROJECT_SOURCE}
