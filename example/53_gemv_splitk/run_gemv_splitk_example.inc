@@ -103,12 +103,13 @@ bool run_gemv(const ProblemSize& problem_size, const ExecutionConfig& config)
         return true;
     }
 
-    c_m_n_device_buf.Zero();
+    c_m_n_device_buf.SetZero();
 
     invoker.Run(argument, StreamConfig{nullptr, false}); // Run prior to verification
 
     if(config.do_verification)
     {
+
         auto ref_gemv    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemv.MakeInvoker();
 
@@ -124,11 +125,9 @@ bool run_gemv(const ProblemSize& problem_size, const ExecutionConfig& config)
 
         c_m_n_device_result = c_m_n_device_result_converted.CopyAsType<CDataType>();
 
-        return ck::utils::check_err(c_m_n_device_result_converted, c_m_n_host_result);
 #else
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
 #endif
     }
 
@@ -146,13 +145,16 @@ bool run_gemv(const ProblemSize& problem_size, const ExecutionConfig& config)
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemv.GetTypeString() << std::endl;
 
-    return true;
+#ifdef BUILD_INT4_EXAMPLE
+    return ck::utils::check_err(c_m_n_device_result_converted, c_m_n_host_result);
+#else
+    return ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+#endif
 }
 
 bool run_gemv_example(int argc, char* argv[])
 {
     ProblemSize problem_size;
-    // problem_size.M = 1;
     ExecutionConfig config;
     if(argc == 1)
     {
@@ -185,7 +187,7 @@ bool run_gemv_example(int argc, char* argv[])
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4: KBatch\n");
+        printf("arg4: splitk\n");
         printf("arg5 to 11: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n");
         exit(0);
     }

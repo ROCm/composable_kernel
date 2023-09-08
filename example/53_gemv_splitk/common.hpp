@@ -55,25 +55,28 @@ parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, ExecutionConfi
     {
         // use default case
     }
-    else if(argc == 4)
+    else if(argc == 5)
     {
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
         config.time_kernel     = std::stoi(argv[3]);
+
+        problem_size.k_batch = std::stoi(argv[4]);
     }
-    else if(argc == 10)
+    else if(argc == 11)
     {
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
         config.time_kernel     = std::stoi(argv[3]);
+        problem_size.k_batch   = std::stoi(argv[4]);
 
-        problem_size.M = std::stoi(argv[4]);
-        problem_size.N = std::stoi(argv[5]);
-        problem_size.K = std::stoi(argv[6]);
+        problem_size.M = std::stoi(argv[5]);
+        problem_size.N = std::stoi(argv[6]);
+        problem_size.K = std::stoi(argv[7]);
 
-        problem_size.StrideA = std::stoi(argv[7]);
-        problem_size.StrideB = std::stoi(argv[8]);
-        problem_size.StrideC = std::stoi(argv[9]);
+        problem_size.stride_A = std::stoi(argv[8]);
+        problem_size.stride_B = std::stoi(argv[9]);
+        problem_size.stride_C = std::stoi(argv[10]);
     }
     else
     {
