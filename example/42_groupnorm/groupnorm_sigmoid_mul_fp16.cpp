@@ -21,11 +21,15 @@ struct YElementOp
                           ck::is_same<X, ck::half_t>::value,
                       "Data type is not supported by this operation!");
 
+        static_assert(ck::is_same<Y, float>::value || ck::is_same<Y, double>::value ||
+                          ck::is_same<Y, ck::half_t>::value,
+                      "Data type is not supported by this operation!");
+
         X a;
 
         ck::tensor_operation::element_wise::Sigmoid{}(a, x);
 
-        y = x * a;
+        y = ck::type_convert<Y>(x * a);
     };
 };
 
