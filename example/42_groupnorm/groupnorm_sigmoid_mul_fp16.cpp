@@ -29,7 +29,7 @@ struct YElementOp
 
         ck::tensor_operation::element_wise::Sigmoid{}(a, x);
 
-        y = type_convert<Y>(x * a);
+        y = ck::type_convert<Y>(x * a);
     };
 };
 
