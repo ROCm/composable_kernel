@@ -26,7 +26,9 @@ struct DeviceMem
     void* GetDeviceBuffer() const;
     std::size_t GetBufferSize() const;
     void ToDevice(const void* p) const;
+    void ToDevice(const void* p, const std::size_t cpySize) const;
     void FromDevice(void* p) const;
+    void FromDevice(void* p, const std::size_t cpySize) const;
     void SetZero() const;
     template <typename T>
     void SetValue(T x) const;
