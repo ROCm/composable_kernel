@@ -39,9 +39,6 @@ endif()
 if(DTYPES MATCHES "bf16" OR NOT DEFINED DTYPES)
   add_example_executable(example_gemm_xdl_bf16 gemm_xdl_bf16.cpp)
   add_dependencies(example_gemm_xdl example_gemm_xdl_bf16)
-
-  add_example_executable(example_gemm_xdl_bf16_rtn gemm_xdl_bf16_rtn.cpp)
-  add_dependencies(example_gemm_xdl example_gemm_xdl_bf16_rtn)
 endif()
 
 if(DTYPES MATCHES "int8" OR NOT DEFINED DTYPES)
@@ -71,3 +68,9 @@ endif()
 
 add_example_executable(example_gemm_xdl_fp16_f8 gemm_xdl_fp16_f8.cpp)
 add_dependencies(example_gemm_xdl example_gemm_xdl_fp16_f8)
+
+add_example_executable(example_gemm_xdl_input_bf16_comp_f16 gemm_xdl_input_bf16_comp_f16.cpp)
+add_dependencies(example_gemm_xdl example_gemm_xdl_input_bf16_comp_f16)
+
+add_example_executable(example_gemm_xdl_input_f8_comp_f16 gemm_xdl_input_f8_comp_f16.cpp)
+add_dependencies(example_gemm_xdl example_gemm_xdl_input_f8_comp_f16)
