@@ -815,12 +815,12 @@ pipeline {
                 }
             }
         }
-        stage("Clean up the Workspace") 
+    }
+    post 
+    { 
+        always 
         { 
-            steps 
-            { 
-                cleanWs()
-            }
+            cleanWs()
         }
     }
 }
