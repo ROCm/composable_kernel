@@ -25,7 +25,7 @@ Kernel outputs:
 
 #define PRINT_HOST 0
 #define USING_MASK 0
-#define DIM 64 // DIM should be a multiple of 8.
+#define DIM 128 // DIM should be a multiple of 8.
 
 #include <iostream>
 #include <numeric>
@@ -494,6 +494,7 @@ int run(int argc, char* argv[])
     DeviceMem kgrad_device_buf(sizeof(OutputDataType) * k_gs_ns_ks.mDesc.GetElementSpaceSize());
     DeviceMem vgrad_device_buf(sizeof(OutputDataType) * v_gs_os_ns.mDesc.GetElementSpaceSize());
     DeviceMem ygrad_device_buf(sizeof(InputDataType) * y_gs_ms_os.mDesc.GetElementSpaceSize());
+    DeviceMem dgrad_device_buf(sizeof(Acc0BiasDataType) * d_gs_ms_ns.mDesc.GetElementSpaceSize());
 
     q_device_buf.ToDevice(q_gs_ms_ks.mData.data());
     k_device_buf.ToDevice(k_gs_ns_ks.mData.data());
@@ -518,6 +519,8 @@ int run(int argc, char* argv[])
             static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
             static_cast<Acc0BiasDataType*>(d_device_buf.GetDeviceBuffer()), //  p_acc0_bias;
             nullptr,                                                        //  p_acc1_bias;
+            static_cast<Acc0BiasDataType*>(dgrad_device_buf.GetDeviceBuffer()),
+            nullptr,
             q_gs_ms_ks_lengths,
             q_gs_ms_ks_strides,
             k_gs_ns_ks_lengths,
@@ -563,6 +566,8 @@ int run(int argc, char* argv[])
         static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
         static_cast<Acc0BiasDataType*>(d_device_buf.GetDeviceBuffer()), // p_acc0_bias;
         nullptr,                                                        // p_acc1_bias;
+        static_cast<Acc0BiasDataType*>(dgrad_device_buf.GetDeviceBuffer()),
+        nullptr,
         q_gs_ms_ks_lengths,
         q_gs_ms_ks_strides,
         k_gs_ns_ks_lengths,

@@ -1478,9 +1478,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
         static constexpr auto d0_block_space_size_aligned = math::integer_least_multiple(
             D0Loader::d0_block_write_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize(), max_lds_align);
-        static constexpr auto d0_block_space_offset = k_block_space_size_aligned.value *
-                                                      sizeof(GemmDataType) /
-                                                      D0Loader::template TypeTransform<D0DataType>::Size;
+        static constexpr auto d0_block_space_offset =
+            k_block_space_size_aligned.value * sizeof(GemmDataType) /
+            D0Loader::template TypeTransform<D0DataType>::Size;
 
         // LDS allocation for C shuffle in LDS
         static constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
@@ -1537,6 +1537,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         const InputDataType* __restrict__ p_ygrad_grid,
         OutputDataType* __restrict__ p_qgrad_grid,
         OutputDataType* __restrict__ p_kgrad_grid,
+        D0DataType* __restrict__ p_d0grad_grid,
         OutputDataType* __restrict__ p_vgrad_grid,
         void* __restrict__ p_shared,
         const AElementwiseOperation& a_element_op,
@@ -1562,6 +1563,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         const index_t raw_n_padded,
         const index_t block_idx_n)
     {
+        ignore                        = p_d0grad_grid;
         const FloatGemmAcc p_dropout  = type_convert<FloatGemmAcc>(1.0f - p_drop);
         const FloatGemmAcc rp_dropout = type_convert<FloatGemmAcc>(1.0f / p_dropout);
         const ushort p_dropout_in_16bits =
