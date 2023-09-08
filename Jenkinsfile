@@ -815,5 +815,12 @@ pipeline {
                 }
             }
         }
+        post 
+        { 
+            always 
+            { 
+                cleanWs()
+            }
+        }
     }
 }
