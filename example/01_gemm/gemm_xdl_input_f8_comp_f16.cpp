@@ -21,9 +21,9 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16  = ck::half_t;
-using F8 = ck::f8_t;
-using F32  = float;
+using F16 = ck::half_t;
+using F8  = ck::f8_t;
+using F32 = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -52,8 +52,7 @@ struct f8_to_fp16
 
 struct Relu
 {
-    __host__ __device__ void
-    operator()(ck::half_t& e, const ck::half_t& c) const
+    __host__ __device__ void operator()(ck::half_t& e, const ck::half_t& c) const
     {
         e = c > 0 ? c : 0;
     }
