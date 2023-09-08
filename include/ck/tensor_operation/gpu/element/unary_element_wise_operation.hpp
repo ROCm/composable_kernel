@@ -431,6 +431,10 @@ struct Swish
                           is_same<X, ck::half_t>::value,
                       "Data type is not supported by this operation!");
 
+        static_assert(is_same<Y, float>::value || is_same<Y, double>::value ||
+                          is_same<Y, ck::half_t>::value,
+                      "Data type is not supported by this operation!");
+
         float bx = -beta_ * type_convert<float>(x);
         y        = type_convert<Y>(x / (1.f + ck::math::exp(bx)));
     };
