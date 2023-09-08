@@ -144,7 +144,8 @@ template <typename ALayout,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched     = make_default_loop_scheduler(),
-          PipelineVersion PipelineVer = PipelineVersion::v1>
+          PipelineVersion PipelineVer = PipelineVersion::v1,
+          typename ComputeDataType    = EDataType>
 struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                                                                      BLayout,
                                                                      DsLayout,
@@ -242,8 +243,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
     using BGridDesc_N_K  = decltype(MakeBGridDescriptor_N_K(1, 1, 1));
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}, {}))>;
     using EGridDesc_M_N  = decltype(MakeEGridDescriptor_M_N<ELayout>(1, 1, 1));
-
-    using ComputeDataType = EDataType;
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
