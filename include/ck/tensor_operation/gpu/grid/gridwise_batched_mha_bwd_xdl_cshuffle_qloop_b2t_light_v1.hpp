@@ -544,15 +544,12 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
     };
 
     // dP Gemm (type 1 rcc)
+    template <typename BSrcThreadDesc_K0_K1_N0_N1_N2_N3_K2>
     struct Gemm0
     {
         // A matrix in LDS memory, dst of blockwise copy
         static constexpr auto a_block_desc_ak0_m_ak1 =
             GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
-
-        // B source matrix layout in VGPR
-        static constexpr auto b_src_thread_desc_k0_k1_n0_n1_n2_n3_k2 =
-            GetVThreadDescriptor_K0_K1_N0_N1_N2_N3_K2();
 
         template <typename BThreadDesc_K0_K1_N0_N1_N2_N3_K2>
         __host__ __device__ static constexpr auto GetBThreadDescriptor_K0_N_K1(
@@ -580,7 +577,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
         }
 
         static constexpr auto b_src_thread_desc_k0_n_k1 =
-            GetBThreadDescriptor_K0_N_K1(b_src_thread_desc_k0_k1_n0_n1_n2_n3_k2);
+            GetBThreadDescriptor_K0_N_K1(BSrcThreadDesc_K0_K1_N0_N1_N2_N3_K2{});
 
         template <typename ABlockDesc_AK0_M_AK1>
         __host__ __device__ static constexpr auto
@@ -1296,7 +1293,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
             true, // DstResetCoord
             1>;
 
-        using D0ThreadCopy =
+        using D0ThreadWiseCopy =
             ThreadwiseTensorSliceTransfer_v4<typename TypeTransform<D0DataType>::Type,    // SrcData
                                              typename TypeTransform<D0DataType>::Type,    // DstData
                                              decltype(d0_block_read_desc_n0_n1_m0_m1_m2), // SrcDesc
@@ -1522,6 +1519,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
         //
         // set up dP Gemm (type 1 rcc)
         //
+
+        using Gemm0 = Gemm0<decltype(GemmBlockwiseCopy::v_thread_desc_k0_k1_n0_n1_n2_n3_k2)>;
 
         // dP: blockwise gemm
         auto pgrad_blockwise_gemm = typename Gemm0::BlockwiseGemm{};
@@ -1857,7 +1856,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
             make_multi_index(0, 0, 0, 0, 0, 0),
             tensor_operation::element_wise::PassThrough{});
 
-        auto d0_thread_copy_lds_to_vgpr = typename D0Loader::D0ThreadCopy(
+        auto d0_thread_copy_lds_to_vgpr = typename D0Loader::D0ThreadWiseCopy(
             make_tuple(wave_id[I1], wave_m_n_id[I1], 0, wave_m_n_id[I0], 0));
 
         if constexpr(Deterministic)
