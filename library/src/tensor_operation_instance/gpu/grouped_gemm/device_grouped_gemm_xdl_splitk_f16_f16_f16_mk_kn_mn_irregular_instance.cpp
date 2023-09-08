@@ -83,7 +83,7 @@ using device_grouped_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_irregular_tile_instanc
     // clang-format on
     >;
 
-void add_device_grouped_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_irregular_instances_kpb32(
+void add_device_grouped_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_irregular_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
                                                   Row,
                                                   Empty_Tuple,
