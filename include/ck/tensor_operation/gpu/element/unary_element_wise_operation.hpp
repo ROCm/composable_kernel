@@ -6,6 +6,7 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/math.hpp"
 #include "ck/utility/math_v2.hpp"
+#include "ck/utility/type_convert.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -36,6 +37,12 @@ struct PassThrough
     __host__ __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
     {
         y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
+    {
+        y = type_convert<half_t>(x);
     }
 
     template <>
@@ -81,6 +88,36 @@ struct PassThrough
         y = x;
     }
 #endif
+
+    template <>
+    __host__ __device__ void operator()<f8_t, f8_t>(f8_t& y, const f8_t& x) const
+    {
+        y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<float, f8_t>(float& y, const f8_t& x) const
+    {
+        y = type_convert<float>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<f8_t, float>(f8_t& y, const float& x) const
+    {
+        y = type_convert<f8_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<half_t, f8_t>(half_t& y, const f8_t& x) const
+    {
+        y = type_convert<half_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<f8_t, half_t>(f8_t& y, const half_t& x) const
+    {
+        y = type_convert<f8_t>(x);
+    }
 };
 
 struct UnaryConvert
@@ -106,6 +143,23 @@ struct ConvertBF16RTN
                       "Data type is not supported by this operation!");
 
         y = bf16_convert_rtn<Y>(x);
+    }
+};
+
+struct ConvertF8SR
+{
+    // convert to fp8 using stochastic rounding (SR)
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const
+    {
+        // check Y datatype
+        static_assert(is_same<Y, f8_t>::value, "Data type is not supported by this operation!");
+
+        // check X datatype
+        static_assert(is_same<X, float>::value || is_same<X, half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = f8_convert_sr<Y>(x);
     }
 };
 

@@ -1,3 +1,4 @@
+if(DTYPES MATCHES "int8" OR NOT DEFINED DTYPES)
 add_executable(client_conv2d_fwd_bias_tanh_perchannel_quantization conv2d_fwd_bias_tanh_perchannel_quantization.cpp)
 target_link_libraries(client_conv2d_fwd_bias_tanh_perchannel_quantization PRIVATE composable_kernel::device_operations)
 
@@ -18,3 +19,4 @@ target_link_libraries(client_conv2d_fwd_perlayer_quantization PRIVATE composable
 
 add_executable(client_gemm_quantization gemm_quantization.cpp)
 target_link_libraries(client_gemm_quantization PRIVATE composable_kernel::device_operations)
+endif()

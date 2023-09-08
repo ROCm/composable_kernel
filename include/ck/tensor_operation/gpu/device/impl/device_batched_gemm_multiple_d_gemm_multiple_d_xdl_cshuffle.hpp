@@ -196,6 +196,8 @@ template <typename A0Layout,
           index_t B0BlockTransferSrcScalarPerVector,
           index_t B0BlockTransferDstScalarPerVector_BK1,
           bool B0BlockLdsExtraN,
+          index_t CDE0BlockTransferSrcVectorDim,
+          index_t CDE0BlockTransferSrcScalaerPerVector,
           typename B1BlockTransferThreadClusterLengths_BK0_N_BK1,
           typename B1BlockTransferThreadClusterArrangeOrder,
           typename B1BlockTransferSrcAccessOrder,
@@ -492,6 +494,8 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         B0BlockTransferDstScalarPerVector_BK1,
         true,
         B0BlockLdsExtraN,
+        CDE0BlockTransferSrcVectorDim,
+        CDE0BlockTransferSrcScalaerPerVector,
         B1BlockTransferThreadClusterLengths_BK0_N_BK1,
         B1BlockTransferThreadClusterArrangeOrder,
         B1BlockTransferSrcAccessOrder,
@@ -506,12 +510,15 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         CDE1ShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
 
-    using A0GridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultA0GridDescriptor_AK0_M_AK1(A0GridDesc_M_K{}))>;
-    using B0GridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultB0GridDescriptor_BK0_N_BK1(B0GridDesc_N_K{}))>;
-    using B1GridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultB1GridDescriptor_BK0_N_BK1(B1GridDesc_N_K{}))>;
+    using A0GridDesc_AK0_M_AK1 =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultA0GridDescriptor_AK0_M_AK1(
+            A0GridDesc_M_K{}))>;
+    using B0GridDesc_BK0_N_BK1 =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultB0GridDescriptor_BK0_N_BK1(
+            B0GridDesc_N_K{}))>;
+    using B1GridDesc_BK0_N_BK1 =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultB1GridDescriptor_BK0_N_BK1(
+            B1GridDesc_N_K{}))>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -805,9 +812,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
-             ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
-             ck::get_device_name() == "gfx942"))
+        if(!ck::is_xdl_supported())
         {
             return false;
         }

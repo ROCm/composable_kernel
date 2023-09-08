@@ -292,10 +292,7 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
             return GridwiseGemm::CheckValidity(
                 arg.M_, arg.N_, arg.K_, arg.StrideA_, arg.StrideB_, arg.StrideC_);
         }
-        else
-        {
-            return false;
-        }
+        return false;
     }
 
     // polymorphic
@@ -368,7 +365,7 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
     }
 
     // polymorphic
-    std::string GetTypeString() const override
+    virtual std::string GetTypeString() const override
     {
         auto str = std::stringstream();
 

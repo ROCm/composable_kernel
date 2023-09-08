@@ -72,6 +72,30 @@ int main(int argc, char* argv[])
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
+    const auto& generic_op_ptr = op_ptrs[0];
+
+    auto generic_argument_ptr =
+        generic_op_ptr->MakeArgumentPointer({N, H, W, G, C},    // lengths
+                                            xy_strides,         // xStrides
+                                            gamma_beta_strides, // gammaStrides
+                                            gamma_beta_strides, // betaStrides
+                                            xy_strides,         // yStrides
+                                            {1, 2, 4},          // reduceDims
+                                            1e-6,
+                                            x_device_buf.GetDeviceBuffer(),
+                                            gamma_device_buf.GetDeviceBuffer(),
+                                            beta_device_buf.GetDeviceBuffer(),
+                                            y_device_buf.GetDeviceBuffer(),
+                                            nullptr,
+                                            nullptr,
+                                            Swish{});
+
+    if(!generic_op_ptr->IsSupportedArgument(generic_argument_ptr.get()))
+    {
+        throw std::runtime_error(
+            "The generic kernel instance should be able to support any input shapes");
+    };
+
     std::string best_op_name;
     bool found            = false;
     int best_op_id        = -1;
@@ -105,6 +129,10 @@ int main(int argc, char* argv[])
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
+            SimpleDeviceMem workspace(workspace_sz);
+            op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace.GetDeviceBuffer());
+
             float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
             std::size_t num_byte =
@@ -160,6 +188,10 @@ int main(int argc, char* argv[])
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
+            SimpleDeviceMem workspace(workspace_sz);
+            op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace.GetDeviceBuffer());
+
             invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
         }
 

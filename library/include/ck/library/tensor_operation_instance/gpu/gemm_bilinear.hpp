@@ -11,7 +11,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
-
+#ifdef CK_ENABLE_FP16
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -65,6 +65,58 @@ void add_device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_f16_mk_nk_mn_mn_instance
                                                     F16,
                                                     F16_Tuple,
                                                     F16,
+                                                    PassThrough,
+                                                    PassThrough,
+                                                    Bilinear>>>& instances);
+
+void add_device_gemm_bilinear_wmma_c_shuffle_i8_i8_i8_i8_mk_kn_mn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+                                                    Row,
+                                                    Row_Tuple,
+                                                    Row,
+                                                    I8,
+                                                    I8,
+                                                    I8_Tuple,
+                                                    I8,
+                                                    PassThrough,
+                                                    PassThrough,
+                                                    Bilinear>>>& instances);
+
+void add_device_gemm_bilinear_wmma_c_shuffle_i8_i8_i8_i8_mk_nk_mn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+                                                    Col,
+                                                    Row_Tuple,
+                                                    Row,
+                                                    I8,
+                                                    I8,
+                                                    I8_Tuple,
+                                                    I8,
+                                                    PassThrough,
+                                                    PassThrough,
+                                                    Bilinear>>>& instances);
+
+void add_device_gemm_bilinear_wmma_c_shuffle_i8_i8_i8_i8_km_kn_mn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleD<Col,
+                                                    Row,
+                                                    Row_Tuple,
+                                                    Row,
+                                                    I8,
+                                                    I8,
+                                                    I8_Tuple,
+                                                    I8,
+                                                    PassThrough,
+                                                    PassThrough,
+                                                    Bilinear>>>& instances);
+
+void add_device_gemm_bilinear_wmma_c_shuffle_i8_i8_i8_i8_km_nk_mn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleD<Col,
+                                                    Col,
+                                                    Row_Tuple,
+                                                    Row,
+                                                    I8,
+                                                    I8,
+                                                    I8_Tuple,
+                                                    I8,
                                                     PassThrough,
                                                     PassThrough,
                                                     Bilinear>>>& instances);
@@ -135,6 +187,30 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
                     op_ptrs);
             }
         }
+        else if constexpr(is_same_v<ADataType, std::int8_t> && is_same_v<BDataType, std::int8_t> &&
+                          is_same_v<DDataType, std::int8_t> && is_same_v<EDataType, std::int8_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<DLayout, Row> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_bilinear_wmma_c_shuffle_i8_i8_i8_i8_mk_kn_mn_mn_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                              is_same_v<DLayout, Row> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_bilinear_wmma_c_shuffle_i8_i8_i8_i8_mk_nk_mn_mn_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
+                              is_same_v<DLayout, Row> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_bilinear_wmma_c_shuffle_i8_i8_i8_i8_km_kn_mn_mn_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
+                              is_same_v<DLayout, Row> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_bilinear_wmma_c_shuffle_i8_i8_i8_i8_km_nk_mn_mn_instances(op_ptrs);
+            }
+        }
 
         return op_ptrs;
     }
@@ -144,3 +220,4 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#endif

@@ -57,7 +57,10 @@ template <typename ADataType,
           index_t CShuffleMRepeatPerShuffle,
           index_t CShuffleNRepeatPerShuffle,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-          index_t CBlockTransferScalarPerVector_NWaveNPerXDL>
+          index_t CBlockTransferScalarPerVector_NWaveNPerXDL,
+          typename ComputeType        = CDataType,
+          PipelineVersion PipelineVer = PipelineVersion::v1>
+
 struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                                              BLayout,
                                                              CLayout,
@@ -76,11 +79,11 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
     // TODO: should be exposed as Tparams.
     static constexpr index_t NumGemmKPrefetchStage = 1;
     static constexpr LoopScheduler LoopSched       = make_default_loop_scheduler();
-    static constexpr PipelineVersion PipelineVer   = PipelineVersion::v2;
 
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
-        ADataType, // TODO: distinguish A/B datatype
+        ADataType,
+        BDataType,
         AccDataType,
         CDataType,
         ALayout,
@@ -120,7 +123,8 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
         CBlockTransferScalarPerVector_NWaveNPerXDL,
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         LoopSched,
-        PipelineVer>;
+        PipelineVer,
+        ComputeType>;
 
     using Argument              = typename GridwiseGemm::Argument;
     using DefaultBlock2CTileMap = typename GridwiseGemm::DefaultBlock2CTileMap;
@@ -158,8 +162,10 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
 
             const auto Run = [&](const auto& kernel) {
                 if(kbatch > 1)
-                    hipGetErrorString(
-                        hipMemset(karg.p_c_grid, 0, karg.M * karg.N * sizeof(CDataType)));
+                    hipGetErrorString(hipMemsetAsync(karg.p_c_grid,
+                                                     0,
+                                                     karg.M * karg.N * sizeof(CDataType),
+                                                     stream_config.stream_id_));
 
                 ave_time = launch_and_time_kernel(
                     stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg, b2c_map);
@@ -231,6 +237,11 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
 
     static bool IsSupportedArgument(const Argument& karg)
     {
+        if(!ck::is_xdl_supported())
+        {
+            return false;
+        }
+
         return GridwiseGemm::CheckValidity(karg);
     }
 
