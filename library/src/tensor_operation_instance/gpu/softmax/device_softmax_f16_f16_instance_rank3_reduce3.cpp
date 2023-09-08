@@ -13,12 +13,11 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-static constexpr index_t RANK = 3;
-
 void add_device_softmax_f16_f16_rank3_reduce3_instances(
-    std::vector<DeviceSoftmaxPtr<F16, F32, F16, PassThrough, PassThrough, RANK>>& instances)
+    std::vector<DeviceSoftmaxPtr<F16, F32, F16, PassThrough, PassThrough, 3, 3>>& instances)
 {
-    add_device_operation_instances(instances, device_softmax_f16_f16_instances<RANK, 3>{});
+    add_device_operation_instances(instances, device_softmax_f16_f16_generic_instance<3, 3>{});
+    add_device_operation_instances(instances, device_softmax_f16_f16_instances<3, 3>{});
 }
 
 } // namespace instance

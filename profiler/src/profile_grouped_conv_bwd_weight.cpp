@@ -15,6 +15,7 @@ enum struct ConvLayout
 {
     GNCHW_GKCYX_GNKHW, // 0
     GNHWC_GKYXC_GNHWK, // 1
+    NHWGC_GKYXC_NHWGK, // 2
 };
 
 enum struct ConvDataType
@@ -37,6 +38,8 @@ static void print_helper_msg()
                  "N, K, Ho, Wo]\n"
               << "                     1: Input[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Output[G, "
                  "N, Ho, Wo, K]\n"
+              << "                     2: Input[N, Hi, Wi, G, C], Weight[G, K, Y, X, C], Output[N, "
+                 "Ho, Wo, G, K]\n"
               << "arg4: verification (0: no, 1: yes)\n"
               << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
               << "arg6: print tensor value (0: no; 1: yes)\n"
@@ -80,17 +83,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
 
-    using GNWC   = ck::tensor_layout::convolution::GNWC;
-    using GNHWC  = ck::tensor_layout::convolution::GNHWC;
-    using GNDHWC = ck::tensor_layout::convolution::GNDHWC;
-
-    using GKXC   = ck::tensor_layout::convolution::GKXC;
-    using GKYXC  = ck::tensor_layout::convolution::GKYXC;
-    using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
-
-    using GNWK   = ck::tensor_layout::convolution::GNWK;
-    using GNHWK  = ck::tensor_layout::convolution::GNHWK;
-    using GNDHWK = ck::tensor_layout::convolution::GNDHWK;
+    using namespace ck::tensor_layout::convolution;
 
     constexpr auto I1 = ck::Number<1>{};
     constexpr auto I2 = ck::Number<2>{};
@@ -157,6 +150,22 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
             return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, BF16{}, F32{}, BF16{});
         }
     }
+    else if(num_dim_spatial == 2 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
+    {
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, F32{}, F32{}, F32{});
+        }
+        else if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, F16{}, F16{}, F16{});
+        }
+        else if(data_type == ConvDataType::BF16_F32_BF16)
+        {
+            // fp32 atomic add is used for weight tensor in bf16 kernel
+            return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, BF16{}, F32{}, BF16{});
+        }
+    }
     else if(num_dim_spatial == 3 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
     {
         if(data_type == ConvDataType::F32_F32_F32)
@@ -171,6 +180,22 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         {
             // fp32 atomic add is used for weight tensor in bf16 kernel
             return profile(I3, GNDHWC{}, GKZYXC{}, GNDHWK{}, BF16{}, F32{}, BF16{});
+        }
+    }
+    else if(num_dim_spatial == 3 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
+    {
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F32{}, F32{}, F32{});
+        }
+        else if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F16{}, F16{}, F16{});
+        }
+        else if(data_type == ConvDataType::BF16_F32_BF16)
+        {
+            // fp32 atomic add is used for weight tensor in bf16 kernel
+            return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, BF16{}, F32{}, BF16{});
         }
     }
 

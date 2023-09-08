@@ -12,12 +12,15 @@ This document contains instructions for installing, using, and contributing to C
 Methodology
 -----------
 
-Composable Kernel (CK) library aims to provide a programming model for writing performance critical kernels for machine learning workloads across multiple architectures including GPUs, CPUs, etc, through general purpose kernel languages, like HIP C++.
+Composable Kernel (CK) library aims to provide a programming model for writing performance critical
+kernels for machine learning workloads across multiple architectures including GPUs, CPUs, etc,
+through general purpose kernel languages, like HIP C++.
 
 CK utilizes two concepts to achieve performance portability and code maintainability:
 
 * A tile-based programming model
-* Algorithm complexity reduction for complex ML operators, using innovative technique we call "Tensor Coordinate Transformation".
+* Algorithm complexity reduction for complex ML operators, using innovative technique we call
+  "Tensor Coordinate Transformation".
 
 .. image:: data/ck_component.png
    :alt: CK Components

@@ -11,7 +11,7 @@
 namespace ck {
 
 // C[BM0, BM1, BN0, BN1] += transpose(A[K, BM0, BM1]) * B[K, BN0, BN1]
-// A and B are visable to the whole block, C is distributed among each thread
+// A and B are visible to the whole block, C is distributed among each thread
 // Assume:
 //   1. A:
 //     1. ABlockDesc_BK0_BM_BK1 is known at compile-time

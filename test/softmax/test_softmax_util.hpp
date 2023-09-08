@@ -61,8 +61,92 @@ class TestSoftmax : public ::testing::Test
         int init_method = 1; // integer value initialization
         bool log        = false;
         std::vector<ck::index_t> strides; // intenionally empty, to get packed layout.
-        bool pass = ck::profiler::profile_softmax_impl<InDataType, AccDataType, OutDataType, Rank>(
-            verify_, init_method, log, bench_, in_length, strides, reduce_dims, alpha, beta);
+        bool pass = false;
+
+        if constexpr(Rank == 3)
+        {
+            if(reduce_dims.size() == 1)
+                pass = ck::profiler::
+                    profile_softmax_impl<InDataType, AccDataType, OutDataType, Rank, 1>(verify_,
+                                                                                        init_method,
+                                                                                        log,
+                                                                                        bench_,
+                                                                                        in_length,
+                                                                                        strides,
+                                                                                        reduce_dims,
+                                                                                        alpha,
+                                                                                        beta);
+            else if(reduce_dims.size() == 2)
+                pass = ck::profiler::
+                    profile_softmax_impl<InDataType, AccDataType, OutDataType, Rank, 2>(verify_,
+                                                                                        init_method,
+                                                                                        log,
+                                                                                        bench_,
+                                                                                        in_length,
+                                                                                        strides,
+                                                                                        reduce_dims,
+                                                                                        alpha,
+                                                                                        beta);
+            else if(reduce_dims.size() == 3)
+                pass = ck::profiler::
+                    profile_softmax_impl<InDataType, AccDataType, OutDataType, Rank, 3>(verify_,
+                                                                                        init_method,
+                                                                                        log,
+                                                                                        bench_,
+                                                                                        in_length,
+                                                                                        strides,
+                                                                                        reduce_dims,
+                                                                                        alpha,
+                                                                                        beta);
+        }
+        else if constexpr(Rank == 4)
+        {
+            if(reduce_dims.size() == 1)
+                pass = ck::profiler::
+                    profile_softmax_impl<InDataType, AccDataType, OutDataType, Rank, 1>(verify_,
+                                                                                        init_method,
+                                                                                        log,
+                                                                                        bench_,
+                                                                                        in_length,
+                                                                                        strides,
+                                                                                        reduce_dims,
+                                                                                        alpha,
+                                                                                        beta);
+            else if(reduce_dims.size() == 2)
+                pass = ck::profiler::
+                    profile_softmax_impl<InDataType, AccDataType, OutDataType, Rank, 2>(verify_,
+                                                                                        init_method,
+                                                                                        log,
+                                                                                        bench_,
+                                                                                        in_length,
+                                                                                        strides,
+                                                                                        reduce_dims,
+                                                                                        alpha,
+                                                                                        beta);
+            else if(reduce_dims.size() == 3)
+                pass = ck::profiler::
+                    profile_softmax_impl<InDataType, AccDataType, OutDataType, Rank, 3>(verify_,
+                                                                                        init_method,
+                                                                                        log,
+                                                                                        bench_,
+                                                                                        in_length,
+                                                                                        strides,
+                                                                                        reduce_dims,
+                                                                                        alpha,
+                                                                                        beta);
+            else if(reduce_dims.size() == 4)
+                pass = ck::profiler::
+                    profile_softmax_impl<InDataType, AccDataType, OutDataType, Rank, 4>(verify_,
+                                                                                        init_method,
+                                                                                        log,
+                                                                                        bench_,
+                                                                                        in_length,
+                                                                                        strides,
+                                                                                        reduce_dims,
+                                                                                        alpha,
+                                                                                        beta);
+        };
+
         EXPECT_TRUE(pass);
     }
 
