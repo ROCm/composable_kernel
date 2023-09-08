@@ -672,6 +672,7 @@ pipeline {
                     agent{ label rocmnode("nogpu") }
                     steps{
                         buildDocker('/opt/rocm')
+                        cleanWs()
                     }
                 }
             }
@@ -693,6 +694,7 @@ pipeline {
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        cleanWs()
                     }
                 }
             }
@@ -715,6 +717,7 @@ pipeline {
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        cleanWs()
                     }
                 }
                 stage("Build CK and run Tests on MI100/MI200")
@@ -730,6 +733,7 @@ pipeline {
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        cleanWs()
                     }
                 }
                 stage("Build CK and run Tests on Navi21")
@@ -746,6 +750,7 @@ pipeline {
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        cleanWs()
                     }
                 }
                 stage("Build CK and run Tests on Navi32")
@@ -762,6 +767,7 @@ pipeline {
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        cleanWs()
                     }
                 }
             }
@@ -784,6 +790,7 @@ pipeline {
                    }
                     steps{
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
+                        cleanWs()
                     }
                 }
                 stage("Run ckProfiler: gfx90a")
@@ -799,6 +806,7 @@ pipeline {
                     }
                     steps{
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
+                        cleanWs()
                     }
                 }
             }
@@ -811,16 +819,10 @@ pipeline {
                     agent { label 'mici' }
                     steps{
                         process_results()
+                        cleanWs()
                     }
                 }
             }
-        }
-    }
-    post 
-    { 
-        always 
-        { 
-            cleanWs()
         }
     }
 }
