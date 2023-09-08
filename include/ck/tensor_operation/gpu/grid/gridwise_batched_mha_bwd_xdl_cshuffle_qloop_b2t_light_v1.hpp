@@ -262,29 +262,29 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
-        const auto M      = q_grid_desc_k0_m_k1.GetLength(I1);
-        const auto N      = k_grid_desc_k0_n_k1.GetLength(I1);
-        const auto K      = q_grid_desc_k0_m_k1.GetLength(I0) * q_grid_desc_k0_m_k1.GetLength(I2);
-        const auto Gemm1N = v_grid_desc_o0_n_o1.GetLength(I0) * v_grid_desc_o0_n_o1.GetLength(I2);
+        const auto M = q_grid_desc_k0_m_k1.GetLength(I1);
+        const auto N = k_grid_desc_k0_n_k1.GetLength(I1);
+        const auto K = q_grid_desc_k0_m_k1.GetLength(I0) * q_grid_desc_k0_m_k1.GetLength(I2);
+        const auto O = v_grid_desc_o0_n_o1.GetLength(I0) * v_grid_desc_o0_n_o1.GetLength(I2);
 
         // This assumption reduces implemention complexity by categorizing 6 separate GEMMs into 3
         // types of GEMM operations, therefore some code body can be reused accordingly
         // P_MNK / dP_MNO Gemm (Gemm0 rcr)
         // Y_MON / dQ_MKN Gemm (Gemm1 rrr)
         // dV_NOM / dK_NKM Gemm (Gemm2 crr)
-        if(Gemm1N != K)
+        if(O != K)
         {
             std::cerr << "SizeK must be equal to SizeO (equal attention head size)" << '\n';
             return false;
         }
 
-        if(!(M == y_grid_desc_m_o.GetLength(I0) && Gemm1N == y_grid_desc_m_o.GetLength(I1)))
+        if(!(M == y_grid_desc_m_o.GetLength(I0) && O == y_grid_desc_m_o.GetLength(I1)))
         {
             return false;
         }
 
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0 &&
-             Gemm1N % Gemm1NPerBlock == 0))
+             O % Gemm1NPerBlock == 0))
         {
             return false;
         }
