@@ -45,7 +45,7 @@ void add_device_gemm_multiply_add_xdl_c_shuffle_f16_f16_f16_f16_f16_mk_nk_mn_mn_
                                                     PassThrough,
                                                     MultiplyAdd>>>&);
 
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP8
 void add_device_gemm_multiply_add_xdl_c_shuffle_f16_f8_f32_f32_f16_mk_kn_mn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
                                                     Row,
@@ -133,7 +133,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
             }
         }
 
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP8
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, f8_t> &&
                      is_same_v<D0DataType, float> && is_same_v<D1DataType, float> &&
                      is_same_v<EDataType, half_t>)

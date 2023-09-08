@@ -456,7 +456,7 @@ struct mfma_type<MfmaInstr::mfma_f64_16x16x4f64>
     }
 };
 
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP8
 template <>
 struct mfma_type<MfmaInstr::mfma_f32_32x32x16f8f8>
 {
@@ -642,7 +642,7 @@ struct MfmaSelector
     }
 #endif
 
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP8
     template <>
     static constexpr auto GetMfma<f8_t, 32, 32>()
     {
@@ -857,7 +857,7 @@ struct XdlopsGemm
         static_assert(is_same<base_type, double>::value || is_same<base_type, float>::value ||
                           is_same<base_type, half_t>::value || is_same<base_type, bhalf_t>::value ||
                           is_same<base_type, int8_t>::value
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP8
                           || is_same<base_type, f8_t>::value
 #endif
                       ,

@@ -214,7 +214,7 @@ bool profile_gemm_splitk_impl(int do_verification,
                           << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", KBatch "
                           << kbatch_curr << std::endl;
 
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP8
                 // set softer tolerances for fp8
                 if constexpr(is_same_v<ADataType, f8_t> || is_same_v<BDataType, f8_t> ||
                              is_same_v<CDataType, f8_t>)
@@ -229,7 +229,7 @@ bool profile_gemm_splitk_impl(int do_verification,
                 {
 #endif
                     pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP8
                 }
 #endif
 

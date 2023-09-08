@@ -12,8 +12,10 @@ using half_t  = _Float16;
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 using int4_t = _BitInt(4);
 #endif
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
-using f8_t  = _BitInt(8);
+#if defined CK_ENABLE_FP8
+using f8_t = _BitInt(8);
+#endif
+#if defined CK_ENABLE_BF8
 using bf8_t = unsigned _BitInt(8);
 #endif
 
@@ -146,14 +148,16 @@ struct scalar_type<int4_t>
 };
 #endif
 
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP8
 template <>
 struct scalar_type<f8_t>
 {
     using type                           = f8_t;
     static constexpr index_t vector_size = 1;
 };
+#endif
 
+#if defined CK_ENABLE_BF8
 template <>
 struct scalar_type<bf8_t>
 {
@@ -963,16 +967,18 @@ using int8x16_t = typename vector_type<int8_t, 16>::type;
 using int8x32_t = typename vector_type<int8_t, 32>::type;
 using int8x64_t = typename vector_type<int8_t, 64>::type;
 
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
 // f8
+#if defined CK_ENABLE_FP8
 using f8x2_t  = typename vector_type<f8_t, 2>::type;
 using f8x4_t  = typename vector_type<f8_t, 4>::type;
 using f8x8_t  = typename vector_type<f8_t, 8>::type;
 using f8x16_t = typename vector_type<f8_t, 16>::type;
 using f8x32_t = typename vector_type<f8_t, 32>::type;
 using f8x64_t = typename vector_type<f8_t, 64>::type;
+#endif
 
 // bf8
+#if defined CK_ENABLE_BF8
 using bf8x2_t  = typename vector_type<bf8_t, 2>::type;
 using bf8x4_t  = typename vector_type<bf8_t, 4>::type;
 using bf8x8_t  = typename vector_type<bf8_t, 8>::type;
@@ -1027,7 +1033,7 @@ struct NumericLimits<int4_t>
 };
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP8
 template <>
 struct NumericLimits<f8_t>
 {
@@ -1050,7 +1056,9 @@ struct NumericLimits<f8_t>
 
     __host__ __device__ static constexpr f8_t QuietNaN() { return f8_t(binary_qnan); }
 };
+#endif
 
+#if defined CK_ENABLE_BF8
 template <>
 struct NumericLimits<bf8_t>
 {
