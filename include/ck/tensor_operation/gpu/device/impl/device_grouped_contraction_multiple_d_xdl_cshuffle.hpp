@@ -355,9 +355,13 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({{}}, {{}}))>;
     using EGridDesc_M_N  = decltype(MakeEGridDescriptor_M_N({}, {}));
 
+    using ComputeDataType = ADataType;
+
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
+        BDataType,
+        ComputeDataType,
         AccDataType,
         CShuffleDataType,
         DsDataType,
