@@ -2349,7 +2349,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
                     auto d0_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, D0DataType>(
                         D0Operator::d0_thread_desc_.GetElementSpaceSize());
-                    ignore = d0_thread_buf;
 
                     static_for<0, D0M0, 1>{}([&](auto mr) {
                         // load data to lds
