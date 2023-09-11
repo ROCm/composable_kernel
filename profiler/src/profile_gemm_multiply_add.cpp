@@ -61,7 +61,7 @@ int profile_gemm_multiply_add(int argc, char* argv[])
 
     using F16 = ck::half_t;
     using F32 = float;
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP8
     using F8 = ck::f8_t;
 #endif
 
@@ -134,7 +134,7 @@ int profile_gemm_multiply_add(int argc, char* argv[])
     {
         return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Row{}, Col{}, Row{}, Row{}, Row{});
     }
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP8
     else if(data_type == MatrixDataType::F16_F8_F32_F32_F16 &&
             layout == MatrixLayout::MK_KN_MN_MN_MN)
     {
