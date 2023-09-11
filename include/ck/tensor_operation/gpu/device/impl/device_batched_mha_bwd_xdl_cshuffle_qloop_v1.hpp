@@ -273,6 +273,7 @@ template <index_t NumDimG,
           index_t KPerBlock, // Gemm0KPerBlock
           index_t Gemm1NPerBlock,
           index_t Gemm1KPerBlock,
+          index_t Gemm2KPerBlock,
           index_t AK1,
           index_t BK1,
           index_t B1K1,
@@ -322,9 +323,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static constexpr index_t V_O1 = 8;
-    static constexpr index_t Y_O1 = 8;
-    static constexpr index_t Y_M1 = 2;
+    static constexpr index_t V_O1 = BK1;
+    static constexpr index_t Y_O1 = AK1;
+    static constexpr index_t Y_M1 = B1K1;
 
     static constexpr auto padder = GemmGemmPadder<GemmSpec,
                                                   Number<MPerBlock>,
@@ -565,9 +566,9 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             return lse_grid_desc_mraw;
         }
     }
-    // D in Gemm0 C position
-    static auto MakeDGridDescriptor_M_N(const std::vector<index_t>& d_gs_ms_ns_lengths,
-                                        const std::vector<index_t>& d_gs_ms_ns_strides)
+    // D0 in Gemm0 C position
+    static auto MakeD0GridDescriptor_M_N(const std::vector<index_t>& d_gs_ms_ns_lengths,
+                                         const std::vector<index_t>& d_gs_ms_ns_strides)
     {
         return Transform::MakeCGridDescriptor_M_N(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
     }
@@ -584,7 +585,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
     using CGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
     using ZGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
 
-    using D0GridDesc_M_N        = decltype(MakeDGridDescriptor_M_N({}, {}));
+    using D0GridDesc_M_N        = decltype(MakeD0GridDescriptor_M_N({}, {}));
     using KGridDesc_N_K         = decltype(Transform::MakeB0GridDescriptor_N_K({}, {}));
     using YGradGridDesc_O0_M_O1 = decltype(MakeYGradGridDescriptor_O0_M_O1({}, {}));
     using ZGridDesc_M_N         = decltype(MakeZGridDescriptor_M_N({}, {}));
@@ -703,6 +704,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         KPerBlock,
         Gemm1NPerBlock,
         Gemm1KPerBlock,
+        Gemm2KPerBlock,
         AK1,
         BK1,
         B1K1,
@@ -855,8 +857,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             }
             if constexpr(!is_same<D0DataType, void>::value)
             {
-                const auto d0_grid_desc_m_n =
-                    MakeDGridDescriptor_M_N(acc0_bias_gs_ms_ns_lengths, acc0_bias_gs_ms_ns_strides);
+                const auto d0_grid_desc_m_n = MakeD0GridDescriptor_M_N(acc0_bias_gs_ms_ns_lengths,
+                                                                       acc0_bias_gs_ms_ns_strides);
                 d0_grid_desc_m0_n0_m1_m2_n1_m3_ =
                     GridwiseGemm::MakeD0GridDescriptor_M0_N0_M1_M2_N1_M3(d0_grid_desc_m_n);
 
@@ -1361,6 +1363,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             << MPerBlock << ", "
             << Gemm1NPerBlock << ", "
             << Gemm1KPerBlock << ", "
+            << Gemm2KPerBlock << ", "
             << B1K1 << ", "
             << getGemmSpecializationString(GemmSpec) << ", "
             << "ASpec" << getTensorSpecializationString(ASpec) << ", "
