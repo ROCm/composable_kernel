@@ -210,6 +210,9 @@ def cmake_build(Map conf=[:]){
     } else{
         setup_args = ' -DBUILD_DEV=On' + setup_args
     }
+    if (params.DL_KERNELS){
+        setup_args = setup_args + " -DDL_KERNELS=ON "
+    }
 
     if(build_type_debug){
         setup_args = " -DCMAKE_BUILD_TYPE=debug -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'" + setup_args
@@ -458,9 +461,6 @@ def Build_CK(Map conf=[:]){
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
         if (params.COMPILER_VERSION == "amd-stg-open" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
-        }
-        if (params.DL_KERNELS){
-            setup_args = setup_args + " -DDL_KERNELS=ON "
         }
 
         def variant = env.STAGE_NAME
