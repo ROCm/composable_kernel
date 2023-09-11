@@ -11,7 +11,7 @@
 #include "ck/utility/philox_rand.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
@@ -361,7 +361,24 @@ template <index_t NumDimG,
           bool Deterministic,
           LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
-    : public BaseOperator // TODO inherit atten bwd op once API stablizes
+    : public DeviceBatchedMultiheadAttentionBackwardQloopLightV1<NumDimG,
+                                                                 NumDimM,
+                                                                 NumDimN,
+                                                                 NumDimK,
+                                                                 NumDimO,
+                                                                 InputDataType,
+                                                                 OutputDataType,
+                                                                 ZDataType,
+                                                                 LSEDataType,
+                                                                 DDataType,
+                                                                 Acc0BiasDataType,
+                                                                 Acc1BiasDataType,
+                                                                 AElementwiseOperation,
+                                                                 BElementwiseOperation,
+                                                                 AccElementwiseOperation,
+                                                                 B1ElementwiseOperation,
+                                                                 CElementwiseOperation,
+                                                                 MaskingSpec>
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
@@ -1445,7 +1462,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
         B1ElementwiseOperation b1_element_op,
         CElementwiseOperation c_element_op,
         float p_drop,
-        std::tuple<unsigned long long, unsigned long long> seeds) // override
+        std::tuple<unsigned long long, unsigned long long> seeds) override
     {
         return std::make_unique<Argument>(
             static_cast<const InputDataType*>(p_a),
@@ -1486,7 +1503,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
     }
 
     // polymorphic
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer() // override
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
         return std::make_unique<Invoker>(Invoker{});
     }
