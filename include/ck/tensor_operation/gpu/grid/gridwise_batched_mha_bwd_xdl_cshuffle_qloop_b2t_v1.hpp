@@ -261,29 +261,29 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
-        const auto M      = q_grid_desc_k0_m_k1.GetLength(I1);
-        const auto N      = k_grid_desc_k0_n_k1.GetLength(I1);
-        const auto K      = q_grid_desc_k0_m_k1.GetLength(I0) * q_grid_desc_k0_m_k1.GetLength(I2);
-        const auto Gemm1N = v_grid_desc_o0_n_o1.GetLength(I0) * v_grid_desc_o0_n_o1.GetLength(I2);
+        const auto M = q_grid_desc_k0_m_k1.GetLength(I1);
+        const auto N = k_grid_desc_k0_n_k1.GetLength(I1);
+        const auto K = q_grid_desc_k0_m_k1.GetLength(I0) * q_grid_desc_k0_m_k1.GetLength(I2);
+        const auto O = v_grid_desc_o0_n_o1.GetLength(I0) * v_grid_desc_o0_n_o1.GetLength(I2);
 
         // This assumption reduces implemention complexity by categorizing 6 separate GEMMs into 3
         // types of GEMM operations, therefore some code body can be reused accordingly
         // P_MNK / dP_MNO Gemm (Gemm0 rcr)
         // Y_MON / dQ_MKN Gemm (Gemm1 rrr)
         // dV_NOM / dK_NKM Gemm (Gemm2 crr)
-        if(Gemm1N != K)
+        if(O != K)
         {
             std::cerr << "SizeK must be equal to SizeO (equal attention head size)" << '\n';
             return false;
         }
 
-        if(!(M == y_grid_desc_m_o.GetLength(I0) && Gemm1N == y_grid_desc_m_o.GetLength(I1)))
+        if(!(M == y_grid_desc_m_o.GetLength(I0) && O == y_grid_desc_m_o.GetLength(I1)))
         {
             return false;
         }
 
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0 &&
-             Gemm1N % Gemm1NPerBlock == 0))
+             O % Gemm1NPerBlock == 0))
         {
             return false;
         }
@@ -565,15 +565,12 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
     };
 
     // dP Gemm (type 1 rcc)
+    template <typename BSrcThreadDesc_K0_K1_N0_N1_N2_N3_K2>
     struct Gemm0
     {
         // A matrix in LDS memory, dst of blockwise copy
         static constexpr auto a_block_desc_ak0_m_ak1 =
             GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
-
-        // B source matrix layout in VGPR
-        static constexpr auto b_src_thread_desc_k0_k1_n0_n1_n2_n3_k2 =
-            GetVThreadDescriptor_K0_K1_N0_N1_N2_N3_K2();
 
         template <typename BThreadDesc_K0_K1_N0_N1_N2_N3_K2>
         __host__ __device__ static constexpr auto GetBThreadDescriptor_K0_N_K1(
@@ -601,7 +598,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         }
 
         static constexpr auto b_src_thread_desc_k0_n_k1 =
-            GetBThreadDescriptor_K0_N_K1(b_src_thread_desc_k0_k1_n0_n1_n2_n3_k2);
+            GetBThreadDescriptor_K0_N_K1(BSrcThreadDesc_K0_K1_N0_N1_N2_N3_K2{});
 
         template <typename ABlockDesc_AK0_M_AK1>
         __host__ __device__ static constexpr auto
@@ -1364,7 +1361,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             true, // DstResetCoord
             1>;
 
-        using D0ThreadCopy =
+        using D0ThreadWiseCopy =
             ThreadwiseTensorSliceTransfer_v4<typename TypeTransform<D0DataType>::Type,    // SrcData
                                              typename TypeTransform<D0DataType>::Type,    // DstData
                                              decltype(d0_block_vgpr_desc_n0_n1_m0_m1_m2), // SrcDesc
@@ -1650,6 +1647,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         //
         // set up dP Gemm (type 1 rcc)
         //
+
+        using Gemm0 = Gemm0<decltype(GemmBlockwiseCopy::v_thread_desc_k0_k1_n0_n1_n2_n3_k2)>;
 
         // dP: blockwise gemm
         auto pgrad_blockwise_gemm = typename Gemm0::BlockwiseGemm{};
