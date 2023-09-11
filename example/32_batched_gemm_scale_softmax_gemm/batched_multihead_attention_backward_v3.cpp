@@ -218,7 +218,7 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
                             TensorLSE& lse_g_m,
                             TensorP& p_drop_g_m_n,
                             TensorZ& z_g_m_n,
-                            ZDataType p_dropout_in_16bits,
+                            ZDataType p_dropout_in_uint8_t,
                             float rp_dropout)
 {
     // S = alpha * Q * K^T
@@ -250,7 +250,7 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
     auto ref_dropout         = ReferenceDropoutInstance{};
     auto ref_dropout_invoker = ref_dropout.MakeInvoker();
     auto ref_dropout_argment =
-        ref_dropout.MakeArgument(z_g_m_n, p_g_m_n, p_drop_g_m_n, p_dropout_in_16bits, rp_dropout);
+        ref_dropout.MakeArgument(z_g_m_n, p_g_m_n, p_drop_g_m_n, p_dropout_in_uint8_t, rp_dropout);
     ref_dropout_invoker.Run(ref_dropout_argment);
 
     // Y = P_dropout * V
@@ -325,10 +325,10 @@ int run(int argc, char* argv[])
         exit(0);
     }
 
-    float p_dropout               = 1 - p_drop;
-    ZDataType p_dropout_in_16bits = ZDataType(std::floor(p_dropout * 65535.0));
-    float rp_dropout              = 1.0 / p_dropout;
-    float alpha                   = 1.f / std::sqrt(K);
+    float p_dropout                = 1 - p_drop;
+    ZDataType p_dropout_in_uint8_t = ZDataType(std::floor(p_dropout * 255.0));
+    float rp_dropout               = 1.0 / p_dropout;
+    float alpha                    = 1.f / std::sqrt(K);
 
     std::cout << "do_verification: " << do_verification << std::endl;
     std::cout << "init_method: " << init_method << std::endl;
@@ -633,7 +633,7 @@ int run(int argc, char* argv[])
                                lse_g_m,
                                p_drop_g_m_n,
                                z_g_m_n,
-                               p_dropout_in_16bits,
+                               p_dropout_in_uint8_t,
                                rp_dropout);
         y_gs_ms_os.ForEach([&](auto& self, auto idx) {
             self(idx) = y_g_m_o(idx[0] * G1 + idx[1], idx[2], idx[3]);
@@ -693,7 +693,7 @@ int run(int argc, char* argv[])
         auto ref_dropout         = ReferenceDropoutInstance{};
         auto ref_dropout_invoker = ref_dropout.MakeInvoker();
         auto ref_dropout_argment = ref_dropout.MakeArgument(
-            z_g_m_n, pgrad_drop_g_m_n, pgrad_g_m_n, p_dropout_in_16bits, rp_dropout);
+            z_g_m_n, pgrad_drop_g_m_n, pgrad_g_m_n, p_dropout_in_uint8_t, rp_dropout);
         ref_dropout_invoker.Run(ref_dropout_argment);
 
         // dS_i_j = P_i_j .* (dP_i_j - dY_i dot Y_i)
