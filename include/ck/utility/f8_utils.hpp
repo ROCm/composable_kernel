@@ -5,6 +5,8 @@
 
 #include "ck/utility/data_type.hpp"
 
+// these conversions are disabled if native conversions available
+#if !defined(__gfx940__) && !defined(__gfx941__) && !defined(__gfx942__)
 namespace ck {
 
 // fp8 rounding modes
@@ -248,3 +250,4 @@ __host__ __device__ T cast_from_f8(f8_t x)
 }
 
 } // namespace ck::utils
+#endif
