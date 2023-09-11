@@ -603,7 +603,7 @@ int run(int argc, char* argv[])
         (sizeof(InputDataType) * M * K + sizeof(InputDataType) * K * N +
          sizeof(InputDataType) * N * O + sizeof(InputDataType) * M * O * size_t(2) +
          sizeof(OutputDataType) * M * K + sizeof(OutputDataType) * K * N +
-         sizeof(OutputDataType) * N * O + sizeof(Acc0BiasDataType) * M * N) *
+         sizeof(OutputDataType) * N * O + sizeof(Acc0BiasDataType) * M * N * size_t(2)) *
             BatchCount +
         sizeof(LSEDataType) * M * BatchCount;
 

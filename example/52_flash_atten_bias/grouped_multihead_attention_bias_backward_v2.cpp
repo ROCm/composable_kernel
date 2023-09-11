@@ -24,7 +24,7 @@ Kernel outputs:
 */
 
 #define USING_MASK 0
-#define DIM 128 // DIM should be a multiple of 8.
+#define DIM 64 // DIM should be a multiple of 8.
 
 #include <iostream>
 #include <numeric>
@@ -333,6 +333,7 @@ int run(int argc, char* argv[])
     std::vector<const void*> p_lse;
     std::vector<void*> p_qgrad;
     std::vector<void*> p_kgrad;
+    std::vector<void*> p_d0grad;
     std::vector<void*> p_vgrad;
     std::vector<const void*> p_ygrad;
 
@@ -356,6 +357,7 @@ int run(int argc, char* argv[])
     std::vector<Tensor<LSEDataType>> lse_tensors;
     std::vector<Tensor<OutputDataType>> qgrad_tensors;
     std::vector<Tensor<OutputDataType>> kgrad_tensors;
+    std::vector<Tensor<Acc0BiasDataType>> d0grad_tensors;
     std::vector<Tensor<OutputDataType>> vgrad_tensors;
     std::vector<Tensor<InputDataType>> ygrad_tensors;
 
@@ -369,6 +371,7 @@ int run(int argc, char* argv[])
     std::vector<DeviceMemPtr> qgrad_tensors_device;
     std::vector<DeviceMemPtr> ygrad_tensors_device;
     std::vector<DeviceMemPtr> kgrad_tensors_device;
+    std::vector<DeviceMemPtr> d0grad_tensors_device;
     std::vector<DeviceMemPtr> vgrad_tensors_device;
     std::size_t group_count = 10;
     std::size_t flop = 0, num_byte = 0;
@@ -445,12 +448,13 @@ int run(int argc, char* argv[])
         int BatchCount = G0 * G1;
         flop += (size_t(3) * M * N * K + size_t(2) * M * N * O) * 2 * BatchCount;
         // Q/K/V/Y, dQ/dK/dV/dY, LSE
-        num_byte += (sizeof(InputDataType) * M * K + sizeof(InputDataType) * K * N +
-                     sizeof(InputDataType) * N * O + sizeof(InputDataType) * M * O * size_t(2) +
-                     sizeof(OutputDataType) * M * K + sizeof(OutputDataType) * K * N +
-                     sizeof(OutputDataType) * N * O + sizeof(Acc0BiasDataType) * M * N) *
-                        BatchCount +
-                    sizeof(LSEDataType) * M * BatchCount;
+        num_byte +=
+            (sizeof(InputDataType) * M * K + sizeof(InputDataType) * K * N +
+             sizeof(InputDataType) * N * O + sizeof(InputDataType) * M * O * size_t(2) +
+             sizeof(OutputDataType) * M * K + sizeof(OutputDataType) * K * N +
+             sizeof(OutputDataType) * N * O + sizeof(Acc0BiasDataType) * M * N * size_t(2)) *
+                BatchCount +
+            sizeof(LSEDataType) * M * BatchCount;
 
         Tensor<InputDataType> q_gs_ms_ks(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
         Tensor<InputDataType> k_gs_ns_ks(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
@@ -600,6 +604,8 @@ int run(int argc, char* argv[])
             std::make_unique<DeviceMem>(sizeof(OutputDataType) * q_gs_ms_ks.GetElementSpaceSize()));
         kgrad_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(OutputDataType) * k_gs_ns_ks.GetElementSpaceSize()));
+        d0grad_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(Acc0BiasDataType) * d0_gs_ms_ns.GetElementSpaceSize()));
         vgrad_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(OutputDataType) * v_gs_os_ns.GetElementSpaceSize()));
         ygrad_tensors_device.emplace_back(
@@ -619,6 +625,7 @@ int run(int argc, char* argv[])
         p_y.push_back(y_tensors_device.back()->GetDeviceBuffer());
         p_lse.push_back(lse_tensors_device.back()->GetDeviceBuffer());
         p_kgrad.push_back(kgrad_tensors_device.back()->GetDeviceBuffer());
+        p_d0grad.push_back(d0grad_tensors_device.back()->GetDeviceBuffer());
         p_vgrad.push_back(vgrad_tensors_device.back()->GetDeviceBuffer());
         p_ygrad.push_back(ygrad_tensors_device.back()->GetDeviceBuffer());
         p_qgrad.push_back(qgrad_tensors_device.back()->GetDeviceBuffer());
@@ -635,6 +642,8 @@ int run(int argc, char* argv[])
                           p_kgrad,
                           p_vgrad,
                           p_d0,
+                          {},
+                          p_d0grad,
                           {},
                           problem_descs,
                           QKVElementOp{},
@@ -681,6 +690,8 @@ int run(int argc, char* argv[])
                               p_kgrad,
                               p_vgrad,
                               p_d0,
+                              {},
+                              p_d0grad,
                               {},
                               problem_descs,
                               QKVElementOp{},
@@ -732,6 +743,7 @@ int run(int argc, char* argv[])
             lse_tensors_device[i]->ToDevice(lse_tensors[i].data());
             qgrad_tensors_device[i]->SetZero();
             kgrad_tensors_device[i]->SetZero();
+            d0grad_tensors_device[i]->SetZero();
             vgrad_tensors_device[i]->SetZero();
         }
 
@@ -804,6 +816,8 @@ int run(int argc, char* argv[])
                                                               q_tensors[i].GetStrides());
             Tensor<OutputDataType> kgrad_gs_ns_ks_host_result(k_tensors[i].GetLengths(),
                                                               k_tensors[i].GetStrides());
+            Tensor<Acc0BiasDataType> d0grad_gs_ms_ns_host_result(d0_tensors[i].GetLengths(),
+                                                                 d0_tensors[i].GetStrides());
             Tensor<OutputDataType> vgrad_gs_os_ns_host_result(v_tensors[i].GetLengths(),
                                                               v_tensors[i].GetStrides());
 
@@ -811,11 +825,14 @@ int run(int argc, char* argv[])
                                                                 q_tensors[i].GetStrides());
             Tensor<OutputDataType> kgrad_gs_ns_ks_device_result(k_tensors[i].GetLengths(),
                                                                 k_tensors[i].GetStrides());
+            Tensor<Acc0BiasDataType> d0grad_gs_ms_ns_device_result(d0_tensors[i].GetLengths(),
+                                                                   d0_tensors[i].GetStrides());
             Tensor<OutputDataType> vgrad_gs_os_ns_device_result(v_tensors[i].GetLengths(),
                                                                 v_tensors[i].GetStrides());
 
             qgrad_tensors_device[i]->FromDevice(qgrad_gs_ms_ks_device_result.data());
             kgrad_tensors_device[i]->FromDevice(kgrad_gs_ns_ks_device_result.data());
+            d0grad_tensors_device[i]->FromDevice(d0grad_gs_ms_ns_device_result.data());
             vgrad_tensors_device[i]->FromDevice(vgrad_gs_os_ns_device_result.data());
             // permute
             qgrad_gs_ms_ks_host_result.ForEach([&](auto& self, auto idx) {
@@ -833,6 +850,14 @@ int run(int argc, char* argv[])
                 const size_t g = g0 * G1 + g1;
 
                 self(idx) = kgrad_g_n_k(g, idx[2], idx[3]);
+            });
+            d0grad_gs_ms_ns_host_result.ForEach([&](auto& self, auto idx) {
+                const size_t& g0 = idx[0];
+                const size_t& g1 = idx[1];
+
+                const size_t g = g0 * G1 + g1;
+
+                self(idx) = sgrad_g_m_n(g, idx[2], idx[3]);
             });
             vgrad_gs_os_ns_host_result.ForEach([&](auto& self, auto idx) {
                 const size_t& g0 = idx[0];
@@ -858,6 +883,12 @@ int run(int argc, char* argv[])
             std::cout << "Checking vgrad:\n";
             pass &= ck::utils::check_err(vgrad_gs_os_ns_device_result.mData,
                                          vgrad_gs_os_ns_host_result.mData,
+                                         "error",
+                                         1e-2,
+                                         1e-2);
+            std::cout << "Checking d0grad:\n";
+            pass &= ck::utils::check_err(d0grad_gs_ms_ns_device_result.mData,
+                                         d0grad_gs_ms_ns_host_result.mData,
                                          "error",
                                          1e-2,
                                          1e-2);
