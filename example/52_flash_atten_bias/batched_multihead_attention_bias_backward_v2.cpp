@@ -25,7 +25,7 @@ Kernel outputs:
 
 #define PRINT_HOST 0
 #define USING_MASK 0
-#define DIM 64 // DIM should be a multiple of 8.
+#define DIM 128 // DIM should be a multiple of 8.
 
 #include <iostream>
 #include <numeric>
@@ -284,7 +284,7 @@ int run(int argc, char* argv[])
     bool input_permute  = false;
     bool output_permute = false;
 
-    float p_drop                    = 0.9;
+    float p_drop                    = 0.0;
     const unsigned long long seed   = 1;
     const unsigned long long offset = 0;
 

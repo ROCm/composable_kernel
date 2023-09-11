@@ -597,8 +597,10 @@ int run(int argc, char* argv[])
             static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
-            {}, //  p_acc0_biases;
-            {}, //  p_acc1_biases;
+            nullptr, //  p_acc0_biases;
+            nullptr, //  p_acc1_biases;
+            nullptr,
+            nullptr,
             q_gs_ms_ks_lengths,
             q_gs_ms_ks_strides,
             k_gs_ns_ks_lengths,
@@ -686,8 +688,8 @@ int run(int argc, char* argv[])
                 static_cast<InputDataType*>(y_device_buf.GetDeviceBuffer()),
                 static_cast<ZDataType*>(z_fwd_device_buf.GetDeviceBuffer()),
                 static_cast<LSEDataType*>(lse_device_buf.GetDeviceBuffer()),
-                {}, // std::array<void*, 1> p_acc0_biases;
-                {}, // std::array<void*, 1> p_acc1_biases;
+                nullptr, // p_acc0_bias;
+                nullptr, // p_acc1_bias;
                 q_gs_ms_ks_lengths,
                 q_gs_ms_ks_strides,
                 k_gs_ns_ks_lengths,
@@ -743,8 +745,10 @@ int run(int argc, char* argv[])
                 static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
                 static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
                 static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
-                {}, // std::array<void*, 1> p_acc0_biases;
-                {}, // std::array<void*, 1> p_acc1_biases;
+                nullptr, // p_acc0_bias;
+                nullptr, // p_acc1_bias;
+                nullptr,
+                nullptr,
                 q_gs_ms_ks_lengths,
                 q_gs_ms_ks_strides,
                 k_gs_ns_ks_lengths,
