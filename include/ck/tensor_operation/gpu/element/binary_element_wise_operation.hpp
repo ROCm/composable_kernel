@@ -186,6 +186,13 @@ struct Bilinear
         y = type_convert<half_t>(alpha_ * x0 + beta_ * ck::type_convert<float>(x1));
     };
 
+    template <>
+    __host__ __device__ constexpr void operator()<std::int8_t, std::int32_t, std::int8_t>(
+        std::int8_t& y, const std::int32_t& x0, const std::int8_t& x1) const
+    {
+        y = type_convert<std::int8_t>(x0 + ck::type_convert<std::int32_t>(x1));
+    };
+
     float alpha_;
     float beta_;
 };

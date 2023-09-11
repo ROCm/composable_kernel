@@ -460,7 +460,7 @@ rocm_install(FILES
 )
 
 # Install CK version and configuration files
-install(FILES
+rocm_install(FILES
     ${PROJECT_BINARY_DIR}/include/ck/version.h
     ${PROJECT_BINARY_DIR}/include/ck/config.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck/
