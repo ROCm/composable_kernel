@@ -65,6 +65,7 @@ __global__ void
             const InputDataType* __restrict__ p_ygrad_grid,
             OutputDataType* __restrict__ p_qgrad_grid,
             OutputDataType* __restrict__ p_kgrad_grid,
+            D0DataType* __restrict__ p_d0grad_grid,
             OutputDataType* __restrict__ p_vgrad_grid,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
@@ -120,11 +121,19 @@ __global__ void
     const index_t z_random_matrix_offset = g_idx * raw_m_padded * raw_n_padded;
 
     const D0DataType* tmp_p_d0_grid = nullptr;
+    D0DataType* tmp_p_d0grad_grid   = nullptr;
     if constexpr(!is_same<D0DataType, void>::value)
     {
         const long_index_t d0_batch_offset = __builtin_amdgcn_readfirstlane(
             static_cast<long_index_t>(compute_base_ptr_of_batch.GetD0BasePtr(g_idx)));
-        tmp_p_d0_grid = p_d0_grid + d0_batch_offset;
+        if(p_d0_grid != nullptr)
+        {
+            tmp_p_d0_grid = p_d0_grid + d0_batch_offset;
+        }
+        if(p_d0grad_grid != nullptr)
+        {
+            tmp_p_d0grad_grid = p_d0grad_grid + d0_batch_offset;
+        }
     }
     if constexpr(Deterministic)
     {
@@ -141,6 +150,7 @@ __global__ void
                 p_ygrad_grid + c_batch_offset,
                 p_qgrad_grid + a_batch_offset,
                 p_kgrad_grid + b_batch_offset,
+                tmp_p_d0grad_grid,
                 p_vgrad_grid + b1_batch_offset,
                 p_shared,
                 a_element_op,
@@ -178,6 +188,7 @@ __global__ void
             p_ygrad_grid + c_batch_offset,
             p_qgrad_grid + a_batch_offset,
             p_kgrad_grid + b_batch_offset,
+            tmp_p_d0grad_grid,
             p_vgrad_grid + b1_batch_offset,
             p_shared,
             a_element_op,
@@ -212,6 +223,7 @@ __global__ void
     ignore = p_ygrad_grid;
     ignore = p_qgrad_grid;
     ignore = p_kgrad_grid;
+    ignore = p_d0grad_grid;
     ignore = p_vgrad_grid;
     ignore = a_element_op;
     ignore = b_element_op;
@@ -755,6 +767,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                  OutputDataType* p_vgrad_grid,
                  const D0DataType* p_acc0_bias,
                  const D1DataType* p_acc1_bias,
+                 D0DataType* p_d0grad_grid,
+                 D1DataType* p_d1grad_grid,
                  const std::vector<index_t>& a_gs_ms_ks_lengths,
                  const std::vector<index_t>& a_gs_ms_ks_strides,
                  const std::vector<index_t>& b_gs_ns_ks_lengths,
@@ -790,6 +804,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
               p_qgrad_grid_{p_qgrad_grid},
               p_kgrad_grid_{p_kgrad_grid},
               p_vgrad_grid_{p_vgrad_grid},
+              p_d0grad_grid_{p_d0grad_grid},
               a_grid_desc_ak0_m_ak1_{
                   DeviceOp::MakeAGridDescriptor_AK0_M_AK1(a_gs_ms_ks_lengths, a_gs_ms_ks_strides)},
               b_grid_desc_bk0_n_bk1_{
@@ -839,10 +854,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
               p_drop_{p_drop}
         {
             // TODO: implement bias addition
-            ignore = p_acc0_bias;
+            ignore = p_d1grad_grid;
             ignore = p_acc1_bias;
-            ignore = acc0_bias_gs_ms_ns_lengths;
-            ignore = acc0_bias_gs_ms_ns_strides;
             ignore = acc1_bias_gs_ms_gemm1ns_lengths;
             ignore = acc1_bias_gs_ms_gemm1ns_strides;
 
@@ -926,6 +939,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         OutputDataType* p_qgrad_grid_;
         OutputDataType* p_kgrad_grid_;
         OutputDataType* p_vgrad_grid_;
+        D0DataType* p_d0grad_grid_;
 
         // tensor descriptor
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
@@ -1049,6 +1063,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                     arg.p_ygrad_grid_,
                     arg.p_qgrad_grid_,
                     arg.p_kgrad_grid_,
+                    arg.p_d0grad_grid_,
                     arg.p_vgrad_grid_,
                     arg.a_element_op_,
                     arg.b_element_op_,
@@ -1200,6 +1215,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                  OutputDataType* p_vgrad_grid,
                  const D0DataType* p_acc0_bias,
                  const D1DataType* p_acc1_bias,
+                 D0DataType* p_d0grad_grid,
+                 D1DataType* p_d1grad_grid,
                  const std::vector<index_t>& a_gs_ms_ks_lengths,
                  const std::vector<index_t>& a_gs_ms_ks_strides,
                  const std::vector<index_t>& b_gs_ns_ks_lengths,
@@ -1237,6 +1254,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                         p_vgrad_grid,
                         p_acc0_bias,
                         p_acc1_bias,
+                        p_d0grad_grid,
+                        p_d1grad_grid,
                         a_gs_ms_ks_lengths,
                         a_gs_ms_ks_strides,
                         b_gs_ns_ks_lengths,
@@ -1278,6 +1297,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         void* p_vgrad_grid,
         const D0DataType* p_acc0_bias,
         const D1DataType* p_acc1_bias,
+        D0DataType* p_d0grad_grid,
+        D1DataType* p_d1grad_grid,
         const std::vector<index_t>& a_gs_ms_ks_lengths,
         const std::vector<index_t>& a_gs_ms_ks_strides,
         const std::vector<index_t>& b_gs_ns_ks_lengths,
@@ -1316,6 +1337,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             static_cast<OutputDataType*>(p_vgrad_grid),
             static_cast<const D0DataType*>(p_acc0_bias), // cast in struct Argument
             static_cast<const D1DataType*>(p_acc1_bias), // cast in struct Argument
+            static_cast<const D0DataType*>(p_d0grad_grid),
+            static_cast<const D1DataType*>(p_d1grad_grid),
             a_gs_ms_ks_lengths,
             a_gs_ms_ks_strides,
             b_gs_ns_ks_lengths,
