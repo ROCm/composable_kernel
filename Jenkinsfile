@@ -459,6 +459,9 @@ def Build_CK(Map conf=[:]){
         if (params.COMPILER_VERSION == "amd-stg-open" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
+        if (params.DL_KERNELS){
+            setup_args = setup_args + " -DDL_KERNELS=ON "
+        }
 
         def variant = env.STAGE_NAME
         def retimage
@@ -614,7 +617,7 @@ def process_results(Map conf=[:]){
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=5.7;COMPILER_VERSION=rc1
                                               0 21 * * * % ROCMVERSION=5.6;COMPILER_VERSION=;COMPILER_COMMIT=
-                                              0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=''' : ""
+                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=''' : ""
 
 pipeline {
     agent none
@@ -649,6 +652,10 @@ pipeline {
             name: "RUN_FULL_QA",
             defaultValue: false,
             description: "Select whether to run small set of performance tests (default) or full QA")
+        booleanParam(
+            name: "DL_KERNELS",
+            defaultValue: false,
+            description: "Select whether to build DL kernels (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
