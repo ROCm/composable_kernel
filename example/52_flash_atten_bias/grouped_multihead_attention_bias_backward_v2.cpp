@@ -24,7 +24,7 @@ Kernel outputs:
 */
 
 #define USING_MASK 0
-#define DIM 64 // DIM should be a multiple of 8.
+#define DIM 128 // DIM should be a multiple of 8.
 
 #include <iostream>
 #include <numeric>
