@@ -107,8 +107,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
     static constexpr auto I5 = Number<5>{};
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
-    static constexpr auto I8 = Number<8>{};
-    static constexpr auto I9 = Number<9>{};
 
     static constexpr auto WaveSize = 64;
     // K1 should be Number<...>
