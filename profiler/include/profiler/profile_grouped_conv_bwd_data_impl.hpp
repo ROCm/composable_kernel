@@ -120,6 +120,7 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     float best_avg_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+    int num_kernel        = 0;
 
     // profile device op instances
     bool pass = true;
@@ -127,6 +128,7 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     auto run_impl = [&](auto& op_ptr, auto& argument_ptr) {
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            num_kernel++;
             // re-init output to zero before profiling next kernel
             in_device_buf.SetZero();
 
@@ -244,6 +246,12 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
                                         in_element_op);
 
         run_impl(op_ptr, argument_ptr);
+    }
+
+    if(num_kernel == 0)
+    {
+        std::cout << "Error: No kernel is applicable" << std::endl;
+        return false;
     }
 
     std::cout << "Best configuration parameters:"

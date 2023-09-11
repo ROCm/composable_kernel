@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -137,6 +137,7 @@ bool profile_gemm_streamk_impl(int do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+    int num_kernel        = 0;
 
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
@@ -167,6 +168,7 @@ bool profile_gemm_streamk_impl(int do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            num_kernel++;
             // re-init C to zero before profiling next kernel
             c_device_buf.SetZero();
 
@@ -253,6 +255,12 @@ bool profile_gemm_streamk_impl(int do_verification,
     else if constexpr(is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value)
     {
         std::cout << " BLayout =  ColumnMajor";
+    }
+
+    if(num_kernel == 0)
+    {
+        std::cout << "Error: No kernel is applicable" << std::endl;
+        return false;
     }
 
     std::cout << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA

@@ -183,6 +183,7 @@ int profile_contraction_impl(ck::index_t do_verification,
     float best_avg_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+    int num_kernel        = 0;
 
     // profile device op instances
     for(auto& op_ptr : op_ptrs)
@@ -239,6 +240,7 @@ int profile_contraction_impl(ck::index_t do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            num_kernel++;
             // re-init C to zero before profiling next kernel
             e_device_buf.SetZero();
 
@@ -331,6 +333,12 @@ int profile_contraction_impl(ck::index_t do_verification,
     else if constexpr(is_same<CDELayout, tensor_layout::gemm::ColumnMajor>::value)
     {
         std::cout << " CDELayout =  ColumnMajor";
+    }
+
+    if(num_kernel == 0)
+    {
+        std::cout << "Error: No kernel is applicable" << std::endl;
+        return false;
     }
 
     std::cout << " M = " << M << " N = " << N << " K = " << K << " StridesA = " << StridesA

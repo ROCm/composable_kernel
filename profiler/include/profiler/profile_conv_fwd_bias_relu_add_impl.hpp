@@ -192,6 +192,7 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+    int num_kernel        = 0;
 
     // profile device Conv instances
     for(auto& op_ptr : op_ptrs)
@@ -220,6 +221,7 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            num_kernel++;
             std::string conv_name = op_ptr->GetTypeString();
 
             float ave_time =
@@ -268,6 +270,12 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
                 }
             }
         }
+    }
+
+    if(num_kernel == 0)
+    {
+        std::cout << "Error: No kernel is applicable" << std::endl;
+        return false;
     }
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "

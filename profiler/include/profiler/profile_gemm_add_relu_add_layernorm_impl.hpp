@@ -249,9 +249,9 @@ bool profile_gemm_add_relu_add_layernorm_impl(int do_verification,
     std::string best_op_name;
     float best_ave_time   = std::numeric_limits<float>::max();
     float best_gb_per_sec = 0;
+    int num_kernel        = 0;
 
-    bool pass      = true;
-    int num_kernel = 0;
+    bool pass = true;
 
     // profile device operation instances
     for(auto& op_ptr : op_ptrs)
@@ -283,7 +283,6 @@ bool profile_gemm_add_relu_add_layernorm_impl(int do_verification,
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             ++num_kernel;
-
             size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
             DeviceMem workspace_dev(workspace_sz);
             op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
@@ -330,15 +329,14 @@ bool profile_gemm_add_relu_add_layernorm_impl(int do_verification,
     if(num_kernel == 0)
     {
         std::cout << "Error: No kernel is applicable" << std::endl;
-        pass = false;
-    }
-    else
-    {
-        if(time_kernel)
-            std::cout << "Best Perf: " << best_ave_time << " ms, " << best_gb_per_sec << " GB/s, "
-                      << best_op_name << std::endl;
+        return false;
     }
 
+    if(time_kernel)
+    {
+        std::cout << "Best Perf: " << best_ave_time << " ms, " << best_gb_per_sec << " GB/s, "
+                  << best_op_name << std::endl;
+    }
     return pass;
 }
 

@@ -174,6 +174,7 @@ bool profile_grouped_gemm_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
     float best_kbatch     = 0;
+    int num_kernel        = 0;
 
     auto p_ds = std::vector<std::array<const void*, 0>>{};
 
@@ -258,6 +259,7 @@ bool profile_grouped_gemm_impl(int do_verification,
 
             if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
             {
+                num_kernel++;
                 for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     c_device_buf[i]->SetZero();
 
@@ -345,6 +347,12 @@ bool profile_grouped_gemm_impl(int do_verification,
                           << std::endl;
             }
         }
+    }
+
+    if(num_kernel == 0)
+    {
+        std::cout << "Error: No kernel is applicable" << std::endl;
+        return false;
     }
 
     if(time_kernel)

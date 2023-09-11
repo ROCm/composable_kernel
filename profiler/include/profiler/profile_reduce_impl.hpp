@@ -195,8 +195,8 @@ bool profile_reduce_impl_impl(bool do_verification,
     constexpr bool invalid_reduce = (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3 ||
                                      invalid_reduce_4 || invalid_reduce_5 || invalid_reduce_6);
 
-    int num_kernel = 0;
     bool pass      = true;
+    int num_kernel = 0;
 
     if constexpr(!invalid_reduce)
     {

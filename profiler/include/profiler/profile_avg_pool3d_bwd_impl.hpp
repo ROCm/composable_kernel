@@ -126,6 +126,7 @@ bool profile_avg_pool3d_bwd_impl(int do_verification,
     std::string best_instance_name;
     float best_avg_time   = std::numeric_limits<float>::max();
     float best_gb_per_sec = 0;
+    int num_kernel        = 0;
 
     if(do_verification)
     {
@@ -144,8 +145,6 @@ bool profile_avg_pool3d_bwd_impl(int do_verification,
         auto ref_invoker = ref_pooling_bwd.MakeInvoker();
         ref_invoker.Run(ref_pooling_bwd_argument);
     }
-
-    int num_kernel = 0;
 
     for(auto& inst_ptr : instance_ptrs)
     {

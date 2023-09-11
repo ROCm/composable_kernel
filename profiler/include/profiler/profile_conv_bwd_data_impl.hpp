@@ -151,6 +151,7 @@ bool profile_conv_bwd_data_impl(int do_verification,
     float best_avg_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+    int num_kernel        = 0;
 
     // profile device Conv instances
     bool pass = true;
@@ -177,6 +178,7 @@ bool profile_conv_bwd_data_impl(int do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            num_kernel++;
             // for conv bwd data, some input tensor element are zero, but not written by kernel,
             // need to set zero
             in_device_buf.SetZero();
@@ -235,6 +237,12 @@ bool profile_conv_bwd_data_impl(int do_verification,
         {
             std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
         }
+    }
+
+    if(num_kernel == 0)
+    {
+        std::cout << "Error: No kernel is applicable" << std::endl;
+        return false;
     }
 
     std::cout << "Best configuration parameters:"

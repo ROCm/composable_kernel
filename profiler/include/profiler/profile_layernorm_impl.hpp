@@ -102,6 +102,7 @@ bool profile_layernorm_impl(int do_verification,
     std::string best_instance_name;
     float best_avg_time   = std::numeric_limits<float>::max();
     float best_gb_per_sec = 0;
+    int num_kernel        = 0;
 
     if(do_verification)
     {
@@ -120,8 +121,6 @@ bool profile_layernorm_impl(int do_verification,
         auto ref_invoker = ref.MakeInvoker();
         ref_invoker.Run(ref_argument);
     }
-
-    int num_kernel = 0;
 
     for(auto& inst_ptr : instance_ptrs)
     {
@@ -209,6 +208,12 @@ bool profile_layernorm_impl(int do_verification,
         }
     }
 
+    if(num_kernel == 0)
+    {
+        std::cout << "Error: No kernel is applicable" << std::endl;
+        return false;
+    }
+
     if(time_kernel)
     {
         LogRange(std::cout << "length = ", length, ",") << ", ";
@@ -216,12 +221,6 @@ bool profile_layernorm_impl(int do_verification,
         LogRange(std::cout << "reduce dims ", reduce_dim, ",") << std::endl;
         std::cout << "best perf = " << best_avg_time << " ms, " << best_gb_per_sec << " GB/s, "
                   << best_instance_name << std::endl;
-    }
-
-    if(num_kernel == 0)
-    {
-        std::cout << "Error: No kernel is applicable" << std::endl;
-        return false;
     }
 
     return true;

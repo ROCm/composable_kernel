@@ -166,6 +166,7 @@ bool profile_grouped_gemm_fastgelu_impl(int do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+    int num_kernel        = 0;
 
     auto p_ds = std::vector<std::array<const void*, 0>>{};
 
@@ -181,6 +182,7 @@ bool profile_grouped_gemm_fastgelu_impl(int do_verification,
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            num_kernel++;
             std::string gemm_name = gemm_ptr->GetTypeString();
 
             float ave_time =
@@ -268,6 +270,12 @@ bool profile_grouped_gemm_fastgelu_impl(int do_verification,
     if(do_verification)
     {
         std::cout << "Verification: " << (pass ? "SUCCESS" : "FAILURE") << std::endl;
+    }
+
+    if(num_kernel == 0)
+    {
+        std::cout << "Error: No kernel is applicable" << std::endl;
+        return false;
     }
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "

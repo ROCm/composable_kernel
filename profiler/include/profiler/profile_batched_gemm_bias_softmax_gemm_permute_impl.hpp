@@ -273,6 +273,7 @@ bool profile_batched_gemm_bias_softmax_gemm_permute_impl(bool do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+    int num_kernel        = 0;
 
     // profile device op instances
     for(auto& op_ptr : op_ptrs)
@@ -310,6 +311,7 @@ bool profile_batched_gemm_bias_softmax_gemm_permute_impl(bool do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            num_kernel++;
             std::string op_name = op_ptr->GetTypeString();
 
             float ave_time =
@@ -383,6 +385,12 @@ bool profile_batched_gemm_bias_softmax_gemm_permute_impl(bool do_verification,
         {
             std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
         }
+    }
+
+    if(num_kernel == 0)
+    {
+        std::cout << "Error: No kernel is applicable" << std::endl;
+        return false;
     }
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "

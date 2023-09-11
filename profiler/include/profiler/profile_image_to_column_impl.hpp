@@ -124,10 +124,10 @@ bool profile_image_to_column_impl(int do_verification,
     std::string best_op_name;
     float best_avg_time   = std::numeric_limits<float>::max();
     float best_gb_per_sec = 0;
+    int num_kernel        = 0;
 
     // profile device op instances
-    bool pass                   = true;
-    bool is_supporting_instance = false;
+    bool pass = true;
 
     for(auto& op_ptr : op_ptrs)
     {
@@ -148,7 +148,7 @@ bool profile_image_to_column_impl(int do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            is_supporting_instance = true;
+            num_kernel++;
             // re-init output to zero before profiling next kernel
             out_device_buf.SetZero();
             std::string op_name = op_ptr->GetTypeString();
@@ -189,11 +189,17 @@ bool profile_image_to_column_impl(int do_verification,
         }
     }
 
+    if(num_kernel == 0)
+    {
+        std::cout << "Error: No kernel is applicable" << std::endl;
+        return false;
+    }
+
     std::cout << "Best configuration parameters:"
               << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
               << "\nGB/s: " << best_gb_per_sec << std::endl;
 
-    return is_supporting_instance && pass;
+    return pass;
 }
 
 } // namespace profiler
