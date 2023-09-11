@@ -134,12 +134,6 @@ __host__ __device__ Y run_cast_to_f8(X x, uint32_t rng)
 template <typename X, typename Y, bool negative_zero_nan>
 __host__ __device__ Y run_cast_from_f8(X x)
 {
-    // check data type
-    // constexpr bool is_half  = std::is_same<Y, half_t>::value;
-    // constexpr bool is_float = std::is_same<Y, float>::value;
-    // constexpr bool is_f8_t  = std::is_same<X, f8_t>::value;
-    // constexpr bool is_bf8_t = std::is_same<X, bf8_t>::value;
-
     // fp8/bf8 exponent/mantissa layout
     constexpr int in_exp  = NumericUtils<X>::exp;
     constexpr int in_mant = NumericUtils<X>::mant;
