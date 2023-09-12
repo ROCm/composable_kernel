@@ -1333,8 +1333,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         void* p_vgrad_grid,
         const void* p_acc0_bias,
         const void* p_acc1_bias,
-        D0DataType* p_d0grad_grid,
-        D1DataType* p_d1grad_grid,
+        void* p_d0grad_grid,
+        void* p_d1grad_grid,
         const std::vector<index_t>& a_gs_ms_ks_lengths,
         const std::vector<index_t>& a_gs_ms_ks_strides,
         const std::vector<index_t>& b_gs_ns_ks_lengths,
@@ -1373,8 +1373,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             static_cast<OutputDataType*>(p_vgrad_grid),
             static_cast<const D0DataType*>(p_acc0_bias), // cast in struct Argument
             static_cast<const D1DataType*>(p_acc1_bias), // cast in struct Argument
-            static_cast<const D0DataType*>(p_d0grad_grid),
-            static_cast<const D1DataType*>(p_d1grad_grid),
+            static_cast<D0DataType*>(p_d0grad_grid),
+            static_cast<D1DataType*>(p_d1grad_grid),
             a_gs_ms_ks_lengths,
             a_gs_ms_ks_strides,
             b_gs_ns_ks_lengths,

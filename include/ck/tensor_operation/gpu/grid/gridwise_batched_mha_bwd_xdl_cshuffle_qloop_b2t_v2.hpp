@@ -2151,7 +2151,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             make_multi_index(gemm0_m_block_outer_index, block_work_idx_n, 0, 0, 0, 0),
             tensor_operation::element_wise::PassThrough{});
 
-        ignore = d0grad_thread_copy_vgpr_to_lds;
         if constexpr(Deterministic)
         {
             block_sync_lds();
