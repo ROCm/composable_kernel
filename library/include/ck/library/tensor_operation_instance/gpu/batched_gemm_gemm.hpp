@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,7 +16,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-
+#ifdef CK_ENABLE_FP16
 void add_device_batched_gemm_gemm_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
     std::vector<std::unique_ptr<DeviceBatchedGemmGemm<Row,
                                                       Col,
@@ -111,3 +111,4 @@ struct DeviceOperationInstanceFactory<
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#endif

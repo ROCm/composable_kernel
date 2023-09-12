@@ -1,29 +1,15 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/loop_scheduler.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/warp/xdlops_gemm.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 
 namespace ck {
-
-enum struct LoopScheduler
-{
-    Default,
-    Interwave,
-};
-
-constexpr LoopScheduler make_default_loop_scheduler()
-{
-#if CK_EXPERIMENTAL_DEFAULT_TO_INTER_WAVE_SCHEDULING
-    return LoopScheduler::Interwave;
-#else
-    return LoopScheduler::Default;
-#endif // if CK_EXPERIMENTAL_DEFAULT_TO_INTER_WAVE_SCHEDULING
-}
 
 template <index_t MNXdlPerWave, index_t MNWaves, index_t MNPerXdl, typename TileDesc_K0_MN_K1>
 __host__ __device__ static constexpr auto

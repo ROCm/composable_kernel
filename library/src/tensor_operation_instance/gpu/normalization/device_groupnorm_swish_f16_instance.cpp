@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "normalization_instance_common.hpp"
 
@@ -14,7 +14,11 @@ void add_device_normalization_rank_5_3_swish_f16_instances(
     std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F32, F16, Swish, 5, 3>>>&
         instances)
 {
+    add_device_operation_instances(instances,
+                                   device_normalization_f16_generic_instance<Swish, 5, 3>{});
     add_device_operation_instances(instances, device_normalization_f16_instances<Swish, 5, 3>{});
+    add_device_operation_instances(instances,
+                                   device_normalization_splitk_f16_instances<Swish, 5, 3>{});
 }
 
 } // namespace instance

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,6 +13,7 @@
 
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/span.hpp"
+#include "ck/utility/type_convert.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/ranges.hpp"

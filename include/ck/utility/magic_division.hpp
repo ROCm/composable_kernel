@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -154,6 +154,78 @@ struct MagicDivision
         uint32_t dividend_u32 = bit_cast<uint32_t>(dividend_i32);
         uint32_t tmp          = static_cast<uint64_t>(dividend_u32) * multiplier >> 32;
         return (tmp + dividend_u32) >> shift;
+    }
+};
+
+struct MDiv
+{
+    // 1 dword -> 3 dword storage
+    uint32_t divisor;
+    uint32_t multiplier;
+    uint32_t shift; // TODO: 8 bit is enough
+
+    // prefer construct on host
+    __host__ __device__ MDiv(uint32_t divisor_) : divisor(divisor_)
+    {
+        auto tmp = MagicDivision::CalculateMagicNumbers(divisor_);
+
+        multiplier = tmp[Number<0>{}];
+        shift      = tmp[Number<1>{}];
+    }
+
+    __host__ __device__ MDiv() : divisor(0), multiplier(0), shift(0) {}
+
+    __host__ __device__ void update(uint32_t divisor_)
+    {
+        divisor  = divisor_;
+        auto tmp = MagicDivision::CalculateMagicNumbers(divisor_);
+
+        multiplier = tmp[Number<0>{}];
+        shift      = tmp[Number<1>{}];
+    }
+
+    __host__ __device__ uint32_t div(uint32_t dividend_) const
+    {
+        return MagicDivision::DoMagicDivision(dividend_, multiplier, shift);
+    }
+
+    __host__ __device__ void
+    divmod(uint32_t dividend_, uint32_t& quotient_, uint32_t& remainder_) const
+    {
+        quotient_  = div(dividend_);
+        remainder_ = dividend_ - (quotient_ * divisor);
+    }
+
+    __host__ __device__ uint32_t get() const { return divisor; }
+};
+
+struct MDiv2
+{
+    // 1 dword -> 2 dword storage, divisor need compute from runtime
+    uint32_t multiplier;
+    uint32_t shift; // TODO: 8 bit is enough
+
+    // prefer construct on host
+    __host__ __device__ MDiv2(uint32_t divisor_)
+    {
+        auto tmp = MagicDivision::CalculateMagicNumbers(divisor_);
+
+        multiplier = tmp[Number<0>{}];
+        shift      = tmp[Number<1>{}];
+    }
+
+    __host__ __device__ MDiv2() : multiplier(0), shift(0) {}
+
+    __host__ __device__ uint32_t div(uint32_t dividend_) const
+    {
+        return MagicDivision::DoMagicDivision(dividend_, multiplier, shift);
+    }
+
+    __host__ __device__ void
+    divmod(uint32_t dividend_, uint32_t divisor_, uint32_t& quotient_, uint32_t& remainder_) const
+    {
+        quotient_  = div(dividend_);
+        remainder_ = dividend_ - (quotient_ * divisor_);
     }
 };
 

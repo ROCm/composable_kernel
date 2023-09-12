@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef CK_AMD_XDLOPS_HPP
 #define CK_AMD_XDLOPS_HPP
@@ -344,13 +344,76 @@ struct intrin_mfma_f64_16x16x4f64<16, 16>
     template <class FloatC>
     __device__ static void Run(const double& reg_a, const double& reg_b, FloatC& reg_c)
     {
-#if defined(__gfx90a__) || defined(__gfx940__)
+#if defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
         reg_c.template AsType<double4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f64_16x16x4f64(
             reg_a, reg_b, reg_c.template AsType<double4_t>()[Number<0>{}], 0, 0, 0);
 #else
         ignore = reg_a;
         ignore = reg_b;
         ignore = reg_c;
+#endif
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_32x32x16f8f8;
+
+template <>
+struct intrin_mfma_f32_32x32x16f8f8<32, 32>
+{
+    template <class FloatC>
+    __device__ static void Run(const f8x8_t& reg_a, const f8x8_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+        reg_c.template AsType<float16_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_f32_32x32x16_fp8_fp8(
+                bit_cast<long>(reg_a),
+                bit_cast<long>(reg_b),
+                reg_c.template AsType<float16_t>()[Number<0>{}],
+                0,
+                0,
+                0);
+#else
+        vector_type<f8_t, 8> reg_a_v(reg_a);
+        vector_type<f8_t, 8> reg_b_v(reg_b);
+
+        static_for<0, 8, 1>{}([&](auto k) {
+            float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<f8_t>()[Number<k>{}]);
+            float reg_b_f32 = type_convert<float>(reg_b_v.template AsType<f8_t>()[Number<k>{}]);
+
+            intrin_mfma_f32_32x32x2f32<32, 32>::Run(reg_a_f32, reg_b_f32, reg_c);
+        });
+#endif
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_16x16x32f8f8;
+
+template <>
+struct intrin_mfma_f32_16x16x32f8f8<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const f8x8_t& reg_a, const f8x8_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+        reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x32_fp8_fp8(
+            bit_cast<long>(reg_a),
+            bit_cast<long>(reg_b),
+            reg_c.template AsType<float4_t>()[Number<0>{}],
+            0,
+            0,
+            0);
+#else
+        vector_type<f8_t, 8> reg_a_v(reg_a);
+        vector_type<f8_t, 8> reg_b_v(reg_b);
+
+        static_for<0, 8, 1>{}([&](auto k) {
+            float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<f8_t>()[Number<k>{}]);
+            float reg_b_f32 = type_convert<float>(reg_b_v.template AsType<f8_t>()[Number<k>{}]);
+
+            intrin_mfma_f32_16x16x4f32<16, 16>::Run(reg_a_f32, reg_b_f32, reg_c);
+        });
 #endif
     }
 };

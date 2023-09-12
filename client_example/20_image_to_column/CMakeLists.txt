@@ -1,0 +1,2 @@
+add_executable(client_image_to_column image_to_column.cpp)
+target_link_libraries(client_image_to_column PRIVATE composable_kernel::device_operations)

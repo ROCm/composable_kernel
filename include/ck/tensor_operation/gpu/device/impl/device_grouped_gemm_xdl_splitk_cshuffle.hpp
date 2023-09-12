@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -35,7 +35,7 @@ __global__ void
                                        const index_t group_count)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__))
+    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
     __shared__ uint8_t p_shared[shared_size];
 
@@ -114,7 +114,8 @@ template <typename ALayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched = make_default_loop_scheduler(),
+          PipelineVersion PipelineVer = PipelineVersion::v1,
+          LoopScheduler LoopSched     = make_default_loop_scheduler(),
           // Current implementation does not support multiple D fusions.
           enable_if_t<AK1 == BK1 && is_same_v<DsLayout, ck::Tuple<>> &&
                           is_same_v<DsDataType, ck::Tuple<>>,
@@ -142,7 +143,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
-        ADataType, // TODO: distinguish A/B datatype
+        ADataType,
+        BDataType,
         AccDataType,
         EDataType,
         ALayout,
@@ -182,7 +184,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         CDEBlockTransferScalarPerVector_NPerBlock,
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         LoopSched,
-        PipelineVersion::v2>;
+        PipelineVer>;
 
     using CGridDesc_M_N = typename GridwiseGemm::CGridDesc_M_N;
     using Block2ETileMapKSplit =
@@ -406,10 +408,12 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 }
             }
 
-            hip_check_error(hipMemcpy(arg.p_workspace_,
-                                      arg.gemm_kernel_args_.data(),
-                                      arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
-                                      hipMemcpyHostToDevice));
+            hip_check_error(
+                hipMemcpyWithStream(arg.p_workspace_,
+                                    arg.gemm_kernel_args_.data(),
+                                    arg.gemm_kernel_args_.size() * sizeof(GemmTransKernelArg),
+                                    hipMemcpyHostToDevice,
+                                    stream_config.stream_id_));
 
             float ave_time = 0;
 
@@ -419,8 +423,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     for(const auto& trans_arg : arg.gemm_kernel_args_)
                     {
                         const auto& karg = trans_arg.karg_;
-                        hip_check_error(
-                            hipMemset(karg.p_c_grid, 0, karg.M * karg.N * sizeof(EDataType)));
+                        hip_check_error(hipMemsetAsync(karg.p_c_grid,
+                                                       0,
+                                                       karg.M * karg.N * sizeof(EDataType),
+                                                       stream_config.stream_id_));
                     }
                 }
 
@@ -500,6 +506,11 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(!ck::is_xdl_supported())
+        {
+            return false;
+        }
+
         if((ck::type_convert<ck::index_t>(arg.gemm_kernel_args_.size()) +
             arg.skipped_group_count_) != arg.group_count_)
         {

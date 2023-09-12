@@ -76,3 +76,149 @@ e_m_n: dim 4, lengths {128, 128, 128, 128}, strides {2097152, 16384, 128, 1}
 ....
 Best Perf: 211.405 ms, 41.6077 TFlops, 15.2372 GB/s
 ```
+
+## Profile batched gemm multiple D kernels
+```bash
+#arg1: tensor operation (batched_gemm_multi_d=Batched GEMM multi D);
+#arg2: data type (0: fp16; 1: int8)
+#arg3: matrix layout (0: A[g, m, k] * B[g, k, n] = C[g, m, n];
+#                     1: A[g, m, k] * B[g, n, k] = C[g, m, n];
+#                     2: A[g, k, m] * B[g, k, n] = C[g, m, n];
+#                     3: A[g, k, m] * B[g, n, k] = C[g, m, n])
+#arg4: verification (0: no; 1: yes)
+#arg5: initialization (0: no init; 1: integer value; 2: decimal value)
+#arg6: print tensor value (0: no; 1: yes)
+#arg7: time kernel (0=n0, 1=yes)
+#arg8 to 17: M, N, K, StrideA, StrideB, StrideC, BatchStrideA, BatchStrideB, BatchStrideC, BatchCount
+
+################                   op  datatype  layout  verify  init  log  time    M    N    K StrideA StrideB StrideC BatchStrideA BatchStrideB BatchStrideC BatchCount
+./bin/ckProfiler batched_gemm_multi_d         0       1       0     0    0     1 4096 4096 4096    4096    4096    4096     16777216     16777216     16777216         16
+```
+
+Result (Radeon RX 6800 XT)
+```bash
+arg.a_grid_desc_k0_m0_m1_k1_{2048, 4096, 2}
+arg.b_grid_desc_k0_n0_n1_k1_{2048, 4096, 2}
+arg.e_grid_desc_m_n_{ 4096, 4096}
+....
+Best Perf: 58.0306 ms, 37.8942 TFlops, 27.7545 GB/s
+## Profile grouped convolution backward data kernels
+```bash
+# arg1: tensor operation (grouped_conv_bwd_data: Grouped Convolution Backward Data)
+# arg2: data type (0: Output fp32, Weight fp32, Input fp32
+#                  1: Output fp16, Weight fp16, Input fp16
+#                  2: Output bf16, Weight bf16, Input bf16
+# arg3: tensor layout (0: Output[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Input[G, N, Ho, Wo, K]
+#                      1: Output[N, Hi, Wi, G, C], Weight[G, K, Y, X, C], Input[N, Ho, Wo, G, K])
+# arg4: verification (0: no, 1: yes)
+# arg5: initialization (0: no init, 1: integer value, 2: decimal value)
+# arg6: print tensor value (0: no; 1: yes)
+# arg7: time kernel (0: no, 1: yes)
+# Following arguments (depending on number of spatial dims):
+#  Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
+#  G, N, K, C, 
+#  <filter spatial dimensions>, (ie Y, X for 2D)
+#  <input image spatial dimensions>, (ie Hi, Wi for 2D)
+#  <strides>, (ie Sy, Sx for 2D)
+#  <dilations>, (ie Dy, Dx for 2D)
+#  <left padding>, (ie LeftPy, LeftPx for 2D)
+#  <right padding>, (ie RightPy, RightPx for 2D)
+
+ ################                   op   datatype  layout  verify  init  log  time  Ndims  G  N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx
+./bin/ckProfiler grouped_conv_bwd_data          1       0       1     1    0     1      2 32  4 192 192  3  3  28  28   1   1   1   1       1       1        1        1
+
+ ```
+
+Result (MI100, FP16, GNHWC_GKYXC_GNHWK)
+```
+out: dim 5, lengths {32, 4, 192, 28, 28}, strides {602112, 150528, 1, 5376, 192}
+wei: dim 5, lengths {32, 192, 192, 3, 3}, strides {331776, 1728, 1, 576, 192}
+in: dim 5, lengths {32, 4, 192, 28, 28}, strides {602112, 150528, 1, 5376, 192}
+....
+Best configuration parameters:
+name: DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1<256, 128, 256, 32, 8, 2, Default, 32, 32, 2, 4, 8, 4, 1, 1>
+avg_time: 0.768321
+tflops: 86.6679
+GB/s: 127.947
+```
+
+## Profile grouped convolution backward weight kernels
+```bash
+# arg1: tensor operation (grouped_conv_bwd_weight: Grouped Convolution Backward Weight)
+# arg2: data type (0: Input fp32, Weight fp32, Output fp32
+#                  1: Input fp16, Weight fp16, Output fp16
+#                  2: Input bf16, Weight fp32, Output bf16)
+# arg3: tensor layout (0: Input[G, N, C, Hi, Wi], Weight[G, K, C, Y, X], Output[G, N, K, Ho, Wo]
+#                      1: Input[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Output[G, N, Ho, Wo, K]
+#                      2: Input[N, Hi, Wi, G, C], Weight[G, K, Y, X, C], Output[N, Ho, Wo, G, K]
+# arg4: verification (0: no, 1: yes)
+# arg5: initialization (0: no init, 1: integer value, 2: decimal value)
+# arg6: print tensor value (0: no; 1: yes)
+# arg7: time kernel (0: no, 1: yes)
+# Following arguments (depending on number of spatial dims):
+#  Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
+#  G, N, K, C, 
+#  <filter spatial dimensions>, (ie Y, X for 2D)
+#  <input image spatial dimensions>, (ie Hi, Wi for 2D)
+#  <strides>, (ie Sy, Sx for 2D)
+#  <dilations>, (ie Dy, Dx for 2D)
+#  <left padding>, (ie LeftPy, LeftPx for 2D)
+#  <right padding>, (ie RightPy, RightPx for 2D)
+# SplitK
+
+ ################                   op   datatype  layout  verify  init  log  time  Ndims  G   N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx  SplitK
+./bin/ckProfiler grouped_conv_bwd_weight          1       0       1     1    0     1      2 32 256 256 512  3  3  28  28   1   1   1   1       1       0        0        0       1
+
+ ```
+
+Result (MI100, FP16, GNHWC_GKYXC_GNHWK)
+```
+input: dim 5, lengths {32, 512, 1024, 28, 28}, strides {411041792, 802816, 1, 28672, 1024}
+weight: dim 5, lengths {32, 512, 1024, 3, 3}, strides {4718592, 9216, 1, 3072, 1024}
+output: dim 5, lengths {32, 512, 512, 26, 26}, strides {177209344, 346112, 1, 13312, 512}
+....
+Best configuration parameters:
+name: DeviceGroupedConvBwdWeight_Xdl_CShuffle<256, 256, 128, 4, Default, 8, 4, 2, 8, 4, 8, 2, 1, 1, 8>
+avg_time: 68.5216
+tflops: 95.337
+GB/s: 69.2301
+```
+Note: This kernel use atomic add, this will cause output buffer to be accumulated multiple times, causing verification failure. To work around it, do not use CK's own timer and do verification at the same time.
+
+## Profile image to column kernels
+```bash
+# arg1: tensor operation (" OP_NAME ": " OP_DESC ")
+# arg2: data type (0: Input fp32, Weight fp32, Output fp32
+#                  1: Input fp16, Weight fp16, Output fp16
+#                  2: Input bf16, Weight bf16, Output bf16
+#                  3: Input int8, Weight int8, Output int8)
+# arg3: tensor layout (0: Input[N, Hi, Wi, C], Output[N * Ho * Wo, Y * X * C])
+# arg4: verification (0: no, 1: yes)
+# arg5: initialization (0: no init, 1: integer value, 2: decimal value)
+# arg6: print tensor value (0: no; 1: yes)
+# arg7: time kernel (0: no, 1: yes)
+# Following arguments (depending on number of spatial dims):
+#  Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
+#  G, N, K, C, 
+#  <filter spatial dimensions>, (ie Y, X for 2D)
+#  <input image spatial dimensions>, (ie Hi, Wi for 2D)
+#  <strides>, (ie Sy, Sx for 2D)
+#  <dilations>, (ie Dy, Dx for 2D)
+#  <left padding>, (ie LeftPy, LeftPx for 2D)
+#  <right padding>, (ie RightPy, RightPx for 2D)
+
+ ################             op   datatype  layout  verify  init  log  time  Ndims  G   N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx
+./bin/ckProfiler image_to_column          0       0       1     1    0     1      2  1 256   1 512  3  3   28  28   1   1   1   1        0       0       0        0
+
+ ```
+
+Result (MI210, FP32, NHWC)
+```
+input: dim 5, lengths {1, 256, 512, 28, 28}, strides {102760448, 401408, 1, 14336, 512}
+output: dim 2, lengths {173056, 4608}, strides {4608, 1}
+....
+Best configuration parameters:
+name: DeviceImageToColumn<128, 32, 64, 4>
+avg_time: 3.12326
+GB/s: 2042.59
+```

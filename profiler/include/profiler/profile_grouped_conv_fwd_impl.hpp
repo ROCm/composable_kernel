@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -215,7 +215,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
 
-    std::cout << "xdl found " << op_ptrs.size() << " instances" << std::endl;
+    std::cout << "ckProfiler found " << op_ptrs.size() << " instances" << std::endl;
 
     for(auto& op_ptr : op_ptrs)
     {

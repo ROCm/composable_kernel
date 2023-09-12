@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -245,8 +245,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
     }
 
     // desc for problem definition
-    using AGridDesc_M_K  = remove_cvref_t<decltype(
-        MakeAGridDescriptor_M_K<ALayout>({}, {}, {}, {}, {}, {}, {}, {}, {}, {}))>;
+    using AGridDesc_M_K  = remove_cvref_t<decltype(MakeAGridDescriptor_M_K<ALayout>(
+        {}, {}, {}, {}, {}, {}, {}, {}, {}, {}))>;
     using BGridDesc_N_K  = remove_cvref_t<decltype(MakeBGridDescriptor_N_K<BLayout>({}, {}))>;
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}))>;
     using EGridDesc_M_N  = remove_cvref_t<decltype(MakeEGridDescriptor_M_N<ELayout>({}, {}))>;
@@ -599,7 +599,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             // check if it's 1x1, stride=1 conv
             for(index_t i = 0; i < NDimSpatial; ++i)
             {
-                const index_t X          = arg.b_g_k_c_xs_lengths_[i + 2];
+                const index_t X          = arg.b_g_k_c_xs_lengths_[i + 3];
                 const index_t ConvStride = arg.conv_filter_strides_[i];
                 const index_t LeftPad    = arg.input_left_pads_[i];
                 const index_t RightPad   = arg.input_right_pads_[i];
@@ -616,7 +616,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             // check if it's 1x1 conv
             for(index_t i = 0; i < NDimSpatial; ++i)
             {
-                const index_t X        = arg.b_g_k_c_xs_lengths_[i + 2];
+                const index_t X        = arg.b_g_k_c_xs_lengths_[i + 3];
                 const index_t LeftPad  = arg.input_left_pads_[i];
                 const index_t RightPad = arg.input_right_pads_[i];
 
