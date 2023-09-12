@@ -21,9 +21,9 @@ namespace device {
 template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
-          index_t NumDim_m,//choose how to set dims
+          index_t NumDim_m, // choose how to set dims
           index_t NumDim_n,
-	  index_t NumDim_k,
+          index_t NumDim_k,
           index_t MPerThread,
           index_t NPerThread,
           index_t KPerThread,
@@ -58,7 +58,7 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
                 return static_cast<const DataType*>(nullptr);
             },
             Number<NumInput>{});
-    };
+    }
 
     static auto GenerateOutDataTypePointerTuple()
     {
@@ -69,46 +69,49 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
                 return static_cast<DataType*>(nullptr);
             },
             Number<NumOutput>{});
-    };
+    }
 
     using InDataTypePointerTuple  = decltype(GenerateInDataTypePointerTuple());
     using OutDataTypePointerTuple = decltype(GenerateOutDataTypePointerTuple());
 
     template <typename Desc_MNK>
     static auto PadDescriptor_MNK(Desc_MNK desc_mnk,
-                                    index_t gridSize,
-                                    index_t blockSize,
-                                    index_t num_threads_m,
-                                    index_t num_threads_n,
-				    index_t num_threads_k)
-    {
-        std::ignore               = blockSize;
-        std::ignore               = gridSize;
-        const auto m              = desc_mnk.GetLength(I0);
-        const auto n              = desc_mnk.GetLength(I1);
-	const auto k              = desc_mnk.GetLength(I2);
-        const index_t loop_step_m = num_threads_m * MPerThread;
-        const index_t loop_step_n = num_threads_n * NPerThread;
-	const index_t loop_step_k = num_threads_k * KPerThread;
-        const auto pad_m          = math::integer_least_multiple(m, loop_step_m) - m;
-        const auto pad_n          = math::integer_least_multiple(n, loop_step_n) - n;
-	const auto pad_k          = math::integer_least_multiple(k, loop_step_k) - k;
-
-        const auto desc_mnk_pad = transform_tensor_descriptor(
-            desc_mnk,
-            make_tuple(make_right_pad_transform(m, pad_m), make_right_pad_transform(n, pad_n), make_right_pad_transform(k, pad_k)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-	    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
-        return desc_mnk_pad;
-    }
-
-    static auto MakeDescriptor_MNK(const std::array<index_t, NumDim>& lengths,
-                                  const std::array<index_t, NumDim>& stride,
                                   index_t gridSize,
                                   index_t blockSize,
                                   index_t num_threads_m,
                                   index_t num_threads_n,
-				  index_t num_threads_k)
+                                  index_t num_threads_k)
+    {
+        std::ignore = blockSize;
+        std::ignore = gridSize;
+
+        const auto m              = desc_mnk.GetLength(I0);
+        const auto n              = desc_mnk.GetLength(I1);
+        const auto k              = desc_mnk.GetLength(I2);
+        const index_t loop_step_m = num_threads_m * MPerThread;
+        const index_t loop_step_n = num_threads_n * NPerThread;
+        const index_t loop_step_k = num_threads_k * KPerThread;
+        const auto pad_m          = math::integer_least_multiple(m, loop_step_m) - m;
+        const auto pad_n          = math::integer_least_multiple(n, loop_step_n) - n;
+        const auto pad_k          = math::integer_least_multiple(k, loop_step_k) - k;
+
+        const auto desc_mnk_pad =
+            transform_tensor_descriptor(desc_mnk,
+                                        make_tuple(make_right_pad_transform(m, pad_m),
+                                                   make_right_pad_transform(n, pad_n),
+                                                   make_right_pad_transform(k, pad_k)),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+        return desc_mnk_pad;
+    }
+
+    static auto MakeDescriptor_MNK(const std::array<index_t, NumDim>& lengths,
+                                   const std::array<index_t, NumDim>& stride,
+                                   index_t gridSize,
+                                   index_t blockSize,
+                                   index_t num_threads_m,
+                                   index_t num_threads_n,
+                                   index_t num_threads_k)
     {
         auto tupleOfShape  = generate_tuple([&](auto I) { return lengths[I]; }, Number<NumDim>{});
         auto tupleOfStride = generate_tuple([&](auto I) { return stride[I]; }, Number<NumDim>{});
@@ -119,27 +122,30 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
         constexpr auto mDimIds = typename arithmetic_sequence_gen<0, NumDim_m, 1>::type();
         constexpr auto nDimIds =
             typename arithmetic_sequence_gen<NumDim_m, NumDim_m + NumDim_n, 1>::type();
-	constexpr auto kDimIds =
+        constexpr auto kDimIds =
             typename arithmetic_sequence_gen<NumDim_m + NumDim_n, NumDim, 1>::type();
 
         const auto mLengths = get_container_subset(tupleOfShape, mDimIds);
         const auto nLengths = get_container_subset(tupleOfShape, nDimIds);
-	const auto kLengths = get_container_subset(tupleOfShape, kDimIds);
+        const auto kLengths = get_container_subset(tupleOfShape, kDimIds);
 
         // merge nd to 3d desc - [s0 * s1 * ...]
-
         if constexpr(NumDim > 3)
         {
             const auto desc_mnk = transform_tensor_descriptor(
                 desc,
-                make_tuple(make_merge_transform(mLengths), make_merge_transform(nLengths), make_merge_transform(kLengths)),
+                make_tuple(make_merge_transform(mLengths),
+                           make_merge_transform(nLengths),
+                           make_merge_transform(kLengths)),
                 make_tuple(mDimIds, nDimIds, kDimIds),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
-            return PadDescriptor_MNK(desc_mnk, gridSize, blockSize, num_threads_m, num_threads_n, num_threads_k);
+            return PadDescriptor_MNK(
+                desc_mnk, gridSize, blockSize, num_threads_m, num_threads_n, num_threads_k);
         }
         else
-            return PadDescriptor_MNK(desc, gridSize, blockSize, num_threads_m, num_threads_n, num_threads_k);
+            return PadDescriptor_MNK(
+                desc, gridSize, blockSize, num_threads_m, num_threads_n, num_threads_k);
     }
 
     template <index_t TupleSize>
@@ -157,7 +163,7 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
                 };
             },
             Number<TupleSize>{});
-    };
+    }
 
     using OutGrid3dDescTuple = decltype(GenerateInOutGrid3dDescTuple(Number<NumOutput>{}));
     using InGrid3dDescTuple  = decltype(GenerateInOutGrid3dDescTuple(Number<NumInput>{}));
@@ -169,7 +175,7 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
                                                        ElementwiseOperation,
                                                        MPerThread,
                                                        NPerThread,
-						       KPerThread,
+                                                       KPerThread,
                                                        InScalarPerVectorSeq,
                                                        OutScalarPerVectorSeq>;
 
@@ -222,32 +228,32 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            index_t gridSize      = getAvailableComputeUnitCount(stream_config);
-            index_t num_threads_m = (gridSize * arg.blockSize_) / 16;
+            index_t gridSize      = getAvailableComputeUnitCount(stream_config) * arg.blockSize_;
+            index_t num_threads_m = gridSize / (16 * 16);
             index_t num_threads_n = 16;
-	    index_t num_threads_k = 16;
+            index_t num_threads_k = 16;
 
             auto in_grid_3d_desc_tuple = generate_tuple(
                 [&](auto I) {
                     return MakeDescriptor_MNK(arg.lengths_,
-                                             arg.inStridesArray_[I.value],
-                                             gridSize,
-                                             arg.blockSize_,
-                                             num_threads_m,
-                                             num_threads_n,
-                                             num_threads_k);
+                                              arg.inStridesArray_[I.value],
+                                              gridSize,
+                                              arg.blockSize_,
+                                              num_threads_m,
+                                              num_threads_n,
+                                              num_threads_k);
                 },
                 Number<NumInput>{});
 
             auto out_grid_3d_desc_tuple = generate_tuple(
                 [&](auto I) {
                     return MakeDescriptor_MNK(arg.lengths_,
-                                             arg.outStridesArray_[I.value],
-                                             gridSize,
-                                             arg.blockSize_,
-                                             num_threads_m,
-                                             num_threads_n,
-                                             num_threads_k);
+                                              arg.outStridesArray_[I.value],
+                                              gridSize,
+                                              arg.blockSize_,
+                                              num_threads_m,
+                                              num_threads_n,
+                                              num_threads_k);
                 },
                 Number<NumOutput>{});
 
@@ -270,7 +276,7 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
                                                         arg.elementwise_op_,
                                                         num_threads_m,
                                                         num_threads_n,
-							num_threads_k);
+                                                        num_threads_k);
             return elapsed_time;
         }
 
@@ -296,42 +302,47 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
                                           const std::array<index_t, NumDim>& strides,
                                           index_t scalarPerVector,
                                           index_t vectorDim) {
-            if(strides[vectorDim] == 1 &&
-               (lengths[vectorDim] % scalarPerVector == 0 ||
-                lengths[vectorDim] % scalarPerVector == lengths[vectorDim]))
-            {
-                return true;
-            }
-            if(strides[vectorDim] != 1 && scalarPerVector == strides[vectorDim])
-            {
-                return true;
-            }
-            return false;
+            ignore = lengths;
+            ignore = strides;
+            ignore = scalarPerVector;
+            ignore = vectorDim;
+            // if(strides[vectorDim] == 1 &&
+            //(lengths[vectorDim] % scalarPerVector == 0))
+            ////lengths[vectorDim] % scalarPerVector == lengths[vectorDim]))
+            //{
+            // return true;
+            //}
+
+            // if(strides[vectorDim] >= scalarPerVector)
+            //{
+            // return true;
+            //}
+            return true;
         };
 
         bool valid = true;
         static_for<0, NumInput, 1>{}([&](auto I) {
-            if(!IsScalarPerVectorValid(pArg->lengths_,
-                                       pArg->inStridesArray_[I.value],
-                                       InScalarPerVectorSeq::At(I),
-                                       NumDim_m - 1))
-	    	//LogRangeAsType<float>(std::cout << "in scalarperveq  : ", InScalarPerVectorSeq::At(I), ",") << std::endl;
-		//LogRangeAsType<float>(std::cout << "vecdim  : ", NumDim_m - 1, ",") << std::endl;
-                valid = false;
+            valid = valid && IsScalarPerVectorValid(pArg->lengths_,
+                                                    pArg->inStridesArray_[I.value],
+                                                    InScalarPerVectorSeq::At(I),
+                                                    NumDim_m - 1);
+            // LogRangeAsType<float>(std::cout << "in scalarperveq  : ",
+            // InScalarPerVectorSeq::At(I), ",") << std::endl; LogRangeAsType<float>(std::cout <<
+            // "vecdim  : ", NumDim_m - 1, ",") << std::endl;
         });
 
         static_for<0, NumOutput, 1>{}([&](auto I) {
-            if(!IsScalarPerVectorValid(pArg->lengths_,
-                                       pArg->outStridesArray_[I.value],
-                                       OutScalarPerVectorSeq::At(I),
-                                       NumDim - 1))
-	    	//LogRangeAsType<float>(std::cout << "out scalarperveq  : ", OutScalarPerVectorSeq::At(I), ",") << std::endl;
-		//LogRangeAsType<float>(std::cout << "vecdim  : ", NumDim - 1, ",") << std::endl;
-                valid = false;
+            valid = valid && IsScalarPerVectorValid(pArg->lengths_,
+                                                    pArg->outStridesArray_[I.value],
+                                                    OutScalarPerVectorSeq::At(I),
+                                                    NumDim - 1);
+            // LogRangeAsType<float>(std::cout << "out scalarperveq  : ",
+            // OutScalarPerVectorSeq::At(I), ",") << std::endl; LogRangeAsType<float>(std::cout
+            // << "vecdim  : ", NumDim - 1, ",") << std::endl;
         });
 
         return valid;
-    };
+    }
 
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const std::array<index_t, NumDim> lengths,
@@ -353,7 +364,7 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
         return std::make_unique<Invoker>();
-    };
+    }
 }; // namespace device
 
 } // namespace device
