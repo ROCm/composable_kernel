@@ -20,7 +20,7 @@ namespace instance {
 void add_device_batchnorm_backward_rank_4_3_f16_instances(
     std::vector<std::unique_ptr<
         DeviceBatchNormBwd<F16, F32, F32, F32, F16, F32, F32, PassThrough, 4, 3>>>&);
-#ifdef
+#endif
 #ifdef CK_ENABLE_FP32
 void add_device_batchnorm_backward_rank_4_3_f32_instances(
     std::vector<std::unique_ptr<
