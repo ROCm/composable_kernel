@@ -67,9 +67,30 @@ IF(IS_DIRECTORY "${subdir_path}")
             message("int8 instance found!")
             set(add_inst 1)
     endif()
-    if(NOT "${cmake_instance}" MATCHES "DTYPES" OR NOT DEFINED DTYPES)
-            message("instance should be built for all types!")
+    if("${cmake_instance}" MATCHES "_i8" AND DTYPES MATCHES "int8")
+            message("int8 instance found!")
             set(add_inst 1)
+    endif()
+    if(NOT "${cmake_instance}" MATCHES "_fp8" OR
+                   NOT "${cmake_instance}" MATCHES "_f8" OR
+                   NOT "${cmake_instance}" MATCHES "_fp16" OR
+                   NOT "${cmake_instance}" MATCHES "_f16" OR
+                   NOT "${cmake_instance}" MATCHES "_fp32" OR
+                   NOT "${cmake_instance}" MATCHES "_f32" OR
+                   NOT "${cmake_instance}" MATCHES "_fp64" OR
+                   NOT "${cmake_instance}" MATCHES "_f64" OR
+                   NOT "${cmake_instance}" MATCHES "_bf16" OR
+                   NOT "${cmake_instance}" MATCHES "_bfp16" OR
+                   NOT "${cmake_instance}" MATCHES "_int8" OR
+                   NOT "${cmake_instance}" MATCHES "_i8" OR
+                   NOT "${cmake_instance}" MATCHES "_int4" OR
+                   NOT DEFINED DTYPES)
+             message("instance should be built for all types!")
+             set(add_inst 1)
+     endif()
+    if("${cmake_instance}" MATCHES "quantization" AND NOT DTYPES MATCHES "int8")
+           message("quantization instances will not be built!")
+           set(add_inst 0)
     endif()
     if("${cmake_instance}" MATCHES "ONLY DL_KERNELS" AND NOT DEFINED DL_KERNELS)
 	    message("Found only dl instances, but DL_KERNELS is not set. Skipping.")
