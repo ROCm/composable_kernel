@@ -2326,9 +2326,32 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 2, 4, 5, 6>{}, Sequence<1, 3, 7>{}));
 
-            // scale
-            static_for<0, s_slash_p_thread_buf.Size(), 1>{}(
-                [&](auto i) { s_element_op(s_slash_p_thread_buf(i), s_slash_p_thread_buf[i]); });
+            // do MNK padding or upper triangular masking
+            if constexpr(MaskOutUpperTriangle || PadN)
+            {
+
+                static_for<0, Acc0TileIterator::GetNumOfAccess(), 1>{}([&](auto i) {
+                    auto acc0_thread_idx = Acc0TileIterator::GetIndex(i) + acc0_thread_origin;
+                    auto m_local =
+                        block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
+                    auto n_local =
+                        block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
+                    auto m_global    = m_local + m_block_data_idx_on_grid;
+                    auto n_global    = n_local + n_block_data_idx_on_grid;
+                    bool masked_flag = c0_matrix_mask.IsMaskedElement(m_global, n_global);
+                    s_element_op(s_slash_p_thread_buf(i),
+                                 masked_flag ? -ck::NumericLimits<float>::Infinity()
+                                             : s_slash_p_thread_buf[i]);
+                });
+            }
+            else
+            {
+                static_for<0, s_slash_p_thread_buf.Size(), 1>{}([&](auto i) {
+                    s_element_op(s_slash_p_thread_buf(i), s_slash_p_thread_buf[i]);
+                });
+            }
+
+            block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
 
             // add bias
             if constexpr(!is_same<D0DataType, void>::value)
@@ -2382,26 +2405,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                         make_multi_index(-1, 0, -D0M0.value, 0, 0, 0));
                 }
             }
-
-            // do MNK padding or upper triangular masking
-            if constexpr(MaskOutUpperTriangle || PadN)
-            {
-
-                static_for<0, Acc0TileIterator::GetNumOfAccess(), 1>{}([&](auto i) {
-                    auto acc0_thread_idx = Acc0TileIterator::GetIndex(i) + acc0_thread_origin;
-                    auto m_local =
-                        block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
-                    auto n_local =
-                        block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
-                    auto m_global           = m_local + m_block_data_idx_on_grid;
-                    auto n_global           = n_local + n_block_data_idx_on_grid;
-                    bool masked_flag        = c0_matrix_mask.IsMaskedElement(m_global, n_global);
-                    s_slash_p_thread_buf(i) = masked_flag ? -ck::NumericLimits<float>::Infinity()
-                                                          : s_slash_p_thread_buf[i];
-                });
-            }
-
-            block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
 
             // P_i: = softmax(scalar * S_i:)
             // scaling is already performed in the preceding statements with s_element_op

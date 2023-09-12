@@ -2252,49 +2252,54 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             // add bias
             if constexpr(!is_same<D0DataType, void>::value)
             {
-                static constexpr auto& c_thread_desc = s_blockwise_gemm.GetCThreadDesc();
+                if(p_d0_grid != nullptr)
+                {
+                    static constexpr auto& c_thread_desc = s_blockwise_gemm.GetCThreadDesc();
 
-                const auto d0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                    p_d0_grid, d0_grid_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize());
+                    const auto d0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                        p_d0_grid, d0_grid_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize());
 
-                auto d0_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                    static_cast<D0DataType*>(p_shared) + SharedMemTrait::d0_block_space_offset,
-                    D0Operator::d0_block_global_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize());
+                    auto d0_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+                        static_cast<D0DataType*>(p_shared) + SharedMemTrait::d0_block_space_offset,
+                        D0Operator::d0_block_global_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize());
 
-                auto d0_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, D0DataType>(
-                    D0Operator::d0_thread_desc_.GetElementSpaceSize());
+                    auto d0_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, D0DataType>(
+                        D0Operator::d0_thread_desc_.GetElementSpaceSize());
 
-                static_for<0, D0M0, 1>{}([&](auto mr) {
-                    // load data to lds
-                    d0_block_copy_global_to_lds.RunRead(d0_grid_desc_m0_n0_m1_m2_n1_m3,
-                                                        d0_grid_buf);
+                    static_for<0, D0M0, 1>{}([&](auto mr) {
+                        // load data to lds
+                        d0_block_copy_global_to_lds.RunRead(d0_grid_desc_m0_n0_m1_m2_n1_m3,
+                                                            d0_grid_buf);
+
+                        d0_block_copy_global_to_lds.MoveSrcSliceWindow(
+                            d0_grid_desc_m0_n0_m1_m2_n1_m3, make_multi_index(0, 0, 1, 0, 0, 0));
+
+                        d0_block_copy_global_to_lds.RunWrite(
+                            D0Operator::d0_block_global_desc_m0_n0_m1_m2_n1_m3, d0_block_buf);
+                        block_sync_lds();
+                        // read data form lds
+                        d0_thread_copy_lds_to_vgpr.Run(
+                            D0Operator::d0_block_vgpr_desc_n0_n1_m0_m1_m2,
+                            make_tuple(I0, I0, I0, I0, I0),
+                            d0_block_buf,
+                            D0Operator::d0_thread_desc_,
+                            make_tuple(I0, I0, I0, I0, I0),
+                            d0_thread_buf);
+
+                        // bias add
+                        static_for<0, d0_thread_buf.Size(), 1>{}([&](auto i) {
+                            constexpr index_t c_offset =
+                                c_thread_desc.CalculateOffset(make_tuple(mr, I0, i));
+
+                            s_slash_p_thread_buf(Number<c_offset>{}) +=
+                                ck::type_convert<FloatGemmAcc>(d0_thread_buf[i]);
+                        });
+                    });
 
                     d0_block_copy_global_to_lds.MoveSrcSliceWindow(
-                        d0_grid_desc_m0_n0_m1_m2_n1_m3, make_multi_index(0, 0, 1, 0, 0, 0));
-
-                    d0_block_copy_global_to_lds.RunWrite(
-                        D0Operator::d0_block_global_desc_m0_n0_m1_m2_n1_m3, d0_block_buf);
-                    block_sync_lds();
-                    // read data form lds
-                    d0_thread_copy_lds_to_vgpr.Run(D0Operator::d0_block_vgpr_desc_n0_n1_m0_m1_m2,
-                                                   make_tuple(I0, I0, I0, I0, I0),
-                                                   d0_block_buf,
-                                                   D0Operator::d0_thread_desc_,
-                                                   make_tuple(I0, I0, I0, I0, I0),
-                                                   d0_thread_buf);
-
-                    // bias add
-                    static_for<0, d0_thread_buf.Size(), 1>{}([&](auto i) {
-                        constexpr index_t c_offset =
-                            c_thread_desc.CalculateOffset(make_tuple(mr, I0, i));
-
-                        s_slash_p_thread_buf(Number<c_offset>{}) +=
-                            ck::type_convert<FloatGemmAcc>(d0_thread_buf[i]);
-                    });
-                });
-
-                d0_block_copy_global_to_lds.MoveSrcSliceWindow(
-                    d0_grid_desc_m0_n0_m1_m2_n1_m3, make_multi_index(-1, 0, -D0M0.value, 0, 0, 0));
+                        d0_grid_desc_m0_n0_m1_m2_n1_m3,
+                        make_multi_index(-1, 0, -D0M0.value, 0, 0, 0));
+                }
             }
 
             // P_i: = softmax(scalar * S_i:)
