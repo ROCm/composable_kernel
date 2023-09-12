@@ -230,5 +230,99 @@ check_err(const Range& out,
     return res;
 }
 
+#if defined CK_ENABLE_FP8
+template <typename Range, typename RefRange>
+std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
+                  std::is_same_v<ranges::range_value_t<Range>, f8_t>),
+                 bool>
+check_err(const Range& out,
+          const RefRange& ref,
+          const std::string& msg = "Error: Incorrect results!",
+          double rtol            = 1e-3,
+          double atol            = 1e-3)
+{
+    if(out.size() != ref.size())
+    {
+        std::cerr << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+                  << std::endl;
+        return false;
+    }
+
+    bool res{true};
+    int err_count  = 0;
+    double err     = 0;
+    double max_err = std::numeric_limits<float>::min();
+    for(std::size_t i = 0; i < ref.size(); ++i)
+    {
+        const double o = type_convert<float>(*std::next(std::begin(out), i));
+        const double r = type_convert<float>(*std::next(std::begin(ref), i));
+        err            = std::abs(o - r);
+        if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
+        {
+            max_err = err > max_err ? err : max_err;
+            err_count++;
+            if(err_count < 5)
+            {
+                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+            }
+            res = false;
+        }
+    }
+    if(!res)
+    {
+        std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
+    }
+    return res;
+}
+#endif
+
+#if defined CK_ENABLE_BF8
+template <typename Range, typename RefRange>
+std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
+                  std::is_same_v<ranges::range_value_t<Range>, bf8_t>),
+                 bool>
+check_err(const Range& out,
+          const RefRange& ref,
+          const std::string& msg = "Error: Incorrect results!",
+          double rtol            = 1e-3,
+          double atol            = 1e-3)
+{
+    if(out.size() != ref.size())
+    {
+        std::cerr << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+                  << std::endl;
+        return false;
+    }
+
+    bool res{true};
+    int err_count  = 0;
+    double err     = 0;
+    double max_err = std::numeric_limits<float>::min();
+    for(std::size_t i = 0; i < ref.size(); ++i)
+    {
+        const double o = type_convert<float>(*std::next(std::begin(out), i));
+        const double r = type_convert<float>(*std::next(std::begin(ref), i));
+        err            = std::abs(o - r);
+        if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
+        {
+            max_err = err > max_err ? err : max_err;
+            err_count++;
+            if(err_count < 5)
+            {
+                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
+            }
+            res = false;
+        }
+    }
+    if(!res)
+    {
+        std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
+    }
+    return res;
+}
+#endif
+
 } // namespace utils
 } // namespace ck

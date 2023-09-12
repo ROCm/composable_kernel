@@ -12,7 +12,12 @@ using half_t  = _Float16;
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 using int4_t = _BitInt(4);
 #endif
-using f8_t = uint8_t;
+#if defined CK_ENABLE_FP8
+using f8_t = _BitInt(8);
+#endif
+#if defined CK_ENABLE_BF8
+using bf8_t = unsigned _BitInt(8);
+#endif
 
 // vector_type
 template <typename T, index_t N>
@@ -143,14 +148,24 @@ struct scalar_type<int4_t>
 };
 #endif
 
+#if defined CK_ENABLE_FP8
 template <>
 struct scalar_type<f8_t>
 {
     using type                           = f8_t;
     static constexpr index_t vector_size = 1;
 };
+#endif
 
-//
+#if defined CK_ENABLE_BF8
+template <>
+struct scalar_type<bf8_t>
+{
+    using type                           = bf8_t;
+    static constexpr index_t vector_size = 1;
+};
+#endif
+
 template <typename T>
 struct vector_type<T, 1>
 {
@@ -953,12 +968,24 @@ using int8x32_t = typename vector_type<int8_t, 32>::type;
 using int8x64_t = typename vector_type<int8_t, 64>::type;
 
 // f8
+#if defined CK_ENABLE_FP8
 using f8x2_t  = typename vector_type<f8_t, 2>::type;
 using f8x4_t  = typename vector_type<f8_t, 4>::type;
 using f8x8_t  = typename vector_type<f8_t, 8>::type;
 using f8x16_t = typename vector_type<f8_t, 16>::type;
 using f8x32_t = typename vector_type<f8_t, 32>::type;
 using f8x64_t = typename vector_type<f8_t, 64>::type;
+#endif
+
+// bf8
+#if defined CK_ENABLE_BF8
+using bf8x2_t  = typename vector_type<bf8_t, 2>::type;
+using bf8x4_t  = typename vector_type<bf8_t, 4>::type;
+using bf8x8_t  = typename vector_type<bf8_t, 8>::type;
+using bf8x16_t = typename vector_type<bf8_t, 16>::type;
+using bf8x32_t = typename vector_type<bf8_t, 32>::type;
+using bf8x64_t = typename vector_type<bf8_t, 64>::type;
+#endif
 
 template <typename T>
 struct NumericLimits
@@ -1006,21 +1033,109 @@ struct NumericLimits<int4_t>
 };
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
+#if defined CK_ENABLE_FP8
 template <>
 struct NumericLimits<f8_t>
 {
+    // negative zero nan mode with exp bias = 8
     static constexpr uint8_t binary_min    = 0x08; // 0b00001000
-    static constexpr uint8_t binary_max    = 0x77; // 0b01110111
-    static constexpr uint8_t binary_lowest = 0xF7; // 0b11110111
+    static constexpr uint8_t binary_max    = 0x7F; // 0b01111111
+    static constexpr uint8_t binary_lowest = 0xFF; // 0b11111111
     static constexpr uint8_t binary_qnan   = 0x80; // 0b10000000
+    // ieee mode with exp bias = 7
+    // static constexpr uint8_t binary_min    = 0x08; // 0b00001000
+    // static constexpr uint8_t binary_max    = 0x77; // 0b01110111
+    // static constexpr uint8_t binary_lowest = 0xF7; // 0b11110111
+    // static constexpr uint8_t binary_qnan   = 0x79; // any sign, exp=1111, mant!=0
 
-    __host__ __device__ static constexpr f8_t Min() { return bit_cast<f8_t>(binary_min); }
+    __host__ __device__ static constexpr f8_t Min() { return f8_t(binary_min); }
 
-    __host__ __device__ static constexpr f8_t Max() { return bit_cast<f8_t>(binary_max); }
+    __host__ __device__ static constexpr f8_t Max() { return f8_t(binary_max); }
 
-    __host__ __device__ static constexpr f8_t Lowest() { return bit_cast<f8_t>(binary_lowest); }
+    __host__ __device__ static constexpr f8_t Lowest() { return f8_t(binary_lowest); }
 
-    __host__ __device__ static constexpr f8_t QuietNaN() { return bit_cast<f8_t>(binary_qnan); }
+    __host__ __device__ static constexpr f8_t QuietNaN() { return f8_t(binary_qnan); }
 };
+#endif
+
+#if defined CK_ENABLE_BF8
+template <>
+struct NumericLimits<bf8_t>
+{
+    // negative zero nan mode with exp bias = 16
+    static constexpr uint8_t binary_min    = 0x04; // 0b00000100
+    static constexpr uint8_t binary_max    = 0x7F; // 0b01111111
+    static constexpr uint8_t binary_lowest = 0xFF; // 0b11111111
+    static constexpr uint8_t binary_qnan   = 0x80; // 0b10000000
+    // ieee mode with exp bias = 15
+    // static constexpr uint8_t binary_min    = 0x04; // 0b00000100
+    // static constexpr uint8_t binary_max    = 0x7B; // 0b01111011
+    // static constexpr uint8_t binary_lowest = 0xFB; // 0b11111011
+    // static constexpr uint8_t binary_qnan   = 0x79; // any sign, exp=1111, mant!=
+
+    __host__ __device__ static constexpr bf8_t Min() { return bf8_t(binary_min); }
+
+    __host__ __device__ static constexpr bf8_t Max() { return bf8_t(binary_max); }
+
+    __host__ __device__ static constexpr bf8_t Lowest() { return bf8_t(binary_lowest); }
+
+    __host__ __device__ static constexpr bf8_t QuietNaN() { return bf8_t(binary_qnan); }
+};
+#endif
+
+template <typename T>
+struct NumericUtils
+{
+};
+
+template <>
+struct NumericUtils<float>
+{
+    static constexpr int exp            = 8;
+    static constexpr int mant           = 23;
+    static constexpr uint32_t nan_mask  = 0x7F800000;
+    static constexpr uint32_t head_mask = 0xFF800000;
+    static constexpr uint32_t mant_mask = 0x7FFFFF;
+    static constexpr uint32_t exp_mask  = 0xFF;
+    static constexpr uint32_t Inf       = 0x7F800000;
+    static constexpr uint32_t NegInf    = 0xFF800000;
+    static constexpr uint32_t NaN       = 0x7F800001;
+    static constexpr uint32_t Neg0      = 0x80000000;
+    using bitwise_type                  = uint32_t;
+};
+
+template <>
+struct NumericUtils<half_t>
+{
+    static constexpr int exp            = 5;
+    static constexpr int mant           = 10;
+    static constexpr uint16_t nan_mask  = 0x7C00;
+    static constexpr uint16_t head_mask = 0xFC00;
+    static constexpr uint16_t mant_mask = 0x3FF;
+    static constexpr uint16_t exp_mask  = 0x1F;
+    static constexpr uint32_t Inf       = 0x7C00;
+    static constexpr uint32_t NegInf    = 0xFC00;
+    static constexpr uint32_t NaN       = 0x7C01;
+    static constexpr uint32_t Neg0      = 0x8000;
+    using bitwise_type                  = uint16_t;
+};
+
+#if defined CK_ENABLE_FP8
+template <>
+struct NumericUtils<f8_t>
+{
+    static constexpr int exp  = 4;
+    static constexpr int mant = 3;
+};
+#endif
+
+#if defined CK_ENABLE_BF8
+template <>
+struct NumericUtils<bf8_t>
+{
+    static constexpr int exp  = 5;
+    static constexpr int mant = 2;
+};
+#endif
 
 } // namespace ck
