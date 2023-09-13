@@ -15,3 +15,16 @@ inline void hip_check_error(hipError_t x)
         throw std::runtime_error(ss.str());
     }
 }
+
+#define HIP_CHECK_ERROR(flag)                                                      \
+    do                                                                             \
+    {                                                                              \
+        hipError_t _tmpVal;                                                        \
+        if((_tmpVal = flag) != hipSuccess)                                         \
+        {                                                                          \
+            std::ostringstream ostr;                                               \
+            ostr << "HIP Function Failed (" << __FILE__ << "," << __LINE__ << ") " \
+                 << hipGetErrorString(_tmpVal);                                    \
+            throw std::runtime_error(ostr.str());                                  \
+        }                                                                          \
+    } while(0)
