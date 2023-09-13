@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <iomanip>
 #include <numeric>
 #include <thread>
 #include <utility>
@@ -19,7 +20,11 @@
 #include "ck/library/utility/ranges.hpp"
 
 template <typename Range>
-std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
+std::ostream& LogRange(std::ostream& os,
+                       Range&& range,
+                       std::string delim,
+                       int precision = std::cout.precision(),
+                       int width     = 0)
 {
     bool first = true;
     for(auto&& v : range)
@@ -28,13 +33,17 @@ std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
             first = false;
         else
             os << delim;
-        os << v;
+        os << std::setw(width) << std::setprecision(precision) << v;
     }
     return os;
 }
 
 template <typename T, typename Range>
-std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim)
+std::ostream& LogRangeAsType(std::ostream& os,
+                             Range&& range,
+                             std::string delim,
+                             int precision = std::cout.precision(),
+                             int width     = 0)
 {
     bool first = true;
     for(auto&& v : range)
@@ -43,7 +52,7 @@ std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim)
             first = false;
         else
             os << delim;
-        os << static_cast<T>(v);
+        os << std::setw(width) << std::setprecision(precision) << static_cast<T>(v);
     }
     return os;
 }

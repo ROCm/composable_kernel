@@ -14,51 +14,14 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 
+#include "reference_softmax.hpp"
 #include "softmax.hpp"
-
-template <typename ADataType, typename AccDataType, typename BDataType>
-void reference_softmax(const Tensor<ADataType>& a_m_n, Tensor<BDataType>& b_m_n)
-{
-    auto f = [&](auto m) {
-        const int N = a_m_n.mDesc.GetLengths()[1];
-
-        AccDataType v_max = ck::NumericLimits<ADataType>::Lowest();
-
-        // max
-        for(int n = 0; n < N; ++n)
-        {
-            const ADataType v_a = a_m_n(m, n);
-
-            v_max = v_max < v_a ? v_a : v_max;
-        }
-
-        AccDataType v_exp_sum = 0;
-
-        // sum
-        for(int n = 0; n < N; ++n)
-        {
-            const ADataType v_a = a_m_n(m, n);
-
-            v_exp_sum += ck::math::exp(v_a - v_max);
-        }
-
-        // elementwise
-        for(int n = 0; n < N; ++n)
-        {
-            const ADataType v_a = a_m_n(m, n);
-
-            b_m_n(m, n) = ck::math::exp(v_a - v_max) / v_exp_sum;
-        }
-    };
-
-    make_ParallelTensorFunctor(f, b_m_n.mDesc.GetLengths()[0])(std::thread::hardware_concurrency());
-}
 
 int main(int argc, char* argv[])
 {
-    using ADataType   = float;
+    using ADataType   = ck::half_t;
     using AccDataType = float;
-    using BDataType   = float;
+    using BDataType   = ck::half_t;
 
     ck::index_t M = 3328;
     ck::index_t N = 4096;
@@ -117,6 +80,9 @@ int main(int argc, char* argv[])
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
+
+    LogRangeAsType<float>(std::cout << "dev: ", b_host_dev.mData, ", ") << std::endl;
+    LogRangeAsType<float>(std::cout << "ref: ", b_host_ref.mData, ", ") << std::endl;
 
     return !ck::utils::check_err(b_host_dev, b_host_ref);
 }

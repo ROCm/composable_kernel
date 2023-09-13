@@ -16,8 +16,11 @@
 #include "ck/tile_program/block_tile_pipeline/block_gemm_pipeline_agmem_bgmem_creg_v2.hpp"
 #include "ck/tile_program/block_tile_pipeline/block_gemm_pipeline_problem.hpp"
 #include "ck/tile_program/block_tile/block_gemm_areg_bsmem_creg_v1.hpp"
+#include "ck/tile_program/block_tile/block_reduce.hpp"
 
-// C1 = A0 * B0 * B1
+// C0 = A0 * B0
+// D0 = softmax(C0)
+// C1 = D0 * B1
 template <typename A0DataType,
           typename B0DataType,
           typename Acc0DataType,
@@ -30,7 +33,7 @@ template <typename A0DataType,
           ck::index_t kN0PerBlock,
           ck::index_t kK0PerBlock,
           ck::index_t kN1PerBlock>
-struct GemmGemm
+struct GemmSoftmaxGemm
 {
     // block gemm0 pipeline
     using BlockGemm0Pipeline = ck::tile_program::block::BlockGemmPipelineAGmemBGmemCRegV2<
@@ -152,6 +155,9 @@ struct GemmGemm
         using namespace ck::tile_program;
         using namespace ck::tile_program::block;
 
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+
         // FIXME: assume layout A0[M0, K0], B0[N0, K0], B1[N1, N0], C1[M0, N1]
         const auto a0_dram_grid = make_naive_tensor_view<AddressSpaceEnum::Global>(
             p_a0, make_tuple(M0, K0), make_tuple(Lda0, 1), Number<32>{}, Number<1>{});
@@ -205,27 +211,121 @@ struct GemmGemm
         // Bock GEMM1
         constexpr auto block_gemm1 = BlockGemm1{};
 
+        // Acc0 tile
+        using Acc0BlockTileType =
+            decltype(block_gemm0_pipeline(a0_dram_block_window, b0_dram_block_window, 0, nullptr));
+
         // Acc1 tile
         auto acc1_block_tile = decltype(block_gemm1(
-            tile_elementwise_in(
-                type_convert<C0DataType, Acc0DataType>,
-                block_gemm0_pipeline(a0_dram_block_window, b0_dram_block_window, 0, nullptr)),
+            tile_elementwise_in(type_convert<C0DataType, Acc0DataType>, Acc0BlockTileType{}),
             b1_dram_block_window)){};
+
+        const auto f_max = [](auto v0, auto v1) { return max(v0, v1); };
+        const auto f_sum = [](auto v0, auto v1) { return v0 + v1; };
 
         // init Acc1
         tile_elementwise_inout([](auto& acc1) { acc1 = 0; }, acc1_block_tile);
+
+        // m, l tile
+        auto m = decltype(block_tile_reduce<Acc0DataType>(
+            Acc0BlockTileType{}, Sequence<1>{}, f_max, Acc0DataType{0})){};
+
+        // init m, l
+        auto l = make_static_distributed_tensor<Acc0DataType>(m.GetTileDistribution());
+
+        tile_elementwise_inout([](auto& m_v) { m_v = NumericLimits<Acc0DataType>::Lowest(); }, m);
+        tile_elementwise_inout([](auto& l_v) { l_v = 0; }, l);
 
         index_t iN0 = 0;
 
         do
         {
-            // Block GEMM0 pipeline: acc0 = a0 * b0
+            // S[i][j] = Q[i] * K[j]
             const auto acc0_block_tile = block_gemm0_pipeline(
                 a0_dram_block_window, b0_dram_block_window, K0 / kK0PerBlock, p_smem_char);
 
-            // type cast acc0 into c0
+            // rowmax(S[i][j])
+            auto m_local = block_tile_reduce<Acc0DataType>(
+                acc0_block_tile, Sequence<1>{}, f_max, NumericLimits<Acc0DataType>::Lowest());
+
+            block_tile_reduce_sync(m_local, f_max);
+
+            // m[i][j-1]
+            const auto m_old = m;
+
+            // m[i][j]
+            tile_elementwise_inout(
+                [](auto& m_v, auto m_old_v, auto m_local_v) { m_v = max(m_old_v, m_local_v); },
+                m,
+                m_old,
+                m_local);
+
+            // P[i][j]
+            auto p =
+                make_static_distributed_tensor<Acc0DataType>(acc0_block_tile.GetTileDistribution());
+
+            constexpr auto p_spans = decltype(p)::GetDistributedSpans();
+
+            sweep_tile_span(p_spans[I0], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+
+                const auto m_v = m.GetElementFromTileDistributedIndices(i_idx);
+
+                sweep_tile_span(p_spans[I1], [&](auto idx1) {
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                    const auto s_v = acc0_block_tile.GetElementFromTileDistributedIndices(i_j_idx);
+
+                    const auto p_v = math::exp(s_v - m_v);
+
+                    p.SetElementFromTileDistributedIndices(i_j_idx, p_v);
+                });
+            });
+
+            // rowsum(P[i][j])
+            auto rowsum_p =
+                block_tile_reduce<Acc0DataType>(p, Sequence<1>{}, f_sum, Acc0DataType{0});
+
+            block_tile_reduce_sync(rowsum_p, f_sum);
+
+            // l[i][j], O[i][j]
+            sweep_tile_span(p_spans[I0], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+
+                const auto m_old_v = m_old.GetElementFromTileDistributedIndices(i_idx);
+                const auto m_v     = m.GetElementFromTileDistributedIndices(i_idx);
+                const auto l_old_v = l.GetElementFromTileDistributedIndices(i_idx);
+
+                const auto tmp  = math::exp(m_old_v - m_v);
+                const auto tmp2 = 1 / tmp;
+
+                auto l_v = tmp * l_old_v + rowsum_p.GetElementFromTileDistributedIndices(i_idx);
+
+                l.SetElementFromTileDistributedIndices(i_idx, l_v);
+
+                sweep_tile_span(p_spans[I1], [&](auto idx1) {
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                    // O[i][j]
+                    const auto o_old_v =
+                        acc1_block_tile.GetElementFromTileDistributedIndices(i_j_idx);
+
+#if 0 // debug
+      // this use the same equation from FA v2 paper, but produce -nan
+                    const auto o_v = o_old_v * tmp2;
+#elif 1
+                    // this use different equation from FA v2 paper, but produce correct result
+                    (void) tmp2;
+                    const auto o_v = o_old_v * tmp;
+#endif
+
+                    acc1_block_tile.SetElementFromTileDistributedIndices(i_j_idx, o_v);
+                });
+            });
+
+            // type cast p into a1
             const auto c0_block_tile =
-                tile_elementwise_in(type_convert<C0DataType, Acc0DataType>, acc0_block_tile);
+                tile_elementwise_in(type_convert<C0DataType, Acc0DataType>, p);
 
             // Block GEMM1: acc1 += c0 * b1
             {
@@ -254,6 +354,27 @@ struct GemmGemm
             iN0 += kN0PerBlock;
 
         } while(iN0 < N0);
+
+        // o[i][J-1]
+        constexpr auto o_spans = decltype(acc1_block_tile)::GetDistributedSpans();
+
+        sweep_tile_span(o_spans[I0], [&](auto idx0) {
+            constexpr auto i_idx = make_tuple(idx0);
+
+            const auto l_v = l.GetElementFromTileDistributedIndices(i_idx);
+
+            const auto tmp = 1 / l_v;
+
+            sweep_tile_span(o_spans[I1], [&](auto idx1) {
+                constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                const auto o_v = acc1_block_tile.GetElementFromTileDistributedIndices(i_j_idx);
+
+                const auto o_new_v = o_v * tmp;
+
+                acc1_block_tile.SetElementFromTileDistributedIndices(i_j_idx, o_new_v);
+            });
+        });
 
         // type cast acc1 into c1
         const auto c1_block_tile =

@@ -182,10 +182,10 @@ template <typename AccDataType_,
           index_t... InReduceDims,
           typename ReduceFunc,
           typename InDataType_>
-__host__ __device__ auto block_tile_reduce(const InDistributedTensor_& in_tensor,
-                                           Sequence<InReduceDims...> in_reduce_dims,
-                                           const ReduceFunc& reduce_func,
-                                           const InDataType_& reduce_init)
+__device__ auto block_tile_reduce(const InDistributedTensor_& in_tensor,
+                                  Sequence<InReduceDims...> in_reduce_dims,
+                                  const ReduceFunc& reduce_func,
+                                  const InDataType_& reduce_init)
 {
     using InDataType  = typename InDistributedTensor_::DataType;
     using AccDataType = remove_cvref_t<AccDataType_>;
@@ -220,6 +220,33 @@ __host__ void block_tile_reduce(AccDistributedTensor_&,
                                 Sequence<InReduceDims...>,
                                 const ReduceFunc&)
 {
+}
+
+// FIXME: dummy host function for tile program
+template <typename AccDataType_,
+          typename InDistributedTensor_,
+          index_t... InReduceDims,
+          typename ReduceFunc,
+          typename InDataType_>
+__host__ auto block_tile_reduce(const InDistributedTensor_&,
+                                Sequence<InReduceDims...>,
+                                const ReduceFunc&,
+                                const InDataType_&)
+{
+    using InDataType  = typename InDistributedTensor_::DataType;
+    using AccDataType = remove_cvref_t<AccDataType_>;
+
+    static_assert(is_same_v<InDataType, remove_cvref_t<InDataType_>>, "wrong!");
+
+    // declare acc_tensor
+    constexpr auto acc_dstr = make_static_tile_distribution(
+        ck::tile_program::detail::make_reduce_tile_distribution_encoding(
+            InDistributedTensor_::GetTileDistribution().GetStaticTileDistributionEncoding(),
+            Sequence<InReduceDims...>{}));
+
+    auto acc_tensor = make_static_distributed_tensor<AccDataType>(acc_dstr);
+
+    return acc_tensor;
 }
 
 // FIXME: dummy host function for tile program

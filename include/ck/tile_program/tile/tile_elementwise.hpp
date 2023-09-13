@@ -26,7 +26,7 @@ __host__ __device__ void tile_elementwise_inout(const InOutElementFunc& inout_el
         type_pack_element<0, InOutDstrTensors...>::GetThreadBufferSize();
 
     static_for<0, thread_buffer_size, 1>{}(
-        [&](auto i) { inout_element_func(inout_dstr_tensors.GetThreadBuffer()(i)...); });
+        [&](auto i) { inout_element_func(inout_dstr_tensors.GetThreadBuffer().At(i)...); });
 }
 
 template <typename InElementFunc, typename... InDstrTensors>

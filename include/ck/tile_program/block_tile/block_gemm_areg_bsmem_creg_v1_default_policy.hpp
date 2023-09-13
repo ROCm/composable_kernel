@@ -26,6 +26,7 @@ struct BlockGemmARegBSmemCRegV1DefaultPolicy
     {
         using namespace ck::tile_program::warp;
 
+#if 0
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
@@ -46,6 +47,9 @@ struct BlockGemmARegBSmemCRegV1DefaultPolicy
         {
             return make_tuple(WarpGemmMfmaF16F16F32M32N32K8{}, 4, 1);
         }
+#else
+        return make_tuple(WarpGemmMfmaF16F16F32M32N32K8TransposedCDistribution{}, 4, 1);
+#endif
     }
 };
 
