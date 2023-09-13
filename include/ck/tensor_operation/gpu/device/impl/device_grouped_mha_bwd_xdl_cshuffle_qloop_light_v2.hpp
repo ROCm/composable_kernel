@@ -608,7 +608,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
     static auto MakeZGridDescriptor_M_N(const std::vector<index_t>& z_gs_ms_ns_lengths,
                                         const std::vector<index_t>& z_gs_ms_ns_strides)
     {
-        return Transform::MakeCGridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
+        return Transform::MakeC0GridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
     }
 
     static auto MakeLSEGridDescriptor_M(index_t MRaw)
@@ -640,8 +640,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
                                          const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_strides)
     {
 
-        return Transform::MakeCGridDescriptor_M_N(acc0_bias_gs_ms_ns_lengths,
-                                                  acc0_bias_gs_ms_ns_strides);
+        return Transform::MakeC0GridDescriptor_M_N(acc0_bias_gs_ms_ns_lengths,
+                                                   acc0_bias_gs_ms_ns_strides);
     }
 
     static auto
@@ -649,8 +649,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
                                const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_strides)
     {
 
-        return Transform::MakeCGridDescriptor_G_M_N(acc0_bias_gs_ms_ns_lengths,
-                                                    acc0_bias_gs_ms_ns_strides);
+        return Transform::MakeC0GridDescriptor_G_M_N(acc0_bias_gs_ms_ns_lengths,
+                                                     acc0_bias_gs_ms_ns_strides);
     }
 
     static auto MakeDGridDescriptor_M(index_t MRaw)
@@ -688,7 +688,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
     using D0GridDesc_G_M_N     = decltype(MakeD0GridDescriptor_G_M_N({}, {}));
     using B1GridDesc_G_N_K     = decltype(Transform::MakeB1GridDescriptor_G_N_K({}, {}));
     using CGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
-    using ZGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
+    using ZGridDesc_G_M_N      = decltype(Transform::MakeC0GridDescriptor_G_M_N({}, {}));
 
     using KGridDesc_N_K         = decltype(Transform::MakeB0GridDescriptor_N_K({}, {}));
     using D0GridDesc_M_N        = decltype(MakeD0GridDescriptor_M_N({}, {}));
@@ -1069,7 +1069,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
                     problem_desc.b_gs_ns_ks_lengths, problem_desc.b_gs_ns_ks_strides);
                 const auto d0_grid_desc_g_m_n = DeviceOp::MakeD0GridDescriptor_G_M_N(
                     tmp_d0_gs_ms_ns_lengths, tmp_d0_gs_ms_ns_strides);
-                const auto z_grid_desc_g_m_n = Transform::MakeCGridDescriptor_G_M_N(
+                const auto z_grid_desc_g_m_n = Transform::MakeC0GridDescriptor_G_M_N(
                     problem_desc.z_gs_ms_ns_lengths, problem_desc.z_gs_ms_ns_strides);
                 const auto b1_grid_desc_g_n_k = Transform::MakeB1GridDescriptor_G_N_K(
                     problem_desc.b1_gs_gemm1ns_gemm1ks_lengths,

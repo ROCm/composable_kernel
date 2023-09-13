@@ -534,14 +534,14 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
     static auto MakeD0GridDescriptor_M_N(const std::vector<index_t>& d_gs_ms_ns_lengths,
                                          const std::vector<index_t>& d_gs_ms_ns_strides)
     {
-        return Transform::MakeCGridDescriptor_M_N(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
+        return Transform::MakeC0GridDescriptor_M_N(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
     }
 
     // Z in Gemm0 C position
     static auto MakeZGridDescriptor_M_N(const std::vector<index_t>& z_gs_ms_ns_lengths,
                                         const std::vector<index_t>& z_gs_ms_ns_strides)
     {
-        return Transform::MakeCGridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
+        return Transform::MakeC0GridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
     }
     //
     // dS_i_j = P_i_j .* (dP_i_j - dY_i dot Y_i)
@@ -596,7 +596,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
     using AGridDesc_AK0_M_AK1  = decltype(MakeAGridDescriptor_AK0_M_AK1({}, {}));
     using BGridDesc_BK0_N_BK1  = decltype(MakeBGridDescriptor_BK0_N_BK1({}, {}));
-    using D0GridDesc_G_M_N     = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
+    using D0GridDesc_G_M_N     = decltype(Transform::MakeC0GridDescriptor_G_M_N({}, {}));
     using B1GridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1({}, {}));
     using YGridDesc_M_O        = decltype(Transform::MakeCGridDescriptor_M_N({}, {}));
     using LSEGridDesc_M        = decltype(MakeLSEGridDescriptor_M(1));
@@ -604,7 +604,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
     using BGridDesc_G_N_K      = decltype(Transform::MakeB0GridDescriptor_G_N_K({}, {}));
     using B1GridDesc_G_N_K     = decltype(Transform::MakeB1GridDescriptor_G_N_K({}, {}));
     using CGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
-    using ZGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
+    using ZGridDesc_G_M_N      = decltype(Transform::MakeC0GridDescriptor_G_M_N({}, {}));
 
     using D0GridDesc_M_N        = decltype(MakeD0GridDescriptor_M_N({}, {}));
     using KGridDesc_N_K         = decltype(Transform::MakeB0GridDescriptor_N_K({}, {}));
@@ -844,7 +844,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
               c_grid_desc_g_m_n_{Transform::MakeCGridDescriptor_G_M_N(c_gs_ms_gemm1ns_lengths,
                                                                       c_gs_ms_gemm1ns_strides)},
               z_grid_desc_g_m_n_{
-                  Transform::MakeCGridDescriptor_G_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
+                  Transform::MakeC0GridDescriptor_G_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
               y_grid_desc_mblock_mperblock_oblock_operblock_{},
               block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(k_grid_desc_n_k_)},
               a_element_op_{a_element_op},
@@ -891,7 +891,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                 d0_grid_desc_m0_n0_m1_m2_n1_m3_ =
                     GridwiseGemm::MakeD0GridDescriptor_M0_N0_M1_M2_N1_M3(d0_grid_desc_m_n);
 
-                d0_grid_desc_g_m_n_ = Transform::MakeCGridDescriptor_G_M_N(
+                d0_grid_desc_g_m_n_ = Transform::MakeC0GridDescriptor_G_M_N(
                     acc0_bias_gs_ms_ns_lengths, acc0_bias_gs_ms_ns_strides);
 
                 d0_n_length_stride_.push_back(acc0_bias_gs_ms_ns_lengths[NumDimG + NumDimM]);
@@ -941,6 +941,10 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             std::cout << "ygrad_grid_desc_m0_o_m1_: " << ygrad_grid_desc_m0_o_m1_.GetLength(I0)
                       << ", " << ygrad_grid_desc_m0_o_m1_.GetLength(I1) << ", "
                       << ygrad_grid_desc_m0_o_m1_.GetLength(I2) << '\n';
+
+            std::cout << "d0_grid_desc_g_m_n_: " << d0_grid_desc_g_m_n_.GetLength(I0) << ", "
+                      << d0_grid_desc_g_m_n_.GetLength(I1) << ", "
+                      << d0_grid_desc_g_m_n_.GetLength(I2) << '\n';
         }
 
         // pointers
