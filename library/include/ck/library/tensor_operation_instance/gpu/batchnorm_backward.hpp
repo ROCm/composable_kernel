@@ -86,9 +86,9 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_FP32
         if constexpr(is_same_v<XDataType, F32> && is_same_v<DxDataType, F32> &&
-                          is_same_v<DyDataType, F32> && is_same_v<AccDataType, F32> &&
-                          is_same_v<ScaleDataType, F32> && is_same_v<DscaleDbiasDataType, F32> &&
-                          is_same_v<MeanVarDataType, F32>)
+                     is_same_v<DyDataType, F32> && is_same_v<AccDataType, F32> &&
+                     is_same_v<ScaleDataType, F32> && is_same_v<DscaleDbiasDataType, F32> &&
+                     is_same_v<MeanVarDataType, F32>)
         {
             if constexpr(Rank == 4 && NumReduceDim == 3 && is_same_v<DyElementwiseOp, PassThrough>)
             {
@@ -98,9 +98,9 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_BF16
         if constexpr(is_same_v<XDataType, BF16> && is_same_v<DxDataType, F32> &&
-                          is_same_v<DyDataType, F32> && is_same_v<AccDataType, F32> &&
-                          is_same_v<ScaleDataType, BF16> && is_same_v<DscaleDbiasDataType, F32> &&
-                          is_same_v<MeanVarDataType, F32>)
+                     is_same_v<DyDataType, F32> && is_same_v<AccDataType, F32> &&
+                     is_same_v<ScaleDataType, BF16> && is_same_v<DscaleDbiasDataType, F32> &&
+                     is_same_v<MeanVarDataType, F32>)
         {
             if constexpr(Rank == 4 && NumReduceDim == 3 && is_same_v<DyElementwiseOp, PassThrough>)
             {
@@ -110,9 +110,9 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_FP64
         if constexpr(is_same_v<XDataType, F64> && is_same_v<DxDataType, F64> &&
-                          is_same_v<DyDataType, F64> && is_same_v<AccDataType, F64> &&
-                          is_same_v<ScaleDataType, F64> && is_same_v<DscaleDbiasDataType, F64> &&
-                          is_same_v<MeanVarDataType, F64>)
+                     is_same_v<DyDataType, F64> && is_same_v<AccDataType, F64> &&
+                     is_same_v<ScaleDataType, F64> && is_same_v<DscaleDbiasDataType, F64> &&
+                     is_same_v<MeanVarDataType, F64>)
         {
             if constexpr(Rank == 4 && NumReduceDim == 3 && is_same_v<DyElementwiseOp, PassThrough>)
             {
