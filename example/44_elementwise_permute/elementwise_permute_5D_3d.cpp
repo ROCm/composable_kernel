@@ -61,7 +61,10 @@ int main()
     Tensor<ADataType> a(ncdhw);
     Tensor<BDataType> b(nchwd);
 
-    a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+    //a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+    for(std::size_t i = 0; i < a.mData.size(); i++){
+	    	    a.mData[i] = i;
+    }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
