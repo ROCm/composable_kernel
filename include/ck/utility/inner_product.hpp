@@ -73,6 +73,18 @@ inner_product<float4_t, float4_t, float>(const float4_t& a, const float4_t& b, f
 }
 
 template <>
+__device__ void inner_product<bhalf_t, bhalf_t, float>(const bhalf_t& a, const bhalf_t& b, float& c)
+{
+    inner_product(type_convert<float>(a), type_convert<float>(b), c);
+}
+
+template <>
+__device__ void inner_product<half_t, half_t, float>(const half_t& a, const half_t& b, float& c)
+{
+    inner_product(type_convert<float>(a), type_convert<float>(b), c);
+}
+
+template <>
 __device__ void inner_product<half2_t, half2_t, float>(const half2_t& a, const half2_t& b, float& c)
 {
 #if defined(CK_USE_AMD_V_DOT2_F32_F16)
