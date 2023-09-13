@@ -110,10 +110,6 @@ __global__ void
     ignore = c_grid_desc_m0_m10_m11_n0_n10_n11;
     ignore = block_2_ctile_map;
     ignore = compute_ptr_offset_of_batch;
-
-    compute_ptr_offset_of_batch.GetAPtrOffset(0);
-    compute_ptr_offset_of_batch.GetBPtrOffset(0);
-    compute_ptr_offset_of_batch.GetCPtrOffset(0);
 #endif
 }
 

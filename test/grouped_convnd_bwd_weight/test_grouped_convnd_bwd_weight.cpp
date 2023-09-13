@@ -33,8 +33,8 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
     bool skip_case(const ck::utils::conv::ConvParam& params, const ck::index_t split_k)
     {
-        // K or C are odd is supported only by DL kernel (only applies to fp16)
-        // DL kernel is only supported for split_k=1
+        // Odd K or C values are supported only by DL kernel (only applies to fp16)
+        // DL kernel currently supports only `split_k=1`
         if constexpr(std::is_same_v<InDataType, ck::half_t>)
         {
             if(split_k != 1 && (params.K_ % 2 != 0 || params.C_ % 2 != 0))
