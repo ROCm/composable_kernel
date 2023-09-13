@@ -244,6 +244,18 @@ int run(int argc, char* argv[])
 
     if(do_verification)
     {
+        // data objects for hipGraph verification
+        hipGraph_t graph;
+        hipGraphExec_t g_instance;
+        hipStream_t stream;
+
+        std::cout << "verification with hipGraph capturing and replaying ... " << std::endl;
+
+        HIP_CHECK_ERROR(hipStreamCreate(&stream));
+        HIP_CHECK_ERROR(hipGraphCreate(&graph, 0));
+
+        HIP_CHECK_ERROR(hipStreamBeginCapture(stream, hipStreamCaptureModeGlobal));
+
         // run for storing z tensor
         argument =
             gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
@@ -277,9 +289,19 @@ int run(int argc, char* argv[])
                               p_drop,          // dropout ratio
                               {seed, offset}); // dropout random seed and offset, offset should be
                                                // at least the number of elements on a thread
-        c_device_buf.SetZero();
-        lse_device_buf.SetZero();
-        invoker.Run(argument, StreamConfig{nullptr, false});
+        HIP_CHECK_ERROR(hipMemsetAsync(
+            c_device_buf.GetDeviceBuffer(), 0, c_device_buf.GetBufferSize(), stream));
+        HIP_CHECK_ERROR(hipMemsetAsync(
+            lse_device_buf.GetDeviceBuffer(), 0, lse_device_buf.GetBufferSize(), stream));
+
+        invoker.Run(argument, StreamConfig{stream, false});
+
+        HIP_CHECK_ERROR(hipStreamEndCapture(stream, &graph));
+        HIP_CHECK_ERROR(hipGraphInstantiate(&g_instance, graph, nullptr, nullptr, 0));
+
+        HIP_CHECK_ERROR(hipGraphLaunch(g_instance, stream));
+
+        HIP_CHECK_ERROR(hipStreamSynchronize(stream));
 
         c_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
         z_device_buf.FromDevice(z_gs_ms_ns.mData.data());
