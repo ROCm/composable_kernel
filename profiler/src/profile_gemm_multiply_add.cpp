@@ -59,9 +59,11 @@ int profile_gemm_multiply_add(int argc, char* argv[])
     const int StrideD1 = std::stoi(argv[14]);
     const int StrideE  = std::stoi(argv[15]);
 
-    using F8  = ck::f8_t;
     using F16 = ck::half_t;
     using F32 = float;
+#if defined CK_ENABLE_FP8
+    using F8 = ck::f8_t;
+#endif
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -132,6 +134,7 @@ int profile_gemm_multiply_add(int argc, char* argv[])
     {
         return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Row{}, Col{}, Row{}, Row{}, Row{});
     }
+#if defined CK_ENABLE_FP8
     else if(data_type == MatrixDataType::F16_F8_F32_F32_F16 &&
             layout == MatrixLayout::MK_KN_MN_MN_MN)
     {
@@ -142,6 +145,7 @@ int profile_gemm_multiply_add(int argc, char* argv[])
     {
         return profile(F16{}, F8{}, F32{}, F32{}, F32{}, F16{}, Row{}, Col{}, Row{}, Row{}, Row{});
     }
+#endif
     else
     {
         std::cout << "this data_type & layout is not implemented" << std::endl;
