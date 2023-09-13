@@ -28,6 +28,7 @@ template <typename XDataType,
           typename BetaDataType,
           typename ComputeDataType,
           typename YDataType,
+          typename SaveMeanInvStdDataType,
           typename YElementwiseOperation,
           index_t Rank,
           index_t NumReduceDim,
@@ -49,6 +50,7 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                                                             BetaDataType,
                                                             ComputeDataType,
                                                             YDataType,
+                                                            SaveMeanInvStdDataType,
                                                             YElementwiseOperation,
                                                             Rank,
                                                             NumReduceDim>
@@ -66,16 +68,18 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
 
     using PassThrough = tensor_operation::element_wise::PassThrough;
 
+    static constexpr index_t NumInvariantDim = Rank - NumReduceDim;
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
+
+    static constexpr bool reduceAllDim = (NumInvariantDim == 0);
+    static_assert(!reduceAllDim); // TODO
 
     static auto MakeSrc2dDescriptor(const std::vector<index_t>& inLengths,
                                     const std::vector<index_t>& inStrides,
                                     int numBlockTileIteration)
     {
-        constexpr index_t NumInvariantDim  = Rank - NumReduceDim;
         static constexpr index_t numSrcDim = Rank;
-        static constexpr bool reduceAllDim = (NumInvariantDim == 0);
 
         const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<numSrcDim>{});
         const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<numSrcDim>{});
@@ -133,7 +137,39 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
         return (in_grid_desc_m_k_padded);
     };
 
+    static auto MakeSaveMeanInvStdDescriptor_M(const std::vector<index_t>& inLengths,
+                                               const std::vector<index_t>& inStrides)
+    {
+        using InvariantDims = typename arithmetic_sequence_gen<0, NumInvariantDim, 1>::type;
+
+        const auto tupleSrcLengths =
+            make_tuple_from_array_and_index_seq(inLengths, InvariantDims{});
+        const auto tupleSrcStrides =
+            make_tuple_from_array_and_index_seq(inStrides, InvariantDims{});
+
+        const auto inDesc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
+
+        const auto in_grid_desc_m =
+            transform_tensor_descriptor(inDesc,
+                                        make_tuple(make_merge_transform(tupleSrcLengths)),
+                                        make_tuple(InvariantDims{}),
+                                        make_tuple(Sequence<0>{}));
+
+        const auto invariantLength = in_grid_desc_m.GetLength(Number<0>{});
+        const auto inPad_M =
+            math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
+
+        auto in_grid_desc_m_padded = transform_tensor_descriptor(
+            in_grid_desc_m,
+            make_tuple(make_right_pad_transform(invariantLength, inPad_M)),
+            make_tuple(Sequence<0>{}),
+            make_tuple(Sequence<0>{}));
+
+        return in_grid_desc_m_padded;
+    }
+
     using GridDesc_M_K = decltype(MakeSrc2dDescriptor({1}, {1}, 1));
+    using GridDesc_M   = decltype(MakeSaveMeanInvStdDescriptor_M({1}, {1}));
 
     struct Argument : public BaseArgument
     {
@@ -142,17 +178,23 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                  const std::vector<index_t> gammaStrides,
                  const std::vector<index_t> betaStrides,
                  const std::vector<index_t> yStrides,
+                 const std::vector<index_t> saveMeanStrides,
+                 const std::vector<index_t> saveInvStdStrides,
                  const std::vector<index_t> reduceDims,
                  YElementwiseOperation y_elementwise_op,
                  double epsilon,
                  const XDataType* p_x,
                  const GammaDataType* p_gamma,
                  const BetaDataType* p_beta,
-                 YDataType* p_y)
+                 YDataType* p_y,
+                 SaveMeanInvStdDataType* p_saveMean,
+                 SaveMeanInvStdDataType* p_saveInvStd)
             : p_x_(p_x),
               p_gamma_(p_gamma),
               p_beta_(p_beta),
               p_y_(p_y),
+              p_saveMean_(p_saveMean),
+              p_saveInvStd_(p_saveInvStd),
               y_elementwise_op_(y_elementwise_op)
         {
             epsilon_ = static_cast<ComputeDataType>(epsilon);
@@ -162,6 +204,8 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
             yStrides_     = shuffle_tensor_dimensions<Rank, NumReduceDim>(yStrides, reduceDims);
             gammaStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(gammaStrides, reduceDims);
             betaStrides_  = shuffle_tensor_dimensions<Rank, NumReduceDim>(betaStrides, reduceDims);
+            saveMeanStrides_   = saveMeanStrides;
+            saveInvStdStrides_ = saveInvStdStrides;
 
             long_index_t invariant_length;
             long_index_t reduce_length;
@@ -179,6 +223,8 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
             beta_grid_desc_m_k_ =
                 MakeSrc2dDescriptor(Lengths_, betaStrides_, numBlockTileIteration_);
             y_grid_desc_m_k_ = MakeSrc2dDescriptor(Lengths_, yStrides_, numBlockTileIteration_);
+            save_mean_grid_desc_m_    = MakeSaveMeanInvStdDescriptor_M(Lengths_, saveMeanStrides);
+            save_inv_std_grid_desc_m_ = MakeSaveMeanInvStdDescriptor_M(Lengths_, saveInvStdStrides);
 
             isSweeponce_ =
                 x_grid_desc_m_k_.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
@@ -190,12 +236,16 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
         const GammaDataType* p_gamma_;
         const BetaDataType* p_beta_;
         YDataType* p_y_;
+        SaveMeanInvStdDataType* p_saveMean_;
+        SaveMeanInvStdDataType* p_saveInvStd_;
 
         std::vector<index_t> Lengths_;
         std::vector<index_t> xStrides_;
         std::vector<index_t> gammaStrides_;
         std::vector<index_t> betaStrides_;
         std::vector<index_t> yStrides_;
+        std::vector<index_t> saveMeanStrides_;
+        std::vector<index_t> saveInvStdStrides_;
 
         YElementwiseOperation y_elementwise_op_;
 
@@ -206,6 +256,8 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
         GridDesc_M_K gamma_grid_desc_m_k_;
         GridDesc_M_K beta_grid_desc_m_k_;
         GridDesc_M_K y_grid_desc_m_k_;
+        GridDesc_M save_mean_grid_desc_m_;
+        GridDesc_M save_inv_std_grid_desc_m_;
         bool isSweeponce_;
     };
 
@@ -217,9 +269,11 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                                                            GammaDataType,
                                                            BetaDataType,
                                                            YDataType,
+                                                           SaveMeanInvStdDataType,
                                                            ComputeDataType,
                                                            YElementwiseOperation,
                                                            GridDesc_M_K,
+                                                           GridDesc_M,
                                                            BlockSize,
                                                            MThreadClusterSize,
                                                            KThreadClusterSize,
@@ -245,12 +299,16 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                                                arg.gamma_grid_desc_m_k_,
                                                arg.beta_grid_desc_m_k_,
                                                arg.y_grid_desc_m_k_,
+                                               arg.save_mean_grid_desc_m_,
+                                               arg.save_inv_std_grid_desc_m_,
                                                arg.numBlockTileIteration_,
                                                arg.epsilon_,
                                                arg.p_x_,
                                                arg.p_gamma_,
                                                arg.p_beta_,
                                                arg.p_y_,
+                                               arg.p_saveMean_,
+                                               arg.p_saveInvStd_,
                                                arg.y_elementwise_op_);
 
             return (avg_time);
@@ -266,8 +324,6 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         const Argument* p_arg_ = dynamic_cast<const Argument*>(p_arg);
-
-        constexpr index_t NumInvariantDim = Rank - NumReduceDim;
 
         if constexpr(XYSrcVectorDim == 0)
         {
@@ -346,6 +402,8 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                         const std::vector<index_t> gammaStrides,
                         const std::vector<index_t> betaStrides,
                         const std::vector<index_t> yStrides,
+                        const std::vector<index_t> saveMeanStrides,
+                        const std::vector<index_t> saveInvStdStrides,
                         const std::vector<index_t> reduceDims,
                         double epsilon,
                         const void* p_x,
@@ -353,27 +411,30 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
                         const void* p_beta,
                         void* p_y,
                         void* p_saveMean,
-                        void* p_saveInvVar,
+                        void* p_saveInvStd,
                         YElementwiseOperation y_elementwise_op) override
     {
-        // TODO
-        // Optional cache of the intermediate results (mean and InvVariance) during the
-        // forward pass could speedup in the backward
-        ignore = p_saveMean;
-        ignore = p_saveInvVar;
+        if(lengths.size() != Rank || xStrides.size() != Rank || gammaStrides.size() != Rank ||
+           betaStrides.size() != Rank || yStrides.size() != Rank ||
+           saveMeanStrides.size() != NumInvariantDim || saveInvStdStrides.size() != NumInvariantDim)
+            throw std::runtime_error("dimension is incorrect");
 
         return std::make_unique<Argument>(lengths,
                                           xStrides,
                                           gammaStrides,
                                           betaStrides,
                                           yStrides,
+                                          saveMeanStrides,
+                                          saveInvStdStrides,
                                           reduceDims,
                                           y_elementwise_op,
                                           epsilon,
                                           static_cast<const XDataType*>(p_x),
                                           static_cast<const GammaDataType*>(p_gamma),
                                           static_cast<const BetaDataType*>(p_beta),
-                                          static_cast<YDataType*>(p_y));
+                                          static_cast<YDataType*>(p_y),
+                                          static_cast<SaveMeanInvStdDataType*>(p_saveMean),
+                                          static_cast<SaveMeanInvStdDataType*>(p_saveInvStd));
     };
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override

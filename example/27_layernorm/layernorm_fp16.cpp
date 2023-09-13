@@ -3,12 +3,15 @@
 
 #include "common.hpp"
 
-using XDataType       = ck::half_t;
-using GammaDataType   = ck::half_t;
-using BetaDataType    = ck::half_t;
-using YDataType       = ck::half_t;
-using ComputeDataType = float;
-using PassThrough     = ck::tensor_operation::element_wise::PassThrough;
+using XDataType              = ck::half_t;
+using GammaDataType          = ck::half_t;
+using BetaDataType           = ck::half_t;
+using YDataType              = ck::half_t;
+using SaveMeanInvStdDataType = float;
+using ComputeDataType        = float;
+using PassThrough            = ck::tensor_operation::element_wise::PassThrough;
+
+#define SAVE_MEAN_INV_STD
 
 constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
@@ -19,6 +22,7 @@ using DeviceInstance =
                                                           BetaDataType,
                                                           ComputeDataType,
                                                           YDataType,
+                                                          SaveMeanInvStdDataType,
                                                           PassThrough,
                                                           Rank,
                                                           NumReduceDim,

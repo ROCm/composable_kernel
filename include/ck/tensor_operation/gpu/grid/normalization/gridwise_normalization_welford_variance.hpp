@@ -16,9 +16,11 @@ template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
           typename YDataType,
+          typename SaveMeanInvStdDataType,
           typename ComputeDataType,
           typename YElementwiseOperation,
           typename GridDesc_M_K,
+          typename GridDesc_M,
           index_t BlockSize,
           index_t MThreadClusterSize,
           index_t KThreadClusterSize,
@@ -64,6 +66,10 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
     static constexpr auto thread_buffer_desc_m_k = make_naive_tensor_descriptor_packed(
         make_tuple(Number<MThreadSliceSize>{}, Number<XSrcVectorSize>{}));
 
+    using ThreadBufferLengths_M = Sequence<MThreadSliceSize>;
+    static constexpr auto thread_buffer_desc_m =
+        make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{}));
+
     using ThreadReduceSrcDesc_M_K = decltype(make_naive_tensor_descriptor_packed(
         make_tuple(Number<MThreadSliceSize>{}, Number<XSrcVectorSize>{})));
     using ThreadReduceDstDesc_M =
@@ -76,6 +82,8 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
                                               BlockSize,
                                               ThreadClusterLengths_M_K,
                                               ThreadClusterArrangeOrder>;
+
+    using PassThroughOp = tensor_operation::element_wise::PassThrough;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -114,17 +122,18 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
                                const GridDesc_M_K& gamma_grid_desc_m_k,
                                const GridDesc_M_K& beta_grid_desc_m_k,
                                const GridDesc_M_K& y_grid_desc_m_k,
+                               const GridDesc_M& save_mean_grid_desc_m,
+                               const GridDesc_M& save_inv_std_grid_desc_m,
                                index_t num_k_block_tile_iteration,
                                ComputeDataType epsilon,
                                const XDataType* const __restrict__ p_x_global,
                                const GammaDataType* const __restrict__ p_gamma_global,
                                const BetaDataType* const __restrict__ p_beta_global,
                                YDataType* const __restrict__ p_y_global,
+                               SaveMeanInvStdDataType* const __restrict__ p_save_mean_global,
+                               SaveMeanInvStdDataType* const __restrict__ p_save_inv_std_global,
                                const YElementwiseOperation y_elementwise_op)
     {
-        auto y_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_y_global, y_grid_desc_m_k.GetElementSpaceSize());
-
         auto x_thread_buf = generate_tuple(
             [&](auto) {
                 return StaticBuffer<AddressSpaceEnum::Vgpr,
@@ -150,6 +159,7 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
             mean_thread_buf;
         StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, MThreadSliceSize, true>
             var_thread_buf;
+        auto& inv_std_thread_buf = var_thread_buf;
 
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
@@ -226,6 +236,42 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
                                  thread_k_cluster_id * YDstVectorSize),
                 y_elementwise_op);
 
+        auto threadwise_mean_store =
+            ThreadwiseTensorSliceTransfer_v1r3<ComputeDataType,
+                                               SaveMeanInvStdDataType,
+                                               decltype(thread_buffer_desc_m),
+                                               GridDesc_M,
+                                               PassThroughOp,
+                                               ThreadBufferLengths_M,
+                                               Sequence<0>, // DimAccessOrder
+                                               0,           // SrcVectorDim
+                                               1,           // ScalarPerVector
+                                               InMemoryDataOperationEnum::Set,
+                                               1,
+                                               true>(
+                save_mean_grid_desc_m,
+                make_multi_index(block_global_id * M_BlockTileSize +
+                                 thread_m_cluster_id * MThreadSliceSize),
+                PassThroughOp{});
+
+        auto threadwise_inv_std_store =
+            ThreadwiseTensorSliceTransfer_v1r3<ComputeDataType,
+                                               SaveMeanInvStdDataType,
+                                               decltype(thread_buffer_desc_m),
+                                               GridDesc_M,
+                                               PassThroughOp,
+                                               ThreadBufferLengths_M,
+                                               Sequence<0>, // DimAccessOrder
+                                               0,           // SrcVectorDim
+                                               1,           // ScalarPerVector
+                                               InMemoryDataOperationEnum::Set,
+                                               1,
+                                               true>(
+                save_inv_std_grid_desc_m,
+                make_multi_index(block_global_id * M_BlockTileSize +
+                                 thread_m_cluster_id * MThreadSliceSize),
+                PassThroughOp{});
+
         constexpr auto thread_copy_fwd_step_m_k = make_multi_index(0, K_BlockTileStepSize);
         constexpr auto thread_copy_bwd_step_m_k =
             make_multi_index(0, SweepOnce ? 0 : -K_BlockTileSize);
@@ -238,6 +284,15 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
 
         const auto beta_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_beta_global, beta_grid_desc_m_k.GetElementSpaceSize());
+
+        auto y_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_y_global, y_grid_desc_m_k.GetElementSpaceSize());
+
+        auto save_mean_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_save_mean_global, save_mean_grid_desc_m.GetElementSpaceSize());
+
+        auto save_inv_std_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_save_inv_std_global, save_inv_std_grid_desc_m.GetElementSpaceSize());
 
         auto threadwise_welford       = ThreadwiseWelford();
         threadwise_welford.max_count_ = GetKPerThread(x_grid_desc_m_k, thread_k_cluster_id);
@@ -279,10 +334,32 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
 
                 int count = threadwise_welford.cur_count_;
                 BlockwiseWelford::Run(mean_thread_buf(I), var_thread_buf(I), count);
+                inv_std_thread_buf(I) = 1 / ck::math::sqrt(var_thread_buf(I) + epsilon);
             });
 
+            // save mean and inverse std for backward (optional)
+            if(thread_k_cluster_id == 0)
+            {
+                if(p_save_mean_global != nullptr)
+                {
+                    threadwise_mean_store.Run(thread_buffer_desc_m,
+                                              make_tuple(I0),
+                                              mean_thread_buf,
+                                              save_mean_grid_desc_m,
+                                              save_mean_global_val_buf);
+                }
+                if(p_save_inv_std_global != nullptr)
+                {
+                    threadwise_inv_std_store.Run(thread_buffer_desc_m,
+                                                 make_tuple(I0),
+                                                 inv_std_thread_buf,
+                                                 save_inv_std_grid_desc_m,
+                                                 save_inv_std_global_val_buf);
+                }
+            }
+
+            // normalization
             static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
-                auto divisor = 1 / ck::math::sqrt(var_thread_buf(iM) + epsilon);
                 static_for<0, ThreadBufferNumber, 1>{}([&](auto iK0) {
                     static_for<0, XSrcVectorSize, 1>{}([&](auto iK1) {
                         constexpr auto offset_m_k =
@@ -291,7 +368,7 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
                         // normalize
                         y_thread_buf(iK0)(Number<offset_m_k>{}) =
                             (x_thread_buf(iK0)(Number<offset_m_k>{}) - mean_thread_buf(iM)) *
-                            divisor;
+                            inv_std_thread_buf(iM);
 
                         // gamma & beta
                         y_thread_buf(iK0)(Number<offset_m_k>{}) =
@@ -360,7 +437,28 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
 
                 int count = threadwise_welford.cur_count_;
                 BlockwiseWelford::Run(mean_thread_buf(I), var_thread_buf(I), count);
+                inv_std_thread_buf(I) = 1 / ck::math::sqrt(var_thread_buf(I) + epsilon);
             });
+
+            if(thread_k_cluster_id == 0)
+            {
+                if(p_save_mean_global != nullptr)
+                {
+                    threadwise_mean_store.Run(thread_buffer_desc_m,
+                                              make_tuple(I0),
+                                              mean_thread_buf,
+                                              save_mean_grid_desc_m,
+                                              save_mean_global_val_buf);
+                }
+                if(p_save_inv_std_global != nullptr)
+                {
+                    threadwise_inv_std_store.Run(thread_buffer_desc_m,
+                                                 make_tuple(I0),
+                                                 inv_std_thread_buf,
+                                                 save_inv_std_grid_desc_m,
+                                                 save_inv_std_global_val_buf);
+                }
+            }
 
             auto thread_copy_tail_m_k =
                 (num_k_block_tile_iteration - 1) * ThreadBufferNumber * thread_copy_fwd_step_m_k;
@@ -393,7 +491,6 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
                 });
 
                 static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
-                    auto divisor = 1 / ck::math::sqrt(var_thread_buf(iM) + epsilon);
                     static_for<0, ThreadBufferNumber, 1>{}([&](auto iK0) {
                         static_for<0, XSrcVectorSize, 1>{}([&](auto iK1) {
                             constexpr auto offset_m_k =
@@ -402,7 +499,7 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
                             // normalize
                             y_thread_buf(iK0)(Number<offset_m_k>{}) =
                                 (x_thread_buf(iK0)(Number<offset_m_k>{}) - mean_thread_buf(iM)) *
-                                divisor;
+                                inv_std_thread_buf(iM);
 
                             // gamma
                             y_thread_buf(iK0)(Number<offset_m_k>{}) =

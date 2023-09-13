@@ -20,8 +20,9 @@ template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
           typename YDataType,
-          typename AccDataType,
-          typename AccElementwiseOperation,
+          typename SaveMeanInvStdDataType,
+          typename ComputeDataType,
+          typename YElementwiseOperation,
           index_t Rank,
           index_t NumReduceDim>
 struct ReferenceLayernorm : public device::BaseOperator
@@ -36,15 +37,19 @@ struct ReferenceLayernorm : public device::BaseOperator
                  const Tensor<GammaDataType>& gamma_n,
                  const Tensor<BetaDataType>& beta_n,
                  Tensor<YDataType>& y_m_n,
-                 AccElementwiseOperation acc_elementwise_op,
+                 Tensor<SaveMeanInvStdDataType>& save_mean_m,
+                 Tensor<SaveMeanInvStdDataType>& save_inv_std_m,
+                 YElementwiseOperation y_elementwise_op,
                  const std::vector<index_t> lengths,
                  const std::vector<index_t> reduceDims,
-                 AccDataType epsilon)
+                 ComputeDataType epsilon)
             : x_m_n_(x_m_n),
               gamma_n_(gamma_n),
               beta_n_(beta_n),
               y_m_n_(y_m_n),
-              acc_elementwise_op_(acc_elementwise_op),
+              save_mean_m_(save_mean_m),
+              save_inv_std_m_(save_inv_std_m),
+              y_elementwise_op_(y_elementwise_op),
               lengths_(lengths),
               reduceDims_(reduceDims),
               epsilon_(epsilon)
@@ -55,10 +60,12 @@ struct ReferenceLayernorm : public device::BaseOperator
         const Tensor<XDataType> gamma_n_;
         const Tensor<XDataType> beta_n_;
         Tensor<YDataType>& y_m_n_;
-        AccElementwiseOperation acc_elementwise_op_;
+        Tensor<SaveMeanInvStdDataType>& save_mean_m_;
+        Tensor<SaveMeanInvStdDataType>& save_inv_std_m_;
+        YElementwiseOperation y_elementwise_op_;
         std::vector<index_t> lengths_;
         std::vector<index_t> reduceDims_;
-        AccDataType epsilon_;
+        ComputeDataType epsilon_;
     };
 
     // Invoker
@@ -69,8 +76,8 @@ struct ReferenceLayernorm : public device::BaseOperator
             int M = arg.lengths_[0];
             int N = arg.lengths_[1];
 
-            Tensor<AccDataType> mean({M});
-            Tensor<AccDataType> var({M});
+            Tensor<ComputeDataType> mean({M});
+            Tensor<ComputeDataType> var({M});
 
             for(int m = 0; m < M; ++m)
             {
@@ -79,7 +86,7 @@ struct ReferenceLayernorm : public device::BaseOperator
 
                 for(int n = 0; n < N; ++n)
                 {
-                    auto x_val = ck::type_convert<AccDataType>(arg.x_m_n_(m, n));
+                    auto x_val = ck::type_convert<ComputeDataType>(arg.x_m_n_(m, n));
                     mean(m) += x_val;
                     var(m) += x_val * x_val;
                 }
@@ -90,17 +97,19 @@ struct ReferenceLayernorm : public device::BaseOperator
 
             for(int m = 0; m < M; ++m)
             {
-                AccDataType divisor =
-                    static_cast<AccDataType>(1) / ck::math::sqrt(var(m) + arg.epsilon_);
+                ComputeDataType divisor =
+                    static_cast<ComputeDataType>(1) / ck::math::sqrt(var(m) + arg.epsilon_);
 
                 for(int n = 0; n < N; ++n)
                 {
-                    auto x_val = ck::type_convert<AccDataType>(arg.x_m_n_(m, n));
+                    auto x_val = ck::type_convert<ComputeDataType>(arg.x_m_n_(m, n));
                     auto y_val = (x_val - mean(m)) * divisor;
                     y_val      = (y_val * arg.gamma_n_(n)) + arg.beta_n_(n);
-                    arg.acc_elementwise_op_(y_val, y_val);
+                    arg.y_elementwise_op_(y_val, y_val);
                     arg.y_m_n_(m, n) = ck::type_convert<YDataType>(y_val);
                 }
+                arg.save_mean_m_(m)    = ck::type_convert<SaveMeanInvStdDataType>(mean(m));
+                arg.save_inv_std_m_(m) = ck::type_convert<SaveMeanInvStdDataType>(divisor);
             }
 
             return 0;
@@ -140,13 +149,23 @@ struct ReferenceLayernorm : public device::BaseOperator
                              const Tensor<GammaDataType>& gamma_n,
                              const Tensor<BetaDataType>& beta_n,
                              Tensor<YDataType>& y_m_n,
-                             AccElementwiseOperation acc_elementwise_op,
+                             Tensor<SaveMeanInvStdDataType>& save_mean_m,
+                             Tensor<SaveMeanInvStdDataType>& save_inv_std_m,
+                             YElementwiseOperation y_elementwise_op,
                              const std::vector<index_t> lengths,
                              const std::vector<index_t> reduceDims,
-                             AccDataType epsilon)
+                             ComputeDataType epsilon)
     {
-        return Argument{
-            x_m_n, gamma_n, beta_n, y_m_n, acc_elementwise_op, lengths, reduceDims, epsilon};
+        return Argument{x_m_n,
+                        gamma_n,
+                        beta_n,
+                        y_m_n,
+                        save_mean_m,
+                        save_inv_std_m,
+                        y_elementwise_op,
+                        lengths,
+                        reduceDims,
+                        epsilon};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
