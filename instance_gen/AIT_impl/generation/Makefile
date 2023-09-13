@@ -1,0 +1,8 @@
+gemm: xx.o
+
+CFLAGS=-I ~/rocm/composable_kernel/include -I /opt/rocm-5.1.1/hip/include -I ~/rocm/composable_kernel/include/ -I ~/rocm/composable_kernel/include/ck/ -I ~/rocm/composable_kernel/include/ck/problem_transform/ -I ~/rocm/composable_kernel/include/ck/tensor/ -I ~/rocm/composable_kernel/include/ck/tensor_description/ -I ~/rocm/composable_kernel/include/ck/tensor_operation/ -I ~/rocm/composable_kernel/include/ck/tensor_operation/gpu/block/ -I ~/rocm/composable_kernel/include/ck/tensor_operation/gpu/device/ -I ~/rocm/composable_kernel/include/ck/tensor_operation/gpu/device/impl/ -I ~/rocm/composable_kernel/include/ck/tensor_operation/gpu/element/ -I ~/rocm/composable_kernel/include/ck/tensor_operation/gpu/grid/ -I ~/rocm/composable_kernel/include/ck/tensor_operation/gpu/thread/ -I ~/rocm/composable_kernel/include/ck/tensor_operation/gpu/warp/ -I ~/rocm/composable_kernel/include/ck/host_utility -I /external/include/half/ -I ~/rocm/composable_kernel/library/include/ck/library/host/ -I ~/rocm/composable_kernel/library/include/ck/library/host_tensor/ -I ~/rocm/composable_kernel/library/include/ck/library/obselete_driver_offline/ -I ~/rocm/composable_kernel/library/include/ck/library/reference_tensor_operation/cpu/ -I ~/rocm/composable_kernel/library/include/ck/library/reference_tensor_operation/gpu/ -I ~/rocm/composable_kernel/library/include/ck/library/tensor_operation_instance/ -I ~/rocm/composable_kernel/library/include/ck/library/tensor_operation_instance/gpu/" + "reduce/ -I ~/rocm/composable_kernel/library/include/ck/library/tensor_op/ -I ~/rocm/composable_kernel/library/include/ck/library/utility/ -I ~/rocm/composable_kernel/profiler/include/
+
+CXXFLAGS = -std=c++17
+
+xx.o:
+	hipcc -c $(CFLAGS) $(CXXFLAGS) xx.cpp

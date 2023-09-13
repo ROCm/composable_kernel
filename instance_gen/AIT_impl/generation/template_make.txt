@@ -1,0 +1,16 @@
+CC = {{cc}}
+CFLAGS = {{CFLAGS}}
+fPIC_flag = {{fPIC}}
+obj_files = {{obj_files}}
+%.obj : %.{{cpp}}
+    {{cfile_cmd}}
+%.obj : %.bin
+    {{bfile_cmd}}
+.PHONY: all clean clean_constants
+all: {{target}}
+{{target}}: $(obj_files)
+    $(CC) -shared $(fPIC_flag) $(CFLAGS) -o $@ $(obj_files)
+clean:
+    rm -f *.obj {{target}} test.so
+clean_constants:
+    rm -f constants.bin
