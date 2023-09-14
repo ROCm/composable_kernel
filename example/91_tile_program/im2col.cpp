@@ -9,10 +9,9 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_description/cluster_descriptor.hpp"
 #include "ck/tensor/tensor_view.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
-#include "tile_program.hpp"
 #include "ck/tile_program/tile/tile_distribution.hpp"
 #include "ck/tile_program/tile/tile_window.hpp"
 #include "ck/tile_program/tile/load_tile.hpp"
@@ -105,10 +104,8 @@ struct Im2Col
                                            Sequence<0, 1>>{});
     }
 
-    template <typename Server>
     __host__ __device__ void
-    operator()(Server& ps,
-               const std::array<ck::index_t, NDimSpatial + 2>& a_n_wis_c_lengths,
+    operator()(const std::array<ck::index_t, NDimSpatial + 2>& a_n_wis_c_lengths,
                const std::array<ck::index_t, NDimSpatial + 2>& /* a_n_wis_c_strides */,
                const std::array<ck::index_t, NDimSpatial + 2>& b_k_xs_c_lengths,
                const std::array<ck::index_t, NDimSpatial + 2>& /* b_k_xs_c_strides */,
@@ -118,10 +115,8 @@ struct Im2Col
                const std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
                const std::array<ck::index_t, NDimSpatial>& input_left_pads,
                const std::array<ck::index_t, NDimSpatial>& input_right_pads,
-               //
                const std::array<ck::index_t, 2> a_gemmm_gemmk_lengths,
                const std::array<ck::index_t, 2> a_gemmm_gemmk_strides,
-               //
                const T* p_a_img,
                T* p_a_mtx)
     {
@@ -176,8 +171,8 @@ struct Im2Col
 
         const auto src_gemmm_gemmk =
             transform_tensor_view(a_n_y_ho_x_wo_c,
-                                  make_tuple(ps(make_merge_transform(make_tuple(N, Ho, Wo))),
-                                             ps(make_merge_transform(make_tuple(Y, X, C)))),
+                                  make_tuple(make_merge_transform(make_tuple(N, Ho, Wo)),
+                                             make_merge_transform(make_tuple(Y, X, C))),
                                   make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}),
                                   make_tuple(Sequence<0>{}, Sequence<1>{}));
 
@@ -191,15 +186,15 @@ struct Im2Col
         const auto numGemmM = a_gemmm_gemmk_lengths[0];
         const auto numGemmK = a_gemmm_gemmk_lengths[1];
 
-        const auto id_block = ps.get_block_id();
+        const auto id_block = get_block_id();
 
-        const auto num_tile_m = ps.read_first_lane(numGemmM / kMPerBlock);
+        const auto num_tile_m = __builtin_amdgcn_readfirstlane(numGemmM / kMPerBlock);
 
-        const auto block2tile = ps(make_cluster_descriptor(make_tuple(num_tile_m)));
+        const auto block2tile = make_cluster_descriptor(make_tuple(num_tile_m));
 
         const auto i_gemmm_gemmk = block2tile.CalculateBottomIndex(make_multi_index(id_block));
 
-        const auto iGemmM = ps.read_first_lane(i_gemmm_gemmk[0]) * kMPerBlock;
+        const auto iGemmM = __builtin_amdgcn_readfirstlane(i_gemmm_gemmk[0]) * kMPerBlock;
 
         // src window
         auto src_block_window =
@@ -327,26 +322,26 @@ int main()
 
     ck::index_t kGridSize = (N * Ho * Wo) / kGemmMPerBlock;
 
-    float ave_time = launch(ProgramServer{},
-                            Im2Col<2, DataType, kBlockSize, kGemmMPerBlock, kGemmKPerBlock>{},
-                            kGridSize,
-                            kBlockSize,
-                            in_lengths,
-                            in_strides,
-                            wei_lengths,
-                            wei_strides,
-                            out_lengths,
-                            out_strides,
-                            filter_strides,
-                            filter_dilations,
-                            input_left_pads,
-                            input_right_pads,
-                            //
-                            in_mtx_lengths,
-                            in_mtx_strides,
-                            //
-                            static_cast<DataType*>(in_buf.GetDeviceBuffer()),
-                            static_cast<DataType*>(in_mtx_buf.GetDeviceBuffer()));
+    float ave_time =
+        launch_kernel(StreamConfig{nullptr, true},
+                      Im2Col<2, DataType, kBlockSize, kGemmMPerBlock, kGemmKPerBlock>{},
+                      kGridSize,
+                      kBlockSize,
+                      0,
+                      in_lengths,
+                      in_strides,
+                      wei_lengths,
+                      wei_strides,
+                      out_lengths,
+                      out_strides,
+                      filter_strides,
+                      filter_dilations,
+                      input_left_pads,
+                      input_right_pads,
+                      in_mtx_lengths,
+                      in_mtx_strides,
+                      static_cast<DataType*>(in_buf.GetDeviceBuffer()),
+                      static_cast<DataType*>(in_mtx_buf.GetDeviceBuffer()));
 
     std::size_t num_btype = sizeof(DataType) * in_host.GetElementSize() +
                             sizeof(DataType) * in_mtx_host_ref.GetElementSize();

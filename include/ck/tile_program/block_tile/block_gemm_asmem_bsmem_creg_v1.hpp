@@ -331,55 +331,6 @@ struct BlockGemmASmemBSmemCRegV1
 
         return c_block_tensor;
     }
-
-    // FIXME: remove: dummy host function for tile programming
-    template <typename CBlockTensor, typename ABlockWindowTmp, typename BBlockWindowTmp>
-    __host__ void operator()(CBlockTensor&, const ABlockWindowTmp&, const BBlockWindowTmp&) const
-    {
-    }
-
-    // FIXME: remove: dummy host function for tile programming
-    template <typename ABlockWindowTmp, typename BBlockWindowTmp>
-    __host__ auto operator()(const ABlockWindowTmp&, const BBlockWindowTmp&) const
-    {
-        static_assert(is_same_v<ADataType, typename ABlockWindowTmp::DataType> &&
-                          is_same_v<BDataType, typename BBlockWindowTmp::DataType>,
-                      "wrong!");
-
-        constexpr index_t MPerBlock = ABlockWindowTmp{}.GetWindowLengths()[Number<0>{}];
-        constexpr index_t NPerBlock = BBlockWindowTmp{}.GetWindowLengths()[Number<0>{}];
-
-        static_assert(MPerBlock == BlockGemmShape::kM && NPerBlock == BlockGemmShape::kN, "wrong!");
-
-        constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
-
-        using WG = remove_cvref_t<decltype(config.template At<0>())>;
-
-        constexpr index_t MWarp = config.template At<1>();
-        constexpr index_t NWarp = config.template At<2>();
-
-        constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
-        constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WG::kN);
-
-        constexpr auto c_block_outer_dstr_encoding = StaticTileDistributionEncoding<
-            Sequence<>,
-            Tuple<Sequence<MIterPerWarp, MWarp>, Sequence<NIterPerWarp, NWarp>>,
-            Tuple<Sequence<1, 2>>,
-            Tuple<Sequence<1, 1>>,
-            Sequence<1, 2>,
-            Sequence<0, 0>>{};
-
-        constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
-
-        constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-
-        static_assert(is_same_v<CDataType, typename WG::CDataType>, "wrong!");
-
-        auto c_block_tensor = make_static_distributed_tensor<CDataType>(c_block_dstr);
-
-        return c_block_tensor;
-    }
 };
 
 } // namespace block

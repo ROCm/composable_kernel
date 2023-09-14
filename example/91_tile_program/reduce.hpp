@@ -8,7 +8,6 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 
-#include "tile_program.hpp"
 #include "ck/tile_program/tile/tile_distribution.hpp"
 #include "ck/tile_program/tile/tile_window.hpp"
 #include "ck/tile_program/tile/load_tile.hpp"
@@ -25,7 +24,7 @@ template <typename ADataType,
 struct Reduce
 {
 #if 0
-    __host__ __device__ static constexpr auto MakeABlockTileDistribution()
+     __device__ static constexpr auto MakeABlockTileDistribution()
     {
         using namespace ck;
         using namespace ck::tile_program;
@@ -40,7 +39,7 @@ struct Reduce
                                            Sequence<0, 0, 2, 4>>{});
     }
 #elif 0
-    __host__ __device__ static constexpr auto MakeABlockTileDistribution()
+    __device__ static constexpr auto MakeABlockTileDistribution()
     {
         using namespace ck;
         using namespace ck::tile_program;
@@ -55,7 +54,7 @@ struct Reduce
                                            Sequence<0, 0, 2, 4>>{});
     }
 #elif 1
-    __host__ __device__ static constexpr auto MakeABlockTileDistribution()
+    __device__ static constexpr auto MakeABlockTileDistribution()
     {
         using namespace ck;
         using namespace ck::tile_program;
@@ -71,8 +70,8 @@ struct Reduce
     }
 #endif
 
-    __host__ __device__ void operator()(
-        ProgramServer& ps, const ADataType* p_a, BDataType* p_b, ck::index_t M, ck::index_t N) const
+    __device__ void
+    operator()(const ADataType* p_a, BDataType* p_b, ck::index_t M, ck::index_t N) const
     {
         using namespace ck;
         using namespace ck::tile_program;
@@ -81,7 +80,7 @@ struct Reduce
         const auto a_m_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
             p_a, make_tuple(M, N), make_tuple(N, 1), Number<32>{}, Number<1>{});
 
-        const auto iM = ps.get_block_id() * kMPerBlock;
+        const auto iM = get_block_id() * kMPerBlock;
 
         // A window
         auto a_block_window =

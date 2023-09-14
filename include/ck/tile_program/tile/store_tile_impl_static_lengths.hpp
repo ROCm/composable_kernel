@@ -15,16 +15,6 @@
 namespace ck {
 namespace tile_program {
 
-// FIXME: host dummy function for tile program
-template <typename BottomTensorView_,
-          typename WindowLengths_,
-          typename TileDistribution_,
-          typename DataType_>
-__host__ void store_tile(TileWindowWithStaticLengths<BottomTensorView_, WindowLengths_>&,
-                         const StaticDistributedTensor<DataType_, TileDistribution_>&)
-{
-}
-
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,

@@ -27,15 +27,7 @@ struct TileWindowWithStaticLengths
 
     using BottomTensorIndex = Array<index_t, NDimBottomTensor>;
 
-    __host__ __device__ constexpr TileWindowWithStaticLengths() = default;
-
-    // FIXME: host dummy constructor for tile program
-    __host__ constexpr TileWindowWithStaticLengths(const BottomTensorView& bottom_tensor_view,
-                                                   const WindowLengths&,
-                                                   const BottomTensorIndex&)
-        : bottom_tensor_view_{bottom_tensor_view}, window_lengths_{}, window_origin_{}
-    {
-    }
+    __device__ constexpr TileWindowWithStaticLengths() = default;
 
     __device__ constexpr TileWindowWithStaticLengths(const BottomTensorView& bottom_tensor_view,
                                                      const WindowLengths& window_lengths,
@@ -46,13 +38,13 @@ struct TileWindowWithStaticLengths
     {
     }
 
-    __host__ __device__ static constexpr index_t GetNumOfDimension() { return NDimBottomTensor; }
+    __device__ static constexpr index_t GetNumOfDimension() { return NDimBottomTensor; }
 
-    __host__ __device__ constexpr auto GetWindowLengths() const { return window_lengths_; }
+    __device__ constexpr auto GetWindowLengths() const { return window_lengths_; }
 
-    __host__ __device__ constexpr auto GetBottomTensorView() const { return bottom_tensor_view_; }
+    __device__ constexpr auto GetBottomTensorView() const { return bottom_tensor_view_; }
 
-    __host__ __device__ constexpr auto GetWindowOrigin() const { return window_origin_; }
+    __device__ constexpr auto GetWindowOrigin() const { return window_origin_; }
 
     // this is the bottom tensor view
     // [x0', x1', ...] ==> [offset]
@@ -66,7 +58,7 @@ struct TileWindowWithStaticLengths
 };
 
 template <typename TensorView_, typename WindowLengths_>
-__host__ __device__ constexpr auto
+__device__ constexpr auto
 make_tile_window(const TensorView_& tensor_view,
                  const WindowLengths_& window_lengths,
                  const MultiIndex<TensorView_::GetNumOfDimension()>& origin)
@@ -76,15 +68,6 @@ make_tile_window(const TensorView_& tensor_view,
 
     return TileWindowWithStaticLengths<remove_cvref_t<TensorView_>, remove_cvref_t<WindowLengths_>>{
         tensor_view, window_lengths, origin};
-}
-
-// FIXME: dummy host function for tile program
-template <typename TensorView_, typename WindowLengths_>
-__host__ void move_tile_window(
-    TileWindowWithStaticLengths<TensorView_, WindowLengths_>&,
-    const MultiIndex<
-        TileWindowWithStaticLengths<TensorView_, WindowLengths_>::GetNumOfDimension()>&)
-{
 }
 
 template <typename TensorView_, typename WindowLengths_>

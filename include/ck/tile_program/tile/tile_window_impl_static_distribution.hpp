@@ -45,20 +45,7 @@ struct TileWindowWithStaticDistribution
     using BottomTensorCoord =
         decltype(make_tensor_coordinate(BottomTensorDesc{}, BottomTensorIndex{}));
 
-    __host__ __device__ constexpr TileWindowWithStaticDistribution() = default;
-
-    // FIXME: host dummy constructor for tile program
-    __host__ constexpr TileWindowWithStaticDistribution(const BottomTensorView& bottom_tensor_view,
-                                                        const WindowLengths&,
-                                                        const BottomTensorIndex&,
-                                                        const TileDstr&)
-        : bottom_tensor_view_{bottom_tensor_view},
-          window_lengths_{},
-          bottom_tensor_thread_coord_{},
-          tile_dstr_{},
-          window_adaptor_thread_coord_{}
-    {
-    }
+    __device__ constexpr TileWindowWithStaticDistribution() = default;
 
     __device__ constexpr TileWindowWithStaticDistribution(
         const BottomTensorView& bottom_tensor_view,
@@ -86,22 +73,19 @@ struct TileWindowWithStaticDistribution
             bottom_tensor_view_.GetTensorDescriptor(), bottom_tensor_thread_origin_idx);
     }
 
-    __host__ __device__ static constexpr index_t GetNumOfDimension() { return NDimBottomTensor; }
+    __device__ static constexpr index_t GetNumOfDimension() { return NDimBottomTensor; }
 
-    __host__ __device__ static constexpr bool HasStaticTileDistribution()
-    {
-        return TileDstr::IsStatic();
-    }
+    __device__ static constexpr bool HasStaticTileDistribution() { return TileDstr::IsStatic(); }
 
-    __host__ __device__ constexpr auto GetWindowLengths() const { return window_lengths_; }
+    __device__ constexpr auto GetWindowLengths() const { return window_lengths_; }
 
-    __host__ __device__ constexpr auto GetTileDistribution() const { return tile_dstr_; }
+    __device__ constexpr auto GetTileDistribution() const { return tile_dstr_; }
 
-    __host__ __device__ constexpr auto GetBottomTensorView() const { return bottom_tensor_view_; }
+    __device__ constexpr auto GetBottomTensorView() const { return bottom_tensor_view_; }
 
-    __host__ __device__ constexpr auto GetWindowOrigin() const { return window_origin_; }
+    __device__ constexpr auto GetWindowOrigin() const { return window_origin_; }
 
-    __host__ __device__ constexpr auto GetBottomTensorThreadCoordinate() const
+    __device__ constexpr auto GetBottomTensorThreadCoordinate() const
     {
         return bottom_tensor_thread_coord_;
     }
@@ -141,7 +125,7 @@ struct TileWindowWithStaticDistribution
     }
 
     // return vector dimension among [y0, y1, ...]
-    __host__ __device__ static constexpr auto GetWindowAdaptorYsSafeVectorLengthStrides()
+    __device__ static constexpr auto GetWindowAdaptorYsSafeVectorLengthStrides()
     {
         // bottom tensor top dimension vector lengths and strides
         const auto [bottom_tensor_top_dim_vector_lengths, bottom_tensor_top_dim_vector_strides] =
@@ -201,7 +185,7 @@ struct TileWindowWithStaticDistribution
 
 // TODO: use strategy
 template <typename TensorView_, typename WindowLengths_, typename StaticTileDistribution_>
-__host__ __device__ constexpr auto
+__device__ constexpr auto
 make_tile_window(const TensorView_& tensor_view,
                  const WindowLengths_& window_lengths,
                  const MultiIndex<TensorView_::GetNumOfDimension()>& origin,
@@ -211,16 +195,6 @@ make_tile_window(const TensorView_& tensor_view,
                                             remove_cvref_t<WindowLengths_>,
                                             remove_cvref_t<StaticTileDistribution_>>{
         tensor_view, window_lengths, origin, tile_distribution};
-}
-
-// FIXME: dummy host function for tile program
-template <typename TensorView_, typename WindowLengths_, typename StaticTileDistribution_>
-__host__ void move_tile_window(
-    TileWindowWithStaticDistribution<TensorView_, WindowLengths_, StaticTileDistribution_>&,
-    const MultiIndex<
-        TileWindowWithStaticDistribution<TensorView_, WindowLengths_, StaticTileDistribution_>::
-            GetNumOfDimension()>&)
-{
 }
 
 template <typename TensorView_, typename WindowLengths_, typename StaticTileDistribution_>

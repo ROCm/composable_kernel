@@ -4,9 +4,8 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_description/cluster_descriptor.hpp"
 #include "ck/tensor/tensor_view.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -73,14 +72,10 @@ int main(int argc, char* argv[])
     ck::utils::FillUniformDistributionIntegerValue<A0DataType>{-3.f, 3.f}(a0_host);
     ck::utils::FillUniformDistributionIntegerValue<B0DataType>{-3.f, 3.f}(b0_host);
     ck::utils::FillUniformDistributionIntegerValue<B1DataType>{-3.f, 3.f}(b1_host);
-#elif 0
+#else
     ck::utils::FillUniformDistribution<A0DataType>{-3.f, 3.f}(a0_host);
     ck::utils::FillUniformDistribution<B0DataType>{-3.f, 3.f}(b0_host);
     ck::utils::FillUniformDistribution<B1DataType>{-3.f, 3.f}(b1_host);
-#else
-    ck::utils::FillConstant<A0DataType>{1.0f}(a0_host);
-    ck::utils::FillConstant<A0DataType>{1.0f}(b0_host);
-    ck::utils::FillConstant<A0DataType>{1.0f}(b1_host);
 #endif
 
     // reference
@@ -107,33 +102,35 @@ int main(int argc, char* argv[])
 
     std::cout << "grid size " << kGridSize << std::endl;
 
-    float ave_time = launch(ProgramServer{},
-                            GemmSoftmaxGemm<A0DataType,
-                                            B0DataType,
-                                            Acc0DataType,
-                                            C0DataType,
-                                            B1DataType,
-                                            Acc1DataType,
-                                            C1DataType,
-                                            kBlockSize,
-                                            kM0PerBlock,
-                                            kN0PerBlock,
-                                            kK0PerBlock,
-                                            kN1PerBlock>{},
-                            kGridSize,
-                            kBlockSize,
-                            static_cast<A0DataType*>(a0_buf.GetDeviceBuffer()),
-                            static_cast<B0DataType*>(b0_buf.GetDeviceBuffer()),
-                            static_cast<B1DataType*>(b1_buf.GetDeviceBuffer()),
-                            static_cast<C1DataType*>(c1_buf.GetDeviceBuffer()),
-                            M0,
-                            N0,
-                            K0,
-                            N1,
-                            K0,  // Lda0
-                            K0,  // Ldb0
-                            N0,  // Ldb1
-                            N1); // Ldc1
+    float ave_time =
+        launch_kernel<kBlockSize, 2>(StreamConfig{nullptr, true},
+                                     GemmSoftmaxGemm<A0DataType,
+                                                     B0DataType,
+                                                     Acc0DataType,
+                                                     C0DataType,
+                                                     B1DataType,
+                                                     Acc1DataType,
+                                                     C1DataType,
+                                                     kBlockSize,
+                                                     kM0PerBlock,
+                                                     kN0PerBlock,
+                                                     kK0PerBlock,
+                                                     kN1PerBlock>{},
+                                     kGridSize,
+                                     kBlockSize,
+                                     0,
+                                     static_cast<A0DataType*>(a0_buf.GetDeviceBuffer()),
+                                     static_cast<B0DataType*>(b0_buf.GetDeviceBuffer()),
+                                     static_cast<B1DataType*>(b1_buf.GetDeviceBuffer()),
+                                     static_cast<C1DataType*>(c1_buf.GetDeviceBuffer()),
+                                     M0,
+                                     N0,
+                                     K0,
+                                     N1,
+                                     K0,  // Lda0
+                                     K0,  // Ldb0
+                                     N0,  // Ldb1
+                                     N1); // Ldc1
 
     c1_buf.FromDevice(c1_host_dev.mData.data());
 

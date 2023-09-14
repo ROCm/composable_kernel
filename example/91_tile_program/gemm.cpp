@@ -4,9 +4,8 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_description/cluster_descriptor.hpp"
 #include "ck/tensor/tensor_view.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -115,22 +114,23 @@ int main(int argc, char* argv[])
                                   kGemmNPerBlock,
                                   kGemmKPerBlock>{};
 
-    float ave_time = launch(ProgramServer{},
-                            gemm_kernel,
-                            kGridSize,
-                            kBlockSize,
-                            static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
-                            static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
-                            static_cast<CDataType*>(c_buf.GetDeviceBuffer()),
-                            M,
-                            N,
-                            K,
-                            K,
-                            K,
-                            N,
-                            AElementFunction{},
-                            BElementFunction{},
-                            CElementFunction{});
+    float ave_time = launch_kernel<kBlockSize, 2>(StreamConfig{nullptr, true},
+                                                  gemm_kernel,
+                                                  kGridSize,
+                                                  kBlockSize,
+                                                  0,
+                                                  static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
+                                                  static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
+                                                  static_cast<CDataType*>(c_buf.GetDeviceBuffer()),
+                                                  M,
+                                                  N,
+                                                  K,
+                                                  K,
+                                                  K,
+                                                  N,
+                                                  AElementFunction{},
+                                                  BElementFunction{},
+                                                  CElementFunction{});
 
     c_buf.FromDevice(c_host_dev.mData.data());
 

@@ -4,9 +4,8 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_description/cluster_descriptor.hpp"
 #include "ck/tensor/tensor_view.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -64,14 +63,15 @@ int main(int argc, char* argv[])
     const auto kernel =
         Softmax<ADataType, AccDataType, BDataType, kBlockSize, kMPerBlock, kNPerBlock>{};
 
-    float ave_time = launch(ProgramServer{},
-                            kernel,
-                            kGridSize,
-                            kBlockSize,
-                            static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
-                            static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
-                            M,
-                            N);
+    float ave_time = launch_kernel(StreamConfig{nullptr, true},
+                                   kernel,
+                                   kGridSize,
+                                   kBlockSize,
+                                   0,
+                                   static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
+                                   static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
+                                   M,
+                                   N);
 
     b_buf.FromDevice(b_host_dev.mData.data());
 
@@ -80,9 +80,6 @@ int main(int argc, char* argv[])
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
-
-    LogRangeAsType<float>(std::cout << "dev: ", b_host_dev.mData, ", ") << std::endl;
-    LogRangeAsType<float>(std::cout << "ref: ", b_host_ref.mData, ", ") << std::endl;
 
     return !ck::utils::check_err(b_host_dev, b_host_ref);
 }

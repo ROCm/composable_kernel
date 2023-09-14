@@ -16,8 +16,8 @@ namespace tile_program {
 
 // TODO: support tensors with different distribution
 template <typename InOutElementFunc, typename... InOutDstrTensors>
-__host__ __device__ void tile_elementwise_inout(const InOutElementFunc& inout_element_func,
-                                                InOutDstrTensors&... inout_dstr_tensors)
+__device__ void tile_elementwise_inout(const InOutElementFunc& inout_element_func,
+                                       InOutDstrTensors&... inout_dstr_tensors)
 {
     // TODO: make sure all distributed tensors have same lengths and distribution
     // static_assert(xxx);
@@ -30,8 +30,8 @@ __host__ __device__ void tile_elementwise_inout(const InOutElementFunc& inout_el
 }
 
 template <typename InElementFunc, typename... InDstrTensors>
-__host__ __device__ auto tile_elementwise_in(const InElementFunc& in_element_func,
-                                             const InDstrTensors&... in_dstr_tensors)
+__device__ auto tile_elementwise_in(const InElementFunc& in_element_func,
+                                    const InDstrTensors&... in_dstr_tensors)
 {
     using OutDataType = decltype(in_element_func(typename InDstrTensors::DataType{}...));
 

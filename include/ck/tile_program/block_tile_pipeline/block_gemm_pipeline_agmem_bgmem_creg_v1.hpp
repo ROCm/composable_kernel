@@ -159,12 +159,12 @@ struct BlockGemmPipelineAGmemBGmemCRegV1
             a_block_tile = load_tile(a_copy_dram_window);
             b_block_tile = load_tile(b_copy_dram_window);
 
-            ProgramServer::block_sync_lds();
+            block_sync_lds();
 
             // GEMM i
             block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
 
-            ProgramServer::block_sync_lds();
+            block_sync_lds();
 
             // move to i + 2
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
@@ -184,7 +184,7 @@ struct BlockGemmPipelineAGmemBGmemCRegV1
 
         // tail
         {
-            ProgramServer::block_sync_lds();
+            block_sync_lds();
 
             // GEMM num_loop - 1
             block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
@@ -194,10 +194,10 @@ struct BlockGemmPipelineAGmemBGmemCRegV1
     }
 
     template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
-    __host__ __device__ auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                                        const BDramBlockWindowTmp& b_dram_block_window_tmp,
-                                        index_t num_loop,
-                                        void* p_smem) const
+    __device__ auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                               const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                               index_t num_loop,
+                               void* p_smem) const
     {
         return operator()(
             a_dram_block_window_tmp,

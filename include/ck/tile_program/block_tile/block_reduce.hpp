@@ -210,52 +210,6 @@ __device__ auto block_tile_reduce(const InDistributedTensor_& in_tensor,
     return acc_tensor;
 }
 
-// FIXME: dummy host function for tile program
-template <typename AccDistributedTensor_,
-          typename InDistributedTensor_,
-          index_t... InReduceDims,
-          typename ReduceFunc>
-__host__ void block_tile_reduce(AccDistributedTensor_&,
-                                const InDistributedTensor_&,
-                                Sequence<InReduceDims...>,
-                                const ReduceFunc&)
-{
-}
-
-// FIXME: dummy host function for tile program
-template <typename AccDataType_,
-          typename InDistributedTensor_,
-          index_t... InReduceDims,
-          typename ReduceFunc,
-          typename InDataType_>
-__host__ auto block_tile_reduce(const InDistributedTensor_&,
-                                Sequence<InReduceDims...>,
-                                const ReduceFunc&,
-                                const InDataType_&)
-{
-    using InDataType  = typename InDistributedTensor_::DataType;
-    using AccDataType = remove_cvref_t<AccDataType_>;
-
-    static_assert(is_same_v<InDataType, remove_cvref_t<InDataType_>>, "wrong!");
-
-    // declare acc_tensor
-    constexpr auto acc_dstr = make_static_tile_distribution(
-        ck::tile_program::detail::make_reduce_tile_distribution_encoding(
-            InDistributedTensor_::GetTileDistribution().GetStaticTileDistributionEncoding(),
-            Sequence<InReduceDims...>{}));
-
-    auto acc_tensor = make_static_distributed_tensor<AccDataType>(acc_dstr);
-
-    return acc_tensor;
-}
-
-// FIXME: dummy host function for tile program
-template <typename AccDistributedTensor_, typename ReduceFunc>
-__host__ void block_tile_reduce_sync(AccDistributedTensor_&, const ReduceFunc&)
-
-{
-}
-
 } // namespace block
 } // namespace tile_program
 } // namespace ck

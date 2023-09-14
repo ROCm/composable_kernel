@@ -9,6 +9,15 @@
 #include "ck/stream_config.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 
+template <int MaxThreadPerBlock, int MinBlockPerCu, typename Kernel, typename... Args>
+#if CK_USE_LAUNCH_BOUNDS
+__launch_bounds__(MaxThreadPerBlock, MinBlockPerCu)
+#endif
+    __global__ void kernel_wrapper(Kernel f, Args... args)
+{
+    f(args...);
+}
+
 template <typename... Args, typename F>
 float launch_and_time_kernel(const StreamConfig& stream_config,
                              F kernel,
@@ -141,4 +150,21 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
 
     return 0;
 #endif
+}
+
+template <int MaxThreadPerBlock = CK_MAX_THREAD_PER_BLOCK,
+          int MinBlockPerCu     = CK_MIN_BLOCK_PER_CU,
+          typename KernelImpl,
+          typename... Args>
+float launch_kernel(const StreamConfig& stream_config,
+                    KernelImpl kernel_impl,
+                    dim3 grid_dim,
+                    dim3 block_dim,
+                    std::size_t lds_byte,
+                    Args... args)
+{
+    const auto kernel = kernel_wrapper<MaxThreadPerBlock, MinBlockPerCu, KernelImpl, Args...>;
+
+    return launch_and_time_kernel(
+        stream_config, kernel, grid_dim, block_dim, lds_byte, kernel_impl, args...);
 }

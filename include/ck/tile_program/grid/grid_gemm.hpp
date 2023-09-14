@@ -24,13 +24,12 @@ struct GridGemm
     using BlockGemmPipeline = typename Policy::template BlockGemmPipeline<Problem>;
 
     template <typename AGridTensorView, typename BGridTensorView, typename CGridTensorView>
-    __host__ __device__ void operator()(ProgramServer& ps,
-                                        const AGridTensorView& a_grid,
-                                        const BGridTensorView& b_grid,
-                                        CGridTensorView& c_grid,
-                                        const AElementFunction& a_element_func,
-                                        const BElementFunction& b_element_func,
-                                        const CElementFunction& c_element_func) const
+    __device__ void operator()(const AGridTensorView& a_grid,
+                               const BGridTensorView& b_grid,
+                               CGridTensorView& c_grid,
+                               const AElementFunction& a_element_func,
+                               const BElementFunction& b_element_func,
+                               const CElementFunction& c_element_func) const
     {
         using namespace ck;
         using namespace ck::tile_program;
@@ -41,17 +40,17 @@ struct GridGemm
         const auto K = a_grid.desc_.GetLength(Number<1>{});
 
         // divide problem
-        const auto id_block = ps.get_block_id();
+        const auto id_block = get_block_id();
 
         const auto num_tile_m = M / kMPerBlock;
         const auto num_tile_n = N / kNPerBlock;
 
-        const auto block2tile = ps(Policy::MakeBlock2TileMap(num_tile_m, num_tile_n));
+        const auto block2tile = Policy::MakeBlock2TileMap(num_tile_m, num_tile_n);
 
         const auto id_tile = block2tile(id_block);
 
-        const auto iM = ps.read_first_lane(id_tile.template At<0>() * kMPerBlock);
-        const auto iN = ps.read_first_lane(id_tile.template At<1>() * kNPerBlock);
+        const auto iM = __builtin_amdgcn_readfirstlane(id_tile.template At<0>() * kMPerBlock);
+        const auto iN = __builtin_amdgcn_readfirstlane(id_tile.template At<1>() * kNPerBlock);
 
         // A block window
         auto a_block_window = make_tile_window(

@@ -7,8 +7,8 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
-#include "tile_program.hpp"
 #include "ck/tile_program/tile/tile_distribution.hpp"
 #include "ck/tile_program/tile/tile_elementwise.hpp"
 #include "ck/tile_program/tile/tile_gemm_shape.hpp"
@@ -59,19 +59,18 @@ struct Gemm
 
     using GridGemm = ck::tile_program::grid::GridGemm<Problem, Policy>;
 
-    __host__ __device__ void operator()(ProgramServer& ps,
-                                        const ADataType* p_a,
-                                        const BDataType* p_b,
-                                        CDataType* p_c,
-                                        ck::index_t M,
-                                        ck::index_t N,
-                                        ck::index_t K,
-                                        ck::index_t Lda,
-                                        ck::index_t Ldb,
-                                        ck::index_t Ldc,
-                                        const AElementFunction& a_element_func,
-                                        const BElementFunction& b_element_func,
-                                        const CElementFunction& c_element_func) const
+    __device__ void operator()(const ADataType* p_a,
+                               const BDataType* p_b,
+                               CDataType* p_c,
+                               ck::index_t M,
+                               ck::index_t N,
+                               ck::index_t K,
+                               ck::index_t Lda,
+                               ck::index_t Ldb,
+                               ck::index_t Ldc,
+                               const AElementFunction& a_element_func,
+                               const BElementFunction& b_element_func,
+                               const CElementFunction& c_element_func) const
     {
         using namespace ck;
         using namespace ck::tile_program;
@@ -87,12 +86,7 @@ struct Gemm
         auto c_dram_grid = make_naive_tensor_view<AddressSpaceEnum::Global>(
             p_c, make_tuple(M, N), make_tuple(Ldc, 1), Number<32>{}, Number<1>{});
 
-        GridGemm{}(ps,
-                   a_dram_grid,
-                   b_dram_grid,
-                   c_dram_grid,
-                   a_element_func,
-                   b_element_func,
-                   c_element_func);
+        GridGemm{}(
+            a_dram_grid, b_dram_grid, c_dram_grid, a_element_func, b_element_func, c_element_func);
     }
 };

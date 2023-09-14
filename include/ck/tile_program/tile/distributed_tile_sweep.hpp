@@ -14,7 +14,7 @@ namespace tile_program {
 template <typename TileDistributedSpan_, // TileDistributedSpan<...>
           typename F                     // signature: F(TileDistributedIndex<...>)
           >
-__host__ __device__ void sweep_tile_span(TileDistributedSpan_, const F& f)
+__device__ void sweep_tile_span(TileDistributedSpan_, const F& f)
 {
     using DstrSpan = remove_cvref_t<TileDistributedSpan_>;
 
