@@ -73,15 +73,8 @@ RUN wget -qO /usr/local/bin/ninja.gz https://github.com/ninja-build/ninja/releas
 RUN gunzip /usr/local/bin/ninja.gz
 RUN chmod a+x /usr/local/bin/ninja
 RUN git clone https://github.com/nico/ninjatracing.git
-RUN apt purge --auto-remove -y cmake
-RUN apt update
-RUN apt install -y software-properties-common lsb-release
-RUN apt clean all
-RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
-RUN apt-add-repository "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
-RUN apt install -y kitware-archive-keyring
-RUN rm /etc/apt/trusted.gpg.d/kitware.gpg
-RUN apt install -y cmake
+# Update the cmake to the latest version
+RUN pip install --upgrade cmake
 
 # Setup ubsan environment to printstacktrace
 RUN ln -s /usr/bin/llvm-symbolizer-3.8 /usr/local/bin/llvm-symbolizer
