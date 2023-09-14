@@ -2,21 +2,19 @@ function(add_instance_library INSTANCE_NAME)
     message("adding instance ${INSTANCE_NAME}")
     set(result 1)
     if(DEFINED DTYPES)
+      foreach(source IN LISTS ARGN)
+        if((DTYPES MATCHES "fp8" AND (NOT source MATCHES "fp8" AND (source MATCHES "fp16" OR source MATCHES "fp32" OR source MATCHES "fp64" OR source MATCHES "bf16" OR source MATCHES "int8" OR source MATCHES "_i8" ))) OR
+           (DTYPES MATCHES "fp16" AND (NOT source MATCHES "fp16" AND (source MATCHES "fp8" OR source MATCHES "fp32" OR source MATCHES "fp64" OR source MATCHES "bf16" OR source MATCHES "int8" OR source MATCHES "_i8" ))) OR
+           (DTYPES MATCHES "fp32" AND (NOT source MATCHES "fp32" AND (source MATCHES "fp8" OR source MATCHES "fp16" OR source MATCHES "fp64" OR source MATCHES "bf16" OR source MATCHES "int8" OR source MATCHES "_i8" ))) OR
+           (DTYPES MATCHES "fp64" AND (NOT source MATCHES "fp64" AND (source MATCHES "fp8" OR source MATCHES "fp16" OR source MATCHES "fp32" OR source MATCHES "bf16" OR source MATCHES "int8" OR source MATCHES "_i8" ))) OR
+           (DTYPES MATCHES "bf16" AND (NOT source MATCHES "bf16" AND (source MATCHES "fp16" OR source MATCHES "fp32" OR source MATCHES "fp64" OR source MATCHES "fp8" OR source MATCHES "int8" OR source MATCHES "_i8" ))) OR
+           (DTYPES MATCHES "int8" AND (NOT (source MATCHES "int8" OR source MATCHES "_i8")  AND (source MATCHES "fp16" OR source MATCHES "fp32" OR source MATCHES "fp64" OR source MATCHES "bf16" OR source MATCHES "fp8" ))))
+                message("removing instance ${source} ")
+                list(REMOVE_ITEM ARGN "${source}")
+        endif()
+      endforeach()
+    endif()
     foreach(source IN LISTS ARGN)
-        if((NOT DTYPES MATCHES "fp8" AND source MATCHES "fp8") OR
-                (NOT DTYPES MATCHES "fp16" AND source MATCHES "fp16") OR
-                (NOT DTYPES MATCHES "fp32" AND source MATCHES "fp32") OR
-                (NOT DTYPES MATCHES "fp64" AND source MATCHES "fp64") OR
-                (NOT DTYPES MATCHES "bf16" AND source MATCHES "bf16") OR
-                (NOT DTYPES MATCHES "bf16" AND source MATCHES "bfp16") OR
-                (NOT DTYPES MATCHES "int8" AND source MATCHES "int8") OR
-                (NOT DTYPES MATCHES "int8" AND source MATCHES "_i8"))
-                        message("removing instance ${source} ")
-                        list(REMOVE_ITEM ARGN "${source}")
-        endif()
-        endforeach()
-        endif()
-        foreach(source IN LISTS ARGN)
         if(NOT DEFINED DL_KERNELS AND source MATCHES "_dl")
                 message("removing dl instance ${source} ")
                 list(REMOVE_ITEM ARGN "${source}")
@@ -80,7 +78,6 @@ IF(IS_DIRECTORY "${subdir_path}")
                    NOT "${cmake_instance}" MATCHES "_fp64" OR
                    NOT "${cmake_instance}" MATCHES "_f64" OR
                    NOT "${cmake_instance}" MATCHES "_bf16" OR
-                   NOT "${cmake_instance}" MATCHES "_bfp16" OR
                    NOT "${cmake_instance}" MATCHES "_int8" OR
                    NOT "${cmake_instance}" MATCHES "_i8" OR
                    NOT "${cmake_instance}" MATCHES "_int4" OR

@@ -16,7 +16,6 @@ function(add_example_executable EXAMPLE_NAME FILE_NAME)
                 (NOT DTYPES MATCHES "fp32" AND source MATCHES "fp32") OR
                 (NOT DTYPES MATCHES "fp64" AND source MATCHES "fp64") OR
                 (NOT DTYPES MATCHES "bf16" AND source MATCHES "bf16") OR
-                (NOT DTYPES MATCHES "bf16" AND source MATCHES "bfp16") OR
                 (NOT DTYPES MATCHES "int8" AND source MATCHES "int8") OR
                 (NOT DTYPES MATCHES "int8" AND source MATCHES "_i8"))
                         message("removing source file ${source} ")
@@ -55,7 +54,6 @@ function(add_example_executable_no_testing EXAMPLE_NAME FILE_NAME)
                 (NOT DTYPES MATCHES "fp32" AND source MATCHES "fp32") OR
                 (NOT DTYPES MATCHES "fp64" AND source MATCHES "fp64") OR
                 (NOT DTYPES MATCHES "bf16" AND source MATCHES "bf16") OR
-                (NOT DTYPES MATCHES "bf16" AND source MATCHES "bfp16") OR
                 (NOT DTYPES MATCHES "int8" AND source MATCHES "int8") OR
                 (NOT DTYPES MATCHES "int8" AND source MATCHES "_i8"))
                         message("removing source file ${source} ")

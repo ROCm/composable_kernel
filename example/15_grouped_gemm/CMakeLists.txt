@@ -17,9 +17,9 @@ if(result EQUAL 0)
   add_dependencies(example_grouped_gemm_xdl example_grouped_gemm_xdl_splitk_fp16)
 endif()
 
-add_example_executable(example_grouped_gemm_xdl_bfp16 grouped_gemm_xdl_bfp16.cpp)
+add_example_executable(example_grouped_gemm_xdl_bf16 grouped_gemm_xdl_bf16.cpp)
 if(result EQUAL 0)
-  add_dependencies(example_grouped_gemm_xdl example_grouped_gemm_xdl_bfp16)
+  add_dependencies(example_grouped_gemm_xdl example_grouped_gemm_xdl_bf16)
 endif()
 
 add_example_executable(example_grouped_gemm_xdl_int8 grouped_gemm_xdl_int8.cpp)
