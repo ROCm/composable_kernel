@@ -105,6 +105,31 @@ struct StaticDistributedTensor
         });
     }
 
+    template <typename TileDistributedIndices>
+    __host__ __device__ constexpr const DataType& operator[](TileDistributedIndices) const
+    {
+        static_assert(is_static_v<TileDistributedIndices>,
+                      "wrong! Tile Distributed Indices should be static");
+
+        constexpr auto y_idx =
+            GetTileDistribution().GetYIndicesFromDistributedIndices(TileDistributedIndices{});
+
+        return thread_buf_[Number<ThreadTensorDesc{}.CalculateOffset(y_idx)>{}];
+    }
+
+    template <typename TileDistributedIndices>
+    __host__ __device__ constexpr DataType& operator()(TileDistributedIndices)
+    {
+        static_assert(is_static_v<TileDistributedIndices>,
+                      "wrong! Tile Distributed Indices should be static");
+
+        constexpr auto y_idx =
+            GetTileDistribution().GetYIndicesFromDistributedIndices(TileDistributedIndices{});
+
+        return thread_buf_(Number<ThreadTensorDesc{}.CalculateOffset(y_idx)>{});
+    }
+
+#if 0
     template <index_t... Ys>
     __host__ __device__ auto GetElementFromYsIndex(Sequence<Ys...> idx_ys) const
     {
@@ -116,7 +141,6 @@ struct StaticDistributedTensor
     {
         thread_buf_(Number<ThreadTensorDesc{}.CalculateOffset(idx_ys)>{}) = v;
     }
-
     template <typename TileDistributedIndices>
     __host__ __device__ auto GetElementFromTileDistributedIndices(TileDistributedIndices) const
     {
@@ -139,6 +163,7 @@ struct StaticDistributedTensor
 
         return SetElementFromYsIndex(y_idx, v);
     }
+#endif
 
     //
     StaticBuffer<AddressSpaceEnum::Vgpr, DataType, kThreadElementSpaceSize, true> thread_buf_;

@@ -143,23 +143,20 @@ struct Softmax
             sweep_tile_span(a_spans[I0], [&](auto idx0) {
                 constexpr auto m_idx = make_tuple(idx0);
 
-                const auto v_max = max_block_tensor.GetElementFromTileDistributedIndices(m_idx);
+                const auto v_max = max_block_tensor[m_idx];
 
-                AccDataType v_exp_sum =
-                    exp_sum_block_tensor.GetElementFromTileDistributedIndices(m_idx);
+                AccDataType v_exp_sum = exp_sum_block_tensor[m_idx];
 
                 sweep_tile_span(a_spans[I1], [&](auto idx1) {
                     constexpr auto m_n_idx = make_tuple(idx0, idx1);
 
-                    const auto v_a = a_block_tensor.GetElementFromTileDistributedIndices(m_n_idx);
-
-                    (void)v_max;
+                    const auto v_a = a_block_tensor[m_n_idx];
 
                     // exp and sum
                     v_exp_sum += math::exp(v_a - v_max);
                 });
 
-                exp_sum_block_tensor.SetElementFromTileDistributedIndices(m_idx, v_exp_sum);
+                exp_sum_block_tensor(m_idx) = v_exp_sum;
             });
 
             move_tile_window(a_block_window, {0, kNPerBlock});
@@ -196,21 +193,20 @@ struct Softmax
             sweep_tile_span(a_spans[I0], [&](auto idx0) {
                 constexpr auto m_idx = make_tuple(idx0);
 
-                const auto v_max = max_block_tensor.GetElementFromTileDistributedIndices(m_idx);
+                const auto v_max = max_block_tensor[m_idx];
 
-                const auto v_exp_sum =
-                    exp_sum_block_tensor.GetElementFromTileDistributedIndices(m_idx);
+                const auto v_exp_sum = exp_sum_block_tensor[m_idx];
 
                 sweep_tile_span(a_spans[I1], [&](auto idx1) {
                     constexpr auto m_n_idx = make_tuple(idx0, idx1);
 
-                    const auto v_a = a_block_tensor.GetElementFromTileDistributedIndices(m_n_idx);
+                    const auto v_a = a_block_tensor[m_n_idx];
 
                     // exp
                     const BDataType v_b =
                         type_convert<BDataType>(math::exp(v_a - v_max) / v_exp_sum);
 
-                    b_block_tensor.SetElementFromTileDistributedIndices(m_n_idx, v_b);
+                    b_block_tensor(m_n_idx) = v_b;
                 });
             });
 

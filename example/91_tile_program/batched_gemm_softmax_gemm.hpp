@@ -35,7 +35,7 @@ template <typename QDataType,
           ck::index_t kN0PerBlock,
           ck::index_t kK0PerBlock,
           ck::index_t kN1PerBlock>
-struct GemmSoftmaxGemm
+struct BatchedGemmSoftmaxGemm
 {
     __device__ void operator()(const QDataType* q_ptr,
                                const KDataType* k_ptr,
@@ -45,23 +45,37 @@ struct GemmSoftmaxGemm
                                const ck::index_t N0,
                                const ck::index_t K0,
                                const ck::index_t N1,
+                               const ck::index_t /* Batch */,
                                const ck::index_t StrideQ,
                                const ck::index_t StrideK,
                                const ck::index_t StrideV,
-                               const ck::index_t StrideO) const
+                               const ck::index_t StrideO,
+                               const ck::index_t BatchStrideQ,
+                               const ck::index_t BatchStrideK,
+                               const ck::index_t BatchStrideV,
+                               const ck::index_t BatchStrideO) const
     {
         using namespace ck;
 
         // divide problem
-        const auto num_tile_n1 = N1 / kN1PerBlock;
+        const index_t num_tile_m0 = M0 / kM0PerBlock;
+        const index_t num_tile_n1 = N1 / kN1PerBlock;
 
-        const auto id_block = get_block_id();
+        const index_t id_block = get_block_id();
 
-        const auto id_tile_m = id_block / num_tile_n1;
-        const auto id_tile_n = id_block - id_tile_m * num_tile_n1;
+        const auto f = [](index_t dividend, index_t divisor) {
+            index_t quotient = dividend / divisor;
+            index_t modulus  = dividend - quotient * divisor;
 
-        const auto iM0 = __builtin_amdgcn_readfirstlane(id_tile_m * kM0PerBlock);
-        const auto iN1 = __builtin_amdgcn_readfirstlane(id_tile_n * kN1PerBlock);
+            return ck::make_tuple(quotient, modulus);
+        };
+
+        const auto [itmp, id_tile_n]          = f(id_block, num_tile_n1);
+        const auto [id_tile_batch, id_tile_m] = f(itmp, num_tile_m0);
+
+        const index_t iBatch = __builtin_amdgcn_readfirstlane(id_tile_batch);
+        const index_t iM0    = __builtin_amdgcn_readfirstlane(id_tile_m * kM0PerBlock);
+        const index_t iN1    = __builtin_amdgcn_readfirstlane(id_tile_n * kN1PerBlock);
 
         const auto kernel_impl = GemmSoftmaxGemmImpl<QDataType,
                                                      KDataType,
@@ -77,10 +91,10 @@ struct GemmSoftmaxGemm
                                                      kK0PerBlock,
                                                      kN1PerBlock>{};
 
-        kernel_impl(q_ptr,
-                    k_ptr,
-                    v_ptr,
-                    o_ptr,
+        kernel_impl(q_ptr + iBatch * BatchStrideQ,
+                    k_ptr + iBatch * BatchStrideK,
+                    v_ptr + iBatch * BatchStrideV,
+                    o_ptr + iBatch * BatchStrideO,
                     M0,
                     N0,
                     K0,

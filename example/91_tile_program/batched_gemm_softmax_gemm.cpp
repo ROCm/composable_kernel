@@ -13,9 +13,9 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 
-#include "reference_gemm.hpp"
-#include "reference_softmax.hpp"
-#include "gemm_softmax_gemm.hpp"
+#include "reference_batched_gemm.hpp"
+#include "reference_batched_softmax.hpp"
+#include "batched_gemm_softmax_gemm.hpp"
 
 int main(int argc, char* argv[])
 {
@@ -28,36 +28,38 @@ int main(int argc, char* argv[])
     using OaccDataType        = float;
     using ODataType           = ck::half_t;
 
-    ck::index_t M0 = 13312;
-    ck::index_t N0 = 4096;
-    ck::index_t K0 = 128;
-    ck::index_t N1 = 128;
+    ck::index_t Batch = 16;
+    ck::index_t M0    = 4096;
+    ck::index_t N0    = 4096;
+    ck::index_t K0    = 128;
+    ck::index_t N1    = 128;
 
-    if(argc == 5)
+    if(argc == 6)
     {
-        M0 = std::stoi(argv[1]);
-        N0 = std::stoi(argv[2]);
-        K0 = std::stoi(argv[3]);
-        N1 = std::stoi(argv[4]);
+        Batch = std::stoi(argv[1]);
+        M0    = std::stoi(argv[2]);
+        N0    = std::stoi(argv[3]);
+        K0    = std::stoi(argv[4]);
+        N1    = std::stoi(argv[5]);
     }
 
-    std::array<ck::index_t, 2> q_lengths{M0, K0};
-    std::array<ck::index_t, 2> q_strides{K0, 1};
+    std::array<ck::index_t, 3> q_lengths{Batch, M0, K0};
+    std::array<ck::index_t, 3> q_strides{M0 * K0, K0, 1};
 
-    std::array<ck::index_t, 2> k_lengths{N0, K0};
-    std::array<ck::index_t, 2> k_strides{K0, 1};
+    std::array<ck::index_t, 3> k_lengths{Batch, N0, K0};
+    std::array<ck::index_t, 3> k_strides{N0 * K0, K0, 1};
 
-    std::array<ck::index_t, 2> v_lengths{N1, N0};
-    std::array<ck::index_t, 2> v_strides{N0, 1};
+    std::array<ck::index_t, 3> v_lengths{Batch, N1, N0};
+    std::array<ck::index_t, 3> v_strides{N1 * N0, N0, 1};
 
-    std::array<ck::index_t, 2> s_lengths{M0, N0};
-    std::array<ck::index_t, 2> s_strides{N0, 1};
+    std::array<ck::index_t, 3> s_lengths{Batch, M0, N0};
+    std::array<ck::index_t, 3> s_strides{M0 * N0, N0, 1};
 
-    std::array<ck::index_t, 2> p_lengths{M0, N0};
-    std::array<ck::index_t, 2> p_strides{N0, 1};
+    std::array<ck::index_t, 3> p_lengths{Batch, M0, N0};
+    std::array<ck::index_t, 3> p_strides{M0 * N0, N0, 1};
 
-    std::array<ck::index_t, 2> o_lengths{M0, N1};
-    std::array<ck::index_t, 2> o_strides{N1, 1};
+    std::array<ck::index_t, 3> o_lengths{Batch, M0, N1};
+    std::array<ck::index_t, 3> o_strides{M0 * N1, N1, 1};
 
     // host verify
     Tensor<QDataType> q_host(q_lengths, q_strides);
@@ -79,10 +81,12 @@ int main(int argc, char* argv[])
 #endif
 
     // reference
-    reference_gemm<QDataType, KDataType, SaccDataType, SMPLComputeDataType>(
+    reference_batched_gemm<QDataType, KDataType, SaccDataType, SMPLComputeDataType>(
         q_host, k_host, s_host_ref);
-    reference_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(s_host_ref, p_host_ref);
-    reference_gemm<PDataType, VDataType, OaccDataType, ODataType>(p_host_ref, v_host, o_host_ref);
+    reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(s_host_ref,
+                                                                                   p_host_ref);
+    reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(
+        p_host_ref, v_host, o_host_ref);
 
     DeviceMem q_buf(sizeof(QDataType) * q_host.GetElementSpaceSize());
     DeviceMem k_buf(sizeof(KDataType) * k_host.GetElementSpaceSize());
@@ -99,7 +103,7 @@ int main(int argc, char* argv[])
     constexpr ck::index_t kN1PerBlock = 128;
 
     constexpr ck::index_t kBlockSize = 256;
-    ck::index_t kGridSize            = (M0 / kM0PerBlock) * (N1 / kN1PerBlock);
+    ck::index_t kGridSize            = Batch * (M0 / kM0PerBlock) * (N1 / kN1PerBlock);
 
     std::cout << "grid size " << kGridSize << std::endl;
 
@@ -109,19 +113,19 @@ int main(int argc, char* argv[])
 
     float ave_time =
         launch_kernel<kBlockSize, kBlockPerCu>(StreamConfig{nullptr, true},
-                                               GemmSoftmaxGemm<QDataType,
-                                                               KDataType,
-                                                               VDataType,
-                                                               SaccDataType,
-                                                               SMPLComputeDataType,
-                                                               PDataType,
-                                                               OaccDataType,
-                                                               ODataType,
-                                                               kBlockSize,
-                                                               kM0PerBlock,
-                                                               kN0PerBlock,
-                                                               kK0PerBlock,
-                                                               kN1PerBlock>{},
+                                               BatchedGemmSoftmaxGemm<QDataType,
+                                                                      KDataType,
+                                                                      VDataType,
+                                                                      SaccDataType,
+                                                                      SMPLComputeDataType,
+                                                                      PDataType,
+                                                                      OaccDataType,
+                                                                      ODataType,
+                                                                      kBlockSize,
+                                                                      kM0PerBlock,
+                                                                      kN0PerBlock,
+                                                                      kK0PerBlock,
+                                                                      kN1PerBlock>{},
                                                kGridSize,
                                                kBlockSize,
                                                0,
@@ -133,16 +137,23 @@ int main(int argc, char* argv[])
                                                N0,
                                                K0,
                                                N1,
-                                               K0,  // StrideQ
-                                               K0,  // StrideK
-                                               N0,  // StrideV
-                                               N1); // StrideO
+                                               Batch,
+                                               K0,       // StrideQ
+                                               K0,       // StrideK
+                                               N0,       // StrideV
+                                               N1,       // StrideO
+                                               M0 * K0,  // BatchStrideQ
+                                               N0 * K0,  // BatchStrideK
+                                               N1 * N0,  // BatchStrideV
+                                               M0 * N1); // BatchStrideO
 
     o_buf.FromDevice(o_host_dev.mData.data());
 
-    std::size_t flop      = std::size_t(2) * M0 * N0 * K0 + std::size_t(2) * M0 * N1 * N0;
-    std::size_t num_btype = sizeof(QDataType) * M0 * K0 + sizeof(KDataType) * N0 * K0 +
-                            sizeof(VDataType) * N1 * N0 + sizeof(ODataType) * M0 * N1;
+    std::size_t flop =
+        std::size_t(2) * Batch * M0 * N0 * K0 + std::size_t(2) * Batch * M0 * N1 * N0;
+    std::size_t num_btype =
+        sizeof(QDataType) * Batch * M0 * K0 + sizeof(KDataType) * Batch * N0 * K0 +
+        sizeof(VDataType) * Batch * N1 * N0 + sizeof(ODataType) * Batch * M0 * N1;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 

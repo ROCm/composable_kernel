@@ -161,18 +161,18 @@ __device__ void block_tile_reduce(AccDistributedTensor_& acc_tensor,
     sweep_tile_span(spans[I0], [&](auto dstr_idx_i0) {
         constexpr auto acc_dstr_idx = make_tuple(dstr_idx_i0);
 
-        auto acc = acc_tensor.GetElementFromTileDistributedIndices(acc_dstr_idx);
+        auto acc = acc_tensor[acc_dstr_idx];
 
         // FIXME
         sweep_tile_span(spans[I1], [&](auto dstr_idx_i1) {
             constexpr auto in_dstr_idx = make_tuple(dstr_idx_i0, dstr_idx_i1);
 
-            const auto in = in_tensor.GetElementFromTileDistributedIndices(in_dstr_idx);
+            const auto in = in_tensor[in_dstr_idx];
 
             acc = reduce_func(acc, in);
         });
 
-        acc_tensor.SetElementFromTileDistributedIndices(acc_dstr_idx, acc);
+        acc_tensor(acc_dstr_idx) = acc;
     });
 #endif
 }

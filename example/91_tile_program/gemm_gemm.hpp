@@ -16,12 +16,13 @@
 #include "ck/tile_program/block_tile_pipeline/block_gemm_pipeline_problem.hpp"
 #include "ck/tile_program/block_tile/block_gemm_areg_bsmem_creg_v1.hpp"
 
-// C1 = A0 * B0 * B1
+// C0 = A0 * B0
+// C1 = C0 * B1
 template <typename A0DataType,
           typename B0DataType,
+          typename B1DataType,
           typename Acc0DataType,
           typename C0DataType,
-          typename B1DataType,
           typename Acc1DataType,
           typename C1DataType,
           ck::index_t kBlockSize,

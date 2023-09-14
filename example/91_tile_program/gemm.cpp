@@ -81,7 +81,7 @@ int main(int argc, char* argv[])
     ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_host);
 
     // reference gemm
-    reference_gemm<ADataType, ADataType, CDataType, float>(a_host, b_host, c_host_ref);
+    reference_gemm<ADataType, ADataType, AccDataType, CDataType>(a_host, b_host, c_host_ref);
 
     DeviceMem a_buf(sizeof(ADataType) * a_host.GetElementSpaceSize());
     DeviceMem b_buf(sizeof(BDataType) * b_host.GetElementSpaceSize());
@@ -99,6 +99,10 @@ int main(int argc, char* argv[])
 
     std::cout << "grid size " << kGridSize << std::endl;
 
+    constexpr ck::index_t kWarpPerCu    = 8; // 2 warps per SIMD
+    constexpr ck::index_t kWarpPerBlock = kBlockSize / warpSize;
+    constexpr ck::index_t kBlockPerCu   = kWarpPerCu / kWarpPerBlock;
+
     const auto gemm_kernel = Gemm<ADataType,
                                   BDataType,
                                   AccDataType,
@@ -114,23 +118,24 @@ int main(int argc, char* argv[])
                                   kGemmNPerBlock,
                                   kGemmKPerBlock>{};
 
-    float ave_time = launch_kernel<kBlockSize, 2>(StreamConfig{nullptr, true},
-                                                  gemm_kernel,
-                                                  kGridSize,
-                                                  kBlockSize,
-                                                  0,
-                                                  static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
-                                                  static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
-                                                  static_cast<CDataType*>(c_buf.GetDeviceBuffer()),
-                                                  M,
-                                                  N,
-                                                  K,
-                                                  K,
-                                                  K,
-                                                  N,
-                                                  AElementFunction{},
-                                                  BElementFunction{},
-                                                  CElementFunction{});
+    float ave_time =
+        launch_kernel<kBlockSize, kBlockPerCu>(StreamConfig{nullptr, true},
+                                               gemm_kernel,
+                                               kGridSize,
+                                               kBlockSize,
+                                               0,
+                                               static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
+                                               static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
+                                               static_cast<CDataType*>(c_buf.GetDeviceBuffer()),
+                                               M,
+                                               N,
+                                               K,
+                                               K,
+                                               K,
+                                               N,
+                                               AElementFunction{},
+                                               BElementFunction{},
+                                               CElementFunction{});
 
     c_buf.FromDevice(c_host_dev.mData.data());
 

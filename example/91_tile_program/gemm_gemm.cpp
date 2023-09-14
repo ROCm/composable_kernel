@@ -20,9 +20,9 @@ int main(int argc, char* argv[])
 {
     using A0DataType   = ck::half_t;
     using B0DataType   = ck::half_t;
+    using B1DataType   = ck::half_t;
     using Acc0DataType = float;
     using C0DataType   = ck::half_t;
-    using B1DataType   = ck::half_t;
     using Acc1DataType = float;
     using C1DataType   = ck::half_t;
 
@@ -67,8 +67,9 @@ int main(int argc, char* argv[])
     ck::utils::FillUniformDistributionIntegerValue<B1DataType>{-3.f, 3.f}(b1_host);
 
     // reference gemm
-    reference_gemm<A0DataType, B0DataType, C0DataType, float>(a0_host, b0_host, c0_host_ref);
-    reference_gemm<C0DataType, B1DataType, C1DataType, float>(c0_host_ref, b1_host, c1_host_ref);
+    reference_gemm<A0DataType, B0DataType, Acc0DataType, C0DataType>(a0_host, b0_host, c0_host_ref);
+    reference_gemm<C0DataType, B1DataType, Acc1DataType, C1DataType>(
+        c0_host_ref, b1_host, c1_host_ref);
 
     DeviceMem a0_buf(sizeof(A0DataType) * a0_host.GetElementSpaceSize());
     DeviceMem b0_buf(sizeof(B0DataType) * b0_host.GetElementSpaceSize());
@@ -89,35 +90,39 @@ int main(int argc, char* argv[])
 
     std::cout << "grid size " << kGridSize << std::endl;
 
+    constexpr ck::index_t kWarpPerCu    = 8; // 2 warps per SIMD
+    constexpr ck::index_t kWarpPerBlock = kBlockSize / warpSize;
+    constexpr ck::index_t kBlockPerCu   = kWarpPerCu / kWarpPerBlock;
+
     float ave_time =
-        launch_kernel<kBlockSize, 2>(StreamConfig{nullptr, true},
-                                     GemmGemm<A0DataType,
-                                              B0DataType,
-                                              Acc0DataType,
-                                              C0DataType,
-                                              B1DataType,
-                                              Acc1DataType,
-                                              C1DataType,
-                                              kBlockSize,
-                                              kM0PerBlock,
-                                              kN0PerBlock,
-                                              kK0PerBlock,
-                                              kN1PerBlock>{},
-                                     kGridSize,
-                                     kBlockSize,
-                                     0,
-                                     static_cast<A0DataType*>(a0_buf.GetDeviceBuffer()),
-                                     static_cast<B0DataType*>(b0_buf.GetDeviceBuffer()),
-                                     static_cast<B1DataType*>(b1_buf.GetDeviceBuffer()),
-                                     static_cast<C1DataType*>(c1_buf.GetDeviceBuffer()),
-                                     M0,
-                                     N0,
-                                     K0,
-                                     N1,
-                                     K0,  // Lda0
-                                     K0,  // Ldb0
-                                     N0,  // Ldb1
-                                     N1); // Ldc1
+        launch_kernel<kBlockSize, kBlockPerCu>(StreamConfig{nullptr, true},
+                                               GemmGemm<A0DataType,
+                                                        B0DataType,
+                                                        B1DataType,
+                                                        Acc0DataType,
+                                                        C0DataType,
+                                                        Acc1DataType,
+                                                        C1DataType,
+                                                        kBlockSize,
+                                                        kM0PerBlock,
+                                                        kN0PerBlock,
+                                                        kK0PerBlock,
+                                                        kN1PerBlock>{},
+                                               kGridSize,
+                                               kBlockSize,
+                                               0,
+                                               static_cast<A0DataType*>(a0_buf.GetDeviceBuffer()),
+                                               static_cast<B0DataType*>(b0_buf.GetDeviceBuffer()),
+                                               static_cast<B1DataType*>(b1_buf.GetDeviceBuffer()),
+                                               static_cast<C1DataType*>(c1_buf.GetDeviceBuffer()),
+                                               M0,
+                                               N0,
+                                               K0,
+                                               N1,
+                                               K0,  // Lda0
+                                               K0,  // Ldb0
+                                               N0,  // Ldb1
+                                               N1); // Ldc1
 
     c1_buf.FromDevice(c1_host_dev.mData.data());
 

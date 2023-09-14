@@ -160,11 +160,11 @@ float launch_kernel(const StreamConfig& stream_config,
                     KernelImpl kernel_impl,
                     dim3 grid_dim,
                     dim3 block_dim,
-                    std::size_t lds_byte,
+                    std::size_t dynamic_smem_byte,
                     Args... args)
 {
     const auto kernel = kernel_wrapper<MaxThreadPerBlock, MinBlockPerCu, KernelImpl, Args...>;
 
     return launch_and_time_kernel(
-        stream_config, kernel, grid_dim, block_dim, lds_byte, kernel_impl, args...);
+        stream_config, kernel, grid_dim, block_dim, dynamic_smem_byte, kernel_impl, args...);
 }
