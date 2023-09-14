@@ -143,7 +143,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
             auto src_vectors = generate_vectors<SrcDatas, SrcScalarPerVector>();
             auto dst_vectors = generate_vectors<DstDatas, DstScalarPerVector>();
 
-            // copy data from src_bufs into src_vectors
+#if 0
             static_for<0, nSrc, 1>{}([&](auto i) {
                 using src_vector_t = typename remove_cvref_t<decltype(src_vectors[i])>::type;
 
@@ -155,13 +155,25 @@ struct ThreadwiseTensorSliceTransfer_v7r2
                     src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(),
                                                            is_src_valid);
             });
+#endif
 
-            // apply pointwise function
             static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
-                // get reference to src data
                 const auto src_data_refs = generate_tie(
                     // return type should be lvalue
                     [&](auto iSrc) -> const auto& {
+                        // copy data from src_bufs into src_vectors
+                        using src_vector_t =
+                            typename remove_cvref_t<decltype(src_vectors[iSrc])>::type;
+
+                        const bool is_src_valid =
+                            coordinate_has_valid_offset_assuming_visible_index_is_valid(
+                                src_descs[iSrc], src_coords_[iSrc]);
+
+                        src_vectors(iSrc).template AsType<src_vector_t>()(I0) =
+                            src_bufs[iSrc].template Get<src_vector_t>(src_coords_[iSrc].GetOffset(),
+                                                                      is_src_valid);
+
+                        // get reference to src data
                         using SrcData = remove_cvref_t<tuple_element_t<iSrc.value, SrcDatas>>;
 
                         return src_vectors[iSrc].template AsType<SrcData>()[i];
