@@ -10,6 +10,7 @@ import gemm_op
 from gemm_op import *
 import user
 
+# function to substitute values into template
 def SubstituteTemplate(template, values):
     text = template
     changed = True
@@ -23,7 +24,7 @@ def SubstituteTemplate(template, values):
             text = newtext
     return text
 
-
+# setting up the template with all the user input
 class EmitGemmInstance:
     def __init__(self):
         self.gemm_op_template =     """
@@ -31,6 +32,8 @@ class EmitGemmInstance:
 DeviceGemmMultipleD_Xdl_CShuffle<${layout_a}, ${layout_b}, ${layout_ds}, ${layout_e}, ${type_a}, ${type_b}, ${type_acc}, ${type_cshuffle}, ${type_ds}, ${type_e}, ${elementwise_op_a}, ${elementwise_op_b}, ${elementwise_op_cde}, ${Gemm_spec}, ${num_gemmk_prefetch_stage}, ${block_size}, ${mperblock}, ${nperblock}, ${kperblock}, ${ak1}, ${bk1}, ${mperXDL}, ${nperXDL}, ${mXdlperwave}, ${nXdlperwave}, ${ABT_thread_cluster_lengths_K0_M_K1}, ${ABT_thread_cluster_arrange_order}, ${ABT_src_access_order}, ${ABT_src_vec_dim}, ${ABT_src_scalar_per_vec}, ${ABT_dst_scalar_per_vec_k1}, ${ABT_lds_add_extra_m}, ${BBT_thread_cluster_lengths_K0_N_K1}, ${BBT_thread_cluster_arrange_order}, ${BBT_src_access_order}, ${BBT_src_vec_dim}, ${BBT_src_scalar_per_vec}, ${BBT_dst_scalar_per_vec_k1}, ${BBT_lds_add_extra_n}, ${CS_m_Xdl_per_wave_per_shuffle}, ${CS_n_Xdl_per_wave_per_shuffle}, ${CTT_cluster_lengths_m_block_m_wave_m_per_Xdl_n_block_n_wave_n_per_Xdl}, ${CTT_scalar_per_vector_n_wave_n_per_Xdl}>,
 
 """
+
+    # function that takes in operation from gemm_op and gets tuning parameters
     def emit(self,operation):
         #name = (str(operation.tile_desc.block_size) + "_" + str(operation.tile_desc.m_per_block) + "_" + str(operation.tile_desc.n_per_block) + "_" + str(operation.tile_desc.ak1))
         values = {
@@ -42,7 +45,7 @@ DeviceGemmMultipleD_Xdl_CShuffle<${layout_a}, ${layout_b}, ${layout_ds}, ${layou
             'type_a' : operation.A.element,
             'type_b' : operation.B.element,
             'type_acc' : operation.acc,
-            'type_cshuffle' : operation.cs_type, #figure out how to arrange this
+            'type_cshuffle' : operation.cs_type,
             'type_ds' : operation.Ds.element,
             'type_e' : operation.E.element,
             'elementwise_op_a' : operation.a_elem_op,
@@ -79,13 +82,15 @@ DeviceGemmMultipleD_Xdl_CShuffle<${layout_a}, ${layout_b}, ${layout_ds}, ${layou
             'CTT_cluster_lengths_m_block_m_wave_m_per_Xdl_n_block_n_wave_n_per_Xdl' : operation.c_block_transfer.cluster_lengths_m_block_m_wave_m_per_Xdl_n_block_n_wave_n_per_Xdl,
             'CTT_scalar_per_vector_n_wave_n_per_Xdl' : str(operation.c_block_transfer.scalar_per_vector_n_wave_n_per_Xdl),
         }
-        template = self.gemm_op_template
-        name = (str(operation.tile_desc.block_size) + "_" + str(operation.tile_desc.m_per_block) + "_" + str(operation.tile_desc.n_per_block)
-        + "_" + str(operation.tile_desc.k_per_block) + "_" + str(operation.tile_desc.ak1))
 
-        # print(SubstituteTemplate(template, values))
+        # name = (str(operation.tile_desc.block_size) + "_" + str(operation.tile_desc.m_per_block) + "_" + str(operation.tile_desc.n_per_block)
+        # + "_" + str(operation.tile_desc.k_per_block) + "_" + str(operation.tile_desc.ak1))
+
+        # defining the template to use and substituting the values
+        template = self.gemm_op_template
         instances = SubstituteTemplate(template, values)
         print(instances)
+        
         # cf = open("instances.cpp",'w')
         # cf.write(SubstituteTemplate(template, values))
         # cf.close()

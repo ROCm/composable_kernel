@@ -28,6 +28,8 @@ def CreateGemmOperator():
     acc_type = DataType.f16
     cshuffle_type = DataType.f32
 
+    # Tile Desc: (block_size, m_per_block, n_per_block, k_per_block, ak1, bk1, 
+    # m_per_XDL, n_per_XDL, m_Xdl_per_wave, n_Xdl_per_wave, num_gemmk_prefetch_stage)
     tile_descriptions = [
         gemm.TileDesc(256, 256, 128, 32, 8, 8, 32, 32, 4, 2, 1), 
         gemm.TileDesc(256, 128, 256, 32, 8, 8, 32, 32, 2, 4, 1), 
@@ -44,6 +46,8 @@ def CreateGemmOperator():
         gemm.TileDesc(64, 32, 64, 32, 8, 8, 32, 32, 1, 2, 1), 
     ]
 
+    # BlockTransferDesc: (thread_cluster_length, thread_cluster_arrange_order, src_access_order, src_vec_dim,
+    # src_scalar_per_vector, dst_scalar_per_vector_k1, lds_add_extra_dim )
     a_block_descriptions = [
         gemm.BlockTransferDesc("S<4, 64, 1>", "S<1, 0, 2>", "S<1, 0, 2>", 2, 8, 8, 1), 
         gemm.BlockTransferDesc("S<4, 64, 1>", "S<1, 0, 2>", "S<1, 0, 2>", 2, 8, 8, 1), 
@@ -76,6 +80,7 @@ def CreateGemmOperator():
         gemm.BlockTransferDesc("S<4, 16, 1>", "S<1, 0, 2>", "S<1, 0, 2>", 2, 8, 8, 1), 
     ]
 
+    # cshuffle_descriptions: (m_Xdl_per_wave_per_shuffle, n_Xdl_per_wave_per_shuffle)
     cshuffle_descriptions = [
         gemm.CShuffleDesc(1,1),
         gemm.CShuffleDesc(1,1),     
@@ -91,6 +96,7 @@ def CreateGemmOperator():
         gemm.CShuffleDesc(1,1),
     ]
 
+    # CBlockTransferDesc: (cluster_lengths_m_block_m_wave_m_per_Xdl_n_block_n_wave_n_per_Xdl, scalar_per_vector_n_wave_n_per_Xdl)
     c_block_descriptions = [
         gemm.CBlockTransferDesc("S<1, 32, 1, 8>", 8), 
         gemm.CBlockTransferDesc("S<1, 32, 1, 8>", 8), 
@@ -111,6 +117,8 @@ def CreateGemmOperator():
     gemm_specialization = [
         gemm.GemmType.GemmDefault
     ]
+
+    # set up and return list of instances using ^tuning parameters
     operations = []
     for gemm_spec in gemm_specialization:
         for tile_desc, a_block_desc, b_block_desc, cshuffle_desc, c_block_desc in zip(

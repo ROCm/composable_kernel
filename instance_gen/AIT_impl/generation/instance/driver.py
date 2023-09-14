@@ -16,10 +16,11 @@ from gemm_op import *
 import user
 from ck_types import *
 from gemm_ex import *
-#from make_template import *
 
 # holds multiple gemm instances
 op_collection = user.CreateGemmOperator()
+
+# emit for each instance
 for op in op_collection:
     x = EmitGemmInstance()
     x.emit(op)

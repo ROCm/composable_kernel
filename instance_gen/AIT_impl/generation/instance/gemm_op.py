@@ -9,8 +9,6 @@ from enum import auto
 from typing import List
 from ck_types import *
 
-class GemmType():
-    GemmDefault = "ck::tensor_operation::device::GemmSpecialization::Default"
 
 @dataclass
 class TileDesc:
@@ -88,3 +86,4 @@ class GemmOperation:
             a_layout=[self.A.layout],
             b_layout=[self.B.layout],
         ) 
+ 

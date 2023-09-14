@@ -14,6 +14,9 @@ class TensorOperation:
     PassThrough = "PassThrough"
     Bilinear = "Bilinear"
 
+class GemmType():
+    GemmDefault = "ck::tensor_operation::device::GemmSpecialization::Default"
+
 @dataclass
 class TensorDesc: #set up and import properly
     element: DataType
