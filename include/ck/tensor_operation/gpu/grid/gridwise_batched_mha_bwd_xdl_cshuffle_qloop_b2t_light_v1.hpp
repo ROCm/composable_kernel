@@ -1285,7 +1285,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
             Sequence<0, 1, 2, 4, 3, 5>,                       // DstDimAccessOrder
             4,                                                // SrcVectorDim
             5,                                                // DstVectorDim
-            D0BlockTransferSrcScalarPerVector,                // SrcScalarPerVector
+            4,                                                // SrcScalarPerVector
             4,                                                // DstScalarPerVector
             1,
             1,
