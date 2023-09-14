@@ -313,6 +313,8 @@ int run(int argc, char* argv[])
         HIP_CHECK_ERROR(hipStreamCreate(&stream));
         HIP_CHECK_ERROR(hipGraphCreate(&graph, 0));
 
+        HIP_CHECK_ERROR(hipStreamBeginCapture(stream, hipStreamCaptureModeRelaxed));
+
         argument =
             gemm.MakeArgument(p_a,
                               p_b0,
@@ -335,8 +337,6 @@ int run(int argc, char* argv[])
         DeviceMem problem_desc_workspace_verify(gemm.GetWorkSpaceSize(&argument));
 
         gemm.SetWorkSpacePointer(&argument, problem_desc_workspace_verify.GetDeviceBuffer());
-
-        HIP_CHECK_ERROR(hipStreamBeginCapture(stream, hipStreamCaptureModeGlobal));
 
         invoker.Run(argument, StreamConfig{nullptr, false});
 
