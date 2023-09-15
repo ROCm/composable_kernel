@@ -193,6 +193,7 @@ template <typename ALayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
+          typename ComputeType    = ADataType,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                                                                         BLayout,
@@ -217,6 +218,8 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_splitk_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
+        BDataType,
+        ComputeType,
         AccDataType,
         CShuffleDataType,
         DsDataType,

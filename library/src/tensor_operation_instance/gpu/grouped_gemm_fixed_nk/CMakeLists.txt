@@ -1,0 +1,10 @@
+add_instance_library(device_grouped_gemm_fixed_nk_instance
+   device_grouped_gemm_xdl_fixed_nk_f16_f16_f16_mk_kn_mn_instance.cpp
+   device_grouped_gemm_xdl_fixed_nk_f16_f16_f16_mk_nk_mn_instance.cpp
+
+   device_grouped_gemm_xdl_fixed_nk_f16_f8_f16_mk_kn_mn_instance.cpp
+   device_grouped_gemm_xdl_fixed_nk_f16_f8_f16_mk_nk_mn_instance.cpp
+
+   device_grouped_gemm_xdl_fixed_nk_f16_i8_f16_mk_kn_mn_instance.cpp
+   device_grouped_gemm_xdl_fixed_nk_f16_i8_f16_mk_nk_mn_instance.cpp
+)
