@@ -11,12 +11,6 @@ template <typename TA, typename TB, typename TC>
 __device__ void inner_product(const TA& a, const TB& b, TC& c);
 
 template <>
-__device__ void inner_product<half_t, half_t, float>(const half_t& a, const half_t& b, float& c)
-{
-    c += a * b;
-}
-
-template <>
 __device__ void inner_product<float, float, float>(const float& a, const float& b, float& c)
 {
 #if CK_USE_AMD_V_MAC_INLINE_ASM && defined(CK_USE_AMD_V_MAC_F32)
