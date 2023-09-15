@@ -28,6 +28,12 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<float, double>(float& y, const double& x) const
+    {
+        y = type_convert<float>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<float, float>(float& y, const float& x) const
     {
         y = x;
@@ -70,13 +76,31 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<float, half_t>(float& y, const half_t& x) const
+    {
+        y = type_convert<float>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<int8_t, int8_t>(int8_t& y, const int8_t& x) const
     {
         y = x;
     }
 
     template <>
+    __host__ __device__ void operator()<half_t, int8_t>(half_t& y, const int8_t& x) const
+    {
+        y = type_convert<half_t>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<int8_t, int32_t>(int8_t& y, const int32_t& x) const
+    {
+        y = type_convert<int8_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<int8_t, float>(int8_t& y, const float& x) const
     {
         y = type_convert<int8_t>(x);
     }
@@ -89,6 +113,7 @@ struct PassThrough
     }
 #endif
 
+#if defined CK_ENABLE_FP8
     template <>
     __host__ __device__ void operator()<f8_t, f8_t>(f8_t& y, const f8_t& x) const
     {
@@ -118,6 +143,7 @@ struct PassThrough
     {
         y = type_convert<f8_t>(x);
     }
+#endif
 };
 
 struct UnaryConvert
@@ -146,6 +172,7 @@ struct ConvertBF16RTN
     }
 };
 
+#if defined CK_ENABLE_FP8
 struct ConvertF8SR
 {
     // convert to fp8 using stochastic rounding (SR)
@@ -162,6 +189,7 @@ struct ConvertF8SR
         y = f8_convert_sr<Y>(x);
     }
 };
+#endif
 
 struct Scale
 {
@@ -412,14 +440,19 @@ struct Swish
 {
     Swish(float beta = 1.0f) : beta_(beta) {}
 
-    template <typename T>
-    __host__ __device__ void operator()(T& y, const T& x) const
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const
     {
-        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, ck::half_t>::value,
+        static_assert(is_same<X, float>::value || is_same<X, double>::value ||
+                          is_same<X, ck::half_t>::value,
                       "Data type is not supported by this operation!");
 
-        y = x / (ck::type_convert<T>(1) + ck::math::exp(-beta_ * x));
+        static_assert(is_same<Y, float>::value || is_same<Y, double>::value ||
+                          is_same<Y, ck::half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        float bx = -beta_ * type_convert<float>(x);
+        y        = type_convert<Y>(x / (1.f + ck::math::exp(bx)));
     };
 
     float beta_ = 1.0f;
