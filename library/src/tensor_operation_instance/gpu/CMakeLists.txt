@@ -18,7 +18,8 @@ function(add_instance_library INSTANCE_NAME)
                 elseif(type MATCHES "int8")
                         set(type1 "_i8")
                 endif()
-                if("${source}" MATCHES "${type}" OR "${source}" MATCHES "${type1}")
+                #make an exception for reduction kernels
+                if("${source}" MATCHES "${type}" OR "${source}" MATCHES "${type1}" OR "${source}" MATCHES "device_reduce_instance")
                         #if filename matches any selected type, exit type loop and do no exclude the file from the list
                         set(test 0)
                         break()
