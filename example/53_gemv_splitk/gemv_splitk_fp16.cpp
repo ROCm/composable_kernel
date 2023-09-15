@@ -19,12 +19,10 @@ using CElementOp = PassThrough;
 
 static constexpr auto GemmMNPadding = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
-
-
-#define K1 8 //K1PerThread:2,4,8
-#define K0 4 //K0PerBlock:1,2,3,4...32 
-#define N1 2 //Nperthread:2,4,8
-#define B 64 //block-size:64
+#define K1 8 // K1PerThread:2,4,8
+#define K0 4 // K0PerBlock:1,2,3,4...32
+#define N1 2 // Nperthread:2,4,8
+#define B 64 // block-size:64
 
 // clang-format off
 using DeviceGemvInstance = ck::tensor_operation::device::deviceGemvDl/*

@@ -27,12 +27,12 @@ template <typename GridwiseGemv,
           typename Block2CTileMap>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-    kernel_gemv_dl_v1r3(
-        typename GridwiseGemv::Argument karg,
-        const Block2CTileMap& block_2_ctile_map) //: in __global__ functions, struct is
-                                                 // better for reduced load overhead
+        kernel_gemv_dl_v1r3(
+            typename GridwiseGemv::Argument karg,
+            const Block2CTileMap& block_2_ctile_map) //: in __global__ functions, struct is
+                                                     // better for reduced load overhead
 {
     constexpr index_t shared_block_size =
         GridwiseGemv::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);

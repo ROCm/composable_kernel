@@ -658,14 +658,14 @@ struct BlockToCTileMap_3DGrid_KSplit
         return make_tuple(blockIdx.z, blockIdx.y, blockIdx.x);
     }
 
-        //HS: Map 1D block-id to 3D tuple (M,N,K)
+    // HS: Map 1D block-id to 3D tuple (M,N,K)
     __host__ __device__ inline constexpr auto convert_1D_block_idx_to_3D_tuple(
         const index_t& block_1d_id, const index_t& N, const index_t& k_batch) const
     {
-        const auto Ndim= math::integer_divide_ceil(N, NPerBlock);
+        const auto Ndim = math::integer_divide_ceil(N, NPerBlock);
         return make_tuple(((block_1d_id) / (k_batch * Ndim)),
-                            (((block_1d_id) / k_batch) % Ndim),
-                            (block_1d_id) % k_batch); // returns 3D tuple as (Mid,Nid,Kid)
+                          (((block_1d_id) / k_batch) % Ndim),
+                          (block_1d_id) % k_batch); // returns 3D tuple as (Mid,Nid,Kid)
     }
 
     template <typename CTileIdx, typename CTileDim>

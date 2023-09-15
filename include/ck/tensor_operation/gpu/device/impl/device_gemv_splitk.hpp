@@ -271,7 +271,7 @@ struct deviceGemvDl : public DeviceGemv<ALayout,
             return false;
         }
     }
-    // // 
+    // //
     // polymorphic
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
