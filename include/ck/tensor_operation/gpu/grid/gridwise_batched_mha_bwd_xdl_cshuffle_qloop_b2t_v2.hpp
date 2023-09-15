@@ -130,8 +130,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
     static constexpr auto V_K0 = Gemm1NPerBlock / KPerBlock;
     static constexpr auto V_N1 = NXdlPerWave;
     static constexpr auto DropoutNThread = mfma.num_input_blks; // 2
-    // get_random_8x16() generates 8 random numbers each time
-    static constexpr auto DropoutTile = Number<DropoutNThread * 8>{}; // 16
+    // get_random_16x8() generates 16 random numbers each time
+    static constexpr auto DropoutTile = Number<DropoutNThread * 16>{}; // 32
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -1553,8 +1553,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
     {
         const FloatGemmAcc p_dropout  = type_convert<FloatGemmAcc>(1.0f - p_drop);
         const FloatGemmAcc rp_dropout = type_convert<FloatGemmAcc>(1.0f / p_dropout);
-        const ushort p_dropout_in_16bits =
-            __builtin_amdgcn_readfirstlane(std::floor(p_dropout * 65535.0));
+        const uint8_t p_dropout_in_uint8_t =
+            __builtin_amdgcn_readfirstlane(uint8_t(std::floor(p_dropout * 255.0)));
         const tensor_operation::element_wise::Scale scale_rp_dropout(s_element_op.Value() *
                                                                      rp_dropout);
 
@@ -1901,7 +1901,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                                   decltype(thread_slice_desc_m_n)>{};
 
         auto blockwise_dropout = BlockwiseDropout<FloatGemmAcc, decltype(thread_slice_desc_m_n)>{
-            p_dropout_in_16bits, rp_dropout};
+            p_dropout_in_uint8_t, rp_dropout};
 
         auto lse_grid_desc_mb_m0_m1_m2_m3_m4 =
             MakeLSEGridDescriptor_MB_M0_M1_M2_M3_M4<decltype(s_blockwise_gemm)>(lse_grid_desc_m);
@@ -1951,7 +1951,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                                            n2)); // NPerXdl
 
         StaticBuffer<AddressSpaceEnum::Vgpr,
-                     ushort,
+                     uint8_t,
                      z_thread_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3.GetElementSpaceSize(),
                      true>
             z_tensor_buffer;
@@ -1961,7 +1961,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             p_z_grid, z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3.GetElementSpaceSize());
 
         auto z_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
-            ushort,
+            uint8_t,
             ZDataType,
             decltype(z_thread_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3),
             decltype(z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3),
