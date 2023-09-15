@@ -44,10 +44,16 @@ using ELayout = Row;
 struct MultiATest
 {
     template <typename A, typename A0, typename A1>
-    __host__ __device__ constexpr void operator()(A& a, const A0& a0, const A1& a1) const
+    __host__ __device__ constexpr void operator()(A& a, const A0& a0, const A1& a1) const;
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()(ck::half2_t& a, const ck::half2_t& a0, const ck::half2_t& a1) const
     {
         a = (a0 + a1) / 2;
     }
+
+    static constexpr ck::index_t vec_len = 2;
 };
 
 struct AlphaBetaAdd
