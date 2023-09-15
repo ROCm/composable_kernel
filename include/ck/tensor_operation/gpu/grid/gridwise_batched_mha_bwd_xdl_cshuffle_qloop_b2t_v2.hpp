@@ -1361,7 +1361,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                       "D0BlockTransferSrcScalarPerVector * NThreadClusterLengths <= NPerBlock");
         __host__ __device__ static constexpr auto GetD0BlockGlobalDescriptor_M0_N0_M1_M2_N1_M3()
         {
-            // B1 matrix in LDS memory, dst of blockwise copy
             return make_naive_tensor_descriptor_packed(
                 make_tuple(I1, I1, I1, D0M1, Number<NPerBlock>{}, D0M2));
         }
