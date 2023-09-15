@@ -8,7 +8,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_abd_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/device_memory.hpp"
@@ -17,24 +17,6 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
-
-struct AlphaBetaAdd
-{
-    AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta){};
-
-    template <typename E, typename C, typename D>
-    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
-
-    template <>
-    __host__ __device__ constexpr void operator()<ck::half_t, float, ck::half_t>(
-        ck::half_t& e, const float& c, const ck::half_t& d) const
-    {
-        e = ck::type_convert<ck::half_t>(alpha_ * c + beta_ * ck::type_convert<float>(d));
-    };
-
-    float alpha_;
-    float beta_;
-};
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -59,56 +41,83 @@ using BLayout = Col;
 using DLayout = Row;
 using ELayout = Row;
 
-using AElementOp   = PassThrough;
+struct MultiATest
+{
+    template <typename A, typename A0, typename A1>
+    __host__ __device__ constexpr void operator()(A& a, const A0& a0, const A1& a1) const
+    {
+        a = (a0 + a1) / 2;
+    }
+};
+
+struct AlphaBetaAdd
+{
+    AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta){};
+
+    template <typename E, typename C, typename D>
+    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, float, ck::half_t>(
+        ck::half_t& e, const float& c, const ck::half_t& d) const
+    {
+        e = ck::type_convert<ck::half_t>(alpha_ * c + beta_ * ck::type_convert<float>(d));
+    };
+
+    float alpha_;
+    float beta_;
+};
+
+using AElementOp   = MultiATest;
 using BElementOp   = PassThrough;
 using CDEElementOp = AlphaBetaAdd;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
-using DeviceOpInstance =
-    ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle<ALayout,
-                                                                   BLayout,
-                                                                   ck::Tuple<DLayout>,
-                                                                   ELayout,
-                                                                   ADataType,
-                                                                   BDataType,
-                                                                   AccDataType,
-                                                                   CShuffleDataType,
-                                                                   ck::Tuple<DDataType>,
-                                                                   EDataType,
-                                                                   AElementOp,
-                                                                   BElementOp,
-                                                                   CDEElementOp,
-                                                                   GemmSpec,
-                                                                   1,
-                                                                   256,
-                                                                   256,
-                                                                   128,
-                                                                   32,
-                                                                   8,
-                                                                   8,
-                                                                   32,
-                                                                   32,
-                                                                   4,
-                                                                   2,
-                                                                   S<4, 64, 1>,
-                                                                   S<1, 0, 2>,
-                                                                   S<1, 0, 2>,
-                                                                   2,
-                                                                   8,
-                                                                   8,
-                                                                   1,
-                                                                   S<4, 64, 1>,
-                                                                   S<1, 0, 2>,
-                                                                   S<1, 0, 2>,
-                                                                   2,
-                                                                   8,
-                                                                   8,
-                                                                   1,
-                                                                   1,
-                                                                   1,
-                                                                   S<1, 32, 1, 8>,
-                                                                   8>;
+using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleABD_Xdl_CShuffle<
+    ck::Tuple<ALayout, ALayout>,
+    ck::Tuple<BLayout>,
+    ck::Tuple<DLayout>,
+    ELayout,
+    ck::Tuple<ADataType, ADataType>,
+    ck::Tuple<BDataType>,
+    AccDataType,
+    CShuffleDataType,
+    ck::Tuple<DDataType>,
+    EDataType,
+    AElementOp,
+    BElementOp,
+    CDEElementOp,
+    GemmSpec,
+    1,
+    256,
+    256,
+    128,
+    32,
+    8,
+    8,
+    32,
+    32,
+    4,
+    2,
+    S<4, 64, 1>,
+    S<1, 0, 2>,
+    S<1, 0, 2>,
+    2,
+    8,
+    8,
+    1,
+    S<4, 64, 1>,
+    S<1, 0, 2>,
+    S<1, 0, 2>,
+    2,
+    8,
+    8,
+    1,
+    1,
+    1,
+    S<1, 32, 1, 8>,
+    8>;
 
 int main(int argc, char* argv[])
 {
@@ -232,21 +241,21 @@ int main(int argc, char* argv[])
     // do GEMM
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
-    auto argument =
-        device_op.MakeArgument(a_device_buf.GetDeviceBuffer(),
-                               b_device_buf.GetDeviceBuffer(),
-                               std::array<const void*, 1>{d_device_buf.GetDeviceBuffer()},
-                               e_device_buf.GetDeviceBuffer(),
-                               M,
-                               N,
-                               K,
-                               StrideA,
-                               StrideB,
-                               std::array<ck::index_t, 1>{StrideD},
-                               StrideE,
-                               a_element_op,
-                               b_element_op,
-                               cde_element_op);
+    auto argument  = device_op.MakeArgument(
+        std::array<const void*, 2>{a_device_buf.GetDeviceBuffer(), a_device_buf.GetDeviceBuffer()},
+        std::array<const void*, 1>{b_device_buf.GetDeviceBuffer()},
+        std::array<const void*, 1>{d_device_buf.GetDeviceBuffer()},
+        e_device_buf.GetDeviceBuffer(),
+        M,
+        N,
+        K,
+        std::array<ck::index_t, 2>{StrideA, StrideA},
+        std::array<ck::index_t, 1>{StrideB},
+        std::array<ck::index_t, 1>{StrideD},
+        StrideE,
+        a_element_op,
+        b_element_op,
+        cde_element_op);
 
     if(!device_op.IsSupportedArgument(argument))
     {
@@ -278,14 +287,14 @@ int main(int argc, char* argv[])
                                                                                 BDataType,
                                                                                 CShuffleDataType,
                                                                                 AccDataType,
-                                                                                AElementOp,
+                                                                                BElementOp,
                                                                                 BElementOp,
                                                                                 PassThrough>;
         auto ref_gemm               = ReferenceGemmInstance{};
         auto ref_invoker            = ref_gemm.MakeInvoker();
 
         auto ref_argument =
-            ref_gemm.MakeArgument(a_m_k, b_k_n, c_m_n, a_element_op, b_element_op, PassThrough{});
+            ref_gemm.MakeArgument(a_m_k, b_k_n, c_m_n, b_element_op, b_element_op, PassThrough{});
 
         ref_invoker.Run(ref_argument);
 
