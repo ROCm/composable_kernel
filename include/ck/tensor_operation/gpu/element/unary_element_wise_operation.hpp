@@ -76,9 +76,21 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<float, half_t>(float& y, const half_t& x) const
+    {
+        y = type_convert<float>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<int8_t, int8_t>(int8_t& y, const int8_t& x) const
     {
         y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<half_t, int8_t>(half_t& y, const int8_t& x) const
+    {
+        y = type_convert<half_t>(x);
     }
 
     template <>
