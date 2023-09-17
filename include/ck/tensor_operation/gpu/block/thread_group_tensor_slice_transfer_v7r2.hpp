@@ -159,7 +159,8 @@ struct ThreadGroupTensorSliceTransfer_v7r2
 
     __device__ void MoveSrcSliceWindow(const SrcDescs& src_descs, const Index& step)
     {
-        MoveSrcSliceWindow(src_descs, Number<0>{}, step);
+        static_for<0, SrcDescs::Size(), 1>{}(
+            [&](auto i) { MoveSrcSliceWindow(src_descs, i, step); });
     }
 
     template <index_t IDst>
@@ -175,7 +176,8 @@ struct ThreadGroupTensorSliceTransfer_v7r2
 
     __device__ void MoveDstSliceWindow(const DstDescs& dst_descs, const Index& step)
     {
-        MoveDstSliceWindow(dst_descs, Number<0>{}, step);
+        static_for<0, DstDescs::Size(), 1>{}(
+            [&](auto i) { MoveDstSliceWindow(dst_descs, i, step); });
     }
 
     private:

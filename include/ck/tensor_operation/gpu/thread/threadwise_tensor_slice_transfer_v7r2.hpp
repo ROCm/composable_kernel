@@ -167,42 +167,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
                                                            is_src_valid);
             });
 
-            if constexpr(!has_vec_len<decltype(element_op_)>::value)
-            {
-                // apply pointwise function
-                static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
-                    // get reference to src data
-                    const auto src_data_refs = generate_tie(
-                        // return type should be lvalue
-                        [&](auto iSrc) -> const auto& {
-                            using SrcData = remove_cvref_t<tuple_element_t<iSrc.value, SrcDatas>>;
-
-                            return src_vectors[iSrc].template AsType<SrcData>()[i];
-                        },
-                        Number<nSrc>{});
-
-                    // get reference to dst data
-                    auto dst_data_refs = generate_tie(
-                        // return type should be lvalue
-                        [&](auto iDst) -> auto& {
-                            using DstData = remove_cvref_t<tuple_element_t<iDst.value, DstDatas>>;
-
-                            return dst_vectors(iDst).template AsType<DstData>()(i);
-                        },
-                        Number<nDst>{});
-
-                    // apply pointwise function
-                    // pointwise function signature:
-                    // element_op_(dst_data_refs[I0],
-                    //             dst_data_refs[I1],
-                    //             ...,
-                    //             src_data_refs[I0],
-                    //             src_data_refs[I1],
-                    //             ...)
-                    unpack2(element_op_, dst_data_refs, src_data_refs);
-                });
-            }
-            else
+            if constexpr(has_vec_len<decltype(element_op_)>::value)
             {
                 constexpr auto elem_op_vec_len = decltype(element_op_)::vec_len;
 
@@ -240,6 +205,41 @@ struct ThreadwiseTensorSliceTransfer_v7r2
                                 typename vector_type<DstData, elem_op_vec_len>::type;
 
                             return dst_vectors(iDst).template AsType<elem_op_vec_t>()(i);
+                        },
+                        Number<nDst>{});
+
+                    // apply pointwise function
+                    // pointwise function signature:
+                    // element_op_(dst_data_refs[I0],
+                    //             dst_data_refs[I1],
+                    //             ...,
+                    //             src_data_refs[I0],
+                    //             src_data_refs[I1],
+                    //             ...)
+                    unpack2(element_op_, dst_data_refs, src_data_refs);
+                });
+            }
+            else
+            {
+                // apply pointwise function
+                static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
+                    // get reference to src data
+                    const auto src_data_refs = generate_tie(
+                        // return type should be lvalue
+                        [&](auto iSrc) -> const auto& {
+                            using SrcData = remove_cvref_t<tuple_element_t<iSrc.value, SrcDatas>>;
+
+                            return src_vectors[iSrc].template AsType<SrcData>()[i];
+                        },
+                        Number<nSrc>{});
+
+                    // get reference to dst data
+                    auto dst_data_refs = generate_tie(
+                        // return type should be lvalue
+                        [&](auto iDst) -> auto& {
+                            using DstData = remove_cvref_t<tuple_element_t<iDst.value, DstDatas>>;
+
+                            return dst_vectors(iDst).template AsType<DstData>()(i);
                         },
                         Number<nDst>{});
 

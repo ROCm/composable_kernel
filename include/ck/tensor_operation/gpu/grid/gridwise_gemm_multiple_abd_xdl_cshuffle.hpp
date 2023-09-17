@@ -705,13 +705,8 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
             a_blockwise_copy.RunRead(a_grid_desc, a_grid_bufs);
             b_blockwise_copy.RunRead(b_grid_desc, b_grid_bufs);
 
-            static_for<0, NumATensor, 1>{}([&](auto i) {
-                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, i, a_block_copy_step);
-            });
-
-            static_for<0, NumBTensor, 1>{}([&](auto i) {
-                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, i, b_block_copy_step);
-            });
+            a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
             // Initialize C
             c_thread_buf.Clear();
@@ -738,13 +733,8 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
 
                     block_sync_lds();
 
-                    static_for<0, NumATensor, 1>{}([&](auto i) {
-                        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, i, a_block_copy_step);
-                    });
-
-                    static_for<0, NumBTensor, 1>{}([&](auto i) {
-                        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, i, b_block_copy_step);
-                    });
+                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                    b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
                     a_blockwise_copy.RunWrite(tie(a_block_desc), tie(a_block_buf));
                     b_blockwise_copy.RunWrite(tie(b_block_desc), tie(b_block_buf));
@@ -760,22 +750,21 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
                 blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
             }
         }
-#endif
-#if 0
+#else
         // gridwise GEMM pipeline
         const auto gridwise_gemm_pipeline =
             GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>();
 
-        gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_descs,
+        gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(as_grid_desc_ak0_m_ak1,
                                                                a_block_desc_ak0_m_ak1,
                                                                a_blockwise_copy,
-                                                               a_grid_bufs,
+                                                               as_grid_buf,
                                                                a_block_buf,
                                                                a_block_slice_copy_step,
-                                                               b_grid_descs,
+                                                               bs_grid_desc_bk0_n_bk1,
                                                                b_block_desc_bk0_n_bk1,
                                                                b_blockwise_copy,
-                                                               b_grid_bufs,
+                                                               bs_grid_buf,
                                                                b_block_buf,
                                                                b_block_slice_copy_step,
                                                                blockwise_gemm,
