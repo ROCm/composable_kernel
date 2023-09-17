@@ -338,10 +338,12 @@ int run(int argc, char* argv[])
 
         gemm.SetWorkSpacePointer(&argument, problem_desc_workspace_verify.GetDeviceBuffer());
 
-        invoker.Run(argument, StreamConfig{nullptr, false});
+        invoker.Run(argument, StreamConfig{stream, false});
 
         HIP_CHECK_ERROR(hipStreamEndCapture(stream, &graph));
         HIP_CHECK_ERROR(hipGraphInstantiate(&g_instance, graph, nullptr, nullptr, 0));
+
+        HIP_CHECK_ERROR(hipGraphDebugDotPrint(graph, "grouped_fwd_debug.dot", 0x007f));
 
         HIP_CHECK_ERROR(hipGraphLaunch(g_instance, stream));
 
