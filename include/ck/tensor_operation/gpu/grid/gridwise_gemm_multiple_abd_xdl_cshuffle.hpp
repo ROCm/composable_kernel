@@ -687,70 +687,6 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
             (as_grid_desc_ak0_m_ak1[I0].GetLength(I0) * as_grid_desc_ak0_m_ak1[I0].GetLength(I2)) /
             KPerBlock);
 
-#if 1
-        {
-            const auto a_grid_desc = as_grid_desc_ak0_m_ak1;
-            const auto b_grid_desc = bs_grid_desc_bk0_n_bk1;
-
-            const auto a_block_copy_step = a_block_slice_copy_step;
-            const auto b_block_copy_step = b_block_slice_copy_step;
-
-            const auto a_block_desc = a_block_desc_ak0_m_ak1;
-            const auto b_block_desc = b_block_desc_bk0_n_bk1;
-
-            const auto a_grid_bufs = as_grid_buf;
-            const auto b_grid_bufs = bs_grid_buf;
-
-            // preload data into LDS
-            a_blockwise_copy.RunRead(a_grid_desc, a_grid_bufs);
-            b_blockwise_copy.RunRead(b_grid_desc, b_grid_bufs);
-
-            a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
-            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
-
-            // Initialize C
-            c_thread_buf.Clear();
-
-            a_blockwise_copy.RunWrite(tie(a_block_desc), tie(a_block_buf));
-            b_blockwise_copy.RunWrite(tie(b_block_desc), tie(b_block_buf));
-
-            const auto num_loop = num_k_block_main_loop;
-
-            // main body
-            if constexpr(HasMainKBlockLoop)
-            {
-                index_t k = 0;
-
-                do
-                {
-                    a_blockwise_copy.RunRead(a_grid_desc, a_grid_bufs);
-
-                    block_sync_lds();
-
-                    b_blockwise_copy.RunRead(b_grid_desc, b_grid_bufs);
-
-                    blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-
-                    block_sync_lds();
-
-                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
-                    b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
-
-                    a_blockwise_copy.RunWrite(tie(a_block_desc), tie(a_block_buf));
-                    b_blockwise_copy.RunWrite(tie(b_block_desc), tie(b_block_buf));
-
-                    ++k;
-                } while(k < (num_loop - 1));
-            }
-
-            // tail
-            {
-                block_sync_lds();
-
-                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-            }
-        }
-#else
         // gridwise GEMM pipeline
         const auto gridwise_gemm_pipeline =
             GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>();
@@ -770,7 +706,6 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
                                                                blockwise_gemm,
                                                                c_thread_buf,
                                                                num_k_block_main_loop);
-#endif
 
         // shuffle C and write out
         {

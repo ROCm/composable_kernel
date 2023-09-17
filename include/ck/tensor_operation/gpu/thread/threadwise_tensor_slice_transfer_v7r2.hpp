@@ -7,18 +7,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_description/tensor_space_filling_curve.hpp"
-
-#include <type_traits>
-
-template <typename T, typename = void>
-struct has_vec_len : std::false_type
-{
-};
-
-template <typename T>
-struct has_vec_len<T, std::void_t<decltype(std::declval<T>().vec_len)>> : std::true_type
-{
-};
+#include "ck/utility/is_detected.hpp"
 
 namespace ck {
 
@@ -143,6 +132,9 @@ struct ThreadwiseTensorSliceTransfer_v7r2
             Number<num>{});
     }
 
+    template <typename T>
+    using has_vec_len = decltype(std::declval<T&>().vec_len());
+
     // SrcDescs: Tuple<const SrcDesc0&, const SrcDesc1&, ...>
     // SrcBuffers: Tuple<const SrcBuffer0&, const SrcBuffer1&, ...>
     template <typename SrcBuffers,
@@ -167,7 +159,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
                                                            is_src_valid);
             });
 
-            if constexpr(has_vec_len<decltype(element_op_)>::value)
+            if constexpr(is_detected<has_vec_len, decltype(element_op_)>::value)
             {
                 constexpr auto elem_op_vec_len = decltype(element_op_)::vec_len;
 

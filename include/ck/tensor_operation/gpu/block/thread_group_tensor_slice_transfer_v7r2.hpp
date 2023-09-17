@@ -126,13 +126,19 @@ struct ThreadGroupTensorSliceTransfer_v7r2
         }
     }
 
+    template <typename T>
+    using is_tuple = decltype(std::declval<T&>().IsTuple());
+
     template <typename DstBuffers>
     __device__ void RunWrite(const DstDescs& dst_descs, DstBuffers dst_bufs)
     {
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
-            threadwise_transfer_.RunWrite(dst_descs, dst_bufs);
+            if constexpr(is_detected<is_tuple, decltype(dst_bufs)>::value)
+                threadwise_transfer_.RunWrite(dst_descs, dst_bufs);
+            else
+                threadwise_transfer_.RunWrite(dst_descs, tie(dst_bufs));
         }
     }
 
