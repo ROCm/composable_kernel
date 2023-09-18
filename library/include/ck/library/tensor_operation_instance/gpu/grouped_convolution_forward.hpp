@@ -170,7 +170,6 @@ void add_device_grouped_conv2d_fwd_wmma_gnhwc_gkyxc_gnhwk_f16_instances(
                                                               PassThrough,
                                                               PassThrough>>>& instances);
 
-
 #ifdef DL_KERNELS
 void add_device_grouped_conv2d_fwd_dl_nhwgc_gkyxc_nhwgk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
@@ -202,7 +201,7 @@ void add_device_grouped_conv2d_fwd_wmma_gnhwc_gkyxc_gnhwk_i8_instances(
                                                               PassThrough,
                                                               PassThrough>>>& instances);
 #endif
-#if(defined(CK_ENABLE_FP32) && defined)DL_KERNELS))
+#if(defined(CK_ENABLE_FP32) && defined(DL_KERNELS))
 void add_device_grouped_conv2d_fwd_dl_nhwgc_gkyxc_nhwgk_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
                                                               NHWGC,
