@@ -1,6 +1,19 @@
 cmake_minimum_required(VERSION 3.14)
 cmake_policy(SET CMP0140 NEW)
 
+# This has to be initialized before the project() command appears
+# Set the default of CMAKE_BUILD_TYPE to be release, unless user specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
+if( NOT MSVC_IDE AND NOT CMAKE_BUILD_TYPE )
+    set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
+endif()
+
+# Default installation path
+if(WIN32)
+    set(CMAKE_INSTALL_PREFIX "/opt/rocm/x86_64-w64-mingw32" CACHE PATH "")
+else()
+    set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
+endif()
+
 set(version 1.1.0)
 # Check support for CUDA/HIP in Cmake
 project(composable_kernel VERSION ${version})
@@ -16,6 +29,12 @@ if (DTYPES)
     if (DTYPES MATCHES "fp8")
         add_definitions(-DCK_ENABLE_FP8)
         set(CK_ENABLE_FP8 "ON")
+        add_compile_options(-Wno-bit-int-extension)
+    endif()
+    if (DTYPES MATCHES "bf8")
+        add_definitions(-DCK_ENABLE_BF8)
+        set(CK_ENABLE_BF8 "ON")
+        add_compile_options(-Wno-bit-int-extension)
     endif()
     if (DTYPES MATCHES "fp16")
         add_definitions(-DCK_ENABLE_FP16)
@@ -35,8 +54,9 @@ if (DTYPES)
     endif()
     message("DTYPES macro set to ${DTYPES}")
 else()
-    add_definitions(-DCK_ENABLE_INT8 -DCK_ENABLE_FP8 -DCK_ENABLE_FP16 -DCK_ENABLE_FP32 -DCK_ENABLE_FP64 -DCK_ENABLE_BF16)
+    add_definitions(-DCK_ENABLE_INT8 -DCK_ENABLE_FP8 -DCK_ENABLE_BF8 -DCK_ENABLE_FP16 -DCK_ENABLE_FP32 -DCK_ENABLE_FP64 -DCK_ENABLE_BF16)
     set(CK_ENABLE_ALL_DTYPES "ON")
+    add_compile_options(-Wno-bit-int-extension) # enable fp8 and bf8
 endif()
 
 if(DL_KERNELS)
@@ -366,6 +386,10 @@ IF(IS_DIRECTORY "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu
         #message("fp8 instance found!")
         set(add_inst 1)
     endif()
+    if("${cmake_instance}" MATCHES "DTYPES MATCHES \"bf8\" " AND DTYPES MATCHES "bf8")
+        #message("bf8 instance found!")
+        set(add_inst 1)
+    endif()
     if("${cmake_instance}" MATCHES "DTYPES MATCHES \"fp16\"" AND DTYPES MATCHES "fp16")
         #message("fp16 instance found!")
         set(add_inst 1)
@@ -450,7 +474,7 @@ rocm_install(FILES
 )
 
 # Install CK version and configuration files
-install(FILES
+rocm_install(FILES
     ${PROJECT_BINARY_DIR}/include/ck/version.h
     ${PROJECT_BINARY_DIR}/include/ck/config.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck/

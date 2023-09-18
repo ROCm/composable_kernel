@@ -309,6 +309,8 @@ XML_OUTPUT
 XML_PROGRAMLISTING
 )
 
+set(WARN_AS_ERROR YES)
+
 set(DOXYGEN_CONFIG_FILE "${CMAKE_CURRENT_BINARY_DIR}/doxygen/doxygen.conf" CACHE PATH "Path to generated doxygen configuration file")
 
 function(add_doxygen_doc)

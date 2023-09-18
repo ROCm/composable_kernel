@@ -210,6 +210,9 @@ def cmake_build(Map conf=[:]){
     } else{
         setup_args = ' -DBUILD_DEV=On' + setup_args
     }
+    if (params.DL_KERNELS){
+        setup_args = setup_args + " -DDL_KERNELS=ON "
+    }
 
     if(build_type_debug){
         setup_args = " -DCMAKE_BUILD_TYPE=debug -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'" + setup_args
@@ -367,8 +370,6 @@ def runCKProfiler(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 24, unit: 'HOURS')
                 {
-                    //cmake_build(conf)
-                    //instead of building, just unstash the ckProfiler and install it
                     sh """
                         rm -rf build
                         mkdir build
@@ -614,7 +615,7 @@ def process_results(Map conf=[:]){
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=5.7;COMPILER_VERSION=rc1
                                               0 21 * * * % ROCMVERSION=5.6;COMPILER_VERSION=;COMPILER_COMMIT=
-                                              0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=''' : ""
+                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=''' : ""
 
 pipeline {
     agent none
@@ -649,6 +650,10 @@ pipeline {
             name: "RUN_FULL_QA",
             defaultValue: false,
             description: "Select whether to run small set of performance tests (default) or full QA")
+        booleanParam(
+            name: "DL_KERNELS",
+            defaultValue: false,
+            description: "Select whether to build DL kernels (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -663,10 +668,6 @@ pipeline {
     }
     stages{
         stage("Build Docker"){
-            //when {
-            //    beforeAgent true
-            //    expression { params.BUILD_DOCKER.toBoolean() }
-            //}
             parallel{
                 stage('Docker /opt/rocm'){
                     agent{ label rocmnode("nogpu") }
@@ -746,7 +747,6 @@ pipeline {
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1030" -DDL_KERNELS=ON """ 
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1030" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
-
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
@@ -763,7 +763,6 @@ pipeline {
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1101" """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1101" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
-
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')

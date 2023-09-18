@@ -99,6 +99,7 @@ void add_device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_instances(
         DeviceGemmSplitK<Row, Col, Row, F16, F8, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 #endif
+
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
