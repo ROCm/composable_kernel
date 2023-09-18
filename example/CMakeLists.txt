@@ -10,16 +10,35 @@ function(add_example_executable EXAMPLE_NAME FILE_NAME)
     set(result 1)
     if(DEFINED DTYPES)
     foreach(source IN LISTS FILE_NAME)
-        if((NOT DTYPES MATCHES "fp8" AND source MATCHES "fp8") OR
-                (NOT DTYPES MATCHES "fp8" AND source MATCHES "_f8") OR
-                (NOT DTYPES MATCHES "fp16" AND source MATCHES "fp16") OR
-                (NOT DTYPES MATCHES "fp32" AND source MATCHES "fp32") OR
-                (NOT DTYPES MATCHES "fp64" AND source MATCHES "fp64") OR
-                (NOT DTYPES MATCHES "bf16" AND source MATCHES "bf16") OR
-                (NOT DTYPES MATCHES "int8" AND source MATCHES "int8") OR
-                (NOT DTYPES MATCHES "int8" AND source MATCHES "_i8"))
-                        message("removing source file ${source} ")
-                        list(REMOVE_ITEM FILE_NAME "${source}")
+        set(test 0)
+        foreach(type IN LISTS DTYPES)
+            if(type MATCHES "fp16")
+                set(type1 "_f16")
+            elseif(type MATCHES "fp32")
+                set(type1 "_f32")
+            elseif(type MATCHES "fp8")
+                set(type1 "_f8")
+            elseif(type MATCHES "bf16")
+                set(type1 "_b16")
+            elseif(type MATCHES "fp64")
+                set(type1 "_f64")
+            elseif(type MATCHES "int8")
+                set(type1 "_i8")
+            endif()
+            if("${source}" MATCHES "${type}" OR "${source}" MATCHES "${type1}")
+                #if filename matches any selected type, exit type loop and do no exclude the file from the list
+                set(test 0)
+                break()
+            elseif((source MATCHES "fp8" OR source MATCHES "fp32" OR source MATCHES "fp64" OR source MATCHES "bf16" OR source MATCHES "int8" OR source MATCHES "fp16" OR
+                source MATCHES "_f8" OR source MATCHES "_f32" OR source MATCHES "_f64" OR source MATCHES "_i8" OR source MATCHES "_f16" OR source MATCHES "_b16") AND 
+                NOT(source MATCHES type OR source MATCHES type1))
+                    #if filename contains a type which doesn't match any selected type, mark it for removal
+                    set(test 1)
+            endif()
+        endforeach()
+        if(test EQUAL 1)
+            message("removing example source file ${source} ")
+            list(REMOVE_ITEM FILE_NAME "${source}")
         endif()
     endforeach()
     endif()
