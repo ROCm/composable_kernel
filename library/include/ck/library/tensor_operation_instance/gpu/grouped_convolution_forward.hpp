@@ -356,6 +356,20 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_int8_instances(
                                                               PassThrough,
                                                               PassThrough>>>& instances);
 
+void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f8_f8_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
+                                                              NDHWGC,
+                                                              GKZYXC,
+                                                              Empty_Tuple,
+                                                              NDHWGK,
+                                                              f8_t,
+                                                              f8_t,
+                                                              Empty_Tuple,
+                                                              half_t,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
+
 template <ck::index_t NumDimSpatial,
           typename InLayout,
           typename WeiLayout,
@@ -517,6 +531,11 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                               is_same_v<OutDataType, int8_t>)
             {
                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_int8_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<InDataType, f8_t> && is_same_v<WeiDataType, f8_t> &&
+                              is_same_v<OutDataType, half_t>)
+            {
+                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f8_f8_f16_instances(op_ptrs);
             }
         }
 
