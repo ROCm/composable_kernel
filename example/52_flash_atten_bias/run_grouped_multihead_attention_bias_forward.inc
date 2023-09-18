@@ -349,6 +349,9 @@ int run(int argc, char* argv[])
 
         HIP_CHECK_ERROR(hipStreamSynchronize(stream));
 
+        ck::tensor_operation::device::getPersistentHostMemoryAllocatorPtr()->releaseWithStream(
+            stream);
+
         for(std::size_t i = 0; i < group_count; i++)
         {
             const int& G0 = g0_g1_m_n_k_o[i][0];
