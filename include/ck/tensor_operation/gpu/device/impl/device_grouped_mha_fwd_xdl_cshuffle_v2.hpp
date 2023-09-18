@@ -919,8 +919,6 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
 
             if(status == hipStreamCaptureStatusActive)
             {
-                std::cout << " Inside hipStreamCapturing ..." << std::endl;
-
                 size_t copy_size = arg.group_kernel_args_.size() * sizeof(GroupKernelArg);
 
                 // ToDO: when to release this memory buffer?
@@ -936,7 +934,6 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
             }
             else
             {
-                std::cout << " Outside hipStreamCapturing ..." << std::endl;
                 HIP_CHECK_ERROR(
                     hipMemcpyAsync(arg.p_workspace_,
                                    arg.group_kernel_args_.data(),
