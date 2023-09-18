@@ -166,8 +166,9 @@ struct ThreadwiseTensorSliceTransfer_v7r2
                 static_assert(is_same<remove_cvref_t<decltype(elem_op_vec_len)>, index_t>::value,
                               "vec_len in element_op_ type is not index_t");
 
-                static_assert(elem_op_vec_len == 2 || elem_op_vec_len == 4 || elem_op_vec_len == 8,
-                              "vec_len in element_op_ must be 2, 4, 8");
+                static_assert(elem_op_vec_len == 1 || elem_op_vec_len == 2 ||
+                                  elem_op_vec_len == 4 || elem_op_vec_len == 8,
+                              "vec_len in element_op_ must be 1, 2, 4, 8");
 
                 static_assert(SrcScalarPerVector % elem_op_vec_len == 0,
                               "vec_len in element_op_ cannot be divided by SrcScalarPerVector!");

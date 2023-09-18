@@ -55,7 +55,7 @@ struct Add
         a = a0 + a1;
     }
 
-    static constexpr ck::index_t vec_len = 2;
+    static constexpr ck::index_t vec_len = 4;
 };
 
 struct AlphaBetaAdd
