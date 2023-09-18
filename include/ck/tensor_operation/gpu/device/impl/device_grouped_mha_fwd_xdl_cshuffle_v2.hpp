@@ -15,7 +15,6 @@
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_softmax_gemm_permute.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-#include "ck/tensor_operation/gpu/device/persistent_host_memory_allocator.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_fwd_xdl_cshuffle_v2.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
@@ -924,8 +923,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
 
                 size_t copy_size = arg.group_kernel_args_.size() * sizeof(GroupKernelArg);
 
-                void* persistent_ptr = getPersistentHostMemoryAllocatorPtr()->allocate(
-                    copy_size, stream_config.stream_id_);
+                // ToDO: when to release this memory buffer?
+                char* persistent_ptr = new char[copy_size];
 
                 (void)std::memcpy(persistent_ptr, arg.group_kernel_args_.data(), copy_size);
 
