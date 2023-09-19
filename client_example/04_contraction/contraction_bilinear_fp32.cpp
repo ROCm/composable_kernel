@@ -30,6 +30,7 @@ using CShuffleDataType = F32;
 using DDataType        = F32;
 using DsDataType       = ck::Tuple<DDataType>;
 using EDataType        = F32;
+using ComputeDataType  = F32;
 
 static constexpr ck::index_t NumDimM = 2;
 static constexpr ck::index_t NumDimN = 2;
@@ -140,6 +141,7 @@ int main(int argc, char* argv[])
         BDataType,
         ck::Tuple<DDataType>,
         EDataType,
+        ComputeDataType,
         ck::tensor_operation::element_wise::PassThrough,
         ck::tensor_operation::element_wise::PassThrough,
         ck::tensor_operation::element_wise::Bilinear>;

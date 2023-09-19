@@ -199,6 +199,7 @@ int run_contraction_bilinear_example(int argc, char* argv[])
                                                                       BDataType,
                                                                       CShuffleDataType,
                                                                       AccDataType,
+                                                                      ComputeDataType,
                                                                       AElementOp,
                                                                       BElementOp>;
 

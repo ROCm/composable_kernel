@@ -31,10 +31,14 @@ namespace profiler {
 using Bilinear = ck::tensor_operation::element_wise::Bilinear;
 using Scale    = ck::tensor_operation::element_wise::Scale;
 
+using F32 = float;
+using F64 = double;
+
 template <typename ALayout,
           typename BLayout,
           typename CDELayout,
           typename DataType,
+          typename ComputeDataType,
           typename DTupleDataType,
           typename CDElementOp>
 int profile_contraction_impl(ck::index_t do_verification,
@@ -45,10 +49,10 @@ int profile_contraction_impl(ck::index_t do_verification,
                              const std::vector<ck::index_t>& M,
                              const std::vector<ck::index_t>& N,
                              const std::vector<ck::index_t>& K,
-                             const std::vector<ck::index_t>& StridesA,
-                             const std::vector<ck::index_t>& StridesB,
-                             const std::vector<ck::index_t>& StridesE,
-                             const std::vector<ck::index_t>& StridesD)
+                             const std::vector<ck::index_t>& StridesA, // [M0, M1, K0, K1]
+                             const std::vector<ck::index_t>& StridesB, // [K0, K1, N0, N1]
+                             const std::vector<ck::index_t>& StridesE, // [M0, M1, N0, N1]
+                             const std::vector<ck::index_t>& StridesD) // [M0, M1, N0, N1]
 {
     bool pass = true;
 
@@ -105,6 +109,10 @@ int profile_contraction_impl(ck::index_t do_verification,
     const std::vector<index_t> e_ms_ns_lengths = {M[0], M[1], N[0], N[1]};
     const std::vector<index_t> d_m_n_lengths   = {M[0], M[1], N[0], N[1]};
 
+    // The order of dims in StridesB is [K0, K1, N0, N1] so need to change it to [N0, N1, K0, K1]
+    const std::vector<index_t> b_ns_ks_strides = {
+        StridesB[2], StridesB[3], StridesB[0], StridesB[1]};
+
     const auto a_element_op = AElementOp{};
     const auto b_element_op = BElementOp{};
 
@@ -116,6 +124,7 @@ int profile_contraction_impl(ck::index_t do_verification,
                                                                               DataType,
                                                                               DTupleDataType,
                                                                               DataType,
+                                                                              ComputeDataType,
                                                                               AElementOp,
                                                                               BElementOp,
                                                                               CDElementOp>;
@@ -125,6 +134,9 @@ int profile_contraction_impl(ck::index_t do_verification,
         DeviceOp>::GetInstances();
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+
+    using AccDataType =
+        typename std::conditional<std::is_same<DataType, F64>::value, F64, F32>::type;
 
     // Run reference op
     if(do_verification)
@@ -136,7 +148,8 @@ int profile_contraction_impl(ck::index_t do_verification,
                                                                       DataType,
                                                                       DataType,
                                                                       DataType,
-                                                                      DataType,
+                                                                      AccDataType,
+                                                                      ComputeDataType,
                                                                       AElementOp,
                                                                       BElementOp>;
 
@@ -198,7 +211,7 @@ int profile_contraction_impl(ck::index_t do_verification,
                 a_ms_ks_lengths,
                 StridesA,
                 b_ns_ks_lengths,
-                StridesB,
+                b_ns_ks_strides,
                 std::array<std::vector<ck::index_t>, 1>{d_m_n_lengths},
                 std::array<std::vector<ck::index_t>, 1>{StridesD},
                 e_ms_ns_lengths,
@@ -217,7 +230,7 @@ int profile_contraction_impl(ck::index_t do_verification,
                                             a_ms_ks_lengths,
                                             StridesA,
                                             b_ns_ks_lengths,
-                                            StridesB,
+                                            b_ns_ks_strides,
                                             std::array<std::vector<ck::index_t>, 0>{},
                                             std::array<std::vector<ck::index_t>, 0>{},
                                             e_ms_ns_lengths,
@@ -272,8 +285,21 @@ int profile_contraction_impl(ck::index_t do_verification,
             {
                 e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-                float threshold =
-                    static_cast<DataType>(nelems_k) * std::numeric_limits<DataType>::epsilon();
+                double threshold = nelems_k * std::numeric_limits<AccDataType>::epsilon();
+                // TODO: Add a generic solution in CK.
+                if constexpr(ck::is_same_v<DataType, ck::bhalf_t>)
+                {
+                    const double epsilon = std::pow(2, -7);
+                    // Maximum relative casting error when rounding to zero.
+                    threshold += epsilon * 2;
+                }
+                else if constexpr(ck::is_same_v<DataType, ck::half_t>)
+                {
+                    const double epsilon = std::pow(2, -10);
+                    // Maximum relative casting error when rounding to zero.
+                    threshold += epsilon * 2;
+                }
+
                 pass = pass & ck::utils::check_err(e_m_n_device_result,
                                                    e_m_n_host_result,
                                                    "Error: incorrect results!",

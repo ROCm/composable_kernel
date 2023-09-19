@@ -31,6 +31,7 @@ template <index_t NumDimM,
           typename BDataType,
           typename DsDataType,
           typename EDataType,
+          typename ComputeDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation>

@@ -183,6 +183,7 @@ int run_contraction_scale_example(int argc, char* argv[])
                                                                       BDataType,
                                                                       CShuffleDataType,
                                                                       AccDataType,
+                                                                      ComputeDataType,
                                                                       AElementOp,
                                                                       BElementOp>;
 

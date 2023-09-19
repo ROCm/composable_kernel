@@ -2,16 +2,11 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_contraction_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-template <ck::index_t... Is>
-using S = ck::Sequence<Is...>;
+#include "common_instances.hpp"
 
 using F64 = double;
-
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using ADataType        = F64;
 using BDataType        = F64;
@@ -20,6 +15,7 @@ using CShuffleDataType = F64;
 using DDataType        = F64;
 using DsDataType       = ck::Tuple<DDataType>;
 using EDataType        = F64;
+using ComputeDataType  = F64;
 
 static constexpr ck::index_t NumDimM = 2;
 static constexpr ck::index_t NumDimN = 2;
@@ -29,37 +25,61 @@ using AElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using CDEElementOp = ck::tensor_operation::element_wise::Bilinear;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
+using DeviceOpInstanceKKNN = DeviceOpInstanceKK_FP64<NumDimM,
+                                                     NumDimN,
+                                                     NumDimK,
+                                                     ADataType,
+                                                     BDataType,
+                                                     AccDataType,
+                                                     CShuffleDataType,
+                                                     DsDataType,
+                                                     EDataType,
+                                                     ComputeDataType,
+                                                     AElementOp,
+                                                     BElementOp,
+                                                     CDEElementOp>;
 
-// clang-format off
-using DeviceOpInstanceKKNN = ck::tensor_operation::device::
-        //#####################################| NumDimM| NumDimN| NumDimK| AData| BData| AccData| CShuffle|     DsData| EData|            A|           B|          CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
-        //#####################################|        |        |        |  Type|  Type|    Type| DataType|       Type|  Type|  Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
-        //#####################################|        |        |        |      |      |        |         |           |      |    Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-        //#####################################|        |        |        |      |      |        |         |           |      |             |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-        DeviceContractionMultipleD_Xdl_CShuffle< NumDimM, NumDimN, NumDimK,   F64,   F64,     F64,      F64, DsDataType,   F64,   AElementOp,  BElementOp, CDEElementOp,       GemmSpec,        1,   256,   128,   128,    16,   2,   2,   16,   16,    4,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              2,              2,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,         1,           1,           1,              S<1, 16, 1, 16>,               1>;
+using DeviceOpInstanceKNNN = DeviceOpInstanceKN_FP64<NumDimM,
+                                                     NumDimN,
+                                                     NumDimK,
+                                                     ADataType,
+                                                     BDataType,
+                                                     AccDataType,
+                                                     CShuffleDataType,
+                                                     DsDataType,
+                                                     EDataType,
+                                                     ComputeDataType,
+                                                     AElementOp,
+                                                     BElementOp,
+                                                     CDEElementOp>;
 
-using DeviceOpInstanceKNNN = ck::tensor_operation::device::
-        //#####################################| NumDimM| NumDimN| NumDimK| AData| BData| AccData| CShuffle|     DsData| EData|            A|           B|          CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
-        //#####################################|        |        |        |  Type|  Type|    Type| DataType|       Type|  Type|  Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
-        //#####################################|        |        |        |      |      |        |         |           |      |    Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-        //#####################################|        |        |        |      |      |        |         |           |      |             |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-        DeviceContractionMultipleD_Xdl_CShuffle< NumDimM, NumDimN, NumDimK,   F64,   F64,     F64,      F64, DsDataType,   F64,   AElementOp,  BElementOp, CDEElementOp,       GemmSpec,        1,   256,   128,   128,    16,   2,   1,   16,   16,    4,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              2,              2,         1,     S<8, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              1,         0,           1,           1,              S<1, 16, 1, 16>,               1>;
+using DeviceOpInstanceMKNN = DeviceOpInstanceMK_FP64<NumDimM,
+                                                     NumDimN,
+                                                     NumDimK,
+                                                     ADataType,
+                                                     BDataType,
+                                                     AccDataType,
+                                                     CShuffleDataType,
+                                                     DsDataType,
+                                                     EDataType,
+                                                     ComputeDataType,
+                                                     AElementOp,
+                                                     BElementOp,
+                                                     CDEElementOp>;
 
-using DeviceOpInstanceMKNN = ck::tensor_operation::device::
-        //#####################################| NumDimM| NumDimN| NumDimK| AData| BData| AccData| CShuffle|     DsData| EData|            A|           B|          CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
-        //#####################################|        |        |        |  Type|  Type|    Type| DataType|       Type|  Type|  Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
-        //#####################################|        |        |        |      |      |        |         |           |      |    Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-        //#####################################|        |        |        |      |      |        |         |           |      |             |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-        DeviceContractionMultipleD_Xdl_CShuffle< NumDimM, NumDimN, NumDimK,   F64,   F64,     F64,      F64, DsDataType,   F64,   AElementOp,  BElementOp, CDEElementOp,       GemmSpec,        1,   256,   128,   128,    16,   1,   2,   16,   16,    4,    4,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              1,         0,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,         1,           1,           1,              S<1, 16, 1, 16>,               1>;
-
-using DeviceOpInstanceMNNN = ck::tensor_operation::device::
-        //#####################################| NumDimM| NumDimN| NumDimK| AData| BData| AccData| CShuffle|     DsData| EData|            A|           B|          CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
-        //#####################################|        |        |        |  Type|  Type|    Type| DataType|       Type|  Type|  Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
-        //#####################################|        |        |        |      |      |        |         |           |      |    Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-        //#####################################|        |        |        |      |      |        |         |           |      |             |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-        DeviceContractionMultipleD_Xdl_CShuffle< NumDimM, NumDimN, NumDimK,   F64,   F64,     F64,      F64, DsDataType,   F64,   AElementOp,  BElementOp, CDEElementOp,       GemmSpec,        1,   256,   128,   128,    16,   1,   1,   16,   16,    4,    4,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              1,         0,     S<8, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              1,         0,           1,           1,              S<1, 16, 1, 16>,               1>;
-// clang-format on
+using DeviceOpInstanceMNNN = DeviceOpInstanceMN_FP64<NumDimM,
+                                                     NumDimN,
+                                                     NumDimK,
+                                                     ADataType,
+                                                     BDataType,
+                                                     AccDataType,
+                                                     CShuffleDataType,
+                                                     DsDataType,
+                                                     EDataType,
+                                                     ComputeDataType,
+                                                     AElementOp,
+                                                     BElementOp,
+                                                     CDEElementOp>;
 
 using DeviceOpInstance = DeviceOpInstanceKKNN;
 

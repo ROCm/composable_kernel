@@ -34,11 +34,11 @@ class ContractionInstanceWrapper
     static constexpr ck::index_t NumDim = 2;
     // clang-format off
     using ContractionDeviceInstance = ck::tensor_operation::device::
-        //#####################################| NumDimM| NumDimN| NumDimK| AData| BData| AccData| CShuffle|         DsData| EData|            A|           B|          CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer|             ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer|              BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|                  CBlockTransfer|
-        //#####################################|        |        |        |  Type|  Type|    Type| DataType|           Type|  Type|  Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|               SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|               SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl|                 ScalarPerVector|
-        //#####################################|        |        |        |      |      |        |         |               |      |    Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |                           |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |                           |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|                   _NWaveNPerXdl|
-        //#####################################|        |        |        |      |      |        |         |               |      |             |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |                           |               |               |          |                |               |               |                           |               |               |          |            |            |                             |                                |
-        DeviceContractionMultipleD_Xdl_CShuffle<  NumDim,  NumDim,  NumDim,   F32,   F32,     F32,      F32, ck::Tuple<F32>,   F32,         Pass,        Pass,     Bilinear,       GemmSpec,        1,   256,   256,   128,    16,   4,   4,   32,   32,    4,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>, ABlockTransferSrcVectorDim,              4,              4,         1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>, BBlockTransferSrcVectorDim,              4,              4,         1,           1,           1,              S<1, 16, 1, 16>, CDEBlockTransferScalarPerVector>;
+        //#####################################| NumDimM| NumDimN| NumDimK| AData| BData| AccData| CShuffle|         DsData| EData| Compute|           A|           B|          CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer|             ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer|              BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|                  CBlockTransfer|
+        //#####################################|        |        |        |  Type|  Type|    Type| DataType|           Type|  Type|    Data| Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|               SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|               SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl|                 ScalarPerVector|
+        //#####################################|        |        |        |      |      |        |         |               |      |    Type|   Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |                           |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |                           |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|                   _NWaveNPerXdl|
+        //#####################################|        |        |        |      |      |        |         |               |      |        |            |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |                           |               |               |          |                |               |               |                           |               |               |          |            |            |                             |                                |
+        DeviceContractionMultipleD_Xdl_CShuffle<  NumDim,  NumDim,  NumDim,   F32,   F32,     F32,      F32, ck::Tuple<F32>,   F32,     F32,        Pass,        Pass,     Bilinear,       GemmSpec,        1,   256,   256,   128,    16,   4,   4,   32,   32,    4,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>, ABlockTransferSrcVectorDim,              4,              4,         1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>, BBlockTransferSrcVectorDim,              4,              4,         1,           1,           1,              S<1, 16, 1, 16>, CDEBlockTransferScalarPerVector>;
     // clang-format on
 
     bool isSupported(std::vector<ck::index_t>& ADims,
@@ -75,6 +75,7 @@ template <typename DataTypeA,
           typename DataTypeB,
           typename DataTypeC,
           typename DataTypeD,
+          typename DataTypeCompute,
           ck::index_t NumDim>
 class ContractionDeviceOpWrapper
 {
@@ -87,6 +88,7 @@ class ContractionDeviceOpWrapper
                                                                               DataTypeB,
                                                                               ck::Tuple<DataTypeC>,
                                                                               DataTypeD,
+                                                                              DataTypeCompute,
                                                                               Pass,
                                                                               Pass,
                                                                               Bilinear>;
@@ -129,9 +131,9 @@ TEST(TestContractionInterface, IncorrectNumDims)
 {
     std::vector<std::vector<ck::index_t>> Dims    = {{4, 4}, {4, 4, 4, 4}, {4, 4, 4, 4, 4, 4}};
     std::vector<std::vector<ck::index_t>> Strides = {{1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1, 1, 1}};
-    ContractionDeviceOpWrapper<F32, F32, F32, F32, 1> wrapper_1d;
-    ContractionDeviceOpWrapper<F32, F32, F32, F32, 2> wrapper_2d;
-    ContractionDeviceOpWrapper<F32, F32, F32, F32, 3> wrapper_3d;
+    ContractionDeviceOpWrapper<F32, F32, F32, F32, F32, 1> wrapper_1d;
+    ContractionDeviceOpWrapper<F32, F32, F32, F32, F32, 2> wrapper_2d;
+    ContractionDeviceOpWrapper<F32, F32, F32, F32, F32, 3> wrapper_3d;
     EXPECT_FALSE(wrapper_1d.IsSupportedInstance(Dims[0], Strides[0]));
     EXPECT_TRUE(wrapper_2d.IsSupportedInstance(Dims[1], Strides[1]));
     EXPECT_FALSE(wrapper_3d.IsSupportedInstance(Dims[2], Strides[2]));
@@ -141,8 +143,8 @@ TEST(TestContractionInterface, IncorrectDataTypes)
 {
     std::vector<ck::index_t> Dims    = {4, 4, 4, 4};
     std::vector<ck::index_t> Strides = {64, 16, 4, 1};
-    ContractionDeviceOpWrapper<F32, F32, F64, F64, 2> wrapper_1;
-    ContractionDeviceOpWrapper<F64, F64, F32, F32, 2> wrapper_2;
+    ContractionDeviceOpWrapper<F32, F32, F64, F64, F32, 2> wrapper_1;
+    ContractionDeviceOpWrapper<F64, F64, F32, F32, F32, 2> wrapper_2;
     EXPECT_FALSE(wrapper_1.IsSupportedInstance(Dims, Strides));
     EXPECT_FALSE(wrapper_2.IsSupportedInstance(Dims, Strides));
 }

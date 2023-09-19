@@ -23,6 +23,7 @@ template <ck::index_t NumDimM,
           typename BDataType,
           typename CDataType,
           typename AccDataType,
+          typename ComputeDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           ck::enable_if_t<NumDimM == 2 && NumDimN == 2 && NumDimK == 2, bool> = false>
@@ -69,13 +70,18 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
                 {
                     for(ck::index_t k1 = 0; k1 < K1; ++k1)
                     {
+                        // Simulate the possible casting when ComputeDataType is different than the
+                        // A/B data types
+                        ComputeDataType v_a_compute_input =
+                            ck::type_convert<ComputeDataType>(arg.a_ms_ks_(m0, m1, k0, k1));
+                        ComputeDataType v_b_compute_input =
+                            ck::type_convert<ComputeDataType>(arg.b_ks_ns_(k0, k1, n0, n1));
+
                         AccDataType v_a;
                         AccDataType v_b;
 
-                        arg.a_element_op_(
-                            v_a, ck::type_convert<AccDataType>(arg.a_ms_ks_(m0, m1, k0, k1)));
-                        arg.b_element_op_(
-                            v_b, ck::type_convert<AccDataType>(arg.b_ks_ns_(k0, k1, n0, n1)));
+                        arg.a_element_op_(v_a, ck::type_convert<AccDataType>(v_a_compute_input));
+                        arg.b_element_op_(v_b, ck::type_convert<AccDataType>(v_b_compute_input));
 
                         v_acc += v_a * v_b;
                     }
