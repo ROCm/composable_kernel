@@ -133,7 +133,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
     }
 
     template <typename T>
-    using has_vec_len = decltype(std::declval<T&>().vec_len());
+    using has_vec_len = decltype(std::declval<T&>().vec_len);
 
     // SrcDescs: Tuple<const SrcDesc0&, const SrcDesc1&, ...>
     // SrcBuffers: Tuple<const SrcBuffer0&, const SrcBuffer1&, ...>
