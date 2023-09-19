@@ -57,6 +57,48 @@ void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(
         DeviceGemmSplitK<Row, Col, Row, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
         instances);
 
+#if defined CK_ENABLE_FP8
+void add_device_gemm_xdl_splitk_f8_f16_f16_km_kn_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Col, Row, Row, F8, F16, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_f8_f16_f16_km_nk_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Col, Col, Row, F8, F16, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_f8_f16_f16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Row, Row, Row, F8, F16, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_f8_f16_f16_mk_nk_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Row, Col, Row, F8, F16, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_f16_f8_f16_km_kn_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Col, Row, Row, F16, F8, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_f16_f8_f16_km_nk_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Col, Col, Row, F16, F8, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Row, Row, Row, F16, F8, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Row, Col, Row, F16, F8, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+#endif
+
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
@@ -136,6 +178,56 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instances(op_ptrs);
             }
         }
+#if defined CK_ENABLE_FP8
+        else if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, half_t> &&
+                          is_same_v<CDataType, half_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_splitk_f8_f16_f16_mk_kn_mn_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_splitk_f8_f16_f16_mk_nk_mn_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_splitk_f8_f16_f16_km_kn_mn_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_splitk_f8_f16_f16_km_nk_mn_instances(op_ptrs);
+            }
+        }
+        else if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, f8_t> &&
+                          is_same_v<CDataType, half_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_splitk_f16_f8_f16_km_kn_mn_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_splitk_f16_f8_f16_km_nk_mn_instances(op_ptrs);
+            }
+        }
+#endif
 
         return op_ptrs;
     }

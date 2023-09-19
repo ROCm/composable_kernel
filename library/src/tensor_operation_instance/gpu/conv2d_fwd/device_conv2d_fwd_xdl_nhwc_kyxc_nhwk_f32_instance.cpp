@@ -8,7 +8,7 @@
 #include "ck/tensor_operation/gpu/device/impl/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
-#ifdef __fp32__
+#ifdef CK_ENABLE_FP32
 namespace ck {
 namespace tensor_operation {
 namespace device {
