@@ -25,11 +25,11 @@ using DeviceElementwisePermuteInstance =
                                                           2, // NumDim_m, {N, C}
                                                           2, // NumDim_n, {H, W}
                                                           1, // NumDim_k, {D}
-                                                          1,
-                                                          1,
-                                                          1,
-                                                          ck::Sequence<1>,
-                                                          ck::Sequence<1>>;
+                                                          8,
+                                                          8,
+                                                          8,
+                                                          ck::Sequence<8>,
+                                                          ck::Sequence<8>>;
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
 void host_elementwise4D(HostTensorB& B_nchwd, const HostTensorA& A_ncdhw, Functor functor)
@@ -50,21 +50,22 @@ int main()
     bool do_verification = true;
     bool time_kernel     = true;
 
-    const int N = 1;
-    const int C = 2;
-    const int H = 3;
-    const int W = 4;
+    const int N = 4;
+    const int C = 16;
+    const int H = 32;
+    const int W = 5;
     const int D = 16;
+    //
 
     std::vector<std::size_t> ncdhw = {N, C, D, H, W};
     std::vector<std::size_t> nchwd = {N, C, H, W, D};
     Tensor<ADataType> a(ncdhw);
     Tensor<BDataType> b(nchwd);
 
-    //a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-    for(std::size_t i = 0; i < a.mData.size(); i++){
-	    	    a.mData[i] = i;
-    }
+    a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+    //for(std::size_t i = 0; i < a.mData.size(); i++){
+//	    	    a.mData[i] = i;
+  //  }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
@@ -75,7 +76,7 @@ int main()
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
 
     std::array<ck::index_t, 5> ab_lengths{N, C, H, W, D};
-    std::array<ck::index_t, 5> a_strides = {C * D * H * W, D * H * W, H, 1, H * W}; // N, C, D, H, W
+    std::array<ck::index_t, 5> a_strides = {C * D * H * W, D * H * W, W, 1, H * W}; // N, C, D, H, W
     std::array<ck::index_t, 5> b_strides = {C * H * W * D, H * W * D, W * D, D, 1}; // N, C, H, W, D
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
@@ -104,10 +105,6 @@ int main()
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-    // LogRangeAsType<float>(std::cout << "A  : ", a.mData, ",") << std::endl;
-    // LogRangeAsType<float>(std::cout << "B  : ", b.mData, ",") << std::endl;
-    // std::cout << "A: " << a.mData.data() << std::endl;
-
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
 
@@ -117,11 +114,11 @@ int main()
     {
         b_device_buf.FromDevice(b.mData.data());
 
-        // LogRangeAsType<float>(std::cout << "A  : ", a.mData, ",") << std::endl;
-        LogRangeAsType<float>(std::cout << "B  : ", b.mData, ",") << std::endl;
+        //LogRangeAsType<float>(std::cout << "A  : ", a.mData, ",") << std::endl;
+        //LogRangeAsType<float>(std::cout << "B  : ", b.mData, ",") << std::endl;
         Tensor<BDataType> host_b(nchwd);
         host_elementwise4D(host_b, a, PassThrough{});
-        LogRangeAsType<float>(std::cout << "Host B  : ", host_b.mData, ",") << std::endl;
+        //LogRangeAsType<float>(std::cout << "Host B  : ", host_b.mData, ",") << std::endl;
 
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);

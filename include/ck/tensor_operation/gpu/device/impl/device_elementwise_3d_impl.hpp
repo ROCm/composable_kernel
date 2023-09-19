@@ -88,9 +88,18 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
         const auto m              = desc_mnk.GetLength(I0);
         const auto n              = desc_mnk.GetLength(I1);
         const auto k              = desc_mnk.GetLength(I2);
+//	std::cout << "m: " << m << std::endl;
+//	std::cout << "n: " << n << std::endl;
+//	std::cout << "k: " << k << std::endl;
+	//std::cout << "m: " << num_threads_m << std::endl;
+	//std::cout << "n: " << num_threads_n << std::endl;
+	//std::cout << "k: " << num_threads_k << std::endl;
         const index_t loop_step_m = num_threads_m * MPerThread;
         const index_t loop_step_n = num_threads_n * NPerThread;
         const index_t loop_step_k = num_threads_k * KPerThread;
+	//std::cout << "loop_step_m: " << loop_step_m << std::endl;
+	//std::cout << "loop_step_n: " << loop_step_n << std::endl;
+	//std::cout << "loop_step_k: " << loop_step_k << std::endl;
         const auto pad_m          = math::integer_least_multiple(m, loop_step_m) - m;
         const auto pad_n          = math::integer_least_multiple(n, loop_step_n) - n;
         const auto pad_k          = math::integer_least_multiple(k, loop_step_k) - k;
@@ -302,22 +311,22 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
                                           const std::array<index_t, NumDim>& strides,
                                           index_t scalarPerVector,
                                           index_t vectorDim) {
-            ignore = lengths;
-            ignore = strides;
-            ignore = scalarPerVector;
-            ignore = vectorDim;
-            // if(strides[vectorDim] == 1 &&
-            //(lengths[vectorDim] % scalarPerVector == 0))
-            ////lengths[vectorDim] % scalarPerVector == lengths[vectorDim]))
-            //{
-            // return true;
-            //}
+            //ignore = lengths;
+            //ignore = strides;
+            //ignore = scalarPerVector;
+            //ignore = vectorDim;
+            if(strides[vectorDim] == 1 &&
+		(lengths[vectorDim] % scalarPerVector == 0 ||
+		lengths[vectorDim] % scalarPerVector == lengths[vectorDim]))
+            {
+                return true;
+	    }
 
-            // if(strides[vectorDim] >= scalarPerVector)
-            //{
-            // return true;
-            //}
-            return true;
+            if(strides[vectorDim] >= scalarPerVector)
+            {
+                return true;
+            }
+            return false;
         };
 
         bool valid = true;

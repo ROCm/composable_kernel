@@ -230,13 +230,13 @@ struct GridwiseElementwise_3D
                 static_for<0, NumInput, 1>{}([&](auto I) {
                     in_global_load_tuple(I).MoveSrcSliceWindow(
                         in_grid_3d_desc_tuple[I],
-                        make_multi_index(0, loop_step_n, -(K / loop_step_k) * loop_step_k));
+                        make_multi_index(0, loop_step_n /**-math::integer_divide_ceil(K, loop_step_k) * loop_step_k**/,-(K / loop_step_k) * loop_step_k));
                 });
 
                 static_for<0, NumOutput, 1>{}([&](auto I) {
                     out_global_store_tuple(I).MoveDstSliceWindow(
                         out_grid_3d_desc_tuple[I],
-                        make_multi_index(0, loop_step_n, -(K / loop_step_k) * loop_step_k));
+                        make_multi_index(0, loop_step_n /**-math::integer_divide_ceil(K, loop_step_k) * loop_step_k**/, -(K / loop_step_k) * loop_step_k));
                 });
 
             } while(--num_iter_n);
@@ -245,16 +245,16 @@ struct GridwiseElementwise_3D
                 in_global_load_tuple(I).MoveSrcSliceWindow(
                     in_grid_3d_desc_tuple[I],
                     make_multi_index(loop_step_m,
-                                     -(N / loop_step_n) * loop_step_n,
-                                     -(K / loop_step_k) * loop_step_k));
+                                     /**-math::integer_divide_ceil(N, loop_step_n) * loop_step_n**/-(N / loop_step_n) * loop_step_n,
+                                     /**-math::integer_divide_ceil(K, loop_step_k) * loop_step_k**/-(K / loop_step_k) * loop_step_k));
             });
 
             static_for<0, NumOutput, 1>{}([&](auto I) {
                 out_global_store_tuple(I).MoveDstSliceWindow(
                     out_grid_3d_desc_tuple[I],
                     make_multi_index(loop_step_m,
-                                     -(N / loop_step_n) * loop_step_n,
-                                     -(K / loop_step_k) * loop_step_k));
+                                     /**-math::integer_divide_ceil(N, loop_step_n) * loop_step_n**/-(N / loop_step_n) * loop_step_n,
+                                     /**-math::integer_divide_ceil(K, loop_step_k) * loop_step_k**/-(K / loop_step_k) * loop_step_k));
             });
         } while(--num_iter_m);
     }
