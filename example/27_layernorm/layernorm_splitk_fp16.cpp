@@ -37,7 +37,8 @@ using DeviceInstance =
                                                                 8,   // GammaScalarPerVector
                                                                 1,   // BetaVecDim (0=M, 1=K)
                                                                 8,   // BetaScalarPerVector
-                                                                8>;  // YScalarPerVector
+                                                                8,   // YScalarPerVector
+                                                                1>; // SaveMeanInvStdScalarPerVector
 
 #include "run_layernorm_example.inc"
 

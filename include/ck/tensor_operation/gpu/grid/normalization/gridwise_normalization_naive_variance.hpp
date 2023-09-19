@@ -36,6 +36,7 @@ template <typename XDataType,
           index_t BetaSrcVectorSize,
           index_t YDstVectorDim,
           index_t YDstVectorSize,
+          index_t SaveMeanInvStdDstVectorSize,
           bool SweepOnce>
 struct GridwiseNormalizationNaiveVariance_mk_to_mk
 {
@@ -46,6 +47,10 @@ struct GridwiseNormalizationNaiveVariance_mk_to_mk
     static_assert((YDstVectorDim == 0 && MThreadSliceSize % YDstVectorSize == 0) ||
                       (YDstVectorDim == 1 && KThreadSliceSize % YDstVectorSize == 0),
                   "Invalid thread slice sizes and/or vector sizes configuration, please check!");
+
+    static_assert(MThreadSliceSize % SaveMeanInvStdDstVectorSize == 0,
+                  "Invalid thread slice sizes and/or save mean and inverse std vector sizes "
+                  "configuration, please check!");
 
     static_assert(XSrcVectorSize == YDstVectorSize);
     static_assert(XSrcVectorSize == GammaSrcVectorSize);
@@ -255,9 +260,9 @@ struct GridwiseNormalizationNaiveVariance_mk_to_mk
                                                GridDesc_M,
                                                PassThroughOp,
                                                ThreadBufferLengths_M,
-                                               Sequence<0>, // DimAccessOrder
-                                               0,           // SrcVectorDim
-                                               1,           // ScalarPerVector
+                                               Sequence<0>,                 // DimAccessOrder
+                                               0,                           // SrcVectorDim
+                                               SaveMeanInvStdDstVectorSize, // ScalarPerVector
                                                InMemoryDataOperationEnum::Set,
                                                1,
                                                true>(
@@ -273,9 +278,9 @@ struct GridwiseNormalizationNaiveVariance_mk_to_mk
                                                GridDesc_M,
                                                PassThroughOp,
                                                ThreadBufferLengths_M,
-                                               Sequence<0>, // DimAccessOrder
-                                               0,           // SrcVectorDim
-                                               1,           // ScalarPerVector
+                                               Sequence<0>,                 // DimAccessOrder
+                                               0,                           // SrcVectorDim
+                                               SaveMeanInvStdDstVectorSize, // ScalarPerVector
                                                InMemoryDataOperationEnum::Set,
                                                1,
                                                true>(

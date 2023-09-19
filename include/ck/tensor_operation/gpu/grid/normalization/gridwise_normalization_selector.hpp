@@ -73,6 +73,7 @@ template <typename XDataType,
           index_t BetaSrcVectorSize,
           index_t YDstVectorDim,
           index_t YDstVectorSize,
+          index_t SaveMeanInvStdDstVectorSize,
           bool UseWelford>
 auto NormalizationKernelSelector(bool isSweepOnce)
 {
@@ -99,6 +100,7 @@ auto NormalizationKernelSelector(bool isSweepOnce)
                                                     BetaSrcVectorSize,
                                                     YDstVectorDim,
                                                     YDstVectorSize,
+                                                    SaveMeanInvStdDstVectorSize,
                                                     false>;
     using GridwiseNormalizationSweepOnceNaive =
         GridwiseNormalizationNaiveVariance_mk_to_mk<XDataType,
@@ -123,6 +125,7 @@ auto NormalizationKernelSelector(bool isSweepOnce)
                                                     BetaSrcVectorSize,
                                                     YDstVectorDim,
                                                     YDstVectorSize,
+                                                    SaveMeanInvStdDstVectorSize,
                                                     true>;
     using GridwiseNormalizationGenericWelford =
         GridwiseNormalizationWelfordVariance_mk_to_mk<XDataType,
@@ -147,6 +150,7 @@ auto NormalizationKernelSelector(bool isSweepOnce)
                                                       BetaSrcVectorSize,
                                                       YDstVectorDim,
                                                       YDstVectorSize,
+                                                      SaveMeanInvStdDstVectorSize,
                                                       false>;
     using GridwiseNormalizationSweepOnceWelford =
         GridwiseNormalizationWelfordVariance_mk_to_mk<XDataType,
@@ -171,6 +175,7 @@ auto NormalizationKernelSelector(bool isSweepOnce)
                                                       BetaSrcVectorSize,
                                                       YDstVectorDim,
                                                       YDstVectorSize,
+                                                      SaveMeanInvStdDstVectorSize,
                                                       true>;
 
     if constexpr(UseWelford)

@@ -132,7 +132,8 @@ template <typename XDataType,
           index_t GammaSrcVectorSize,
           index_t BetaSrcVectorDim,
           index_t BetaSrcVectorSize,
-          index_t YDstVectorSize>
+          index_t YDstVectorSize,
+          index_t SaveMeanInvStdDstVectorSize>
 struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
                                                                   GammaDataType,
                                                                   BetaDataType,
@@ -155,6 +156,10 @@ struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
         ((BetaSrcVectorDim == 0 && MThreadSliceSize % BetaSrcVectorSize == 0) ||
          (BetaSrcVectorDim == 1 && KThreadSliceSize % BetaSrcVectorSize == 0)),
         "Invalid thread slice sizes and/or beta vector sizes configuration, please check!");
+
+    static_assert(MThreadSliceSize % SaveMeanInvStdDstVectorSize == 0,
+                  "Invalid thread slice sizes and/or save mean and inverse std vector sizes "
+                  "configuration, please check!");
 
     using PassThrough = tensor_operation::element_wise::PassThrough;
 
@@ -329,7 +334,8 @@ struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
                                        BetaSrcVectorDim,
                                        BetaSrcVectorSize,
                                        XYVectorDim,
-                                       YDstVectorSize>;
+                                       YDstVectorSize,
+                                       SaveMeanInvStdDstVectorSize>;
 
     struct Argument : public BaseArgument
     {
@@ -420,6 +426,11 @@ struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
                 MakeWorkspaceCountDescriptor_M_K<Sequence<true, true>,
                                                  M_BlockTileSize,
                                                  K_MeanVarCountBlockTileSize>(MRaw_, kGridSize_);
+
+            if constexpr(NumInvariantDim == 0)
+                invariant_lowest_length_ = 1;
+            else
+                invariant_lowest_length_ = Lengths_[NumInvariantDim - 1];
         }
 
         ComputeDataType epsilon_;
@@ -462,6 +473,8 @@ struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
 
         index_t MRaw_; // invarient length
         index_t KRaw_; // reduce length
+
+        index_t invariant_lowest_length_;
     };
 
     struct Invoker : public BaseInvoker
@@ -607,10 +620,10 @@ struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
                 if(p_arg_->xStrides_[NumInvariantDim - 1] != 1)
                     return false;
 
-                if(p_arg_->invariant_lowest_length % XSrcVectorSize != 0)
+                if(p_arg_->invariant_lowest_length_ % XSrcVectorSize != 0)
                     return false;
 
-                if(p_arg_->invariant_lowest_length % YDstVectorSize != 0)
+                if(p_arg_->invariant_lowest_length_ % YDstVectorSize != 0)
                     return false;
             };
         }
@@ -650,7 +663,7 @@ struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
             if(p_arg_->betaStrides_[NumInvariantDim - 1] != 1)
                 return false;
 
-            if(p_arg_->invariant_lowest_length % BetaSrcVectorSize != 0)
+            if(p_arg_->invariant_lowest_length_ % BetaSrcVectorSize != 0)
                 return false;
         }
         else // if fastest dim is reduced
@@ -663,6 +676,9 @@ struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
         }
 
         if(p_arg_->kGridSize_ <= 1)
+            return false;
+
+        if(p_arg_->invariant_lowest_length_ % SaveMeanInvStdDstVectorSize != 0)
             return false;
 
         return true;
