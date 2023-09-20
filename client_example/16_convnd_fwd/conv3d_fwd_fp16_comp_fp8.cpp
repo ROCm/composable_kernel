@@ -37,7 +37,9 @@ int main()
                                 OutDataType,
                                 InLayout,
                                 WeiLayout,
-                                OutLayout>(
+                                OutLayout,
+                                3,
+                                ck::f8_t>(
                {N, Di, Hi, Wi, G, C}, {G, K, Z, Y, X, C}, {N, Do, Ho, Wo, G, K})
                ? EXIT_SUCCESS
                : EXIT_FAILURE;

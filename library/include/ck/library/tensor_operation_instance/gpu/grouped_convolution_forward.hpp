@@ -378,7 +378,7 @@ template <ck::index_t NumDimSpatial,
           typename InDataType,
           typename WeiDataType,
           typename OutDataType,
-          typename ComputeType = InDataType>
+          typename ComputeType>
 struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<
     NumDimSpatial,
     InLayout,
@@ -521,14 +521,15 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances(op_ptrs);
             }
             else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                              is_same_v<OutDataType, half_t && is_same_v<ComputeType, half_t>>)
+                              is_same_v<OutDataType, half_t> && is_same_v<ComputeType, half_t>)
             {
                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances(op_ptrs);
             }
             else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                              is_same_v<OutDataType, half_t && is_same_v<ComputeType, ck::f8_t>>)
+                              is_same_v<OutDataType, half_t> && is_same_v<ComputeType, ck::f8_t>)
             {
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_f8_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_f8_instances(
+                    op_ptrs);
             }
             else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
                               is_same_v<WeiDataType, ck::bhalf_t> &&
