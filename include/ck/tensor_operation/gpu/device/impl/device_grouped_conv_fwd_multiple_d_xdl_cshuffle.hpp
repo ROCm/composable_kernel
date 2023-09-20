@@ -255,7 +255,8 @@ template <index_t NDimSpatial,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched = make_default_loop_scheduler()>
+          typename ComputeDataType = ADataType,
+          LoopScheduler LoopSched  = make_default_loop_scheduler()>
 struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
     : public DeviceGroupedConvFwdMultipleD<NDimSpatial,
                                            ALayout,
@@ -268,7 +269,8 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
                                            EDataType,
                                            AElementwiseOperation,
                                            BElementwiseOperation,
-                                           CDEElementwiseOperation>
+                                           CDEElementwiseOperation,
+                                           ComputeDataType>
 {
     using DeviceOp = DeviceGroupedConvFwdMultipleD_Xdl_CShuffle;
 
@@ -366,8 +368,6 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
     using BGridDesc_N_K  = remove_cvref_t<decltype(MakeBGridDescriptor_N_K<BLayout>({}, {}))>;
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}))>;
     using EGridDesc_M_N  = remove_cvref_t<decltype(MakeEGridDescriptor_M_N<ELayout>({}, {}))>;
-
-    using ComputeDataType = ADataType;
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<

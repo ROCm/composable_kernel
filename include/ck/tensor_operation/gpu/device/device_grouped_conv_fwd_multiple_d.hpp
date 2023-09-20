@@ -29,7 +29,8 @@ template <index_t NDimSpatial,
           typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CDEElementwiseOperation>
+          typename CDEElementwiseOperation,
+          typename ComputeType = ADataType>
 struct DeviceGroupedConvFwdMultipleD : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();

@@ -94,7 +94,8 @@ template <ck::index_t NumDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout,
-          ck::index_t NumNonSpatialDim = 3>
+          ck::index_t NumNonSpatialDim = 3,
+          typename ComputeType = InDataType>
 bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> in_lengths,
                           std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> wei_lengths,
                           std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> out_lengths)
@@ -184,7 +185,8 @@ bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + NumNonSpatialD
                                                                                  OutDataType,
                                                                                  PassThrough,
                                                                                  PassThrough,
-                                                                                 PassThrough>;
+                                                                                 PassThrough,
+                                                                                 ComputeType>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
