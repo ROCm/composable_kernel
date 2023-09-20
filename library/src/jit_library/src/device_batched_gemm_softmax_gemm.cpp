@@ -1,6 +1,6 @@
 #include "ck/host/device_batched_gemm_softmax_gemm.hpp"
 #include "ck/host/common.hpp"
-#include "gemm_add_add_fastgelu_instances.hpp"
+#include "batched_gemm_softmax_gemm_instances.hpp"
 #include <algorithm>
 #include <unordered_set>
 
@@ -57,11 +57,6 @@ std::vector<std::string> Problem::GetInstances(const std::string& arch) const
     return instances;
 }
 
-std::string GetElementwiseScaleString(const float s)
-{
-    return "ck::tensor_operation::element_wise::Scale{" + std::to_string(s) + "}"; 
-}
-
 Solution Problem::MakeSolution(std::size_t idx, const std::string& arch) const
 {
     auto template_str = GetInstances(arch).at(idx);
@@ -73,19 +68,17 @@ Solution Problem::MakeSolution(std::size_t idx, const std::string& arch) const
     params[B0ElementwiseOperation_idx]  = BElementOp;
     params[B1ElementwiseOperation_idx]  = BElementOp;
     params[CElementwiseOperation_idx]   = CElementOp;
-    params[Acc0ElementwiseOperation_idx] = GetElementwiseScaleString(scale);
+    params[Acc0ElementwiseOperation_idx] = AccElementOp;
     auto block_size_str           = params[BlockSize_idx];
     auto m_per_block_str          = params[Gemm01MPerBlock_idx];
     auto n_per_block_str          = params[Gemm0NPerBlock_idx];
     auto k_per_block_str          = params[Gemm0KPerBlock_idx];
     auto n1_per_block_str         = params[Gemm1NPerBlock_idx];
-    auto k1_per_block_str         = params[Gemm1KPerBlock_idx];
     const std::size_t block_size  = std::stoi(block_size_str);
     const std::size_t m_per_block = std::stoi(m_per_block_str);
     const std::size_t n_per_block = std::stoi(n_per_block_str);
     const std::size_t k_per_block = std::stoi(k_per_block_str);
     const std::size_t n1_per_block = std::stoi(n1_per_block_str);
-    const std::size_t k1_per_block = std::stoi(k1_per_block_str);
     const std::size_t grid_size    = GetGridSize(M, O, m_per_block, n1_per_block);
     params[GEMMSpecialization_idx] = GetGemmSpec(M, N, K, O, m_per_block, n_per_block, k_per_block, n1_per_block);
 

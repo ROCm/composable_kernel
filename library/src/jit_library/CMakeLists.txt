@@ -13,6 +13,7 @@ execute_process(
 )
 
 add_library(jit_library STATIC 
+    src/device_batched_gemm_softmax_gemm.cpp
     src/device_gemm_multiple_d.cpp
     src/common.cpp
 )

@@ -33,7 +33,16 @@ struct Problem
     std::string BElementOp           = "ck::tensor_operation::element_wise::PassThrough";
     std::string B1ElementOp          = "ck::tensor_operation::element_wise::PassThrough";
     std::string CElementOp           = "ck::tensor_operation::element_wise::PassThrough";
-    float scale                      = 1.0;
+    std::string AccElementOp         = "ck::tensor_operation::element_wise::Scale";
+
+    std::string GetIncludeHeader() const;
+
+    std::vector<Solution> GetSolutions(const std::string& arch) const;
+
+    private:
+    std::vector<std::string> GetInstances(const std::string& arch) const;
+
+    Solution MakeSolution(std::size_t idx, const std::string& arch) const;
 
     static const std::size_t DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle_idx = 0;
     static const std::size_t ALayout_idx = 1;
@@ -93,15 +102,6 @@ struct Problem
     static const std::size_t CBlockTransferClusterLengths_MBlock_MWaveMPerXdl_NBlock_NWaveNPerXdl_idx = 55;
     static const std::size_t CBlockTransferScalarPerVector_NWaveNPerXdl_idx = 56;
     static const std::size_t MaskOutUpperTriangle_idx = 57;
-
-    std::string GetIncludeHeader() const;
-
-    std::vector<Solution> GetSolutions(const std::string& arch) const;
-
-    private:
-    std::vector<std::string> GetInstances(const std::string& arch) const;
-
-    Solution MakeSolution(std::size_t idx, const std::string& arch) const;
 };
 
 } // namespace device_batched_gemm_softmax_gemm

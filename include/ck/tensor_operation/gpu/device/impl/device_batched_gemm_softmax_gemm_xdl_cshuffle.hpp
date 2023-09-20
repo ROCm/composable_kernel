@@ -662,7 +662,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         const auto c_extent_lowest =
             is_same_v<tensor_layout::gemm::RowMajor, CLayout> ? Gemm1NRaw : MRaw;
 
-        if constexpr(!(a_extent_lowest % ABlockTransferSrcScalarPerVector == 0 &&
+        if (!(a_extent_lowest % ABlockTransferSrcScalarPerVector == 0 &&
              b_extent_lowest % BBlockTransferSrcScalarPerVector == 0 &&
              b1_extent_lowest % B1BlockTransferSrcScalarPerVector == 0 &&
              c_extent_lowest % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
@@ -857,26 +857,83 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
             remove_cvref_t<decltype(MakeBGridDescriptor_BK0_N_BK1(BDesc{}))>;
         using B1GridDesc_BK0_N_BK1 =
             remove_cvref_t<decltype(MakeB1GridDescriptor_BK0_N_BK1(B1Desc{}))>;
-        using CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock =
-            remove_cvref_t<decltype(GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                MakeCGridDescriptor_M_N(CDesc{})))>;
-        using Block2CTileMap = remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2CTileMap(
-            MakeCGridDescriptor_M_N(CDesc{})))>;
-        using C0MatrixMask = conditional_t<MaskOutUpperTriangle,
-                                       C0MatrixMask_impl<MaskOutUpperTrianglePredicate>,
-                                       C0MatrixMask_impl<MaskDisabledPredicate>>;
+        using CGridDesc_M_N = 
+            remove_cvref_t<decltype(MakeCGridDescriptor_M_N(CDesc{}))>;
+
+        // GridwiseGemm
+        using GridwiseGemmSpec = GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle<
+            ADataType, // TODO: distinguish A/B datatype
+            GemmAccDataType,
+            CShuffleDataType,
+            CDataType,
+            AElementwiseOperation,
+            BElementwiseOperation,
+            AccElementwiseOperation,
+            B1ElementwiseOperation,
+            CElementwiseOperation,
+            InMemoryDataOperationEnum::Set,
+            AGridDesc_AK0_M_AK1,
+            BGridDesc_BK0_N_BK1,
+            B1GridDesc_BK0_N_BK1,
+            CGridDesc_M_N,
+            NumGemmKPrefetchStage,
+            BlockSize,
+            MPerBlock,
+            NPerBlock,
+            KPerBlock,
+            Gemm1NPerBlock,
+            Gemm1KPerBlock,
+            AK1,
+            BK1,
+            B1K1,
+            MPerXDL,
+            NPerXDL,
+            MXdlPerWave,
+            NXdlPerWave,
+            Gemm1NXdlPerWave,
+            ABlockTransferThreadClusterLengths_AK0_M_AK1,
+            ABlockTransferThreadClusterArrangeOrder,
+            ABlockTransferSrcAccessOrder,
+            ABlockTransferSrcVectorDim,
+            ABlockTransferSrcScalarPerVector,
+            ABlockTransferDstScalarPerVector_AK1,
+            true,
+            ABlockLdsExtraM,
+            BBlockTransferThreadClusterLengths_BK0_N_BK1,
+            BBlockTransferThreadClusterArrangeOrder,
+            BBlockTransferSrcAccessOrder,
+            BBlockTransferSrcVectorDim,
+            BBlockTransferSrcScalarPerVector,
+            BBlockTransferDstScalarPerVector_BK1,
+            true,
+            BBlockLdsExtraN,
+            B1BlockTransferThreadClusterLengths_BK0_N_BK1,
+            B1BlockTransferThreadClusterArrangeOrder,
+            B1BlockTransferSrcAccessOrder,
+            B1BlockTransferSrcVectorDim,
+            B1BlockTransferSrcScalarPerVector,
+            B1BlockTransferDstScalarPerVector_BK1,
+            false,
+            B1BlockLdsExtraN,
+            CShuffleMXdlPerWavePerShuffle,
+            CShuffleNXdlPerWavePerShuffle,
+            CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+            CShuffleBlockTransferScalarPerVector_NPerBlock,
+            LoopSched,
+            matrix_padder.PadN,
+            MaskOutUpperTriangle>;
 
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1;
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1;
-        CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock c_grid_descriptor_mblock_mperblock_nblock_nperblock;
-        Block2CTileMap block_2_ctile_map;
+        CGridDesc_M_N c_grid_desc_m_n;
         C0MatrixMask c0_matrix_mask;
+        typename GridwiseGemmSpec::DefaultBlock2CTileMap block_2_ctile_map;
+        typename GridwiseGemmSpec::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock c_grid_descriptor_mblock_mperblock_nblock_nperblock;
         
         // element-wise op
         AElementwiseOperation a_element_op;
         BElementwiseOperation b_element_op;
-        AccElementwiseOperation acc_element_op;
         B1ElementwiseOperation b1_element_op;
         CElementwiseOperation c_element_op;
 
@@ -889,31 +946,29 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                              CDesc c,
                              AElementwiseOperation a_element_op_,
                              BElementwiseOperation b_element_op_,
-                             AccElementwiseOperation acc_element_op_,
                              B1ElementwiseOperation b1_element_op_,
                              CElementwiseOperation c_element_op_)
             : a_grid_desc_ak0_m_ak1{MakeAGridDescriptor_AK0_M_AK1(a)},
               b_grid_desc_bk0_n_bk1{MakeBGridDescriptor_BK0_N_BK1(b)},
               b1_grid_desc_bk0_n_bk1{MakeB1GridDescriptor_BK0_N_BK1(b1)},
-              c_grid_descriptor_mblock_mperblock_nblock_nperblock{GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                  MakeCGridDescriptor_M_N(c))},
-              block_2_etile_map{GridwiseGemm::MakeDefaultBlock2CTileMap(
-                  MakeCGridDescriptor_M_N(c))},
-              has_main_k_block_loop{GridwiseGemm::CalculateHasMainKBlockLoop(
+              c_grid_desc_m_n{MakeCGridDescriptor_M_N(c)},
+              block_2_ctile_map{GridwiseGemmSpec::MakeDefaultBlock2CTileMap(
+                c_grid_desc_m_n)},
+              c_grid_descriptor_mblock_mperblock_nblock_nperblock{
+                GridwiseGemmSpec::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n)},
+              has_main_k_block_loop{GridwiseGemmSpec::CalculateHasMainKBlockLoop(
                   a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2))},
-              c0_matrix_mask{c.GetLength(I1)}
+              c0_matrix_mask{c.GetLength(I1)},
               a_element_op{a_element_op_},
               b_element_op{b_element_op_},
-              acc_element_op{acc_element_op_},
               b1_element_op{b1_element_op_},
               c_element_op{c_element_op_},
-              is_valid{GridwiseGemm::CheckValidity(
+              is_valid{GridwiseGemmSpec::CheckValidity(
                            a_grid_desc_ak0_m_ak1,
                            b_grid_desc_bk0_n_bk1,
                            b1_grid_desc_bk0_n_bk1,
-                           MakeCGridDescriptor_M_N(c),
-                           block_2_ctile_map) and
-                       IsSupported(c.GetLength(I0), c.GetLength(I1), a.GetLength(I1), b1.GetLength(I1))}
+                           c_grid_desc_m_n,
+                           block_2_ctile_map)}
         {
         }
 
@@ -927,37 +982,43 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
     static constexpr auto
     make_descriptor(ADesc a,
                     BDesc b,
-                    B1Desc b1desc,
+                    B1Desc b1,
                     CDesc c,
                     AElementwiseOperation a_element_op     = AElementwiseOperation{},
                     BElementwiseOperation b_element_op     = BElementwiseOperation{},
-                    AccElementwiseOperation acc_element_op = AccElementwiseOperation{},
                     B1ElementwiseOperation b1_element_op   = B1ElementwiseOperation{},
                     CElementwiseOperation c_element_op     = CElementwiseOperation{})
     {
         return Descriptor<ADesc, BDesc, B1Desc, CDesc>(
-            a, b, b1, c, a_element_op, b_element_op, acc_element_op, b1_element_op, c_element_op);
+            a, b, b1, c, a_element_op, b_element_op, b1_element_op, c_element_op);
     }
 
     template <class Desc>
     __device__ static void Run(const Desc& desc,
+                               const float scale,
                                const ADataType* __restrict__ p_a_grid,
                                const ADataType* __restrict__ p_b_grid,
                                const ADataType* __restrict__ p_b1_grid,
                                CDataType* __restrict__ p_c_grid)
     {
-        __shared__ char p_shared_block[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-        assert(desc.is_valid);
+        assert(desc.is_valid and
+                       IsSupported(desc.a_grid_desc_ak0_m_ak1.GetLength(I1), 
+                                   desc.b_grid_desc_bk0_n_bk1.GetLength(I1),
+                                   desc.a_grid_desc_ak0_m_ak1.GetLength(I0) * desc.a_grid_desc_ak0_m_ak1.GetLength(I2),
+                                   desc.b1_grid_desc_bk0_n_bk1.GetLength(I1)));
+        __shared__ char p_shared_block[Desc::GridwiseGemmSpec::GetSharedMemoryNumberOfByte()];
+        AccElementwiseOperation acc_element_op{scale};
+
         if(desc.has_main_k_block_loop)
         {
-            GridwiseGemm::template Run<true>(p_a_grid,
+            Desc::GridwiseGemmSpec::template Run<true>(p_a_grid,
                                              p_b_grid,
                                              p_b1_grid,
                                              p_c_grid,
-                                             p_shared,
+                                             p_shared_block,
                                              desc.a_element_op,
                                              desc.b_element_op,
-                                             desc.acc_element_op,
+                                             acc_element_op,
                                              desc.b1_element_op,
                                              desc.c_element_op,
                                              desc.a_grid_desc_ak0_m_ak1,
@@ -969,14 +1030,14 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         }
         else
         {
-            GridwiseGemm::template Run<false>(p_a_grid,
+            Desc::GridwiseGemmSpec::template Run<false>(p_a_grid,
                                               p_b_grid,
                                               p_b1_grid,
                                               p_c_grid,
-                                              p_shared,
+                                              p_shared_block,
                                               desc.a_element_op,
                                               desc.b_element_op,
-                                              desc.acc_element_op,
+                                              acc_element_op,
                                               desc.b1_element_op,
                                               desc.c_element_op,
                                               desc.a_grid_desc_ak0_m_ak1,
