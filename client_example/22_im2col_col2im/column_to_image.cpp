@@ -9,13 +9,14 @@
 #include <vector>
 
 #include "ck/ck.hpp"
-#include "ck/library/tensor_operation_instance/gpu/image_to_column.hpp"
+#include "ck/library/tensor_operation_instance/gpu/conv_tensor_rearrange.hpp"
+#include "ck/tensor_operation/gpu/device/conv_tensor_rearrange_op.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
 using InDataType  = ck::half_t;
 using OutDataType = ck::half_t;
 
-using InLayout = ck::tensor_layout::convolution::GNHWC;
+using ImageLayout = ck::tensor_layout::convolution::GNHWC;
 
 static constexpr ck::index_t NumDimSpatial = 2;
 static constexpr ck::index_t G             = 1;
@@ -54,19 +55,24 @@ int main()
     // We have NHWGC in memory space (G is dummy)
     // However, CK's API only accept length and stride with order of GNCHW
     // Hence, we need to adjust the order of stride
-    std::array<ck::index_t, 5> in_strides{C, Hi * Wi * G * C, 1, Wi * G * C, G * C};
-    std::array<ck::index_t, 2> out_strides{Y * X * C, 1};
+    std::array<ck::index_t, 5> image_strides{C, Hi * Wi * G * C, 1, Wi * G * C, G * C};
+    std::array<ck::index_t, 2> gemm_strides{Y * X * C, 1};
 
     std::array<ck::index_t, NumDimSpatial> filter_strides{1, 1};
     std::array<ck::index_t, NumDimSpatial> filter_dilations{1, 1};
     std::array<ck::index_t, NumDimSpatial> input_left_pads{1, 1};
     std::array<ck::index_t, NumDimSpatial> input_right_pads{1, 1};
 
-    SimpleDeviceMem in(sizeof(InDataType) * N * Hi * Wi * G * C);
-    SimpleDeviceMem out(sizeof(OutDataType) * N * Ho * Wo * Y * X * C);
+    SimpleDeviceMem in(sizeof(InDataType) * N * Ho * Wo * Y * X * C);
+    SimpleDeviceMem out(sizeof(OutDataType) * N * Hi * Wi * G * C);
 
-    using DeviceOp = ck::tensor_operation::device::
-        DeviceImageToColumn<NumDimSpatial, InLayout, InDataType, OutDataType>;
+    using namespace ck::conv_tensor_rearrange_op;
+
+    using DeviceOp = ck::tensor_operation::device::DeviceConvTensorRearrange<NumDimSpatial,
+                                                                             ImageLayout,
+                                                                             InDataType,
+                                                                             OutDataType,
+                                                                             ColumnToImageOp>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -92,8 +98,8 @@ int main()
                                                         in_spatial_lengths,
                                                         out_spatial_lengths,
                                                         wei_spatial_lengths,
-                                                        in_strides,
-                                                        out_strides,
+                                                        image_strides,
+                                                        gemm_strides,
                                                         filter_strides,
                                                         filter_dilations,
                                                         input_left_pads,
@@ -148,8 +154,8 @@ int main()
                                                         in_spatial_lengths,
                                                         out_spatial_lengths,
                                                         wei_spatial_lengths,
-                                                        in_strides,
-                                                        out_strides,
+                                                        image_strides,
+                                                        gemm_strides,
                                                         filter_strides,
                                                         filter_dilations,
                                                         input_left_pads,

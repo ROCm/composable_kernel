@@ -1,0 +1,5 @@
+add_instance_library(device_column_to_image_instance
+   device_column_to_image_nhwc_1d_instance.cpp
+   device_column_to_image_nhwc_2d_instance.cpp
+   device_column_to_image_nhwc_3d_instance.cpp
+)
