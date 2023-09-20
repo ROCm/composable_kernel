@@ -243,8 +243,11 @@ bool profile_layernorm_impl(int do_verification,
                     save_mean.mData, host_save_mean.mData, "Error: Incorrect results", 1e-3, 1e-3);
 
                 save_inv_std_dev.FromDevice(save_inv_std.mData.data());
-                pass &= ck::utils::check_err(
-                    save_inv_std.mData, host_save_inv_std.mData, "Error: Incorrect results", 1e-3, 1e-3);
+                pass &= ck::utils::check_err(save_inv_std.mData,
+                                             host_save_inv_std.mData,
+                                             "Error: Incorrect results",
+                                             1e-3,
+                                             1e-3);
             }
 
             if(do_log)

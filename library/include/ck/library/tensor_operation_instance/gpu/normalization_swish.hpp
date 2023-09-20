@@ -70,7 +70,7 @@ struct DeviceOperationInstanceFactory<
         }
         else if constexpr(is_same_v<XDataType, F32> && is_same_v<GammaDataType, F32> &&
                           is_same_v<BetaDataType, F32> && is_same_v<YDataType, F32> &&
-                     is_same_v<SaveMeanInvStdDataType, F32>)
+                          is_same_v<SaveMeanInvStdDataType, F32>)
         {
             if constexpr(Rank == 5 && NumReduceDim == 3)
             {
@@ -79,7 +79,7 @@ struct DeviceOperationInstanceFactory<
         }
         else if constexpr(is_same_v<XDataType, F16> && is_same_v<GammaDataType, F32> &&
                           is_same_v<BetaDataType, F32> && is_same_v<YDataType, F16> &&
-                     is_same_v<SaveMeanInvStdDataType, F32>)
+                          is_same_v<SaveMeanInvStdDataType, F32>)
         {
             if constexpr(Rank == 5 && NumReduceDim == 3)
             {
