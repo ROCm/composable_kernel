@@ -543,31 +543,6 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
     {
         return Transform::MakeC0GridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
     }
-    //
-    // dS_i_j = P_i_j .* (dP_i_j - dY_i dot Y_i)
-    //
-
-    //
-    // dQ = alpha * dS * K
-    //
-
-    // QGrad in Gemm C position
-    static auto MakeQGradGridDescriptor_M_K(const std::vector<index_t>& q_gs_ms_ks_lengths,
-                                            const std::vector<index_t>& q_gs_ms_ks_strides)
-    {
-        return Transform::MakeCGridDescriptor_M_N(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
-    }
-
-    //
-    // dK = alpha * dS^T * Q
-    //
-
-    // KGrad in Gemm C position
-    static auto MakeKGradGridDescriptor_N_K(const std::vector<index_t>& k_gs_ns_ks_lengths,
-                                            const std::vector<index_t>& k_gs_ns_ks_strides)
-    {
-        return Transform::MakeCGridDescriptor_M_N(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
-    }
 
     static auto MakeLSEGridDescriptor_M(index_t MRaw)
     {
