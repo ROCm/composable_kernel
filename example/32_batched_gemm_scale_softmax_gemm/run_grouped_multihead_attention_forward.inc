@@ -43,9 +43,9 @@ int run(int argc, char* argv[])
         exit(0);
     }
 
-    float p_dropout              = 1 - p_drop;
-    uint16_t p_dropout_in_16bits = uint16_t(std::floor(p_dropout * 65535.0));
-    float rp_dropout             = 1.0 / p_dropout;
+    float p_dropout                = 1 - p_drop;
+    ZDataType p_dropout_in_uint8_t = ZDataType(std::floor(p_dropout * 255.0));
+    float rp_dropout               = 1.0 / p_dropout;
 
     float alpha = 1; // scaling after 1st gemm
 
@@ -217,6 +217,7 @@ int run(int argc, char* argv[])
         a_tensors_device[i]->ToDevice(a_gs_ms_ks.mData.data());
         b0_tensors_device[i]->ToDevice(b0_gs_ns_ks.mData.data());
         b1_tensors_device[i]->ToDevice(b1_gs_os_ns.mData.data());
+        z_tensors_device[i]->ToDevice(z_gs_ms_ns.mData.data());
 
         p_a.push_back(a_tensors_device[i]->GetDeviceBuffer());
         p_b0.push_back(b0_tensors_device[i]->GetDeviceBuffer());
@@ -390,7 +391,7 @@ int run(int argc, char* argv[])
             auto ref_dropout         = ReferenceDropoutInstance{};
             auto ref_dropout_invoker = ref_dropout.MakeInvoker();
             auto ref_dropout_argment = ref_dropout.MakeArgument(
-                z_g_m_n, a1_g_m_n, a1_g_m_n_drop, p_dropout_in_16bits, rp_dropout);
+                z_g_m_n, a1_g_m_n, a1_g_m_n_drop, p_dropout_in_uint8_t, rp_dropout);
             ref_dropout_invoker.Run(ref_dropout_argment);
 
             // gemm 1

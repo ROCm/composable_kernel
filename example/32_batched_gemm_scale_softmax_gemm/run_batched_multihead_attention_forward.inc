@@ -66,10 +66,10 @@ int run(int argc, char* argv[])
         exit(0);
     }
 
-    float p_dropout               = 1 - p_drop;
-    ZDataType p_dropout_in_16bits = ZDataType(std::floor(p_dropout * 65535.0));
-    float rp_dropout              = 1.0 / p_dropout;
-    float alpha                   = 1.f / std::sqrt(K);
+    float p_dropout                = 1 - p_drop;
+    ZDataType p_dropout_in_uint8_t = ZDataType(std::floor(p_dropout * 255.0));
+    float rp_dropout               = 1.0 / p_dropout;
+    float alpha                    = 1.f / std::sqrt(K);
 
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
     std::vector<ck::index_t> a_gs_ms_ks_strides =
@@ -159,6 +159,7 @@ int run(int argc, char* argv[])
     a_device_buf.ToDevice(a_gs_ms_ks.mData.data());
     b0_device_buf.ToDevice(b0_gs_ns_ks.mData.data());
     b1_device_buf.ToDevice(b1_gs_os_ns.mData.data());
+    z_device_buf.ToDevice(z_gs_ms_ns.mData.data());
 
     auto a_element_op    = AElementOp{};
     auto b0_element_op   = B0ElementOp{};
@@ -322,7 +323,7 @@ int run(int argc, char* argv[])
         auto ref_dropout         = ReferenceDropoutInstance{};
         auto ref_dropout_invoker = ref_dropout.MakeInvoker();
         auto ref_dropout_argment = ref_dropout.MakeArgument(
-            z_g_m_n, a1_g_m_n, a1_g_m_n_drop, p_dropout_in_16bits, rp_dropout);
+            z_g_m_n, a1_g_m_n, a1_g_m_n_drop, p_dropout_in_uint8_t, rp_dropout);
         ref_dropout_invoker.Run(ref_dropout_argment);
 
         // gemm1

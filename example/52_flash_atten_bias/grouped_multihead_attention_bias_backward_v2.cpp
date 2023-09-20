@@ -216,7 +216,7 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
                             TensorLSE& lse_g_m,
                             TensorP& p_drop_g_m_n,
                             TensorZ& z_g_m_n,
-                            ZDataType p_dropout_in_16bits,
+                            ZDataType p_dropout_in_uint8_t,
                             float rp_dropout)
 {
     // S = alpha * Q * K^T
@@ -251,7 +251,7 @@ void run_attention_fwd_host(const TensorQ& q_g_m_k,
     auto ref_dropout         = ReferenceDropoutInstance{};
     auto ref_dropout_invoker = ref_dropout.MakeInvoker();
     auto ref_dropout_argment =
-        ref_dropout.MakeArgument(z_g_m_n, p_g_m_n, p_drop_g_m_n, p_dropout_in_16bits, rp_dropout);
+        ref_dropout.MakeArgument(z_g_m_n, p_g_m_n, p_drop_g_m_n, p_dropout_in_uint8_t, rp_dropout);
     ref_dropout_invoker.Run(ref_dropout_argment);
 
     // Y = P_dropout * V
@@ -314,9 +314,9 @@ int run(int argc, char* argv[])
         exit(0);
     }
 
-    float p_dropout               = 1 - p_drop;
-    ZDataType p_dropout_in_16bits = ZDataType(std::floor(p_dropout * 65535.0));
-    float rp_dropout              = 1.0 / p_dropout;
+    float p_dropout                = 1 - p_drop;
+    ZDataType p_dropout_in_uint8_t = ZDataType(std::floor(p_dropout * 255.0));
+    float rp_dropout               = 1.0 / p_dropout;
 
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
@@ -730,7 +730,7 @@ int run(int argc, char* argv[])
                                    lse_g_ms[i],
                                    p_drop_g_m_ns[i],
                                    z_g_m_ns[i],
-                                   p_dropout_in_16bits,
+                                   p_dropout_in_uint8_t,
                                    rp_dropout);
 
             y_tensors[i].ForEach([&](auto& self, auto idx) {
@@ -784,7 +784,7 @@ int run(int argc, char* argv[])
             auto ref_dropout         = ReferenceDropoutInstance{};
             auto ref_dropout_invoker = ref_dropout.MakeInvoker();
             auto ref_dropout_argment = ref_dropout.MakeArgument(
-                z_g_m_ns[i], pgrad_drop_g_m_n, pgrad_g_m_n, p_dropout_in_16bits, rp_dropout);
+                z_g_m_ns[i], pgrad_drop_g_m_n, pgrad_g_m_n, p_dropout_in_uint8_t, rp_dropout);
             ref_dropout_invoker.Run(ref_dropout_argment);
             // dS_i_j = P_i_j .* (dP_i_j - dY_i dot Y_i)
             sgrad_g_m_n.ForEach([&](auto& self, auto idx_gmn) {

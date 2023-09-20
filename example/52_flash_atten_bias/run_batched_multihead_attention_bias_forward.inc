@@ -66,10 +66,10 @@ int run(int argc, char* argv[])
         exit(0);
     }
 
-    float p_dropout               = 1 - p_drop;
-    ZDataType p_dropout_in_16bits = ZDataType(std::floor(p_dropout * 65535.0));
-    float rp_dropout              = 1.0 / p_dropout;
-    float alpha                   = 1.f / std::sqrt(K);
+    float p_dropout                = 1 - p_drop;
+    ZDataType p_dropout_in_uint8_t = ZDataType(std::floor(p_dropout * 255.0));
+    float rp_dropout               = 1.0 / p_dropout;
+    float alpha                    = 1.f / std::sqrt(K);
 
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
     std::vector<ck::index_t> a_gs_ms_ks_strides =
@@ -172,6 +172,7 @@ int run(int argc, char* argv[])
     b0_device_buf.ToDevice(b0_gs_ns_ks.mData.data());
     b1_device_buf.ToDevice(b1_gs_os_ns.mData.data());
     d_device_buf.ToDevice(d_gs_ms_ns.mData.data());
+    z_device_buf.ToDevice(z_gs_ms_ns.mData.data());
 
     auto a_element_op    = AElementOp{};
     auto b0_element_op   = B0ElementOp{};
@@ -243,6 +244,18 @@ int run(int argc, char* argv[])
 
     if(do_verification)
     {
+        // data objects for hipGraph verification
+        hipGraph_t graph;
+        hipGraphExec_t g_instance;
+        hipStream_t stream;
+
+        std::cout << "verification with hipGraph capturing and replaying ... " << std::endl;
+
+        HIP_CHECK_ERROR(hipStreamCreate(&stream));
+        HIP_CHECK_ERROR(hipGraphCreate(&graph, 0));
+
+        HIP_CHECK_ERROR(hipStreamBeginCapture(stream, hipStreamCaptureModeGlobal));
+
         // run for storing z tensor
         argument =
             gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
@@ -276,9 +289,19 @@ int run(int argc, char* argv[])
                               p_drop,          // dropout ratio
                               {seed, offset}); // dropout random seed and offset, offset should be
                                                // at least the number of elements on a thread
-        c_device_buf.SetZero();
-        lse_device_buf.SetZero();
-        invoker.Run(argument, StreamConfig{nullptr, false});
+        HIP_CHECK_ERROR(hipMemsetAsync(
+            c_device_buf.GetDeviceBuffer(), 0, c_device_buf.GetBufferSize(), stream));
+        HIP_CHECK_ERROR(hipMemsetAsync(
+            lse_device_buf.GetDeviceBuffer(), 0, lse_device_buf.GetBufferSize(), stream));
+
+        invoker.Run(argument, StreamConfig{stream, false});
+
+        HIP_CHECK_ERROR(hipStreamEndCapture(stream, &graph));
+        HIP_CHECK_ERROR(hipGraphInstantiate(&g_instance, graph, nullptr, nullptr, 0));
+
+        HIP_CHECK_ERROR(hipGraphLaunch(g_instance, stream));
+
+        HIP_CHECK_ERROR(hipStreamSynchronize(stream));
 
         c_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
         z_device_buf.FromDevice(z_gs_ms_ns.mData.data());
@@ -322,7 +345,9 @@ int run(int argc, char* argv[])
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
         // bias
-        acc0_g_m_n.ForEach([&](auto& self, auto idx) { self(idx) += ck::type_convert<AccDataType>(d_g_m_n(idx)); });
+        acc0_g_m_n.ForEach([&](auto& self, auto idx) {
+            self(idx) += ck::type_convert<AccDataType>(d_g_m_n(idx));
+        });
         // masking
         const auto mask = DeviceGemmInstance::C0MatrixMask(M, N);
         acc0_g_m_n.ForEach([&](auto& self, auto idx) {
@@ -342,7 +367,7 @@ int run(int argc, char* argv[])
         auto ref_dropout         = ReferenceDropoutInstance{};
         auto ref_dropout_invoker = ref_dropout.MakeInvoker();
         auto ref_dropout_argment = ref_dropout.MakeArgument(
-            z_g_m_n, a1_g_m_n, a1_g_m_n_drop, p_dropout_in_16bits, rp_dropout);
+            z_g_m_n, a1_g_m_n, a1_g_m_n_drop, p_dropout_in_uint8_t, rp_dropout);
         ref_dropout_invoker.Run(ref_dropout_argment);
 
         // gemm1

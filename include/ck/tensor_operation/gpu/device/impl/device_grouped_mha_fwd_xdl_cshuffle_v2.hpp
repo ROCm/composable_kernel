@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <cstring>
 
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/philox_rand.hpp"
@@ -48,7 +49,7 @@ __global__ void
             const AccElementwiseOperation acc_element_op,
             const B1ElementwiseOperation b1_element_op,
             const CElementwiseOperation c_element_op,
-            const ushort p_dropout_in_16bits,
+            const uint8_t p_dropout_in_uint8_t,
             const GemmAccDataType p_dropout_rescale,
             const unsigned long long seed,
             const unsigned long long offset)
@@ -140,11 +141,11 @@ __global__ void
                 arg_ptr[group_id].d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
                 arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
                 arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6_,
+                arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
                 arg_ptr[group_id].lse_grid_desc_m_,
                 arg_ptr[group_id].block_2_ctile_map_,
                 arg_ptr[group_id].c0_matrix_mask_,
-                p_dropout_in_16bits,
+                p_dropout_in_uint8_t,
                 p_dropout_rescale,
                 ph,
                 arg_ptr[group_id].z_random_matrix_offset_ +
@@ -178,11 +179,11 @@ __global__ void
             arg_ptr[group_id].d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
             arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
             arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
-            arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6_,
+            arg_ptr[group_id].z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
             arg_ptr[group_id].lse_grid_desc_m_,
             arg_ptr[group_id].block_2_ctile_map_,
             arg_ptr[group_id].c0_matrix_mask_,
-            p_dropout_in_16bits,
+            p_dropout_in_uint8_t,
             p_dropout_rescale,
             ph,
             arg_ptr[group_id].z_random_matrix_offset_ +
@@ -198,7 +199,7 @@ __global__ void
     ignore = acc_element_op;
     ignore = b1_element_op;
     ignore = c_element_op;
-    ignore = p_dropout_in_16bits;
+    ignore = p_dropout_in_uint8_t;
     ignore = p_dropout_rescale;
     ignore = seed;
     ignore = offset;
@@ -620,8 +621,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_M4_N4_N5_N6
-            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6_;
+        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
+            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
         ZGridDesc_M_N z_grid_desc_m_n_;
         LSEGridDesc_M lse_grid_desc_m_;
 
@@ -774,8 +775,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         c_grid_desc_m_n);
 
-                const auto z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6 =
-                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_M4_N4_N5_N6(
+                const auto z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
                         z_grid_desc_m_n);
 
                 const index_t BlockStart     = grid_size_;
@@ -819,7 +820,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
                                               d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                                               b1_grid_desc_bk0_n_bk1,
                                               c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                              z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_m4_n4_n5_n6,
+                                              z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                                               z_grid_desc_m_n,
                                               lse_grid_desc_m,
                                               block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n),
@@ -857,11 +858,11 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
                      d0_n_length_stride});
             }
 
-            use_dropout_         = p_dropout > 0.0; //
-            p_dropout_           = 1.f - p_dropout;
-            p_dropout_in_16bits_ = uint16_t(std::floor(p_dropout_ * 65535.0));
-            p_dropout_           = 1.f / p_dropout_;
-            p_dropout_rescale_   = type_convert<GemmAccDataType>(p_dropout_);
+            use_dropout_          = p_dropout > 0.0; //
+            p_dropout_            = 1.f - p_dropout;
+            p_dropout_in_uint8_t_ = uint8_t(std::floor(p_dropout_ * 255.0));
+            p_dropout_            = 1.f / p_dropout_;
+            p_dropout_rescale_    = type_convert<GemmAccDataType>(p_dropout_);
 
             seed_   = std::get<0>(seeds);
             offset_ = std::get<1>(seeds);
@@ -880,7 +881,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
         CElementwiseOperation c_element_op_;
 
         float p_dropout_;
-        ushort p_dropout_in_16bits_;
+        uint8_t p_dropout_in_uint8_t_;
         unsigned long long seed_;
         unsigned long long offset_;
         GemmAccDataType p_dropout_rescale_;
@@ -912,10 +913,34 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
                 some_has_main_k_block_loop |= y;
             }
 
-            hipGetErrorString(hipMemcpy(arg.p_workspace_,
-                                        arg.group_kernel_args_.data(),
-                                        arg.group_kernel_args_.size() * sizeof(GroupKernelArg),
-                                        hipMemcpyHostToDevice));
+            hipStreamCaptureStatus status = hipStreamCaptureStatusNone;
+
+            HIP_CHECK_ERROR(hipStreamIsCapturing(stream_config.stream_id_, &status));
+
+            if(status == hipStreamCaptureStatusActive)
+            {
+                size_t copy_size = arg.group_kernel_args_.size() * sizeof(GroupKernelArg);
+
+                // ToDO: when to release this memory buffer?
+                char* persistent_ptr = new char[copy_size];
+
+                (void)std::memcpy(persistent_ptr, arg.group_kernel_args_.data(), copy_size);
+
+                HIP_CHECK_ERROR(hipMemcpyAsync(arg.p_workspace_,
+                                               persistent_ptr,
+                                               copy_size,
+                                               hipMemcpyHostToDevice,
+                                               stream_config.stream_id_));
+            }
+            else
+            {
+                HIP_CHECK_ERROR(
+                    hipMemcpyAsync(arg.p_workspace_,
+                                   arg.group_kernel_args_.data(),
+                                   arg.group_kernel_args_.size() * sizeof(GroupKernelArg),
+                                   hipMemcpyHostToDevice,
+                                   stream_config.stream_id_));
+            }
 
             float ave_time = 0;
 
@@ -949,7 +974,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
                         arg.acc_element_op_,
                         arg.b1_element_op_,
                         arg.c_element_op_,
-                        arg.p_dropout_in_16bits_,
+                        arg.p_dropout_in_uint8_t_,
                         arg.p_dropout_rescale_,
                         arg.seed_,
                         arg.offset_);

@@ -69,7 +69,6 @@ __global__ void
                           raw_n_padded);
 #else
     ignore = p_z_grid;
-    ignore = a_grid_desc_ak0_m_ak1;
     ignore = c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3;
     ignore = block_2_ctile_map;
     ignore = batch_count;
