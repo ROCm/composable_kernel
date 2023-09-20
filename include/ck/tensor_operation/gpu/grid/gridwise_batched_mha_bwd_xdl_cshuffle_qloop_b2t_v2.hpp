@@ -1427,7 +1427,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                              4,                       // SrcScalarPerVector
                                              2>;
 
-        using D0ThreadCopyVgprToLds = ThreadwiseTensorSliceTransfer_v1r3<
+        using D0ThreadwiseCopyVgprToLds = ThreadwiseTensorSliceTransfer_v1r3<
             FloatGemmAcc,
             typename TypeTransform<D0DataType>::Type,
             decltype(d0_thread_desc_),
@@ -2137,7 +2137,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         auto d0_thread_copy_lds_to_vgpr = typename D0Operator::D0ThreadwiseCopyLdsToVgpr(
             make_tuple(wave_id[I1], wave_m_n_id[I1], 0, wave_m_n_id[I0], 0));
 
-        auto d0grad_thread_copy_vgpr_to_lds = typename D0Operator::D0ThreadCopyVgprToLds(
+        auto d0grad_thread_copy_vgpr_to_lds = typename D0Operator::D0ThreadwiseCopyVgprToLds(
             D0Operator::d0_block_vgpr_desc_n0_n1_m0_m1_m2,
             make_tuple(wave_id[I1], wave_m_n_id[I1], 0, wave_m_n_id[I0], 0),
             tensor_operation::element_wise::Scale{rp_dropout});
@@ -2607,6 +2607,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                     (undropped_flag ? (pgrad_thread_buf[i] - y_dot_ygrad_thread_buf[Number<m>{}])
                                     : y_dot_ygrad_thread_buf[Number<m>{}]);
             });
+
             // output bias grad
             if constexpr(!is_same<D0DataType, void>::value)
             {

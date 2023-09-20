@@ -1231,13 +1231,12 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
             static constexpr index_t Size0 = 0;
             static constexpr index_t Size  = sizeof(ck::half_t);
         };
-        static constexpr index_t NThreadClusterLengths = MPerXdl;
-        static_assert(MPerXdl <= KPerBlock);
+        static constexpr index_t NThreadClusterLengths = 32;
+        static_assert(NPerXdl == 32);
         static_assert(D0BlockTransferSrcScalarPerVector * NThreadClusterLengths <= NPerBlock,
                       "D0BlockTransferSrcScalarPerVector * NThreadClusterLengths <= NPerBlock");
         __host__ __device__ static constexpr auto GetD0BlockGlobalDescriptor_M0_N0_M1_M2_N1_M3()
         {
-            // B1 matrix in LDS memory, dst of blockwise copy
             return make_naive_tensor_descriptor_packed(
                 make_tuple(I1, I1, I1, D0M1, Number<NPerBlock>{}, D0M2));
         }
@@ -1293,7 +1292,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
             true, // DstResetCoord
             1>;
 
-        using D0ThreadWiseCopy =
+        using D0ThreadwiseCopyLdsToVgpr =
             ThreadwiseTensorSliceTransfer_v4<typename TypeTransform<D0DataType>::Type,    // SrcData
                                              typename TypeTransform<D0DataType>::Type,    // DstData
                                              decltype(d0_block_vgpr_desc_n0_n1_m0_m1_m2), // SrcDesc
@@ -1301,10 +1300,10 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                                              Sequence<1, 1, 4, 1, 4>, // SliceLengths
                                              Sequence<0, 1, 2, 3, 4>, // DimAccessOrder
                                              4,                       // SrcVectorDim
-                                             2,                       // SrcScalarPerVector
+                                             4,                       // SrcScalarPerVector
                                              2>;
 
-        using D0ThreadCopyVgprToLds = ThreadwiseTensorSliceTransfer_v1r3<
+        using D0ThreadwiseCopyVgprToLds = ThreadwiseTensorSliceTransfer_v1r3<
             FloatGemmAcc,
             typename TypeTransform<D0DataType>::Type,
             decltype(d0_thread_desc_),
@@ -1901,10 +1900,10 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
             make_multi_index(0, 0, 0, 0, 0, 0),
             tensor_operation::element_wise::PassThrough{});
 
-        auto d0_thread_copy_lds_to_vgpr = typename D0Operator::D0ThreadWiseCopy(
+        auto d0_thread_copy_lds_to_vgpr = typename D0Operator::D0ThreadwiseCopyLdsToVgpr(
             make_tuple(wave_id[I1], wave_m_n_id[I1], 0, wave_m_n_id[I0], 0));
 
-        auto d0grad_thread_copy_vgpr_to_lds = typename D0Operator::D0ThreadCopyVgprToLds(
+        auto d0grad_thread_copy_vgpr_to_lds = typename D0Operator::D0ThreadwiseCopyVgprToLds(
             D0Operator::d0_block_vgpr_desc_n0_n1_m0_m1_m2,
             make_tuple(wave_id[I1], wave_m_n_id[I1], 0, wave_m_n_id[I0], 0),
             tensor_operation::element_wise::Scale{rp_dropout});

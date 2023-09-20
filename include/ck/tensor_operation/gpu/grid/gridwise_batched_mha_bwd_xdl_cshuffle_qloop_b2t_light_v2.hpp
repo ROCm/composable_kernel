@@ -1316,7 +1316,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
                       "D0BlockTransferSrcScalarPerVector * NThreadClusterLengths <= NPerBlock");
         __host__ __device__ static constexpr auto GetD0BlockGlobalDescriptor_M0_N0_M1_M2_N1_M3()
         {
-            // B1 matrix in LDS memory, dst of blockwise copy
             return make_naive_tensor_descriptor_packed(
                 make_tuple(I1, I1, I1, D0M1, Number<NPerBlock>{}, D0M2));
         }
@@ -1380,10 +1379,10 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
                                              Sequence<1, 1, 4, 1, 4>, // SliceLengths
                                              Sequence<0, 1, 2, 3, 4>, // DimAccessOrder
                                              4,                       // SrcVectorDim
-                                             2,                       // SrcScalarPerVector
+                                             4,                       // SrcScalarPerVector
                                              2>;
 
-        using D0ThreadCopyVgprToLds = ThreadwiseTensorSliceTransfer_v1r3<
+        using D0ThreadwiseCopyVgprToLds = ThreadwiseTensorSliceTransfer_v1r3<
             FloatGemmAcc,
             typename TypeTransform<D0DataType>::Type,
             decltype(d0_thread_desc_),
@@ -2025,7 +2024,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
         auto d0_thread_copy_lds_to_vgpr = typename D0Operator::D0ThreadwiseCopyLdsToVgpr(
             make_tuple(wave_id[I1], wave_m_n_id[I1], 0, wave_m_n_id[I0], 0));
 
-        auto d0grad_thread_copy_vgpr_to_lds = typename D0Operator::D0ThreadCopyVgprToLds(
+        auto d0grad_thread_copy_vgpr_to_lds = typename D0Operator::D0ThreadwiseCopyVgprToLds(
             D0Operator::d0_block_vgpr_desc_n0_n1_m0_m1_m2,
             make_tuple(wave_id[I1], wave_m_n_id[I1], 0, wave_m_n_id[I0], 0),
             tensor_operation::element_wise::Scale{rp_dropout});
@@ -2216,7 +2215,6 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
 
                     auto d0_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, D0DataType>(
                         D0Operator::d0_thread_desc_.GetElementSpaceSize());
-                    ignore = d0_thread_buf;
 
                     static_for<0, D0M0, 1>{}([&](auto mr) {
                         // load data to lds

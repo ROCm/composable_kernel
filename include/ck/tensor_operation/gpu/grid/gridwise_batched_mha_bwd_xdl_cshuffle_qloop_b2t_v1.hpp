@@ -1299,8 +1299,8 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             static constexpr index_t Size0 = 0;
             static constexpr index_t Size  = sizeof(ck::half_t);
         };
-        static constexpr index_t NThreadClusterLengths = MPerXdl;
-        static_assert(MPerXdl <= KPerBlock);
+        static constexpr index_t NThreadClusterLengths = 32;
+        static_assert(NPerXdl == 32);
         static_assert(D0BlockTransferSrcScalarPerVector * NThreadClusterLengths <= NPerBlock,
                       "D0BlockTransferSrcScalarPerVector * NThreadClusterLengths <= NPerBlock");
         __host__ __device__ static constexpr auto GetD0BlockGlobalDescriptor_M0_N0_M1_M2_N1_M3()
@@ -1368,7 +1368,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                                              Sequence<1, 1, 4, 1, 4>, // SliceLengths
                                              Sequence<0, 1, 2, 3, 4>, // DimAccessOrder
                                              4,                       // SrcVectorDim
-                                             2,                       // SrcScalarPerVector
+                                             4,                       // SrcScalarPerVector
                                              2>;
 
         using D0ThreadwiseCopyVgprToLds = ThreadwiseTensorSliceTransfer_v1r3<
@@ -2052,6 +2052,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
 
         // gemm0 M loop
         index_t gemm0_m_block_outer_index = num_gemm0_m_block_outer_loop - 1;
+
         // D0
         auto d0_block_copy_global_to_lds = typename D0Operator::D0BlockwiseCopyGlobalToLds(
             d0_grid_desc_m0_n0_m1_m2_n1_m3,
