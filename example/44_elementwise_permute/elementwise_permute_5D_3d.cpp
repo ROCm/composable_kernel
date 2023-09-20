@@ -55,7 +55,6 @@ int main()
     const int H = 32;
     const int W = 5;
     const int D = 16;
-    //
 
     std::vector<std::size_t> ncdhw = {N, C, D, H, W};
     std::vector<std::size_t> nchwd = {N, C, H, W, D};
@@ -63,9 +62,6 @@ int main()
     Tensor<BDataType> b(nchwd);
 
     a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-    //for(std::size_t i = 0; i < a.mData.size(); i++){
-//	    	    a.mData[i] = i;
-  //  }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
@@ -114,11 +110,11 @@ int main()
     {
         b_device_buf.FromDevice(b.mData.data());
 
-        //LogRangeAsType<float>(std::cout << "A  : ", a.mData, ",") << std::endl;
-        //LogRangeAsType<float>(std::cout << "B  : ", b.mData, ",") << std::endl;
+        // LogRangeAsType<float>(std::cout << "A  : ", a.mData, ",") << std::endl;
+        // LogRangeAsType<float>(std::cout << "B  : ", b.mData, ",") << std::endl;
         Tensor<BDataType> host_b(nchwd);
         host_elementwise4D(host_b, a, PassThrough{});
-        //LogRangeAsType<float>(std::cout << "Host B  : ", host_b.mData, ",") << std::endl;
+        // LogRangeAsType<float>(std::cout << "Host B  : ", host_b.mData, ",") << std::endl;
 
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
