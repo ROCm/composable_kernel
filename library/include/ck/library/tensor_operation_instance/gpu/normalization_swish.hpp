@@ -19,20 +19,21 @@ namespace instance {
 
 // FP16
 void add_device_normalization_rank_5_3_swish_f16_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F32, F16, Swish, 5, 3>>>&);
+    std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F32, F16, F32, Swish, 5, 3>>>&);
 
 // FP32
 void add_device_normalization_rank_5_3_swish_f32_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, Swish, 5, 3>>>&);
+    std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, F32, Swish, 5, 3>>>&);
 
 // [x, gamma, beta, y] = [f16, f32, f32, f16]
 void add_device_normalization_rank_5_3_swish_f16_f32_f32_f16_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F16, F32, F32, F32, F16, Swish, 5, 3>>>&);
+    std::vector<std::unique_ptr<DeviceNormalization<F16, F32, F32, F32, F16, F32, Swish, 5, 3>>>&);
 
 template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
           typename YDataType,
+          typename SaveMeanInvStdDataType,
           index_t Rank,
           index_t NumReduceDim>
 struct DeviceOperationInstanceFactory<
@@ -41,6 +42,7 @@ struct DeviceOperationInstanceFactory<
                                                       BetaDataType,
                                                       F32,
                                                       YDataType,
+                                                      SaveMeanInvStdDataType,
                                                       ck::tensor_operation::element_wise::Swish,
                                                       Rank,
                                                       NumReduceDim>>
@@ -50,6 +52,7 @@ struct DeviceOperationInstanceFactory<
                                          BetaDataType,
                                          F32,
                                          YDataType,
+                                         SaveMeanInvStdDataType,
                                          ck::tensor_operation::element_wise::Swish,
                                          Rank,
                                          NumReduceDim>;
@@ -59,7 +62,8 @@ struct DeviceOperationInstanceFactory<
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
         if constexpr(is_same_v<XDataType, F16> && is_same_v<GammaDataType, F16> &&
-                     is_same_v<BetaDataType, F16> && is_same_v<YDataType, F16>)
+                     is_same_v<BetaDataType, F16> && is_same_v<YDataType, F16> &&
+                     is_same_v<SaveMeanInvStdDataType, F32>)
         {
             if constexpr(Rank == 5 && NumReduceDim == 3)
             {
@@ -67,7 +71,8 @@ struct DeviceOperationInstanceFactory<
             }
         }
         else if constexpr(is_same_v<XDataType, F32> && is_same_v<GammaDataType, F32> &&
-                          is_same_v<BetaDataType, F32> && is_same_v<YDataType, F32>)
+                          is_same_v<BetaDataType, F32> && is_same_v<YDataType, F32> &&
+                     is_same_v<SaveMeanInvStdDataType, F32>)
         {
             if constexpr(Rank == 5 && NumReduceDim == 3)
             {
@@ -75,7 +80,8 @@ struct DeviceOperationInstanceFactory<
             }
         }
         else if constexpr(is_same_v<XDataType, F16> && is_same_v<GammaDataType, F32> &&
-                          is_same_v<BetaDataType, F32> && is_same_v<YDataType, F16>)
+                          is_same_v<BetaDataType, F32> && is_same_v<YDataType, F16> &&
+                     is_same_v<SaveMeanInvStdDataType, F32>)
         {
             if constexpr(Rank == 5 && NumReduceDim == 3)
             {

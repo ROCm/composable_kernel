@@ -19,29 +19,36 @@ namespace instance {
 #ifdef CK_ENABLE_FP16
 // FP16
 void add_device_normalization_rank_2_1_f16_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F32, F16, PassThrough, 2, 1>>>&);
+    std::vector<
+        std::unique_ptr<DeviceNormalization<F16, F16, F16, F32, F16, F32, PassThrough, 2, 1>>>&);
 
 void add_device_normalization_rank_4_3_f16_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F32, F16, PassThrough, 4, 3>>>&);
+    std::vector<
+        std::unique_ptr<DeviceNormalization<F16, F16, F16, F32, F16, F32, PassThrough, 4, 3>>>&);
 
 void add_device_normalization_rank_5_3_f16_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F32, F16, PassThrough, 5, 3>>>&);
+    std::vector<
+        std::unique_ptr<DeviceNormalization<F16, F16, F16, F32, F16, F32, PassThrough, 5, 3>>>&);
 #endif
 #ifdef CK_ENABLE_FP32
 // FP32
 void add_device_normalization_rank_2_1_f32_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, PassThrough, 2, 1>>>&);
+    std::vector<
+        std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, F32, PassThrough, 2, 1>>>&);
 
 void add_device_normalization_rank_4_3_f32_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, PassThrough, 4, 3>>>&);
+    std::vector<
+        std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, F32, PassThrough, 4, 3>>>&);
 
 void add_device_normalization_rank_5_3_f32_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, PassThrough, 5, 3>>>&);
+    std::vector<
+        std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, F32, PassThrough, 5, 3>>>&);
 #endif
 template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
           typename YDataType,
+          typename SaveMeanInvStdDataType,
           index_t Rank,
           index_t NumReduceDim>
 struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceNormalization<
@@ -50,6 +57,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceNormal
     BetaDataType,
     F32,
     YDataType,
+    SaveMeanInvStdDataType,
     ck::tensor_operation::element_wise::PassThrough,
     Rank,
     NumReduceDim>>
@@ -59,6 +67,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceNormal
                                          BetaDataType,
                                          F32,
                                          YDataType,
+                                         SaveMeanInvStdDataType,
                                          ck::tensor_operation::element_wise::PassThrough,
                                          Rank,
                                          NumReduceDim>;
@@ -68,7 +77,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceNormal
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 #ifdef CK_ENABLE_FP16
         if constexpr(is_same_v<XDataType, F16> && is_same_v<GammaDataType, F16> &&
-                     is_same_v<BetaDataType, F16> && is_same_v<YDataType, F16>)
+                     is_same_v<BetaDataType, F16> && is_same_v<YDataType, F16> &&
+                     is_same_v<SaveMeanInvStdDataType, F32>)
         {
             if constexpr(Rank == 2 && NumReduceDim == 1)
             {
@@ -86,7 +96,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceNormal
 #endif
 #ifdef CK_ENABLE_FP32
         if constexpr(is_same_v<XDataType, F32> && is_same_v<GammaDataType, F32> &&
-                     is_same_v<BetaDataType, F32> && is_same_v<YDataType, F32>)
+                     is_same_v<BetaDataType, F32> && is_same_v<YDataType, F32> &&
+                     is_same_v<SaveMeanInvStdDataType, F32>)
         {
             if constexpr(Rank == 2 && NumReduceDim == 1)
             {
