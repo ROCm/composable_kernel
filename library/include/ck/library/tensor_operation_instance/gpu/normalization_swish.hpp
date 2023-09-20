@@ -19,15 +19,15 @@ namespace instance {
 
 // FP16
 void add_device_normalization_rank_5_3_swish_f16_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F32, F16, F32, Swish, 5, 3>>>&);
+    std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F16, F32, Swish, 5, 3>>>&);
 
 // FP32
 void add_device_normalization_rank_5_3_swish_f32_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, F32, Swish, 5, 3>>>&);
+    std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, Swish, 5, 3>>>&);
 
 // [x, gamma, beta, y] = [f16, f32, f32, f16]
 void add_device_normalization_rank_5_3_swish_f16_f32_f32_f16_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F16, F32, F32, F32, F16, F32, Swish, 5, 3>>>&);
+    std::vector<std::unique_ptr<DeviceNormalization<F16, F32, F32, F16, F32, Swish, 5, 3>>>&);
 
 template <typename XDataType,
           typename GammaDataType,
@@ -40,7 +40,6 @@ struct DeviceOperationInstanceFactory<
     ck::tensor_operation::device::DeviceNormalization<XDataType,
                                                       GammaDataType,
                                                       BetaDataType,
-                                                      F32,
                                                       YDataType,
                                                       SaveMeanInvStdDataType,
                                                       ck::tensor_operation::element_wise::Swish,
@@ -50,7 +49,6 @@ struct DeviceOperationInstanceFactory<
     using DeviceOp = DeviceNormalization<XDataType,
                                          GammaDataType,
                                          BetaDataType,
-                                         F32,
                                          YDataType,
                                          SaveMeanInvStdDataType,
                                          ck::tensor_operation::element_wise::Swish,

@@ -21,7 +21,7 @@ namespace profiler {
 template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
-          typename AccDataType,
+          typename ComputeDataType,
           typename YDataType,
           typename SaveMeanInvStdDataType,
           bool SaveMeanInvStd>
@@ -91,7 +91,6 @@ bool profile_groupnorm_impl(int do_verification,
     using DeviceOp = ck::tensor_operation::device::DeviceNormalization<XDataType,
                                                                        GammaDataType,
                                                                        BetaDataType,
-                                                                       AccDataType,
                                                                        YDataType,
                                                                        SaveMeanInvStdDataType,
                                                                        PassThrough,
@@ -117,7 +116,7 @@ bool profile_groupnorm_impl(int do_verification,
                                                            BetaDataType,
                                                            YDataType,
                                                            SaveMeanInvStdDataType,
-                                                           AccDataType,
+                                                           ComputeDataType,
                                                            PassThrough>;
 
         ReferenceInstance ref;

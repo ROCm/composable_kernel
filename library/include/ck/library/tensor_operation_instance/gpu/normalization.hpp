@@ -20,29 +20,29 @@ namespace instance {
 // FP16
 void add_device_normalization_rank_2_1_f16_instances(
     std::vector<
-        std::unique_ptr<DeviceNormalization<F16, F16, F16, F32, F16, F32, PassThrough, 2, 1>>>&);
+        std::unique_ptr<DeviceNormalization<F16, F16, F16, F16, F32, PassThrough, 2, 1>>>&);
 
 void add_device_normalization_rank_4_3_f16_instances(
     std::vector<
-        std::unique_ptr<DeviceNormalization<F16, F16, F16, F32, F16, F32, PassThrough, 4, 3>>>&);
+        std::unique_ptr<DeviceNormalization<F16, F16, F16, F16, F32, PassThrough, 4, 3>>>&);
 
 void add_device_normalization_rank_5_3_f16_instances(
     std::vector<
-        std::unique_ptr<DeviceNormalization<F16, F16, F16, F32, F16, F32, PassThrough, 5, 3>>>&);
+        std::unique_ptr<DeviceNormalization<F16, F16, F16, F16, F32, PassThrough, 5, 3>>>&);
 #endif
 #ifdef CK_ENABLE_FP32
 // FP32
 void add_device_normalization_rank_2_1_f32_instances(
     std::vector<
-        std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, F32, PassThrough, 2, 1>>>&);
+        std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, PassThrough, 2, 1>>>&);
 
 void add_device_normalization_rank_4_3_f32_instances(
     std::vector<
-        std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, F32, PassThrough, 4, 3>>>&);
+        std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, PassThrough, 4, 3>>>&);
 
 void add_device_normalization_rank_5_3_f32_instances(
     std::vector<
-        std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, F32, PassThrough, 5, 3>>>&);
+        std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, PassThrough, 5, 3>>>&);
 #endif
 template <typename XDataType,
           typename GammaDataType,
@@ -55,7 +55,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceNormal
     XDataType,
     GammaDataType,
     BetaDataType,
-    F32,
     YDataType,
     SaveMeanInvStdDataType,
     ck::tensor_operation::element_wise::PassThrough,
@@ -65,7 +64,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceNormal
     using DeviceOp = DeviceNormalization<XDataType,
                                          GammaDataType,
                                          BetaDataType,
-                                         F32,
                                          YDataType,
                                          SaveMeanInvStdDataType,
                                          ck::tensor_operation::element_wise::PassThrough,
