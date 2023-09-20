@@ -10,26 +10,13 @@ int run_groupnorm_example()
 
     ck::index_t M      = 1024;
     ck::index_t N      = 1024;
-    ck::index_t Stride = N;
 
-    auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-        return HostTensorDescriptor({len}, {stride});
-    };
-
-    auto f_host_tensor_descriptor2d = [](std::size_t row, std::size_t col, std::size_t stride) {
-        using namespace ck::literals;
-
-        return HostTensorDescriptor({row, col}, {stride, 1_uz});
-    };
-
-    Tensor<XDataType> x(f_host_tensor_descriptor2d(M, N, Stride));
-    Tensor<GammaDataType> gamma(f_host_tensor_descriptor1d(N, 1));
-    Tensor<BetaDataType> beta(f_host_tensor_descriptor1d(N, 1));
-    Tensor<YDataType> y(f_host_tensor_descriptor2d(M, N, Stride));
-#ifdef SAVE_MEAN_INV_STD
-    Tensor<SaveMeanInvStdDataType> save_mean(HostTensorDescriptor{M});
-    Tensor<SaveMeanInvStdDataType> save_inv_std(HostTensorDescriptor{M});
-#endif
+    Tensor<XDataType> x({M, N});
+    Tensor<GammaDataType> gamma({N});
+    Tensor<BetaDataType> beta({N});
+    Tensor<YDataType> y({M, N});
+    Tensor<SaveMeanInvStdDataType> save_mean({M});
+    Tensor<SaveMeanInvStdDataType> save_inv_std({M});
 
     x.GenerateTensorValue(GeneratorTensor_3<XDataType>{0.0, 1.0});
     gamma.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{0.0, 1.0});
@@ -56,8 +43,10 @@ int run_groupnorm_example()
         {0, 1},
         {0, 1},
         std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
-        {1},
-        {1},
+        std::vector<ck::index_t>{save_mean.mDesc.GetStrides().begin(),
+                                    save_mean.mDesc.GetStrides().end()},
+        std::vector<ck::index_t>{save_mean.mDesc.GetStrides().begin(),
+                                    save_mean.mDesc.GetStrides().end()},
         {1},
         1e-4,
         x_dev.GetDeviceBuffer(),
@@ -88,9 +77,9 @@ int run_groupnorm_example()
 
     bool pass = true;
     {
-        Tensor<YDataType> host_y(f_host_tensor_descriptor2d(M, N, Stride));
-        Tensor<SaveMeanInvStdDataType> host_save_mean(HostTensorDescriptor{M});
-        Tensor<SaveMeanInvStdDataType> host_save_inv_std(HostTensorDescriptor{M});
+        Tensor<YDataType> host_y({M, N});
+        Tensor<SaveMeanInvStdDataType> host_save_mean({M});
+        Tensor<SaveMeanInvStdDataType> host_save_inv_std({M});
 
         using ReferenceInstance =
             ck::tensor_operation::host::ReferenceLayernorm<XDataType,
@@ -122,8 +111,8 @@ int run_groupnorm_example()
 #ifdef SAVE_MEAN_INV_STD
         save_mean_dev.FromDevice(save_mean.mData.data());
         save_inv_std_dev.FromDevice(save_inv_std.mData.data());
-        pass &=
-            ck::utils::check_err(save_mean, host_save_mean, "Error: Incorrect results (mean)", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(
+            save_mean, host_save_mean, "Error: Incorrect results (mean)", 1e-3, 1e-3);
         pass &= ck::utils::check_err(
             save_inv_std, host_save_inv_std, "Error: Incorrect results (inv_std)", 1e-3, 1e-3);
 #endif
