@@ -144,6 +144,38 @@ struct PassThrough
         y = type_convert<f8_t>(x);
     }
 #endif
+
+#if defined CK_ENABLE_BF8
+    template <>
+    __host__ __device__ void operator()<bf8_t, bf8_t>(bf8_t& y, const bf8_t& x) const
+    {
+        y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<float, bf8_t>(float& y, const bf8_t& x) const
+    {
+        y = type_convert<float>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<bf8_t, float>(bf8_t& y, const float& x) const
+    {
+        y = type_convert<bf8_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<half_t, bf8_t>(half_t& y, const bf8_t& x) const
+    {
+        y = type_convert<half_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<bf8_t, half_t>(bf8_t& y, const half_t& x) const
+    {
+        y = type_convert<bf8_t>(x);
+    }
+#endif
 };
 
 struct UnaryConvert
