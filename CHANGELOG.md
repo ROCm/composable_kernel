@@ -26,7 +26,8 @@ Full documentation for Composable Kernel is not yet available.
 - Added Navi3x blockwise GEMM and real GEMM support (#541).
 - Added Navi grouped ConvBwdWeight support (#505).
 - Added MaxPool, AvgPool forward (#815).
-- Added MaxPool backward (#750).
+- Added MaxPool, AvgPool backward (#750).
+- Layernorm and Groupnorm support optionally save the mean and inverse std in forward (#929).
 
 ### Changed
 - Changed ...
