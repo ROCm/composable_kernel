@@ -22,7 +22,9 @@ template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
           typename AccDataType,
-          typename YDataType>
+          typename YDataType,
+          typename SaveMeanInvStdDataType,
+          bool SaveMeanInvStd>
 bool profile_groupnorm_impl(int do_verification,
                             int init_method,
                             bool do_log,
@@ -34,6 +36,7 @@ bool profile_groupnorm_impl(int do_verification,
     if(length.size() != 5)
         return false;
 
+    index_t N = length[0];
     index_t G = length[3];
     index_t C = length[4];
 
@@ -45,7 +48,14 @@ bool profile_groupnorm_impl(int do_verification,
     Tensor<GammaDataType> gamma(gammaBetaLength);
     Tensor<BetaDataType> beta(gammaBetaLength);
     Tensor<YDataType> y(length);
+    Tensor<SaveMeanInvStdDataType> save_mean({N, G});
+    Tensor<SaveMeanInvStdDataType> save_inv_std({N, G});
+
     Tensor<YDataType> host_y(length);
+    Tensor<SaveMeanInvStdDataType> host_save_mean({N, G});
+    Tensor<SaveMeanInvStdDataType> host_save_inv_std({N, G});
+
+    std::vector<index_t> strideSaveMeanInvStd = {1};
 
     switch(init_method)
     {
@@ -69,6 +79,9 @@ bool profile_groupnorm_impl(int do_verification,
     DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
     DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpaceSize());
     DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpaceSize());
+    DeviceMem save_mean_dev(sizeof(SaveMeanInvStdDataType) * save_mean.mDesc.GetElementSpaceSize());
+    DeviceMem save_inv_std_dev(sizeof(SaveMeanInvStdDataType) *
+                               save_inv_std.mDesc.GetElementSpaceSize());
 
     x_dev.ToDevice(x.mData.data());
     gamma_dev.ToDevice(gamma.mData.data());
@@ -80,6 +93,7 @@ bool profile_groupnorm_impl(int do_verification,
                                                                        BetaDataType,
                                                                        AccDataType,
                                                                        YDataType,
+                                                                       SaveMeanInvStdDataType,
                                                                        PassThrough,
                                                                        5,
                                                                        3>;
@@ -97,38 +111,70 @@ bool profile_groupnorm_impl(int do_verification,
 
     if(do_verification)
     {
-        using ReferenceInstance = ck::tensor_operation::host::ReferenceGroupnorm<XDataType,
-                                                                                 GammaDataType,
-                                                                                 BetaDataType,
-                                                                                 YDataType,
-                                                                                 AccDataType,
-                                                                                 PassThrough>;
+        using ReferenceInstance =
+            ck::tensor_operation::host::ReferenceGroupnorm<XDataType,
+                                                           GammaDataType,
+                                                           BetaDataType,
+                                                           YDataType,
+                                                           SaveMeanInvStdDataType,
+                                                           AccDataType,
+                                                           PassThrough>;
 
         ReferenceInstance ref;
-        auto ref_argument = ref.MakeArgument(x, gamma, beta, host_y, PassThrough{}, length, 1e-6);
-        auto ref_invoker  = ref.MakeInvoker();
+        auto ref_argument = ref.MakeArgument(
+            x, gamma, beta, host_y, host_save_mean, host_save_inv_std, PassThrough{}, length, 1e-6);
+        auto ref_invoker = ref.MakeInvoker();
         ref_invoker.Run(ref_argument);
     }
 
     int num_kernel = 0;
 
+    auto f_get_argument = [&](auto& inst_ptr) {
+        if constexpr(SaveMeanInvStd)
+            return inst_ptr->MakeArgumentPointer(
+                length,
+                std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
+                gammaBetaStride,
+                gammaBetaStride,
+                std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
+                std::vector<ck::index_t>{save_mean.mDesc.GetStrides().begin(),
+                                         save_mean.mDesc.GetStrides().end()},
+                std::vector<ck::index_t>{save_inv_std.mDesc.GetStrides().begin(),
+                                         save_inv_std.mDesc.GetStrides().end()},
+                reduce_dim,
+                1e-6,
+                x_dev.GetDeviceBuffer(),
+                gamma_dev.GetDeviceBuffer(),
+                beta_dev.GetDeviceBuffer(),
+                y_dev.GetDeviceBuffer(),
+                save_mean_dev.GetDeviceBuffer(),
+                save_inv_std_dev.GetDeviceBuffer(),
+                PassThrough{});
+        else
+            return inst_ptr->MakeArgumentPointer(
+                length,
+                std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
+                gammaBetaStride,
+                gammaBetaStride,
+                std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
+                std::vector<ck::index_t>{save_mean.mDesc.GetStrides().begin(),
+                                         save_mean.mDesc.GetStrides().end()},
+                std::vector<ck::index_t>{save_inv_std.mDesc.GetStrides().begin(),
+                                         save_inv_std.mDesc.GetStrides().end()},
+                reduce_dim,
+                1e-6,
+                x_dev.GetDeviceBuffer(),
+                gamma_dev.GetDeviceBuffer(),
+                beta_dev.GetDeviceBuffer(),
+                y_dev.GetDeviceBuffer(),
+                nullptr,
+                nullptr,
+                PassThrough{});
+    };
+
     for(auto& inst_ptr : instance_ptrs)
     {
-        auto argument_ptr = inst_ptr->MakeArgumentPointer(
-            length,
-            std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
-            gammaBetaStride,
-            gammaBetaStride,
-            std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
-            reduce_dim,
-            1e-6,
-            x_dev.GetDeviceBuffer(),
-            gamma_dev.GetDeviceBuffer(),
-            beta_dev.GetDeviceBuffer(),
-            y_dev.GetDeviceBuffer(),
-            nullptr,
-            nullptr,
-            PassThrough{});
+        auto argument_ptr = f_get_argument(inst_ptr);
 
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
@@ -152,6 +198,10 @@ bool profile_groupnorm_impl(int do_verification,
                                 beta.mDesc.GetElementSize() * sizeof(BetaDataType) +
                                 y.mDesc.GetElementSize() * sizeof(YDataType);
 
+        if constexpr(SaveMeanInvStd)
+            num_bytes += save_mean.mDesc.GetElementSpaceSize() * sizeof(SaveMeanInvStdDataType) +
+                         save_inv_std.mDesc.GetElementSpaceSize() * sizeof(SaveMeanInvStdDataType);
+
         float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
         if(time_kernel)
@@ -168,8 +218,21 @@ bool profile_groupnorm_impl(int do_verification,
         if(do_verification)
         {
             y_dev.FromDevice(y.mData.data());
-
             bool pass = ck::utils::check_err(y, host_y, "Error: Incorrect results", 1e-3, 1e-3);
+
+            if constexpr(SaveMeanInvStd)
+            {
+                save_mean_dev.FromDevice(save_mean.mData.data());
+                pass &= ck::utils::check_err(
+                    save_mean.mData, host_save_mean.mData, "Error: Incorrect results", 1e-3, 1e-3);
+
+                save_inv_std_dev.FromDevice(save_inv_std.mData.data());
+                pass &= ck::utils::check_err(save_inv_std.mData,
+                                             host_save_inv_std.mData,
+                                             "Error: Incorrect results",
+                                             1e-3,
+                                             1e-3);
+            }
 
             if(do_log)
             {
