@@ -69,6 +69,13 @@ if(DTYPES MATCHES "fp8" OR NOT DEFINED DTYPES)
   endif()
 endif()
 
+if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "bf8") OR NOT DEFINED DTYPES)
+  # if(GPU_TARGETS MATCHES "gfx940" OR GPU_TARGETS MATCHES "gfx941" OR GPU_TARGETS MATCHES "gfx942")
+    add_example_executable(example_gemm_xdl_f8_bf8 gemm_xdl_f8_bf8.cpp)
+    add_dependencies(example_gemm_xdl example_gemm_xdl_f8_bf8)
+  # endif()
+endif()
+
 if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "fp16") OR NOT DEFINED DTYPES)
   add_example_executable(example_gemm_xdl_fp16_f8 gemm_xdl_fp16_f8.cpp)
   add_dependencies(example_gemm_xdl example_gemm_xdl_fp16_f8)
