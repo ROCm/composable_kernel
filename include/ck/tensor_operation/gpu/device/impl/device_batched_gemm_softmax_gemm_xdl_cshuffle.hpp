@@ -627,7 +627,6 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         }
         else if constexpr(is_same_v<ALayout, Col>)
         {
-            // FIXME: not rigorous
             if(MRaw_ % ABlockTransferSrcScalarPerVector != 0)
             {
                 return false;
@@ -648,7 +647,6 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         }
         else if constexpr(is_same_v<BLayout, Col>)
         {
-            // FIXME: not rigorous
             if(KRaw_ % BBlockTransferSrcScalarPerVector != 0)
             {
                 return false;
@@ -669,7 +667,6 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         }
         else if constexpr(is_same_v<B1Layout, Col>)
         {
-            // FIXME: not rigorous
             if(NRaw_ % B1BlockTransferSrcScalarPerVector != 0)
             {
                 return false;
@@ -690,7 +687,6 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         }
         else if constexpr(is_same_v<CLayout, Col>)
         {
-            // FIXME: not rigorous
             if(MRaw_ % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
                 return false;
