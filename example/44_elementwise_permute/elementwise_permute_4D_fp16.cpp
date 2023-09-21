@@ -45,10 +45,8 @@ int main()
     bool do_verification = true;
     bool time_kernel     = true;
 
-    //std::vector<std::size_t> nchw = {16, 128, 32, 64};
-    //std::vector<std::size_t> nhwc = {16, 32, 64, 128};
-    std::vector<std::size_t> nchw = {16, 8, 8, 8};
-    std::vector<std::size_t> nhwc = {16, 8, 8, 8};
+    std::vector<std::size_t> nchw = {16, 128, 32, 64};
+    std::vector<std::size_t> nhwc = {16, 32, 64, 128};
     Tensor<ADataType> a(nchw);
     Tensor<BDataType> b(nhwc);
 
@@ -101,8 +99,6 @@ int main()
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
-    //LogRangeAsType<float>(std::cout << "A  : ", a.mData, ",") << std::endl;
-    //LogRangeAsType<float>(std::cout << "B  : ", b.mData, ",") << std::endl;
     bool pass = true;
 
     if(do_verification)
@@ -110,8 +106,8 @@ int main()
         b_device_buf.FromDevice(b.mData.data());
         Tensor<BDataType> host_b(nhwc);
         host_elementwise4D(host_b, a, PassThrough{});
-	//LogRangeAsType<float>(std::cout << "A  : ", a.mData, ",") << std::endl;
-	//LogRangeAsType<float>(std::cout << "B  : ", host_b.mData, ",") << std::endl;
+        // LogRangeAsType<float>(std::cout << "A  : ", a.mData, ",") << std::endl;
+        // LogRangeAsType<float>(std::cout << "B  : ", host_b.mData, ",") << std::endl;
 
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
