@@ -57,6 +57,7 @@ using BF16  = ck::bhalf_t;
 using F32   = float;
 using U16   = unsigned short;
 using INT32 = int32_t;
+using U8    = uint8_t;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Scale       = ck::tensor_operation::element_wise::Scale;
@@ -500,6 +501,7 @@ int run(int argc, char* argv[])
     d0_device_buf.ToDevice(d0_gs_ms_ns.mData.data());
     v_device_buf.ToDevice(v_gs_os_ns.mData.data());
     ygrad_device_buf.ToDevice(ygrad_gs_ms_os.mData.data());
+    z_device_buf.ToDevice(z_gs_ms_ns.mData.data());
 
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
