@@ -1,4 +1,3 @@
-if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
 list(APPEND gpu_list gfx908 gfx90a gfx940 gfx941 gfx942)
 set(target 0)
 foreach(gpu IN LISTS GPU_TARGETS)
@@ -10,4 +9,4 @@ foreach(gpu IN LISTS GPU_TARGETS)
    set(target 1)
  endif()
 endforeach()
-endif()
+
