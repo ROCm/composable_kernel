@@ -66,13 +66,13 @@ int main()
     SimpleDeviceMem in(sizeof(InDataType) * N * Hi * Wi * G * C);
     SimpleDeviceMem out(sizeof(OutDataType) * N * Ho * Wo * Y * X * C);
 
-    using ImageToColumnOp = ck::conv_tensor_rearrange_op::ImageToColumn;
+    using namespace ck::conv_tensor_rearrange_op;
 
     using DeviceOp = ck::tensor_operation::device::DeviceConvTensorRearrange<NumDimSpatial,
                                                                              ImageLayout,
                                                                              InDataType,
                                                                              OutDataType,
-                                                                             ImageToColumnOp>;
+                                                                             ImageToColumn>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
