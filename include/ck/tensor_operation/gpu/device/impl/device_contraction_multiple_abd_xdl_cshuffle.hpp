@@ -501,7 +501,7 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                 a_kz_stride_[i] = a_ms_ks_strides[i][NumDimM + NumDimK - 1];
             }
 
-            for(index_t i = 0; i < NumATensor; ++i)
+            for(index_t i = 0; i < NumBTensor; ++i)
             {
                 b_nz_stride_[i] = b_ns_ks_strides[i][NumDimN - 1];
                 b_kz_stride_[i] = b_ns_ks_strides[i][NumDimN + NumDimK - 1];
@@ -697,8 +697,6 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
             });
 
             // check vector load of Ds
-            // only support RowMajor for now
-
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 if(!(arg.ds_nz_stride_[i] == 1 &&
                      arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[i].GetLength(I3) %
