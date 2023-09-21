@@ -1,8 +1,12 @@
-add_executable(client_conv3d_fwd_fp16 conv3d_fwd_fp16.cpp)
-add_executable(client_conv3d_fwd_fp32 conv3d_fwd_fp32.cpp)
+if((DTYPES MATCHES "fp16") OR NOT DEFINED DTYPES)
+    add_executable(client_conv3d_fwd_fp16 conv3d_fwd_fp16.cpp)
+    target_link_libraries(client_conv3d_fwd_fp16 PRIVATE composable_kernel::device_operations)
 
-target_link_libraries(client_conv3d_fwd_fp16 PRIVATE composable_kernel::device_operations)
-target_link_libraries(client_conv3d_fwd_fp32 PRIVATE composable_kernel::device_operations)
+    add_executable(client_conv3d_fwd_fp16_comp_fp8 conv3d_fwd_fp16_comp_fp8.cpp)
+    target_link_libraries(client_conv3d_fwd_fp16_comp_fp8 PRIVATE composable_kernel::device_operations)
+endif()
 
-add_executable(client_conv3d_fwd_fp16_comp_fp8 conv3d_fwd_fp16_comp_fp8.cpp)
-target_link_libraries(client_conv3d_fwd_fp16_comp_fp8 PRIVATE composable_kernel::device_operations)
+if((DTYPES MATCHES "fp16") OR NOT DEFINED DTYPES)
+    add_executable(client_conv3d_fwd_fp32 conv3d_fwd_fp32.cpp)
+    target_link_libraries(client_conv3d_fwd_fp32 PRIVATE composable_kernel::device_operations)
+endif()
