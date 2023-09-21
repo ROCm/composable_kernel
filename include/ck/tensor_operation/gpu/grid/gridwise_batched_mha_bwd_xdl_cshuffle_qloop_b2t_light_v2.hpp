@@ -96,6 +96,10 @@ template <typename InputDataType,
           PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V2
 {
+    static_assert(Gemm1NPerBlock % KPerBlock == 0);
+    static_assert(MPerBlock % Gemm1KPerBlock == 0);
+    static_assert(NPerBlock % Gemm2KPerBlock == 0);
+
     static_assert(LoopSched == LoopScheduler::Default,
                   "Non-default loop scheduler is currently not supported");
 
