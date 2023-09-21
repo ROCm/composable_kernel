@@ -8,13 +8,14 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-// Compilation parameters for in[g, n, hi ,wi, c] * wei[g, k, y, x, c] = out[g, n, ho, wo, k]
-void add_device_grouped_conv2d_fwd_wmma_gnhwc_gkyxc_gnhwk_f16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
-                                                              GNHWC,
-                                                              GKYXC,
+// Compilation parameters for in[g, n, di, hi ,wi, c] * wei[g, k, z, y, x, c] = out[g, n, do, ho,
+// wo, k]
+void add_device_grouped_conv3d_fwd_wmma_gndhwc_gkzyxc_gndhwk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
+                                                              GNDHWC,
+                                                              GKZYXC,
                                                               Empty_Tuple,
-                                                              GNHWK,
+                                                              GNDHWK,
                                                               F16,
                                                               F16,
                                                               Empty_Tuple,
@@ -24,41 +25,41 @@ void add_device_grouped_conv2d_fwd_wmma_gnhwc_gkyxc_gnhwk_f16_instances(
                                                               PassThrough>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_f16_instances<2,
-                                                                              GNHWC,
-                                                                              GKYXC,
+                                   device_grouped_conv_fwd_wmma_f16_instances<3,
+                                                                              GNDHWC,
+                                                                              GKZYXC,
                                                                               Empty_Tuple,
-                                                                              GNHWK,
+                                                                              GNDHWK,
                                                                               Empty_Tuple,
                                                                               PassThrough,
                                                                               ConvFwdDefault>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_f16_instances<2,
-                                                                              GNHWC,
-                                                                              GKYXC,
+                                   device_grouped_conv_fwd_wmma_f16_instances<3,
+                                                                              GNDHWC,
+                                                                              GKZYXC,
                                                                               Empty_Tuple,
-                                                                              GNHWK,
+                                                                              GNDHWK,
                                                                               Empty_Tuple,
                                                                               PassThrough,
                                                                               ConvFwd1x1P0>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_f16_instances<2,
-                                                                              GNHWC,
-                                                                              GKYXC,
+                                   device_grouped_conv_fwd_wmma_f16_instances<3,
+                                                                              GNDHWC,
+                                                                              GKZYXC,
                                                                               Empty_Tuple,
-                                                                              GNHWK,
+                                                                              GNDHWK,
                                                                               Empty_Tuple,
                                                                               PassThrough,
                                                                               ConvFwd1x1S1P0>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_f16_instances<2,
-                                                                              GNHWC,
-                                                                              GKYXC,
+                                   device_grouped_conv_fwd_wmma_f16_instances<3,
+                                                                              GNDHWC,
+                                                                              GKZYXC,
                                                                               Empty_Tuple,
-                                                                              GNHWK,
+                                                                              GNDHWK,
                                                                               Empty_Tuple,
                                                                               PassThrough,
                                                                               ConvFwdOddC>{});
