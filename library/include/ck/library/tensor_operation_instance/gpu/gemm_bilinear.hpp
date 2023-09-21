@@ -191,7 +191,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
 #endif
 #ifdef CK_ENABLE_INT8
         if constexpr(is_same_v<ADataType, std::int8_t> && is_same_v<BDataType, std::int8_t> &&
-                          is_same_v<DDataType, std::int8_t> && is_same_v<EDataType, std::int8_t>)
+                     is_same_v<DDataType, std::int8_t> && is_same_v<EDataType, std::int8_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<DLayout, Row> && is_same_v<ELayout, Row>)
