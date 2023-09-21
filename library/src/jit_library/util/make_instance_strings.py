@@ -1,7 +1,7 @@
 import argparse, re, json, os, sys, file_templates
 
 def strip_sequences(str):
-    matches = re.findall(r'S<\d+(?:,\s*\d+)*>', str)
+    matches = re.findall(r'S<\s*\d+(?:,\s*\d+)*>', str)
     for match in matches:
         str = str.replace(match, match.replace(' ', ''))
     str = str.replace('S<', "ck::Sequence<")
