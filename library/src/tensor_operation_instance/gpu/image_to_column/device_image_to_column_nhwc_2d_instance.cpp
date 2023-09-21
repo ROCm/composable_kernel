@@ -17,6 +17,8 @@ void add_device_image_to_column_nhwc_2d_bf16_instances(
 {
 #ifdef CK_ENABLE_BF16
     add_device_operation_instances(instances, device_image_to_column_bf16_instances<2, GNHWC>{});
+#else
+    ignore = instances;
 #endif
 }
 
@@ -26,6 +28,8 @@ void add_device_image_to_column_nhwc_2d_f16_instances(
 {
 #ifdef CK_ENABLE_FP16
     add_device_operation_instances(instances, device_image_to_column_f16_instances<2, GNHWC>{});
+#else
+    ignore = instances;
 #endif
 }
 
@@ -35,6 +39,8 @@ void add_device_image_to_column_nhwc_2d_f32_instances(
 {
 #ifdef CK_ENABLE_FP32
     add_device_operation_instances(instances, device_image_to_column_f32_instances<2, GNHWC>{});
+#else
+    ignore = instances;
 #endif
 }
 
@@ -45,6 +51,8 @@ void add_device_image_to_column_nhwc_2d_i8_instances(
 {
 #ifdef CK_ENABLE_INT8
     add_device_operation_instances(instances, device_image_to_column_i8_instances<2, GNHWC>{});
+#else
+    ignore = instances;
 #endif
 }
 

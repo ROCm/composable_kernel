@@ -15,14 +15,12 @@ template <typename Tuple>
 class TestConvTensorRearrange : public ::testing::Test
 {
     protected:
-    using InDataType            = std::tuple_element_t<0, Tuple>;
-    using OutDataType           = std::tuple_element_t<1, Tuple>;
-    using ImLayout              = std::tuple_element_t<2, Tuple>;
-    using ConvTensorRearrangeOp = std::tuple_element_t<3, Tuple>;
+    using ImLayout              = std::tuple_element_t<0, Tuple>;
+    using ConvTensorRearrangeOp = std::tuple_element_t<1, Tuple>;
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
 
-    template <ck::index_t NDimSpatial>
+    template <ck::index_t NDimSpatial, typename InDataType, typename OutDataType>
     void Run()
     {
         EXPECT_FALSE(conv_params.empty());
@@ -47,32 +45,14 @@ class TestConvTensorRearrange : public ::testing::Test
 using namespace ck::tensor_layout::convolution;
 using namespace ck::conv_tensor_rearrange_op;
 
-using KernelTypes1d = ::testing::Types<std::tuple<float, float, GNWC, ImageToColumn>,
-                                       std::tuple<ck::bhalf_t, ck::bhalf_t, GNWC, ImageToColumn>,
-                                       std::tuple<ck::half_t, ck::half_t, GNWC, ImageToColumn>,
-                                       std::tuple<int8_t, int8_t, GNWC, ImageToColumn>,
-                                       std::tuple<float, float, GNWC, ColumnToImage>,
-                                       std::tuple<ck::bhalf_t, ck::bhalf_t, GNWC, ColumnToImage>,
-                                       std::tuple<ck::half_t, ck::half_t, GNWC, ColumnToImage>,
-                                       std::tuple<int8_t, int8_t, GNWC, ColumnToImage>>;
+using KernelTypes1d =
+    ::testing::Types<std::tuple<GNWC, ImageToColumn>, std::tuple<GNWC, ColumnToImage>>;
 
-using KernelTypes2d = ::testing::Types<std::tuple<float, float, GNHWC, ImageToColumn>,
-                                       std::tuple<ck::bhalf_t, ck::bhalf_t, GNHWC, ImageToColumn>,
-                                       std::tuple<ck::half_t, ck::half_t, GNHWC, ImageToColumn>,
-                                       std::tuple<int8_t, int8_t, GNHWC, ImageToColumn>,
-                                       std::tuple<float, float, GNHWC, ColumnToImage>,
-                                       std::tuple<ck::bhalf_t, ck::bhalf_t, GNHWC, ColumnToImage>,
-                                       std::tuple<ck::half_t, ck::half_t, GNHWC, ColumnToImage>,
-                                       std::tuple<int8_t, int8_t, GNHWC, ColumnToImage>>;
+using KernelTypes2d =
+    ::testing::Types<std::tuple<GNHWC, ImageToColumn>, std::tuple<GNHWC, ColumnToImage>>;
 
-using KernelTypes3d = ::testing::Types<std::tuple<float, float, GNDHWC, ImageToColumn>,
-                                       std::tuple<ck::bhalf_t, ck::bhalf_t, GNDHWC, ImageToColumn>,
-                                       std::tuple<ck::half_t, ck::half_t, GNDHWC, ImageToColumn>,
-                                       std::tuple<int8_t, int8_t, GNDHWC, ImageToColumn>,
-                                       std::tuple<float, float, GNDHWC, ColumnToImage>,
-                                       std::tuple<ck::bhalf_t, ck::bhalf_t, GNDHWC, ColumnToImage>,
-                                       std::tuple<ck::half_t, ck::half_t, GNDHWC, ColumnToImage>,
-                                       std::tuple<int8_t, int8_t, GNDHWC, ColumnToImage>>;
+using KernelTypes3d =
+    ::testing::Types<std::tuple<GNDHWC, ImageToColumn>, std::tuple<GNDHWC, ColumnToImage>>;
 
 template <typename Tuple>
 class TestConvTensorRearrange1d : public TestConvTensorRearrange<Tuple>
@@ -107,7 +87,18 @@ TYPED_TEST(TestConvTensorRearrange1d, Test1D)
     this->conv_params.push_back({1, 1, 1, 1, 4, {3}, {28}, {2}, {1}, {1}, {1}});
     // dilation != 1
     this->conv_params.push_back({1, 1, 1, 1, 4, {3}, {28}, {1}, {2}, {1}, {1}});
-    this->template Run<1>();
+#ifdef CK_ENABLE_FP32
+    this->template Run<1, float, float>();
+#endif
+#ifdef CK_ENABLE_BF16
+    this->template Run<1, ck::bhalf_t, ck::bhalf_t>();
+#endif
+#ifdef CK_ENABLE_FP16
+    this->template Run<1, ck::half_t, ck::half_t>();
+#endif
+#ifdef CK_ENABLE_INT8
+    this->template Run<1, int8_t, int8_t>();
+#endif
 }
 
 TYPED_TEST(TestConvTensorRearrange2d, Test2D)
@@ -122,7 +113,18 @@ TYPED_TEST(TestConvTensorRearrange2d, Test2D)
     this->conv_params.push_back({2, 1, 64, 1, 64, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
     this->conv_params.push_back(
         {2, 1, 64, 1, 64, {3, 3}, {28, 28}, {2, 2}, {2, 2}, {1, 1}, {1, 1}});
-    this->template Run<2>();
+#ifdef CK_ENABLE_FP32
+    this->template Run<2, float, float>();
+#endif
+#ifdef CK_ENABLE_BF16
+    this->template Run<2, ck::bhalf_t, ck::bhalf_t>();
+#endif
+#ifdef CK_ENABLE_FP16
+    this->template Run<2, ck::half_t, ck::half_t>();
+#endif
+#ifdef CK_ENABLE_INT8
+    this->template Run<2, int8_t, int8_t>();
+#endif
 }
 
 TYPED_TEST(TestConvTensorRearrange3d, Test3D)
@@ -136,5 +138,16 @@ TYPED_TEST(TestConvTensorRearrange3d, Test3D)
         {3, 1, 32, 1, 64, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     this->conv_params.push_back(
         {3, 1, 64, 1, 64, {3, 3, 3}, {14, 14, 14}, {2, 2, 2}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}});
-    this->template Run<3>();
+#ifdef CK_ENABLE_FP32
+    this->template Run<3, float, float>();
+#endif
+#ifdef CK_ENABLE_BF16
+    this->template Run<3, ck::bhalf_t, ck::bhalf_t>();
+#endif
+#ifdef CK_ENABLE_FP16
+    this->template Run<3, ck::half_t, ck::half_t>();
+#endif
+#ifdef CK_ENABLE_INT8
+    this->template Run<3, int8_t, int8_t>();
+#endif
 }
