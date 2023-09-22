@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.25)
 cmake_policy(SET CMP0140 NEW)
 
 # This has to be initialized before the project() command appears
