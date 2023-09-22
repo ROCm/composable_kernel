@@ -2,7 +2,7 @@ add_instance_library(device_grouped_conv3d_fwd_instance
 if((DTYPES MATCHES "fp16") OR NOT DEFINED DTYPES)
    device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_f16_instance.cpp
    device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
-   device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_f8_instance.cpp
+   device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_fp8_instance.cpp
 endif()
 
 
