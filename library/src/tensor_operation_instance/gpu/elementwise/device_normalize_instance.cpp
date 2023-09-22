@@ -30,7 +30,12 @@ using device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances = std:
     //###################|<in, mean, square_mean, gamma, beta>| <out>|  functor| NDim| MPerThread| <in, mean, square_mean, gamma, beta ScalarPerVector>| <out ScalarPerVector>|
     DeviceElementwiseImpl<Tuple<F16, F32, F32, F16, F16>,  Tuple<F16>,  Normalize,  2,   8,       Sequence<8, 1, 1, 8, 8>,      Sequence<8>                >,
     DeviceElementwiseImpl<Tuple<F16, F32, F32, F16, F16>,  Tuple<F16>,  Normalize,  2,   4,       Sequence<4, 1, 1, 4, 4>,      Sequence<4>                >,
-    DeviceElementwiseImpl<Tuple<F16, F32, F32, F16, F16>,  Tuple<F16>,  Normalize,  2,   2,       Sequence<2, 1, 1, 2, 2>,      Sequence<2>                >,
+    DeviceElementwiseImpl<Tuple<F16, F32, F32, F16, F16>,  Tuple<F16>,  Normalize,  2,   2,       Sequence<2, 1, 1, 2, 2>,      Sequence<2>                >
+    // clang-format on
+    >;
+
+using device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_generic_instance = std::tuple<
+    // clang-format off
     DeviceElementwiseImpl<Tuple<F16, F32, F32, F16, F16>,  Tuple<F16>,  Normalize,  2,   1,       Sequence<1, 1, 1, 1, 1>,      Sequence<1>                >
     // clang-format on
     >;
@@ -39,6 +44,9 @@ void add_device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances(
     std::vector<DeviceElementwisePtr<Tuple<F16, F32, F32, F16, F16>, Tuple<F16>, Normalize, 2>>&
         instances)
 {
+    add_device_operation_instances(
+        instances, device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_generic_instance{});
+
     add_device_operation_instances(
         instances, device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances{});
 }

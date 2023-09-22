@@ -723,9 +723,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         arg.Print();
 #endif
 
-        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
-             ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
-             ck::get_device_name() == "gfx942"))
+        if(!ck::is_xdl_supported())
         {
             return false;
         }
@@ -786,12 +784,10 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             if(arg.d0s_nl_ns_lengths_strides_[i][1] == 1 &&
                arg.d0s_nl_ns_lengths_strides_[i][0] % D0sTransferSrcScalarPerVector != 0)
             {
-                std::cout << "first" << std::endl;
                 return false;
             }
             if(arg.d0s_nl_ns_lengths_strides_[i][1] != 1 && D0sTransferSrcScalarPerVector != 1)
             {
-                std::cout << "second" << std::endl;
                 return false;
             }
         }
