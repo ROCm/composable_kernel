@@ -73,9 +73,9 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
                         AccDataType v_b;
 
                         arg.a_element_op_(
-                            v_a, ck::type_convert<const AccDataType>(arg.a_ms_ks_(m0, m1, k0, k1)));
+                            v_a, ck::type_convert<AccDataType>(arg.a_ms_ks_(m0, m1, k0, k1)));
                         arg.b_element_op_(
-                            v_b, ck::type_convert<const AccDataType>(arg.b_ns_ks_(n0, n1, k0, k1)));
+                            v_b, ck::type_convert<AccDataType>(arg.b_ns_ks_(n0, n1, k0, k1)));
 
                         v_acc += v_a * v_b;
                     }
