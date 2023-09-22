@@ -91,7 +91,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
     static_assert(KPerBlock == Gemm1NPerBlock);
     static_assert(MPerBlock % Gemm1KPerBlock == 0);
     static_assert(NPerBlock % Gemm2KPerBlock == 0);
-    
+
     static_assert(LoopSched == LoopScheduler::Default,
                   "Non-default loop scheduler is currently not supported");
 
@@ -1257,13 +1257,18 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                 make_tuple(Sequence<2, 3>{}, Sequence<0, 1>{}, Sequence<4>{}));
             return d0_n0_n1_m0_m1_m2;
         }
-        static constexpr auto d0_block_global_desc_m0_n0_m1_m2_n1_m3 =
+        static constexpr auto d0_block_dst_desc_m0_n0_m1_m2_n1_m3 =
             GetD0BlockGlobalDescriptor_M0_N0_M1_M2_N1_M3();
-        static constexpr auto d0_block_vgpr_desc_n0_n1_m0_m1_m2 =
+        static constexpr auto d0_block_src_desc_n0_n1_m0_m1_m2 =
             GetD0BlockVgprDescriptor_N0_N1_M0_M1_M2();
 
         static constexpr auto d0_thread_desc_ =
             make_naive_tensor_descriptor_packed(make_tuple(I1, I1, I4, I1, D0M2));
+
+        static constexpr auto& d0grad_block_dst_desc_n0_n1_m0_m1_m2 =
+            d0_block_src_desc_n0_n1_m0_m1_m2;
+        static constexpr auto& d0grad_block_src_desc_m0_n0_m1_m2_n1_m3 =
+            d0_block_dst_desc_m0_n0_m1_m2_n1_m3;
 
         using D0BlockwiseCopyGlobalToLds = ThreadGroupTensorSliceTransfer_v4r1<
             ThisThreadBlock,
@@ -1276,18 +1281,18 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                      1,
                      BlockSize / NThreadClusterLengths,
                      NThreadClusterLengths,
-                     1>,                                      // ThreadClusterLengths
-            Sequence<0, 1, 2, 3, 5, 4>,                       // ThreadClusterArrangeOrder
-            typename TypeTransform<D0DataType>::Type,         // SrcData
-            typename TypeTransform<D0DataType>::Type,         // DstData
-            D0GridDescriptor_M0_N0_M1_M2_N1_M3,               // SrcDesc
-            decltype(d0_block_global_desc_m0_n0_m1_m2_n1_m3), // DstDesc
-            Sequence<0, 1, 2, 3, 5, 4>,                       // SrcDimAccessOrder
-            Sequence<0, 1, 2, 4, 3, 5>,                       // DstDimAccessOrder
-            4,                                                // SrcVectorDim
-            5,                                                // DstVectorDim
-            4,                                                // SrcScalarPerVector
-            4,                                                // DstScalarPerVector
+                     1>,                                   // ThreadClusterLengths
+            Sequence<0, 1, 2, 3, 5, 4>,                    // ThreadClusterArrangeOrder
+            typename TypeTransform<D0DataType>::Type,      // SrcData
+            typename TypeTransform<D0DataType>::Type,      // DstData
+            D0GridDescriptor_M0_N0_M1_M2_N1_M3,            // SrcDesc
+            decltype(d0_block_dst_desc_m0_n0_m1_m2_n1_m3), // DstDesc
+            Sequence<0, 1, 2, 3, 5, 4>,                    // SrcDimAccessOrder
+            Sequence<0, 1, 2, 4, 3, 5>,                    // DstDimAccessOrder
+            4,                                             // SrcVectorDim
+            5,                                             // DstVectorDim
+            4,                                             // SrcScalarPerVector
+            4,                                             // DstScalarPerVector
             1,
             1,
             true,
@@ -1295,21 +1300,21 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
             1>;
 
         using D0ThreadwiseCopyLdsToVgpr =
-            ThreadwiseTensorSliceTransfer_v4<typename TypeTransform<D0DataType>::Type,    // SrcData
-                                             typename TypeTransform<D0DataType>::Type,    // DstData
-                                             decltype(d0_block_vgpr_desc_n0_n1_m0_m1_m2), // SrcDesc
-                                             decltype(d0_thread_desc_),                   // DstDesc
+            ThreadwiseTensorSliceTransfer_v4<typename TypeTransform<D0DataType>::Type,   // SrcData
+                                             typename TypeTransform<D0DataType>::Type,   // DstData
+                                             decltype(d0_block_src_desc_n0_n1_m0_m1_m2), // SrcDesc
+                                             decltype(d0_thread_desc_),                  // DstDesc
                                              Sequence<1, 1, 4, 1, 4>, // SliceLengths
                                              Sequence<0, 1, 2, 3, 4>, // DimAccessOrder
                                              4,                       // SrcVectorDim
                                              4,                       // SrcScalarPerVector
                                              2>;
 
-        using D0ThreadwiseCopyVgprToLds = ThreadwiseTensorSliceTransfer_v1r3<
+        using D0GradThreadwiseCopyVgprToLds = ThreadwiseTensorSliceTransfer_v1r3<
             FloatGemmAcc,
             typename TypeTransform<D0DataType>::Type,
             decltype(d0_thread_desc_),
-            decltype(d0_block_vgpr_desc_n0_n1_m0_m1_m2),
+            decltype(d0grad_block_dst_desc_n0_n1_m0_m1_m2),
             tensor_operation::element_wise::Scale, // CElementwiseOperation
             Sequence<1, 1, 4, 1, 4>,               // SliceLengths
             Sequence<0, 1, 2, 3, 4>,               // AccessOrder
@@ -1319,7 +1324,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
             1,                                     // DstScalarStrideInVector
             true>;
 
-        using D0BlockwiseCopyLdsToGlobal = ThreadGroupTensorSliceTransfer_v4r1<
+        using D0GradBlockwiseCopyLdsToGlobal = ThreadGroupTensorSliceTransfer_v4r1<
             ThisThreadBlock,
             tensor_operation::element_wise::PassThrough,
             tensor_operation::element_wise::PassThrough,
@@ -1330,18 +1335,18 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                      1,
                      BlockSize / NThreadClusterLengths,
                      NThreadClusterLengths,
-                     1>,                                      // ThreadClusterLengths
-            Sequence<0, 1, 2, 3, 5, 4>,                       // ThreadClusterArrangeOrder
-            typename TypeTransform<D0DataType>::Type,         // SrcData
-            typename TypeTransform<D0DataType>::Type,         // DstData
-            decltype(d0_block_global_desc_m0_n0_m1_m2_n1_m3), // SrcDesc
-            D0GridDescriptor_M0_N0_M1_M2_N1_M3,               // DstDesc
-            Sequence<0, 1, 2, 4, 3, 5>,                       // SrcDimAccessOrder
-            Sequence<0, 1, 2, 3, 5, 4>,                       // DstDimAccessOrder
-            5,                                                // SrcVectorDim
-            4,                                                // DstVectorDim
-            4,                                                // SrcScalarPerVector
-            D0BlockTransferSrcScalarPerVector,                // DstScalarPerVector
+                     1>,                                       // ThreadClusterLengths
+            Sequence<0, 1, 2, 3, 5, 4>,                        // ThreadClusterArrangeOrder
+            typename TypeTransform<D0DataType>::Type,          // SrcData
+            typename TypeTransform<D0DataType>::Type,          // DstData
+            decltype(d0grad_block_src_desc_m0_n0_m1_m2_n1_m3), // SrcDesc
+            D0GridDescriptor_M0_N0_M1_M2_N1_M3,                // DstDesc
+            Sequence<0, 1, 2, 4, 3, 5>,                        // SrcDimAccessOrder
+            Sequence<0, 1, 2, 3, 5, 4>,                        // DstDimAccessOrder
+            5,                                                 // SrcVectorDim
+            4,                                                 // DstVectorDim
+            4,                                                 // SrcScalarPerVector
+            D0BlockTransferSrcScalarPerVector,                 // DstScalarPerVector
             1,
             1,
             true,
@@ -1381,8 +1386,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
             q_block_space_size_aligned.value;
 
         static constexpr auto d0_block_space_size_aligned = math::integer_least_multiple(
-            D0Operator::d0_block_global_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize(),
-            max_lds_align);
+            D0Operator::d0_block_dst_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize(), max_lds_align);
         static constexpr auto d0_block_space_offset =
             (k_block_space_size_aligned.value + ygrad_block_space_size_aligned.value +
              q_block_space_size_aligned.value) *
@@ -1898,23 +1902,24 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
             d0_grid_desc_m0_n0_m1_m2_n1_m3,
             make_multi_index(gemm0_m_block_outer_index, block_work_idx_n, 0, 0, 0, 0),
             tensor_operation::element_wise::PassThrough{},
-            D0Operator::d0_block_global_desc_m0_n0_m1_m2_n1_m3,
+            D0Operator::d0_block_dst_desc_m0_n0_m1_m2_n1_m3,
             make_multi_index(0, 0, 0, 0, 0, 0),
             tensor_operation::element_wise::PassThrough{});
 
         auto d0_thread_copy_lds_to_vgpr = typename D0Operator::D0ThreadwiseCopyLdsToVgpr(
             make_tuple(wave_id[I1], wave_m_n_id[I1], 0, wave_m_n_id[I0], 0));
 
-        auto d0grad_thread_copy_vgpr_to_lds = typename D0Operator::D0ThreadwiseCopyVgprToLds(
-            D0Operator::d0_block_vgpr_desc_n0_n1_m0_m1_m2,
+        auto& d0grad_grid_desc_m0_n0_m1_m2_n1_m3 = d0_grid_desc_m0_n0_m1_m2_n1_m3;
+        auto d0grad_thread_copy_vgpr_to_lds = typename D0Operator::D0GradThreadwiseCopyVgprToLds(
+            D0Operator::d0grad_block_dst_desc_n0_n1_m0_m1_m2,
             make_tuple(wave_id[I1], wave_m_n_id[I1], 0, wave_m_n_id[I0], 0),
             tensor_operation::element_wise::Scale{rp_dropout});
 
-        auto d0_block_copy_lds_to_global = typename D0Operator::D0BlockwiseCopyLdsToGlobal(
-            D0Operator::d0_block_global_desc_m0_n0_m1_m2_n1_m3,
+        auto d0grad_block_copy_lds_to_global = typename D0Operator::D0GradBlockwiseCopyLdsToGlobal(
+            D0Operator::d0grad_block_src_desc_m0_n0_m1_m2_n1_m3,
             make_multi_index(0, 0, 0, 0, 0, 0),
             tensor_operation::element_wise::PassThrough{},
-            d0_grid_desc_m0_n0_m1_m2_n1_m3,
+            d0grad_grid_desc_m0_n0_m1_m2_n1_m3,
             make_multi_index(gemm0_m_block_outer_index, block_work_idx_n, 0, 0, 0, 0),
             tensor_operation::element_wise::PassThrough{});
 
@@ -2062,7 +2067,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
 
                     auto d0_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
                         static_cast<D0DataType*>(p_shared) + SharedMemTrait::d0_block_space_offset,
-                        D0Operator::d0_block_global_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize());
+                        D0Operator::d0_block_dst_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize());
 
                     auto d0_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, D0DataType>(
                         D0Operator::d0_thread_desc_.GetElementSpaceSize());
@@ -2076,16 +2081,15 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                             d0_grid_desc_m0_n0_m1_m2_n1_m3, make_multi_index(0, 0, 1, 0, 0, 0));
 
                         d0_block_copy_global_to_lds.RunWrite(
-                            D0Operator::d0_block_global_desc_m0_n0_m1_m2_n1_m3, d0_block_buf);
+                            D0Operator::d0_block_dst_desc_m0_n0_m1_m2_n1_m3, d0_block_buf);
                         block_sync_lds();
                         // read data form lds
-                        d0_thread_copy_lds_to_vgpr.Run(
-                            D0Operator::d0_block_vgpr_desc_n0_n1_m0_m1_m2,
-                            make_tuple(I0, I0, I0, I0, I0),
-                            d0_block_buf,
-                            D0Operator::d0_thread_desc_,
-                            make_tuple(I0, I0, I0, I0, I0),
-                            d0_thread_buf);
+                        d0_thread_copy_lds_to_vgpr.Run(D0Operator::d0_block_src_desc_n0_n1_m0_m1_m2,
+                                                       make_tuple(I0, I0, I0, I0, I0),
+                                                       d0_block_buf,
+                                                       D0Operator::d0_thread_desc_,
+                                                       make_tuple(I0, I0, I0, I0, I0),
+                                                       d0_thread_buf);
 
                         // bias add
                         static_for<0, d0_thread_buf.Size(), 1>{}([&](auto i) {
@@ -2197,36 +2201,36 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                 if(p_d0grad_grid != nullptr)
                 {
                     auto d0grad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                        p_d0grad_grid, d0_grid_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize());
+                        p_d0grad_grid, d0grad_grid_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize());
 
                     auto d0grad_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
                         static_cast<D0DataType*>(p_shared) + SharedMemTrait::d0_block_space_offset,
-                        D0Operator::d0_block_global_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize());
+                        D0Operator::d0grad_block_src_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize());
 
                     static_for<0, D0M0, 1>{}([&](auto mr) {
                         d0grad_thread_copy_vgpr_to_lds.Run(
                             D0Operator::d0_thread_desc_,
                             make_tuple(mr, I0, I0, I0, I0),
                             sgrad_thread_buf,
-                            D0Operator::d0_block_vgpr_desc_n0_n1_m0_m1_m2,
+                            D0Operator::d0grad_block_dst_desc_n0_n1_m0_m1_m2,
                             d0grad_block_buf);
 
                         block_sync_lds();
 
                         // write data from lds to global
-                        d0_block_copy_lds_to_global.Run(
-                            D0Operator::d0_block_global_desc_m0_n0_m1_m2_n1_m3,
+                        d0grad_block_copy_lds_to_global.Run(
+                            D0Operator::d0grad_block_src_desc_m0_n0_m1_m2_n1_m3,
                             d0grad_block_buf,
-                            d0_grid_desc_m0_n0_m1_m2_n1_m3,
+                            d0grad_grid_desc_m0_n0_m1_m2_n1_m3,
                             d0grad_grid_buf,
                             I0);
 
-                        d0_block_copy_lds_to_global.MoveDstSliceWindow(
-                            d0_grid_desc_m0_n0_m1_m2_n1_m3, make_multi_index(0, 0, 1, 0, 0, 0));
+                        d0grad_block_copy_lds_to_global.MoveDstSliceWindow(
+                            d0grad_grid_desc_m0_n0_m1_m2_n1_m3, make_multi_index(0, 0, 1, 0, 0, 0));
                     });
 
-                    d0_block_copy_lds_to_global.MoveDstSliceWindow(
-                        d0_grid_desc_m0_n0_m1_m2_n1_m3,
+                    d0grad_block_copy_lds_to_global.MoveDstSliceWindow(
+                        d0grad_grid_desc_m0_n0_m1_m2_n1_m3,
                         make_multi_index(-1, 0, -D0M0.value, 0, 0, 0));
                 }
             }
