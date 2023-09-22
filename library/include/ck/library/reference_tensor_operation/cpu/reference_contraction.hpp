@@ -81,7 +81,7 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
                     }
                 }
 
-                arg.c_ms_ns_(m0, m1, n0, n1) = v_acc;
+                arg.c_ms_ns_(m0, m1, n0, n1) = ck::type_convert<CDataType>(v_acc);
             };
 
             make_ParallelTensorFunctor(f_ms_ns,
