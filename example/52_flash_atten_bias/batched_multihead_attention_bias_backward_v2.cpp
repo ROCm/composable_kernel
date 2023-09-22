@@ -25,7 +25,7 @@ Kernel outputs:
 
 #define PRINT_HOST 0
 #define USING_MASK 0
-#define DIM 64 // DIM should be a multiple of 8.
+#define DIM 128 // DIM should be a multiple of 8.
 
 #include <iostream>
 #include <numeric>
@@ -57,6 +57,7 @@ using BF16  = ck::bhalf_t;
 using F32   = float;
 using U16   = unsigned short;
 using INT32 = int32_t;
+using U8    = uint8_t;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Scale       = ck::tensor_operation::element_wise::Scale;
@@ -374,8 +375,8 @@ int run(int argc, char* argv[])
             ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // Y layout [G0, M, G1, O]
             : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // Y layout [G0, G1, M, O]
 
-    std::vector<ck::index_t> d_gs_ms_ns_lengths{G0, G1, M, N};
-    std::vector<ck::index_t> d_gs_ms_ns_strides =
+    std::vector<ck::index_t> d0_gs_ms_ns_lengths{G0, G1, M, N};
+    std::vector<ck::index_t> d0_gs_ms_ns_strides =
         input_permute
             ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // D layout [G0, M, G1, N]
             : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // D layout [G0, G1, M, N]
@@ -396,7 +397,7 @@ int run(int argc, char* argv[])
 
     Tensor<InputDataType> q_gs_ms_ks(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
     Tensor<InputDataType> k_gs_ns_ks(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
-    Tensor<Acc0BiasDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
+    Tensor<Acc0BiasDataType> d0_gs_ms_ns(d0_gs_ms_ns_lengths, d0_gs_ms_ns_strides);
     Tensor<ZDataType> z_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
     Tensor<InputDataType> v_gs_os_ns(v_gs_os_ns_lengths, v_gs_os_ns_strides);
     Tensor<InputDataType> y_gs_ms_os(y_gs_ms_os_lengths, y_gs_ms_os_strides);
@@ -405,7 +406,7 @@ int run(int argc, char* argv[])
 
     std::cout << "q_gs_ms_ks: " << q_gs_ms_ks.mDesc << std::endl;
     std::cout << "k_gs_ns_ks: " << k_gs_ns_ks.mDesc << std::endl;
-    std::cout << "d_gs_ms_ns: " << d_gs_ms_ns.mDesc << std::endl;
+    std::cout << "d0_gs_ms_ns: " << d0_gs_ms_ns.mDesc << std::endl;
     std::cout << "z_gs_ms_ns: " << z_gs_ms_ns.mDesc << std::endl;
     std::cout << "v_gs_os_ns: " << v_gs_os_ns.mDesc << std::endl;
     std::cout << "y_gs_ms_os: " << y_gs_ms_os.mDesc << std::endl;
@@ -420,36 +421,35 @@ int run(int argc, char* argv[])
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-2, 2});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<Acc0BiasDataType>{-2, 2});
-        // d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<Acc0BiasDataType>{-2, 2});
         break;
     case 2:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<InputDataType>{0.0, 1.0});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_3<InputDataType>{0.0, 1.0});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_3<InputDataType>{-0.5, 0.5});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_3<InputDataType>{-0.5, 0.5});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<Acc0BiasDataType>{-0.5, 0.5});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<Acc0BiasDataType>{-0.5, 0.5});
         break;
     case 3:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<InputDataType>{-5, 5});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         break;
     case 4:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         break;
     case 5:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<2>{}); // dy[g0, g1, m, o]
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         // dO dot O = [0; 1; 2; ...]
         break;
     case 6:
@@ -457,7 +457,7 @@ int run(int argc, char* argv[])
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<3>{}); // dy[g0, g1, m, o]
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         // assume mnko = 256
         // P = softmax(QK) = 0.0039 * ones
         // O = P V = 0.0039 * ones
@@ -471,7 +471,7 @@ int run(int argc, char* argv[])
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1}); // dy[g0,g1, m, o]
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         // assume mnko = 256
         // P = softmax(QK) = 0.0039 * ones
         // O = P V = 0.0039 * ones
@@ -485,7 +485,7 @@ int run(int argc, char* argv[])
     // qkv gradients have the same descriptor as with qkv
     DeviceMem q_device_buf(sizeof(InputDataType) * q_gs_ms_ks.mDesc.GetElementSpaceSize());
     DeviceMem k_device_buf(sizeof(InputDataType) * k_gs_ns_ks.mDesc.GetElementSpaceSize());
-    DeviceMem d_device_buf(sizeof(Acc0BiasDataType) * d_gs_ms_ns.mDesc.GetElementSpaceSize());
+    DeviceMem d0_device_buf(sizeof(Acc0BiasDataType) * d0_gs_ms_ns.mDesc.GetElementSpaceSize());
     DeviceMem z_device_buf(sizeof(ZDataType) * z_gs_ms_ns.mDesc.GetElementSpaceSize());
     DeviceMem v_device_buf(sizeof(InputDataType) * v_gs_os_ns.mDesc.GetElementSpaceSize());
     DeviceMem y_device_buf(sizeof(InputDataType) * y_gs_ms_os.mDesc.GetElementSpaceSize());
@@ -494,12 +494,14 @@ int run(int argc, char* argv[])
     DeviceMem kgrad_device_buf(sizeof(OutputDataType) * k_gs_ns_ks.mDesc.GetElementSpaceSize());
     DeviceMem vgrad_device_buf(sizeof(OutputDataType) * v_gs_os_ns.mDesc.GetElementSpaceSize());
     DeviceMem ygrad_device_buf(sizeof(InputDataType) * y_gs_ms_os.mDesc.GetElementSpaceSize());
+    DeviceMem d0grad_device_buf(sizeof(Acc0BiasDataType) * d0_gs_ms_ns.mDesc.GetElementSpaceSize());
 
     q_device_buf.ToDevice(q_gs_ms_ks.mData.data());
     k_device_buf.ToDevice(k_gs_ns_ks.mData.data());
-    d_device_buf.ToDevice(d_gs_ms_ns.mData.data());
+    d0_device_buf.ToDevice(d0_gs_ms_ns.mData.data());
     v_device_buf.ToDevice(v_gs_os_ns.mData.data());
     ygrad_device_buf.ToDevice(ygrad_gs_ms_os.mData.data());
+    z_device_buf.ToDevice(z_gs_ms_ns.mData.data());
 
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
@@ -516,8 +518,10 @@ int run(int argc, char* argv[])
             static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
-            static_cast<Acc0BiasDataType*>(d_device_buf.GetDeviceBuffer()), //  p_acc0_bias;
-            nullptr,                                                        //  p_acc1_bias;
+            static_cast<Acc0BiasDataType*>(d0_device_buf.GetDeviceBuffer()), //  p_acc0_bias;
+            nullptr,                                                         //  p_acc1_bias;
+            static_cast<Acc0BiasDataType*>(d0grad_device_buf.GetDeviceBuffer()),
+            nullptr,
             q_gs_ms_ks_lengths,
             q_gs_ms_ks_strides,
             k_gs_ns_ks_lengths,
@@ -529,10 +533,10 @@ int run(int argc, char* argv[])
             y_gs_ms_os_lengths,
             y_gs_ms_os_strides,
             lse_gs_ms_lengths,
-            d_gs_ms_ns_lengths, // acc0_bias_gs_ms_ns_lengths
-            d_gs_ms_ns_strides, // acc0_bias_gs_ms_ns_strides
-            {},                 // acc1_bias_gs_ms_os_lengths,
-            {},                 // acc1_bias_gs_ms_os_strides,
+            d0_gs_ms_ns_lengths, // acc0_bias_gs_ms_ns_lengths
+            d0_gs_ms_ns_strides, // acc0_bias_gs_ms_ns_strides
+            {},                  // acc1_bias_gs_ms_os_lengths,
+            {},                  // acc1_bias_gs_ms_os_strides,
             QKVElementOp{},
             QKVElementOp{},
             Scale{alpha},
@@ -561,8 +565,10 @@ int run(int argc, char* argv[])
         static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
         static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
         static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
-        static_cast<Acc0BiasDataType*>(d_device_buf.GetDeviceBuffer()), // p_acc0_bias;
-        nullptr,                                                        // p_acc1_bias;
+        static_cast<Acc0BiasDataType*>(d0_device_buf.GetDeviceBuffer()), // p_acc0_bias;
+        nullptr,                                                         // p_acc1_bias;
+        static_cast<Acc0BiasDataType*>(d0grad_device_buf.GetDeviceBuffer()),
+        nullptr,
         q_gs_ms_ks_lengths,
         q_gs_ms_ks_strides,
         k_gs_ns_ks_lengths,
@@ -574,10 +580,10 @@ int run(int argc, char* argv[])
         y_gs_ms_os_lengths,
         y_gs_ms_os_strides,
         lse_gs_ms_lengths,
-        d_gs_ms_ns_lengths, // acc0_bias_gs_ms_ns_lengths
-        d_gs_ms_ns_strides, // acc0_bias_gs_ms_ns_strides
-        {},                 // acc1_bias_gs_ms_os_lengths,
-        {},                 // acc1_bias_gs_ms_os_strides,
+        d0_gs_ms_ns_lengths, // acc0_bias_gs_ms_ns_lengths
+        d0_gs_ms_ns_strides, // acc0_bias_gs_ms_ns_strides
+        {},                  // acc1_bias_gs_ms_os_lengths,
+        {},                  // acc1_bias_gs_ms_os_strides,
         QKVElementOp{},
         QKVElementOp{},
         Scale{alpha},
@@ -599,7 +605,7 @@ int run(int argc, char* argv[])
         (sizeof(InputDataType) * M * K + sizeof(InputDataType) * K * N +
          sizeof(InputDataType) * N * O + sizeof(InputDataType) * M * O * size_t(2) +
          sizeof(OutputDataType) * M * K + sizeof(OutputDataType) * K * N +
-         sizeof(OutputDataType) * N * O + sizeof(Acc0BiasDataType) * M * N) *
+         sizeof(OutputDataType) * N * O + sizeof(Acc0BiasDataType) * M * N * size_t(2)) *
             BatchCount +
         sizeof(LSEDataType) * M * BatchCount;
 
@@ -618,7 +624,7 @@ int run(int argc, char* argv[])
 
         Tensor<InputDataType> q_g_m_k({BatchCount, M, K});
         Tensor<InputDataType> k_g_n_k({BatchCount, N, K});
-        Tensor<Acc0BiasDataType> d_g_m_n({G0 * G1, M, N});
+        Tensor<Acc0BiasDataType> d0_g_m_n({G0 * G1, M, N});
         Tensor<ZDataType> z_g_m_n({BatchCount, M, N});
         Tensor<InputDataType> v_g_n_o({BatchCount, N, O});
         Tensor<AccDataType> s_g_m_n({BatchCount, M, N});
@@ -640,13 +646,13 @@ int run(int argc, char* argv[])
         v_gs_os_ns.ForEach([&](auto& self, auto idx) {
             v_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
         });
-        d_gs_ms_ns.ForEach([&](auto& self, auto idx) {
-            d_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        d0_gs_ms_ns.ForEach([&](auto& self, auto idx) {
+            d0_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
         });
         // run fwd again for y, cause z_g_m_n update
         run_attention_fwd_host(q_g_m_k,
                                k_g_n_k,
-                               d_g_m_n,
+                               d0_g_m_n,
                                v_g_n_o,
                                alpha,
                                s_g_m_n,
@@ -783,14 +789,19 @@ int run(int argc, char* argv[])
         Tensor<OutputDataType> qgrad_gs_ms_ks_host_result(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
         Tensor<OutputDataType> kgrad_gs_ns_ks_host_result(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
         Tensor<OutputDataType> vgrad_gs_os_ns_host_result(v_gs_os_ns_lengths, v_gs_os_ns_strides);
+        Tensor<Acc0BiasDataType> d0grad_gs_ms_ns_host_result(d0_gs_ms_ns_lengths,
+                                                             d0_gs_ms_ns_strides);
 
         Tensor<OutputDataType> qgrad_gs_ms_ks_device_result(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
         Tensor<OutputDataType> kgrad_gs_ns_ks_device_result(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
         Tensor<OutputDataType> vgrad_gs_os_ns_device_result(v_gs_os_ns_lengths, v_gs_os_ns_strides);
+        Tensor<Acc0BiasDataType> d0grad_gs_ms_ns_device_result(d0_gs_ms_ns_lengths,
+                                                               d0_gs_ms_ns_strides);
 
         qgrad_device_buf.FromDevice(qgrad_gs_ms_ks_device_result.mData.data());
         kgrad_device_buf.FromDevice(kgrad_gs_ns_ks_device_result.mData.data());
         vgrad_device_buf.FromDevice(vgrad_gs_os_ns_device_result.mData.data());
+        d0grad_device_buf.FromDevice(d0grad_gs_ms_ns_device_result.mData.data());
 
         // permute
         qgrad_gs_ms_ks_host_result.ForEach([&](auto& self, auto idx) {
@@ -818,6 +829,15 @@ int run(int argc, char* argv[])
             self(idx) = vgrad_g_n_o(g, idx[3], idx[2]);
         });
 
+        d0grad_gs_ms_ns_host_result.ForEach([&](auto& self, auto idx) {
+            const size_t& g0 = idx[0];
+            const size_t& g1 = idx[1];
+
+            const size_t g = g0 * G1 + g1;
+
+            self(idx) = sgrad_g_m_n(g, idx[2], idx[3]);
+        });
+
         std::cout << "Checking qgrad:\n";
         pass &= ck::utils::check_err(qgrad_gs_ms_ks_device_result.mData,
                                      qgrad_gs_ms_ks_host_result.mData,
@@ -833,6 +853,12 @@ int run(int argc, char* argv[])
         std::cout << "Checking vgrad:\n";
         pass &= ck::utils::check_err(vgrad_gs_os_ns_device_result.mData,
                                      vgrad_gs_os_ns_host_result.mData,
+                                     "error",
+                                     1e-2,
+                                     1e-2);
+        std::cout << "Checking d0grad:\n";
+        pass &= ck::utils::check_err(d0grad_gs_ms_ns_device_result.mData,
+                                     d0grad_gs_ms_ns_host_result.mData,
                                      "error",
                                      1e-2,
                                      1e-2);
