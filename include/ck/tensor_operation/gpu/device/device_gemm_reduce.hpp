@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -44,3 +47,5 @@ using DeviceGemmReducePtr = std::unique_ptr<DeviceGemmReduce<NumDTensor, NumRedu
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

@@ -1,13 +1,21 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
+#ifndef __HIPCC_RTC__
 #include <functional>
 #include <iostream>
 #include <iterator>
 #include <numeric>
 #include <sstream>
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
+#include "ck/host_utility/io.hpp"
+#endif
+
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -19,9 +27,6 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_dl_multiple_d.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
-#include "ck/host_utility/io.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -543,7 +548,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
                 block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(e_grid_desc_m_n_);
             }
         }
-
+#ifndef __HIPCC_RTC__
         void Print() const
         {
             std::cout << "A[K0, M, K1]: " << a_grid_desc_ak0_m_ak1_ << std::endl;
@@ -556,6 +561,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
             std::cout << "A[m0, m10, m11, n0, n10, n11]: " << e_grid_desc_m0_m10_m11_n0_n10_n11_
                       << std::endl;
         }
+#endif
 
         //  private:
         // pointers
@@ -704,7 +710,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
-
+#ifndef __HIPCC_RTC__
     static bool IsSupportedArgument(const Argument& arg)
     {
         namespace ctc = tensor_layout::convolution;
@@ -849,7 +855,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-
+#endif
     static auto MakeArgument(
         const void* p_a,
         const void* p_b,
@@ -891,9 +897,9 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
                         b_element_op,
                         cde_element_op};
     }
-
-    static auto MakeInvoker() { return Invoker{}; }
-
+#ifndef __HIPCC_RTC__
+  static auto MakeInvoker() { return Invoker{}; }
+#endif
     std::unique_ptr<BaseArgument> MakeArgumentPointer(
         const void* p_a,
         const void* p_b,
@@ -964,3 +970,5 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

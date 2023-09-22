@@ -1,12 +1,16 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
+#ifndef __HIPCC_RTC__
 #include <string>
 #include <sstream>
-
 #include "ck/stream_config.hpp"
+#endif
+
 
 namespace ck {
 namespace tensor_operation {
@@ -23,6 +27,7 @@ struct BaseArgument
     void* p_workspace_ = nullptr;
 };
 
+#ifndef __HIPCC_RTC__
 struct BaseInvoker
 {
     BaseInvoker()                   = default;
@@ -36,6 +41,7 @@ struct BaseInvoker
 
     virtual ~BaseInvoker() {}
 };
+#endif
 
 struct BaseOperator
 {
@@ -44,9 +50,11 @@ struct BaseOperator
     BaseOperator& operator=(const BaseOperator&) = default;
 
     virtual bool IsSupportedArgument(const BaseArgument*) { return false; }
-    virtual std::string GetTypeString() const { return ""; }
 
+
+#ifndef __HIPCC_RTC__
     virtual std::string GetTypeIdName() const { return typeid(*this).name(); }
+    virtual std::string GetTypeString() const { return ""; }
 
     virtual std::string GetTypeIdHashCode() const
     {
@@ -56,12 +64,12 @@ struct BaseOperator
 
         return oss.str();
     };
-
+#endif
     virtual size_t GetWorkSpaceSize(const BaseArgument*) const { return 0; }
 
     virtual void SetWorkSpacePointer(BaseArgument* p_arg, void* p_workspace) const
     {
-        assert(p_arg);
+        //assert(p_arg);
         p_arg->p_workspace_ = p_workspace;
     }
 
@@ -71,3 +79,5 @@ struct BaseOperator
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

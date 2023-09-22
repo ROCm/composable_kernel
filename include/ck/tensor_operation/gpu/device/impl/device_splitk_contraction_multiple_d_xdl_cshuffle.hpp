@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -939,7 +942,7 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
-
+#ifndef __HIPCC_RTC__
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(!ck::is_xdl_supported())
@@ -1037,7 +1040,7 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-
+#endif
     static auto
     MakeArgument(const void* p_a,
                  const void* p_b,
@@ -1074,8 +1077,9 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                         split_k};
     }
 
-    static auto MakeInvoker() { return Invoker{}; }
-
+#ifndef __HIPCC_RTC__
+  static auto MakeInvoker() { return Invoker{}; }
+#endif
     // polymorphic
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
@@ -1149,3 +1153,5 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

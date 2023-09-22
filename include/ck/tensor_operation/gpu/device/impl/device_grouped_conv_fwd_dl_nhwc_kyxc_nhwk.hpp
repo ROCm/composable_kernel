@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -595,7 +598,7 @@ struct DeviceGroupedConvFwdDl_NHWC_KYXC_NHWK : public DeviceGroupedConvFwd<NDimS
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
-
+#ifndef __HIPCC_RTC__
     static bool IsSupportedArgument(const Argument& arg)
     {
         namespace ctc = tensor_layout::convolution;
@@ -737,7 +740,7 @@ struct DeviceGroupedConvFwdDl_NHWC_KYXC_NHWK : public DeviceGroupedConvFwd<NDimS
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-
+#endif
     static auto MakeArgument(const void* p_a,
                              const void* p_b,
                              void* p_c,
@@ -773,7 +776,10 @@ struct DeviceGroupedConvFwdDl_NHWC_KYXC_NHWK : public DeviceGroupedConvFwd<NDimS
                         c_element_op};
     }
 
-    static auto MakeInvoker() { return Invoker{}; }
+#ifndef __HIPCC_RTC__
+  static auto MakeInvoker() { return Invoker{}; }
+#endif
+
 
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
@@ -850,3 +856,5 @@ struct DeviceGroupedConvFwdDl_NHWC_KYXC_NHWK : public DeviceGroupedConvFwd<NDimS
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

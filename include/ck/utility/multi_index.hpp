@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -10,3 +13,5 @@
 #else
 #include "statically_indexed_array_multi_index.hpp"
 #endif
+
+#pragma clang diagnostic pop

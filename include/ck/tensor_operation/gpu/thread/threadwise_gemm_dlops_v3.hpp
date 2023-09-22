@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -166,3 +169,5 @@ struct ThreadwiseGemmDlops_km_kn_mn_v3
 
 } // namespace ck
 #endif
+
+#pragma clang diagnostic pop

@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -613,3 +616,5 @@ using TensorCoordinateStep_t = decltype(make_tensor_coordinate_step(
     TensorDesc{}, MultiIndex<remove_cvref_t<TensorDesc>::GetNumOfDimension()>{}));
 
 } // namespace ck
+
+#pragma clang diagnostic pop

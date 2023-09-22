@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -163,3 +166,5 @@ make_naive_tensor_descriptor_aligned(const Tuple<Lengths...>& lengths, Align ali
 }
 
 } // namespace ck
+
+#pragma clang diagnostic pop

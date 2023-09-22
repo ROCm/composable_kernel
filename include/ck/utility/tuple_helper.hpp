@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -79,3 +82,5 @@ __host__ __device__ constexpr auto transform_tuples(F f, const X& x, const Y& y,
 }
 
 } // namespace ck
+
+#pragma clang diagnostic pop

@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -226,8 +229,9 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
     {
         return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC};
     }
-
-    static auto MakeInvoker() { return Invoker{}; }
+#ifndef __HIPCC_RTC__
+  static auto MakeInvoker() { return Invoker{}; }
+#endif
 
     // polymorphic
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
@@ -303,3 +307,5 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

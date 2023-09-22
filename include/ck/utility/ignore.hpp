@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -20,3 +23,5 @@ struct ignore_t
 inline constexpr detail::ignore_t ignore;
 
 } // namespace ck
+
+#pragma clang diagnostic pop

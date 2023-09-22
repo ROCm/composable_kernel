@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -269,14 +272,17 @@ struct DevicePermuteImpl : DevicePermute<NumDim, InDataType, OutDataType, Elemen
     {
         return Argument{std::forward<Args>(args)...};
     }
-
+#ifndef __HIPCC_RTC__
     static std::enable_if_t<std::is_default_constructible_v<Invoker>, Invoker>
     MakeInvoker() noexcept(std::is_nothrow_default_constructible_v<Invoker>)
     {
         return Invoker{};
     }
+#endif
 };
 
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

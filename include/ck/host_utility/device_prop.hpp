@@ -1,8 +1,12 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
+#ifndef __HIPCC_RTC__
 #include <string>
 #include <map>
 #include <hip/hip_runtime.h>
@@ -59,3 +63,5 @@ inline bool is_xdl_supported()
 }
 
 } // namespace ck
+#endif
+#pragma clang diagnostic pop

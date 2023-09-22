@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -5,6 +8,19 @@
 
 #include "ck/utility/statically_indexed_array.hpp"
 
+#ifdef __HIPCC_RTC__
+/// Definitions from <cstdint>, <cmath> conflict with
+/// /opt/rocm/include/hip/amd_detail/amd_hip_vector_types.h.
+
+using int8_t   = signed char;
+using uint8_t  = unsigned char;
+using int16_t  = signed short;
+using uint16_t = unsigned short;
+using float_t  = float;
+namespace std {
+using byte = unsigned char;
+}
+#endif // __HIPCC_RTC__
 namespace ck {
 
 using bhalf_t = ushort;
@@ -19,21 +35,22 @@ template <typename T, index_t N>
 struct vector_type;
 
 // Caution: DO NOT REMOVE
-// intentionally have only declaration but no definition to cause compilation failure when trying to
-// instantiate this template. The purpose is to catch user's mistake when trying to make "vector of
-// vectors"
+// intentionally have only declaration but no definition to cause compilation
+// failure when trying to instantiate this template. The purpose is to catch
+// user's mistake when trying to make "vector of vectors"
 template <typename T, index_t V, index_t N>
 struct vector_type<T __attribute__((ext_vector_type(V))), N>;
 
 // Caution: DO NOT REMOVE
-// intentionally have only declaration but no definition to cause compilation failure when trying to
-// instantiate this template. The purpose is to catch user's mistake when trying to make "vector of
-// vectors"
+// intentionally have only declaration but no definition to cause compilation
+// failure when trying to instantiate this template. The purpose is to catch
+// user's mistake when trying to make "vector of vectors"
 template <typename T, index_t V, index_t N>
 struct vector_type<vector_type<T, V>, N>;
 
 // vector_type_maker
-// This is the right way to handle "vector of vectors": making a bigger vector instead
+// This is the right way to handle "vector of vectors": making a bigger vector
+// instead
 template <typename T, index_t N>
 struct vector_type_maker
 {
@@ -960,21 +977,233 @@ using f8x16_t = typename vector_type<f8_t, 16>::type;
 using f8x32_t = typename vector_type<f8_t, 32>::type;
 using f8x64_t = typename vector_type<f8_t, 64>::type;
 
-template <typename T>
-struct NumericLimits
+// Convert X to Y
+template <typename Y, typename X>
+__host__ __device__ constexpr Y type_convert(X x)
 {
-    __host__ __device__ static constexpr T Min() { return std::numeric_limits<T>::min(); }
+    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
 
-    __host__ __device__ static constexpr T Max() { return std::numeric_limits<T>::max(); }
+    return static_cast<Y>(x);
+}
 
-    __host__ __device__ static constexpr T Lowest() { return std::numeric_limits<T>::lowest(); }
-
-    __host__ __device__ static constexpr T QuietNaN()
+// convert bfp16 to fp32
+template <>
+inline __host__ __device__ constexpr float type_convert<float, bhalf_t>(bhalf_t x)
+{
+    union
     {
-        return std::numeric_limits<T>::quiet_NaN();
-    }
+        uint32_t int32;
+        float fp32;
+    } u = {uint32_t(x) << 16};
 
-    __host__ __device__ static constexpr T Infinity() { return std::numeric_limits<T>::infinity(); }
+    return u.fp32;
+}
+
+// convert fp32 to bfp16
+template <>
+inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float x)
+{
+    union
+    {
+        float fp32;
+        uint32_t int32;
+    } u = {x};
+
+    return uint16_t(u.int32 >> 16);
+}
+
+// convert bfp16 to fp16 via fp32
+template <>
+inline __host__ __device__ constexpr half_t type_convert<half_t, bhalf_t>(bhalf_t x)
+{
+    float x_fp32 = type_convert<float>(x);
+
+    return static_cast<half_t>(x_fp32);
+}
+
+// convert fp16 to bfp16 via fp32
+template <>
+inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, half_t>(half_t x)
+{
+    float x_fp32 = static_cast<float>(x);
+
+    return type_convert<bhalf_t>(x_fp32);
+}
+
+// convert bfp16 to int32 via fp32
+template <>
+inline __host__ __device__ constexpr int32_t type_convert<int32_t, bhalf_t>(bhalf_t x)
+{
+    float x_fp32 = type_convert<float>(x);
+
+    return static_cast<int32_t>(x_fp32);
+}
+
+// convert int32 to bfp16 via fp32
+template <>
+inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int32_t>(int32_t x)
+{
+    float x_fp32 = static_cast<float>(x);
+
+    return type_convert<bhalf_t>(x_fp32);
+}
+
+// convert bfp16 to int8 via fp32
+template <>
+inline __host__ __device__ constexpr int8_t type_convert<int8_t, bhalf_t>(bhalf_t x)
+{
+    float x_fp32 = type_convert<float>(x);
+
+    return static_cast<int8_t>(x_fp32);
+}
+
+// convert int8 to bfp16 via fp32
+template <>
+inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int8_t>(int8_t x)
+{
+    float x_fp32 = static_cast<float>(x);
+
+    return type_convert<bhalf_t>(x_fp32);
+}
+
+// Declare a template function for bf16 conversion using RTN
+template <typename Y, typename X>
+__host__ __device__ constexpr Y bf16_convert_rtn(X x);
+
+// Convert fp32 to bf16 with RTN if higher precision is needed
+template <>
+inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
+{
+    union
+    {
+        float fp32;
+        uint32_t int32;
+    } u = {x};
+
+    // When the exponent bits are not all 1s, then the value is zero, normal,
+    // or subnormal. We round the bfloat16 mantissa up by adding 0x7FFF, plus
+    // 1 if the least significant bit of the bfloat16 mantissa is 1 (odd).
+    // This causes the bfloat16's mantissa to be incremented by 1 if the 16
+    // least significant bits of the float mantissa are greater than 0x8000,
+    // or if they are equal to 0x8000 and the least significant bit of the
+    // bfloat16 mantissa is 1 (odd). This causes it to be rounded to even when
+    // the lower 16 bits are exactly 0x8000. If the bfloat16 mantissa already
+    // has the value 0x7f, then incrementing it causes it to become 0x00 and
+    // the exponent is incremented by one, which is the next higher FP value
+    // to the unrounded bfloat16 value. When the bfloat16 value is subnormal
+    // with an exponent of 0x00 and a mantissa of 0x7f, it may be rounded up
+    // to a normal value with an exponent of 0x01 and a mantissa of 0x00.
+    // When the bfloat16 value has an exponent of 0xFE and a mantissa of 0x7F,
+    // incrementing it causes it to become an exponent of 0xFF and a mantissa
+    // of 0x00, which is Inf, the next higher value to the unrounded value.
+    bool flag0 = ~u.int32 & 0x7f800000;
+
+    // When all of the exponent bits are 1, the value is Inf or NaN.
+    // Inf is indicated by a zero mantissa. NaN is indicated by any nonzero
+    // mantissa bit. Quiet NaN is indicated by the most significant mantissa
+    // bit being 1. Signaling NaN is indicated by the most significant
+    // mantissa bit being 0 but some other bit(s) being 1. If any of the
+    // lower 16 bits of the mantissa are 1, we set the least significant bit
+    // of the bfloat16 mantissa, in order to preserve signaling NaN in case
+    // the bfloat16's mantissa bits are all 0.
+    bool flag1 = !flag0 && (u.int32 & 0xffff);
+
+    u.int32 += flag0 ? 0x7fff + ((u.int32 >> 16) & 1) : 0; // Round to nearest, round to even
+    u.int32 |= flag1 ? 0x10000 : 0x0;                      // Preserve signaling NaN
+
+    return uint16_t(u.int32 >> 16);
+}
+
+// convert fp16 to bfp16 via fp32 with RTN if higher precision is needed
+template <>
+inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, half_t>(half_t x)
+{
+    float x_fp32 = static_cast<float>(x);
+
+    return bf16_convert_rtn<bhalf_t>(x_fp32);
+}
+template <typename T>
+struct NumericLimits;
+
+template <>
+struct NumericLimits<int32_t>
+{
+    __host__ __device__ static constexpr int32_t Lowest() noexcept { return -2147483647 - 1; }
+    __host__ __device__ static constexpr int32_t Min() noexcept { return -2147483647 - 1; }
+
+    __host__ __device__ static constexpr int32_t Max() noexcept { return 2147483647; }
+    __host__ __device__ static constexpr int32_t Infinity() noexcept { return 0; }
+    __host__ __device__ static constexpr int32_t QuietNaN() { return 0; }
+};
+
+template <>
+struct NumericLimits<int16_t>
+{
+    __host__ __device__ static constexpr int16_t Lowest() noexcept { return -32768; }
+    __host__ __device__ static constexpr int16_t Min() noexcept { return -32768; }
+    __host__ __device__ static constexpr int16_t Max() noexcept { return 32767; }
+    __host__ __device__ static constexpr int16_t Infinity() noexcept { return 0; }
+    __host__ __device__ static constexpr int16_t QuietNaN() { return 0; }
+};
+
+template <>
+struct NumericLimits<int8_t>
+{
+    __host__ __device__ static constexpr int8_t Lowest() noexcept { return -128; }
+    __host__ __device__ static constexpr int8_t Min() noexcept { return -128; }
+    __host__ __device__ static constexpr int8_t Max() noexcept { return 127; }
+    __host__ __device__ static constexpr int8_t Infinity() noexcept { return 0; }
+    __host__ __device__ static constexpr int8_t QuietNaN() { return 0; }
+};
+
+template <>
+struct NumericLimits<uint32_t>
+{
+    __host__ __device__ static constexpr uint32_t Lowest() noexcept { return 0; }
+    __host__ __device__ static constexpr uint32_t Min() noexcept { return 0; }
+    __host__ __device__ static constexpr uint32_t Max() noexcept { return 4294967295U; }
+    __host__ __device__ static constexpr uint32_t Infinity() noexcept { return 0; }
+    __host__ __device__ static constexpr uint32_t QuietNaN() { return 0; }
+};
+
+template <>
+struct NumericLimits<uint16_t>
+{
+    __host__ __device__ static constexpr uint16_t Lowest() noexcept { return 0; }
+    __host__ __device__ static constexpr uint16_t Min() noexcept { return 0; }
+    __host__ __device__ static constexpr uint16_t Max() noexcept { return 65535U; }
+    __host__ __device__ static constexpr uint16_t Infinity() noexcept { return 0; }
+    __host__ __device__ static constexpr uint16_t QuietNaN() { return 0; }
+};
+
+template <>
+struct NumericLimits<uint8_t>
+{
+    __host__ __device__ static constexpr uint8_t Lowest() noexcept { return 0; }
+    __host__ __device__ static constexpr uint8_t Min() noexcept { return 0; }
+    __host__ __device__ static constexpr uint8_t Max() noexcept { return 255U; }
+    __host__ __device__ static constexpr uint8_t Infinity() noexcept { return 0; }
+    __host__ __device__ static constexpr uint8_t QuietNaN() { return 0; }
+};
+
+template <>
+struct NumericLimits<float>
+{
+    static constexpr unsigned int binary_min    = 0x00800000;
+    static constexpr unsigned int binary_max    = 0x7F7FFFFF;
+    static constexpr unsigned int binary_lowest = 0xFF7FFFFF;
+    static constexpr unsigned int binary_qnan   = 0xFFC00001;
+    static constexpr unsigned int binary_inf    = 0x7F8000000;
+
+    __host__ __device__ static constexpr float Min() { return bit_cast<float>(binary_min); }
+
+    __host__ __device__ static constexpr float Max() { return bit_cast<float>(binary_max); }
+
+    __host__ __device__ static constexpr float Lowest() { return bit_cast<float>(binary_lowest); }
+
+    __host__ __device__ static constexpr float QuietNaN() { return bit_cast<float>(binary_qnan); }
+
+    __host__ __device__ static constexpr float Infinity() { return bit_cast<float>(binary_inf); }
 };
 
 template <>
@@ -1024,3 +1253,5 @@ struct NumericLimits<f8_t>
 };
 
 } // namespace ck
+
+#pragma clang diagnostic pop

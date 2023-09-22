@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 #pragma once
 #include <iostream>
 #include <vector>
@@ -48,3 +51,5 @@ struct DeviceBatchedGemmEPermute : public BaseOperator
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

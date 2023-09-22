@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -903,8 +906,9 @@ struct
                         wei_element_op,
                         out_element_op};
     }
-
-    static auto MakeInvoker() { return Invoker{}; }
+#ifndef __HIPCC_RTC__
+  static auto MakeInvoker() { return Invoker{}; }
+#endif
 
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_in_grid,
@@ -983,3 +987,5 @@ struct
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

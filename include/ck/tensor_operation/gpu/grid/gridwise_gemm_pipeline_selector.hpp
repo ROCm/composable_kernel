@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -7,7 +10,9 @@
 
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v2.hpp"
+#ifndef __HIPCC_RTC__
 #include <iostream>
+#endif
 
 namespace ck {
 
@@ -39,8 +44,10 @@ constexpr auto GridwiseGemmPipeline_Selector()
     }
     else
     {
-        std::cerr << "GridwiseGemmPipeline configuration is not available" << std::endl;
+        //std::cerr << "GridwiseGemmPipeline configuration is not available" << std::endl;
     }
 }
 
 } // namespace ck
+
+#pragma clang diagnostic pop

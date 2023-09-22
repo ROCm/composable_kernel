@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -121,3 +124,5 @@ __device__ float2_t atomic_max<float2_t>(float2_t* p_dst, const float2_t& x)
 }
 
 } // namespace ck
+
+#pragma clang diagnostic pop

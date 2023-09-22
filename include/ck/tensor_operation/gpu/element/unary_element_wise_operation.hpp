@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -288,6 +291,7 @@ struct FastGelu
     template <typename Y, typename X>
     __device__ void operator()(Y& y, const X& x) const;
 
+#ifndef __HIPCC_RTC__
     template <>
     __host__ void operator()<float, float>(float& y, const float& x) const
     {
@@ -297,7 +301,7 @@ struct FastGelu
 
         y = x * cdf;
     }
-
+#endif
     // device code, use lower precision "__expf" and "rcp"
     template <>
     __device__ void operator()<float, float>(float& y, const float& x) const
@@ -422,3 +426,5 @@ struct Swish
 } // namespace element_wise
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

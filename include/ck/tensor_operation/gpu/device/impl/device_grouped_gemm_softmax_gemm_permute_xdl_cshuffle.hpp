@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -587,7 +590,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
         B1ElementwiseOperation b1_element_op_;
         CElementwiseOperation c_element_op_;
     };
-
+#ifndef __HIPCC_RTC_
     // Invoker
     struct Invoker : public BaseInvoker
     {
@@ -672,13 +675,14 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
+#endif
 
     static constexpr bool IsValidCompilationParameter()
     {
         // TODO: properly implement this check
         return true;
     }
-
+#ifndef __HIPCC_RTC__
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(!ck::is_xdl_supported())
@@ -779,7 +783,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-
+#endif
     static auto MakeArgument(std::vector<const void*> p_a_vec,
                              std::vector<const void*> p_b_vec,
                              std::vector<const void*> p_b1_vec,
@@ -807,7 +811,9 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                         c_element_op};
     }
 
-    static auto MakeInvoker() { return Invoker{}; }
+#ifndef __HIPCC_RTC__
+  static auto MakeInvoker() { return Invoker{}; }
+#endif
 
     // polymorphic
     std::unique_ptr<BaseArgument>
@@ -891,3 +897,5 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

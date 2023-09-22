@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -51,3 +54,5 @@
 #ifdef CK_USE_AMD_MFMA
 #include "ck/utility/amd_xdlops.hpp"
 #endif
+
+#pragma clang diagnostic pop

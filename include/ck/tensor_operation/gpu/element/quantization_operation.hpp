@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 #pragma once
 
 #include "ck/utility/data_type.hpp"
@@ -284,3 +287,5 @@ struct Add_Mul2_Activation_Mul_Clamp
 } // namespace element_wise
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

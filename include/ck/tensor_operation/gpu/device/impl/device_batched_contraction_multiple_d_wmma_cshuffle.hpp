@@ -1,10 +1,18 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
+#ifndef __HIPCC_RTC__
 #include <iostream>
 #include <sstream>
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
+#endif
+
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -15,8 +23,6 @@
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_wmma_cshuffle.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -687,7 +693,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         // Batch Offset
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch_;
     };
-
+#ifndef __HIPCC_RTC__
     // Invoker
     struct Invoker : public BaseInvoker
     {
@@ -761,13 +767,14 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
+#endif
 
     static constexpr bool IsValidCompilationParameter()
     {
         // TODO: properly implement this check
         return true;
     }
-
+#ifndef __HIPCC_RTC__
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
@@ -869,7 +876,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-
+#endif
     static auto
     MakeArgument(const void* p_a,
                  const void* p_b,
@@ -943,7 +950,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
                                           cde_element_op);
     }
 
-    static auto MakeInvoker() { return Invoker{}; }
+#ifndef __HIPCC_RTC__
+  static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
@@ -985,8 +993,11 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
 
         return str.str();
     }
+#endif
 };
 
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

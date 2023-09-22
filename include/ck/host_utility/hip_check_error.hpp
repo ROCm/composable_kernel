@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -15,3 +18,5 @@ inline void hip_check_error(hipError_t x)
         throw std::runtime_error(ss.str());
     }
 }
+
+#pragma clang diagnostic pop

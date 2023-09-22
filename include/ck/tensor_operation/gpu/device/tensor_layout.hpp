@@ -1,3 +1,6 @@
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -415,3 +418,5 @@ std::ostream& operator<<(std::ostream& os, const Layout&)
 
 } // namespace tensor_layout
 } // namespace ck
+
+#pragma clang diagnostic pop
