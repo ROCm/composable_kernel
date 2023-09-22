@@ -32,36 +32,6 @@ void add_device_grouped_conv2d_fwd_wmma_gnhwc_gkyxc_gnhwk_f16_instances(
                                                                               Empty_Tuple,
                                                                               PassThrough,
                                                                               ConvFwdDefault>{});
-
-    add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_f16_instances<2,
-                                                                              GNHWC,
-                                                                              GKYXC,
-                                                                              Empty_Tuple,
-                                                                              GNHWK,
-                                                                              Empty_Tuple,
-                                                                              PassThrough,
-                                                                              ConvFwd1x1P0>{});
-
-    add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_f16_instances<2,
-                                                                              GNHWC,
-                                                                              GKYXC,
-                                                                              Empty_Tuple,
-                                                                              GNHWK,
-                                                                              Empty_Tuple,
-                                                                              PassThrough,
-                                                                              ConvFwd1x1S1P0>{});
-
-    add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_f16_instances<2,
-                                                                              GNHWC,
-                                                                              GKYXC,
-                                                                              Empty_Tuple,
-                                                                              GNHWK,
-                                                                              Empty_Tuple,
-                                                                              PassThrough,
-                                                                              ConvFwdOddC>{});
 }
 
 } // namespace instance
