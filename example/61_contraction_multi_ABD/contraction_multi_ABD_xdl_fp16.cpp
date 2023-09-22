@@ -25,9 +25,6 @@ using S = ck::Sequence<Is...>;
 using F16 = ck::half_t;
 using F32 = float;
 
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
-
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using A0DataType       = F16;
@@ -130,19 +127,19 @@ int main(int argc, char* argv[])
 
     // A0[M0, M1, K0, K1]
     std::vector<ck::index_t> a0_ms_ks_lengths{30, 128, 32, 64};
-    std::vector<ck::index_t> a0_ms_ks_strides{524288, 4096, 128, 1};
+    std::vector<ck::index_t> a0_ms_ks_strides{128 * 32 * 64, 32 * 64, 64, 1};
     // A1[M1, K1] -> A1[M0, M1, K0, K1]
     std::vector<ck::index_t> a1_ms_ks_lengths{30, 128, 32, 64};
     std::vector<ck::index_t> a1_ms_ks_strides{0, 64, 0, 1};
     // B[N0, N1, K0, K1]
     std::vector<ck::index_t> b_ns_ks_lengths{32, 64, 32, 64};
-    std::vector<ck::index_t> b_ns_ks_strides{524288, 4096, 128, 1};
+    std::vector<ck::index_t> b_ns_ks_strides{64 * 32 * 64, 32 * 64, 64, 1};
     // D[M0, M1, N0, N1]
     std::vector<ck::index_t> d_ms_ns_lengths{30, 128, 32, 64};
-    std::vector<ck::index_t> d_ms_ns_strides{524288, 4096, 128, 1};
+    std::vector<ck::index_t> d_ms_ns_strides{128 * 32 * 64, 32 * 64, 64, 1};
     // E[M0, M1, N0, N1]
     std::vector<ck::index_t> e_ms_ns_lengths{30, 128, 32, 64};
-    std::vector<ck::index_t> e_ms_ns_strides{524288, 4096, 128, 1};
+    std::vector<ck::index_t> e_ms_ns_strides{128 * 32 * 64, 32 * 64, 64, 1};
 
     if(argc == 1)
     {
