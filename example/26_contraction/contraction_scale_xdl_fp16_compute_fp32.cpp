@@ -6,9 +6,6 @@
 
 #include "common_instances.hpp"
 
-using F32 = float;
-using F16 = ck::half_t;
-
 using ADataType        = F16;
 using BDataType        = F16;
 using AccDataType      = F32;

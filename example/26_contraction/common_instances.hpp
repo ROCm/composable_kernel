@@ -7,6 +7,11 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_contraction_multiple_d_xdl_cshuffle.hpp"
 
+using F16  = ck::half_t;
+using BF16 = ck::bhalf_t;
+using F32  = float;
+using F64  = double;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 

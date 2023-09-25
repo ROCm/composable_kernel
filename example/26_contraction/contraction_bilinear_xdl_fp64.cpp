@@ -6,8 +6,6 @@
 
 #include "common_instances.hpp"
 
-using F64 = double;
-
 using ADataType        = F64;
 using BDataType        = F64;
 using AccDataType      = F64;

@@ -6,8 +6,6 @@
 
 #include "common_instances.hpp"
 
-using F32 = float;
-
 using ADataType        = F32;
 using BDataType        = F32;
 using AccDataType      = F32;
