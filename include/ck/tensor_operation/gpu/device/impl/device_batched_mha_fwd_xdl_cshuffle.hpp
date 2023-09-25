@@ -44,7 +44,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_mutiple_head_flash_attention_forward(
+        kernel_batched_multiple_head_flash_attention_forward(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             const D0DataType* p_d0_grid,
@@ -376,7 +376,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl
         D0GridDesc_G_M_N d0_grid_desc_g_m_n_;
     };
 
-    using GridwiseGemm = GridwiseMutiHeadFlashAttentionForward_Xdl_CShuffle<
+    using GridwiseGemm = GridwiseMultiHeadFlashAttentionForward_Xdl_CShuffle<
         ADataType, // TODO: distinguish A/B datatype
         D0DataType,
         GemmAccDataType,
@@ -641,7 +641,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl
             float ave_time = 0;
 
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
-                const auto kernel = kernel_batched_mutiple_head_flash_attention_forward<
+                const auto kernel = kernel_batched_multiple_head_flash_attention_forward<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     D0DataType,

@@ -86,7 +86,7 @@ template <typename FloatAB,
           bool PadN,
           bool MaskOutUpperTriangle,
           PipelineVersion PipelineVer = PipelineVersion::v1>
-struct GridwiseMutiHeadFlashAttentionForward_Xdl_CShuffle
+struct GridwiseMultiHeadFlashAttentionForward_Xdl_CShuffle
 {
     static_assert(D0BlockTransferSrcScalarPerVector == 1 ||
                       D0BlockTransferSrcScalarPerVector == 2 ||
