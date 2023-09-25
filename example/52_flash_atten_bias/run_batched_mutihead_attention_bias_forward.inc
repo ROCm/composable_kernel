@@ -88,8 +88,15 @@ int run(int argc, char* argv[])
             ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // C layout [G0, M, G1, O]
             : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
 
+    std::vector<ck::index_t> d0_gs_ms_ns_lengths{G0, G1, M, N};
+    std::vector<ck::index_t> d0_gs_ms_ns_strides =
+        input_permute
+            ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // D0 layout [G0, M, G1, N]
+            : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // D0 layout [G0, G1, M, N]
+
     Tensor<ADataType> a_gs_ms_ks(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
     Tensor<B0DataType> b0_gs_ns_ks(b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides);
+    Tensor<Acc0BiasDataType> d0_gs_ms_ns(d0_gs_ms_ns_lengths, d0_gs_ms_ns_strides);
     Tensor<B1DataType> b1_gs_os_ns(b1_gs_os_ns_lengths, b1_gs_os_ns_strides);
     Tensor<CDataType> c_gs_ms_os_host_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
     Tensor<CDataType> c_gs_ms_os_device_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
@@ -105,32 +112,39 @@ int run(int argc, char* argv[])
     case 1:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<Acc0BiasDataType>{-2, 2});
+        //d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
         break;
     case 2:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<Acc0BiasDataType>{-0.5, 0.5});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
         break;
     case 3:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
         break;
     default:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_Sequential<2>{});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
+        d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<Acc0BiasDataType>{1});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
     }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_gs_ms_ks.mDesc.GetElementSpaceSize());
     DeviceMem b0_device_buf(sizeof(B0DataType) * b0_gs_ns_ks.mDesc.GetElementSpaceSize());
+    DeviceMem d0_device_buf(sizeof(Acc0BiasDataType) * d0_gs_ms_ns.mDesc.GetElementSpaceSize());
     DeviceMem b1_device_buf(sizeof(B1DataType) * b1_gs_os_ns.mDesc.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(CDataType) *
                            c_gs_ms_os_device_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_gs_ms_ks.mData.data());
     b0_device_buf.ToDevice(b0_gs_ns_ks.mData.data());
+    d0_device_buf.ToDevice(d0_gs_ms_ns.mData.data());
     b1_device_buf.ToDevice(b1_gs_os_ns.mData.data());
 
     auto a_element_op    = AElementOp{};
@@ -148,8 +162,8 @@ int run(int argc, char* argv[])
         static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
         static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
         static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-        nullptr, // p_acc0_bias;
-        nullptr, // p_acc1_bias;
+        static_cast<Acc0BiasDataType*>(d0_device_buf.GetDeviceBuffer()), // p_acc0_bias;
+        nullptr,                                                         // p_acc1_bias;
         a_gs_ms_ks_lengths,
         a_gs_ms_ks_strides,
         b0_gs_ns_ks_lengths,
@@ -158,10 +172,10 @@ int run(int argc, char* argv[])
         b1_gs_os_ns_strides,
         c_gs_ms_os_lengths,
         c_gs_ms_os_strides,
-        {}, // acc0_bias_gs_ms_ns_lengths
-        {}, // acc0_bias_gs_ms_ns_strides
-        {}, // std::vector<ck::index_t>{acc1_bias_gs_ms_os_lengths},
-        {}, // std::vector<ck::index_t>{acc1_bias_gs_ms_os_strides},
+        d0_gs_ms_ns_lengths, // acc0_bias_gs_ms_ns_lengths
+        d0_gs_ms_ns_strides, // acc0_bias_gs_ms_ns_strides
+        {},                  // std::vector<ck::index_t>{acc1_biases_gs_ms_os_lengths},
+        {},                  // std::vector<ck::index_t>{acc1_biases_gs_ms_os_strides},
         a_element_op,
         b0_element_op,
         acc0_element_op,
@@ -199,6 +213,7 @@ int run(int argc, char* argv[])
         Tensor<B0DataType> b0_g_k_n({BatchCount, K, N});
         Tensor<B1DataType> b1_g_n_o({BatchCount, N, O});
         Tensor<AccDataType> acc0_g_m_n({BatchCount, M, N});        // scratch object after gemm0
+        Tensor<Acc0BiasDataType> d0_g_m_n({BatchCount, M, N});
         Tensor<ADataType> a1_g_m_n({BatchCount, M, N});            // scratch object after softmax
         Tensor<CDataType> c_g_m_o_host_result({BatchCount, M, O}); // scratch object after gemm1
 
@@ -208,6 +223,9 @@ int run(int argc, char* argv[])
         });
         b0_gs_ns_ks.ForEach([&](auto& self, auto idx) {
             b0_g_k_n(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+        });
+        d0_gs_ms_ns.ForEach([&](auto& self, auto idx) {
+            d0_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
         });
         b1_gs_os_ns.ForEach([&](auto& self, auto idx) {
             b1_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
@@ -220,6 +238,11 @@ int run(int argc, char* argv[])
             a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, acc0_element_op);
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
+
+        // bias
+        acc0_g_m_n.ForEach([&](auto& self, auto idx) {
+            self(idx) += ck::type_convert<AccDataType>(d0_g_m_n(idx));
+        });
 
         // masking
         const auto mask = DeviceGemmInstance::C0MatrixMask(M, N);

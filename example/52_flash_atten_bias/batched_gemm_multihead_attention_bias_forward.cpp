@@ -43,7 +43,7 @@ using B1DataType       = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using CDataType        = F16;
-using Acc0BiasDataType = void;
+using Acc0BiasDataType = F16;
 using Acc1BiasDataType = void;
 
 static constexpr ck::index_t NumDimG = 2;
@@ -156,6 +156,6 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 B1ElementOp,
                                                                                 CElementOp>;
 
-#include "run_batched_mutihead_attention_forward.inc"
+#include "run_batched_mutihead_attention_bias_forward.inc"
 
 int main(int argc, char* argv[]) { return run(argc, argv); }

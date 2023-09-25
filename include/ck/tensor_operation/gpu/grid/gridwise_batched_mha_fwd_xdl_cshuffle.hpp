@@ -23,6 +23,7 @@ namespace ck {
  *
  */
 template <typename FloatAB,
+          typename D0DataType,
           typename FloatGemmAcc,
           typename FloatCShuffle,
           typename FloatC,
@@ -68,6 +69,7 @@ template <typename FloatAB,
           index_t BBlockTransferDstScalarPerVector_BK1,
           bool BThreadTransferSrcResetCoordinateAfterRun, // ignored
           index_t BBlockLdsExtraN,
+          index_t D0BlockTransferSrcScalarPerVector,
           typename B1BlockTransferThreadClusterLengths_BK0_N_BK1,
           typename B1BlockTransferThreadClusterArrangeOrder,
           typename B1BlockTransferSrcAccessOrder,
@@ -86,6 +88,11 @@ template <typename FloatAB,
           PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseMutiHeadFlashAttentionForward_Xdl_CShuffle
 {
+    static_assert(D0BlockTransferSrcScalarPerVector == 1 ||
+                      D0BlockTransferSrcScalarPerVector == 2 ||
+                      D0BlockTransferSrcScalarPerVector == 4,
+                  "D0BlockTransferSrcScalarPerVector must be 1 or 2 or 4");
+
     static_assert(LoopSched == LoopScheduler::Default,
                   "Non-default loop scheduler is currently not supported");
 
@@ -98,6 +105,7 @@ struct GridwiseMutiHeadFlashAttentionForward_Xdl_CShuffle
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
+    static constexpr auto WaveSize = 64;
     // K1 should be Number<...>
     // Gemm0
     static constexpr auto AK0 = Number<KPerBlock / AK1Value>{};
@@ -112,12 +120,34 @@ struct GridwiseMutiHeadFlashAttentionForward_Xdl_CShuffle
     static constexpr auto B1K0 = Number<Gemm1KPerBlock / B1K1Value>{};
     static constexpr auto B1K1 = Number<B1K1Value>{};
 
-    static constexpr auto mfma = MfmaSelector<FloatC, MPerXdl, NPerXdl>::selected_mfma;
+    static constexpr auto mfma = MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     using GridwiseGemmPipe = remove_cvref_t<decltype(
         GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage>())>;
+
+    __device__ static auto GetGemm0WaveIdx()
+    {
+        const index_t thread_id = get_thread_local_1d_id();
+
+        constexpr auto threadid_to_wave_idx_adaptor = make_single_stage_tensor_adaptor(
+            make_tuple(make_merge_transform(make_tuple(Gemm0MWaves, Gemm0NWaves, WaveSize))),
+            make_tuple(Sequence<0, 1, 2>{}),
+            make_tuple(Sequence<0>{}));
+
+        return threadid_to_wave_idx_adaptor.CalculateBottomIndex(make_multi_index(thread_id));
+    }
+
+    __device__ static auto GetGemm0WaveMNIdx(const index_t thread_id)
+    {
+        constexpr auto wave_threadid_to_mn_idx_adaptor = make_single_stage_tensor_adaptor(
+            make_tuple(make_merge_transform(make_tuple(WaveSize / MPerXdl, MPerXdl))),
+            make_tuple(Sequence<0, 1>{}),
+            make_tuple(Sequence<0>{}));
+
+        return wave_threadid_to_mn_idx_adaptor.CalculateBottomIndex(make_multi_index(thread_id));
+    }
 
     template <typename ABlockDesc_AK0_M_AK1>
     __host__ __device__ static constexpr auto
@@ -371,6 +401,7 @@ struct GridwiseMutiHeadFlashAttentionForward_Xdl_CShuffle
     template <bool HasMainKBlockLoop, typename Block2CTileMap, typename C0MatrixMask>
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
+                               const D0DataType* __restrict__ p_d0_grid,
                                const FloatAB* __restrict__ p_b1_grid,
                                FloatC* __restrict__ p_c_grid,
                                void* __restrict__ p_shared,
@@ -381,6 +412,8 @@ struct GridwiseMutiHeadFlashAttentionForward_Xdl_CShuffle
                                const CElementwiseOperation& c_element_op,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
+                               const D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5&
+                                   d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                                const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
                                const C1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                    c1_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -644,6 +677,52 @@ struct GridwiseMutiHeadFlashAttentionForward_Xdl_CShuffle
             static_cast<FloatAB*>(p_shared) + SharedMemTrait::b1_block_space_offset,
             b1_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
+        const auto wave_id     = GetGemm0WaveIdx();
+        const auto wave_m_n_id = GetGemm0WaveMNIdx(wave_id[I2]); // I2: 0~63
+        // bias (d0 matrix)
+        constexpr auto d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+            make_naive_tensor_descriptor_packed(make_tuple(I1,   // MBlockId
+                                                           I1,   // NBlockId
+                                                           m0,   // MRepeat
+                                                           n0,   // NRepeat
+                                                           m1,   // MWaveId
+                                                           n1,   // NWaveId
+                                                           m2,   // MPerXdl
+                                                           n2,   // NGroupNum
+                                                           n3,   // NInputNum
+                                                           n4)); // RegisterNum
+
+        auto d0_threadwise_copy =
+            ThreadwiseTensorSliceTransfer_v2<D0DataType,
+                                             D0DataType,
+                                             decltype(d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5),
+                                             decltype(d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5),
+                                             Sequence<I1, // MBlockId
+                                                      I1, // NBlockID
+                                                      m0, // MRepeat
+                                                      n0, // NRepeat
+                                                      m1, // MWaveId
+                                                      n1, // NWaveId
+                                                      m2, // MPerXdl
+                                                      n2, // NGroupNum
+                                                      n3, // NInputNum
+                                                      n4>,
+                                             Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
+                                             9,
+                                             D0BlockTransferSrcScalarPerVector,
+                                             1,
+                                             false>(d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                                    make_multi_index(block_work_idx[I0], // MBlockId
+                                                                     0,                  // NBlockId
+                                                                     0,                  // mrepeat
+                                                                     0,                  // nrepeat
+                                                                     wave_id[I0],        // MWaveId
+                                                                     wave_id[I1],        // NWaveId
+                                                                     wave_m_n_id[I1],    // MPerXdl
+                                                                     0,                  // group
+                                                                     wave_m_n_id[I0], // NInputIndex
+                                                                     0)); // register number
+
         // selected_mfma.group_size or B1K1 <= Gemm1KPack <= selected_mfma.group_size
         // selected_mfma.k_per_blk <= Gemm1KPack
         //
@@ -833,6 +912,35 @@ struct GridwiseMutiHeadFlashAttentionForward_Xdl_CShuffle
             }
 
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
+
+            // add bias
+            if constexpr(!is_same<D0DataType, void>::value)
+            {
+                const auto d0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                    p_d0_grid, d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize());
+                // get register
+                StaticBuffer<AddressSpaceEnum::Vgpr,
+                             D0DataType,
+                             d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize(),
+                             true>
+                    d0_thread_buf;
+
+                // load data from global
+                d0_threadwise_copy.Run(d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                       d0_grid_buf,
+                                       d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                       make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                                       d0_thread_buf);
+
+                // acc add bias
+                static_for<0, m0 * n0 * n2 * n4, 1>{}([&](auto i) {
+                    acc_thread_buf(i) += ck::type_convert<FloatGemmAcc>(d0_thread_buf[i]);
+                });
+
+                d0_threadwise_copy.MoveSrcSliceWindow(
+                    d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                    make_multi_index(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
+            }
 
             // softmax
             SoftmaxBuf& max = blockwise_softmax.max_value_buf;
