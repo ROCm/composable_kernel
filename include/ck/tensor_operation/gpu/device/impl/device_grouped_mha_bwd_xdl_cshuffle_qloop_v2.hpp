@@ -102,13 +102,16 @@ __global__ void
         (arg_ptr[group_id].p_z_grid_ == nullptr ? nullptr
                                                 : arg_ptr[group_id].p_z_grid_ + z_batch_offset);
     const D0DataType* tmp_p_d0_grid = nullptr;
+    D0DataType* tmp_p_d0grad_grid   = nullptr;
     if constexpr(!is_same<D0DataType, void>::value)
     {
         const long_index_t d0_batch_offset =
             __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(
                 arg_ptr[group_id].compute_base_ptr_of_batch_.GetD0BasePtr(g_idx)));
-
-        tmp_p_d0_grid = arg_ptr[group_id].p_d0_grid_ + d0_batch_offset;
+        if(arg_ptr[group_id].p_d0_grid_ != nullptr)
+            tmp_p_d0_grid = arg_ptr[group_id].p_d0_grid_ + d0_batch_offset;
+        if(arg_ptr[group_id].p_d0grad_grid_)
+            tmp_p_d0grad_grid = arg_ptr[group_id].p_d0grad_grid_ + d0_batch_offset;
     }
 
     if constexpr(Deterministic)
@@ -126,6 +129,7 @@ __global__ void
                 arg_ptr[group_id].p_ygrad_grid_ + c_batch_offset,
                 arg_ptr[group_id].p_qgrad_grid_ + a_batch_offset,
                 arg_ptr[group_id].p_kgrad_grid_ + b_batch_offset,
+                tmp_p_d0grad_grid,
                 arg_ptr[group_id].p_vgrad_grid_ + b1_batch_offset,
                 p_shared,
                 a_element_op,
@@ -164,6 +168,7 @@ __global__ void
             arg_ptr[group_id].p_ygrad_grid_ + c_batch_offset,
             arg_ptr[group_id].p_qgrad_grid_ + a_batch_offset,
             arg_ptr[group_id].p_kgrad_grid_ + b_batch_offset,
+            tmp_p_d0grad_grid,
             arg_ptr[group_id].p_vgrad_grid_ + b1_batch_offset,
             p_shared,
             a_element_op,
@@ -534,7 +539,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
     static auto MakeZGridDescriptor_M_N(const std::vector<index_t>& z_gs_ms_ns_lengths,
                                         const std::vector<index_t>& z_gs_ms_ns_strides)
     {
-        return Transform::MakeCGridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
+        return Transform::MakeC0GridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
     }
 
     static auto MakeLSEGridDescriptor_M(index_t MRaw)
@@ -566,8 +571,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                          const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_strides)
     {
 
-        return Transform::MakeCGridDescriptor_M_N(acc0_bias_gs_ms_ns_lengths,
-                                                  acc0_bias_gs_ms_ns_strides);
+        return Transform::MakeC0GridDescriptor_M_N(acc0_bias_gs_ms_ns_lengths,
+                                                   acc0_bias_gs_ms_ns_strides);
     }
 
     static auto
@@ -575,8 +580,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_strides)
     {
 
-        return Transform::MakeCGridDescriptor_G_M_N(acc0_bias_gs_ms_ns_lengths,
-                                                    acc0_bias_gs_ms_ns_strides);
+        return Transform::MakeC0GridDescriptor_G_M_N(acc0_bias_gs_ms_ns_lengths,
+                                                     acc0_bias_gs_ms_ns_strides);
     }
 
     using AGridDesc_AK0_M_AK1  = decltype(MakeAGridDescriptor_AK0_M_AK1({}, {}));
@@ -589,7 +594,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
     using D0GridDesc_G_M_N     = decltype(MakeD0GridDescriptor_G_M_N({}, {}));
     using B1GridDesc_G_N_K     = decltype(Transform::MakeB1GridDescriptor_G_N_K({}, {}));
     using CGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
-    using ZGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
+    using ZGridDesc_G_M_N      = decltype(Transform::MakeC0GridDescriptor_G_M_N({}, {}));
 
     using KGridDesc_N_K         = decltype(Transform::MakeB0GridDescriptor_N_K({}, {}));
     using D0GridDesc_M_N        = decltype(MakeD0GridDescriptor_M_N({}, {}));
@@ -767,6 +772,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         const InputDataType* p_ygrad_grid_;
         OutputDataType* p_qgrad_grid_;
         OutputDataType* p_kgrad_grid_;
+        D0DataType* p_d0grad_grid_;
         OutputDataType* p_vgrad_grid_;
 
         // tensor descriptors for block/thread-wise copy
@@ -831,6 +837,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                  std::vector<void*>& p_Vgrads,
                  const std::vector<const void*>& p_acc0_bias_vec,
                  const std::vector<const void*>& p_acc1_bias_vec,
+                 const std::vector<void*>& p_d0grads,
+                 const std::vector<void*>& p_d1grads,
                  const std::vector<ProblemDesc>& problem_desc_vec,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
@@ -863,7 +871,10 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                  group_count_ == ck::type_convert<ck::index_t>(p_LSEs.size()) &&
                  (group_count_ == ck::type_convert<ck::index_t>(p_acc0_bias_vec.size()) ||
                   ck::type_convert<ck::index_t>(p_acc0_bias_vec.size() == 0)) &&
-                 0 == p_acc1_bias_vec.size()))
+                 0 == p_acc1_bias_vec.size() &&
+                 (group_count_ == ck::type_convert<ck::index_t>(p_d0grads.size()) ||
+                  ck::type_convert<ck::index_t>(p_d0grads.size() == 0)) &&
+                 0 == p_d1grads.size()))
             {
                 throw std::runtime_error("wrong! group_count_ != p_As/b/b1/c.size");
             }
@@ -887,7 +898,11 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                 const auto p_ygrad_grid = static_cast<const InputDataType*>(p_Ygrads[i]);
                 auto p_qgrad_grid       = static_cast<OutputDataType*>(p_Qgrads[i]);
                 auto p_kgrad_grid       = static_cast<OutputDataType*>(p_Kgrads[i]);
-                auto p_vgrad_grid       = static_cast<OutputDataType*>(p_Vgrads[i]);
+                auto p_d0grad_grid =
+                    (ck::type_convert<ck::index_t>(p_d0grads.size()) == group_count_)
+                        ? static_cast<D0DataType*>(p_d0grads[i])
+                        : nullptr;
+                auto p_vgrad_grid = static_cast<OutputDataType*>(p_Vgrads[i]);
 
                 const auto& problem_desc = problem_desc_vec[i];
 
@@ -933,7 +948,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                     problem_desc.b_gs_ns_ks_lengths, problem_desc.b_gs_ns_ks_strides);
                 const auto d0_grid_desc_g_m_n = DeviceOp::MakeD0GridDescriptor_G_M_N(
                     tmp_d0_gs_ms_ns_lengths, tmp_d0_gs_ms_ns_strides);
-                const auto z_grid_desc_g_m_n = Transform::MakeCGridDescriptor_G_M_N(
+                const auto z_grid_desc_g_m_n = Transform::MakeC0GridDescriptor_G_M_N(
                     problem_desc.z_gs_ms_ns_lengths, problem_desc.z_gs_ms_ns_strides);
                 const auto b1_grid_desc_g_n_k = Transform::MakeB1GridDescriptor_G_N_K(
                     problem_desc.b1_gs_gemm1ns_gemm1ks_lengths,
@@ -996,6 +1011,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                               p_ygrad_grid,
                                               p_qgrad_grid,
                                               p_kgrad_grid,
+                                              p_d0grad_grid,
                                               p_vgrad_grid,
                                               a_grid_desc_ak0_m_ak1,
                                               b_grid_desc_bk0_n_bk1,
@@ -1290,6 +1306,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                              std::vector<void*>& p_Vgrads,
                              const std::vector<const void*>& p_acc0_bias_vec,
                              const std::vector<const void*>& p_acc1_bias_vec,
+                             const std::vector<void*>& p_d0grads,
+                             const std::vector<void*>& p_d1grads,
                              const std::vector<ProblemDesc>& problem_desc_vec,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
@@ -1311,6 +1329,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                         p_Vgrads,
                         p_acc0_bias_vec,
                         p_acc1_bias_vec,
+                        p_d0grads,
+                        p_d1grads,
                         problem_desc_vec,
                         a_element_op,
                         b_element_op,
@@ -1338,6 +1358,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                         std::vector<void*>& p_Vgrads,
                         const std::vector<const void*>& p_acc0_bias_vec,
                         const std::vector<const void*>& p_acc1_bias_vec,
+                        const std::vector<void*>& p_d0grads,
+                        const std::vector<void*>& p_d1grads,
                         const std::vector<ProblemDesc>& problem_desc_vec,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
@@ -1359,6 +1381,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                           p_Vgrads,
                                           p_acc0_bias_vec, // cast in struct Argument
                                           p_acc1_bias_vec, // cast in struct Argument
+                                          p_d0grads,
+                                          p_d1grads,
                                           problem_desc_vec,
                                           a_element_op,
                                           b_element_op,

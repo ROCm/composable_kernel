@@ -71,6 +71,7 @@ __global__ void
     ignore = p_z_grid;
     ignore = c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3;
     ignore = block_2_ctile_map;
+    ignore = num_gemm0_m_block_outer_loop;
     ignore = batch_count;
     ignore = compute_base_ptr_of_batch;
     ignore = seed;
@@ -135,7 +136,7 @@ struct DeviceBatchedDropout : public ck::tensor_operation::device::BaseOperator
     static auto MakeZGridDescriptor_M_N(const std::vector<index_t>& z_gs_m_n_lengths,
                                         const std::vector<index_t>& z_gs_m_n_strides)
     {
-        return Transform::MakeCGridDescriptor_M_N(z_gs_m_n_lengths, z_gs_m_n_strides);
+        return Transform::MakeC0GridDescriptor_M_N(z_gs_m_n_lengths, z_gs_m_n_strides);
     }
 
     using ZGridDesc_G_M_N = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));

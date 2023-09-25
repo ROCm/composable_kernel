@@ -24,7 +24,7 @@ Kernel outputs:
 */
 
 #define USING_MASK 0
-#define DIM 128 // DIM should be a multiple of 8.
+#define DIM 32 // DIM should be a multiple of 8.
 
 #include <iostream>
 #include <numeric>
@@ -616,6 +616,8 @@ int run(int argc, char* argv[])
                           p_vgrad,
                           {}, // std::array<void*, 1> p_acc0_biases;
                           {}, // std::array<void*, 1> p_acc1_biases;
+                          {},
+                          {},
                           problem_descs,
                           QKVElementOp{},
                           QKVElementOp{},
@@ -663,6 +665,8 @@ int run(int argc, char* argv[])
                               p_vgrad,
                               {}, // std::array<void*, 1> p_acc0_biases;
                               {}, // std::array<void*, 1> p_acc1_biases;
+                              {},
+                              {},
                               problem_descs,
                               QKVElementOp{},
                               QKVElementOp{},
