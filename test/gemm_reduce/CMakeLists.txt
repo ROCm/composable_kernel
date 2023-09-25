@@ -1,5 +1,4 @@
-if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
-  add_test_executable(test_gemm_reduce_fp16 gemm_reduce_fp16.cpp)
-  target_link_libraries(test_gemm_reduce_fp16 PRIVATE utility)
-  target_link_libraries(test_gemm_reduce_fp16 PRIVATE device_gemm_reduce_instance)
+add_test_executable(test_gemm_reduce_fp16 gemm_reduce_fp16.cpp)
+if(result EQUAL 0)
+  target_link_libraries(test_gemm_reduce_fp16 PRIVATE utility device_gemm_reduce_instance)
 endif()
