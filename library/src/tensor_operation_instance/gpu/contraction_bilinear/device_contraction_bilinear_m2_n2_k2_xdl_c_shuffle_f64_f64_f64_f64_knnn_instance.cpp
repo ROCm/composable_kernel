@@ -19,12 +19,6 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using F64       = double;
-using F64_Tuple = ck::Tuple<F64>;
-
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Bilinear    = ck::tensor_operation::element_wise::Bilinear;
-
 // A[m0, m1, k0, k1] * B[n0, n1, k0, k1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1]
 // k/n/n/n are the fast changing dimension for A/B/D/E
 using device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_knnn_instance =

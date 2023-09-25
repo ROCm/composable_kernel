@@ -13,6 +13,21 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+using F16  = ck::half_t;
+using BF16 = ck::bhalf_t;
+using F32  = float;
+using F64  = double;
+
+using F16_Tuple   = ck::Tuple<F16>;
+using BF16_Tuple  = ck::Tuple<BF16>;
+using F32_Tuple   = ck::Tuple<F32>;
+using F64_Tuple   = ck::Tuple<F64>;
+using Empty_Tuple = ck::Tuple<>;
+
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using Bilinear    = ck::tensor_operation::element_wise::Bilinear;
+using Scale       = ck::tensor_operation::element_wise::Scale;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 

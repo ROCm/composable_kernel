@@ -19,13 +19,6 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using BF16        = ck::bhalf_t;
-using F32         = float;
-using Empty_Tuple = ck::Tuple<>;
-
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Scale       = ck::tensor_operation::element_wise::Scale;
-
 // A[m0, m1, k0, k1] * B[n0, n1, k0, k1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1]
 // m/k/n/n are the fast changing dimension for A/B/D/E
 using device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_bf16_mkn_instance =
