@@ -62,7 +62,7 @@ class TestContraction : public ::testing::Test
             const auto& K = dimension_params.K;
 
             assign_default_strides(ALayout{}, StridesA, {M[0], M[1], K[0], K[1]});
-            assign_default_strides(BLayout{}, StridesB, {K[0], K[1], N[0], N[1]});
+            assign_default_strides(BLayout{}, StridesB, {N[0], N[1], K[0], K[1]});
             assign_default_strides(CDLayout{}, StridesC, {M[0], M[1], N[0], N[1]});
             assign_default_strides(CDLayout{}, StridesD, {M[0], M[1], N[0], N[1]});
 

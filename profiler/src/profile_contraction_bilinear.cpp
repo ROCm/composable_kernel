@@ -96,7 +96,7 @@ int profile_contraction_bilinear(int argc, char* argv[])
             if(default_strides)
             {
                 assign_default_strides(a_layout, StridesA, {M[0], M[1], K[0], K[1]});
-                assign_default_strides(b_layout, StridesB, {K[0], K[1], N[0], N[1]});
+                assign_default_strides(b_layout, StridesB, {N[0], N[1], K[0], K[1]});
                 assign_default_strides(cde_layout, StridesE, {M[0], M[1], N[0], N[1]});
                 assign_default_strides(cde_layout, StridesD, {M[0], M[1], N[0], N[1]});
             }

@@ -33,12 +33,12 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
     struct Argument : public ck::tensor_operation::device::BaseArgument
     {
         Argument(const Tensor<ADataType>& a_ms_ks,
-                 const Tensor<BDataType>& b_ks_ns,
+                 const Tensor<BDataType>& b_ns_ks,
                  Tensor<CDataType>& c_ms_ns,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op)
             : a_ms_ks_{a_ms_ks},
-              b_ks_ns_{b_ks_ns},
+              b_ns_ks_{b_ns_ks},
               c_ms_ns_{c_ms_ns},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op}
@@ -46,7 +46,7 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
         }
 
         const Tensor<ADataType>& a_ms_ks_;
-        const Tensor<BDataType>& b_ks_ns_;
+        const Tensor<BDataType>& b_ns_ks_;
         Tensor<CDataType>& c_ms_ns_;
 
         AElementwiseOperation a_element_op_;
@@ -75,7 +75,7 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
                         ComputeDataType v_a_compute_input =
                             ck::type_convert<ComputeDataType>(arg.a_ms_ks_(m0, m1, k0, k1));
                         ComputeDataType v_b_compute_input =
-                            ck::type_convert<ComputeDataType>(arg.b_ks_ns_(k0, k1, n0, n1));
+                            ck::type_convert<ComputeDataType>(arg.b_ns_ks_(n0, n1, k0, k1));
 
                         AccDataType v_a;
                         AccDataType v_b;
@@ -119,12 +119,12 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
     }
 
     static auto MakeArgument(const Tensor<ADataType>& a_ms_ks,
-                             const Tensor<BDataType>& b_ks_ns,
+                             const Tensor<BDataType>& b_ns_ks,
                              Tensor<CDataType>& c_ms_ns,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op)
     {
-        return Argument{a_ms_ks, b_ks_ns, c_ms_ns, a_element_op, b_element_op};
+        return Argument{a_ms_ks, b_ns_ks, c_ms_ns, a_element_op, b_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
