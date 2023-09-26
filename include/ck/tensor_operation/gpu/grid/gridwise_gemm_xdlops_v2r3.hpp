@@ -175,7 +175,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         return math::integer_divide_ceil(N, NPerBlock) * NPerBlock;
     }
 
-    __host__ static auto CalculateK0(index_t K) { return math::integer_divide_floor(K, K1Value); }
+    __host__ static auto CalculateK0(index_t K) { return math::integer_divide_ceil(K, K1Value); }
 
     // Argument
     struct Problem
@@ -369,9 +369,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                       "Invalid tuning param!");
 
         // check gridwise gemm pipeline
-        const index_t K0      = problem.K / K1Value;
-        const auto num_k_loop = K0 / K0PerBlock;
-
+        const auto num_k_loop = math::integer_divide_ceil(problem.K0, K0PerBlock);
         if(!GridwiseGemmPipe::IsSupported(num_k_loop))
         {
             return false;
@@ -1026,8 +1024,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext
         }
 
         // check gridwise gemm pipeline
-        const index_t K0      = problem.K / K1;
-        const auto num_k_loop = K0 / K0PerBlock;
+        const auto num_k_loop = math::integer_divide_ceil(problem.K0, K0PerBlock);
 
         if(!GridwiseGemmPipe::IsSupported(num_k_loop))
         {
