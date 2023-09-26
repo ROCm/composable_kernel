@@ -20,7 +20,9 @@ template <ck::index_t NDimSpatial,
           typename OutDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
-          typename OutElementwiseOperation>
+          typename OutElementwiseOperation,
+          typename ComputeTypeA = InDataType,
+          typename ComputeTypeB = ComputeTypeA>
 struct DeviceGroupedConvBwdWeight : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
