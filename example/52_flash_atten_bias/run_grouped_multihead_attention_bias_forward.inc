@@ -5,7 +5,7 @@ int run(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = false;
+    bool time_kernel     = true;
 
     bool input_permute  = false;
     bool output_permute = true;
@@ -129,7 +129,7 @@ int run(int argc, char* argv[])
         Tensor<CDataType> c_gs_ms_os_device_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
 
         int Batch = G0 * G1;
-        flop += (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * Batch;
+        flop += (size_t(M) * N * K * 2 + size_t(M) * N * O * 2 + size_t(M) * N) * Batch;
         num_byte +=
             (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N + sizeof(B1DataType) * N * O +
              sizeof(CDataType) * M * O + sizeof(Acc0BiasDataType) * M * N) *

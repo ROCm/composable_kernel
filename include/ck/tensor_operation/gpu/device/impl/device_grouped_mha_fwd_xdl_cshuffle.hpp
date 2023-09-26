@@ -180,6 +180,7 @@ template <index_t NumDimG,
           index_t BBlockTransferSrcScalarPerVector,
           index_t BBlockTransferDstScalarPerVector_BK1,
           bool BBlockLdsExtraN,
+          index_t Acc0BiasTransferSrcScalarPerVector,
           typename B1BlockTransferThreadClusterLengths_BK0_N_BK1,
           typename B1BlockTransferThreadClusterArrangeOrder,
           typename B1BlockTransferSrcAccessOrder,
@@ -429,7 +430,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl
         BBlockTransferDstScalarPerVector_BK1,
         true,
         BBlockLdsExtraN,
-        4,
+        Acc0BiasTransferSrcScalarPerVector,
         B1BlockTransferThreadClusterLengths_BK0_N_BK1,
         B1BlockTransferThreadClusterArrangeOrder,
         B1BlockTransferSrcAccessOrder,
@@ -493,6 +494,9 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl
 
         // for gridwise gemm check
         C1GridDesc_M_N c1_grid_desc_m_n_;
+
+        // raw data
+        std::vector<ck::index_t> d0_n_length_stride_;
     };
 
     // Argument
@@ -625,6 +629,10 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl
                                               BlockStart,
                                               BlockEnd});
 
+                std::vector<ck::index_t> d0_n_length_stride;
+                d0_n_length_stride.push_back(tmp_d0_gs_ms_ns_lengths[NumDimG + NumDimM]);
+                d0_n_length_stride.push_back(tmp_d0_gs_ms_ns_strides[NumDimG + NumDimM]);
+
                 group_device_args_.push_back(
                     {{problem_desc.a_gs_ms_ks_lengths[NumDimG + NumDimM - 1],
                       problem_desc.b0_gs_ns_ks_lengths[NumDimG + NumDimN - 1],
@@ -638,7 +646,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl
                       problem_desc.b1_gs_os_ns_strides[NumDimG + NumDimO + NumDimN - 1]},
                      {problem_desc.c_gs_ms_os_strides[NumDimG + NumDimM - 1],
                       problem_desc.c_gs_ms_os_strides[NumDimG + NumDimM + NumDimO - 1]},
-                     c_grid_desc_m_n});
+                     c_grid_desc_m_n,
+                     d0_n_length_stride});
             }
         }
 
@@ -772,6 +781,24 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl
             if(!(c_m == a_m && c_gemm1n == b1_gemm1n))
             {
                 return false;
+            }
+
+            if constexpr(!is_same<D0DataType, void>::value)
+            {
+
+                if(device_arg.d0_n_length_stride_[1] == 1)
+                {
+                    if(!(device_arg.d0_n_length_stride_[0] % Acc0BiasTransferSrcScalarPerVector ==
+                             0 ||
+                         Transform::matrix_padder.PadN))
+                    {
+                        return false;
+                    }
+                }
+                else if(Acc0BiasTransferSrcScalarPerVector != 1)
+                {
+                    return false;
+                }
             }
 
             // Check if having main loop

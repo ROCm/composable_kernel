@@ -1102,13 +1102,14 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
 
             if constexpr(!is_same<D0DataType, void>::value)
             {
-                if(device_arg.d0_n_length_stride_[1] == 1 &&
-                   device_arg.d0_n_length_stride_[0] % Acc0BiasTransferSrcScalarPerVector != 0)
+                if(device_arg.d0_n_length_stride_[1] == 1)
                 {
-                    return false;
+                    if(!(device_arg.d0_n_length_stride_[0] % Acc0BiasTransferSrcScalarPerVector ==
+                             0 ||
+                         Transform::matrix_padder.PadN))
+                        return false;
                 }
-                if(device_arg.d0_n_length_stride_[1] != 1 &&
-                   Acc0BiasTransferSrcScalarPerVector != 1)
+                else if(Acc0BiasTransferSrcScalarPerVector != 1)
                 {
                     return false;
                 }

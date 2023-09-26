@@ -1026,12 +1026,13 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
 
         if constexpr(!is_same<D0DataType, void>::value)
         {
-            if(arg.d0_n_length_stride_[1] == 1 &&
-               arg.d0_n_length_stride_[0] % Acc0BiasTransferSrcScalarPerVector != 0)
+            if(arg.d0_n_length_stride_[1] == 1)
             {
-                return false;
+                if(!(arg.d0_n_length_stride_[0] % Acc0BiasTransferSrcScalarPerVector == 0 ||
+                     Transform::matrix_padder.PadN))
+                    return false;
             }
-            if(arg.d0_n_length_stride_[1] != 1 && Acc0BiasTransferSrcScalarPerVector != 1)
+            else if(Acc0BiasTransferSrcScalarPerVector != 1)
             {
                 return false;
             }

@@ -119,6 +119,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedMultiheadA
     8,
     8,
     true,
+    4,
     S<16, 16, 1>, // B1BlockTransfer
     S<0, 2, 1>,
     S<0, 2, 1>,
