@@ -277,7 +277,7 @@ int run(int argc, char* argv[])
     ck::index_t O  = DIM;
     ck::index_t G0 = 4;
     ck::index_t G1 = 6; // h_q
-    ck::index_t G2 = 1; // h_kv
+    ck::index_t G2 = 6; // h_kv
 
     bool input_permute  = false;
     bool output_permute = false;
