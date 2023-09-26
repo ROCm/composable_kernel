@@ -254,6 +254,7 @@ __global__ void
     ignore = ygrad_grid_desc_o0_m_o1;
     ignore = block_2_ctile_map;
     ignore = batch_count;
+    ignore = h_ratio;
     ignore = nblock;
     ignore = compute_base_ptr_of_batch;
     ignore = c0_matrix_mask;

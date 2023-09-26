@@ -75,7 +75,7 @@ static constexpr auto TensorSpecA   = ck::tensor_operation::device::TensorSpecia
 static constexpr auto TensorSpecB0  = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecB1  = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecC   = ck::tensor_operation::device::TensorSpecialization::Default;
-static constexpr bool Deterministic = true;
+static constexpr bool Deterministic = false;
 
 #if(DIM <= 32)
 using DeviceGemmInstance =

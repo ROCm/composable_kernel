@@ -11,6 +11,7 @@ int run(int argc, char* argv[])
     bool output_permute = true;
 
     float p_drop                    = 0.2;
+    int h_ratio                     = 1; // G1 / G2
     const unsigned long long seed   = 1;
     const unsigned long long offset = 0;
 
@@ -24,22 +25,25 @@ int run(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 7)
+    else if(argc == 8)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
 
         p_drop         = std::stoi(argv[4]);
-        input_permute  = std::stoi(argv[5]);
-        output_permute = std::stoi(argv[6]);
+        h_ratio        = std::stof(argv[5]);
+        input_permute  = std::stoi(argv[6]);
+        output_permute = std::stoi(argv[7]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 5: input / output permute\n");
+        printf("arg4: p_drop\n");
+        printf("arg5: h_ratio\n");
+        printf("arg6 to 7: input / output permute\n");
         exit(0);
     }
 
@@ -88,7 +92,8 @@ int run(int argc, char* argv[])
         int K  = DIM;
         int O  = DIM;
         int G0 = rand() % 3 + 1;
-        int G1 = rand() % 5 + 1;
+        int G2 = rand() % 5 + 1;
+        int G1 = G2 * h_ratio;
 
         g0_g1_m_n_k_o.push_back({G0, G1, M, N, K, O});
 
@@ -98,17 +103,17 @@ int run(int argc, char* argv[])
                 ? std::vector<ck::index_t>{M * G1 * K, K, G1 * K, 1} // A layout [G0, M, G1, K]
                 : std::vector<ck::index_t>{G1 * M * K, M * K, K, 1}; // A layout [G0, G1, M, K]
 
-        std::vector<ck::index_t> b0_gs_ns_ks_lengths{G0, G1, N, K};
+        std::vector<ck::index_t> b0_gs_ns_ks_lengths{G0, G2, N, K};
         std::vector<ck::index_t> b0_gs_ns_ks_strides =
             input_permute
-                ? std::vector<ck::index_t>{N * G1 * K, K, G1 * K, 1} // B0 layout [G0, N, G1, K]
-                : std::vector<ck::index_t>{G1 * N * K, N * K, K, 1}; // B0 layout [G0, G1, N, K]
+                ? std::vector<ck::index_t>{N * G2 * K, K, G2 * K, 1} // B0 layout [G0, N, G2, K]
+                : std::vector<ck::index_t>{G2 * N * K, N * K, K, 1}; // B0 layout [G0, G2, N, K]
 
-        std::vector<ck::index_t> b1_gs_os_ns_lengths{G0, G1, O, N};
+        std::vector<ck::index_t> b1_gs_os_ns_lengths{G0, G2, O, N};
         std::vector<ck::index_t> b1_gs_os_ns_strides =
             input_permute
-                ? std::vector<ck::index_t>{N * G1 * O, O, 1, G1 * O} // B1 layout [G0, N, G1, O]
-                : std::vector<ck::index_t>{G1 * N * O, N * O, 1, O}; // B1 layout [G0, G1, N, O]
+                ? std::vector<ck::index_t>{N * G2 * O, O, 1, G2 * O} // B1 layout [G0, N, G2, O]
+                : std::vector<ck::index_t>{G2 * N * O, N * O, 1, O}; // B1 layout [G0, G2, N, O]
 
         std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1, M, O};
         std::vector<ck::index_t> c_gs_ms_os_strides =
@@ -253,7 +258,8 @@ int run(int argc, char* argv[])
                           acc0_element_op,
                           b1_element_op,
                           c_element_op,
-                          p_drop,          // dropout ratio
+                          p_drop, // dropout ratio
+                          h_ratio,
                           {seed, offset}); // dropout random seed and offset, offset should be
                                            // at least the number of elements on a thread
 
@@ -296,7 +302,8 @@ int run(int argc, char* argv[])
                               acc0_element_op,
                               b1_element_op,
                               c_element_op,
-                              p_drop,          // dropout ratio
+                              p_drop, // dropout ratio
+                              h_ratio,
                               {seed, offset}); // dropout random seed and offset, offset should be
                                                // at least the number of elements on a thread
         // specify workspace for problem_desc
@@ -350,11 +357,19 @@ int run(int argc, char* argv[])
             a_gs_ms_ks.ForEach([&](auto& self, auto idx) {
                 a_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
             });
-            b0_gs_ns_ks.ForEach([&](auto& self, auto idx) {
-                b0_g_k_n(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+            b0_g_k_n.ForEach([&](auto& self, auto idx) {
+                const size_t& g0 = idx[0] / G1;
+                const size_t& g1 = idx[0] % G1;
+                const size_t& g2 = g1 / h_ratio;
+
+                self(idx) = b0_gs_ns_ks(g0, g2, idx[2], idx[1]);
             });
-            b1_gs_os_ns.ForEach([&](auto& self, auto idx) {
-                b1_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+            b1_g_n_o.ForEach([&](auto& self, auto idx) {
+                const size_t& g0 = idx[0] / G1;
+                const size_t& g1 = idx[0] % G1;
+                const size_t& g2 = g1 / h_ratio;
+
+                self(idx) = b1_gs_os_ns(g0, g2, idx[2], idx[1]);
             });
 
             z_gs_ms_ns_device_result.ForEach([&](auto& self, auto idx) {

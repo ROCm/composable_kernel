@@ -209,6 +209,7 @@ __global__ void
 #else
     ignore = group_kernel_args;
     ignore = group_count;
+    ignore = h_ratio;
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = acc_element_op;
