@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -96,18 +93,18 @@ template <typename GridwiseGemm,
           bool HasDoubleTailKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_conv_fwd_dl(
-            const ABDataType* __restrict__ p_a_grid,
-            const ABDataType* __restrict__ p_b_grid,
-            CDataType* __restrict__ p_c_grid,
-            const index_t batch_count,
-            const AGridDesc_K0_M0_M1_K1 a_grid_desc_k0_m0_m1_k1,
-            const BGridDesc_K0_N0_N1_K1 b_grid_desc_k0_n0_n1_k1,
-            const CGridDesc_M0_M10_M11_N0_N10_N11 c_grid_desc_m0_m10_m11_n0_n10_n11,
-            const Block2CTileMap block_2_ctile_map,
-            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
+    kernel_grouped_conv_fwd_dl(
+        const ABDataType* __restrict__ p_a_grid,
+        const ABDataType* __restrict__ p_b_grid,
+        CDataType* __restrict__ p_c_grid,
+        const index_t batch_count,
+        const AGridDesc_K0_M0_M1_K1 a_grid_desc_k0_m0_m1_k1,
+        const BGridDesc_K0_N0_N1_K1 b_grid_desc_k0_n0_n1_k1,
+        const CGridDesc_M0_M10_M11_N0_N10_N11 c_grid_desc_m0_m10_m11_n0_n10_n11,
+        const Block2CTileMap block_2_ctile_map,
+        const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx1030__) || \
     defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__))
@@ -777,9 +774,8 @@ struct DeviceGroupedConvFwdDl_NHWC_KYXC_NHWK : public DeviceGroupedConvFwd<NDimS
     }
 
 #ifndef __HIPCC_RTC__
-  static auto MakeInvoker() { return Invoker{}; }
+    static auto MakeInvoker() { return Invoker{}; }
 #endif
-
 
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
@@ -856,5 +852,3 @@ struct DeviceGroupedConvFwdDl_NHWC_KYXC_NHWK : public DeviceGroupedConvFwd<NDimS
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-
-#pragma clang diagnostic pop

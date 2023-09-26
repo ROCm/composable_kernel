@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -58,5 +55,3 @@ __global__ void kernel_buffer_set_value(const Grid1dBufferDescType grid_1d_buffe
 };
 
 } // namespace ck
-
-#pragma clang diagnostic pop

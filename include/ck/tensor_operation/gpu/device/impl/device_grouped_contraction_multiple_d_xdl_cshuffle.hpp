@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -31,14 +28,14 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_contraction_multiple_d_xdl_cshuffle(
-            const void CK_CONSTANT_ADDRESS_SPACE* contraction_args,
-            const index_t group_count,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CDEElementwiseOperation cde_element_op)
+    kernel_grouped_contraction_multiple_d_xdl_cshuffle(
+        const void CK_CONSTANT_ADDRESS_SPACE* contraction_args,
+        const index_t group_count,
+        const AElementwiseOperation a_element_op,
+        const BElementwiseOperation b_element_op,
+        const CDEElementwiseOperation cde_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
@@ -850,7 +847,7 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
                         cde_element_op};
     }
 #ifndef __HIPCC_RTC__
-  static auto MakeInvoker() { return Invoker{}; }
+    static auto MakeInvoker() { return Invoker{}; }
 #endif
 
     // polymorphic
@@ -915,5 +912,3 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-
-#pragma clang diagnostic pop

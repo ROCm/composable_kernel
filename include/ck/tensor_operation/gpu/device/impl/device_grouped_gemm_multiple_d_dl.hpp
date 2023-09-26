@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 #pragma once
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
@@ -34,13 +31,13 @@ template <typename GridwiseGemm,
           bool HasDoubleTailKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_multiple_d_dl(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                          const index_t group_count,
-                                          const AElementwiseOperation a_element_op,
-                                          const BElementwiseOperation b_element_op,
-                                          const CDEElementwiseOperation cde_element_op)
+    kernel_grouped_gemm_multiple_d_dl(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+                                      const index_t group_count,
+                                      const AElementwiseOperation a_element_op,
+                                      const BElementwiseOperation b_element_op,
+                                      const CDEElementwiseOperation cde_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) ||              \
     defined(__gfx90a__) || defined(__gfx1030__) || defined(__gfx1100__) || defined(__gfx1101__) || \
@@ -712,7 +709,7 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
             p_As, p_Bs, p_Ds, p_Es, gemm_descs, a_element_op, b_element_op, cde_element_op};
     }
 #ifndef __HIPCC_RTC__
-  static auto MakeInvoker() { return Invoker{}; }
+    static auto MakeInvoker() { return Invoker{}; }
 #endif
 
     // polymorphic
@@ -768,5 +765,3 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-
-#pragma clang diagnostic pop

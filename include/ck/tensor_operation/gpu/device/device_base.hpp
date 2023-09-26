@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -11,15 +8,14 @@
 #include "ck/stream_config.hpp"
 #endif
 
-
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
 struct BaseArgument
 {
-    BaseArgument()                    = default;
-    BaseArgument(const BaseArgument&) = default;
+    BaseArgument()                               = default;
+    BaseArgument(const BaseArgument&)            = default;
     BaseArgument& operator=(const BaseArgument&) = default;
 
     virtual ~BaseArgument() {}
@@ -30,8 +26,8 @@ struct BaseArgument
 #ifndef __HIPCC_RTC__
 struct BaseInvoker
 {
-    BaseInvoker()                   = default;
-    BaseInvoker(const BaseInvoker&) = default;
+    BaseInvoker()                              = default;
+    BaseInvoker(const BaseInvoker&)            = default;
     BaseInvoker& operator=(const BaseInvoker&) = default;
 
     virtual float Run(const BaseArgument*, const StreamConfig& = StreamConfig{})
@@ -45,16 +41,17 @@ struct BaseInvoker
 
 struct BaseOperator
 {
-    BaseOperator()                    = default;
-    BaseOperator(const BaseOperator&) = default;
+    BaseOperator()                               = default;
+    BaseOperator(const BaseOperator&)            = default;
     BaseOperator& operator=(const BaseOperator&) = default;
 
     virtual bool IsSupportedArgument(const BaseArgument*) { return false; }
 
 
 #ifndef __HIPCC_RTC__
-    virtual std::string GetTypeIdName() const { return typeid(*this).name(); }
     virtual std::string GetTypeString() const { return ""; }
+
+    virtual std::string GetTypeIdName() const { return typeid(*this).name(); }
 
     virtual std::string GetTypeIdHashCode() const
     {
@@ -79,5 +76,3 @@ struct BaseOperator
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-
-#pragma clang diagnostic pop

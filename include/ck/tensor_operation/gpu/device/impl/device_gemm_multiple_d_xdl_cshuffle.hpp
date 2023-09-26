@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -818,7 +815,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
     }
 
     template <class Desc, class DsPointer>
-    __device__ static void Run(Desc desc,
+    __device__ static void Run(const Desc& desc,
                                const ADataType* __restrict__ p_a_grid,
                                const BDataType* __restrict__ p_b_grid,
                                DsPointer p_ds_grid,
@@ -866,5 +863,3 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-
-#pragma clang diagnostic pop

@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -43,27 +40,27 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_softmax_gemm_xdl_cshuffle_v1(
-            const FloatAB* __restrict__ p_a_grid,
-            const FloatAB* __restrict__ p_b_grid,
-            const FloatAB* __restrict__ p_b1_grid,
-            FloatC* __restrict__ p_c_grid,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const AccElementwiseOperation acc_element_op,
-            const B1ElementwiseOperation b1_element_op,
-            const CElementwiseOperation c_element_op,
-            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-            const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
-            const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                c_grid_desc_mblock_mperblock_nblock_nperblock,
-            const Block2CTileMap block_2_ctile_map,
-            const index_t batch_count,
-            const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
-            const C0MatrixMask c0_matrix_mask)
+    kernel_batched_gemm_softmax_gemm_xdl_cshuffle_v1(
+        const FloatAB* __restrict__ p_a_grid,
+        const FloatAB* __restrict__ p_b_grid,
+        const FloatAB* __restrict__ p_b1_grid,
+        FloatC* __restrict__ p_c_grid,
+        const AElementwiseOperation a_element_op,
+        const BElementwiseOperation b_element_op,
+        const AccElementwiseOperation acc_element_op,
+        const B1ElementwiseOperation b1_element_op,
+        const CElementwiseOperation c_element_op,
+        const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+        const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+        const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
+        const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            c_grid_desc_mblock_mperblock_nblock_nperblock,
+        const Block2CTileMap block_2_ctile_map,
+        const index_t batch_count,
+        const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
+        const C0MatrixMask c0_matrix_mask)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
@@ -689,7 +686,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                         b1_element_op, c_element_op};
     }
 #ifndef __HIPCC_RTC__
-  static auto MakeInvoker() { return Invoker{}; }
+    static auto MakeInvoker() { return Invoker{}; }
 #endif
 
     // polymorphic
@@ -774,5 +771,3 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-
-#pragma clang diagnostic pop

@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -555,5 +552,3 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
 };
 
 } // namespace ck
-
-#pragma clang diagnostic pop

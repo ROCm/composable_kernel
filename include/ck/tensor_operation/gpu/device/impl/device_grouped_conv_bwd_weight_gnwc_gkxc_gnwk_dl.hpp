@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -62,18 +59,18 @@ template <typename GridwiseGemm,
           bool HasDoubleTailKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_dlops_bwd_weight(
-            const FloatAB* __restrict__ p_a_grid,
-            const FloatAB* __restrict__ p_b_grid,
-            FloatC* __restrict__ p_c_grid,
-            const index_t batch_count,
-            const AGridDesc_B_K0_M0_M1_K1 a_grid_desc_kbatch_k0_m0_m1_k1,
-            const BGridDesc_B_K0_N0_N1_K1 b_grid_desc_kbatch_k0_n0_n1_k1,
-            const CGridDesc_M0_M10_M11_N0_N10_N11 c_grid_desc_m0_m10_m11_n0_n10_n11,
-            const Block2CTileMap block_2_ctile_map,
-            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
+    kernel_batched_gemm_dlops_bwd_weight(
+        const FloatAB* __restrict__ p_a_grid,
+        const FloatAB* __restrict__ p_b_grid,
+        FloatC* __restrict__ p_c_grid,
+        const index_t batch_count,
+        const AGridDesc_B_K0_M0_M1_K1 a_grid_desc_kbatch_k0_m0_m1_k1,
+        const BGridDesc_B_K0_N0_N1_K1 b_grid_desc_kbatch_k0_n0_n1_k1,
+        const CGridDesc_M0_M10_M11_N0_N10_N11 c_grid_desc_m0_m10_m11_n0_n10_n11,
+        const Block2CTileMap block_2_ctile_map,
+        const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -789,7 +786,7 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Dl
                  const OutDataType* p_out_grid,
                  const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths, // input
                  const std::array<index_t, NDimSpatial + 3>& /*a_g_n_c_wis_strides*/,
-                 const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths, // weight
+                 const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,  // weight
                  const std::array<index_t, NDimSpatial + 3>& /*b_g_k_c_xs_strides*/,
                  const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths, // output
                  const std::array<index_t, NDimSpatial + 3>& /*e_g_n_k_wos_strides*/,
@@ -1127,7 +1124,7 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Dl
                  const OutDataType* p_out_grid,
                  const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths, // input
                  const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-                 const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths, // weight
+                 const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,  // weight
                  const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
                  const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths, // output
                  const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
@@ -1145,7 +1142,7 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Dl
                         p_out_grid,
                         a_g_n_c_wis_lengths, // input
                         a_g_n_c_wis_strides,
-                        b_g_k_c_xs_lengths, // weight
+                        b_g_k_c_xs_lengths,  // weight
                         b_g_k_c_xs_strides,
                         e_g_n_k_wos_lengths, // output
                         e_g_n_k_wos_strides,
@@ -1159,7 +1156,7 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Dl
                         split_k};
     }
 #ifndef __HIPCC_RTC__
-  static auto MakeInvoker() { return Invoker{}; }
+    static auto MakeInvoker() { return Invoker{}; }
 #endif
 
     std::unique_ptr<BaseArgument>
@@ -1168,7 +1165,7 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Dl
                         const void* p_out_grid,
                         const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths, // input
                         const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-                        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths, // weight
+                        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,  // weight
                         const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
                         const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths, // output
                         const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
@@ -1186,7 +1183,7 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Dl
                                           static_cast<const OutDataType*>(p_out_grid),
                                           a_g_n_c_wis_lengths, // input
                                           a_g_n_c_wis_strides,
-                                          b_g_k_c_xs_lengths, // weight
+                                          b_g_k_c_xs_lengths,  // weight
                                           b_g_k_c_xs_strides,
                                           e_g_n_k_wos_lengths, // output
                                           e_g_n_k_wos_strides,
@@ -1228,5 +1225,3 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Dl
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-
-#pragma clang diagnostic pop

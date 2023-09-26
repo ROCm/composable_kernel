@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -44,10 +41,8 @@ constexpr auto GridwiseGemmPipeline_Selector()
     }
     else
     {
-        //std::cerr << "GridwiseGemmPipeline configuration is not available" << std::endl;
+        // std::cerr << "GridwiseGemmPipeline configuration is not available" << std::endl;
     }
 }
 
 } // namespace ck
-
-#pragma clang diagnostic pop

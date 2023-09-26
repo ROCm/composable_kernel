@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -40,31 +37,30 @@ template <typename GridwiseGemmWelford,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_multiple_d_welford_first_half_xdl_cshuffle(
-            const ABDataType* __restrict__ p_a_grid,
-            const ABDataType* __restrict__ p_b_grid,
-            DsPointer p_ds_grid,
-            EMeanVarDataType* __restrict__ p_e_grid,
-            EMeanVarDataType* __restrict__ p_welford_mean_grid,
-            EMeanVarDataType* __restrict__ p_welford_var_grid,
-            int32_t* __restrict__ p_welford_count_grid,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CDEElementwiseOperation cde_element_op,
-            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-            const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                ds_grid_desc_mblock_mperblock_nblock_nperblock,
-            const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                e_grid_desc_mblock_mperblock_nblock_nperblock,
-            const MeanVarGridDescriptor_MBlock_MPerBlock_NBlock
-                mean_var_grid_desc_mblock_mperblock_nblock,
-            const CountGridDescriptor_MBlock_MPerBlock_NBlock
-                count_grid_desc_mblock_mperblock_nblock,
-            const Block2ETileMap block_2_etile_map,
-            index_t NRaw)
+    kernel_gemm_multiple_d_welford_first_half_xdl_cshuffle(
+        const ABDataType* __restrict__ p_a_grid,
+        const ABDataType* __restrict__ p_b_grid,
+        DsPointer p_ds_grid,
+        EMeanVarDataType* __restrict__ p_e_grid,
+        EMeanVarDataType* __restrict__ p_welford_mean_grid,
+        EMeanVarDataType* __restrict__ p_welford_var_grid,
+        int32_t* __restrict__ p_welford_count_grid,
+        const AElementwiseOperation a_element_op,
+        const BElementwiseOperation b_element_op,
+        const CDEElementwiseOperation cde_element_op,
+        const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+        const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+        const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            ds_grid_desc_mblock_mperblock_nblock_nperblock,
+        const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            e_grid_desc_mblock_mperblock_nblock_nperblock,
+        const MeanVarGridDescriptor_MBlock_MPerBlock_NBlock
+            mean_var_grid_desc_mblock_mperblock_nblock,
+        const CountGridDescriptor_MBlock_MPerBlock_NBlock count_grid_desc_mblock_mperblock_nblock,
+        const Block2ETileMap block_2_etile_map,
+        index_t NRaw)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
@@ -125,26 +121,26 @@ template <typename GridwiseWelfordLayernorm,
           typename HElementwiseOperation>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_welford_layernorm2d_second_half(
-            const EMeanVarDataType* __restrict__ p_e_grid,
-            const EMeanVarDataType* __restrict__ p_in_welford_mean_grid,
-            const EMeanVarDataType* __restrict__ p_in_welford_var_grid,
-            const int32_t* __restrict__ p_in_welford_count_grid,
-            const GammaDataType* __restrict__ p_gamma_grid,
-            const BetaDataType* __restrict__ p_beta_grid,
-            HDataType* __restrict__ p_h_grid,
-            const EHGridDesc_M_N e_grid_desc_m_n,
-            const EHGridDesc_M_N h_grid_desc_m_n,
-            const LayernormMeanVarGridDesc_M_NBlock mean_var_grid_desc_m_nblock,
-            const LayernormCountGridDesc_M_NBlock count_grid_desc_m_nblock,
-            const GammaBetaGridDesc_N gamma_grid_desc_n,
-            const GammaBetaGridDesc_N beta_grid_desc_n,
-            index_t numMeanVarCountBlockTileIteration_N,
-            index_t NBlockClusterLength,
-            ComputeDataType epsilon,
-            HElementwiseOperation h_element_op)
+    kernel_welford_layernorm2d_second_half(
+        const EMeanVarDataType* __restrict__ p_e_grid,
+        const EMeanVarDataType* __restrict__ p_in_welford_mean_grid,
+        const EMeanVarDataType* __restrict__ p_in_welford_var_grid,
+        const int32_t* __restrict__ p_in_welford_count_grid,
+        const GammaDataType* __restrict__ p_gamma_grid,
+        const BetaDataType* __restrict__ p_beta_grid,
+        HDataType* __restrict__ p_h_grid,
+        const EHGridDesc_M_N e_grid_desc_m_n,
+        const EHGridDesc_M_N h_grid_desc_m_n,
+        const LayernormMeanVarGridDesc_M_NBlock mean_var_grid_desc_m_nblock,
+        const LayernormCountGridDesc_M_NBlock count_grid_desc_m_nblock,
+        const GammaBetaGridDesc_N gamma_grid_desc_n,
+        const GammaBetaGridDesc_N beta_grid_desc_n,
+        index_t numMeanVarCountBlockTileIteration_N,
+        index_t NBlockClusterLength,
+        ComputeDataType epsilon,
+        HElementwiseOperation h_element_op)
 {
     GridwiseWelfordLayernorm::Run(p_e_grid,
                                   p_in_welford_mean_grid,
@@ -1000,7 +996,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
                         h_element_op};
     }
 #ifndef __HIPCC_RTC__
-  static auto MakeInvoker() { return Invoker{}; }
+    static auto MakeInvoker() { return Invoker{}; }
 #endif
 
     // polymorphic
@@ -1089,5 +1085,3 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-
-#pragma clang diagnostic pop

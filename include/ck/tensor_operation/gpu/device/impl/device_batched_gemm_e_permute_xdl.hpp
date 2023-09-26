@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 #pragma once
 
 #ifndef __HIPCC_RTC__
@@ -9,7 +6,6 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #endif
-
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -64,21 +60,21 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_e_permute_xdl(const ABDataType* __restrict__ p_a_grid,
-                                          const ABDataType* __restrict__ p_b_grid,
-                                          EDataType* __restrict__ p_e_grid,
-                                          const index_t batch_count,
-                                          const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-                                          const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-                                          const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                                              e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                          const AElementwiseOperation a_element_op,
-                                          const BElementwiseOperation b_element_op,
-                                          const CDEElementwiseOperation cde_element_op,
-                                          const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
-                                          const Block2ETileMap block_2_etile_map)
+    kernel_batched_gemm_e_permute_xdl(const ABDataType* __restrict__ p_a_grid,
+                                      const ABDataType* __restrict__ p_b_grid,
+                                      EDataType* __restrict__ p_e_grid,
+                                      const index_t batch_count,
+                                      const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+                                      const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+                                      const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                                          e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                      const AElementwiseOperation a_element_op,
+                                      const BElementwiseOperation b_element_op,
+                                      const CDEElementwiseOperation cde_element_op,
+                                      const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
+                                      const Block2ETileMap block_2_etile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
@@ -634,9 +630,8 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
     }
 
 #ifndef __HIPCC_RTC__
-  static auto MakeInvoker() { return Invoker{}; }
+    static auto MakeInvoker() { return Invoker{}; }
 #endif
-
 
     // polymorphic
     std::unique_ptr<BaseArgument>
@@ -703,5 +698,3 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-
-#pragma clang diagnostic pop

@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -15,7 +12,6 @@
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
 #endif
-
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -121,23 +117,23 @@ template <typename GridwiseGemm,
           bool HasDoubleTailKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_conv_fwd_dl_multiple_d(
-            const ABDataType* __restrict__ p_a_grid,
-            const ABDataType* __restrict__ p_b_grid,
-            DsPointer p_ds_grid,
-            EDataType* __restrict__ p_e_grid,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CDEElementwiseOperation cde_element_op,
-            const index_t batch_count,
-            const AGridDesc_K0_M0_M1_K1 a_grid_desc_k0_m0_m1_k1,
-            const BGridDesc_K0_N0_N1_K1 b_grid_desc_k0_n0_n1_k1,
-            const DsGridDesc_M0_M10_M11_N0_N10_N11 ds_grid_desc_m0_m10_m11_n0_n10_n11,
-            const CGridDesc_M0_M10_M11_N0_N10_N11 e_grid_desc_m0_m10_m11_n0_n10_n11,
-            const Block2CTileMap block_2_ctile_map,
-            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
+    kernel_grouped_conv_fwd_dl_multiple_d(
+        const ABDataType* __restrict__ p_a_grid,
+        const ABDataType* __restrict__ p_b_grid,
+        DsPointer p_ds_grid,
+        EDataType* __restrict__ p_e_grid,
+        const AElementwiseOperation a_element_op,
+        const BElementwiseOperation b_element_op,
+        const CDEElementwiseOperation cde_element_op,
+        const index_t batch_count,
+        const AGridDesc_K0_M0_M1_K1 a_grid_desc_k0_m0_m1_k1,
+        const BGridDesc_K0_N0_N1_K1 b_grid_desc_k0_n0_n1_k1,
+        const DsGridDesc_M0_M10_M11_N0_N10_N11 ds_grid_desc_m0_m10_m11_n0_n10_n11,
+        const CGridDesc_M0_M10_M11_N0_N10_N11 e_grid_desc_m0_m10_m11_n0_n10_n11,
+        const Block2CTileMap block_2_ctile_map,
+        const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx1030__) ||           \
     defined(__gfx90a__) || defined(__gfx908__) || defined(__gfx940__) || defined(__gfx1100__) || \
@@ -898,7 +894,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
                         cde_element_op};
     }
 #ifndef __HIPCC_RTC__
-  static auto MakeInvoker() { return Invoker{}; }
+    static auto MakeInvoker() { return Invoker{}; }
 #endif
     std::unique_ptr<BaseArgument> MakeArgumentPointer(
         const void* p_a,
@@ -970,5 +966,3 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-
-#pragma clang diagnostic pop

@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 #pragma once
 #include <iostream>
 #include <vector>
@@ -40,5 +37,3 @@ struct DeviceGroupedGemmSplitK : public DeviceGroupedGemm<ALayout,
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-
-#pragma clang diagnostic pop
