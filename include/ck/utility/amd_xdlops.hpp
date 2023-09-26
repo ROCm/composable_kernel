@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -422,5 +419,3 @@ struct intrin_mfma_f32_16x16x32f8f8<16, 16>
 };
 } // namespace ck
 #endif
-
-#pragma clang diagnostic pop

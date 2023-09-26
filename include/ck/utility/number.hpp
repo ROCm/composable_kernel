@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -19,5 +16,3 @@ using LongNumber = integral_constant<long_index_t, N>;
 
 } // namespace ck
 #endif
-
-#pragma clang diagnostic pop

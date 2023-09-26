@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -163,5 +160,3 @@ __host__ __device__ void print_multi_index(const Tuple<Xs...>& x)
 
 } // namespace ck
 #endif
-
-#pragma clang diagnostic pop

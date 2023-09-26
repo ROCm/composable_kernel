@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -35,22 +32,21 @@ template <typename T, index_t N>
 struct vector_type;
 
 // Caution: DO NOT REMOVE
-// intentionally have only declaration but no definition to cause compilation
-// failure when trying to instantiate this template. The purpose is to catch
-// user's mistake when trying to make "vector of vectors"
+// intentionally have only declaration but no definition to cause compilation failure when trying to
+// instantiate this template. The purpose is to catch user's mistake when trying to make "vector of
+// vectors"
 template <typename T, index_t V, index_t N>
 struct vector_type<T __attribute__((ext_vector_type(V))), N>;
 
 // Caution: DO NOT REMOVE
-// intentionally have only declaration but no definition to cause compilation
-// failure when trying to instantiate this template. The purpose is to catch
-// user's mistake when trying to make "vector of vectors"
+// intentionally have only declaration but no definition to cause compilation failure when trying to
+// instantiate this template. The purpose is to catch user's mistake when trying to make "vector of
+// vectors"
 template <typename T, index_t V, index_t N>
 struct vector_type<vector_type<T, V>, N>;
 
 // vector_type_maker
-// This is the right way to handle "vector of vectors": making a bigger vector
-// instead
+// This is the right way to handle "vector of vectors": making a bigger vector instead
 template <typename T, index_t N>
 struct vector_type_maker
 {
@@ -1253,5 +1249,3 @@ struct NumericLimits<f8_t>
 };
 
 } // namespace ck
-
-#pragma clang diagnostic pop

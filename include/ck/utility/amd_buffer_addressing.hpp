@@ -1,6 +1,3 @@
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -1315,5 +1312,3 @@ amd_buffer_atomic_max(const typename vector_type_maker<T, N>::type::type src_thr
 }
 
 } // namespace ck
-
-#pragma clang diagnostic pop
