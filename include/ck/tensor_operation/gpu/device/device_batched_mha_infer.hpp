@@ -31,7 +31,7 @@ template <index_t NumDimG,
           typename B1ElementwiseOperation,
           typename C1DEElementwiseOperation,
           MaskingSpecialization MaskingSpec>
-struct DeviceBatchedMultiheadAttentionForward : public BaseOperator
+struct DeviceBatchedMultiheadAttentionInfer : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(
         const void* p_a,

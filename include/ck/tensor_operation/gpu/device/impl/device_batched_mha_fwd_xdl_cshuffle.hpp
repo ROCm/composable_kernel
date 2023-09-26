@@ -206,7 +206,7 @@ template <index_t NumDimG,
           int D0sTransferSrcScalarPerVector = 4,
           LoopScheduler LoopSched           = LoopScheduler::Default>
 struct DeviceBatchedMultiheadAttentionForward_Xdl
-    : public DeviceBatchedMultiheadAttentionForward<NumDimG,
+    : public DeviceBatchedMultiheadAttentionInfer<NumDimG,
                                                     NumDimM,
                                                     NumDimN,
                                                     NumDimK,

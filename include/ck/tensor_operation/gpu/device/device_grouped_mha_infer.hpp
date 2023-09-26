@@ -30,7 +30,7 @@ template <index_t NumDimG,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
           MaskingSpecialization MaskingSpec>
-struct DeviceGroupedMultiheadAttentionForward : public BaseOperator
+struct DeviceGroupedMultiheadAttentionInfer : public BaseOperator
 {
     struct ProblemDesc
     {

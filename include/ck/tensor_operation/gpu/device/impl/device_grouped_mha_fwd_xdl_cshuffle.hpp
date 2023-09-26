@@ -195,7 +195,7 @@ template <index_t NumDimG,
           MaskingSpecialization MaskingSpec,
           LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceGroupedMultiheadAttentionForward_Xdl
-    : public DeviceGroupedMultiheadAttentionForward<NumDimG,
+    : public DeviceGroupedMultiheadAttentionInfer<NumDimG,
                                                     NumDimM,
                                                     NumDimN,
                                                     NumDimK,
