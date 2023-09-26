@@ -157,10 +157,6 @@ struct DeviceColumnToImageImpl
             const auto desc_m_k = matrix_padder.PadADescriptor_M_K(desc_gemm_form_merged_filters);
             return desc_m_k;
         }
-        else
-        {
-            throw std::runtime_error("wrong! only implemented for 1D, 2D and 3D");
-        }
     }
 
     // Use MakeADescriptor_M_K from grouped convolution forward
