@@ -416,8 +416,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
                              const std::vector<ck::index_t>& acc0_biases_gs_ms_ns_strides)
     {
 
-        return Transform::MakeCGridDescriptor_M_N(acc0_biases_gs_ms_ns_lengths,
-                                                  acc0_biases_gs_ms_ns_strides);
+        return Transform::MakeC0GridDescriptor_M_N(acc0_biases_gs_ms_ns_lengths,
+                                                   acc0_biases_gs_ms_ns_strides);
     }
 
     static auto
@@ -425,8 +425,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle_V2
                                const std::vector<ck::index_t>& acc0_biases_gs_ms_ns_strides)
     {
 
-        return Transform::MakeCGridDescriptor_G_M_N(acc0_biases_gs_ms_ns_lengths,
-                                                    acc0_biases_gs_ms_ns_strides);
+        return Transform::MakeC0GridDescriptor_G_M_N(acc0_biases_gs_ms_ns_lengths,
+                                                     acc0_biases_gs_ms_ns_strides);
     }
 
     using AGridDesc_AK0_M_AK1  = decltype(MakeAGridDescriptor_AK0_M_AK1({}, {}));
