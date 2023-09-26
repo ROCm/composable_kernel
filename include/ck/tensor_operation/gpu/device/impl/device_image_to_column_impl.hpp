@@ -256,10 +256,6 @@ struct DeviceImageToColumnImpl
         {
             return false;
         }
-        if constexpr(!(NDimSpatial >= 1 && NDimSpatial <= 3))
-        {
-            return false;
-        }
 
         const auto w_pad_left  = arg.input_left_pads_[NDimSpatial - I1];
         const auto w_pad_right = arg.input_right_pads_[NDimSpatial - I1];
