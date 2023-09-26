@@ -85,7 +85,9 @@ template <ck::index_t NumDimSpatial,
           typename OutDataType,
           typename InLayout,
           typename WeiLayout,
-          typename OutLayout>
+          typename OutLayout,
+          typename ComputeTypeA = InDataType,
+          typename ComputeTypeB = ComputeTypeA>
 bool run_grouped_conv_bwd_weight(
     const std::array<ck::index_t, NumDimSpatial + 3>& input_lengths,
     const std::array<ck::index_t, NumDimSpatial + 3>& input_strides,
@@ -113,7 +115,9 @@ bool run_grouped_conv_bwd_weight(
                                                                               OutDataType,
                                                                               PassThrough,
                                                                               PassThrough,
-                                                                              PassThrough>;
+                                                                              PassThrough,
+                                                                              ComputeTypeA,
+                                                                              ComputeTypeB>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
