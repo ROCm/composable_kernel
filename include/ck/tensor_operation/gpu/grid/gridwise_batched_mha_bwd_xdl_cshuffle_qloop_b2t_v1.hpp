@@ -1521,10 +1521,12 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         const CElementwiseOperation& c_element_op,
         const QGridDesc_K0_M_K1& q_grid_desc_k0_m_k1,
         const KGridDesc_K0_N_K1& k_grid_desc_k0_n_k1,
+        const KGridDesc_K0_N_K1& kgrad_grid_desc_k0_n_k1,
         const D0GridDescriptor_M0_N0_M1_M2_N1_M3& d0_grid_desc_m0_n0_m1_m2_n1_m3,
         const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3&
             z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
         const VGridDesc_O0_N_O1& v_grid_desc_o0_n_o1,
+        const VGridDesc_O0_N_O1& vgrad_grid_desc_o0_n_o1,
         const YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock&
             y_grid_desc_mblock_mperblock_oblock_operblock,
         const LSEGridDesc_M& lse_grid_desc_m,
@@ -1557,11 +1559,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         const auto ygrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_ygrad_grid, ygrad_grid_desc_o0_m_o1.GetElementSpaceSize());
         auto vgrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_vgrad_grid, v_grid_desc_o0_n_o1.GetElementSpaceSize());
+            p_vgrad_grid, vgrad_grid_desc_o0_n_o1.GetElementSpaceSize());
         auto qgrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_qgrad_grid, q_grid_desc_k0_m_k1.GetElementSpaceSize());
         auto kgrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_kgrad_grid, k_grid_desc_k0_n_k1.GetElementSpaceSize());
+            p_kgrad_grid, kgrad_grid_desc_k0_n_k1.GetElementSpaceSize());
 
         // divide block work by [N, K]
         const auto block_work_idx =
@@ -1711,7 +1713,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
 
         // dV: transform input and output tensor descriptors
         auto vgrad_grid_desc_nblock_nperblock_oblock_operblock =
-            MakeVGradGridDesc_NBlock_NPerBlock_OBlock_OPerBlock(v_grid_desc_o0_n_o1);
+            MakeVGradGridDesc_NBlock_NPerBlock_OBlock_OPerBlock(vgrad_grid_desc_o0_n_o1);
 
         // dK: A matrix blockwise copy
         auto kgrad_gemm_tile_sgrad_blockwise_copy =
@@ -1740,7 +1742,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
 
         // dK: transform input and output tensor descriptors
         auto kgrad_grid_desc_nblock_nperblock_oblock_operblock =
-            MakeKGradGridDesc_NBlock_NPerBlock_OBlock_OPerBlock(k_grid_desc_k0_n_k1);
+            MakeKGradGridDesc_NBlock_NPerBlock_OBlock_OPerBlock(kgrad_grid_desc_k0_n_k1);
 
         //
         // set up dQ Gemm (type 3 crr)
