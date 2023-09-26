@@ -2,6 +2,18 @@
 
 Full documentation for Composable Kernel is not yet available.
 
+## (Unreleased) CK for ROCm 6.0.0
+
+### Fixed
+
+### Optimizations
+
+### Added
+- Image to column (#867) and column to image kernels (#930).
+
+### Changed
+
+
 ## CK 0.2.0 for ROCm 5.5.0
 
 ### Fixed
@@ -29,4 +41,3 @@ Full documentation for Composable Kernel is not yet available.
 - Added MaxPool backward (#750).
 
 ### Changed
-- Changed ...
