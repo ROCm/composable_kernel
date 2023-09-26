@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
-cmake_policy(SET CMP0140 NEW)
+if(POLICY CMP0140)
+    # policies CMP0140 not known to CMake until 3.25
+    cmake_policy(SET CMP0140 NEW)
+endif()
 
 # This has to be initialized before the project() command appears
 # Set the default of CMAKE_BUILD_TYPE to be release, unless user specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
