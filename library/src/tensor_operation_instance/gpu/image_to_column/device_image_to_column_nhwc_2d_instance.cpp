@@ -11,42 +11,50 @@ namespace instance {
 
 using namespace ck::conv_tensor_rearrange_op;
 
-#ifdef CK_ENABLE_BF16
 void add_device_image_to_column_nhwc_2d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, BF16, BF16, ImageToColumn>>>&
         instances)
 {
+#ifdef CK_ENABLE_BF16
     add_device_operation_instances(instances, device_image_to_column_bf16_instances<2, GNHWC>{});
-}
+#else
+    ignore = instances;
 #endif
+}
 
-#ifdef CK_ENABLE_FP16
 void add_device_image_to_column_nhwc_2d_f16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, F16, F16, ImageToColumn>>>&
         instances)
 {
+#ifdef CK_ENABLE_FP16
     add_device_operation_instances(instances, device_image_to_column_f16_instances<2, GNHWC>{});
-}
+#else
+    ignore = instances;
 #endif
+}
 
-#ifdef CK_ENABLE_FP32
 void add_device_image_to_column_nhwc_2d_f32_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, F32, F32, ImageToColumn>>>&
         instances)
 {
+#ifdef CK_ENABLE_FP32
     add_device_operation_instances(instances, device_image_to_column_f32_instances<2, GNHWC>{});
-}
+#else
+    ignore = instances;
 #endif
+}
 
-#ifdef CK_ENABLE_INT8
 void add_device_image_to_column_nhwc_2d_i8_instances(
     std::vector<
         std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, int8_t, int8_t, ImageToColumn>>>&
         instances)
 {
+#ifdef CK_ENABLE_INT8
     add_device_operation_instances(instances, device_image_to_column_i8_instances<2, GNHWC>{});
-}
+#else
+    ignore = instances;
 #endif
+}
 
 } // namespace instance
 } // namespace device
