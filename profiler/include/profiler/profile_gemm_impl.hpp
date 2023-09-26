@@ -223,6 +223,12 @@ int profile_gemm_impl(int do_verification,
     {
         std::cout << "Best Perf for datatype = int8";
     }
+#if defined CK_ENABLE_FP8
+    else if constexpr(is_same<CDataType, f8_t>::value)
+    {
+        std::cout << "Best Perf for datatype = fp8";
+    }
+#endif
 
     if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value)
     {
