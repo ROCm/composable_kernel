@@ -70,10 +70,23 @@ class TestBatchNormBwdRank4 : public ::testing::Test
     }
 };
 
-using KernelTypes = ::testing::Types<std::tuple<F16, F32, F32, F32, F16, F32, F32>,
-                                     std::tuple<F32, F32, F32, F32, F32, F32, F32>,
-                                     std::tuple<BF16, F32, F32, F32, BF16, F32, F32>,
-                                     std::tuple<F64, F64, F64, F64, F64, F64, F64>>;
+using KernelTypes = ::testing::Types<
+#ifdef CK_ENABLE_FP16
+    std::tuple<F16, F32, F32, F32, F16, F32, F32>
+#endif
+#ifdef CK_ENABLE_FP32
+    ,
+    std::tuple<F32, F32, F32, F32, F32, F32, F32>
+#endif
+#ifdef CK_ENABLE_BF16
+    ,
+    std::tuple<BF16, F32, F32, F32, BF16, F32, F32>
+#endif
+#ifdef CK_ENABLE_FP64
+    ,
+    std::tuple<F64, F64, F64, F64, F64, F64, F64>
+#endif
+    >;
 
 TYPED_TEST_SUITE(TestBatchNormBwdRank4, KernelTypes);
 
