@@ -194,7 +194,7 @@ int run(int argc, char* argv[])
 
     std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
     std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
-                             sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O) *
+                             sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O + sizeof(Acc0BiasDataType) * M * N) *
                             BatchCount;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;

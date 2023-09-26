@@ -924,7 +924,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle"
+        str << "DeviceBatchedMultiheadAttentionForward_Xdl"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

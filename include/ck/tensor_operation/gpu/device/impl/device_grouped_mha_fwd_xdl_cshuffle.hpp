@@ -552,8 +552,8 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl
                 std::vector<index_t> tmp_d0_gs_ms_ns_strides;
                 if constexpr(!is_same<D0DataType, void>::value)
                 {
-                    tmp_d0_gs_ms_ns_lengths = problem_desc.acc0_biases_gs_ms_ns_lengths;
-                    tmp_d0_gs_ms_ns_strides = problem_desc.acc0_biases_gs_ms_ns_strides;
+                    tmp_d0_gs_ms_ns_lengths = problem_desc.acc0_bias_gs_ms_ns_lengths;
+                    tmp_d0_gs_ms_ns_strides = problem_desc.acc0_bias_gs_ms_ns_strides;
                 }
                 else
                 {
