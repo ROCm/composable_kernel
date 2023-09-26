@@ -1,6 +1,4 @@
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -15,5 +13,3 @@ struct StreamConfig
     bool time_kernel_      = false;
     int log_level_         = 0;
 };
-
-#pragma clang diagnostic pop

@@ -1,6 +1,4 @@
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -483,5 +481,3 @@ __host__ __device__ constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
 }
 
 } // namespace ck
-
-#pragma clang diagnostic pop
