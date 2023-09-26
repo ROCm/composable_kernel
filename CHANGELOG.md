@@ -9,7 +9,7 @@ Full documentation for Composable Kernel is not yet available.
 ### Optimizations
 
 ### Added
-- Image to column (#867) and column to image kernels (#930).
+- Added image to column (#867) and column to image kernels (#930).
 
 ### Changed
 
