@@ -13,3 +13,8 @@ add_gtest_executable(test_bf8 bf8.cpp)
 if(result EQUAL 0)
   target_link_libraries(test_bf8 PRIVATE utility)
 endif()
+
+add_gtest_executable(test_type_convert_const type_convert_const.cpp)
+if(result EQUAL 0)
+  target_link_libraries(test_type_convert_const PRIVATE utility)
+endif()

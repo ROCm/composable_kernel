@@ -9,13 +9,23 @@
 
 namespace ck {
 
-// Convert X to Y
-template <typename Y, typename X>
+// Convert X to Y, Y is a non-const data type.
+template <typename Y, typename X, std::enable_if_t<!std::is_const_v<Y>, bool> = false>
 __host__ __device__ constexpr Y type_convert(X x)
 {
     static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
 
     return static_cast<Y>(x);
+}
+
+// Convert X to Y, Y is a const data type.
+template <typename Y, typename X, std::enable_if_t<std::is_const_v<Y>, bool> = false>
+__host__ __device__ constexpr Y type_convert(X x)
+{
+    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
+
+    using NonConstY = std::remove_const_t<Y>;
+    return static_cast<Y>(type_convert<NonConstY>(x));
 }
 
 // convert bfp16 to fp32
