@@ -122,6 +122,18 @@ struct ReferenceGroupnorm : public device::BaseOperator
 
                                 ds += dy * gamma * x;
                                 db += dy * gamma;
+                            }
+
+                    for(int h = 0; h < H; ++h)
+                        for(int w = 0; w < W; ++w)
+                            for(int c = 0; c < C; ++c)
+                            {
+                                ComputeDataType dy =
+                                    ck::type_convert<ComputeDataType>(arg.dy_nhwgc_(n, h, w, g, c));
+                                ComputeDataType x =
+                                    ck::type_convert<ComputeDataType>(arg.x_nhwgc_(n, h, w, g, c));
+                                ComputeDataType gamma =
+                                    ck::type_convert<ComputeDataType>(arg.gamma_gc_(g, c));
 
                                 ComputeDataType b =
                                     (db * mean - ds) * rstd * rstd * rstd / reduce_size;
