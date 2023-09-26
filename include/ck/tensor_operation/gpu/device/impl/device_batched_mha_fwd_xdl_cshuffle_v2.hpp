@@ -1028,8 +1028,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         {
             if(arg.d0_n_length_stride_[1] == 1)
             {
-                if(!(arg.d0_n_length_stride_[0] % Acc0BiasTransferSrcScalarPerVector == 0 ||
-                     Transform::matrix_padder.PadN))
+                if(arg.d0_n_length_stride_[0] % Acc0BiasTransferSrcScalarPerVector != 0)
                     return false;
             }
             else if(Acc0BiasTransferSrcScalarPerVector != 1)
