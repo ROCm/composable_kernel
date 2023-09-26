@@ -752,7 +752,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                         op_ptrs);
                 }
 #endif
-#if defined CK_ENABLE_FP16 && defined CK_ENABLE_F8 && defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP16 && defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
                 else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
                                   is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, f8_t> &&
                                   is_same_v<ComputeTypeB, bf8_t>)
