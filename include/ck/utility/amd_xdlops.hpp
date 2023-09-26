@@ -355,6 +355,7 @@ struct intrin_mfma_f64_16x16x4f64<16, 16>
     }
 };
 
+#if defined CK_ENABLE_FP8
 template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_f32_32x32x16f8f8;
 
@@ -417,5 +418,6 @@ struct intrin_mfma_f32_16x16x32f8f8<16, 16>
 #endif
     }
 };
+#endif
 } // namespace ck
 #endif
