@@ -157,6 +157,6 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 B1ElementOp,
                                                                                 CElementOp>;
 
-#include "run_batched_multihead_attention_forward.inc"
+#include "run_batched_multihead_attention_infer.inc"
 
 int main(int argc, char* argv[]) { return run(argc, argv); }
