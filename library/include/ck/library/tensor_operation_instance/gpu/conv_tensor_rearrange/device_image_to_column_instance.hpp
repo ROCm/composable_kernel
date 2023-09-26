@@ -25,94 +25,94 @@ using S = ck::Sequence<Is...>;
 template <ck::index_t NDimSpatial, typename InLayout>
 using device_image_to_column_bf16_instances = std::tuple<
     // clang-format off
-        //#####################|        Num| InLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|   ConvTensor|
-        //#####################|        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|  RearrangeOp|
-        //#####################|    Spatial|         |           |            |      |      |      |   Lengths| Vector|             |
-        //#####################|           |         |           |            |      |      |      |          |       |             |
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,    64,     8,     8,   S<8, 8>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,    64,    16,    16,   S<8, 8>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,    64,    32,    32,   S<8, 8>,     4, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,    64,    64,    64,   S<8, 8>,     8, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   128,    16,    16,  S<8, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   128,    64,    64,  S<8, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   128,    32,    64,  S<8, 16>,     4, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   128,    64,   128,  S<8, 16>,     8, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   256,    16,    16, S<16, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   256,    64,    64, S<16, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   256,   128,   128, S<16, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   256,    64,    64, S<16, 16>,     4, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   256,   128,   128, S<16, 16>,     4, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   256,   128,   128, S<16, 16>,     8, ImageToColumn>
+        //#####################|        Num| InLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|
+        //#####################|        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|
+        //#####################|    Spatial|         |           |            |      |      |      |   Lengths| Vector|
+        //#####################|           |         |           |            |      |      |      |          |       |
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,    64,     8,     8,   S<8, 8>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,    64,    16,    16,   S<8, 8>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,    64,    32,    32,   S<8, 8>,     4>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,    64,    64,    64,   S<8, 8>,     8>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   128,    16,    16,  S<8, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   128,    64,    64,  S<8, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   128,    32,    64,  S<8, 16>,     4>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   128,    64,   128,  S<8, 16>,     8>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   256,    16,    16, S<16, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   256,    64,    64, S<16, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   256,   128,   128, S<16, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   256,    64,    64, S<16, 16>,     4>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   256,   128,   128, S<16, 16>,     4>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,       BF16,        BF16,   256,   128,   128, S<16, 16>,     8>
     // clang-format on
     >;
 
 template <ck::index_t NDimSpatial, typename InLayout>
 using device_image_to_column_f16_instances = std::tuple<
     // clang-format off
-        //#####################|        Num| InLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|   ConvTensor|
-        //#####################|        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|  RearrangeOp|
-        //#####################|    Spatial|         |           |            |      |      |      |   Lengths| Vector|             |
-        //#####################|           |         |           |            |      |      |      |          |       |             |
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,    64,     8,     8,   S<8, 8>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,    64,    16,    16,   S<8, 8>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,    64,    32,    32,   S<8, 8>,     4, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,    64,    64,    64,   S<8, 8>,     8, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   128,    16,    16,  S<8, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   128,    64,    64,  S<8, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   128,    32,    64,  S<8, 16>,     4, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   128,    64,   128,  S<8, 16>,     8, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   256,    16,    16, S<16, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   256,    64,    64, S<16, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   256,   128,   128, S<16, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   256,    64,    64, S<16, 16>,     4, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   256,   128,   128, S<16, 16>,     4, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   256,   128,   128, S<16, 16>,     8, ImageToColumn>
+        //#####################|        Num| InLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|
+        //#####################|        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|
+        //#####################|    Spatial|         |           |            |      |      |      |   Lengths| Vector|
+        //#####################|           |         |           |            |      |      |      |          |       |
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,    64,     8,     8,   S<8, 8>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,    64,    16,    16,   S<8, 8>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,    64,    32,    32,   S<8, 8>,     4>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,    64,    64,    64,   S<8, 8>,     8>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   128,    16,    16,  S<8, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   128,    64,    64,  S<8, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   128,    32,    64,  S<8, 16>,     4>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   128,    64,   128,  S<8, 16>,     8>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   256,    16,    16, S<16, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   256,    64,    64, S<16, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   256,   128,   128, S<16, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   256,    64,    64, S<16, 16>,     4>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   256,   128,   128, S<16, 16>,     4>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F16,         F16,   256,   128,   128, S<16, 16>,     8>
     // clang-format on
     >;
 
 template <ck::index_t NDimSpatial, typename InLayout>
 using device_image_to_column_f32_instances = std::tuple<
     // clang-format off
-        //#####################|        Num| InLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|   ConvTensor|
-        //#####################|        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|  RearrangeOp|
-        //#####################|    Spatial|         |           |            |      |      |      |   Lengths| Vector|             |
-        //#####################|           |         |           |            |      |      |      |          |       |             |
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,    64,     8,     8,   S<8, 8>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,    64,    16,    16,   S<8, 8>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,    64,    32,    32,   S<8, 8>,     4, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   128,    16,    16,  S<8, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   128,    64,    64,  S<8, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   128,    32,    64,  S<8, 16>,     4, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   256,    16,    16, S<16, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   256,    64,    64, S<16, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   256,   128,   128, S<16, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   256,    64,    64, S<16, 16>,     4, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   256,   128,   128, S<16, 16>,     4, ImageToColumn>
+        //#####################|        Num| InLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|
+        //#####################|        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|
+        //#####################|    Spatial|         |           |            |      |      |      |   Lengths| Vector|
+        //#####################|           |         |           |            |      |      |      |          |       |
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,    64,     8,     8,   S<8, 8>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,    64,    16,    16,   S<8, 8>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,    64,    32,    32,   S<8, 8>,     4>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   128,    16,    16,  S<8, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   128,    64,    64,  S<8, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   128,    32,    64,  S<8, 16>,     4>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   256,    16,    16, S<16, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   256,    64,    64, S<16, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   256,   128,   128, S<16, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   256,    64,    64, S<16, 16>,     4>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,        F32,         F32,   256,   128,   128, S<16, 16>,     4>
     // clang-format on
     >;
 
 template <ck::index_t NDimSpatial, typename InLayout>
 using device_image_to_column_i8_instances = std::tuple<
     // clang-format off
-        //#####################|        Num| InLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|   ConvTensor|
-        //#####################|        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|  RearrangeOp|
-        //#####################|    Spatial|         |           |            |      |      |      |   Lengths| Vector|             |
-        //#####################|           |         |           |            |      |      |      |          |       |             |
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,    64,     8,     8,   S<8, 8>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,    64,    16,    16,   S<8, 8>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,    64,    32,    32,   S<8, 8>,     4, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,    64,    64,    64,   S<8, 8>,     8, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   128,    16,    16,  S<8, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   128,    64,    64,  S<8, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   128,    32,    64,  S<8, 16>,     4, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   128,    64,   128,  S<8, 16>,     8, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,    16,    16, S<16, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,    64,    64, S<16, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,   128,   128, S<16, 16>,     1, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,    64,    64, S<16, 16>,     4, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,   128,   128, S<16, 16>,     4, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,   128,   128, S<16, 16>,     8, ImageToColumn>,
-        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,   256,   256, S<16, 16>,     16,ImageToColumn>
+        //#####################|        Num| InLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|
+        //#####################|        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|
+        //#####################|    Spatial|         |           |            |      |      |      |   Lengths| Vector|
+        //#####################|           |         |           |            |      |      |      |          |       |
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,    64,     8,     8,   S<8, 8>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,    64,    16,    16,   S<8, 8>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,    64,    32,    32,   S<8, 8>,     4>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,    64,    64,    64,   S<8, 8>,     8>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   128,    16,    16,  S<8, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   128,    64,    64,  S<8, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   128,    32,    64,  S<8, 16>,     4>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   128,    64,   128,  S<8, 16>,     8>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,    16,    16, S<16, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,    64,    64, S<16, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,   128,   128, S<16, 16>,     1>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,    64,    64, S<16, 16>,     4>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,   128,   128, S<16, 16>,     4>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,   128,   128, S<16, 16>,     8>,
+        DeviceImageToColumnImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,   256,   256, S<16, 16>,     16>
     // clang-format on
     >;
 

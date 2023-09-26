@@ -33,12 +33,13 @@ template <index_t NDimSpatial,
           index_t KPerBlock,
           typename ThreadClusterLengths,
           index_t ScalarPerVector,
-          typename ConvTensorRearrangeOp>
-struct DeviceImageToColumnImpl : public DeviceConvTensorRearrange<NDimSpatial,
-                                                                  ImageLayout,
-                                                                  InputDataType,
-                                                                  OutputDataType,
-                                                                  ConvTensorRearrangeOp>
+          typename std::enable_if<NDimSpatial >= 1 && NDimSpatial <= 3, bool>::type = false>
+struct DeviceImageToColumnImpl
+    : public DeviceConvTensorRearrange<NDimSpatial,
+                                       ImageLayout,
+                                       InputDataType,
+                                       OutputDataType,
+                                       conv_tensor_rearrange_op::ImageToColumn>
 {
 
     static constexpr auto I0 = Number<0>{};
@@ -249,12 +250,7 @@ struct DeviceImageToColumnImpl : public DeviceConvTensorRearrange<NDimSpatial,
 
     bool IsSupportedArgument(const Argument& arg)
     {
-        using namespace conv_tensor_rearrange_op;
         using namespace tensor_layout::convolution;
-        if constexpr(!std::is_same_v<ConvTensorRearrangeOp, ImageToColumn>)
-        {
-            return false;
-        }
         if constexpr(!(std::is_same_v<ImageLayout, GNWC> || std::is_same_v<ImageLayout, GNHWC> ||
                        std::is_same_v<ImageLayout, GNDHWC>))
         {

@@ -35,17 +35,17 @@ class TestConvTensorRearrangeInterface : public ::testing::Test
 
     // clang-format off
     using DeviceImgToColInstance = ck::tensor_operation::device::DeviceImageToColumnImpl
-        //        Num| ImLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|   ConvTensor|
-        //        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|  RearrangeOp|
-        //    Spatial|         |           |            |      |      |      |   Lengths| Vector|             |
-        //           |         |           |            |      |      |      |          |       |             |
-        < NDimSpatial, ImLayout,   DataType,    DataType,   256,   128,   128, S<16, 16>,ScalarPerVector, ImageToColumn>;
+        //        Num| ImLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|
+        //        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|
+        //    Spatial|         |           |            |      |      |      |   Lengths| Vector|
+        //           |         |           |            |      |      |      |          |       |
+        < NDimSpatial, ImLayout,   DataType,    DataType,   256,   128,   128, S<16, 16>,ScalarPerVector>;
     using DeviceColToimgInstance = ck::tensor_operation::device::DeviceColumnToImageImpl
-        //        Num| ImLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|   ConvTensor|
-        //        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|  RearrangeOp|
-        //    Spatial|         |           |            |      |      |      |   Lengths| Vector|             |
-        //           |         |           |            |      |      |      |          |       |             |
-        < NDimSpatial, ImLayout,   DataType,    DataType,   256,   128,   128, S<16, 16>,ScalarPerVector, ColumnToImage>;
+        //        Num| ImLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|
+        //        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|
+        //    Spatial|         |           |            |      |      |      |   Lengths| Vector|
+        //           |         |           |            |      |      |      |          |       |
+        < NDimSpatial, ImLayout,   DataType,    DataType,   256,   128,   128, S<16, 16>,ScalarPerVector>;
     // clang-format on
 
     ck::utils::conv::ConvParam conv_param;

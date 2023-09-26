@@ -16,7 +16,9 @@ namespace device {
  *
  * This Device operator supports conversion image ([G, N, Di, Hi, Wi, C]) to
  * the gemm problem([N * Do * Ho * Wo, Z *  Y * X * C]) (Image to Column) and
- * conversion gemm form to the image (Column to Image). G must be equal to 1.
+ * conversion gemm form to the image (Column to Image).
+ *
+ * Note that G must be equal to 1.
  *
  * \tparam NDimSpatial Number of spatial dimensions.
  * \tparam ImageLayout Input Layout.

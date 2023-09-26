@@ -11,11 +11,11 @@ using ColumnToImageOp = ck::conv_tensor_rearrange_op::ColumnToImage;
 
 // clang-format off
 using DeviceColToImgInstance = ck::tensor_operation::device::DeviceColumnToImageImpl
-        //#####################|        Num| ImLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|      ConvTensor|
-        //#####################|        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|     RearrangeOp|
-        //#####################|    Spatial|         |           |            |      |      |      |   Lengths| Vector|                |
-        //#####################|           |         |           |            |      |      |      |          |       |                |
-                              < NDimSpatial, ImLayout, InDataType, OutDataType,   256,   128,   128, S<16, 16>,     1, ColumnToImageOp>;
+        //#####################|        Num| ImLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|
+        //#####################|        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|
+        //#####################|    Spatial|         |           |            |      |      |      |   Lengths| Vector|
+        //#####################|           |         |           |            |      |      |      |          |       |
+                              < NDimSpatial, ImLayout, InDataType, OutDataType,   256,   128,   128, S<16, 16>,     1>;
 // clang-format on
 
 bool RunColumnToImage(const ExecutionConfig& config, const ck::utils::conv::ConvParam& conv_params)
