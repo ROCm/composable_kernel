@@ -108,7 +108,8 @@ struct ReferenceLayernorm : public device::BaseOperator
 
                     ComputeDataType b = (db * mean - ds) * rstd * rstd * rstd / K;
                     ComputeDataType c = -b * mean - db * rstd / K;
-                    arg.dx_m_n_(m, k)       = ck::type_convert<DXDataType>(dy * gamma * rstd + b * x + c);
+
+                    arg.dx_m_n_(m, k) = ck::type_convert<DXDataType>(dy * gamma * rstd + b * x + c);
                 }
             }
 
