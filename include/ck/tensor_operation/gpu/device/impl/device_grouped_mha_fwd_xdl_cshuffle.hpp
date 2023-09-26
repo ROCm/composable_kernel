@@ -10,7 +10,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_multiple_head_flash_attention_fwd.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_mha_infer.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_fwd_xdl_cshuffle.hpp"
@@ -196,22 +196,22 @@ template <index_t NumDimG,
           LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceGroupedMultiheadAttentionForward_Xdl
     : public DeviceGroupedMultiheadAttentionInfer<NumDimG,
-                                                    NumDimM,
-                                                    NumDimN,
-                                                    NumDimK,
-                                                    NumDimO,
-                                                    ADataType,
-                                                    BDataType,
-                                                    B1DataType,
-                                                    CDataType,
-                                                    Acc0BiasDataType,
-                                                    Acc1BiasDataType,
-                                                    AElementwiseOperation,
-                                                    BElementwiseOperation,
-                                                    AccElementwiseOperation,
-                                                    B1ElementwiseOperation,
-                                                    CElementwiseOperation,
-                                                    MaskingSpec>
+                                                  NumDimM,
+                                                  NumDimN,
+                                                  NumDimK,
+                                                  NumDimO,
+                                                  ADataType,
+                                                  BDataType,
+                                                  B1DataType,
+                                                  CDataType,
+                                                  Acc0BiasDataType,
+                                                  Acc1BiasDataType,
+                                                  AElementwiseOperation,
+                                                  BElementwiseOperation,
+                                                  AccElementwiseOperation,
+                                                  B1ElementwiseOperation,
+                                                  CElementwiseOperation,
+                                                  MaskingSpec>
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
@@ -231,23 +231,23 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl
 #endif
 
     using DeviceOp    = DeviceGroupedMultiheadAttentionForward_Xdl;
-    using ProblemDesc = typename DeviceGroupedMultiheadAttentionForward<NumDimG,
-                                                                        NumDimM,
-                                                                        NumDimN,
-                                                                        NumDimK,
-                                                                        NumDimO,
-                                                                        ADataType,
-                                                                        BDataType,
-                                                                        B1DataType,
-                                                                        CDataType,
-                                                                        Acc0BiasDataType,
-                                                                        Acc1BiasDataType,
-                                                                        AElementwiseOperation,
-                                                                        BElementwiseOperation,
-                                                                        AccElementwiseOperation,
-                                                                        B1ElementwiseOperation,
-                                                                        CElementwiseOperation,
-                                                                        MaskingSpec>::ProblemDesc;
+    using ProblemDesc = typename DeviceGroupedMultiheadAttentionInfer<NumDimG,
+                                                                      NumDimM,
+                                                                      NumDimN,
+                                                                      NumDimK,
+                                                                      NumDimO,
+                                                                      ADataType,
+                                                                      BDataType,
+                                                                      B1DataType,
+                                                                      CDataType,
+                                                                      Acc0BiasDataType,
+                                                                      Acc1BiasDataType,
+                                                                      AElementwiseOperation,
+                                                                      BElementwiseOperation,
+                                                                      AccElementwiseOperation,
+                                                                      B1ElementwiseOperation,
+                                                                      CElementwiseOperation,
+                                                                      MaskingSpec>::ProblemDesc;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};

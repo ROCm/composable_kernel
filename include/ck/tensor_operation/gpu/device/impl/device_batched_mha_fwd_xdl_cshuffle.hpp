@@ -9,7 +9,7 @@
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_multiple_head_flash_attention_fwd.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_mha_infer.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -207,22 +207,22 @@ template <index_t NumDimG,
           LoopScheduler LoopSched           = LoopScheduler::Default>
 struct DeviceBatchedMultiheadAttentionForward_Xdl
     : public DeviceBatchedMultiheadAttentionInfer<NumDimG,
-                                                    NumDimM,
-                                                    NumDimN,
-                                                    NumDimK,
-                                                    NumDimO,
-                                                    ADataType,
-                                                    BDataType,
-                                                    B1DataType,
-                                                    CDataType,
-                                                    Acc0BiasDataType,
-                                                    Acc1BiasDataType,
-                                                    AElementwiseOperation,
-                                                    BElementwiseOperation,
-                                                    C0ElementwiseOperation,
-                                                    B1ElementwiseOperation,
-                                                    C1DEElementwiseOperation,
-                                                    MaskingSpec>
+                                                  NumDimM,
+                                                  NumDimN,
+                                                  NumDimK,
+                                                  NumDimO,
+                                                  ADataType,
+                                                  BDataType,
+                                                  B1DataType,
+                                                  CDataType,
+                                                  Acc0BiasDataType,
+                                                  Acc1BiasDataType,
+                                                  AElementwiseOperation,
+                                                  BElementwiseOperation,
+                                                  C0ElementwiseOperation,
+                                                  B1ElementwiseOperation,
+                                                  C1DEElementwiseOperation,
+                                                  MaskingSpec>
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
