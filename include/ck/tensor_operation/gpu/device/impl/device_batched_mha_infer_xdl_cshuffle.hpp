@@ -13,7 +13,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_fwd_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_infer_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -44,7 +44,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_multiple_head_flash_attention_forward(
+        kernel_batched_multiple_head_flash_attention_infer(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             const D0DataType* p_d0_grid,
@@ -205,7 +205,7 @@ template <index_t NumDimG,
           MaskingSpecialization MaskingSpec,
           int D0sTransferSrcScalarPerVector = 4,
           LoopScheduler LoopSched           = LoopScheduler::Default>
-struct DeviceBatchedMultiheadAttentionForward_Xdl
+struct DeviceBatchedMultiheadAttentionInfer_Xdl_CShuffle
     : public DeviceBatchedMultiheadAttentionInfer<NumDimG,
                                                   NumDimM,
                                                   NumDimN,
@@ -243,7 +243,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl
     static constexpr index_t NumDimGemm1K = NumDimN;
 #endif
 
-    using DeviceOp = DeviceBatchedMultiheadAttentionForward_Xdl;
+    using DeviceOp = DeviceBatchedMultiheadAttentionInfer_Xdl_CShuffle;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -376,7 +376,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl
         D0GridDesc_G_M_N d0_grid_desc_g_m_n_;
     };
 
-    using GridwiseGemm = GridwiseMultiHeadFlashAttentionForward_Xdl_CShuffle<
+    using GridwiseGemm = GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle<
         ADataType, // TODO: distinguish A/B datatype
         D0DataType,
         GemmAccDataType,
@@ -641,7 +641,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl
             float ave_time = 0;
 
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
-                const auto kernel = kernel_batched_multiple_head_flash_attention_forward<
+                const auto kernel = kernel_batched_multiple_head_flash_attention_infer<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     D0DataType,
@@ -925,7 +925,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceBatchedMultiheadAttentionForward_Xdl"
+        str << "DeviceBatchedMultiheadAttentionInfer_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

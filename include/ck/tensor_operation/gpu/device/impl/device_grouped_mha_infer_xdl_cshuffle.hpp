@@ -13,7 +13,7 @@
 #include "ck/tensor_operation/gpu/device/device_grouped_mha_infer.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_fwd_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_infer_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -35,7 +35,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v1(
+        kernel_grouped_multiple_head_flash_attention_infer(
             const void CK_CONSTANT_ADDRESS_SPACE* group_kernel_args,
             const index_t group_count,
             const AElementwiseOperation a_element_op,
@@ -194,7 +194,7 @@ template <index_t NumDimG,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           MaskingSpecialization MaskingSpec,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceGroupedMultiheadAttentionForward_Xdl
+struct DeviceGroupedMultiheadAttentionInfer_Xdl_CShuffle
     : public DeviceGroupedMultiheadAttentionInfer<NumDimG,
                                                   NumDimM,
                                                   NumDimN,
@@ -230,7 +230,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl
     static constexpr index_t NumDimGemm1K = NumDimN;
 #endif
 
-    using DeviceOp    = DeviceGroupedMultiheadAttentionForward_Xdl;
+    using DeviceOp    = DeviceGroupedMultiheadAttentionInfer_Xdl_CShuffle;
     using ProblemDesc = typename DeviceGroupedMultiheadAttentionInfer<NumDimG,
                                                                       NumDimM,
                                                                       NumDimN,
@@ -382,7 +382,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl
     };
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseMultiHeadFlashAttentionForward_Xdl_CShuffle<
+    using GridwiseGemm = GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle<
         ADataType, // TODO: distinguish A/B datatype
         Acc0BiasDataType,
         GemmAccDataType,
@@ -698,15 +698,15 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl
 
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
                 const auto kernel =
-                    kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v1<GridwiseGemm,
-                                                                     D0DataType,
-                                                                     GroupKernelArg,
-                                                                     AElementwiseOperation,
-                                                                     BElementwiseOperation,
-                                                                     AccElementwiseOperation,
-                                                                     B1ElementwiseOperation,
-                                                                     CElementwiseOperation,
-                                                                     has_main_k_block_loop_>;
+                    kernel_grouped_multiple_head_flash_attention_infer<GridwiseGemm,
+                                                                       D0DataType,
+                                                                       GroupKernelArg,
+                                                                       AElementwiseOperation,
+                                                                       BElementwiseOperation,
+                                                                       AccElementwiseOperation,
+                                                                       B1ElementwiseOperation,
+                                                                       CElementwiseOperation,
+                                                                       has_main_k_block_loop_>;
 
                 return launch_and_time_kernel(
                     stream_config,
@@ -944,7 +944,7 @@ struct DeviceGroupedMultiheadAttentionForward_Xdl
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedMultiheadAttentionForward_Xdl"
+        str << "DeviceGroupedMultiheadAttentionInfer_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

@@ -8,6 +8,7 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
                                                           |-------------------------------------|
                                                                           Gemm1
 */
+#define DIM 128 // DIM should be a multiple of 8.
 
 #include <iostream>
 #include <numeric>
@@ -17,7 +18,7 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_mha_fwd_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_mha_infer_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -42,7 +43,7 @@ using B1DataType       = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using CDataType        = F16;
-using Acc0BiasDataType = F16;
+using Acc0BiasDataType = void;
 using Acc1BiasDataType = void;
 
 static constexpr ck::index_t NumDimG = 2;
@@ -66,72 +67,73 @@ static constexpr auto TensorSpecB0 = ck::tensor_operation::device::TensorSpecial
 static constexpr auto TensorSpecB1 = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecialization::Default;
 
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedMultiheadAttentionForward_Xdl<
-    NumDimG,
-    NumDimM,
-    NumDimN,
-    NumDimK,
-    NumDimO,
-    ADataType,
-    B0DataType,
-    B1DataType,
-    CDataType,
-    Acc0BiasDataType,
-    Acc1BiasDataType,
-    AccDataType,
-    CShuffleDataType,
-    AElementOp,
-    B0ElementOp,
-    Acc0ElementOp,
-    B1ElementOp,
-    CElementOp,
-    GemmSpec,
-    TensorSpecA,
-    TensorSpecB0,
-    TensorSpecB1,
-    TensorSpecC,
-    1,
-    256,
-    128,         // MPerBlock
-    128,         // NPerBlock
-    32,          // KPerBlock
-    64,          // Gemm1NPerBlock
-    32,          // Gemm1KPerBlock
-    8,           // AK1
-    8,           // BK1
-    2,           // B1K1
-    32,          // MPerXDL
-    32,          // NPerXDL
-    1,           // MXdlPerWave
-    4,           // NXdlPerWave
-    2,           // Gemm1NXdlPerWave
-    S<4, 64, 1>, // ABlockTransfer
-    S<1, 0, 2>,
-    S<1, 0, 2>,
-    2,
-    8,
-    8,
-    true,
-    S<4, 64, 1>, // BBlockTransfer
-    S<1, 0, 2>,
-    S<1, 0, 2>,
-    2,
-    8,
-    8,
-    true,
-    4,
-    S<16, 16, 1>, // B1BlockTransfer
-    S<0, 2, 1>,
-    S<0, 2, 1>,
-    1,
-    4,
-    2,
-    false,
-    1,              // CShuffleMXdlPerWavePerShuffle
-    2,              // CShuffleNXdlPerWavePerShuffle
-    S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-    8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-    MaskingSpec>;   // MaskingSpecialization
+using DeviceGemmInstance =
+    ck::tensor_operation::device::DeviceBatchedMultiheadAttentionInfer_Xdl_CShuffle<
+        NumDimG,
+        NumDimM,
+        NumDimN,
+        NumDimK,
+        NumDimO,
+        ADataType,
+        B0DataType,
+        B1DataType,
+        CDataType,
+        Acc0BiasDataType,
+        Acc1BiasDataType,
+        AccDataType,
+        CShuffleDataType,
+        AElementOp,
+        B0ElementOp,
+        Acc0ElementOp,
+        B1ElementOp,
+        CElementOp,
+        GemmSpec,
+        TensorSpecA,
+        TensorSpecB0,
+        TensorSpecB1,
+        TensorSpecC,
+        1,
+        256,
+        128,         // MPerBlock
+        128,         // NPerBlock
+        32,          // KPerBlock
+        DIM,         // Gemm1NPerBlock
+        32,          // Gemm1KPerBlock
+        8,           // AK1
+        8,           // BK1
+        2,           // B1K1
+        32,          // MPerXDL
+        32,          // NPerXDL
+        1,           // MXdlPerWave
+        4,           // NXdlPerWave
+        DIM / 32,    // Gemm1NXdlPerWave
+        S<4, 64, 1>, // ABlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<4, 64, 1>, // BBlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        4,
+        S<16, 16, 1>, // B1BlockTransfer
+        S<0, 2, 1>,
+        S<0, 2, 1>,
+        1,
+        4,
+        2,
+        false,
+        1,              // CShuffleMXdlPerWavePerShuffle
+        2,              // CShuffleNXdlPerWavePerShuffle
+        S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        MaskingSpec>;   // MaskingSpecialization
 
 // Ref Gemm0: fp16 in, fp32 out
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
@@ -155,6 +157,6 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 B1ElementOp,
                                                                                 CElementOp>;
 
-#include "run_grouped_multihead_attention_bias_forward.inc"
+#include "run_batched_multihead_attention_forward.inc"
 
 int main(int argc, char* argv[]) { return run(argc, argv); }
