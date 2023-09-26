@@ -17,7 +17,7 @@
 #include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_bwd_xdl_cshuffle_qloop_b2t_v2.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_bwd_xdl_cshuffle_qloop_b2t_v2_protro.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -87,8 +87,8 @@ __global__ void
 
     const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetABasePtr(g_idx)));
-    const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetBBasePtr(gkv_idx)));
+    const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(
+        arg_ptr[group_id].compute_base_ptr_of_batch_.GetBBasePtr(gkv_idx)));
     const long_index_t z_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetZBasePtr(g_idx)));
     const long_index_t b1_batch_offset = __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(
@@ -97,10 +97,12 @@ __global__ void
         static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetCBasePtr(g_idx)));
     const long_index_t lse_batch_offset = __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(
         arg_ptr[group_id].compute_base_ptr_of_batch_.GetLSEBasePtr(g_idx)));
-    const long_index_t bgrad_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetBGradBasePtr(g_idx)));
-    const long_index_t b1grad_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetB1GradBasePtr(g_idx)));
+    const long_index_t bgrad_batch_offset =
+        __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(
+            arg_ptr[group_id].compute_base_ptr_of_batch_.GetBGradBasePtr(g_idx)));
+    const long_index_t b1grad_batch_offset =
+        __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(
+            arg_ptr[group_id].compute_base_ptr_of_batch_.GetB1GradBasePtr(g_idx)));
 
     const index_t global_thread_id = get_thread_global_1d_id();
     ck::philox ph(seed, global_thread_id, offset);
@@ -145,9 +147,11 @@ __global__ void
                 c_element_op,
                 arg_ptr[group_id].a_grid_desc_ak0_m_ak1_,
                 arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
+                arg_ptr[group_id].bgrad_grid_desc_bk0_n_bk1_,
                 arg_ptr[group_id].d0_grid_desc_m0_n0_m1_m2_n1_m3_,
                 arg_ptr[group_id].c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_,
                 arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
+                arg_ptr[group_id].b1grad_grid_desc_bk0_n_bk1_,
                 arg_ptr[group_id].y_grid_desc_mblock_mperblock_oblock_operblock_,
                 arg_ptr[group_id].lse_grid_desc_m_,
                 arg_ptr[group_id].ygrad_grid_desc_m0_o_m1_,
@@ -184,9 +188,11 @@ __global__ void
             c_element_op,
             arg_ptr[group_id].a_grid_desc_ak0_m_ak1_,
             arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
+            arg_ptr[group_id].bgrad_grid_desc_bk0_n_bk1_,
             arg_ptr[group_id].d0_grid_desc_m0_n0_m1_m2_n1_m3_,
             arg_ptr[group_id].c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_,
             arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
+            arg_ptr[group_id].b1grad_grid_desc_bk0_n_bk1_,
             arg_ptr[group_id].y_grid_desc_mblock_mperblock_oblock_operblock_,
             arg_ptr[group_id].lse_grid_desc_m_,
             arg_ptr[group_id].ygrad_grid_desc_m0_o_m1_,
@@ -582,7 +588,6 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
     static auto MakeD0GridDescriptor_M_N(const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_lengths,
                                          const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_strides)
     {
-
         return Transform::MakeC0GridDescriptor_M_N(acc0_bias_gs_ms_ns_lengths,
                                                    acc0_bias_gs_ms_ns_strides);
     }
@@ -591,7 +596,6 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
     MakeD0GridDescriptor_G_M_N(const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_lengths,
                                const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_strides)
     {
-
         return Transform::MakeC0GridDescriptor_G_M_N(acc0_bias_gs_ms_ns_lengths,
                                                      acc0_bias_gs_ms_ns_strides);
     }
@@ -806,9 +810,11 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         // tensor descriptors for block/thread-wise copy
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
+        BGridDesc_BK0_N_BK1 bgrad_grid_desc_bk0_n_bk1_;
         typename GridwiseGemm::D0GridDescriptor_M0_N0_M1_M2_N1_M3 d0_grid_desc_m0_n0_m1_m2_n1_m3_;
         ZGridDesc_M_N z_grid_desc_m_n_;
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
+        B1GridDesc_BK0_N_BK1 b1grad_grid_desc_bk0_n_bk1_;
         YGridDesc_M_O y_grid_desc_m_o_;
 
         typename GridwiseGemm::YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
@@ -941,6 +947,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                     problem_desc.a_gs_ms_ks_lengths, problem_desc.a_gs_ms_ks_strides);
                 const auto b_grid_desc_bk0_n_bk1 = DeviceOp::MakeBGridDescriptor_BK0_N_BK1(
                     problem_desc.b_gs_ns_ks_lengths, problem_desc.b_gs_ns_ks_strides);
+                const auto bgrad_grid_desc_bk0_n_bk1 = DeviceOp::MakeBGridDescriptor_BK0_N_BK1(
+                    problem_desc.bgrad_gs_ns_ks_lengths, problem_desc.bgrad_gs_ns_ks_strides);
 
                 std::vector<index_t> tmp_d0_gs_ms_ns_lengths;
                 std::vector<index_t> tmp_d0_gs_ms_ns_strides;
@@ -963,6 +971,9 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                 const auto b1_grid_desc_bk0_n_bk1 = DeviceOp::MakeVGridDescriptor_O0_N_O1(
                     problem_desc.b1_gs_gemm1ns_gemm1ks_lengths,
                     problem_desc.b1_gs_gemm1ns_gemm1ks_strides);
+                const auto b1grad_grid_desc_bk0_n_bk1 = DeviceOp::MakeVGridDescriptor_O0_N_O1(
+                    problem_desc.b1grad_gs_gemm1ns_gemm1ks_lengths,
+                    problem_desc.b1grad_gs_gemm1ns_gemm1ks_strides);
                 const auto y_grid_desc_m_o = Transform::MakeCGridDescriptor_M_N(
                     problem_desc.c_gs_ms_gemm1ns_lengths, problem_desc.c_gs_ms_gemm1ns_strides);
 
@@ -1053,9 +1064,11 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                               p_vgrad_grid,
                                               a_grid_desc_ak0_m_ak1,
                                               b_grid_desc_bk0_n_bk1,
+                                              bgrad_grid_desc_bk0_n_bk1,
                                               d0_grid_desc_m0_n0_m1_m2_n1_m3,
                                               z_grid_desc_m_n,
                                               b1_grid_desc_bk0_n_bk1,
+                                              b1grad_grid_desc_bk0_n_bk1,
                                               y_grid_desc_m_o,
                                               y_grid_desc_mblock_mperblock_oblock_operblock,
                                               c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
@@ -1255,7 +1268,8 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             const index_t b1_gemm1n = kernel_arg.b1_grid_desc_bk0_n_bk1_.GetLength(I0) *
                                       kernel_arg.b1_grid_desc_bk0_n_bk1_.GetLength(I2);
 
-            if(!(c_g == device_arg.batch_count_ && c_m == a_m && c_gemm1n == b1_gemm1n && c_g % b_g == 0 && c_g / b_g == arg.h_ratio_))
+            if(!(c_g == device_arg.batch_count_ && c_m == a_m && c_gemm1n == b1_gemm1n &&
+                 c_g % b_g == 0 && c_g / b_g == arg.h_ratio_))
             {
                 return false;
             }

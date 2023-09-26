@@ -16,7 +16,7 @@
 #include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_bwd_xdl_cshuffle_qloop_b2t_v1.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_bwd_xdl_cshuffle_qloop_b2t_v1_protro.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -74,10 +74,12 @@ __global__ void
             const CElementwiseOperation c_element_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+            const BGridDesc_BK0_N_BK1 bgrad_grid_desc_bk0_n_bk1,
             const D0GridDescriptor_M0_N0_M1_M2_N1_M3 d0_grid_desc_m0_n0_m1_m2_n1_m3,
             const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3
                 c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
             const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
+            const B1GridDesc_BK0_N_BK1 b1grad_grid_desc_bk0_n_bk1,
             const YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
             const LSEGridDescriptor_M lse_grid_desc_m,
@@ -166,9 +168,11 @@ __global__ void
                 c_element_op,
                 a_grid_desc_ak0_m_ak1,
                 b_grid_desc_bk0_n_bk1,
+                bgrad_grid_desc_bk0_n_bk1,
                 d0_grid_desc_m0_n0_m1_m2_n1_m3,
                 c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
                 b1_grid_desc_bk0_n_bk1,
+                b1grad_grid_desc_bk0_n_bk1,
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
                 lse_grid_desc_m,
                 ygrad_grid_desc_o0_m_o1,
@@ -204,9 +208,11 @@ __global__ void
             c_element_op,
             a_grid_desc_ak0_m_ak1,
             b_grid_desc_bk0_n_bk1,
+            bgrad_grid_desc_bk0_n_bk1,
             d0_grid_desc_m0_n0_m1_m2_n1_m3,
             c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
             b1_grid_desc_bk0_n_bk1,
+            b1grad_grid_desc_bk0_n_bk1,
             c_grid_desc_mblock_mperblock_nblock_nperblock,
             lse_grid_desc_m,
             ygrad_grid_desc_o0_m_o1,
@@ -238,9 +244,11 @@ __global__ void
     ignore = c_element_op;
     ignore = a_grid_desc_ak0_m_ak1;
     ignore = b_grid_desc_bk0_n_bk1;
+    ignore = bgrad_grid_desc_bk0_n_bk1;
     ignore = d0_grid_desc_m0_n0_m1_m2_n1_m3;
     ignore = c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3;
     ignore = b1_grid_desc_bk0_n_bk1;
+    ignore = b1grad_grid_desc_bk0_n_bk1;
     ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = lse_grid_desc_m;
     ignore = ygrad_grid_desc_o0_m_o1;
@@ -534,7 +542,7 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
     {
         return Transform::MakeC0GridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
     }
-    
+
     static auto MakeLSEGridDescriptor_M(index_t MRaw)
     {
         const auto lse_grid_desc_mraw = make_naive_tensor_descriptor_packed(make_tuple(MRaw));
@@ -810,9 +818,13 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                   DeviceOp::MakeAGridDescriptor_AK0_M_AK1(a_gs_ms_ks_lengths, a_gs_ms_ks_strides)},
               b_grid_desc_bk0_n_bk1_{
                   DeviceOp::MakeBGridDescriptor_BK0_N_BK1(b_gs_ns_ks_lengths, b_gs_ns_ks_strides)},
+              bgrad_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(
+                  bgrad_gs_ns_ks_lengths, bgrad_gs_ns_ks_strides)},
               z_grid_desc_m_n_{MakeZGridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
               b1_grid_desc_bk0_n_bk1_{DeviceOp::MakeVGridDescriptor_O0_N_O1(
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
+              b1grad_grid_desc_bk0_n_bk1_{DeviceOp::MakeVGridDescriptor_O0_N_O1(
+                  b1grad_gs_gemm1ns_gemm1ks_lengths, b1grad_gs_gemm1ns_gemm1ks_strides)},
               y_grid_desc_m_o_{Transform::MakeCGridDescriptor_M_N(c_gs_ms_gemm1ns_lengths,
                                                                   c_gs_ms_gemm1ns_strides)},
               lse_grid_desc_m_{DeviceOp::MakeLSEGridDescriptor_M(lse_gs_ms_lengths[NumDimG])},
@@ -831,8 +843,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                                                                       c_gs_ms_gemm1ns_strides)},
               z_grid_desc_g_m_n_{
                   Transform::MakeC0GridDescriptor_G_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
-              bgrad_grid_desc_g_n_k_{
-                  Transform::MakeB0GridDescriptor_G_N_K(bgrad_gs_ns_ks_lengths, bgrad_gs_ns_ks_strides)},
+              bgrad_grid_desc_g_n_k_{Transform::MakeB0GridDescriptor_G_N_K(bgrad_gs_ns_ks_lengths,
+                                                                           bgrad_gs_ns_ks_strides)},
               b1grad_grid_desc_g_n_k_{Transform::MakeB1GridDescriptor_G_N_K(
                   b1grad_gs_gemm1ns_gemm1ks_lengths, b1grad_gs_gemm1ns_gemm1ks_strides)},
               y_grid_desc_mblock_mperblock_oblock_operblock_{},
@@ -940,8 +952,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                       << bgrad_grid_desc_g_n_k_.GetLength(I1) << ", "
                       << bgrad_grid_desc_g_n_k_.GetLength(I2) << '\n';
             // bgrad_grid_desc_g_n_k_.Print();
-            std::cout << "b1grad_grid_desc_g_n_k_: " << b1grad_grid_desc_g_n_k_.GetLength(I0) << ", "
-                      << b1grad_grid_desc_g_n_k_.GetLength(I1) << ", "
+            std::cout << "b1grad_grid_desc_g_n_k_: " << b1grad_grid_desc_g_n_k_.GetLength(I0)
+                      << ", " << b1grad_grid_desc_g_n_k_.GetLength(I1) << ", "
                       << b1grad_grid_desc_g_n_k_.GetLength(I2) << '\n';
             // b1grad_grid_desc_g_n_k_.Print();
         }
@@ -963,9 +975,11 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         // tensor descriptor
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
+        BGridDesc_BK0_N_BK1 bgrad_grid_desc_bk0_n_bk1_;
         typename GridwiseGemm::D0GridDescriptor_M0_N0_M1_M2_N1_M3 d0_grid_desc_m0_n0_m1_m2_n1_m3_;
         ZGridDesc_M_N z_grid_desc_m_n_;
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
+        B1GridDesc_BK0_N_BK1 b1grad_grid_desc_bk0_n_bk1_;
         YGridDesc_M_O y_grid_desc_m_o_;
         LSEGridDesc_M lse_grid_desc_m_;
         KGridDesc_N_K k_grid_desc_n_k_;
@@ -1094,9 +1108,11 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                     arg.c_element_op_,
                     arg.a_grid_desc_ak0_m_ak1_,
                     arg.b_grid_desc_bk0_n_bk1_,
+                    arg.bgrad_grid_desc_bk0_n_bk1_,
                     arg.d0_grid_desc_m0_n0_m1_m2_n1_m3_,
                     arg.c_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3_,
                     arg.b1_grid_desc_bk0_n_bk1_,
+                    arg.b1grad_grid_desc_bk0_n_bk1_,
                     arg.y_grid_desc_mblock_mperblock_oblock_operblock_,
                     arg.lse_grid_desc_m_,
                     arg.ygrad_grid_desc_o0_m_o1_,
@@ -1163,7 +1179,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
         const index_t b1_gemm1n =
             arg.b1_grid_desc_bk0_n_bk1_.GetLength(I0) * arg.b1_grid_desc_bk0_n_bk1_.GetLength(I2);
 
-        if(!(c_g == arg.batch_count_ && c_m == a_m && c_gemm1n == b1_gemm1n && c_g % b_g == 0 && b_g <= c_g))
+        if(!(c_g == arg.batch_count_ && c_m == a_m && c_gemm1n == b1_gemm1n && c_g % b_g == 0 &&
+             b_g <= c_g))
         {
             return false;
         }
