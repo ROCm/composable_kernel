@@ -4,10 +4,11 @@
 #pragma once
 
 #include "ck/config.h"
-
+#ifndef __HIPCC_RTC__
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
+#endif
 #endif
 
 #define CK_TIME_KERNEL 1
@@ -49,9 +50,9 @@
 #define CK_BUFFER_RESOURCE_3RD_DWORD -1
 #elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx908__) || \
     defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) ||                          \
-    defined(__gfx942__) // for GPU code
+    defined(__gfx942__)                                                    // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
-#elif defined(__gfx1030__) // for GPU code
+#elif defined(__gfx1030__)                                                 // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
 #elif defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31004000
@@ -85,7 +86,7 @@
 #endif
 
 // WMMA instruction
-#ifndef __HIP_DEVICE_COMPILE__ // for host code
+#ifndef __HIP_DEVICE_COMPILE__                                             // for host code
 #define CK_USE_AMD_WMMA
 #elif defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) // for GPU code
 #define CK_USE_AMD_WMMA
@@ -106,7 +107,7 @@
 #elif defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
     defined(__gfx942__) // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
-#else // for GPU code
+#else                   // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
 #endif
 
