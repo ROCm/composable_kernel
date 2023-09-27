@@ -9,9 +9,11 @@
 #include <limits>
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_image_to_column.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv_tensor_rearrange.hpp"
+#include "ck/tensor_operation/gpu/device/conv_tensor_rearrange_op.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_image_to_column_impl.hpp"
-#include "ck/library/tensor_operation_instance/gpu/image_to_column.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_column_to_image_impl.hpp"
+#include "ck/library/tensor_operation_instance/gpu/conv_tensor_rearrange.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -19,22 +21,88 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_image_to_column.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_column_to_image.hpp"
 
 namespace ck {
 namespace profiler {
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
+using namespace conv_tensor_rearrange_op;
+
+template <typename InputDataType, typename ConvTensorRearrangeOp>
+Tensor<InputDataType> create_input(const HostTensorDescriptor& image_desc,
+                                   const HostTensorDescriptor& gemm_desc)
+{
+    if constexpr(std::is_same_v<ConvTensorRearrangeOp, ImageToColumn>)
+    {
+        Tensor<InputDataType> input(image_desc);
+        return input;
+    }
+    else if constexpr(std::is_same_v<ConvTensorRearrangeOp, ColumnToImage>)
+    {
+        Tensor<InputDataType> input(gemm_desc);
+        return input;
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported op!");
+    }
+}
+
+template <typename OutputDataType, typename ConvTensorRearrangeOp>
+Tensor<OutputDataType> create_output(const HostTensorDescriptor& image_desc,
+                                     const HostTensorDescriptor& gemm_desc)
+{
+    if constexpr(std::is_same_v<ConvTensorRearrangeOp, ImageToColumn>)
+    {
+        Tensor<OutputDataType> output(gemm_desc);
+        return output;
+    }
+    else if constexpr(std::is_same_v<ConvTensorRearrangeOp, ColumnToImage>)
+    {
+        Tensor<OutputDataType> output(image_desc);
+        return output;
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported op!");
+    }
+}
 
 template <index_t NDimSpatial,
           typename InputLayout,
           typename InputDataType,
-          typename OutputDataType>
-bool profile_image_to_column_impl(int do_verification,
-                                  int init_method,
-                                  bool do_log,
-                                  bool time_kernel,
-                                  const ck::utils::conv::ConvParam& conv_param)
+          typename OutputDataType,
+          typename ConvTensorRearrangeOp>
+static auto make_ref_op()
+{
+    if constexpr(std::is_same_v<ConvTensorRearrangeOp, ImageToColumn>)
+    {
+        return ck::tensor_operation::host::
+            ReferenceImageToColumn<NDimSpatial, InputLayout, InputDataType, OutputDataType>{};
+    }
+    else if constexpr(std::is_same_v<ConvTensorRearrangeOp, ColumnToImage>)
+    {
+        return ck::tensor_operation::host::
+            ReferenceColumnToImage<NDimSpatial, InputLayout, InputDataType, OutputDataType>{};
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported op!");
+    }
+}
+
+template <index_t NDimSpatial,
+          typename InputLayout,
+          typename InputDataType,
+          typename OutputDataType,
+          typename ConvTensorRearrangeOp>
+bool profile_conv_tensor_rearrange_impl(int do_verification,
+                                        int init_method,
+                                        bool do_log,
+                                        bool time_kernel,
+                                        const ck::utils::conv::ConvParam& conv_param)
 {
     const ck::index_t NDoHoWo =
         conv_param.N_ *
@@ -45,16 +113,16 @@ bool profile_image_to_column_impl(int do_verification,
         ck::accumulate_n<ck::index_t>(
             conv_param.filter_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
 
-    const auto in_desc =
+    const auto image_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InputLayout>(
             conv_param);
-    const auto out_desc = HostTensorDescriptor({NDoHoWo, CZYX});
+    const auto gemm_desc = HostTensorDescriptor({NDoHoWo, CZYX});
 
     std::array<ck::index_t, NDimSpatial> input_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial> output_spatial_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> input_g_n_c_wis_strides{};
-    std::array<ck::index_t, 2> output_m_k_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> image_g_n_c_wis_strides{};
+    std::array<ck::index_t, 2> gemm_m_k_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
@@ -65,16 +133,19 @@ bool profile_image_to_column_impl(int do_verification,
     copy(conv_param.input_spatial_lengths_, input_spatial_lengths);
     copy(conv_param.filter_spatial_lengths_, filter_spatial_lengths);
     copy(conv_param.output_spatial_lengths_, output_spatial_lengths);
-    copy(in_desc.GetStrides(), input_g_n_c_wis_strides);
-    copy(out_desc.GetStrides(), output_m_k_strides);
+    copy(image_desc.GetStrides(), image_g_n_c_wis_strides);
+    copy(gemm_desc.GetStrides(), gemm_m_k_strides);
     copy(conv_param.conv_filter_strides_, conv_filter_strides);
     copy(conv_param.conv_filter_dilations_, conv_filter_dilations);
     copy(conv_param.input_left_pads_, input_left_pads);
     copy(conv_param.input_right_pads_, input_right_pads);
 
-    Tensor<InputDataType> input(in_desc);
-    Tensor<OutputDataType> host_output(out_desc);
-    Tensor<OutputDataType> device_output(out_desc);
+    Tensor<InputDataType> input =
+        create_input<InputDataType, ConvTensorRearrangeOp>(image_desc, gemm_desc);
+    Tensor<OutputDataType> device_output =
+        create_output<OutputDataType, ConvTensorRearrangeOp>(image_desc, gemm_desc);
+    Tensor<OutputDataType> host_output =
+        create_output<OutputDataType, ConvTensorRearrangeOp>(image_desc, gemm_desc);
 
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "output: " << host_output.mDesc << std::endl;
@@ -94,17 +165,21 @@ bool profile_image_to_column_impl(int do_verification,
     // run reference op
     if(do_verification)
     {
-        auto ref_image_to_column = ck::tensor_operation::host::
-            ReferenceImageToColumn<NDimSpatial, InputLayout, InputDataType, OutputDataType>{};
+        auto ref_conv_tensor_rearrange = make_ref_op<NDimSpatial,
+                                                     InputLayout,
+                                                     InputDataType,
+                                                     OutputDataType,
+                                                     ConvTensorRearrangeOp>();
 
-        auto ref_invoker  = ref_image_to_column.MakeInvoker();
-        auto ref_argument = ref_image_to_column.MakeArgument(input,
-                                                             host_output,
-                                                             conv_param.filter_spatial_lengths_,
-                                                             conv_param.conv_filter_strides_,
-                                                             conv_param.conv_filter_dilations_,
-                                                             conv_param.input_left_pads_,
-                                                             conv_param.input_right_pads_);
+        auto ref_invoker = ref_conv_tensor_rearrange.MakeInvoker();
+        auto ref_argument =
+            ref_conv_tensor_rearrange.MakeArgument(input,
+                                                   host_output,
+                                                   conv_param.filter_spatial_lengths_,
+                                                   conv_param.conv_filter_strides_,
+                                                   conv_param.conv_filter_dilations_,
+                                                   conv_param.input_left_pads_,
+                                                   conv_param.input_right_pads_);
 
         // init host output to zero
         host_output.SetZero();
@@ -112,8 +187,11 @@ bool profile_image_to_column_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
-    using DeviceOp = ck::tensor_operation::device::
-        DeviceImageToColumn<NDimSpatial, InputLayout, InputDataType, OutputDataType>;
+    using DeviceOp = ck::tensor_operation::device::DeviceConvTensorRearrange<NDimSpatial,
+                                                                             InputLayout,
+                                                                             InputDataType,
+                                                                             OutputDataType,
+                                                                             ConvTensorRearrangeOp>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -139,8 +217,8 @@ bool profile_image_to_column_impl(int do_verification,
             input_spatial_lengths,
             filter_spatial_lengths,
             output_spatial_lengths,
-            input_g_n_c_wis_strides,
-            output_m_k_strides,
+            image_g_n_c_wis_strides,
+            gemm_m_k_strides,
             conv_filter_strides,
             conv_filter_dilations,
             input_left_pads,

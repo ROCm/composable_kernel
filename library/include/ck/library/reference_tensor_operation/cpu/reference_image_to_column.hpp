@@ -18,16 +18,18 @@ namespace host {
 /**
  * \brief Reference implementation for image to column.
  *
- * Tensor descriptor has [G, N, C, Di, Hi, Wi] data layout.
+ * Input tensor descriptor has [G, N, C, Di, Hi, Wi] data layout.
  * G must be equal to 1. Memory layout is [G, N, Di, Hi, Wi, C].
+ * Output tensor descriptor has [N * Do * Ho * Wo, Z * Y * X * C] data layout.
+ * Memory layout is the same.
  *
  * \tparam NDimSpatial Number of spatial dimensions.
- * \tparam InputLayout Input Layout.
+ * \tparam ImageLayout Image Layout.
  * \tparam InDataType Input Data Type.
  * \tparam OutDataType Output Data Type.
  */
 template <ck::index_t NDimSpatial,
-          typename InputLayout,
+          typename ImageLayout,
           typename InDataType,
           typename OutDataType,
           typename std::enable_if<NDimSpatial >= 1 && NDimSpatial <= 3, bool>::type = false>
@@ -240,8 +242,8 @@ struct ReferenceImageToColumn : public device::BaseOperator
     {
         using namespace tensor_layout::convolution;
 
-        if constexpr(!(std::is_same_v<InputLayout, GNWC> || std::is_same_v<InputLayout, GNHWC> ||
-                       std::is_same_v<InputLayout, GNDHWC>))
+        if constexpr(!(std::is_same_v<ImageLayout, GNWC> || std::is_same_v<ImageLayout, GNHWC> ||
+                       std::is_same_v<ImageLayout, GNDHWC>))
         {
             return false;
         }

@@ -10,6 +10,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_image_to_column_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_column_to_image_impl.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
@@ -20,6 +21,7 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_image_to_column.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_column_to_image.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -32,7 +34,7 @@ struct ExecutionConfig final
 {
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 };
 
 #define DefaultConvParams                                                            \
