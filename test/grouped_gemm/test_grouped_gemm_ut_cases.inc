@@ -151,7 +151,7 @@ TEST_P(RCR_F16_F16_F16, MNKPadded)
 
 TEST_P(RRR_F16_F16_F16_LargeK, TestLargeKBatch)
 {
-    const std::vector<int> Ms{188, 210};
+    const std::vector<int> Ms{127, 150, 188, 210};
     constexpr int N = 768;
     constexpr int K = 8192;
 
