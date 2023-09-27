@@ -34,6 +34,7 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
 #endif
         // warm up
         kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+        hip_check_error(hipGetLastError());
 
         const int nrepeat = 10;
 #if DEBUG_LOG
@@ -50,6 +51,7 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
         for(int i = 0; i < nrepeat; ++i)
         {
             kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+            hip_check_error(hipGetLastError());
         }
 
         hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
@@ -64,11 +66,13 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
     else
     {
         kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+        hip_check_error(hipGetLastError());
 
         return 0;
     }
 #else
     kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+    hip_check_error(hipGetLastError());
 
     return 0;
 #endif
@@ -101,6 +105,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         // warm up
         preprocess();
         kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+        hip_check_error(hipGetLastError());
 
         const int nrepeat = 10;
 #if DEBUG_LOG
@@ -118,6 +123,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         {
             preprocess();
             kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+            hip_check_error(hipGetLastError());
         }
 
         hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
@@ -133,11 +139,13 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
     {
         preprocess();
         kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+        hip_check_error(hipGetLastError());
 
         return 0;
     }
 #else
     kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+    hip_check_error(hipGetLastError());
 
     return 0;
 #endif
