@@ -5,14 +5,21 @@ Full documentation for Composable Kernel is not yet available.
 ## (Unreleased) CK for ROCm 6.0.0
 
 ### Fixed
+ - Fixed a hazard with using inline v_dot (#808).
+ - Fixed a bugs in grouped Convolution backward data with not padded K (#848 #876).
 
 ### Optimizations
 
 ### Added
 - Added image to column (#867) and column to image kernels (#930).
+- Added support for 3D grouped Convolution forward on Navi3x (#935).
+- Added support for small K and C for grouped Convolution (#822 #879 #897).
+- Added support NHWGC 2D and 3D grouped Convolution backward weight (#769 #804).
+- Added support bf16/f32/f16 and NHWGC 2D and 3d grouped Convolution backward data (#757 #799).
+- Added support for Batched Gemm DL (#732).
 
 ### Changed
-
+ - Changed grouped Convolution API to keep consistency with other convolution kernels (#817).
 
 ## CK 0.2.0 for ROCm 5.5.0
 
