@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
 #include "ck/utility/data_type.hpp"
@@ -65,6 +65,28 @@ TEST(TypeConvertConst, ConvertFromConst)
             const bhalf_t y = type_convert<const bhalf_t>(x);
             // Test const bhalf to non-const float.
             float y_float = type_convert<float>(y);
+            ASSERT_NEAR(y_float, x, abs_tol);
+        }
+        // Tests with full type specializations for X.
+        {
+            // Test const float to const bhalf_t.
+            const bhalf_t y = type_convert<const bhalf_t, const float>(x);
+            // Remove the constness manually to not rely on const casts anymore since the
+            // possible issue could hide after two casts.
+            bhalf_t& y_nonconst = const_cast<bhalf_t&>(y);
+            float y_float       = type_convert<float>(y_nonconst);
+            ASSERT_NEAR(y_float, x, abs_tol);
+        }
+        {
+            // Test const float to non-const bhalf.
+            bhalf_t y     = type_convert<bhalf_t, const float>(x);
+            float y_float = type_convert<float>(y);
+            ASSERT_NEAR(y_float, x, abs_tol);
+        }
+        {
+            const bhalf_t y = type_convert<const bhalf_t, const float>(x);
+            // Test const bhalf to non-const float.
+            float y_float = type_convert<float, const bhalf_t>(y);
             ASSERT_NEAR(y_float, x, abs_tol);
         }
     }
