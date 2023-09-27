@@ -15,8 +15,8 @@ Full documentation for Composable Kernel is not yet available.
 - Added a column to an image kernel (#930).
 - Added support for 3D grouped convolution forward on RDNA 3 GPUs (#935).
 - Added grouped convolution support for small K and C (#822 #879 #897).
-- Added support for NHWGC 2D and 3D grouped convolution backward weight (#769 #804).
-- Added support for bf16/f32/f16 and NHWGC 2D and 3d grouped convolution backward data (#757 #799).
+- Added support for NHWGC (2D and 3D) grouped convolution backward weight (#769 #804).
+- Added support for bf16/f32/f16 and NHWGC (2D and 3d) grouped convolution backward data (#757 #799).
 - Added support for Batched Gemm DL (#732).
 
 ### Changes
