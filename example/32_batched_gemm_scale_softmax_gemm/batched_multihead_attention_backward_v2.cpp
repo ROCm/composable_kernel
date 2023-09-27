@@ -542,8 +542,8 @@ int run(int argc, char* argv[])
             static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
-            nullptr, //  p_acc0_bias;
-            nullptr, //  p_acc1_bias;
+            nullptr, // p_acc0_bias;
+            nullptr, // p_acc1_bias;
             nullptr,
             nullptr,
             q_gs_ms_ks_lengths,
@@ -593,8 +593,8 @@ int run(int argc, char* argv[])
         static_cast<OutputDataType*>(qgrad_device_buf.GetDeviceBuffer()),
         static_cast<OutputDataType*>(kgrad_device_buf.GetDeviceBuffer()),
         static_cast<OutputDataType*>(vgrad_device_buf.GetDeviceBuffer()),
-        nullptr, //  p_acc0_bias;
-        nullptr, //  p_acc1_bias;
+        nullptr, // p_acc0_bias;
+        nullptr, // p_acc1_bias;
         nullptr,
         nullptr,
         q_gs_ms_ks_lengths,
