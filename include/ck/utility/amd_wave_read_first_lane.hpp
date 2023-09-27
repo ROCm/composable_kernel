@@ -39,7 +39,7 @@ struct get_carrier<3>
     {
         using value_type = uint32_t;
 
-        std::array<std::byte, 3> bytes;
+        std::byte bytes[3];
         static_assert(sizeof(bytes) <= sizeof(value_type));
 
         // replacement of host std::copy_n()
@@ -61,15 +61,12 @@ struct get_carrier<3>
         }
 
         // method to trigger template substitution failure
-        __device__ carrier(const carrier& other) noexcept
-        {
-            copy_n(other.bytes.begin(), bytes.size(), bytes.begin());
-        }
+        __device__ carrier(const carrier& other) noexcept { copy_n(&other.bytes[0], 3, &bytes[0]); }
 
         public:
         __device__ carrier& operator=(value_type value) noexcept
         {
-            copy_n(reinterpret_cast<const std::byte*>(&value), bytes.size(), bytes.begin());
+            copy_n(reinterpret_cast<const std::byte*>(&value), 3, &bytes[0]);
 
             return *this;
         }
@@ -78,7 +75,7 @@ struct get_carrier<3>
         {
             std::byte result[sizeof(value_type)];
 
-            copy_n(bytes.begin(), bytes.size(), result);
+            copy_n(&bytes[0], 3, result);
 
             return *reinterpret_cast<const value_type*>(result);
         }
@@ -102,9 +99,9 @@ __device__ inline int32_t amd_wave_read_first_lane(int32_t value)
     return __builtin_amdgcn_readfirstlane(value);
 }
 
-template <
-    typename Object,
-    typename = std::enable_if_t<std::is_class_v<Object> && std::is_trivially_copyable_v<Object>>>
+template <typename Object,
+          typename = std::enable_if_t<std::is_class<Object>::value &&
+                                      std::is_trivially_copyable<Object>::value>>
 __device__ auto amd_wave_read_first_lane(const Object& obj)
 {
     using Size                = unsigned;

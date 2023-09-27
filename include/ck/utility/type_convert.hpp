@@ -190,7 +190,7 @@ inline __host__ __device__ f8_t f8_convert_sr<f8_t, float>(float x)
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 42;
     // as thread id is not available on host, use 0 for prn generation
-    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
     return utils::cast_to_f8<float, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
         x, rng);
 }
@@ -204,7 +204,7 @@ inline __host__ __device__ f8_t f8_convert_sr<f8_t, half_t>(half_t x)
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 42;
     // as thread id is not available on host, use 0 for prn generation
-    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<size_t>(&x), x);
     return utils::cast_to_f8<half_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
         x, rng);
 }

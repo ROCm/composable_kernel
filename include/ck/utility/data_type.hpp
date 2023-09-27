@@ -1028,16 +1028,6 @@ struct NumericLimits<uint16_t>
 };
 
 template <>
-struct NumericLimits<uint8_t>
-{
-    __host__ __device__ static constexpr uint8_t Lowest() noexcept { return 0; }
-    __host__ __device__ static constexpr uint8_t Min() noexcept { return 0; }
-    __host__ __device__ static constexpr uint8_t Max() noexcept { return 255U; }
-    __host__ __device__ static constexpr uint8_t Infinity() noexcept { return 0; }
-    __host__ __device__ static constexpr uint8_t QuietNaN() { return 0; }
-};
-
-template <>
 struct NumericLimits<float>
 {
     static constexpr unsigned int binary_min    = 0x00800000;

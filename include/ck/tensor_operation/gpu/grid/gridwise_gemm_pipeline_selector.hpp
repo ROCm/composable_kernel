@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include <iostream>
-
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v2.hpp"
 #ifndef __HIPCC_RTC__

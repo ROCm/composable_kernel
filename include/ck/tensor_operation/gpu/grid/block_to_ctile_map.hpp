@@ -8,8 +8,10 @@
 #include "ck/utility/tuple.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
+#ifndef __HIPCC_RTC__
 #include <limits>
 #include <stdlib.h>
+#endif
 
 namespace ck {
 
@@ -88,8 +90,8 @@ struct BlockToCTileMap_M00_N0_M01
 
         const auto m00_n0_m01_to_m0_n0_block_cluster_adaptor = make_single_stage_tensor_adaptor(
             ck::make_tuple(make_insert_transform(1),
-                       make_unmerge_transform(ck::make_tuple(M00, M01)),
-                       make_pass_through_transform(ck::make_tuple(N0))),
+                           make_unmerge_transform(ck::make_tuple(M00, M01)),
+                           make_pass_through_transform(ck::make_tuple(N0))),
             ck::make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
             ck::make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2>{}));
 
@@ -233,7 +235,7 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
          */
 
         return ck::make_tuple(idx_N0_M01_local % M01_adapt + idx_M00 * M01_,
-                          idx_N0_M01_local / M01_adapt);
+                              idx_N0_M01_local / M01_adapt);
     }
 
     template <typename CTileIdx, typename CTileDim>
@@ -309,8 +311,8 @@ struct BlockToCTileMap_KSplit_M00_N0_M01Adapt
         index_t idx_N0_M01_local = idx_N0 + idx_M01 * N0;
 
         return ck::make_tuple(idx_ksplit,
-                          idx_N0_M01_local % M01_adapt + idx_M00 * M01_,
-                          idx_N0_M01_local / M01_adapt);
+                              idx_N0_M01_local % M01_adapt + idx_M00 * M01_,
+                              idx_N0_M01_local / M01_adapt);
     }
 
     template <typename CTileIdx, typename CTileDim>
@@ -408,8 +410,8 @@ struct BlockToCTileMap_M00_N00_M01_N01
         const auto m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
             make_single_stage_tensor_adaptor(
                 ck::make_tuple(make_insert_transform(1), // swallow the carry from lower dimensions
-                           make_unmerge_transform(ck::make_tuple(M00, M01)),
-                           make_unmerge_transform(ck::make_tuple(N00, N01))),
+                               make_unmerge_transform(ck::make_tuple(M00, M01)),
+                               make_unmerge_transform(ck::make_tuple(N00, N01))),
                 ck::make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
                 ck::make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
 
@@ -527,8 +529,8 @@ struct BlockToCTileMap_KSplit_M00_N00_M01_N01
         const auto ksplit_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
             make_single_stage_tensor_adaptor(
                 ck::make_tuple(make_pass_through_transform(KSplit),
-                           make_unmerge_transform(ck::make_tuple(M00, M01)),
-                           make_unmerge_transform(ck::make_tuple(N00, N01))),
+                               make_unmerge_transform(ck::make_tuple(M00, M01)),
+                               make_unmerge_transform(ck::make_tuple(N00, N01))),
                 ck::make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 ck::make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
 
@@ -777,7 +779,7 @@ struct BlockToCTileMap_GemmStreamK
             uint32_t dp_for_sk_iters = k_iters_per_tile.get();
 
             uint32_t best_sk_score =
-                std::numeric_limits<int>::max(); // we need to find the smallest sk iters
+                ck::NumericLimits<int32_t>::Max(); // we need to find the smallest sk iters
             for(uint32_t tentative_sk_blocks = min_sk_tiles; tentative_sk_blocks < max_sk_tiles;
                 tentative_sk_blocks++)
             {
@@ -820,7 +822,7 @@ struct BlockToCTileMap_GemmStreamK
 
                 dp_num_blocks      = num_tiles; // all tile to be dp block
                 dp_start_block_idx = 0;
-                sk_total_iters     = 0; // clear this tiles
+                sk_total_iters     = 0;         // clear this tiles
             }
             else
             {

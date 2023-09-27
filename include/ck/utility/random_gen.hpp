@@ -2,6 +2,7 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+#include <ck/utility/ignore.hpp>
 
 namespace ck {
 
@@ -43,9 +44,9 @@ template <typename T,
           std::enable_if_t<!(std::is_same<float, T>{} || std::is_same<half_t, T>{}), bool> = false>
 __host__ __device__ uint32_t prand_generator(int id, T val, uint32_t seed = seed_t)
 {
-    std::ignore = id;
-    std::ignore = val;
-    std::ignore = seed;
+    ck::ignore = id;
+    ck::ignore = val;
+    ck::ignore = seed;
 
     return 0;
 }
