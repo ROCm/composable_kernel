@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
-using InDataType  = FP32;
-using OutDataType = FP32;
+using InDataType  = FP32; // ck::bhalf_t;//FP32;
+using OutDataType = FP32; // ck::bhalf_t;//FP32;
 
-using InLayout = ck::tensor_layout::convolution::GNHWC;
+using ImLayout        = ck::tensor_layout::convolution::GNHWC;
+using ColumnToImageOp = ck::conv_tensor_rearrange_op::ColumnToImage;
 
 // clang-format off
-using DeviceImgToColInstance = ck::tensor_operation::device::DeviceImageToColumnImpl
-        //#####################|        Num| InLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|
+using DeviceColToImgInstance = ck::tensor_operation::device::DeviceColumnToImageImpl
+        //#####################|        Num| ImLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|
         //#####################|        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|
         //#####################|    Spatial|         |           |            |      |      |      |   Lengths| Vector|
         //#####################|           |         |           |            |      |      |      |          |       |
-                              < NDimSpatial, InLayout, InDataType, OutDataType,   256,   128,   128, S<16, 16>,     1>;
+                              < NDimSpatial, ImLayout, InDataType, OutDataType,   256,   128,   128, S<16, 16>,     1>;
 // clang-format on
 
-bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::ConvParam& conv_params)
+bool RunColumnToImage(const ExecutionConfig& config, const ck::utils::conv::ConvParam& conv_params)
 {
 
     const auto N = conv_params.N_;
@@ -30,15 +31,15 @@ bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::Conv
         C * ck::accumulate_n<ck::index_t>(
                 conv_params.filter_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
 
-    const auto in_desc =
-        ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_params);
-    const auto out_desc = HostTensorDescriptor({NDoHoWo, CZYX});
+    const auto in_desc = HostTensorDescriptor({NDoHoWo, CZYX});
+    const auto out_desc =
+        ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ImLayout>(conv_params);
 
     std::array<ck::index_t, NDimSpatial> input_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial> output_spatial_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> input_g_n_c_wis_strides{};
-    std::array<ck::index_t, 2> output_m_k_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> image_g_n_c_wis_strides{};
+    std::array<ck::index_t, 2> gemm_m_k_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
@@ -49,8 +50,8 @@ bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::Conv
     copy(conv_params.input_spatial_lengths_, input_spatial_lengths);
     copy(conv_params.filter_spatial_lengths_, filter_spatial_lengths);
     copy(conv_params.output_spatial_lengths_, output_spatial_lengths);
-    copy(in_desc.GetStrides(), input_g_n_c_wis_strides);
-    copy(out_desc.GetStrides(), output_m_k_strides);
+    copy(in_desc.GetStrides(), gemm_m_k_strides);
+    copy(out_desc.GetStrides(), image_g_n_c_wis_strides);
     copy(conv_params.conv_filter_strides_, conv_filter_strides);
     copy(conv_params.conv_filter_dilations_, conv_filter_dilations);
     copy(conv_params.input_left_pads_, input_left_pads);
@@ -66,7 +67,7 @@ bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::Conv
     switch(config.init_method)
     {
     case 0: break;
-    case 1: in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}); break;
+    case 1: in.GenerateTensorValue(GeneratorTensor_2<InDataType>{1, 2}); break;
     default: in.GenerateTensorValue(GeneratorTensor_3<InDataType>{-0.5, 0.5});
     }
 
@@ -78,29 +79,29 @@ bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::Conv
     // reset input to zero
     out_device_buf.SetZero();
 
-    static_assert(std::is_default_constructible_v<DeviceImgToColInstance>);
+    static_assert(std::is_default_constructible_v<DeviceColToImgInstance>);
 
     // do conv
-    auto img2col  = DeviceImgToColInstance{};
-    auto invoker  = img2col.MakeInvoker();
-    auto argument = img2col.MakeArgument(in_device_buf.GetDeviceBuffer(),
+    auto col2img  = DeviceColToImgInstance{};
+    auto invoker  = col2img.MakeInvoker();
+    auto argument = col2img.MakeArgument(in_device_buf.GetDeviceBuffer(),
                                          out_device_buf.GetDeviceBuffer(),
                                          N,
                                          C,
                                          input_spatial_lengths,
                                          filter_spatial_lengths,
                                          output_spatial_lengths,
-                                         input_g_n_c_wis_strides,
-                                         output_m_k_strides,
+                                         image_g_n_c_wis_strides,
+                                         gemm_m_k_strides,
                                          conv_filter_strides,
                                          conv_filter_dilations,
                                          input_left_pads,
                                          input_right_pads);
 
-    if(!img2col.IsSupportedArgument(argument))
+    if(!col2img.IsSupportedArgument(argument))
     {
-        std::cerr << "wrong! device_img2col with the specified compilation parameters does "
-                     "not support this img2col problem"
+        std::cerr << "wrong! device_col2img with the specified compilation parameters does "
+                     "not support this col2img problem"
                   << std::endl;
 
         return false;
@@ -113,12 +114,12 @@ bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::Conv
 
     if(config.do_verification)
     {
-        auto ref_image_to_column = ck::tensor_operation::host::
-            ReferenceImageToColumn<NDimSpatial, InLayout, InDataType, OutDataType>();
+        auto ref_column_to_image = ck::tensor_operation::host::
+            ReferenceColumnToImage<NDimSpatial, ImLayout, InDataType, OutDataType>();
 
-        auto ref_invoker = ref_image_to_column.MakeInvoker();
+        auto ref_invoker = ref_column_to_image.MakeInvoker();
 
-        auto ref_argument = ref_image_to_column.MakeArgument(in,
+        auto ref_argument = ref_column_to_image.MakeArgument(in,
                                                              out_host,
                                                              conv_params.filter_spatial_lengths_,
                                                              conv_params.conv_filter_strides_,
@@ -126,25 +127,23 @@ bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::Conv
                                                              conv_params.input_left_pads_,
                                                              conv_params.input_right_pads_);
 
-        if(!ref_image_to_column.IsSupportedArgument(&ref_argument))
+        if(!ref_column_to_image.IsSupportedArgument(&ref_argument))
         {
-            std::cerr << "wrong! ref_img2col with the specified compilation parameters does "
-                         "not support this img2col problem"
+            std::cerr << "wrong! ref_col2img with the specified compilation parameters does "
+                         "not support this col2img problem"
                       << std::endl;
             return false;
         }
 
         ref_invoker.Run(ref_argument);
-
         out_device_buf.FromDevice(out_device.mData.data());
-
         return ck::utils::check_err(out_device.mData, out_host.mData);
     }
 
     return true;
 }
 
-int RunImageToColumnExample(int argc, char* argv[])
+int RunColumnToImageExample(int argc, char* argv[])
 {
     ExecutionConfig config;
     ck::utils::conv::ConvParam conv_params = DefaultConvParams;
@@ -160,7 +159,7 @@ int RunImageToColumnExample(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
-    return !RunImageToColumn(config, conv_params);
+    return !RunColumnToImage(config, conv_params);
 }
 
-int main(int argc, char* argv[]) { return RunImageToColumnExample(argc, argv); }
+int main(int argc, char* argv[]) { return RunColumnToImageExample(argc, argv); }
