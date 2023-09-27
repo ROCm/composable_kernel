@@ -7,14 +7,13 @@
 #include <sstream>
 
 #include "ck/utility/common_header.hpp"
-#include "ck/utility/philox_rand.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_mha_infer.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_fwd_xdl_cshuffle_v2.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_mha_infer_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -27,67 +26,46 @@ template <typename GridwiseGemm,
           typename FloatAB,
           typename D0DataType,
           typename FloatC,
-          typename ZDataType,
-          typename FloatLSE,
-          typename GemmAccDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename AccElementwiseOperation,
+          typename C0ElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename CElementwiseOperation,
+          typename C1DEElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
-          typename D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
           typename B1GridDesc_BK0_N_BK1,
-          typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-          typename ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
-          typename LSEGridDescriptor_M,
+          typename C1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
           typename Block2CTileMap,
           typename ComputeBasePtrOfStridedBatch,
           typename C0MatrixMask,
-          bool HasMainKBlockLoop,
-          bool IsDropout,
-          bool IsLseStoring,
-          bool Deterministic>
+          bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_multiheadattention_forward_xdl_cshuffle_v2(
+        kernel_batched_multiple_head_flash_attention_infer(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
-            const D0DataType* __restrict__ p_d0_grid,
+            const D0DataType* p_d0_grid,
             const FloatAB* __restrict__ p_b1_grid,
             FloatC* __restrict__ p_c_grid,
-            ZDataType* __restrict__ p_z_grid,
-            FloatLSE* __restrict__ p_lse_grid,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
-            const AccElementwiseOperation acc_element_op,
+            const C0ElementwiseOperation c0_element_op,
             const B1ElementwiseOperation b1_element_op,
-            const CElementwiseOperation c_element_op,
+            const C1DEElementwiseOperation c1de_element_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+            const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
+            const C1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                c1_grid_desc_mblock_mperblock_nblock_nperblock,
             const D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
                 d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-            const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
-            const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                c_grid_desc_mblock_mperblock_nblock_nperblock,
-            const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
-                z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-            const LSEGridDescriptor_M lse_grid_desc_m,
             const Block2CTileMap block_2_ctile_map,
             const index_t batch_count,
-            const index_t h_ratio,
-            const index_t mblock,
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
-            const C0MatrixMask c0_matrix_mask,
-            const uint8_t p_dropout_in_uint8_t,
-            const GemmAccDataType p_dropout_rescale,
-            const unsigned long long seed,
-            const unsigned long long offset,
-            const index_t raw_m_padded,
-            const index_t raw_n_padded)
+            const C0MatrixMask c0_matrix_mask)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
@@ -95,134 +73,65 @@ __global__ void
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
-    const index_t gkv_idx = __builtin_amdgcn_readfirstlane(g_idx / h_ratio);
 
     const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetABasePtr(g_idx)));
     const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetBBasePtr(gkv_idx)));
+        static_cast<long_index_t>(compute_base_ptr_of_batch.GetBBasePtr(g_idx)));
     const long_index_t b1_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetB1BasePtr(gkv_idx)));
+        static_cast<long_index_t>(compute_base_ptr_of_batch.GetB1BasePtr(g_idx)));
     const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetCBasePtr(g_idx)));
-    const long_index_t z_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetZBasePtr(g_idx)));
-    const long_index_t lse_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetLSEBasePtr(g_idx)));
-    const long_index_t d0_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetD0BasePtr(g_idx)));
 
     const D0DataType* tmp_p_d0_grid = nullptr;
-
     if constexpr(!is_same<D0DataType, void>::value)
     {
-        tmp_p_d0_grid = p_d0_grid + d0_batch_offset;
-    }
-
-    // const index_t global_thread_id = get_thread_global_1d_id();
-    ck::philox ph(seed, 0, offset);
-
-    const index_t z_random_matrix_offset = g_idx * raw_m_padded * raw_n_padded;
-
-    if constexpr(Deterministic)
-    {
-        for(index_t i = 0; i < mblock; i++)
+        const long_index_t d0_batch_offset = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(compute_base_ptr_of_batch.GetD0BasePtr(g_idx)));
+        if(p_d0_grid != nullptr)
         {
-            GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout, IsLseStoring>(
-                p_a_grid + a_batch_offset,
-                p_b_grid + b_batch_offset,
-                tmp_p_d0_grid,
-                p_b1_grid + b1_batch_offset,
-                p_c_grid + c_batch_offset,
-                p_z_grid == nullptr ? nullptr : p_z_grid + z_batch_offset,
-                p_lse_grid == nullptr ? nullptr : p_lse_grid + lse_batch_offset,
-                p_shared,
-                a_element_op,
-                b_element_op,
-                acc_element_op,
-                b1_element_op,
-                c_element_op,
-                a_grid_desc_ak0_m_ak1,
-                b_grid_desc_bk0_n_bk1,
-                d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                b1_grid_desc_bk0_n_bk1,
-                c_grid_desc_mblock_mperblock_nblock_nperblock,
-                z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                lse_grid_desc_m,
-                block_2_ctile_map,
-                c0_matrix_mask,
-                p_dropout_in_uint8_t,
-                p_dropout_rescale,
-                ph,
-                z_random_matrix_offset,
-                raw_n_padded,
-                i);
+            tmp_p_d0_grid = p_d0_grid + d0_batch_offset;
         }
     }
-    else
-    {
-        GridwiseGemm::template Run<HasMainKBlockLoop, IsDropout, IsLseStoring>(
-            p_a_grid + a_batch_offset,
-            p_b_grid + b_batch_offset,
-            tmp_p_d0_grid,
-            p_b1_grid + b1_batch_offset,
-            p_c_grid + c_batch_offset,
-            p_z_grid == nullptr ? nullptr : p_z_grid + z_batch_offset,
-            p_lse_grid == nullptr ? nullptr : p_lse_grid + lse_batch_offset,
-            p_shared,
-            a_element_op,
-            b_element_op,
-            acc_element_op,
-            b1_element_op,
-            c_element_op,
-            a_grid_desc_ak0_m_ak1,
-            b_grid_desc_bk0_n_bk1,
-            d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-            b1_grid_desc_bk0_n_bk1,
-            c_grid_desc_mblock_mperblock_nblock_nperblock,
-            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-            lse_grid_desc_m,
-            block_2_ctile_map,
-            c0_matrix_mask,
-            p_dropout_in_uint8_t,
-            p_dropout_rescale,
-            ph,
-            z_random_matrix_offset,
-            raw_n_padded,
-            0);
-    }
+
+    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
+                                                  p_b_grid + b_batch_offset,
+                                                  tmp_p_d0_grid,
+                                                  p_b1_grid + b1_batch_offset,
+                                                  p_c_grid + c_batch_offset,
+                                                  p_shared,
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  c0_element_op,
+                                                  b1_element_op,
+                                                  c1de_element_op,
+                                                  a_grid_desc_ak0_m_ak1,
+                                                  b_grid_desc_bk0_n_bk1,
+                                                  d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                                  b1_grid_desc_bk0_n_bk1,
+                                                  c1_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                  block_2_ctile_map,
+                                                  c0_matrix_mask);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
-    ignore = p_d0_grid;
     ignore = p_b1_grid;
     ignore = p_c_grid;
-    ignore = p_z_grid;
-    ignore = p_lse_grid;
+    ignore = p_d0_grid;
     ignore = a_element_op;
     ignore = b_element_op;
-    ignore = acc_element_op;
+    ignore = c0_element_op;
     ignore = b1_element_op;
-    ignore = c_element_op;
+    ignore = c1de_element_op;
     ignore = a_grid_desc_ak0_m_ak1;
     ignore = b_grid_desc_bk0_n_bk1;
-    ignore = d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
     ignore = b1_grid_desc_bk0_n_bk1;
-    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore = z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
-    ignore = lse_grid_desc_m;
+    ignore = c1_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
     ignore = block_2_ctile_map;
     ignore = batch_count;
-    ignore = h_ratio;
-    ignore = mblock;
     ignore = compute_base_ptr_of_batch;
     ignore = c0_matrix_mask;
-    ignore = p_dropout_in_uint8_t;
-    ignore = p_dropout_rescale;
-    ignore = seed;
-    ignore = offset;
-    ignore = raw_m_padded;
-    ignore = raw_n_padded;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -238,18 +147,15 @@ template <index_t NumDimG,
           typename BDataType,
           typename B1DataType,
           typename CDataType,
-          typename GemmDataType,
-          typename ZDataType,
-          typename LSEDataType,
           typename Acc0BiasDataType,
           typename Acc1BiasDataType,
           typename GemmAccDataType,
           typename CShuffleDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename AccElementwiseOperation,
+          typename C0ElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename CElementwiseOperation,
+          typename C1DEElementwiseOperation,
           GemmSpecialization GemmSpec,
           TensorSpecialization ASpec,
           TensorSpecialization BSpec,
@@ -270,7 +176,6 @@ template <index_t NumDimG,
           index_t MXdlPerWave,
           index_t NXdlPerWave,
           index_t Gemm1NXdlPerWave,
-          index_t DropoutStep,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -297,38 +202,36 @@ template <index_t NumDimG,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          index_t Acc1BiasTransferSrcScalarPerVector,
           MaskingSpecialization MaskingSpec,
-          bool Deterministic,
-          LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
-    : public DeviceBatchedMultiheadAttentionForward<NumDimG,
-                                                    NumDimM,
-                                                    NumDimN,
-                                                    NumDimK,
-                                                    NumDimO,
-                                                    ADataType,
-                                                    BDataType,
-                                                    B1DataType,
-                                                    CDataType,
-                                                    ZDataType,
-                                                    LSEDataType,
-                                                    Acc0BiasDataType,
-                                                    Acc1BiasDataType,
-                                                    AElementwiseOperation,
-                                                    BElementwiseOperation,
-                                                    AccElementwiseOperation,
-                                                    B1ElementwiseOperation,
-                                                    CElementwiseOperation,
-                                                    MaskingSpec>
+          int D0sTransferSrcScalarPerVector = 4,
+          LoopScheduler LoopSched           = LoopScheduler::Default>
+struct DeviceBatchedMultiheadAttentionInfer_Xdl_CShuffle
+    : public DeviceBatchedMultiheadAttentionInfer<NumDimG,
+                                                  NumDimM,
+                                                  NumDimN,
+                                                  NumDimK,
+                                                  NumDimO,
+                                                  ADataType,
+                                                  BDataType,
+                                                  B1DataType,
+                                                  CDataType,
+                                                  Acc0BiasDataType,
+                                                  Acc1BiasDataType,
+                                                  AElementwiseOperation,
+                                                  BElementwiseOperation,
+                                                  C0ElementwiseOperation,
+                                                  B1ElementwiseOperation,
+                                                  C1DEElementwiseOperation,
+                                                  MaskingSpec>
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
 
-    // TODO ANT: implement bias combination
-    static_assert(std::is_void<Acc1BiasDataType>::value, "Acc1 Bias addition is unimplemented");
     using D0DataType = Acc0BiasDataType;
     using D1DataType = Acc1BiasDataType;
+
+    // TODO: implement bias combination
+    static_assert(std::is_void<D1DataType>::value, "Acc1 Bias addition is unimplemented");
 
 #if 0
     // TODO ANT: use alias
@@ -340,7 +243,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
     static constexpr index_t NumDimGemm1K = NumDimN;
 #endif
 
-    using DeviceOp = DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2;
+    using DeviceOp = DeviceBatchedMultiheadAttentionInfer_Xdl_CShuffle;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -381,50 +284,31 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             Number<B1K1>{});
     }
 
-    static auto MakeZGridDescriptor_M_N(const std::vector<index_t>& z_gs_ms_ns_lengths_vec,
-                                        const std::vector<index_t>& z_gs_ms_ns_strides_vec)
+    static auto MakeD0GridDescriptor_M_N(const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_lengths,
+                                         const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_strides)
     {
-        return Transform::MakeCGridDescriptor_M_N(z_gs_ms_ns_lengths_vec, z_gs_ms_ns_strides_vec);
+        return Transform::MakeC0GridDescriptor_M_N(acc0_bias_gs_ms_ns_lengths,
+                                                   acc0_bias_gs_ms_ns_strides);
     }
 
-    static auto MakeLSEGridDescriptor_M(index_t MRaw)
+    static auto
+    MakeD0GridDescriptor_G_M_N(const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_lengths,
+                               const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_strides)
     {
-        const auto lse_grid_desc_mraw = make_naive_tensor_descriptor_packed(make_tuple(MRaw));
-
-        const auto M    = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
-        const auto MPad = M - MRaw;
-
-        if constexpr(GemmSpec == GemmSpecialization::MPadding ||
-                     GemmSpec == GemmSpecialization::MNPadding ||
-                     GemmSpec == GemmSpecialization::MKPadding ||
-                     GemmSpec == GemmSpecialization::MNKPadding)
-        {
-            // pad M
-            return transform_tensor_descriptor(lse_grid_desc_mraw,
-                                               make_tuple(make_right_pad_transform(MRaw, MPad)),
-                                               make_tuple(Sequence<0>{}),
-                                               make_tuple(Sequence<0>{}));
-        }
-        else
-        {
-            // not pad M
-            return lse_grid_desc_mraw;
-        }
+        return Transform::MakeC0GridDescriptor_G_M_N(acc0_bias_gs_ms_ns_lengths,
+                                                     acc0_bias_gs_ms_ns_strides);
     }
 
     using AGridDesc_AK0_M_AK1  = decltype(MakeAGridDescriptor_AK0_M_AK1({}, {}));
     using BGridDesc_BK0_N_BK1  = decltype(MakeBGridDescriptor_BK0_N_BK1({}, {}));
-    using D0GridDesc_M_N       = decltype(Transform::MakeCGridDescriptor_M_N({}, {}));
     using B1GridDesc_BK0_N_BK1 = decltype(MakeB1GridDescriptor_BK0_N_BK1({}, {}));
-    using CGridDesc_M_N        = decltype(Transform::MakeCGridDescriptor_M_N({}, {}));
-    using ZGridDesc_M_N        = decltype(MakeZGridDescriptor_M_N({}, {}));
-    using LSEGridDesc_M        = decltype(MakeLSEGridDescriptor_M(1));
+    using C1GridDesc_M_N       = decltype(Transform::MakeCGridDescriptor_M_N({}, {}));
     using AGridDesc_G_M_K      = decltype(Transform::MakeAGridDescriptor_G_M_K({}, {}));
     using BGridDesc_G_N_K      = decltype(Transform::MakeB0GridDescriptor_G_N_K({}, {}));
-    using D0GridDesc_G_M_N     = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
     using B1GridDesc_G_N_K     = decltype(Transform::MakeB1GridDescriptor_G_N_K({}, {}));
-    using CGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
-    using ZGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
+    using C1GridDesc_G_M_N     = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
+    using D0GridDesc_M_N       = decltype(MakeD0GridDescriptor_M_N({}, {}));
+    using D0GridDesc_G_M_N     = decltype(MakeD0GridDescriptor_G_M_N({}, {}));
 
     constexpr static auto make_MaskOutPredicate()
     {
@@ -448,18 +332,14 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         ComputeBasePtrOfStridedBatch() {}
         ComputeBasePtrOfStridedBatch(const AGridDesc_G_M_K& a_grid_desc_g_m_k,
                                      const BGridDesc_G_N_K& b_grid_desc_g_n_k,
-                                     const D0GridDesc_G_M_N& d0_grid_desc_g_m_n,
                                      const B1GridDesc_G_N_K& b1_grid_desc_g_n_k,
-                                     const CGridDesc_G_M_N& c_grid_desc_g_m_n,
-                                     const ZGridDesc_G_M_N& z_grid_desc_g_m_n,
-                                     index_t BatchStrideLSE)
+                                     const C1GridDesc_G_M_N& c1_grid_desc_g_m_n,
+                                     const D0GridDesc_G_M_N& d0_grid_desc_g_m_n)
             : a_grid_desc_g_m_k_(a_grid_desc_g_m_k),
               b_grid_desc_g_n_k_(b_grid_desc_g_n_k),
-              d0_grid_desc_g_m_n_(d0_grid_desc_g_m_n),
               b1_grid_desc_g_n_k_(b1_grid_desc_g_n_k),
-              c_grid_desc_g_m_n_(c_grid_desc_g_m_n),
-              z_grid_desc_g_m_n_(z_grid_desc_g_m_n),
-              BatchStrideLSE_(BatchStrideLSE)
+              c1_grid_desc_g_m_n_(c1_grid_desc_g_m_n),
+              d0_grid_desc_g_m_n_(d0_grid_desc_g_m_n)
         {
         }
 
@@ -485,52 +365,34 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
 
         __host__ __device__ constexpr long_index_t GetCBasePtr(index_t g_idx) const
         {
-            return c_grid_desc_g_m_n_.CalculateOffset(make_multi_index(g_idx, 0, 0));
-        }
-
-        __host__ __device__ constexpr long_index_t GetZBasePtr(index_t g_idx) const
-        {
-            return z_grid_desc_g_m_n_.CalculateOffset(make_multi_index(g_idx, 0, 0));
-        }
-
-        __host__ __device__ constexpr long_index_t GetLSEBasePtr(index_t g_idx) const
-        {
-            return g_idx * static_cast<long_index_t>(BatchStrideLSE_);
+            return c1_grid_desc_g_m_n_.CalculateOffset(make_multi_index(g_idx, 0, 0));
         }
 
         private:
         AGridDesc_G_M_K a_grid_desc_g_m_k_;
         BGridDesc_G_N_K b_grid_desc_g_n_k_;
-        D0GridDesc_G_M_N d0_grid_desc_g_m_n_;
         B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
-        CGridDesc_G_M_N c_grid_desc_g_m_n_;
-        ZGridDesc_G_M_N z_grid_desc_g_m_n_;
-        index_t BatchStrideLSE_;
+        C1GridDesc_G_M_N c1_grid_desc_g_m_n_;
+        D0GridDesc_G_M_N d0_grid_desc_g_m_n_;
     };
 
-    // GridwiseGemm
-    using GridwiseGemm = GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2<
+    using GridwiseGemm = GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle<
         ADataType, // TODO: distinguish A/B datatype
-        Acc0BiasDataType,
-        ZDataType,
-        GemmDataType,
+        D0DataType,
         GemmAccDataType,
         CShuffleDataType,
         CDataType,
-        LSEDataType,
         AElementwiseOperation,
         BElementwiseOperation,
-        AccElementwiseOperation,
+        C0ElementwiseOperation,
         B1ElementwiseOperation,
-        CElementwiseOperation,
+        C1DEElementwiseOperation,
         InMemoryDataOperationEnum::Set,
         AGridDesc_AK0_M_AK1,
         BGridDesc_BK0_N_BK1,
         D0GridDesc_M_N,
         B1GridDesc_BK0_N_BK1,
-        CGridDesc_M_N,
-        ZGridDesc_M_N,
-        LSEGridDesc_M,
+        C1GridDesc_M_N,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,
@@ -546,7 +408,6 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         MXdlPerWave,
         NXdlPerWave,
         Gemm1NXdlPerWave,
-        DropoutStep,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -576,11 +437,9 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         CShuffleNXdlPerWavePerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
-        Acc1BiasTransferSrcScalarPerVector,
         LoopSched,
         Transform::matrix_padder.PadN,
-        MaskingSpec != MaskingSpecialization::MaskDisabled,
-        Deterministic>;
+        MaskingSpec != MaskingSpecialization::MaskDisabled>;
 
     // Argument
     // FIXME: constness
@@ -590,10 +449,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                  const BDataType* p_b_grid,
                  const B1DataType* p_b1_grid,
                  CDataType* p_c_grid,
-                 ZDataType* p_z_grid,
-                 LSEDataType* p_lse_grid,
-                 const D0DataType* p_acc0_biases,
-                 const D1DataType* p_acc1_biases,
+                 const Acc0BiasDataType* p_acc0_bias,
+                 const Acc1BiasDataType* p_acc1_bias,
                  const std::vector<index_t>& a_gs_ms_ks_lengths,
                  const std::vector<index_t>& a_gs_ms_ks_strides,
                  const std::vector<index_t>& b_gs_ns_ks_lengths,
@@ -602,56 +459,46 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                  const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
                  const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
                  const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-                 const std::vector<index_t>& z_gs_ms_ns_lengths,
-                 const std::vector<index_t>& z_gs_ms_ns_strides,
-                 const std::vector<index_t>& lse_gs_ms_lengths,
-                 const std::vector<index_t>& acc0_biases_gs_ms_ns_lengths,
-                 const std::vector<index_t>& acc0_biases_gs_ms_ns_strides,
-                 const std::vector<index_t>&
-                     acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
-                 const std::vector<index_t>&
-                     acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
+                 const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_lengths,
+                 const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_strides,
+                 const std::vector<ck::index_t>&
+                     acc1_bias_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
+                 const std::vector<ck::index_t>&
+                     acc1_bias_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
-                 AccElementwiseOperation acc_element_op,
+                 C0ElementwiseOperation c0_element_op,
                  B1ElementwiseOperation b1_element_op,
-                 CElementwiseOperation c_element_op,
-                 float p_dropout,
-                 std::tuple<unsigned long long, unsigned long long> seeds)
+                 C1DEElementwiseOperation c1de_element_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
-              p_d0_grid_{p_acc0_biases},
               p_b1_grid_{p_b1_grid},
               p_c_grid_{p_c_grid},
-              p_z_grid_{p_z_grid},
-              p_lse_grid_{p_lse_grid},
+              p_d0_grid_{p_acc0_bias},
               a_grid_desc_ak0_m_ak1_{
                   DeviceOp::MakeAGridDescriptor_AK0_M_AK1(a_gs_ms_ks_lengths, a_gs_ms_ks_strides)},
               b_grid_desc_bk0_n_bk1_{
                   DeviceOp::MakeBGridDescriptor_BK0_N_BK1(b_gs_ns_ks_lengths, b_gs_ns_ks_strides)},
               b1_grid_desc_bk0_n_bk1_{DeviceOp::MakeB1GridDescriptor_BK0_N_BK1(
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
-              c_grid_desc_m_n_{Transform::MakeCGridDescriptor_M_N(c_gs_ms_gemm1ns_lengths,
-                                                                  c_gs_ms_gemm1ns_strides)},
-              z_grid_desc_m_n_{MakeZGridDescriptor_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
-              lse_grid_desc_m_{DeviceOp::MakeLSEGridDescriptor_M(lse_gs_ms_lengths[NumDimG])},
+              c1_grid_desc_m_n_{Transform::MakeCGridDescriptor_M_N(c_gs_ms_gemm1ns_lengths,
+                                                                   c_gs_ms_gemm1ns_strides)},
               a_grid_desc_g_m_k_{
                   Transform::MakeAGridDescriptor_G_M_K(a_gs_ms_ks_lengths, a_gs_ms_ks_strides)},
               b_grid_desc_g_n_k_{
                   Transform::MakeB0GridDescriptor_G_N_K(b_gs_ns_ks_lengths, b_gs_ns_ks_strides)},
               b1_grid_desc_g_n_k_{Transform::MakeB1GridDescriptor_G_N_K(
                   b1_gs_gemm1ns_gemm1ks_lengths, b1_gs_gemm1ns_gemm1ks_strides)},
-              c_grid_desc_g_m_n_{Transform::MakeCGridDescriptor_G_M_N(c_gs_ms_gemm1ns_lengths,
-                                                                      c_gs_ms_gemm1ns_strides)},
-              z_grid_desc_g_m_n_{
-                  Transform::MakeCGridDescriptor_G_M_N(z_gs_ms_ns_lengths, z_gs_ms_ns_strides)},
-              c_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
+              c1_grid_desc_g_m_n_{Transform::MakeCGridDescriptor_G_M_N(c_gs_ms_gemm1ns_lengths,
+                                                                       c_gs_ms_gemm1ns_strides)},
+              c1_grid_desc_mblock_mperblock_nblock_nperblock_{},
+              //    d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_{},
+              block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c1_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              acc_element_op_{acc_element_op},
+              c0_element_op_{c0_element_op},
               b1_element_op_{b1_element_op},
-              c_element_op_{c_element_op},
+              c1de_element_op_{c1de_element_op},
               c0_matrix_mask_{a_grid_desc_g_m_k_.GetLength(I1), b_grid_desc_g_n_k_.GetLength(I1)},
               raw_lengths_mz_nz_kz_gemm1nz_{a_gs_ms_ks_lengths[NumDimG + NumDimM - 1],
                                             b_gs_ns_ks_lengths[NumDimG + NumDimN - 1],
@@ -665,68 +512,44 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                                 b1_gs_gemm1ns_gemm1ks_strides[NumDimG + NumDimO + NumDimN - 1]},
               c_mz_gemm1nz_strides_{c_gs_ms_gemm1ns_strides[NumDimG + NumDimM - 1],
                                     c_gs_ms_gemm1ns_strides[NumDimG + NumDimM + NumDimO - 1]},
-              batch_count_{c_grid_desc_g_m_n_.GetLength(I0)},
-              h_ratio_{c_grid_desc_g_m_n_.GetLength(I0) / b_grid_desc_g_n_k_.GetLength(I0)}
+              batch_count_{c1_grid_desc_g_m_n_.GetLength(I0)}
         {
             // TODO ANT: implement bias addition
-            ignore = p_acc1_biases;
-            ignore = acc1_biases_gs_ms_gemm1ns_lengths;
-            ignore = acc1_biases_gs_ms_gemm1ns_strides;
+            ignore = p_acc1_bias;
+            ignore = acc1_bias_gs_ms_gemm1ns_lengths;
+            ignore = acc1_bias_gs_ms_gemm1ns_strides;
 
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                            b_grid_desc_bk0_n_bk1_,
                                            b1_grid_desc_bk0_n_bk1_,
-                                           c_grid_desc_m_n_,
+                                           c1_grid_desc_m_n_,
                                            block_2_ctile_map_))
             {
-                c_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                    GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        c_grid_desc_m_n_);
+                c1_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                    GridwiseGemm::MakeC1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                        c1_grid_desc_m_n_);
 
                 if constexpr(!is_same<D0DataType, void>::value)
                 {
-                    d0_grid_desc_m_n_ = Transform::MakeCGridDescriptor_M_N(
-                        acc0_biases_gs_ms_ns_lengths, acc0_biases_gs_ms_ns_strides);
+                    D0GridDesc_M_N d0_grid_desc_m_n_ = MakeD0GridDescriptor_M_N(
+                        acc0_bias_gs_ms_ns_lengths, acc0_bias_gs_ms_ns_strides);
                     d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
                         GridwiseGemm::MakeD0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
                             d0_grid_desc_m_n_);
 
-                    d0_grid_desc_g_m_n_ = Transform::MakeCGridDescriptor_G_M_N(
-                        acc0_biases_gs_ms_ns_lengths, acc0_biases_gs_ms_ns_strides);
+                    d0_grid_desc_g_m_n_ = MakeD0GridDescriptor_G_M_N(acc0_bias_gs_ms_ns_lengths,
+                                                                     acc0_bias_gs_ms_ns_strides);
 
-                    d0_n_length_stride_.push_back(acc0_biases_gs_ms_ns_lengths[NumDimG + NumDimM]);
-                    d0_n_length_stride_.push_back(acc0_biases_gs_ms_ns_strides[NumDimG + NumDimM]);
+                    d0_n_length_stride_.push_back(acc0_bias_gs_ms_ns_lengths[NumDimG + NumDimM]);
+                    d0_n_length_stride_.push_back(acc0_bias_gs_ms_ns_strides[NumDimG + NumDimM]);
                 }
+
+                compute_base_ptr_of_batch_ = ComputeBasePtrOfStridedBatch(a_grid_desc_g_m_k_,
+                                                                          b_grid_desc_g_n_k_,
+                                                                          b1_grid_desc_g_n_k_,
+                                                                          c1_grid_desc_g_m_n_,
+                                                                          d0_grid_desc_g_m_n_);
             }
-
-            is_dropout_           = p_dropout > 0.0; //
-            p_dropout_            = 1.f - p_dropout;
-            p_dropout_in_uint8_t_ = uint8_t(std::floor(p_dropout_ * 255.0));
-            p_dropout_            = 1.f / p_dropout_;
-            p_dropout_rescale_    = type_convert<GemmAccDataType>(p_dropout_);
-
-            seed_   = std::get<0>(seeds);
-            offset_ = std::get<1>(seeds);
-
-            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
-                GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(z_grid_desc_m_n_);
-
-            m_raw_padded_ = GridwiseGemm::GetPaddedSize(raw_lengths_mz_nz_kz_gemm1nz_[0]);
-            n_raw_padded_ = GridwiseGemm::GetPaddedSize(raw_lengths_mz_nz_kz_gemm1nz_[1]);
-
-            if(p_lse_grid == nullptr)
-            {
-                is_lse_storing_ = false;
-            }
-
-            compute_base_ptr_of_batch_ = ComputeBasePtrOfStridedBatch(
-                a_grid_desc_g_m_k_,
-                b_grid_desc_g_n_k_,
-                d0_grid_desc_g_m_n_,
-                b1_grid_desc_g_n_k_,
-                c_grid_desc_g_m_n_,
-                z_grid_desc_g_m_n_,
-                type_convert<index_t>(lse_grid_desc_m_.GetElementSpaceSize()));
         }
 
         void Print() const
@@ -737,51 +560,36 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             std::cout << "b_grid_desc_g_n_k_: " << b_grid_desc_g_n_k_.GetLength(I0) << ", "
                       << b_grid_desc_g_n_k_.GetLength(I1) << ", "
                       << b_grid_desc_g_n_k_.GetLength(I2) << '\n';
-            std::cout << "d0_grid_desc_g_m_n_: " << d0_grid_desc_g_m_n_.GetLength(I0) << ", "
-                      << d0_grid_desc_g_m_n_.GetLength(I1) << ", "
-                      << d0_grid_desc_g_m_n_.GetLength(I2) << '\n';
-            std::cout << "d0_grid_desc_m_n_: " << d0_grid_desc_m_n_.GetLength(I0) << ", "
-                      << d0_grid_desc_m_n_.GetLength(I1) << '\n';
             std::cout << "b1_grid_desc_g_n_k_: " << b1_grid_desc_g_n_k_.GetLength(I0) << ", "
                       << b1_grid_desc_g_n_k_.GetLength(I1) << ", "
                       << b1_grid_desc_g_n_k_.GetLength(I2) << '\n';
-            std::cout << "c_grid_desc_g_m_n_: " << c_grid_desc_g_m_n_.GetLength(I0) << ", "
-                      << c_grid_desc_g_m_n_.GetLength(I1) << ", "
-                      << c_grid_desc_g_m_n_.GetLength(I2) << '\n';
+            std::cout << "c1_grid_desc_g_m_n_: " << c1_grid_desc_g_m_n_.GetLength(I0) << ", "
+                      << c1_grid_desc_g_m_n_.GetLength(I1) << ", "
+                      << c1_grid_desc_g_m_n_.GetLength(I2) << '\n';
         }
 
         // pointers
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
-        const D0DataType* p_d0_grid_;
         const B1DataType* p_b1_grid_;
         CDataType* p_c_grid_;
-        ZDataType* p_z_grid_;
-        LSEDataType* p_lse_grid_;
+        const D0DataType* p_d0_grid_;
 
         // tensor descriptor
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
-        D0GridDesc_M_N d0_grid_desc_m_n_;
-        typename GridwiseGemm::D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
-            d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
-        CGridDesc_M_N c_grid_desc_m_n_;
-        ZGridDesc_M_N z_grid_desc_m_n_;
-        LSEGridDesc_M lse_grid_desc_m_;
-
+        C1GridDesc_M_N c1_grid_desc_m_n_;
         AGridDesc_G_M_K a_grid_desc_g_m_k_;
         BGridDesc_G_N_K b_grid_desc_g_n_k_;
+        B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
+        C1GridDesc_G_M_N c1_grid_desc_g_m_n_;
         D0GridDesc_G_M_N d0_grid_desc_g_m_n_;
 
-        B1GridDesc_G_N_K b1_grid_desc_g_n_k_;
-        CGridDesc_G_M_N c_grid_desc_g_m_n_;
-        ZGridDesc_G_M_N z_grid_desc_g_m_n_;
-        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            c_grid_desc_mblock_mperblock_nblock_nperblock_;
-
-        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
-            z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
+        typename GridwiseGemm::C1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            c1_grid_desc_mblock_mperblock_nblock_nperblock_;
+        typename GridwiseGemm::D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
+            d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
 
         // block-to-c-tile map
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
@@ -789,9 +597,9 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         // element-wise op
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
-        AccElementwiseOperation acc_element_op_;
+        C0ElementwiseOperation c0_element_op_;
         B1ElementwiseOperation b1_element_op_;
-        CElementwiseOperation c_element_op_;
+        C1DEElementwiseOperation c1de_element_op_;
 
         // check C0 masking and padding
         C0MatrixMask c0_matrix_mask_;
@@ -802,22 +610,10 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         std::vector<index_t> b_nz_kz_strides_;
         std::vector<index_t> b1_nz_kz_strides_;
         std::vector<index_t> c_mz_gemm1nz_strides_;
+        std::vector<ck::index_t> d0s_nl_ns_lengths_strides_;
 
         index_t batch_count_;
-        index_t h_ratio_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
-
-        float p_dropout_;
-        uint8_t p_dropout_in_uint8_t_;
-        GemmAccDataType p_dropout_rescale_;
-        unsigned long long seed_;
-        unsigned long long offset_;
-        bool is_dropout_;
-
-        bool is_lse_storing_ = true;
-
-        index_t m_raw_padded_;
-        index_t n_raw_padded_;
 
         // raw data
         std::vector<ck::index_t> d0_n_length_stride_;
@@ -836,9 +632,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             }
 
             const index_t grid_size =
-                (Deterministic ? 1
-                               : arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_)) *
-                arg.batch_count_;
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c1_grid_desc_m_n_) * arg.batch_count_;
 
             // Gemm0_K
             const auto K =
@@ -846,142 +640,62 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
 
             float ave_time = 0;
 
-            auto launch_kernel =
-                [&](auto has_main_k_block_loop_, auto is_dropout_, auto is_lse_storing_) {
-                    const auto kernel = kernel_batched_multiheadattention_forward_xdl_cshuffle_v2<
-                        GridwiseGemm,
-                        ADataType, // TODO: distiguish A/B datatype
-                        D0DataType,
-                        CDataType,
-                        ZDataType,
-                        LSEDataType,
-                        GemmAccDataType,
-                        AElementwiseOperation,
-                        BElementwiseOperation,
-                        AccElementwiseOperation,
-                        B1ElementwiseOperation,
-                        CElementwiseOperation,
-                        DeviceOp::AGridDesc_AK0_M_AK1,
-                        DeviceOp::BGridDesc_BK0_N_BK1,
-                        typename GridwiseGemm::D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
-                        DeviceOp::B1GridDesc_BK0_N_BK1,
-                        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                        typename GridwiseGemm::ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
-                        DeviceOp::LSEGridDesc_M,
-                        typename GridwiseGemm::DefaultBlock2CTileMap,
-                        ComputeBasePtrOfStridedBatch,
-                        C0MatrixMask,
-                        has_main_k_block_loop_,
-                        is_dropout_,
-                        is_lse_storing_,
-                        Deterministic>;
+            auto launch_kernel = [&](auto has_main_k_block_loop_) {
+                const auto kernel = kernel_batched_multiple_head_flash_attention_infer<
+                    GridwiseGemm,
+                    ADataType, // TODO: distiguish A/B datatype
+                    D0DataType,
+                    CDataType,
+                    AElementwiseOperation,
+                    BElementwiseOperation,
+                    C0ElementwiseOperation,
+                    B1ElementwiseOperation,
+                    C1DEElementwiseOperation,
+                    DeviceOp::AGridDesc_AK0_M_AK1,
+                    DeviceOp::BGridDesc_BK0_N_BK1,
+                    DeviceOp::B1GridDesc_BK0_N_BK1,
+                    typename GridwiseGemm::C1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                    typename GridwiseGemm::D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
+                    typename GridwiseGemm::DefaultBlock2CTileMap,
+                    ComputeBasePtrOfStridedBatch,
+                    C0MatrixMask,
+                    has_main_k_block_loop_>;
 
-                    return launch_and_time_kernel(
-                        stream_config,
-                        kernel,
-                        dim3(grid_size),
-                        dim3(BlockSize),
-                        0,
-                        arg.p_a_grid_,
-                        arg.p_b_grid_,
-                        arg.p_d0_grid_,
-                        arg.p_b1_grid_,
-                        arg.p_c_grid_,
-                        arg.p_z_grid_,
-                        arg.p_lse_grid_,
-                        arg.a_element_op_,
-                        arg.b_element_op_,
-                        arg.acc_element_op_,
-                        arg.b1_element_op_,
-                        arg.c_element_op_,
-                        arg.a_grid_desc_ak0_m_ak1_,
-                        arg.b_grid_desc_bk0_n_bk1_,
-                        arg.d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
-                        arg.b1_grid_desc_bk0_n_bk1_,
-                        arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                        arg.z_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
-                        arg.lse_grid_desc_m_,
-                        arg.block_2_ctile_map_,
-                        arg.batch_count_,
-                        arg.h_ratio_,
-                        arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_),
-                        arg.compute_base_ptr_of_batch_,
-                        arg.c0_matrix_mask_,
-                        arg.p_dropout_in_uint8_t_,
-                        arg.p_dropout_rescale_,
-                        arg.seed_,
-                        arg.offset_,
-                        arg.m_raw_padded_,
-                        arg.n_raw_padded_);
-                };
+                return launch_and_time_kernel(stream_config,
+                                              kernel,
+                                              dim3(grid_size),
+                                              dim3(BlockSize),
+                                              0,
+                                              arg.p_a_grid_,
+                                              arg.p_b_grid_,
+                                              arg.p_d0_grid_,
+                                              arg.p_b1_grid_,
+                                              arg.p_c_grid_,
+                                              arg.a_element_op_,
+                                              arg.b_element_op_,
+                                              arg.c0_element_op_,
+                                              arg.b1_element_op_,
+                                              arg.c1de_element_op_,
+                                              arg.a_grid_desc_ak0_m_ak1_,
+                                              arg.b_grid_desc_bk0_n_bk1_,
+                                              arg.b1_grid_desc_bk0_n_bk1_,
+                                              arg.c1_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                              arg.d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
+                                              arg.block_2_ctile_map_,
+                                              arg.batch_count_,
+                                              arg.compute_base_ptr_of_batch_,
+                                              arg.c0_matrix_mask_);
+            };
 
             // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need
             // to concern Gemm0's loop
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                if(arg.is_dropout_)
-                {
-                    if(arg.is_lse_storing_)
-                    {
-                        ave_time = launch_kernel(integral_constant<bool, true>{},
-                                                 integral_constant<bool, true>{},
-                                                 integral_constant<bool, true>{});
-                    }
-                    else
-                    {
-                        ave_time = launch_kernel(integral_constant<bool, true>{},
-                                                 integral_constant<bool, true>{},
-                                                 integral_constant<bool, false>{});
-                    }
-                }
-                else
-                {
-                    if(arg.is_lse_storing_)
-                    {
-                        ave_time = launch_kernel(integral_constant<bool, true>{},
-                                                 integral_constant<bool, false>{},
-                                                 integral_constant<bool, true>{});
-                    }
-                    else
-                    {
-                        ave_time = launch_kernel(integral_constant<bool, true>{},
-                                                 integral_constant<bool, false>{},
-                                                 integral_constant<bool, false>{});
-                    }
-                }
+                ave_time = launch_kernel(integral_constant<bool, true>{});
             }
             else
             {
-                if(arg.is_dropout_)
-                {
-                    if(arg.is_lse_storing_)
-                    {
-                        ave_time = launch_kernel(integral_constant<bool, false>{},
-                                                 integral_constant<bool, true>{},
-                                                 integral_constant<bool, true>{});
-                    }
-                    else
-                    {
-                        ave_time = launch_kernel(integral_constant<bool, false>{},
-                                                 integral_constant<bool, true>{},
-                                                 integral_constant<bool, false>{});
-                    }
-                }
-                else
-                {
-                    if(arg.is_lse_storing_)
-                    {
-                        ave_time = launch_kernel(integral_constant<bool, false>{},
-                                                 integral_constant<bool, false>{},
-                                                 integral_constant<bool, true>{});
-                    }
-                    else
-                    {
-                        ave_time = launch_kernel(integral_constant<bool, false>{},
-                                                 integral_constant<bool, false>{},
-                                                 integral_constant<bool, false>{});
-                    }
-                }
+                ave_time = launch_kernel(integral_constant<bool, false>{});
             }
 
             return ave_time;
@@ -1007,9 +721,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         arg.Print();
 #endif
 
-        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
-             ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
-             ck::get_device_name() == "gfx942"))
+        if(!ck::is_xdl_supported())
         {
             return false;
         }
@@ -1017,15 +729,13 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         // TODO ANT: Check if tensor specialization & strides mismatch
 
         // Check if C permute dimension matches GEMM + GEMM shape
-        const index_t c_g       = arg.c_grid_desc_g_m_n_.GetLength(I0); // unpadded
-        const index_t b_g       = arg.b_grid_desc_g_n_k_.GetLength(I0);
-        const index_t c_m       = arg.c_grid_desc_m_n_.GetLength(I0);
-        const index_t c_gemm1n  = arg.c_grid_desc_m_n_.GetLength(I1);
+        const index_t c_g       = arg.c1_grid_desc_g_m_n_.GetLength(I0); // unpadded
+        const index_t c_m       = arg.c1_grid_desc_m_n_.GetLength(I0);
+        const index_t c_gemm1n  = arg.c1_grid_desc_m_n_.GetLength(I1);
         const index_t a_m       = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
         const index_t b1_gemm1n = arg.b1_grid_desc_bk0_n_bk1_.GetLength(I1);
 
-        if(!(c_g == arg.batch_count_ && c_m == a_m && c_gemm1n == b1_gemm1n && c_g % b_g == 0 &&
-             b_g <= c_g))
+        if(!(c_g == arg.batch_count_ && c_m == a_m && c_gemm1n == b1_gemm1n))
         {
             return false;
         }
@@ -1042,7 +752,6 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                 return false;
             }
         }
-
         // Note: we need raw lengths since threadwise copy can not handle vector load when part of
         // vector is out of bounds
         // Note: need lowest dim in Ms/Ns/Ks/Os, not merged M/N/K/O
@@ -1084,7 +793,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.b1_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_m_n_,
+                                           arg.c1_grid_desc_m_n_,
                                            arg.block_2_ctile_map_);
     }
 
@@ -1099,10 +808,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                  const BDataType* p_b,
                  const B1DataType* p_b1,
                  CDataType* p_c,
-                 ZDataType* p_z,
-                 LSEDataType* p_lse,
-                 const D0DataType* p_acc0_biases,
-                 const D1DataType* p_acc1_biases,
+                 const Acc0BiasDataType* p_acc0_bias,
+                 const Acc1BiasDataType* p_acc1_bias,
                  const std::vector<index_t>& a_gs_ms_ks_lengths,
                  const std::vector<index_t>& a_gs_ms_ks_strides,
                  const std::vector<index_t>& b_gs_ns_ks_lengths,
@@ -1111,31 +818,24 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                  const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
                  const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
                  const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-                 const std::vector<index_t>& z_gs_ms_ns_lengths,
-                 const std::vector<index_t>& z_gs_ms_ns_strides,
-                 const std::vector<index_t>& lse_gs_ms_lengths,
-                 const std::vector<index_t>& acc0_biases_gs_ms_ns_lengths,
-                 const std::vector<index_t>& acc0_biases_gs_ms_ns_strides,
-                 const std::vector<index_t>&
-                     acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
-                 const std::vector<index_t>&
-                     acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
+                 const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_lengths,
+                 const std::vector<ck::index_t>& acc0_bias_gs_ms_ns_strides,
+                 const std::vector<ck::index_t>&
+                     acc1_bias_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
+                 const std::vector<ck::index_t>&
+                     acc1_bias_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
-                 AccElementwiseOperation acc_element_op,
+                 C0ElementwiseOperation c0_element_op,
                  B1ElementwiseOperation b1_element_op,
-                 CElementwiseOperation c_element_op,
-                 float p_dropout,
-                 std::tuple<unsigned long long, unsigned long long> seeds)
+                 C1DEElementwiseOperation c1de_element_op)
     {
         return Argument{p_a,
                         p_b,
                         p_b1,
                         p_c,
-                        p_z,
-                        p_lse,
-                        p_acc0_biases,
-                        p_acc1_biases,
+                        p_acc0_bias,
+                        p_acc1_bias,
                         a_gs_ms_ks_lengths,
                         a_gs_ms_ks_strides,
                         b_gs_ns_ks_lengths,
@@ -1144,20 +844,15 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                         b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
                         c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
                         c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-                        z_gs_ms_ns_lengths,
-                        z_gs_ms_ns_strides,
-                        lse_gs_ms_lengths,
-                        acc0_biases_gs_ms_ns_lengths,
-                        acc0_biases_gs_ms_ns_strides,
-                        acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
-                        acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
+                        acc0_bias_gs_ms_ns_lengths,
+                        acc0_bias_gs_ms_ns_strides,
+                        acc1_bias_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
+                        acc1_bias_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
                         a_element_op,
                         b_element_op,
-                        acc_element_op,
+                        c0_element_op,
                         b1_element_op,
-                        c_element_op,
-                        p_dropout,
-                        seeds};
+                        c1de_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -1169,10 +864,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         const void* p_b,
         const void* p_b1,
         void* p_c,
-        void* p_z,
-        void* p_lse,
-        const void* p_acc0_biases,
-        const void* p_acc1_biases,
+        const void* p_acc0_bias,
+        const void* p_acc1_bias,
         const std::vector<index_t>& a_gs_ms_ks_lengths,
         const std::vector<index_t>& a_gs_ms_ks_strides,
         const std::vector<index_t>& b_gs_ns_ks_lengths,
@@ -1181,32 +874,25 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
         const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
         const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-        const std::vector<index_t>& z_gs_ms_ns_lengths,
-        const std::vector<index_t>& z_gs_ms_ns_strides,
-        const std::vector<index_t>& lse_gs_ms_lengths,
-        const std::vector<index_t>& acc0_biases_gs_ms_ns_lengths,
-        const std::vector<index_t>& acc0_biases_gs_ms_ns_strides,
-        const std::vector<index_t>&
-            acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
-        const std::vector<index_t>&
-            acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
+        const std::vector<index_t>& acc0_bias_gs_ms_ns_lengths,
+        const std::vector<index_t>& acc0_bias_gs_ms_ns_strides,
+        const std::vector<ck::index_t>&
+            acc1_bias_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
+        const std::vector<ck::index_t>&
+            acc1_bias_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
         AElementwiseOperation a_element_op,
         BElementwiseOperation b_element_op,
-        AccElementwiseOperation acc_element_op,
+        C0ElementwiseOperation c0_element_op,
         B1ElementwiseOperation b1_element_op,
-        CElementwiseOperation c_element_op,
-        float p_dropout,
-        std::tuple<unsigned long long, unsigned long long> seeds) override
+        C1DEElementwiseOperation c1de_element_op) override
     {
         return std::make_unique<Argument>(
             static_cast<const ADataType*>(p_a),
             static_cast<const BDataType*>(p_b),
             static_cast<const B1DataType*>(p_b1),
             static_cast<CDataType*>(p_c),
-            static_cast<ZDataType*>(p_z),
-            static_cast<LSEDataType*>(p_lse),
-            static_cast<const D0DataType*>(p_acc0_biases), // cast in struct Argument
-            static_cast<const D1DataType*>(p_acc1_biases), // cast in struct Argument
+            static_cast<const Acc0BiasDataType*>(p_acc0_bias), // cast in struct Argument
+            static_cast<const Acc1BiasDataType*>(p_acc1_bias), // cast in struct Argument
             a_gs_ms_ks_lengths,
             a_gs_ms_ks_strides,
             b_gs_ns_ks_lengths,
@@ -1215,20 +901,15 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
             c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
             c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-            z_gs_ms_ns_lengths,
-            z_gs_ms_ns_strides,
-            lse_gs_ms_lengths,
-            acc0_biases_gs_ms_ns_lengths,
-            acc0_biases_gs_ms_ns_strides,
-            acc1_biases_gs_ms_gemm1ns_lengths,
-            acc1_biases_gs_ms_gemm1ns_strides,
+            acc0_bias_gs_ms_ns_lengths,
+            acc0_bias_gs_ms_ns_strides,
+            acc1_bias_gs_ms_gemm1ns_lengths,
+            acc1_bias_gs_ms_gemm1ns_strides,
             a_element_op,
             b_element_op,
-            acc_element_op,
+            c0_element_op,
             b1_element_op,
-            c_element_op,
-            p_dropout,
-            seeds);
+            c1de_element_op);
     }
 
     // polymorphic
@@ -1243,7 +924,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2"
+        str << "DeviceBatchedMultiheadAttentionInfer_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

@@ -327,6 +327,6 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
 using ReferenceDropoutInstance =
     ck::tensor_operation::host::ReferenceDropout<ZDataType, ADataType, ADataType>;
 
-#include "run_grouped_multihead_attention_bias_forward.inc"
+#include "run_grouped_multihead_attention_bias_forward_v2.inc"
 
 int main(int argc, char* argv[]) { return run(argc, argv); }
