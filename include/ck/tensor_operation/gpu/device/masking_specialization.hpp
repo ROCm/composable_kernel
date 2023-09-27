@@ -53,7 +53,7 @@ struct MaskOutUpperTrianglePredicate
 template <typename MaskOutPredicate>
 struct C0MatrixMask_impl
 {
-    C0MatrixMask_impl(index_t NRaw) : NRaw_(NRaw), predicate_(MaskOutPredicate{}) {}
+    constexpr C0MatrixMask_impl(index_t NRaw) : NRaw_(NRaw), predicate_(MaskOutPredicate{}) {}
 
     __host__ __device__ constexpr bool IsNOutOfBound(/*index_t m, */ index_t n) const
     {

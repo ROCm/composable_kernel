@@ -63,3 +63,6 @@ _templates/
 _toc.yml
 docBin/
 _doxygen/
+
+# pycache
+__pycache__/
