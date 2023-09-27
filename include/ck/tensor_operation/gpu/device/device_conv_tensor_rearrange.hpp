@@ -12,21 +12,26 @@ namespace tensor_operation {
 namespace device {
 
 /**
- * \brief Image to column.
+ * \brief Convolution Tensor Rearrange.
  *
- * This Device operator converts image ([G, N, Di, Hi, Wi, C]) to the gemm
- * problem([N * Do * Ho * Wo, Z *  Y * X * C]). G must be equal to 1.
+ * This Device operator supports conversion image ([G, N, Di, Hi, Wi, C]) to
+ * the gemm problem([N * Do * Ho * Wo, Z *  Y * X * C]) (Image to Column) and
+ * conversion gemm form to the image (Column to Image).
+ *
+ * Note that G must be equal to 1.
  *
  * \tparam NDimSpatial Number of spatial dimensions.
- * \tparam InputLayout Input Layout.
+ * \tparam ImageLayout Input Layout.
  * \tparam InputDataType Input Data Type.
  * \tparam OutputDataType Output Data Type.
+ * \tparam ConvTensorRearrangeOp Operation type: ImageToColumn, ColumnToImage.
  */
 template <index_t NDimSpatial,
-          typename InputLayout,
+          typename ImageLayout,
           typename InputDataType,
-          typename OutputDataType>
-struct DeviceImageToColumn : public BaseOperator
+          typename OutputDataType,
+          typename ConvTensorRearrangeOp>
+struct DeviceConvTensorRearrange : public BaseOperator
 {
 
     /**
@@ -39,8 +44,8 @@ struct DeviceImageToColumn : public BaseOperator
      * \param input_spatial_lengths Input spatial lengths.
      * \param filter_spatial_lengths Filter spatial lengths.
      * \param output_spatial_lengths Output spatial lengths.
-     * \param input_g_n_c_wis_strides Input strides in order [G, N, C, D, H, W].
-     * \param output_m_k_strides Output strides.
+     * \param image_g_n_c_wis_strides Image strides in order [G, N, C, D, H, W].
+     * \param gemm_m_k_strides Gemm form strides.
      * \param conv_filter_strides Convolution filter strides.
      * \param conv_filter_dilations Convolution filter dilations.
      * \param input_left_pads Convolution left pads.
@@ -55,8 +60,8 @@ struct DeviceImageToColumn : public BaseOperator
                         const std::array<index_t, NDimSpatial>& input_spatial_lengths,
                         const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
                         const std::array<index_t, NDimSpatial>& output_spatial_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& input_g_n_c_wis_strides,
-                        const std::array<index_t, 2>& output_m_k_strides,
+                        const std::array<index_t, NDimSpatial + 3>& image_g_n_c_wis_strides,
+                        const std::array<index_t, 2>& gemm_m_k_strides,
                         const std::array<index_t, NDimSpatial>& conv_filter_strides,
                         const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                         const std::array<index_t, NDimSpatial>& input_left_pads,
