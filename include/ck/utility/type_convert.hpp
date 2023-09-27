@@ -20,7 +20,7 @@ __host__ __device__ constexpr Y type_convert(X x)
     return static_cast<Y>(x);
 }
 
-// Convert X to Y, either X or Y is a const data type..
+// Convert X to Y, either X or Y is a const data type.
 template <typename Y,
           typename X,
           std::enable_if_t<std::is_const_v<Y> || std::is_const_v<X>, bool> = false>
