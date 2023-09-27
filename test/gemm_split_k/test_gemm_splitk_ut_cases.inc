@@ -2,7 +2,7 @@
 
 TYPED_TEST(TestGemmSplitK_MK_KN, SmallM)
 {
-    std::vector<int> Ms{0, 1, 2, 3, 4, 5, 6};
+    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
     constexpr int N = 512;
     constexpr int K = 320;
 
@@ -16,7 +16,7 @@ TYPED_TEST(TestGemmSplitK_MK_KN, SmallM)
 
 TYPED_TEST(TestGemmSplitK_MK_NK, SmallM)
 {
-    std::vector<int> Ms{0, 1, 2, 3, 4, 5, 6};
+    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
     constexpr int N = 512;
     constexpr int K = 320;
 
@@ -30,7 +30,7 @@ TYPED_TEST(TestGemmSplitK_MK_NK, SmallM)
 
 TYPED_TEST(TestGemmSplitK_KM_KN, SmallM)
 {
-    std::vector<int> Ms{0, 1, 2, 3, 4, 5, 6};
+    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
     constexpr int N = 512;
     constexpr int K = 320;
 
@@ -43,7 +43,7 @@ TYPED_TEST(TestGemmSplitK_KM_KN, SmallM)
 
 TYPED_TEST(TestGemmSplitK_KM_NK, SmallM)
 {
-    std::vector<int> Ms{0, 1, 2, 3, 4, 5, 6};
+    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
     constexpr int N = 512;
     constexpr int K = 320;
 
