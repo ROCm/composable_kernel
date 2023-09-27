@@ -124,10 +124,10 @@ int profile_contraction_impl(ck::index_t do_verification,
                                                                               DataType,
                                                                               DTupleDataType,
                                                                               DataType,
-                                                                              ComputeDataType,
                                                                               AElementOp,
                                                                               BElementOp,
-                                                                              CDElementOp>;
+                                                                              CDElementOp,
+                                                                              ComputeDataType>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<

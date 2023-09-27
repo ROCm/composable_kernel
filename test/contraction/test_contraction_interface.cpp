@@ -75,7 +75,6 @@ template <typename DataTypeA,
           typename DataTypeB,
           typename DataTypeC,
           typename DataTypeD,
-          typename DataTypeCompute,
           ck::index_t NumDim>
 class ContractionDeviceOpWrapper
 {
@@ -88,7 +87,6 @@ class ContractionDeviceOpWrapper
                                                                               DataTypeB,
                                                                               ck::Tuple<DataTypeC>,
                                                                               DataTypeD,
-                                                                              DataTypeCompute,
                                                                               Pass,
                                                                               Pass,
                                                                               Bilinear>;
@@ -131,9 +129,9 @@ TEST(TestContractionInterface, IncorrectNumDims)
 {
     std::vector<std::vector<ck::index_t>> Dims    = {{4, 4}, {4, 4, 4, 4}, {4, 4, 4, 4, 4, 4}};
     std::vector<std::vector<ck::index_t>> Strides = {{1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1, 1, 1}};
-    ContractionDeviceOpWrapper<F32, F32, F32, F32, F32, 1> wrapper_1d;
-    ContractionDeviceOpWrapper<F32, F32, F32, F32, F32, 2> wrapper_2d;
-    ContractionDeviceOpWrapper<F32, F32, F32, F32, F32, 3> wrapper_3d;
+    ContractionDeviceOpWrapper<F32, F32, F32, F32, 1> wrapper_1d;
+    ContractionDeviceOpWrapper<F32, F32, F32, F32, 2> wrapper_2d;
+    ContractionDeviceOpWrapper<F32, F32, F32, F32, 3> wrapper_3d;
     EXPECT_FALSE(wrapper_1d.IsSupportedInstance(Dims[0], Strides[0]));
     EXPECT_TRUE(wrapper_2d.IsSupportedInstance(Dims[1], Strides[1]));
     EXPECT_FALSE(wrapper_3d.IsSupportedInstance(Dims[2], Strides[2]));
@@ -143,8 +141,8 @@ TEST(TestContractionInterface, IncorrectDataTypes)
 {
     std::vector<ck::index_t> Dims    = {4, 4, 4, 4};
     std::vector<ck::index_t> Strides = {64, 16, 4, 1};
-    ContractionDeviceOpWrapper<F32, F32, F64, F64, F32, 2> wrapper_1;
-    ContractionDeviceOpWrapper<F64, F64, F32, F32, F32, 2> wrapper_2;
+    ContractionDeviceOpWrapper<F32, F32, F64, F64, 2> wrapper_1;
+    ContractionDeviceOpWrapper<F64, F64, F32, F32, 2> wrapper_2;
     EXPECT_FALSE(wrapper_1.IsSupportedInstance(Dims, Strides));
     EXPECT_FALSE(wrapper_2.IsSupportedInstance(Dims, Strides));
 }

@@ -41,10 +41,10 @@ void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_compute_f32
                                                            F16,
                                                            Empty_Tuple,
                                                            F16,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Scale>>>& instances)
+                                                           Scale,
+                                                           F32>>>& instances)
 {
     add_device_operation_instances(
         instances,

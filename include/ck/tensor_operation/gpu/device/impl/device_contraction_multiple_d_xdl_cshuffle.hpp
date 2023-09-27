@@ -155,10 +155,10 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                                         BDataType,
                                         DsDataType,
                                         EDataType,
-                                        ComputeDataType,
                                         AElementwiseOperation,
                                         BElementwiseOperation,
-                                        CDEElementwiseOperation>
+                                        CDEElementwiseOperation,
+                                        ComputeDataType>
 {
     using DeviceOp = DeviceContractionMultipleD_Xdl_CShuffle;
 

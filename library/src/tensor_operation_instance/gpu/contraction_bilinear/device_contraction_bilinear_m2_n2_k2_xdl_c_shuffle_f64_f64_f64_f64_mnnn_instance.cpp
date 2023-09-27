@@ -41,10 +41,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_mnnn
                                                            F64,
                                                            F64_Tuple,
                                                            F64,
-                                                           F64,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances)
+                                                           Bilinear,
+                                                           F64>>>& instances)
 {
     add_device_operation_instances(
         instances,

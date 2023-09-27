@@ -29,7 +29,6 @@ using AccDataType      = F64;
 using CShuffleDataType = F64;
 using DsDataType       = ck::Tuple<>;
 using EDataType        = F64;
-using ComputeDataType  = F64;
 
 static constexpr ck::index_t NumDimM = 2;
 static constexpr ck::index_t NumDimN = 2;
@@ -176,7 +175,6 @@ int main(int argc, char* argv[])
         BDataType,
         ck::Tuple<>,
         EDataType,
-        ComputeDataType,
         ck::tensor_operation::element_wise::PassThrough,
         ck::tensor_operation::element_wise::PassThrough,
         ck::tensor_operation::element_wise::Scale>;

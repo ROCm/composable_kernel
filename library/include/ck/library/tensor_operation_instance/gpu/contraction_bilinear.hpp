@@ -25,10 +25,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_kknn
                                                            F32,
                                                            F32_Tuple,
                                                            F32,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_knnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -38,10 +38,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_knnn
                                                            F32,
                                                            F32_Tuple,
                                                            F32,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_mknn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -51,10 +51,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_mknn
                                                            F32,
                                                            F32_Tuple,
                                                            F32,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_mnnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -64,10 +64,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_mnnn
                                                            F32,
                                                            F32_Tuple,
                                                            F32,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_compute_f16_kknn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -77,10 +77,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_comp
                                                            F32,
                                                            F32_Tuple,
                                                            F32,
-                                                           F16,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F16>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_compute_f16_knnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -90,10 +90,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_comp
                                                            F32,
                                                            F32_Tuple,
                                                            F32,
-                                                           F16,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F16>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_compute_f16_mknn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -103,10 +103,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_comp
                                                            F32,
                                                            F32_Tuple,
                                                            F32,
-                                                           F16,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F16>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_compute_f16_mnnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -116,10 +116,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_comp
                                                            F32,
                                                            F32_Tuple,
                                                            F32,
-                                                           F16,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F16>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_compute_bf16_kknn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -129,10 +129,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_comp
                                                            F32,
                                                            F32_Tuple,
                                                            F32,
-                                                           BF16,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           BF16>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_compute_bf16_knnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -142,10 +142,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_comp
                                                            F32,
                                                            F32_Tuple,
                                                            F32,
-                                                           BF16,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           BF16>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_compute_bf16_mknn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -155,10 +155,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_comp
                                                            F32,
                                                            F32_Tuple,
                                                            F32,
-                                                           BF16,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           BF16>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_compute_bf16_mnnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -168,10 +168,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_comp
                                                            F32,
                                                            F32_Tuple,
                                                            F32,
-                                                           BF16,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           BF16>>>& instances);
 #endif // CK_ENABLE_FP32
 
 #ifdef CK_ENABLE_FP64
@@ -183,10 +183,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_kknn
                                                            F64,
                                                            F64_Tuple,
                                                            F64,
-                                                           F64,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F64>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_knnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -196,10 +196,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_knnn
                                                            F64,
                                                            F64_Tuple,
                                                            F64,
-                                                           F64,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F64>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_mknn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -209,10 +209,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_mknn
                                                            F64,
                                                            F64_Tuple,
                                                            F64,
-                                                           F64,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F64>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_mnnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -222,10 +222,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_mnnn
                                                            F64,
                                                            F64_Tuple,
                                                            F64,
-                                                           F64,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F64>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_compute_f32_kknn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -235,10 +235,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_comp
                                                            F64,
                                                            F64_Tuple,
                                                            F64,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_compute_f32_knnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -248,10 +248,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_comp
                                                            F64,
                                                            F64_Tuple,
                                                            F64,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_compute_f32_mknn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -261,10 +261,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_comp
                                                            F64,
                                                            F64_Tuple,
                                                            F64,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_compute_f32_mnnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -274,10 +274,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_comp
                                                            F64,
                                                            F64_Tuple,
                                                            F64,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 #endif // CK_ENABLE_FP64
 
 #ifdef CK_ENABLE_FP16
@@ -289,10 +289,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_f16_comp
                                                            F16,
                                                            F16_Tuple,
                                                            F16,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_f16_compute_f32_knnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -302,10 +302,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_f16_comp
                                                            F16,
                                                            F16_Tuple,
                                                            F16,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_f16_compute_f32_mknn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -315,10 +315,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_f16_comp
                                                            F16,
                                                            F16_Tuple,
                                                            F16,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_f16_compute_f32_mnnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -328,10 +328,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_f16_comp
                                                            F16,
                                                            F16_Tuple,
                                                            F16,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 #endif // CK_ENABLE_FP16
 
 #ifdef CK_ENABLE_BF16
@@ -343,10 +343,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_bf16_bf16_bf16_bf16_
                                                            BF16,
                                                            BF16_Tuple,
                                                            BF16,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_bf16_bf16_bf16_bf16_compute_f32_knnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -356,10 +356,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_bf16_bf16_bf16_bf16_
                                                            BF16,
                                                            BF16_Tuple,
                                                            BF16,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_bf16_bf16_bf16_bf16_compute_f32_mknn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -369,10 +369,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_bf16_bf16_bf16_bf16_
                                                            BF16,
                                                            BF16_Tuple,
                                                            BF16,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_bf16_bf16_bf16_bf16_compute_f32_mnnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -382,10 +382,10 @@ void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_bf16_bf16_bf16_bf16_
                                                            BF16,
                                                            BF16_Tuple,
                                                            BF16,
-                                                           F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Bilinear>>>& instances);
+                                                           Bilinear,
+                                                           F32>>>& instances);
 #endif // CK_ENABLE_FP16
 
 // Contraction + Bilinear
@@ -405,10 +405,10 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceContra
     BDataType,
     ck::Tuple<DDataType>,
     EDataType,
-    ComputeDataType,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::Bilinear>>
+    ck::tensor_operation::element_wise::Bilinear,
+    ComputeDataType>>
 {
     using DeviceOp = DeviceContractionMultipleD<NumDimM,
                                                 NumDimN,
@@ -417,10 +417,10 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceContra
                                                 BDataType,
                                                 ck::Tuple<DDataType>,
                                                 EDataType,
-                                                ComputeDataType,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::Bilinear>;
+                                                ck::tensor_operation::element_wise::Bilinear,
+                                                ComputeDataType>;
 
     static auto GetInstances()
     {
