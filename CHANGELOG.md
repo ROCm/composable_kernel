@@ -9,6 +9,7 @@ Full documentation for Composable Kernel is not yet available.
  - Fixed a bug in grouped convolution backward data without K padding (#848 #876).
 
 ### Optimizations
+None
 
 ### Additions
 - Added an image to a column kernel (#867).
@@ -50,3 +51,4 @@ Full documentation for Composable Kernel is not yet available.
 - Added MaxPool backward (#750).
 
 ### Changes
+None
