@@ -21,7 +21,7 @@ Full documentation for Composable Kernel is not yet available.
 ### Changed
  - Changed grouped Convolution API to keep consistency with other convolution kernels (#817).
 
-## CK 0.2.0 for ROCm 5.5.0
+## CK 0.2.0 for ROCm 5.7.0
 
 ### Fixed
 - Fixed a bug in 6-dimensional kernels (#555).
