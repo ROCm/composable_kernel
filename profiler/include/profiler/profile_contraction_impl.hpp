@@ -136,7 +136,7 @@ int profile_contraction_impl(ck::index_t do_verification,
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     using AccDataType =
-        typename std::conditional<std::is_same<DataType, F64>::value, F64, F32>::type;
+        typename std::conditional<std::is_same<ComputeDataType, F64>::value, F64, F32>::type;
 
     // Run reference op
     if(do_verification)
@@ -285,7 +285,11 @@ int profile_contraction_impl(ck::index_t do_verification,
             {
                 e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-                double threshold = nelems_k * std::numeric_limits<AccDataType>::epsilon();
+                // Both the kernel and the reference use `AccDataType`, so an absolute error of both
+                // of them is bounded by `nelems_k * std::numeric_limits<AccDataType>::epsilon()`.
+                // Comparing one to another can result in an absolute error as high as twice that
+                // value.
+                double threshold = 2 * nelems_k * std::numeric_limits<AccDataType>::epsilon();
                 // TODO: Add a generic solution in CK.
                 if constexpr(ck::is_same_v<DataType, ck::bhalf_t>)
                 {
