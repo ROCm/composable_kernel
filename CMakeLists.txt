@@ -446,14 +446,14 @@ if(NOT DEFINED INSTANCES_ONLY)
 
    rocm_package_setup_component(profiler
         LIBRARY_NAME composablekernel
-        PACKAGE_NAME ckProfiler
+        PACKAGE_NAME ckprofiler
    )
    add_subdirectory(profiler)
   else()
     #When building PROFILER_ONLY, label the package with GPU_ARCH
     rocm_package_setup_component(profiler
        LIBRARY_NAME composablekernel
-       PACKAGE_NAME ckProfiler_${GPU_ARCH}
+       PACKAGE_NAME ckprofiler_${GPU_ARCH}
     )
     add_subdirectory(profiler)
   endif()
