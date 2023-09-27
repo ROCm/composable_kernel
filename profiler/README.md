@@ -187,7 +187,7 @@ GB/s: 69.2301
 ```
 Note: This kernel use atomic add, this will cause output buffer to be accumulated multiple times, causing verification failure. To work around it, do not use CK's own timer and do verification at the same time.
 
-## Profile image to column kernels
+## Profile image to column/column to image kernels
 ```bash
 # arg1: tensor operation (" OP_NAME ": " OP_DESC ")
 # arg2: data type (0: Input fp32, Weight fp32, Output fp32
@@ -199,6 +199,7 @@ Note: This kernel use atomic add, this will cause output buffer to be accumulate
 # arg5: initialization (0: no init, 1: integer value, 2: decimal value)
 # arg6: print tensor value (0: no; 1: yes)
 # arg7: time kernel (0: no, 1: yes)
+# arg8: operation type (0: ImageToColumn, 1: ColumnToImage)
 # Following arguments (depending on number of spatial dims):
 #  Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
 #  G, N, K, C, 
@@ -209,8 +210,8 @@ Note: This kernel use atomic add, this will cause output buffer to be accumulate
 #  <left padding>, (ie LeftPy, LeftPx for 2D)
 #  <right padding>, (ie RightPy, RightPx for 2D)
 
- ################             op   datatype  layout  verify  init  log  time  Ndims  G   N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx
-./bin/ckProfiler image_to_column          0       0       1     1    0     1      2  1 256   1 512  3  3   28  28   1   1   1   1        0       0       0        0
+ ################                   op   datatype  layout  verify  init  log  time opType Ndims  G   N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx
+./bin/ckProfiler conv_tensor_rearrange          0       0       0     1    0     1      0     2  1 256   1 512  3  3   28  28   1   1   1   1        0       0       0        0
 
  ```
 
@@ -224,3 +225,4 @@ name: DeviceImageToColumn<128, 32, 64, 4>
 avg_time: 3.12326
 GB/s: 2042.59
 ```
+Note: Column to image kernel adds to the output memory, this will cause output buffer to be accumulated multiple times, causing verification failure. To work around it, do not use CK's own timer and do verification at the same time.
