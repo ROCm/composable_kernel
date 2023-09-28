@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -515,16 +515,6 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
             e_nz_stride_ = e_ms_ns_stride[NumDimM + NumDimN - 1];
         }
 
-        void Print() const
-        {
-            // std::cout << "A[M, K]: " << as_grid_desc_m_k_ << std::endl;
-            // std::cout << "B[N, K]: " << bs_grid_desc_n_k_ << std::endl;
-            // static_for<0, NumDTensor, 1>{}(
-            //[&](auto i) { std::cout << "Ds[M, N]: " << ds_grid_desc_m_n_[i] << std::endl; });
-            // std::cout << "E[M, N]: " << e_grid_desc_m_n_ << std::endl;
-        }
-
-        //  private:
         // pointers
         typename GridwiseGemm::AsGridPointer p_as_grid_;
         typename GridwiseGemm::BsGridPointer p_bs_grid_;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -62,7 +62,7 @@ struct Multiply
     __host__ __device__ constexpr void
     operator()(ck::half_t& a, const ck::half_t& a0, const float& a1) const
     {
-        a = a0 * a1;
+        a = ck::type_convert<ck::half_t>(ck::type_convert<float>(a0) * a1);
     }
 };
 
@@ -231,8 +231,8 @@ int main(int argc, char* argv[])
     if(!device_op.IsSupportedArgument(argument))
     {
         throw std::runtime_error(
-            "wrong! device_gemm with the specified compilation parameters does "
-            "not support this GEMM problem");
+            "wrong! device_contraction with the specified compilation parameters does "
+            "not support this problem");
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
