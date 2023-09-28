@@ -290,14 +290,18 @@ int profile_contraction_impl(ck::index_t do_verification,
                 // Comparing one to another can result in an absolute error as high as twice that
                 // value.
                 double threshold = 2 * nelems_k * std::numeric_limits<AccDataType>::epsilon();
-                // TODO: Add a generic solution in CK.
-                if constexpr(ck::is_same_v<DataType, ck::bhalf_t>)
+                // Handle the possible casting error of either AccDataType -> DataType or
+                // DataType -> ComputeDataType.
+                // TODO: Add a generic solution for calculating thresholds in CK.
+                if constexpr(ck::is_same_v<DataType, ck::bhalf_t> ||
+                             ck::is_same_v<ComputeDataType, ck::bhalf_t>)
                 {
                     const double epsilon = std::pow(2, -7);
                     // Maximum relative casting error when rounding to zero.
                     threshold += epsilon * 2;
                 }
-                else if constexpr(ck::is_same_v<DataType, ck::half_t>)
+                else if constexpr(ck::is_same_v<DataType, ck::half_t> ||
+                                  ck::is_same_v<ComputeDataType, ck::half_t>)
                 {
                     const double epsilon = std::pow(2, -10);
                     // Maximum relative casting error when rounding to zero.
