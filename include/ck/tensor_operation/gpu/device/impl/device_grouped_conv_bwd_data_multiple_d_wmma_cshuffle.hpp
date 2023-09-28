@@ -89,7 +89,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                                                BElementwiseOp,
                                                CDEElementwiseOp>
 {
-    // FIXME
+    // TODO: Extend support for more spatial dimensions.
     static_assert(NDimSpatial == 2 || NDimSpatial == 3,
                   "wrong! only implemented for 2D and 3D now");
 
@@ -97,7 +97,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
 
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-    // TODO make A/B datatype different
+    // TODO: Add support for different A and B data types.
     using ABDataType = ADataType;
 
     static constexpr auto I0           = Number<0>{};
@@ -643,11 +643,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
         const index_t ConvK = arg.b_g_k_c_xs_lengths_[1];
         const index_t ConvC = arg.b_g_k_c_xs_lengths_[2];
 
-        // Specifialization
+        // Specialization
         if constexpr(ConvBackwardDataSpecialization ==
                      ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0)
         {
-            // check if it's 1x1, stride=1 pad = 0 conv
+            // check if it's a 1x1 convolution with stride=1 and no padding
             for(int i = 0; i < NDimSpatial; i++)
             {
                 if(!(arg.b_g_k_c_xs_lengths_[3 + i] == 1 && arg.conv_filter_strides_[i] == 1 &&

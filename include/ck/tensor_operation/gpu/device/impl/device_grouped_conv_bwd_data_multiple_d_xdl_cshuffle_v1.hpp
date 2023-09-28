@@ -213,7 +213,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                BElementwiseOp,
                                                CDEElementwiseOp>
 {
-    // FIXME
+    // TODO: Extend support for more spatial dimensions.
     static_assert(NDimSpatial == 2 || NDimSpatial == 3,
                   "wrong! only implemented for 2D and 3D now");
 
@@ -221,7 +221,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-    // TODO make A/B datatype different
+    // TODO: Add support for different A and B data types.
     using ABDataType = ADataType;
 
     static constexpr auto I0 = Number<0>{};
