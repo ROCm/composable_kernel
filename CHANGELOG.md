@@ -27,7 +27,7 @@ None
 
 ### Fixes
 - Fixed a bug in 6-dimensional kernels (#555).
-- Fixed a test case failure with grouped ConvBwdWeight (#524).
+- Fixed a test case failure with grouped convolution backward weight (#524).
 
 ### Optimizations
 - Improved the performance of the normalization kernel.
