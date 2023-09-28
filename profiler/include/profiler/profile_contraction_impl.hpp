@@ -109,10 +109,6 @@ int profile_contraction_impl(ck::index_t do_verification,
     const std::vector<index_t> e_ms_ns_lengths = {M[0], M[1], N[0], N[1]};
     const std::vector<index_t> d_m_n_lengths   = {M[0], M[1], N[0], N[1]};
 
-    // // The order of dims in StridesB is [K0, K1, N0, N1] so need to change it to [N0, N1, K0, K1]
-    // const std::vector<index_t> b_ns_ks_strides = {
-    //     StridesB[2], StridesB[3], StridesB[0], StridesB[1]};
-
     const auto a_element_op = AElementOp{};
     const auto b_element_op = BElementOp{};
 
