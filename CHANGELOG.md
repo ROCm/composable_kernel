@@ -6,7 +6,7 @@ Full documentation for Composable Kernel is not yet available.
 
 ### Fixes
  - Fixed a hazard associated with inline v_dot (#808).
- - Fixed a bug in grouped convolution backward data without K padding (#848 #876).
+ - Fixed two bugs in grouped convolution backward data without K padding (#848 #876).
 
 ### Optimizations
 None
