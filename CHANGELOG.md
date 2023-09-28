@@ -46,7 +46,7 @@ None
 - Added multi-D GEMM client APIs (#534).
 - Added multi-embeddings support (#542).
 - Added AMD RDNA 3 blockwise GEMM and real GEMM support (#541).
-- Added AMD RDNA-grouped ConvBwdWeight support (#505).
+- Added AMD RDNA grouped convolution backward weight support (#505).
 - Added MaxPool, AvgPool forward (#815).
 - Added MaxPool backward (#750).
 
