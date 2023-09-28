@@ -821,7 +821,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         }
 
         if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, GNHWC> &&
-                          is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, GNHWK>)
+                     is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, GNHWK>)
         {
 #ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
@@ -830,7 +830,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f32_instances(op_ptrs);
             }
 #endif
-
 
 #if(defined(CK_ENABLE_FP32) && defined(DL_KERNELS))
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
@@ -870,7 +869,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 
 #ifdef CK_ENABLE_INT8
             if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                              is_same_v<OutDataType, int8_t>)
+                         is_same_v<OutDataType, int8_t>)
             {
                 add_device_grouped_conv2d_fwd_wmma_gnhwc_gkyxc_gnhwk_i8_instances(op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_gnhwc_gkyxc_gnhwk_i8_1x1p0_instances(op_ptrs);
@@ -881,7 +880,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         }
 
         if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NHWGC> &&
-                          is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, NHWGK>)
+                     is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, NHWGK>)
         {
 
 #ifdef CK_ENABLE_FP32
@@ -936,7 +935,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         }
 
         if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, GNDHWC> &&
-                          is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, GNDHWK>)
+                     is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, GNDHWK>)
         {
 #ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
@@ -980,7 +979,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         }
 
         if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NDHWGC> &&
-                          is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, NDHWGK>)
+                     is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, NDHWGK>)
         {
 #ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
