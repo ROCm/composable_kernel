@@ -34,7 +34,7 @@ template <ck::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,
           typename OutDataType,
-          typename ComputeTypeA = InLayout,
+          typename ComputeTypeA = InDataType,
           typename ComputeTypeB = ComputeTypeA>
 bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                           int init_method,

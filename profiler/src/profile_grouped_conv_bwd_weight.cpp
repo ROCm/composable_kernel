@@ -20,9 +20,9 @@ enum struct ConvLayout
 
 enum struct ConvDataType
 {
-    F32_F32_F32,   // 0
-    F16_F16_F16,   // 1
-    BF16_F32_BF16, // 2
+    F32_F32_F32,       // 0
+    F16_F16_F16,       // 1
+    BF16_F32_BF16,     // 2
     F16_F16_F16_F8_BF8 // 3
 };
 
@@ -84,12 +84,12 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
     using F32  = float;
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
-    #ifdef CK_ENABLE_FP8
+#ifdef CK_ENABLE_FP8
     using F8 = ck::f8_t;
-    #endif
-    #ifdef CK_ENABLE_BF8
+#endif
+#ifdef CK_ENABLE_BF8
     using BF8 = ck::bf8_t;
-    #endif
+#endif
 
     using namespace ck::tensor_layout::convolution;
 
