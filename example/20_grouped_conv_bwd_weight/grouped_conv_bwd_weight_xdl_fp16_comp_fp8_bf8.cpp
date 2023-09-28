@@ -5,11 +5,13 @@
 
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle.hpp"
 
-using InDataType   = F16;
-using WeiDataType  = F16;
-using OutDataType  = F16;
-using AccDataType  = F32;
-using ComputeTypeA = F8;
+using InDataType  = F16;
+using WeiDataType = F16;
+using OutDataType = F16;
+using AccDataType = F32;
+// using ComputeTypeA = F8;
+// using ComputeTypeB = BF8;
+using ComputeTypeA = BF8;
 using ComputeTypeB = BF8;
 
 using InElementOp  = PassThrough;
@@ -53,22 +55,22 @@ using DeviceConvBwdWeightInstance =
         S<0, 3, 1, 2>,        // ABlockTransferThreadClusterArrangeOrder
         S<0, 2, 1, 3>,        // ABlockTransferSrcAccessOrder
         2,                    // ABlockTransferSrcVectorDim
-        8,                    // ABlockTransferSrcScalarPerVector
-        2,                    // ABlockTransferDstScalarPerVector_K1
+        1,                    // ABlockTransferSrcScalarPerVector
+        1,                    // ABlockTransferDstScalarPerVector_K1
         true,                 // ABlockLdsAddExtraM
         S<1, 4, 16, 4>,       // BBlockTransferThreadClusterLengths_K0_N_K1
         S<0, 3, 1, 2>,        // BBlockTransferThreadClusterArrangeOrder
         S<0, 2, 1, 3>,        // BBlockTransferSrcAccessOrder
         2,                    // BBlockTransferSrcVectorDim
-        8,                    // BBlockTransferSrcScalarPerVector
-        2,                    // BBlockTransferDstScalarPerVector_K1
+        1,                    // BBlockTransferSrcScalarPerVector
+        1,                    // BBlockTransferDstScalarPerVector_K1
         true,                 // BBlockLdsAddExtraN
         1,                    // CShuffleMXdlPerWavePerShuffle
         1,                    // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 4>,       // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        128 / (sizeof(WeiDataType) * CHAR_BIT), // CBlockTransferScalarPerVector_NWaveNPerXdl
-        ComputeTypeA,                           // ComputeTypeA
-        ComputeTypeB>;                          // ComputeTypeB
+        2,                    // CBlockTransferScalarPerVector_NWaveNPerXdl
+        ComputeTypeA,         // ComputeTypeA
+        ComputeTypeB>;        // ComputeTypeB
 
 #include "run_grouped_conv_bwd_weight_example.inc"
 
