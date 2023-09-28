@@ -113,18 +113,7 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
         return true;
     }
 
-    float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-
-    std::size_t flop      = conv_param.GetFlops();
-    std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
-
-    float tflops = static_cast<float>(flop) / 1.E9 / avg_time;
-
-    float gb_per_sec = num_btype / 1.E6 / avg_time;
-
-    std::cerr << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
-              << std::endl
-              << "DeviceOp: " << conv.GetTypeString() << std::endl;
+    invoker.Run(argument, StreamConfig{nullptr, false});
 
     if(config.do_verification)
     {
@@ -147,6 +136,19 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
 
         return ck::utils::check_err(wei_device_result.mData, wei_host_result.mData);
     }
+
+    float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+
+    std::size_t flop      = conv_param.GetFlops();
+    std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
+
+    float tflops = static_cast<float>(flop) / 1.E9 / avg_time;
+
+    float gb_per_sec = num_btype / 1.E6 / avg_time;
+
+    std::cerr << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
+              << std::endl
+              << "DeviceOp: " << conv.GetTypeString() << std::endl;
 
     return true;
 }
