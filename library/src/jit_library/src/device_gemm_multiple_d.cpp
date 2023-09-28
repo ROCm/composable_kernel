@@ -134,13 +134,15 @@ Solution Problem::MakeSolution(std::size_t idx, const std::string& arch) const
     const std::size_t k_per_block = std::stoi(k_per_block_str);
     const std::size_t grid_size   = GetGridSize(M, N, m_per_block, n_per_block);
     params[gemm_spec_idx]         = GetGemmSpec(M, N, K, m_per_block, n_per_block, k_per_block);
-
+    
     std::string str = std::accumulate(
         params.begin() + 1,
         params.end(),
         std::string{},
         [](const std::string& a, const std::string& b) { return a.empty() ? b : a + ", " + b; });
     str = params.front() + "< " + str + ">";
+    if (params.back().find("v2") != std::string::npos and K % k_per_block != 0)
+        str = "";
 
     return Solution{str, block_size, grid_size};
 }
@@ -156,7 +158,9 @@ std::vector<Solution> Problem::GetSolutions(const std::string& arch) const
     const std::size_t num_instances = GetInstances(arch).size();
     for(std::size_t i = 0; i < num_instances; ++i)
     {
-        solutions.push_back(MakeSolution(i, arch));
+        auto solution = MakeSolution(i, arch);
+        if (solution.template_str != "")
+            solutions.push_back(solution);
     }
 
     return solutions;
