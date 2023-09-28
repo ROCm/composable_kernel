@@ -2,9 +2,12 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
+#ifndef __HIPCC_RTC__
 #include <iostream>
 #include <sstream>
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
+#endif
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -15,8 +18,6 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_multiple_d_softmax_gemm_xdl_cshuffle_v1.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -442,6 +443,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle,
         D0sTransferSrcScalarPerVector>;
 
+#ifndef __HIPCC_RTC__
     // Argument
     // FIXME: constness
     struct Argument : public BaseArgument
@@ -856,9 +858,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                         b1_element_op,
                         c1de_element_op};
     }
-#ifndef __HIPCC_RTC__
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     // polymorphic
     // FIXME: constness
@@ -948,6 +948,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
         return str.str();
     }
+#endif
 };
 
 } // namespace device

@@ -3,8 +3,12 @@
 
 #pragma once
 
+#ifndef __HIPCC_RTC__
 #include <iostream>
 #include <sstream>
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
+#endif
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -15,8 +19,6 @@
 #include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_softmax_gemm_xdl_cshuffle_v1.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -126,7 +128,6 @@ __global__ void
 // else
 //     AccElement = -INFINITY
 // Otherwise, result may be wrong.
-
 template <typename ALayout,
           typename BLayout, // B0Layout
           typename B1Layout,
@@ -430,6 +431,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         matrix_padder.PadN,
         MaskOutUpperTriangle>;
 
+#ifndef __HIPCC_RTC__
     // Argument
     struct Argument : public BaseArgument
     {
@@ -604,7 +606,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
-
+#endif
     static constexpr bool IsValidCompilationParameter()
     {
         // TODO: properly implement this check
@@ -700,7 +702,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
         return true;
     }
-
+#ifndef __HIPCC_RTC__
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(!ck::is_xdl_supported())
@@ -758,9 +760,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                         BatchStrideB1, BatchStrideC, a_element_op, b_element_op, acc_element_op,
                         b1_element_op, c_element_op};
     }
-#ifndef __HIPCC_RTC__
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     // polymorphic
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
@@ -839,7 +839,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
         return str.str();
     }
-
+#endif
     template <class ADesc, class BDesc, class B1Desc, class CDesc>
     struct Descriptor
     {
@@ -1054,7 +1054,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                const ADataType* __restrict__ p_b1_grid,
                                CDataType* __restrict__ p_c_grid)
     {
-        assert(desc.is_valid);
+        // assert(desc.is_valid);
         __shared__ char p_shared_block[Desc::GridwiseGemm::GetSharedMemoryNumberOfByte()];
         AccElementwiseOperation acc_element_op{scale};
 

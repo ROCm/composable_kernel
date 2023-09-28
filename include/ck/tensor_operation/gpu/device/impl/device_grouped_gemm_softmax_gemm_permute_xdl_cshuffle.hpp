@@ -2,9 +2,12 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
+#ifndef __HIPCC_RTC__
 #include <iostream>
 #include <sstream>
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
+#endif
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -15,8 +18,6 @@
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_softmax_gemm_xdl_cshuffle_v1.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -431,6 +432,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
         index_t block_start_, block_end_;
     };
 
+#ifndef __HIPCC_RTC_
     struct GroupDeviceArg
     {
         // lengths for the last dimensions of overall problem for sanity check of vector load/store
@@ -587,7 +589,6 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
         B1ElementwiseOperation b1_element_op_;
         CElementwiseOperation c_element_op_;
     };
-#ifndef __HIPCC_RTC_
     // Invoker
     struct Invoker : public BaseInvoker
     {
@@ -780,7 +781,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-#endif
+
     static auto MakeArgument(std::vector<const void*> p_a_vec,
                              std::vector<const void*> p_b_vec,
                              std::vector<const void*> p_b1_vec,
@@ -808,9 +809,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                         c_element_op};
     }
 
-#ifndef __HIPCC_RTC__
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     // polymorphic
     std::unique_ptr<BaseArgument>
@@ -889,6 +888,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
     {
         return dynamic_cast<const Argument*>(p_arg)->group_count_ * sizeof(GroupKernelArg);
     }
+#endif
 };
 
 } // namespace device
