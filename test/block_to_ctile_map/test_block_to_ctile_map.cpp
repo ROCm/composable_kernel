@@ -320,3 +320,73 @@ TEST(BlockToCTileMap, TestBlockToCTileMap_KSplit_M00_N0_M01Adapt)
         EXPECT_TRUE(equal);
     }
 }
+
+TEST(BlockToCTileMap, BlockToCTileMap_LinearKSplit_BottomIndex)
+{
+    const index_t M         = 768;
+    const index_t N         = 384;
+    const index_t MPerBlock = 128;
+    const index_t NPerBlock = 64;
+    const index_t MBlock    = M / MPerBlock;
+    const index_t NBlock    = N / NPerBlock;
+    const index_t KSplit    = 3;
+
+    auto c_grid_desc_m_n = make_naive_tensor_descriptor_packed(make_tuple(M, N));
+
+    BlockToCTileMap_LinearKSplit<MPerBlock, NPerBlock> tile_map(c_grid_desc_m_n, KSplit);
+
+    EXPECT_EQ(tile_map.CalculateGridSize(c_grid_desc_m_n), MBlock * NBlock * KSplit);
+
+    std::vector<std::vector<int>> expected_m0idx_n0idx_k0idx = {
+        {0, 0, 0}, {0, 0, 1}, {0, 0, 2}, {0, 1, 0}, {0, 1, 1}, {0, 1, 2}, {0, 2, 0}, {0, 2, 1},
+        {0, 2, 2}, {0, 3, 0}, {0, 3, 1}, {0, 3, 2}, {0, 4, 0}, {0, 4, 1}, {0, 4, 2}, {0, 5, 0},
+        {0, 5, 1}, {0, 5, 2}, {1, 0, 0}, {1, 0, 1}, {1, 0, 2}, {1, 1, 0}, {1, 1, 1}, {1, 1, 2},
+        {1, 2, 0}, {1, 2, 1}, {1, 2, 2}, {1, 3, 0}, {1, 3, 1}, {1, 3, 2}, {1, 4, 0}, {1, 4, 1},
+        {1, 4, 2}, {1, 5, 0}, {1, 5, 1}, {1, 5, 2}, {2, 0, 0}, {2, 0, 1}, {2, 0, 2}, {2, 1, 0},
+        {2, 1, 1}, {2, 1, 2}, {2, 2, 0}, {2, 2, 1}, {2, 2, 2}, {2, 3, 0}, {2, 3, 1}, {2, 3, 2},
+        {2, 4, 0}, {2, 4, 1}, {2, 4, 2}, {2, 5, 0}, {2, 5, 1}, {2, 5, 2}, {3, 0, 0}, {3, 0, 1},
+        {3, 0, 2}, {3, 1, 0}, {3, 1, 1}, {3, 1, 2}, {3, 2, 0}, {3, 2, 1}, {3, 2, 2}, {3, 3, 0},
+        {3, 3, 1}, {3, 3, 2}, {3, 4, 0}, {3, 4, 1}, {3, 4, 2}, {3, 5, 0}, {3, 5, 1}, {3, 5, 2},
+        {4, 0, 0}, {4, 0, 1}, {4, 0, 2}, {4, 1, 0}, {4, 1, 1}, {4, 1, 2}, {4, 2, 0}, {4, 2, 1},
+        {4, 2, 2}, {4, 3, 0}, {4, 3, 1}, {4, 3, 2}, {4, 4, 0}, {4, 4, 1}, {4, 4, 2}, {4, 5, 0},
+        {4, 5, 1}, {4, 5, 2}, {5, 0, 0}, {5, 0, 1}, {5, 0, 2}, {5, 1, 0}, {5, 1, 1}, {5, 1, 2},
+        {5, 2, 0}, {5, 2, 1}, {5, 2, 2}, {5, 3, 0}, {5, 3, 1}, {5, 3, 2}, {5, 4, 0}, {5, 4, 1},
+        {5, 4, 2}, {5, 5, 0}, {5, 5, 1}, {5, 5, 2},
+    };
+
+    for(index_t i = 0; i < tile_map.CalculateGridSize(c_grid_desc_m_n); ++i)
+    {
+        auto m0n0k0_idx = tile_map.CalculateBottomIndex(i);
+        EXPECT_EQ((std::vector<int>{m0n0k0_idx[I0], m0n0k0_idx[I1], m0n0k0_idx[I2]}),
+                  expected_m0idx_n0idx_k0idx[i]);
+    }
+}
+
+TEST(BlockToCTileMap, BlockToCTileMap_LinearKSplit_NextKTile)
+{
+    const index_t M         = 768;
+    const index_t N         = 384;
+    const index_t MPerBlock = 128;
+    const index_t NPerBlock = 64;
+    const index_t KSplit    = 3;
+
+    auto c_grid_desc_m_n = make_naive_tensor_descriptor_packed(make_tuple(M, N));
+
+    BlockToCTileMap_LinearKSplit<MPerBlock, NPerBlock> tile_map(c_grid_desc_m_n, KSplit);
+
+    auto m0n0k0_idx = tile_map.CalculateBottomIndex(3);
+    EXPECT_EQ((std::vector<int>{m0n0k0_idx[I0], m0n0k0_idx[I1], m0n0k0_idx[I2]}),
+              (std::vector<int>{0, 1, 0}));
+
+    for(index_t i = 0; i < KSplit - 1; i++)
+    {
+        EXPECT_TRUE(tile_map.GetNextKTileIdx());
+        m0n0k0_idx = tile_map.GetBottomIndex();
+        EXPECT_EQ((std::vector<int>{m0n0k0_idx[I0], m0n0k0_idx[I1], m0n0k0_idx[I2]}),
+                  (std::vector<int>{0, 1, i + 1}));
+    }
+    EXPECT_FALSE(tile_map.GetNextKTileIdx());
+    m0n0k0_idx = tile_map.GetBottomIndex();
+    EXPECT_EQ((std::vector<int>{m0n0k0_idx[I0], m0n0k0_idx[I1], m0n0k0_idx[I2]}),
+              (std::vector<int>{0, 1, 3}));
+}
