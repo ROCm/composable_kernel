@@ -110,25 +110,25 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-    kernel_grouped_conv_bwd_data_multiple_d_xdl_cshuffle(
-        const ABDataType* __restrict__ p_a_grid,
-        const ABDataType* __restrict__ p_b_grid,
-        DsPointer p_ds_grid,
-        EDataType* __restrict__ p_e_grid,
-        const AElementwiseOperation a_element_op,
-        const BElementwiseOperation b_element_op,
-        const CDEElementwiseOperation cde_element_op,
-        const index_t batch_count,
-        const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-        const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-        const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            ds_grid_desc_mblock_mperblock_nblock_nperblock,
-        const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-            e_grid_desc_mblock_mperblock_nblock_nperblock_,
-        const Block2ETileMap block_2_ctile_map,
-        const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
+        kernel_grouped_conv_bwd_data_multiple_d_xdl_cshuffle(
+            const ABDataType* __restrict__ p_a_grid,
+            const ABDataType* __restrict__ p_b_grid,
+            DsPointer p_ds_grid,
+            EDataType* __restrict__ p_e_grid,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CDEElementwiseOperation cde_element_op,
+            const index_t batch_count,
+            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+            const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                ds_grid_desc_mblock_mperblock_nblock_nperblock,
+            const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                e_grid_desc_mblock_mperblock_nblock_nperblock_,
+            const Block2ETileMap block_2_ctile_map,
+            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
@@ -960,7 +960,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                  const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,  // weight
                  const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,  // weight
                  const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
-                     ds_g_n_c_wis_lengths,                                        // bias
+                     ds_g_n_c_wis_lengths, // bias
                  const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
                      ds_g_n_c_wis_strides,                                        // bias
                  const std::array<index_t, NDimSpatial + 3>& e_g_n_c_wis_lengths, // input image
@@ -1007,7 +1007,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,  // weight
         const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,  // weight
         const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
-            ds_g_n_c_wis_lengths,                                        // bias
+            ds_g_n_c_wis_lengths, // bias
         const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
             ds_g_n_c_wis_strides,                                        // bias
         const std::array<index_t, NDimSpatial + 3>& e_g_n_c_wis_lengths, // input image

@@ -101,18 +101,21 @@ Solution Problem::MakeSolution(std::size_t idx, const std::string& arch) const
     if(ADataType == DataType::Int8 and BDataType == DataType::Int8)
     {
         // Change CBlockTransfer ScalarPerVector if Ds contains other types
-        if(EDataType == DataType::Half or std::any_of(
-               DsDataType.begin(), DsDataType.end(), [](auto t) { return t == DataType::Half; }))
+        if(EDataType == DataType::Half or std::any_of(DsDataType.begin(),
+                                                      DsDataType.end(),
+                                                      [](auto t) { return t == DataType::Half; }))
         {
             params[params.size() - 3] = "8";
         }
-        if(EDataType == DataType::Float or std::any_of(
-               DsDataType.begin(), DsDataType.end(), [](auto t) { return t == DataType::Float; }))
+        if(EDataType == DataType::Float or std::any_of(DsDataType.begin(),
+                                                       DsDataType.end(),
+                                                       [](auto t) { return t == DataType::Float; }))
         {
             params[params.size() - 3] = "4";
         }
-        if(EDataType == DataType::Int32 or std::any_of(
-               DsDataType.begin(), DsDataType.end(), [](auto t) { return t == DataType::Int32; }))
+        if(EDataType == DataType::Int32 or std::any_of(DsDataType.begin(),
+                                                       DsDataType.end(),
+                                                       [](auto t) { return t == DataType::Int32; }))
         {
             params[params.size() - 3] = "4";
         }
@@ -134,14 +137,14 @@ Solution Problem::MakeSolution(std::size_t idx, const std::string& arch) const
     const std::size_t k_per_block = std::stoi(k_per_block_str);
     const std::size_t grid_size   = GetGridSize(M, N, m_per_block, n_per_block);
     params[gemm_spec_idx]         = GetGemmSpec(M, N, K, m_per_block, n_per_block, k_per_block);
-    
+
     std::string str = std::accumulate(
         params.begin() + 1,
         params.end(),
         std::string{},
         [](const std::string& a, const std::string& b) { return a.empty() ? b : a + ", " + b; });
     str = params.front() + "< " + str + ">";
-    if (params.back().find("v2") != std::string::npos and K % k_per_block != 0)
+    if(params.back().find("v2") != std::string::npos and K % k_per_block != 0)
         str = "";
 
     return Solution{str, block_size, grid_size};
@@ -159,7 +162,7 @@ std::vector<Solution> Problem::GetSolutions(const std::string& arch) const
     for(std::size_t i = 0; i < num_instances; ++i)
     {
         auto solution = MakeSolution(i, arch);
-        if (solution.template_str != "")
+        if(solution.template_str != "")
             solutions.push_back(solution);
     }
 

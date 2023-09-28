@@ -61,21 +61,22 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-    kernel_batched_gemm_xdlops_bwd_weight(const FloatAB* __restrict__ p_a_grid,
-                                          const FloatAB* __restrict__ p_b_grid,
-                                          FloatC* __restrict__ p_c_grid,
-                                          const AElementwiseOperation a_element_op,
-                                          const BElementwiseOperation b_element_op,
-                                          const CElementwiseOperation c_element_op,
-                                          const index_t batch_count,
-                                          const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
-                                          const BGridDesc_B_K0_N_K1 b_b_k0_n_k1_grid_desc,
-                                          const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                                              c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                          const Block2CTileMap block_2_ctile_map,
-                                          const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
+        kernel_batched_gemm_xdlops_bwd_weight(
+            const FloatAB* __restrict__ p_a_grid,
+            const FloatAB* __restrict__ p_b_grid,
+            FloatC* __restrict__ p_c_grid,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op,
+            const index_t batch_count,
+            const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
+            const BGridDesc_B_K0_N_K1 b_b_k0_n_k1_grid_desc,
+            const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                c_grid_desc_mblock_mperblock_nblock_nperblock,
+            const Block2CTileMap block_2_ctile_map,
+            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
@@ -1105,7 +1106,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                  const OutDataType* p_out_grid,
                  const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths, // input
                  const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-                 const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,  // weight
+                 const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths, // weight
                  const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
                  const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths, // output
                  const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
@@ -1408,7 +1409,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                  const OutDataType* p_out_grid,
                  const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths, // input
                  const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-                 const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,  // weight
+                 const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths, // weight
                  const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
                  const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths, // output
                  const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
@@ -1426,7 +1427,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                         p_out_grid,
                         a_g_n_c_wis_lengths, // input
                         a_g_n_c_wis_strides,
-                        b_g_k_c_xs_lengths,  // weight
+                        b_g_k_c_xs_lengths, // weight
                         b_g_k_c_xs_strides,
                         e_g_n_k_wos_lengths, // output
                         e_g_n_k_wos_strides,
@@ -1451,7 +1452,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                         const void* p_out_grid,
                         const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths, // input
                         const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-                        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,  // weight
+                        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths, // weight
                         const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
                         const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths, // output
                         const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
@@ -1469,7 +1470,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                                           static_cast<const OutDataType*>(p_out_grid),
                                           a_g_n_c_wis_lengths, // input
                                           a_g_n_c_wis_strides,
-                                          b_g_k_c_xs_lengths,  // weight
+                                          b_g_k_c_xs_lengths, // weight
                                           b_g_k_c_xs_strides,
                                           e_g_n_k_wos_lengths, // output
                                           e_g_n_k_wos_strides,

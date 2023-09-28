@@ -436,7 +436,7 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         BlockSize,
         ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
-        CDataType,  // TODO: Add ShuffleType for DeviceConv2d
+        CDataType, // TODO: Add ShuffleType for DeviceConv2d
         CDataType,
         InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,

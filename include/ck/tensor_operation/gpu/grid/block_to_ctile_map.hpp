@@ -822,7 +822,7 @@ struct BlockToCTileMap_GemmStreamK
 
                 dp_num_blocks      = num_tiles; // all tile to be dp block
                 dp_start_block_idx = 0;
-                sk_total_iters     = 0;         // clear this tiles
+                sk_total_iters     = 0; // clear this tiles
             }
             else
             {

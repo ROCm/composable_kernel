@@ -34,19 +34,20 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_WAVELET_MAX_THREAD_PER_BLOCK, CK_WAVELET_MIN_BLOCK_PER_CU)
+    __launch_bounds__(CK_WAVELET_MAX_THREAD_PER_BLOCK, CK_WAVELET_MIN_BLOCK_PER_CU)
 #endif
-    kernel_gemm_xdl_waveletmodel_cshuffle(const ABDataType* __restrict__ p_a_grid,
-                                          const ABDataType* __restrict__ p_b_grid,
-                                          EDataType* __restrict__ p_e_grid,
-                                          const AElementwiseOperation a_element_op,
-                                          const BElementwiseOperation b_element_op,
-                                          const EElementwiseOperation e_element_op,
-                                          const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-                                          const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-                                          const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                                              e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                          const Block2ETileMap block_2_etile_map)
+        kernel_gemm_xdl_waveletmodel_cshuffle(
+            const ABDataType* __restrict__ p_a_grid,
+            const ABDataType* __restrict__ p_b_grid,
+            EDataType* __restrict__ p_e_grid,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const EElementwiseOperation e_element_op,
+            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+            const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                e_grid_desc_mblock_mperblock_nblock_nperblock,
+            const Block2ETileMap block_2_etile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))

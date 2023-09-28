@@ -94,8 +94,10 @@ struct SpaceFillingCurve
         // Given tensor strides \p access_lengths, and 1D index of space-filling-curve, compute the
         // idim-th element of multidimensional index.
         // All constexpr variables have to be captured by VALUE.
-        constexpr auto compute_index = [idx_1d, access_strides](auto idim) constexpr {
-            constexpr auto compute_index_impl = [idx_1d, access_strides](auto jdim) constexpr {
+        constexpr auto compute_index = [ idx_1d, access_strides ](auto idim) constexpr
+        {
+            constexpr auto compute_index_impl = [ idx_1d, access_strides ](auto jdim) constexpr
+            {
                 auto res = idx_1d.value;
                 auto id  = 0;
 
