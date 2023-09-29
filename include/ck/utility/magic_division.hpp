@@ -6,8 +6,8 @@
 #include "ck/ck.hpp"
 #include "integral_constant.hpp"
 #include "number.hpp"
-#include "tuple.hpp"
 #include "type.hpp"
+#include "tuple.hpp"
 
 #define INT32_MAX 2147483647
 
