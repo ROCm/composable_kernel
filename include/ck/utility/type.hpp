@@ -32,7 +32,6 @@ namespace std {
 
 CK_BUILTIN_TYPE_TRAIT1(is_class);
 CK_BUILTIN_TYPE_TRAIT1(is_reference);
-CK_BUILTIN_TYPE_TRAIT1(is_floating_point);
 CK_BUILTIN_TYPE_TRAIT1(is_trivially_copyable);
 CK_BUILTIN_TYPE_TRAIT1(is_unsigned);
 CK_BUILTIN_TYPE_TRAIT2(is_base_of);
