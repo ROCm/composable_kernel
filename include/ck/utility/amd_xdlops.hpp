@@ -549,5 +549,70 @@ struct intrin_mfma_f32_16x16x32f8bf8<16, 16>
     }
 };
 #endif
+
+#if defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_32x32x16bf8f8;
+
+template <>
+struct intrin_mfma_f32_32x32x16bf8f8<32, 32>
+{
+    template <class FloatC>
+    __device__ static void Run(const bf8x8_t& reg_a, const f8x8_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+        reg_c.template AsType<float16_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8(
+                bit_cast<long>(reg_a),
+                bit_cast<long>(reg_b),
+                reg_c.template AsType<float16_t>()[Number<0>{}],
+                0,
+                0,
+                0);
+#else
+        vector_type<bf8_t, 8> reg_a_v(reg_a);
+        vector_type<f8_t, 8> reg_b_v(reg_b);
+
+        static_for<0, 8, 1>{}([&](auto k) {
+            float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<bf8_t>()[Number<k>{}]);
+            float reg_b_f32 = type_convert<float>(reg_b_v.template AsType<f8_t>()[Number<k>{}]);
+
+            intrin_mfma_f32_32x32x2f32<32, 32>::Run(reg_a_f32, reg_b_f32, reg_c);
+        });
+#endif
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_16x16x32bf8f8;
+
+template <>
+struct intrin_mfma_f32_16x16x32bf8f8<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const bf8x8_t& reg_a, const f8x8_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+        reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x32_bf8_fp8(
+            bit_cast<long>(reg_a),
+            bit_cast<long>(reg_b),
+            reg_c.template AsType<float4_t>()[Number<0>{}],
+            0,
+            0,
+            0);
+#else
+        vector_type<bf8_t, 8> reg_a_v(reg_a);
+        vector_type<f8_t, 8> reg_b_v(reg_b);
+
+        static_for<0, 8, 1>{}([&](auto k) {
+            float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<bf8_t>()[Number<k>{}]);
+            float reg_b_f32 = type_convert<float>(reg_b_v.template AsType<f8_t>()[Number<k>{}]);
+
+            intrin_mfma_f32_16x16x4f32<16, 16>::Run(reg_a_f32, reg_b_f32, reg_c);
+        });
+#endif
+    }
+};
+#endif
 } // namespace ck
 #endif

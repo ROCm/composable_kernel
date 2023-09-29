@@ -35,7 +35,9 @@ enum struct MfmaInstr
     mfma_f32_32x32x16bf8bf8,
     mfma_f32_16x16x32bf8bf8,
     mfma_f32_32x32x16f8bf8,
-    mfma_f32_16x16x32f8bf8
+    mfma_f32_16x16x32f8bf8,
+    mfma_f32_32x32x16bf8f8,
+    mfma_f32_16x16x32bf8f8
 };
 
 template <MfmaInstr instr>
@@ -598,6 +600,52 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x32f8bf8>
 };
 #endif
 
+#if defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
+template <>
+struct mfma_type<MfmaInstr::mfma_f32_32x32x16bf8f8>
+{
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 4;
+    static constexpr index_t num_regs_per_blk    = 16;
+    static constexpr index_t num_threads_per_blk = 32;
+    static constexpr index_t wave_size           = 64;
+    static constexpr index_t num_input_blks      = 2;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 32;
+    static constexpr index_t n_per_blk           = 32;
+    static constexpr index_t k_per_blk           = 8;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_f32_32x32x16bf8f8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+
+template <>
+struct mfma_type<MfmaInstr::mfma_f32_16x16x32bf8f8>
+{
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 1;
+    static constexpr index_t num_regs_per_blk    = 4;
+    static constexpr index_t num_threads_per_blk = 16;
+    static constexpr index_t wave_size           = 64;
+    static constexpr index_t num_input_blks      = 4;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 16;
+    static constexpr index_t n_per_blk           = 16;
+    static constexpr index_t k_per_blk           = 8;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_f32_16x16x32bf8f8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+#endif
+
 template <typename base_type,
           index_t MPerXdlops,
           index_t NPerXdlops,
@@ -783,6 +831,20 @@ struct MfmaSelector
     static constexpr auto GetMfma<f8_t, 16, 16, bf8_t>()
     {
         return MfmaInstr::mfma_f32_16x16x32f8bf8;
+    }
+#endif
+
+#if defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
+    template <>
+    static constexpr auto GetMfma<bf8_t, 32, 32, f8_t>()
+    {
+        return MfmaInstr::mfma_f32_32x32x16bf8f8;
+    }
+
+    template <>
+    static constexpr auto GetMfma<bf8_t, 16, 16, f8_t>()
+    {
+        return MfmaInstr::mfma_f32_16x16x32bf8f8;
     }
 #endif
 
@@ -997,7 +1059,8 @@ struct XdlopsGemm
                 || is_same<base_type, bf8_t>::value
 #endif
 #if defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
-                || (is_same<base_type, f8_t>::value && is_same<additional_type, bf8_t>::value)
+                || (is_same<base_type, f8_t>::value && is_same<additional_type, bf8_t>::value) ||
+                (is_same<base_type, bf8_t>::value && is_same<additional_type, f8_t>::value)
 #endif
                 ,
             "base base_type must be double, float, half, bfloat16, int8_t, f8_t or bf8_t!");
