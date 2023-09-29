@@ -108,15 +108,6 @@ if(GPU_TARGETS)
 else()
     message("Building CK for the following targets: ${AMDGPU_TARGETS}")
 endif()
-find_package(hip)
-# No assumption that HIP kernels are launched with uniform block size for backward compatibility
-# SWDEV-413293 and https://reviews.llvm.org/D155213
-math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
-message("hip_version_flat=${hip_VERSION_FLAT}")
-if(${hip_VERSION_FLAT} GREATER 500723302)
-   message("Adding the fno-offload-uniform-block compiler flag")
-   add_compile_options(-fno-offload-uniform-block)
-endif()
 
 option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
 option(USE_OPT_NAVI3X, "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
@@ -147,6 +138,16 @@ message("CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
 
 option(CK_BUILD_JIT_LIB, "Only build the CK JIT Helper Library" OFF)
 if (NOT CK_BUILD_JIT_LIB)
+    find_package(hip)
+    # No assumption that HIP kernels are launched with uniform block size for backward compatibility
+    # SWDEV-413293 and https://reviews.llvm.org/D155213
+    math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
+    message("hip_version_flat=${hip_VERSION_FLAT}")
+    if(${hip_VERSION_FLAT} GREATER 500723302)
+    message("Adding the fno-offload-uniform-block compiler flag")
+    add_compile_options(-fno-offload-uniform-block)
+    endif()
+
     option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
     option(USE_OPT_NAVI3X, "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
 

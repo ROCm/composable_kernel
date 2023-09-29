@@ -64,23 +64,24 @@ Solution Problem::MakeSolution(std::size_t idx, const std::string& arch) const
     std::vector<std::string> params(std::istream_iterator<std::string>{iss},
                                     std::istream_iterator<std::string>());
 
-    params[AElementwiseOperation_idx]   = AElementOp;
-    params[B0ElementwiseOperation_idx]  = BElementOp;
-    params[B1ElementwiseOperation_idx]  = BElementOp;
-    params[CElementwiseOperation_idx]   = CElementOp;
+    params[AElementwiseOperation_idx]    = AElementOp;
+    params[B0ElementwiseOperation_idx]   = BElementOp;
+    params[B1ElementwiseOperation_idx]   = BElementOp;
+    params[CElementwiseOperation_idx]    = CElementOp;
     params[Acc0ElementwiseOperation_idx] = AccElementOp;
-    auto block_size_str           = params[BlockSize_idx];
-    auto m_per_block_str          = params[Gemm01MPerBlock_idx];
-    auto n_per_block_str          = params[Gemm0NPerBlock_idx];
-    auto k_per_block_str          = params[Gemm0KPerBlock_idx];
-    auto n1_per_block_str         = params[Gemm1NPerBlock_idx];
-    const std::size_t block_size  = std::stoi(block_size_str);
-    const std::size_t m_per_block = std::stoi(m_per_block_str);
-    const std::size_t n_per_block = std::stoi(n_per_block_str);
-    const std::size_t k_per_block = std::stoi(k_per_block_str);
-    const std::size_t n1_per_block = std::stoi(n1_per_block_str);
-    const std::size_t grid_size    = GetGridSize(M, O, m_per_block, n1_per_block);
-    params[GEMMSpecialization_idx] = GetGemmSpec(M, N, K, O, m_per_block, n_per_block, k_per_block, n1_per_block);
+    auto block_size_str                  = params[BlockSize_idx];
+    auto m_per_block_str                 = params[Gemm01MPerBlock_idx];
+    auto n_per_block_str                 = params[Gemm0NPerBlock_idx];
+    auto k_per_block_str                 = params[Gemm0KPerBlock_idx];
+    auto n1_per_block_str                = params[Gemm1NPerBlock_idx];
+    const std::size_t block_size         = std::stoi(block_size_str);
+    const std::size_t m_per_block        = std::stoi(m_per_block_str);
+    const std::size_t n_per_block        = std::stoi(n_per_block_str);
+    const std::size_t k_per_block        = std::stoi(k_per_block_str);
+    const std::size_t n1_per_block       = std::stoi(n1_per_block_str);
+    const std::size_t grid_size          = GetGridSize(M, O, m_per_block, n1_per_block);
+    params[GEMMSpecialization_idx] =
+        GetGemmSpec(M, N, K, O, m_per_block, n_per_block, k_per_block, n1_per_block);
 
     std::string str = std::accumulate(
         params.begin() + 1,
