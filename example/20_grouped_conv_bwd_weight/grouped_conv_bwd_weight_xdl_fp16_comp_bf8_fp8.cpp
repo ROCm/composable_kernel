@@ -9,8 +9,8 @@ using InDataType   = F16;
 using WeiDataType  = F16;
 using OutDataType  = F16;
 using AccDataType  = F32;
-using ComputeTypeA = F8;
-using ComputeTypeB = BF8;
+using ComputeTypeA = BF8;
+using ComputeTypeB = F8;
 
 using InElementOp  = PassThrough;
 using WeiElementOp = PassThrough;
