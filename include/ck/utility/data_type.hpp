@@ -14,11 +14,13 @@ using uint8_t  = unsigned char;
 using int16_t  = signed short;
 using uint16_t = unsigned short;
 using float_t  = float;
-namespace std {
-using byte = unsigned char;
-}
 #endif // __HIPCC_RTC__
 namespace ck {
+#ifdef __HIPCC_RTC__
+using byte = unsigned char;
+#else
+using std::byte;
+#endif
 
 using bhalf_t = ushort;
 using half_t  = _Float16;
@@ -980,10 +982,13 @@ template <>
 struct NumericLimits<int32_t>
 {
     __host__ __device__ static constexpr int32_t Lowest() noexcept { return -2147483647 - 1; }
+
     __host__ __device__ static constexpr int32_t Min() noexcept { return -2147483647 - 1; }
 
     __host__ __device__ static constexpr int32_t Max() noexcept { return 2147483647; }
+
     __host__ __device__ static constexpr int32_t Infinity() noexcept { return 0; }
+
     __host__ __device__ static constexpr int32_t QuietNaN() { return 0; }
 };
 
@@ -991,9 +996,13 @@ template <>
 struct NumericLimits<int16_t>
 {
     __host__ __device__ static constexpr int16_t Lowest() noexcept { return -32768; }
+
     __host__ __device__ static constexpr int16_t Min() noexcept { return -32768; }
+
     __host__ __device__ static constexpr int16_t Max() noexcept { return 32767; }
+
     __host__ __device__ static constexpr int16_t Infinity() noexcept { return 0; }
+
     __host__ __device__ static constexpr int16_t QuietNaN() { return 0; }
 };
 
@@ -1001,9 +1010,13 @@ template <>
 struct NumericLimits<int8_t>
 {
     __host__ __device__ static constexpr int8_t Lowest() noexcept { return -128; }
+
     __host__ __device__ static constexpr int8_t Min() noexcept { return -128; }
+
     __host__ __device__ static constexpr int8_t Max() noexcept { return 127; }
+
     __host__ __device__ static constexpr int8_t Infinity() noexcept { return 0; }
+
     __host__ __device__ static constexpr int8_t QuietNaN() { return 0; }
 };
 
@@ -1011,9 +1024,13 @@ template <>
 struct NumericLimits<uint32_t>
 {
     __host__ __device__ static constexpr uint32_t Lowest() noexcept { return 0; }
+
     __host__ __device__ static constexpr uint32_t Min() noexcept { return 0; }
+
     __host__ __device__ static constexpr uint32_t Max() noexcept { return 4294967295U; }
+
     __host__ __device__ static constexpr uint32_t Infinity() noexcept { return 0; }
+
     __host__ __device__ static constexpr uint32_t QuietNaN() { return 0; }
 };
 
@@ -1021,9 +1038,13 @@ template <>
 struct NumericLimits<uint16_t>
 {
     __host__ __device__ static constexpr uint16_t Lowest() noexcept { return 0; }
+
     __host__ __device__ static constexpr uint16_t Min() noexcept { return 0; }
+
     __host__ __device__ static constexpr uint16_t Max() noexcept { return 65535U; }
+
     __host__ __device__ static constexpr uint16_t Infinity() noexcept { return 0; }
+
     __host__ __device__ static constexpr uint16_t QuietNaN() { return 0; }
 };
 

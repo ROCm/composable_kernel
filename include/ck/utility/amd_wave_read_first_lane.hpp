@@ -39,7 +39,7 @@ struct get_carrier<3>
     {
         using value_type = uint32_t;
 
-        std::byte bytes[3];
+        ck::byte bytes[3];
         static_assert(sizeof(bytes) <= sizeof(value_type));
 
         // replacement of host std::copy_n()
@@ -66,14 +66,14 @@ struct get_carrier<3>
         public:
         __device__ carrier& operator=(value_type value) noexcept
         {
-            copy_n(reinterpret_cast<const std::byte*>(&value), 3, &bytes[0]);
+            copy_n(reinterpret_cast<const ck::byte*>(&value), 3, &bytes[0]);
 
             return *this;
         }
 
         __device__ operator value_type() const noexcept
         {
-            std::byte result[sizeof(value_type)];
+            ck::byte result[sizeof(value_type)];
 
             copy_n(&bytes[0], 3, result);
 
@@ -108,8 +108,8 @@ __device__ auto amd_wave_read_first_lane(const Object& obj)
     constexpr Size SgprSize   = 4;
     constexpr Size ObjectSize = sizeof(Object);
 
-    auto* const from_obj = reinterpret_cast<const std::byte*>(&obj);
-    alignas(Object) std::byte to_obj[ObjectSize];
+    auto* const from_obj = reinterpret_cast<const ck::byte*>(&obj);
+    alignas(Object) ck::byte to_obj[ObjectSize];
 
     constexpr Size RemainedSize             = ObjectSize % SgprSize;
     constexpr Size CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
