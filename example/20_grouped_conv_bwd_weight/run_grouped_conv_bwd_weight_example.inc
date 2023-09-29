@@ -2,15 +2,6 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 template <ck::index_t NDimSpatial>
-using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
-                                                                                     InDataType,
-                                                                                     WeiDataType,
-                                                                                     OutDataType,
-                                                                                     InElementOp,
-                                                                                     WeiElementOp,
-                                                                                     OutElementOp>;
-
-template <ck::index_t NDimSpatial>
 bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                  const ck::utils::conv::ConvParam& conv_param)
 {

@@ -25,6 +25,8 @@ template <ck::index_t NDimSpatial,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
+          typename ComputeTypeA                                                     = OutDataType,
+          typename ComputeTypeB                                                     = InDataType,
           typename std::enable_if<NDimSpatial >= 1 && NDimSpatial <= 3, bool>::type = false>
 struct ReferenceConvBwdWeight : public device::BaseOperator
 {
@@ -98,8 +100,8 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
                             if(wi >= 0 &&
                                ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[3])
                             {
-                                float v_out;
-                                float v_in;
+                                ComputeTypeA v_out;
+                                ComputeTypeB v_in;
 
                                 arg.out_element_op_(
                                     v_out, ck::type_convert<float>(arg.output_(g, n, k, wo)));
@@ -158,8 +160,8 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
                                    wi >= 0 &&
                                    ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[4])
                                 {
-                                    float v_out;
-                                    float v_in;
+                                    ComputeTypeA v_out;
+                                    ComputeTypeB v_in;
 
                                     arg.out_element_op_(
                                         v_out,
@@ -226,8 +228,8 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
                                        ck::type_convert<std::size_t>(wi) <
                                            arg.input_.GetLengths()[5])
                                     {
-                                        float v_out;
-                                        float v_in;
+                                        ComputeTypeA v_out;
+                                        ComputeTypeB v_in;
 
                                         arg.out_element_op_(v_out,
                                                             ck::type_convert<float>(

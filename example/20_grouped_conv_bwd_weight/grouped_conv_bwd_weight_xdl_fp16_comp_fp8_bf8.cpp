@@ -5,13 +5,11 @@
 
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle.hpp"
 
-using InDataType  = F16;
-using WeiDataType = F16;
-using OutDataType = F16;
-using AccDataType = F32;
-// using ComputeTypeA = F8;
-// using ComputeTypeB = BF8;
-using ComputeTypeA = BF8;
+using InDataType   = F16;
+using WeiDataType  = F16;
+using OutDataType  = F16;
+using AccDataType  = F32;
+using ComputeTypeA = F8;
 using ComputeTypeB = BF8;
 
 using InElementOp  = PassThrough;
@@ -71,6 +69,17 @@ using DeviceConvBwdWeightInstance =
         2,                    // CBlockTransferScalarPerVector_NWaveNPerXdl
         ComputeTypeA,         // ComputeTypeA
         ComputeTypeB>;        // ComputeTypeB
+
+template <ck::index_t NDimSpatial>
+using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
+                                                                                     InDataType,
+                                                                                     WeiDataType,
+                                                                                     OutDataType,
+                                                                                     InElementOp,
+                                                                                     WeiElementOp,
+                                                                                     OutElementOp,
+                                                                                     ComputeTypeA,
+                                                                                     ComputeTypeB>;
 
 #include "run_grouped_conv_bwd_weight_example.inc"
 
