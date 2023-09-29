@@ -100,8 +100,8 @@ __device__ inline int32_t amd_wave_read_first_lane(int32_t value)
 }
 
 template <typename Object,
-          typename = ck::enable_if_t<std::is_class<Object>::value &&
-                                     std::is_trivially_copyable<Object>::value>>
+          typename = ck::enable_if_t<ck::is_class<Object>::value &&
+                                     ck::is_trivially_copyable<Object>::value>>
 __device__ auto amd_wave_read_first_lane(const Object& obj)
 {
     using Size                = unsigned;

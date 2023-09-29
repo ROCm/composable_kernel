@@ -21,7 +21,7 @@ struct unpack_impl<Sequence<Is...>>
     template <typename F, typename X>
     __host__ __device__ constexpr auto operator()(F&& f, X&& x) const
     {
-        return std::forward<F>(f)(std::forward<X>(x).At(Number<Is>{})...);
+        return ck::forward<F>(f)(ck::forward<X>(x).At(Number<Is>{})...);
     }
 };
 
@@ -35,8 +35,8 @@ struct unpack2_impl<Sequence<Is...>, Sequence<Js...>>
     template <typename F, typename X, typename Y>
     __host__ __device__ constexpr auto operator()(F&& f, X&& x, Y&& y) const
     {
-        return std::forward<F>(f)(std::forward<X>(x).At(Number<Is>{})...,
-                                  std::forward<Y>(y).At(Number<Js>{})...);
+        return ck::forward<F>(f)(ck::forward<X>(x).At(Number<Is>{})...,
+                                 ck::forward<Y>(y).At(Number<Js>{})...);
     }
 };
 
@@ -47,7 +47,7 @@ __host__ __device__ constexpr auto unpack(F&& f, X&& x)
 {
     using X_ = remove_reference_t<X>;
     return detail::unpack_impl<typename arithmetic_sequence_gen<0, X_::Size(), 1>::type>{}(
-        std::forward<F>(f), std::forward<X>(x));
+        ck::forward<F>(f), ck::forward<X>(x));
 }
 
 // TODO: properly implement unpack that takes any number of containers
@@ -58,7 +58,7 @@ __host__ __device__ constexpr auto unpack2(F&& f, X&& x, Y&& y)
     using Y_ = remove_reference_t<Y>;
     return detail::unpack2_impl<typename arithmetic_sequence_gen<0, X_::Size(), 1>::type,
                                 typename arithmetic_sequence_gen<0, Y_::Size(), 1>::type>{}(
-        std::forward<F>(f), std::forward<X>(x), std::forward<Y>(y));
+        ck::forward<F>(f), ck::forward<X>(x), ck::forward<Y>(y));
 }
 
 } // namespace ck

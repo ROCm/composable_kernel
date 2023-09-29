@@ -13,7 +13,7 @@ namespace ck {
 template <typename Y, typename X>
 __host__ __device__ constexpr Y type_convert(X x)
 {
-    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
+    static_assert(!ck::is_reference_v<Y> && !ck::is_reference_v<X>);
 
     return static_cast<Y>(x);
 }
