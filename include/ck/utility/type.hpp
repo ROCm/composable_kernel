@@ -10,72 +10,35 @@
 #ifdef __HIPCC_RTC__
 namespace std {
 // NOLINTNEXTLINE
-#define MIGRAPHX_BUILTIN_TYPE_TRAIT1(name)   \
+#define CK_BUILTIN_TYPE_TRAIT1(name)         \
     template <class T>                       \
     struct name : bool_constant<__##name(T)> \
     {                                        \
     }
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_BUILTIN_TYPE_TRAIT2(name)      \
+#define CK_BUILTIN_TYPE_TRAIT2(name)            \
     template <class T, class U>                 \
     struct name : bool_constant<__##name(T, U)> \
     {                                           \
     }
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_BUILTIN_TYPE_TRAITN(name)       \
+#define CK_BUILTIN_TYPE_TRAITN(name)             \
     template <class... Ts>                       \
     struct name : bool_constant<__##name(Ts...)> \
     {                                            \
     }
 
-// MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_arithmetic);
-// MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_destructible);
-// MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_nothrow_destructible);
-// MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_pointer);
-// MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_scalar);
-// MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_signed);
-// MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_void);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_abstract);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_aggregate);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_array);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_class);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_compound);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_const);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_empty);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_enum);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_final);
-// MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_floating_point);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_function);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_fundamental);
-// MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_integral);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_literal_type);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_lvalue_reference);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_member_function_pointer);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_member_object_pointer);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_member_pointer);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_object);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_pod);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_polymorphic);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_reference);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_rvalue_reference);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_standard_layout);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_trivial);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_trivially_copyable);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_trivially_destructible);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_union);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_unsigned);
-MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_volatile);
-MIGRAPHX_BUILTIN_TYPE_TRAIT2(is_assignable);
-MIGRAPHX_BUILTIN_TYPE_TRAIT2(is_base_of);
-// MIGRAPHX_BUILTIN_TYPE_TRAIT2(is_convertible);
-MIGRAPHX_BUILTIN_TYPE_TRAIT2(is_nothrow_assignable);
-// MIGRAPHX_BUILTIN_TYPE_TRAIT2(is_same);
-MIGRAPHX_BUILTIN_TYPE_TRAIT2(is_trivially_assignable);
-MIGRAPHX_BUILTIN_TYPE_TRAITN(is_constructible);
-MIGRAPHX_BUILTIN_TYPE_TRAITN(is_nothrow_constructible);
-MIGRAPHX_BUILTIN_TYPE_TRAITN(is_trivially_constructible);
+CK_BUILTIN_TYPE_TRAIT1(is_class);
+CK_BUILTIN_TYPE_TRAIT1(is_reference);
+CK_BUILTIN_TYPE_TRAIT1(is_floating_point);
+CK_BUILTIN_TYPE_TRAIT1(is_trivially_copyable);
+CK_BUILTIN_TYPE_TRAIT1(is_unsigned);
+CK_BUILTIN_TYPE_TRAIT2(is_base_of);
+CK_BUILTIN_TYPE_TRAITN(is_constructible);
+CK_BUILTIN_TYPE_TRAITN(is_nothrow_constructible);
+
 template <class T>
 struct remove_reference
 {
@@ -175,145 +138,6 @@ constexpr T&& forward(typename remove_reference<T>::type&& t_) noexcept
 
 template <typename T>
 inline constexpr bool is_reference_v = is_reference<T>::value;
-/// Default deleter
-template <typename T>
-struct default_delete
-{
-    void operator()(T* ptr) const { delete ptr; }
-};
-
-/// Partial specialization for deleting array types
-template <typename T>
-struct default_delete<T[]>
-{
-    void operator()(T* ptr) const { delete[] ptr; }
-};
-
-/// std::unique_ptr
-template <class T, class Deleter = default_delete<T>>
-class unique_ptr
-{
-    public:
-    typedef T* pointer;
-    typedef T element_type;
-    typedef Deleter deleter_type;
-
-    private:
-    /// Pointer to memory
-    pointer _ptr;
-
-    /// Deleter
-    deleter_type _deleter;
-
-    public:
-    unique_ptr() : _ptr(nullptr) {}
-    unique_ptr(pointer p) : _ptr(p) {}
-
-    ~unique_ptr()
-    {
-        if(_ptr)
-        {
-            _deleter(_ptr);
-        }
-    }
-    /// Returns a pointer to the managed object or nullptr if no object is owned.
-    pointer get() const noexcept { return _ptr; }
-
-    /// Releases ownership of the managed object, if any
-    pointer release() noexcept
-    {
-        pointer p(_ptr);
-        _ptr = nullptr;
-        return p;
-    }
-
-    /// Replaces the managed object, deleting the old object.
-    void reset(pointer p = pointer()) noexcept
-    {
-        pointer old_ptr = _ptr;
-        _ptr            = p;
-        if(old_ptr != nullptr)
-        {
-            get_deleter()(old_ptr);
-        }
-    }
-
-    /// Swaps the managed objects with *this and another unique_ptr
-    void swap(unique_ptr& other) noexcept { swap(_ptr, other._ptr); }
-
-    /// Returns the deleter object
-    Deleter& get_deleter() noexcept { return _deleter; }
-
-    /// Returns the deleter object
-    Deleter const& get_deleter() const noexcept { return _deleter; }
-
-    /// Checks whether an object is owned
-    operator bool() const noexcept { return _ptr != nullptr; }
-
-    /// Dereferences the unique_ptr
-    T& operator*() const { return *_ptr; }
-
-    /// Returns a pointer to the managed object
-    pointer operator->() const noexcept { return _ptr; }
-
-    /// Array access to managed object
-    T& operator[](size_t i) const { return _ptr[i]; }
-};
-
-/// Specializes the swap algorithm
-template <typename T, typename Deleter>
-void swap(unique_ptr<T, Deleter>& lhs, unique_ptr<T, Deleter>& rhs) noexcept
-{
-    lhs.swap(rhs);
-}
-
-template <class T>
-struct remove_extent
-{
-    using type = T;
-};
-
-template <class T>
-struct remove_extent<T[]>
-{
-    using type = T;
-};
-
-template <class T, std::size_t N>
-struct remove_extent<T[N]>
-{
-    using type = T;
-};
-
-template <class T>
-using remove_extent_t = typename remove_extent<T>::type;
-
-namespace detail {
-template <class>
-constexpr bool is_unbounded_array_v = false;
-template <class T>
-constexpr bool is_unbounded_array_v<T[]> = true;
-
-template <class>
-constexpr bool is_bounded_array_v = false;
-template <class T, std::size_t N>
-constexpr bool is_bounded_array_v<T[N]> = true;
-} // namespace detail
-
-template <class T, class... Args>
-enable_if_t<!is_array<T>::value, unique_ptr<T>> make_unique(Args&&... args)
-{
-    return unique_ptr<T>(new T(forward<Args>(args)...));
-}
-
-template <class T>
-enable_if_t<detail::is_unbounded_array_v<T>, unique_ptr<T>> make_unique(uint64_t n)
-{
-    return unique_ptr<T>(new remove_extent_t<T>[n]());
-}
-
-template <class T, class... Args>
-enable_if_t<detail::is_bounded_array_v<T>> make_unique(Args&&...) = delete;
 } // namespace std
 #endif
 namespace ck {
