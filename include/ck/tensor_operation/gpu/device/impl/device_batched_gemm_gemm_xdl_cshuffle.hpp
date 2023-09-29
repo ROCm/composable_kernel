@@ -3,13 +3,8 @@
 
 #pragma once
 
-#ifndef __HIPCC_RTC__
 #include <iostream>
 #include <sstream>
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
-#include "ck/host_utility/io.hpp"
-#endif
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -19,6 +14,9 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_gemm_xdl_cshuffle_v1.hpp"
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
+#include "ck/host_utility/io.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -467,7 +465,6 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
             }
         }
 
-#ifndef __HIPCC_RTC__
         void Print() const
         {
             std::cout << "A[AK0, M, AK1]: " << a_grid_desc_ak0_m_ak1_ << std::endl;
@@ -475,7 +472,6 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
             std::cout << "B1[BK0, N, BK1]: " << b1_grid_desc_bk0_n_bk1_ << std::endl;
             std::cout << "C[M, N]: " << c_grid_desc_m_n_ << std::endl;
         }
-#endif
 
         //  private:
         const ADataType* p_a_grid_;
@@ -501,7 +497,6 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
         std::vector<index_t> raw_lengths_m_n_k_o_;
     };
 
-#ifndef __HIPCC_RTC__
     // Invoker
     struct Invoker : public BaseInvoker
     {
@@ -585,13 +580,13 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
-#endif
+
     static constexpr bool IsValidCompilationParameter()
     {
         // TODO: properly implement this check
         return true;
     }
-#ifndef __HIPCC_RTC__
+
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(!ck::is_xdl_supported())
@@ -636,7 +631,6 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-#endif
 
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
@@ -668,9 +662,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                         b1_element_op, c_element_op};
     }
 
-#ifndef __HIPCC_RTC__
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     // polymorphic
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
@@ -720,7 +712,6 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                                           c_element_op);
     }
 
-#ifndef __HIPCC_RTC__
     // polymorphic
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
@@ -750,7 +741,6 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
 
         return str.str();
     }
-#endif
 };
 
 } // namespace device

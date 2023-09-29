@@ -1,11 +1,7 @@
 #pragma once
 
-#ifndef __HIPCC_RTC__
 #include <iostream>
 #include <sstream>
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
-#endif
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -15,6 +11,8 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -492,7 +490,6 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
         CDEElementwiseOperation cde_element_op_;
     };
 
-#ifndef __HIPCC_RTC__
     // Invoker
     struct Invoker : public BaseInvoker
     {
@@ -568,14 +565,13 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
-#endif
 
     static constexpr bool IsValidCompilationParameter()
     {
         // TODO: properly implement this check
         return true;
     }
-#ifndef __HIPCC_RTC__
+
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(!ck::is_xdl_supported())
@@ -595,7 +591,7 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-#endif
+
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
                              EDataType* p_e,
@@ -629,9 +625,7 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
                         cde_element_op};
     }
 
-#ifndef __HIPCC_RTC__
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     // polymorphic
     std::unique_ptr<BaseArgument>
@@ -668,7 +662,6 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
                                           cde_element_op);
     }
 
-#ifndef __HIPCC_RTC__
     // polymorphic
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
@@ -692,7 +685,6 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
 
         return str.str();
     }
-#endif
 };
 
 } // namespace device

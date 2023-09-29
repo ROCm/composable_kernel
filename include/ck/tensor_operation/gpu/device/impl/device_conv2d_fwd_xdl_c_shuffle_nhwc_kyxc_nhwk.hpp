@@ -830,9 +830,8 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                         wei_element_op,
                         out_element_op};
     }
-#ifndef __HIPCC_RTC__
+
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_in_grid,

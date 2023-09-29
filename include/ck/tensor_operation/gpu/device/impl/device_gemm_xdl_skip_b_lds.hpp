@@ -462,9 +462,8 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
                         b_element_op,
                         c_element_op};
     }
-#ifndef __HIPCC_RTC__
+
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     // polymorphic
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,

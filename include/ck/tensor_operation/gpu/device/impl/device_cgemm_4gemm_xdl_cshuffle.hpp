@@ -500,9 +500,8 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                         StrideB,
                         StrideC};
     }
-#ifndef __HIPCC_RTC__
+
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     // polymorphic
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a_real,

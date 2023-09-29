@@ -357,9 +357,8 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                         BatchStrideC,
                         Batch};
     }
-#ifndef __HIPCC_RTC__
+
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     // polymorphic
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,

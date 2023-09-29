@@ -36,6 +36,7 @@ struct DeviceGemmMultipleD : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
+#ifndef __HIPCC_RTC__
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
@@ -51,8 +52,7 @@ struct DeviceGemmMultipleD : public BaseOperator
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CDEElementwiseOperation cde_element_op) = 0;
-#ifndef __HIPCC_RTC__
-    virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+    virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer()   = 0;
 #endif
 };
 

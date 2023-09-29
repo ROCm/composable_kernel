@@ -595,7 +595,7 @@ struct DeviceGroupedConvFwdDl_NHWC_KYXC_NHWK : public DeviceGroupedConvFwd<NDimS
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
-#ifndef __HIPCC_RTC__
+
     static bool IsSupportedArgument(const Argument& arg)
     {
         namespace ctc = tensor_layout::convolution;
@@ -737,7 +737,7 @@ struct DeviceGroupedConvFwdDl_NHWC_KYXC_NHWK : public DeviceGroupedConvFwd<NDimS
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-#endif
+
     static auto MakeArgument(const void* p_a,
                              const void* p_b,
                              void* p_c,
@@ -773,9 +773,7 @@ struct DeviceGroupedConvFwdDl_NHWC_KYXC_NHWK : public DeviceGroupedConvFwd<NDimS
                         c_element_op};
     }
 
-#ifndef __HIPCC_RTC__
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,

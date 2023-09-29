@@ -894,9 +894,8 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                         b0_element_op, cde0_element_op,
                         b1_element_op, cde1_element_op};
     }
-#ifndef __HIPCC_RTC__
+
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     // polymorphic
     std::unique_ptr<BaseArgument>

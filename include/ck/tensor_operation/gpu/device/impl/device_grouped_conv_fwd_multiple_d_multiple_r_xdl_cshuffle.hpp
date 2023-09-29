@@ -1025,9 +1025,8 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                         qs_element_op,
                         rs_element_op};
     }
-#ifndef __HIPCC_RTC__
+
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     std::unique_ptr<BaseArgument> MakeArgumentPointer(
         const void* p_a,

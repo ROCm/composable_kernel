@@ -306,7 +306,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
     // block-to-e-tile map
     using Block2ETileMap =
         remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
-
+#ifndef __HIPCC_RTC__
     // Argument
     struct Argument : public BaseArgument
     {
@@ -376,7 +376,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
             }
         }
 
-#ifndef __HIPCC_RTC__
         void Print() const
         {
             std::cout << "A[M, K]: " << a_grid_desc_m_k_ << std::endl;
@@ -385,7 +384,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                 [&](auto i) { std::cout << "Ds[M, N]: " << ds_grid_desc_m_n_[i] << std::endl; });
             std::cout << "E[M, N]: " << e_grid_desc_m_n_ << std::endl;
         }
-#endif
 
         //  private:
         // pointers
@@ -420,7 +418,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         index_t NRaw_;
         index_t KRaw_;
     };
-#ifndef __HIPCC_RTC__
     // Invoker
     struct Invoker : public BaseInvoker
     {
@@ -601,7 +598,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-#endif
     static auto MakeArgument(const void* p_a,
                              const void* p_b,
                              ck::Array<const void*, NumDTensor> p_ds,
@@ -633,9 +629,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                         cde_element_op};
     }
 
-#ifndef __HIPCC_RTC__
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     // polymorphic
     std::unique_ptr<BaseArgument>
@@ -670,7 +664,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                                           cde_element_op);
     }
 
-#ifndef __HIPCC_RTC__
     // polymorphic
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {

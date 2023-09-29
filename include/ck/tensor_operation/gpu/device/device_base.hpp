@@ -12,6 +12,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+#ifndef __HIPCC_RTC__
 struct BaseArgument
 {
     BaseArgument()                    = default;
@@ -23,7 +24,6 @@ struct BaseArgument
     void* p_workspace_ = nullptr;
 };
 
-#ifndef __HIPCC_RTC__
 struct BaseInvoker
 {
     BaseInvoker()                   = default;
@@ -45,9 +45,9 @@ struct BaseOperator
     BaseOperator(const BaseOperator&) = default;
     BaseOperator& operator=(const BaseOperator&) = default;
 
+#ifndef __HIPCC_RTC__
     virtual bool IsSupportedArgument(const BaseArgument*) { return false; }
 
-#ifndef __HIPCC_RTC__
     virtual std::string GetTypeString() const { return ""; }
 
     virtual std::string GetTypeIdName() const { return typeid(*this).name(); }
@@ -60,15 +60,14 @@ struct BaseOperator
 
         return oss.str();
     };
-#endif
     virtual size_t GetWorkSpaceSize(const BaseArgument*) const { return 0; }
 
     virtual void SetWorkSpacePointer(BaseArgument* p_arg, void* p_workspace) const
     {
-        // assert(p_arg);
+        assert(p_arg);
         p_arg->p_workspace_ = p_workspace;
     }
-
+#endif
     virtual ~BaseOperator() {}
 };
 

@@ -3,12 +3,8 @@
 
 #pragma once
 
-#ifndef __HIPCC_RTC__
 #include <iostream>
 #include <sstream>
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
-#endif
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -19,6 +15,8 @@
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 
@@ -761,7 +759,6 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch_;
     };
 
-#ifndef __HIPCC_RTC__
     // Invoker
     struct Invoker : public BaseInvoker
     {
@@ -844,6 +841,7 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
+
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(!ck::is_xdl_supported())
@@ -937,7 +935,7 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-#endif
+
     static auto
     MakeArgument(const void* p_a,
                  const void* p_b,
@@ -972,9 +970,7 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
                         cde_element_op};
     }
 
-#ifndef __HIPCC_RTC__
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     // polymorphic
     std::unique_ptr<BaseArgument>
@@ -1010,7 +1006,7 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
                                           b_element_op,
                                           cde_element_op);
     }
-#ifndef __HIPCC_RTC__
+
     // polymorphic
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
@@ -1042,7 +1038,6 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
 
         return str.str();
     }
-#endif
 };
 
 } // namespace device

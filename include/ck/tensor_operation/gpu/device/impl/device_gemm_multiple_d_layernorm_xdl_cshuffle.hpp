@@ -996,9 +996,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
                         cde_element_op,
                         h_element_op};
     }
-#ifndef __HIPCC_RTC__
+
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     // polymorphic
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,

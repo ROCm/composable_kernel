@@ -701,9 +701,8 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                         acc_element_op,
                         c_element_op};
     }
-#ifndef __HIPCC_RTC__
+
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                       const void* p_b,

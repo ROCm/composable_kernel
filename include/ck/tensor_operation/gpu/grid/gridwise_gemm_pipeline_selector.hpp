@@ -39,7 +39,9 @@ constexpr auto GridwiseGemmPipeline_Selector()
     }
     else
     {
-        // std::cerr << "GridwiseGemmPipeline configuration is not available" << std::endl;
+#ifndef __HIPCC_RTC__
+        std::cerr << "GridwiseGemmPipeline configuration is not available" << std::endl;
+#endif
     }
 }
 

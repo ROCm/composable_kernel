@@ -1399,9 +1399,8 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
                         input_left_pads,
                         input_right_pads};
     }
-#ifndef __HIPCC_RTC__
+
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(void* p_in_grid,

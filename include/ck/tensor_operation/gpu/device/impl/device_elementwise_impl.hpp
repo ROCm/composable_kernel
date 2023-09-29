@@ -290,9 +290,8 @@ struct DeviceElementwiseImpl
                                           out_dev_buffers,
                                           elementwise_op);
     }
-#ifndef __HIPCC_RTC__
+
     static auto MakeInvoker() { return Invoker{}; }
-#endif
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
         return std::make_unique<Invoker>();
