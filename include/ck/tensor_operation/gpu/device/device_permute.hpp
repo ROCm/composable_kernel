@@ -3,11 +3,9 @@
 
 #pragma once
 
-#ifndef __HIPCC_RTC__
 #include <array>
 #include <memory>
 #include <type_traits>
-#endif
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 
