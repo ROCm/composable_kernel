@@ -1054,7 +1054,9 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                const ADataType* __restrict__ p_b1_grid,
                                CDataType* __restrict__ p_c_grid)
     {
-        // assert(desc.is_valid);
+#ifndef __HIPCC_RTC__
+        assert(desc.is_valid);
+#endif
         __shared__ char p_shared_block[Desc::GridwiseGemm::GetSharedMemoryNumberOfByte()];
         AccElementwiseOperation acc_element_op{scale};
 

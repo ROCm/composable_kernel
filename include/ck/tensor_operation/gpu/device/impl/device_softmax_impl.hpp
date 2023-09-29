@@ -386,9 +386,8 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
                                           in_elementwise_op,
                                           acc_elementwise_op);
     };
-#ifndef __HIPCC_RTC__
+
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
