@@ -8,7 +8,7 @@ namespace ck {
 
 // Pseudo random number generator
 // version for fp32
-template <typename T, uint32_t seed_t, std::enable_if_t<std::is_same<float, T>{}, bool> = false>
+template <typename T, uint32_t seed_t, ck::enable_if_t<std::is_same<float, T>{}, bool> = false>
 __host__ __device__ uint32_t prand_generator(index_t id, T val, uint32_t seed = seed_t)
 {
     uint32_t x         = *(reinterpret_cast<uint32_t*>(&val));
@@ -24,7 +24,7 @@ __host__ __device__ uint32_t prand_generator(index_t id, T val, uint32_t seed = 
 }
 
 // version for fp16
-template <typename T, uint32_t seed_t, std::enable_if_t<std::is_same<half_t, T>{}, bool> = false>
+template <typename T, uint32_t seed_t, ck::enable_if_t<std::is_same<half_t, T>{}, bool> = false>
 __host__ __device__ uint32_t prand_generator(index_t id, T val, uint32_t seed = seed_t)
 {
     uint16_t x         = *(reinterpret_cast<uint16_t*>(&val));
@@ -41,7 +41,7 @@ __host__ __device__ uint32_t prand_generator(index_t id, T val, uint32_t seed = 
 // return 0 if data is not fp16 or fp32
 template <typename T,
           uint32_t seed_t,
-          std::enable_if_t<!(std::is_same<float, T>{} || std::is_same<half_t, T>{}), bool> = false>
+          ck::enable_if_t<!(std::is_same<float, T>{} || std::is_same<half_t, T>{}), bool> = false>
 __host__ __device__ uint32_t prand_generator(int id, T val, uint32_t seed = seed_t)
 {
     ck::ignore = id;
