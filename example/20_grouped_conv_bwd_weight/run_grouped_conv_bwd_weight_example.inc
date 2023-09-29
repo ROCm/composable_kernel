@@ -14,20 +14,8 @@ template <ck::index_t NDimSpatial>
 bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                  const ck::utils::conv::ConvParam& conv_param)
 {
-    ck::index_t split_k;
-    // Set split_k = 2 for xdl op, split_k = 1 for dl
     // Dl op doesn't support split_k > 1
-    // TODO: Add Dl op split_k > 1 support
-    if(!(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030" ||
-         ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
-         ck::get_device_name() == "gfx1102"))
-    {
-        split_k = 2;
-    }
-    else
-    {
-        split_k = 1;
-    }
+    constexpr ck::index_t split_k = 1;
 
     const auto in_g_n_c_wis_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<
