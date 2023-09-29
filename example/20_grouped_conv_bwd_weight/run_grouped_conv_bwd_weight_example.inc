@@ -37,8 +37,8 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
         out.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
         break;
     default:
-        in.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
-        out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.5, 0.5});
+        in.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 0.2});
+        out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.1, 0.1});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
