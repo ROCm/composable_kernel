@@ -109,7 +109,7 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
                                 arg.in_element_op_(
                                     v_in, ck::type_convert<float>(arg.input_(g, n, c, wi)));
 
-                                v_acc += v_out * v_in;
+                                v_acc += type_convert<float>(v_out) * type_convert<float>(v_in);
                             }
                         }
                     }
@@ -170,7 +170,7 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
                                     arg.in_element_op_(
                                         v_in, ck::type_convert<float>(arg.input_(g, n, c, hi, wi)));
 
-                                    v_acc += v_out * v_in;
+                                    v_acc += type_convert<float>(v_out) * type_convert<float>(v_in);
                                 }
                             }
                         }
@@ -239,7 +239,8 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
                                                            ck::type_convert<float>(
                                                                arg.input_(g, n, c, di, hi, wi)));
 
-                                        v_acc += v_out * v_in;
+                                        v_acc +=
+                                            type_convert<float>(v_out) * type_convert<float>(v_in);
                                     }
                                 }
                             }
