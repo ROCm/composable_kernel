@@ -228,9 +228,8 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
     {
         return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC};
     }
-#ifndef __HIPCC_RTC__
+
     static auto MakeInvoker() { return Invoker{}; }
-#endif
 
     // polymorphic
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,

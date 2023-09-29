@@ -939,7 +939,7 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
-#ifndef __HIPCC_RTC__
+
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(!ck::is_xdl_supported())
@@ -1037,7 +1037,7 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-#endif
+
     static auto
     MakeArgument(const void* p_a,
                  const void* p_b,
@@ -1074,9 +1074,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                         split_k};
     }
 
-#ifndef __HIPCC_RTC__
     static auto MakeInvoker() { return Invoker{}; }
-#endif
+
     // polymorphic
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,

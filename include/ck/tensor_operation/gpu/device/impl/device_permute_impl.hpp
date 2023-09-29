@@ -269,13 +269,12 @@ struct DevicePermuteImpl : DevicePermute<NumDim, InDataType, OutDataType, Elemen
     {
         return Argument{std::forward<Args>(args)...};
     }
-#ifndef __HIPCC_RTC__
+
     static std::enable_if_t<std::is_default_constructible_v<Invoker>, Invoker>
     MakeInvoker() noexcept(std::is_nothrow_default_constructible_v<Invoker>)
     {
         return Invoker{};
     }
-#endif
 };
 
 } // namespace device
