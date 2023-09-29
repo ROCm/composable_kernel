@@ -24,7 +24,7 @@ template <typename DYDataType,
           typename DBetaDataType,
           typename DXDataType,
           typename ComputeDataType>
-struct ReferenceGroupnorm : public device::BaseOperator
+struct ReferenceGroupnormBwd : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument

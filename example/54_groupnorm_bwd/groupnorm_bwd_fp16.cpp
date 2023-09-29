@@ -57,14 +57,15 @@ int main()
         Tensor<DGammaDataType> host_dgamma({G, C});
         Tensor<DBetaDataType> host_dbeta({G, C});
         Tensor<DXDataType> host_dx({N, H, W, G, C});
-        using ReferenceInstance = ck::tensor_operation::host::ReferenceGroupnorm<DYDataType,
-                                                                                 XDataType,
-                                                                                 GammaDataType,
-                                                                                 MeanInvStdDataType,
-                                                                                 DGammaDataType,
-                                                                                 DBetaDataType,
-                                                                                 DXDataType,
-                                                                                 ComputeDataType>;
+        using ReferenceInstance =
+            ck::tensor_operation::host::ReferenceGroupnormBwd<DYDataType,
+                                                              XDataType,
+                                                              GammaDataType,
+                                                              MeanInvStdDataType,
+                                                              DGammaDataType,
+                                                              DBetaDataType,
+                                                              DXDataType,
+                                                              ComputeDataType>;
 
         ReferenceInstance ref;
         auto ref_argument = ref.MakeArgument(

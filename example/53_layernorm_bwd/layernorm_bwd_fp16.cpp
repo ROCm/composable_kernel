@@ -54,14 +54,15 @@ int main()
         Tensor<DGammaDataType> host_dgamma({K});
         Tensor<DBetaDataType> host_dbeta({K});
         Tensor<DXDataType> host_dx({M, K});
-        using ReferenceInstance = ck::tensor_operation::host::ReferenceLayernorm<DYDataType,
-                                                                                 XDataType,
-                                                                                 GammaDataType,
-                                                                                 MeanInvStdDataType,
-                                                                                 DGammaDataType,
-                                                                                 DBetaDataType,
-                                                                                 DXDataType,
-                                                                                 ComputeDataType>;
+        using ReferenceInstance =
+            ck::tensor_operation::host::ReferenceLayernormBwd<DYDataType,
+                                                              XDataType,
+                                                              GammaDataType,
+                                                              MeanInvStdDataType,
+                                                              DGammaDataType,
+                                                              DBetaDataType,
+                                                              DXDataType,
+                                                              ComputeDataType>;
 
         ReferenceInstance ref;
         auto ref_argument =
