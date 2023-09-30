@@ -77,3 +77,6 @@ add_example_executable(example_gemm_xdl_fp16_f8 gemm_xdl_fp16_f8.cpp)
 if(result EQUAL 0)
   add_dependencies(example_gemm_xdl example_gemm_xdl_fp16_f8)
 endif()
+
+
+add_example_executable(gemm_xdl_input_i16_comp_i8_scale_ab gemm_xdl_input_i16_comp_i8_scale_ab.cpp)
