@@ -1,0 +1,6 @@
+add_custom_target(test_work_scheduling)
+
+add_gtest_executable(test_strided_reduction_tile_loop test_strided_reduction_tile_loop.cpp)
+target_link_libraries(test_strided_reduction_tile_loop PRIVATE utility)
+
+add_dependencies(test_work_scheduling test_strided_reduction_tile_loop)
