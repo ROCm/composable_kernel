@@ -738,6 +738,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatABAdjusted,
+                                                                FloatABAdjusted,
                                                                 FloatAcc,
                                                                 decltype(a_k0_m_k1_block_desc),
                                                                 decltype(b_k0_n_k1_block_desc),
