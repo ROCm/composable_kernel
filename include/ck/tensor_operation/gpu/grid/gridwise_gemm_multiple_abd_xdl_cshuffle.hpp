@@ -427,6 +427,7 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
         return generate_tuple(
             [&](auto i) {
                 using ALayout = remove_cvref_t<tuple_element_t<i.value, AsLayout>>;
+
                 return MakeAGridDescriptor_M_K<ALayout, GemmSpec>(MRaws[i], KRaws[i], AsStride[i]);
             },
             Number<NumATensor>{});
