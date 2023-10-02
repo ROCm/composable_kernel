@@ -91,7 +91,7 @@ list(APPEND GEMM_INSTANCES device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_kn_mn_ins
 
 add_instance_library(device_gemm_instance ${GEMM_INSTANCES})
 
-set(ENABLE_PIPELINE_V2_OPT OFF)
+set(ENABLE_PIPELINE_V2_OPT)
 
 if (ENABLE_PIPELINE_V2_OPT)
     set(MAX_ILP_OPTS
