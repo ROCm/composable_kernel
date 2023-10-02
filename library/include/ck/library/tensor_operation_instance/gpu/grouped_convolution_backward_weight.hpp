@@ -754,8 +754,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #endif
 #if defined CK_ENABLE_FP16 && defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
                 else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                                  is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, bf8_t> &&
-                                  is_same_v<ComputeTypeB, f8_t>)
+                                  is_same_v<OutDataType, half_t> &&
+                                  is_same_v<ComputeTypeA, bf8_t> && is_same_v<ComputeTypeB, f8_t>)
                 {
                     add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_f8_instances(
                         op_ptrs);
