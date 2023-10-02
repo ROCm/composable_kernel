@@ -1214,6 +1214,12 @@ struct BlockToCTileMap_LinearKSplit
         return make_tuple(M0_idx_, N0_idx_, K0_idx_);
     }
 
+    __host__ __device__ index_t GetOutputTileIdx() const
+    {
+        const auto N0 = math::integer_divide_ceil(N_, NPerBlock);
+        return M0_idx_ * N0 + N0_idx_;
+    }
+
     template <typename CTileIdx, typename CTileDim>
     __host__ __device__ bool ValidCTileIndex(const CTileIdx& /* c_tile_idx */,
                                              const CTileDim& /* c_tile_dim */) const
@@ -1223,8 +1229,13 @@ struct BlockToCTileMap_LinearKSplit
 
     __host__ __device__ bool GetNextKTileIdx()
     {
-        K0_idx_++;
-        return K0_idx_ < KSplit_;
+        if(K0_idx_ + 1 < KSplit_)
+        {
+            K0_idx_++;
+            return true;
+        }
+        else
+            return false;
     }
 
     ///
@@ -1236,7 +1247,7 @@ struct BlockToCTileMap_LinearKSplit
     ///
     __host__ __device__ bool IsFirstKSplitBlock(index_t tiles_per_block) const
     {
-        return (K0_idx_ - tiles_per_block) <= 0;
+        return (K0_idx_ + 1 - tiles_per_block) <= 0;
     }
 
     __host__ __device__ index_t GetTileMIdx() const { return M0_idx_; }
