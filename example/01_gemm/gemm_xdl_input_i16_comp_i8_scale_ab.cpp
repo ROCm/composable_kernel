@@ -47,6 +47,7 @@ struct i32_to_i8
         y = ck::type_convert<I8>(ck::type_convert<float>(x) * reduced_amex_scale);
     }
 
+    // this attribute will trigger a reduction op of the tensor to get the true amax scalue
     float reduced_amex_scale = 1.0;
 };
 
