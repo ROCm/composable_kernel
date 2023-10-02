@@ -265,8 +265,9 @@ int main(int argc, char* argv[])
 
     if(!reduce_1.IsSupportedArgument(argument_ptr_1.get()))
     {
-        std::cout << "The runtime parameters seems supported by the DeviceReduce instance, exiting!"
-                  << std::endl;
+        std::cout
+            << "The runtime parameters seems not supported by the DeviceReduce instance, exiting!"
+            << std::endl;
     };
 
     auto invoker_ptr_1 = reduce_1.MakeInvokerPointer();

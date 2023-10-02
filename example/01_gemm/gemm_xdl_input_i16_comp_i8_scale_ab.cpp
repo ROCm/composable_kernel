@@ -44,10 +44,10 @@ struct i32_to_i8
 {
     __host__ __device__ void operator()(I8& y, const I32& x) const
     {
-        y = ck::type_convert<I8>(x) * scale;
+        y = ck::type_convert<I8>(ck::type_convert<float>(x) * reduced_amex_scale);
     }
 
-    float scale = 1.0;
+    float reduced_amex_scale = 1.0;
 };
 
 using AElementOp   = i32_to_i8;
@@ -175,12 +175,15 @@ int main(int argc, char* argv[])
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "e_m_n: " << e_m_n_host_result.mDesc << std::endl;
 
+    ADataType amax = 5;
+    BDataType bmax = 8;
+
     switch(init_method)
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-amax, amax});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-bmax, bmax});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -195,8 +198,8 @@ int main(int argc, char* argv[])
     b_device_buf.ToDevice(b_k_n.mData.data());
     e_device_buf.ToDevice(e_m_n_device_result.mData.data());
 
-    auto a_element_op   = AElementOp{0.2};
-    auto b_element_op   = BElementOp{0.2};
+    auto a_element_op   = AElementOp{};
+    auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
 
     // do GEMM
@@ -254,8 +257,12 @@ int main(int argc, char* argv[])
         auto ref_gemm               = ReferenceGemmInstance{};
         auto ref_invoker            = ref_gemm.MakeInvoker();
 
-        auto ref_argument =
-            ref_gemm.MakeArgument(a_m_k, b_k_n, c_m_n, a_element_op, b_element_op, PassThrough{});
+        auto ref_argument = ref_gemm.MakeArgument(a_m_k,
+                                                  b_k_n,
+                                                  c_m_n,
+                                                  AElementOp{static_cast<float>(1.0) / amax},
+                                                  BElementOp{static_cast<float>(1.0) / bmax},
+                                                  PassThrough{});
 
         ref_invoker.Run(ref_argument);
 

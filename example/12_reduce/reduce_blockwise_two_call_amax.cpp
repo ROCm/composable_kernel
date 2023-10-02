@@ -73,8 +73,8 @@ using DeviceReduceInstance_2 = DeviceReduceMultiBlock<InOutDataType,
                                                       OutputIndex,
                                                       false, // HaveIndexInputIfOutputIndex
                                                       256,
-                                                      128,
-                                                      2,
+                                                      32,
+                                                      8,
                                                       1,
                                                       1,
                                                       1, // vector dim
@@ -83,14 +83,12 @@ using DeviceReduceInstance_2 = DeviceReduceMultiBlock<InOutDataType,
 
 static bool do_verify;
 static int init_method;
-static float alpha;
-static float beta;
 static bool time_kernel;
 
 int main(int argc, char* argv[])
 {
     // used by the device reduction
-    const std::array<int, 1> reduceDims_1 = {0};
+    const std::array<int, 1> reduceDims_1 = {1};
     const std::array<int, 1> reduceDims_2 = {0};
 
     // used by the host reduction
@@ -126,9 +124,6 @@ int main(int argc, char* argv[])
         throw std::runtime_error(ostr.str());
     };
 
-    alpha = 1.0f;
-    beta  = 0.0f;
-
     Tensor<InOutDataType> in_1(inLengths_1);
 
     Tensor<InOutDataType> out_ref(outLengths);
@@ -149,26 +144,12 @@ int main(int argc, char* argv[])
         switch(init_method)
         {
         case 0: break;
-        case 1:
-            in_1.GenerateTensorValue(GeneratorTensor_1<InOutDataType>{1}, num_thread);
-            if(beta != 0.0f)
-                out_ref.GenerateTensorValue(GeneratorTensor_1<InOutDataType>{1}, num_thread);
-            break;
+        case 1: in_1.GenerateTensorValue(GeneratorTensor_1<InOutDataType>{1}, num_thread); break;
         case 2:
             in_1.GenerateTensorValue(GeneratorTensor_2<InOutDataType>{-5, 5}, num_thread);
-            if(beta != 0.0f)
-                out_ref.GenerateTensorValue(GeneratorTensor_2<InOutDataType>{-5, 5}, num_thread);
             break;
-        default:
-            in_1.GenerateTensorValue(GeneratorTensor_3<InOutDataType>{-5.0, 5.0}, num_thread);
-            if(beta != 0.0f)
-                out_ref.GenerateTensorValue(GeneratorTensor_3<InOutDataType>{-5.0, 5.0},
-                                            num_thread);
+        default: in_1.GenerateTensorValue(GeneratorTensor_3<InOutDataType>{-5.0, 5.0}, num_thread);
         }
-
-        if(beta != 0.0f)
-            for(size_t i = 0; i < out_ref.mDesc.GetElementSpaceSize(); i++)
-                out.mData[i] = out_ref.mData[i];
     };
 
     DeviceMem in_1_dev(sizeof(InOutDataType) * in_1.mDesc.GetElementSpaceSize());
@@ -176,9 +157,6 @@ int main(int argc, char* argv[])
     DeviceMem out_dev(sizeof(InOutDataType) * out.mDesc.GetElementSpaceSize());
 
     in_1_dev.ToDevice(in_1.mData.data());
-
-    if(beta != 0.0f)
-        out_dev.ToDevice(out.mData.data());
 
     InElementwiseOperation in_elementwise_op;
     AccElementwiseOperation acc_elementwise_op;
@@ -222,8 +200,8 @@ int main(int argc, char* argv[])
                                                                arrOutLengths,
                                                                arrOutStrides,
                                                                reduceDims,
-                                                               static_cast<double>(alpha),
-                                                               static_cast<double>(beta),
+                                                               1.0,
+                                                               0.0,
                                                                in_1.mData.data(),
                                                                nullptr,
                                                                out_ref.mData.data(),
@@ -261,8 +239,9 @@ int main(int argc, char* argv[])
 
     if(!reduce_1.IsSupportedArgument(argument_ptr_1.get()))
     {
-        std::cout << "The runtime parameters seems supported by the DeviceReduce instance, exiting!"
-                  << std::endl;
+        std::cout
+            << "The runtime parameters seems not supported by the DeviceReduce instance, exiting!"
+            << std::endl;
     };
 
     auto invoker_ptr_1 = reduce_1.MakeInvokerPointer();
@@ -274,8 +253,8 @@ int main(int argc, char* argv[])
                                                        arrOutLengths,
                                                        arrOutStrides,
                                                        reduceDims_2,
-                                                       static_cast<double>(alpha),
-                                                       static_cast<double>(beta),
+                                                       1.0,
+                                                       0.0,
                                                        in_2_dev.GetDeviceBuffer(),
                                                        nullptr,
                                                        out_dev.GetDeviceBuffer(),
