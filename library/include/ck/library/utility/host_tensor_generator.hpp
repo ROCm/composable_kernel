@@ -95,7 +95,7 @@ struct GeneratorTensor_2<int8_t>
     }
 };
 
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP8
 template <>
 struct GeneratorTensor_2<ck::f8_t>
 {
@@ -143,7 +143,7 @@ struct GeneratorTensor_3<ck::bhalf_t>
     }
 };
 
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP8
 template <>
 struct GeneratorTensor_3<ck::f8_t>
 {
