@@ -9,7 +9,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_f8_bf8_instances(
+void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_f8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            NDHWGC,
                                                            GKZYXC,
@@ -20,13 +20,13 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_f8_b
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough,
-                                                           F8,
-                                                           BF8>>>& instances)
+                                                           BF8,
+                                                           F8>>>& instances)
 {
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_xdl_c_shuffle_f16_comp_f8_bf8_instances<
+        device_grouped_conv_bwd_weight_xdl_c_shuffle_f16_comp_bf8_f8_instances<
             3,
             NDHWGC,
             GKZYXC,
@@ -35,7 +35,7 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_f8_b
     // 2. Filter1x1Stride1Pad0
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_xdl_c_shuffle_f16_comp_f8_bf8_instances<
+        device_grouped_conv_bwd_weight_xdl_c_shuffle_f16_comp_bf8_f8_instances<
             3,
             NDHWGC,
             GKZYXC,
