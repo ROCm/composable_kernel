@@ -7,8 +7,3 @@ target_link_libraries(client_grouped_conv1d_bwd_weight_fp16 PRIVATE composable_k
 target_link_libraries(client_grouped_conv2d_bwd_weight_fp16 PRIVATE composable_kernel::device_operations)
 target_link_libraries(client_grouped_conv3d_bwd_weight_fp16 PRIVATE composable_kernel::device_operations)
 target_link_libraries(client_grouped_conv3d_bwd_weight_fp32 PRIVATE composable_kernel::device_operations)
-
-if((DTYPES MATCHES "fp16" AND DTYPES MATCHES "fp8" AND DTYPES MATCHES "bf8") OR NOT DEFINED DTYPES)
-  add_executable(client_grouped_conv3d_bwd_weight_fp16_comp_fp8_bf8 grouped_conv3d_bwd_weight_fp16_comp_fp8_bf8.cpp)
-  target_link_libraries(client_grouped_conv3d_bwd_weight_fp16_comp_fp8_bf8 PRIVATE composable_kernel::device_operations)
-endif()
