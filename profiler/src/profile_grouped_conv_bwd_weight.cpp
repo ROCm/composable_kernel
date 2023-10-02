@@ -23,7 +23,7 @@ enum struct ConvDataType
     F32_F32_F32,       // 0
     F16_F16_F16,       // 1
     BF16_F32_BF16,     // 2
-    F16_F16_F16_F8_BF8 // 3
+    F16_F16_F16_BF8_F8 // 3
 };
 
 #define OP_NAME "grouped_conv_bwd_weight"
@@ -35,7 +35,7 @@ static void print_helper_msg()
               << "arg2: data type (0: Input fp32, Weight fp32, Output fp32\n"
               << "                 1: Input fp16, Weight fp16, Output fp16\n"
               << "                 2: Input bf16, Weight fp32, Output bf16\n"
-              << "                 3: Input fp16, Weight fp16, Output fp16, Gemm fp8@bf8)\n"
+              << "                 3: Input fp16, Weight fp16, Output fp16, Gemm bf8@fp8)\n"
               << "arg3: tensor layout (0: Input[G, N, C, Hi, Wi], Weight[G, K, C, Y, X], Output[G, "
                  "N, K, Ho, Wo]\n"
               << "                     1: Input[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Output[G, "
@@ -212,9 +212,9 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
             // fp32 atomic add is used for weight tensor in bf16 kernel
             return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, BF16{}, F32{}, BF16{}, BF16{}, BF16{});
         }
-        else if(data_type == ConvDataType::F16_F16_F16_F8_BF8)
+        else if(data_type == ConvDataType::F16_F16_F16_BF8_F8)
         {
-            return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F16{}, F16{}, F16{}, F8{}, BF8{});
+            return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F16{}, F16{}, F16{}, BF8{}, F8{});
         }
     }
 
