@@ -50,21 +50,23 @@ Best Perf: 1.42509 ms, 102.988 TFlops, 234.086 GB/s
 ## Profile contraction kernels
 ```bash
 #arg1: tensor operation (contraction_bilinear=CONTRACTION+Bilinear)
-#arg2: data type (0: fp32; 1: f64)\n"
-#arg3: matrix layout (0: A[m0, m1, k0, k1] * B[k0, k1, n0, n1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1];
+#arg2: data type (0: fp32; 1: f64; 2: f16; 3: bf16)
+#arg3: compute data type (0: fp32; 1: f64; 2: f16; 3: bf16)
+#arg4: matrix layout (0: A[m0, m1, k0, k1] * B[k0, k1, n0, n1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1];
 #                     1: A[m0, m1, k0, k1] * B[n0, n1, k0, k1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1];
 #                     2: A[k0, k1, m0, m1] * B[k0, k1, n0, n1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1];
 #                     3: A[k0, k1, m0, m1] * B[n0, n1, k0, k1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1])
-#arg4: verification (0: no; 1: yes)
-#arg5: initialization (0: no init; 1: integer value; 2: decimal value)
-#arg6: print tensor value (0: no; 1: yes)
-#arg7: time kernel (0: no, 1: yes)
-#arg8 and arg9: alpha and beta
-#arg10 to 15: M0, M1, N0, N1, K0, K1
-#arg16 to 31: Strides for A, B, D and E (skip for default)
+#arg5: verification (0: no; 1: yes)
+#arg6: initialization (0: no init; 1: integer value; 2: decimal value)
+#arg7: print tensor value (0: no; 1: yes)
+#arg8: time kernel (0: no, 1: yes)
+#arg9: alpha
+#arg10: beta
+#arg11 to 16: M0, M1, N0, N1, K0, K1
+#arg17 to 32: Strides for A, B, D and E (skip for default)
 
-################                   op  datatype  layout  verify  init  log  time  alpha  beta  M0  M1  N0  N1  K0  K1
-./bin/ckProfiler contraction_bilinear         0       1       0     0    0     1    1.0   1.0 128 128 128 128 128 128
+################                   op  datatype  compute_datatype  layout  verify  init  log  time  alpha  beta  M0  M1  N0  N1  K0  K1
+./bin/ckProfiler contraction_bilinear         0                 0       1       0     0    0     1    1.0   1.0 128 128 128 128 128 128
 ```
 
 Result (MI100)
@@ -185,7 +187,7 @@ GB/s: 69.2301
 ```
 Note: This kernel use atomic add, this will cause output buffer to be accumulated multiple times, causing verification failure. To work around it, do not use CK's own timer and do verification at the same time.
 
-## Profile image to column kernels
+## Profile image to column/column to image kernels
 ```bash
 # arg1: tensor operation (" OP_NAME ": " OP_DESC ")
 # arg2: data type (0: Input fp32, Weight fp32, Output fp32
@@ -197,6 +199,7 @@ Note: This kernel use atomic add, this will cause output buffer to be accumulate
 # arg5: initialization (0: no init, 1: integer value, 2: decimal value)
 # arg6: print tensor value (0: no; 1: yes)
 # arg7: time kernel (0: no, 1: yes)
+# arg8: operation type (0: ImageToColumn, 1: ColumnToImage)
 # Following arguments (depending on number of spatial dims):
 #  Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
 #  G, N, K, C, 
@@ -207,8 +210,8 @@ Note: This kernel use atomic add, this will cause output buffer to be accumulate
 #  <left padding>, (ie LeftPy, LeftPx for 2D)
 #  <right padding>, (ie RightPy, RightPx for 2D)
 
- ################             op   datatype  layout  verify  init  log  time  Ndims  G   N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx
-./bin/ckProfiler image_to_column          0       0       1     1    0     1      2  1 256   1 512  3  3   28  28   1   1   1   1        0       0       0        0
+ ################                   op   datatype  layout  verify  init  log  time opType Ndims  G   N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx
+./bin/ckProfiler conv_tensor_rearrange          0       0       0     1    0     1      0     2  1 256   1 512  3  3   28  28   1   1   1   1        0       0       0        0
 
  ```
 
@@ -222,3 +225,4 @@ name: DeviceImageToColumn<128, 32, 64, 4>
 avg_time: 3.12326
 GB/s: 2042.59
 ```
+Note: Column to image kernel adds to the output memory, this will cause output buffer to be accumulated multiple times, causing verification failure. To work around it, do not use CK's own timer and do verification at the same time.
