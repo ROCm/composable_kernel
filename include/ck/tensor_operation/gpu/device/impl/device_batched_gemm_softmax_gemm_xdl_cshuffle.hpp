@@ -3,8 +3,12 @@
 
 #pragma once
 
+#ifndef __HIPCC_RTC__
 #include <iostream>
 #include <sstream>
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
+#endif
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -15,8 +19,6 @@
 #include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_softmax_gemm_xdl_cshuffle_v1.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -126,7 +128,6 @@ __global__ void
 // else
 //     AccElement = -INFINITY
 // Otherwise, result may be wrong.
-
 template <typename ALayout,
           typename BLayout, // B0Layout
           typename B1Layout,
@@ -430,6 +431,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         matrix_padder.PadN,
         MaskOutUpperTriangle>;
 
+#ifndef __HIPCC_RTC__
     // Argument
     struct Argument : public BaseArgument
     {
@@ -604,14 +606,15 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
-
+#endif
     static constexpr bool IsValidCompilationParameter()
     {
         // TODO: properly implement this check
         return true;
     }
 
-    static constexpr bool IsSupported(index_t MRaw_, index_t NRaw_, index_t KRaw_, index_t Gemm1NRaw_)
+    static constexpr bool
+    IsSupported(index_t MRaw_, index_t NRaw_, index_t KRaw_, index_t Gemm1NRaw_)
     {
         // check vector load/store
         using Row = ck::tensor_layout::gemm::RowMajor;
@@ -699,7 +702,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
         return true;
     }
-
+#ifndef __HIPCC_RTC__
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(!ck::is_xdl_supported())
@@ -757,7 +760,6 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                         BatchStrideB1, BatchStrideC, a_element_op, b_element_op, acc_element_op,
                         b1_element_op, c_element_op};
     }
-
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
@@ -837,11 +839,11 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
         return str.str();
     }
-
+#endif
     template <class ADesc, class BDesc, class B1Desc, class CDesc>
     struct Descriptor
     {
-        template<class AGridDescriptor>
+        template <class AGridDescriptor>
         static constexpr auto MakeAGridDescriptor_AK0_M_AK1(const AGridDescriptor& a_grid_desc)
         {
             const auto a_grid_desc_m_k = DeviceOp::matrix_padder.PadADescriptor_M_K(a_grid_desc);
@@ -851,14 +853,15 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
             const auto AK0 = K / AK1;
 
-            return transform_tensor_descriptor(a_grid_desc_m_k,
-                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
-                                                        make_pass_through_transform(M)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+            return transform_tensor_descriptor(
+                a_grid_desc_m_k,
+                make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
+                           make_pass_through_transform(M)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
         }
 
-        template<class BGridDescriptor> 
+        template <class BGridDescriptor>
         static constexpr auto MakeBGridDescriptor_BK0_N_BK1(const BGridDescriptor& b_grid_desc)
         {
             const auto b_grid_desc_n_k = DeviceOp::matrix_padder.PadBDescriptor_N_K(b_grid_desc);
@@ -868,14 +871,15 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
             const auto BK0 = K / BK1;
 
-            return transform_tensor_descriptor(b_grid_desc_n_k,
-                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                        make_pass_through_transform(N)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+            return transform_tensor_descriptor(
+                b_grid_desc_n_k,
+                make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
+                           make_pass_through_transform(N)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
         }
 
-        template<class B1GridDescriptor>
+        template <class B1GridDescriptor>
         static constexpr auto MakeB1GridDescriptor_BK0_N_BK1(const B1GridDescriptor& b1_grid_desc)
         {
             const auto b1_grid_desc_n_k = DeviceOp::matrix_padder.PadB1Descriptor_N_K(b1_grid_desc);
@@ -888,17 +892,16 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
             return transform_tensor_descriptor(
                 b1_grid_desc_n_k,
                 make_tuple(make_unmerge_transform(make_tuple(B1K0, B1K1)),
-                        make_pass_through_transform(N)),
+                           make_pass_through_transform(N)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
         }
 
-        template<class CGridDescriptor>
+        template <class CGridDescriptor>
         static constexpr auto MakeCGridDescriptor_M_N(const CGridDescriptor& c_grid_desc)
         {
             return DeviceOp::matrix_padder.PadCDescriptor_M_N(c_grid_desc);
         }
-
 
         using AGridDesc_AK0_M_AK1 =
             remove_cvref_t<decltype(MakeAGridDescriptor_AK0_M_AK1(ADesc{}))>;
@@ -906,8 +909,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
             remove_cvref_t<decltype(MakeBGridDescriptor_BK0_N_BK1(BDesc{}))>;
         using B1GridDesc_BK0_N_BK1 =
             remove_cvref_t<decltype(MakeB1GridDescriptor_BK0_N_BK1(B1Desc{}))>;
-        using CGridDesc_M_N = 
-            remove_cvref_t<decltype(MakeCGridDescriptor_M_N(CDesc{}))>;
+        using CGridDesc_M_N = remove_cvref_t<decltype(MakeCGridDescriptor_M_N(CDesc{}))>;
 
         // GridwiseGemm
         using GridwiseGemm = GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle<
@@ -978,8 +980,9 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         CGridDesc_M_N c_grid_desc_m_n;
         C0MatrixMask c0_matrix_mask;
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map;
-        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock c_grid_descriptor_mblock_mperblock_nblock_nperblock;
-        
+        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            c_grid_descriptor_mblock_mperblock_nblock_nperblock;
+
         // element-wise op
         AElementwiseOperation a_element_op;
         BElementwiseOperation b_element_op;
@@ -1001,10 +1004,10 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
               b_grid_desc_bk0_n_bk1{MakeBGridDescriptor_BK0_N_BK1(b)},
               b1_grid_desc_bk0_n_bk1{MakeB1GridDescriptor_BK0_N_BK1(b1)},
               c_grid_desc_m_n{MakeCGridDescriptor_M_N(c)},
-              block_2_ctile_map{GridwiseGemm::MakeDefaultBlock2CTileMap(
-                c_grid_desc_m_n)},
+              block_2_ctile_map{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n)},
               c_grid_descriptor_mblock_mperblock_nblock_nperblock{
-                GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n)},
+                  GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                      c_grid_desc_m_n)},
               has_main_k_block_loop{GridwiseGemm::CalculateHasMainKBlockLoop(
                   a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2))},
               c0_matrix_mask{c.GetLength(I1)},
@@ -1012,23 +1015,20 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
               b_element_op{b_element_op_},
               b1_element_op{b1_element_op_},
               c_element_op{c_element_op_},
-              is_valid{GridwiseGemm::CheckValidity(
-                           a_grid_desc_ak0_m_ak1,
-                           b_grid_desc_bk0_n_bk1,
-                           b1_grid_desc_bk0_n_bk1,
-                           c_grid_desc_m_n,
-                           block_2_ctile_map) and 
-                        IsSupported(a_grid_desc_ak0_m_ak1.GetLength(I1), 
+              is_valid{GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1,
+                                                   b_grid_desc_bk0_n_bk1,
+                                                   b1_grid_desc_bk0_n_bk1,
+                                                   c_grid_desc_m_n,
+                                                   block_2_ctile_map) and
+                       IsSupported(a_grid_desc_ak0_m_ak1.GetLength(I1),
                                    b_grid_desc_bk0_n_bk1.GetLength(I1),
-                                   a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2),
+                                   a_grid_desc_ak0_m_ak1.GetLength(I0) *
+                                       a_grid_desc_ak0_m_ak1.GetLength(I2),
                                    b1_grid_desc_bk0_n_bk1.GetLength(I1))}
         {
         }
 
-        constexpr bool IsValid() const
-        {
-            return is_valid;
-        }
+        constexpr bool IsValid() const { return is_valid; }
     };
 
     template <class ADesc, class BDesc, class B1Desc, class CDesc>
@@ -1037,10 +1037,10 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                     BDesc b,
                     B1Desc b1,
                     CDesc c,
-                    AElementwiseOperation a_element_op     = AElementwiseOperation{},
-                    BElementwiseOperation b_element_op     = BElementwiseOperation{},
-                    B1ElementwiseOperation b1_element_op   = B1ElementwiseOperation{},
-                    CElementwiseOperation c_element_op     = CElementwiseOperation{})
+                    AElementwiseOperation a_element_op   = AElementwiseOperation{},
+                    BElementwiseOperation b_element_op   = BElementwiseOperation{},
+                    B1ElementwiseOperation b1_element_op = B1ElementwiseOperation{},
+                    CElementwiseOperation c_element_op   = CElementwiseOperation{})
     {
         return Descriptor<ADesc, BDesc, B1Desc, CDesc>(
             a, b, b1, c, a_element_op, b_element_op, b1_element_op, c_element_op);
@@ -1054,47 +1054,51 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                const ADataType* __restrict__ p_b1_grid,
                                CDataType* __restrict__ p_c_grid)
     {
+#ifndef __HIPCC_RTC__
         assert(desc.is_valid);
+#endif
         __shared__ char p_shared_block[Desc::GridwiseGemm::GetSharedMemoryNumberOfByte()];
         AccElementwiseOperation acc_element_op{scale};
 
         if(desc.has_main_k_block_loop)
         {
-            Desc::GridwiseGemm::template Run<true>(p_a_grid,
-                                             p_b_grid,
-                                             p_b1_grid,
-                                             p_c_grid,
-                                             p_shared_block,
-                                             desc.a_element_op,
-                                             desc.b_element_op,
-                                             acc_element_op,
-                                             desc.b1_element_op,
-                                             desc.c_element_op,
-                                             desc.a_grid_desc_ak0_m_ak1,
-                                             desc.b_grid_desc_bk0_n_bk1,
-                                             desc.b1_grid_desc_bk0_n_bk1,
-                                             desc.c_grid_descriptor_mblock_mperblock_nblock_nperblock,
-                                             desc.block_2_ctile_map,
-                                             desc.c0_matrix_mask);
+            Desc::GridwiseGemm::template Run<true>(
+                p_a_grid,
+                p_b_grid,
+                p_b1_grid,
+                p_c_grid,
+                p_shared_block,
+                desc.a_element_op,
+                desc.b_element_op,
+                acc_element_op,
+                desc.b1_element_op,
+                desc.c_element_op,
+                desc.a_grid_desc_ak0_m_ak1,
+                desc.b_grid_desc_bk0_n_bk1,
+                desc.b1_grid_desc_bk0_n_bk1,
+                desc.c_grid_descriptor_mblock_mperblock_nblock_nperblock,
+                desc.block_2_ctile_map,
+                desc.c0_matrix_mask);
         }
         else
         {
-            Desc::GridwiseGemm::template Run<false>(p_a_grid,
-                                              p_b_grid,
-                                              p_b1_grid,
-                                              p_c_grid,
-                                              p_shared_block,
-                                              desc.a_element_op,
-                                              desc.b_element_op,
-                                              acc_element_op,
-                                              desc.b1_element_op,
-                                              desc.c_element_op,
-                                              desc.a_grid_desc_ak0_m_ak1,
-                                              desc.b_grid_desc_bk0_n_bk1,
-                                              desc.b1_grid_desc_bk0_n_bk1,
-                                              desc.c_grid_descriptor_mblock_mperblock_nblock_nperblock,
-                                              desc.block_2_ctile_map,
-                                              desc.c0_matrix_mask);
+            Desc::GridwiseGemm::template Run<false>(
+                p_a_grid,
+                p_b_grid,
+                p_b1_grid,
+                p_c_grid,
+                p_shared_block,
+                desc.a_element_op,
+                desc.b_element_op,
+                acc_element_op,
+                desc.b1_element_op,
+                desc.c_element_op,
+                desc.a_grid_desc_ak0_m_ak1,
+                desc.b_grid_desc_bk0_n_bk1,
+                desc.b1_grid_desc_bk0_n_bk1,
+                desc.c_grid_descriptor_mblock_mperblock_nblock_nperblock,
+                desc.block_2_ctile_map,
+                desc.c0_matrix_mask);
         }
     }
 };

@@ -2,20 +2,22 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
+#ifndef __HIPCC_RTC__
 #include <iostream>
 #include <sstream>
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
+#endif
 
-#include "ck/utility/common_header.hpp"
+#include "ck/utility/array.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
+#include "ck/utility/common_header.hpp"
 
 namespace ck {
 
@@ -223,9 +225,9 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         return matrix_padder.PadCDescriptor_M_N(e_grid_desc_mraw_nraw);
     }
 
-    static auto MakeDsGridDescriptor_M_N(const std::array<index_t, NumDTensor>& MRaws,
-                                         const std::array<index_t, NumDTensor>& NRaws,
-                                         const std::array<index_t, NumDTensor>& DsStride)
+    static auto MakeDsGridDescriptor_M_N(const ck::Array<index_t, NumDTensor>& MRaws,
+                                         const ck::Array<index_t, NumDTensor>& NRaws,
+                                         const ck::Array<index_t, NumDTensor>& DsStride)
     {
         return generate_tuple(
             [&](auto i) {
@@ -304,20 +306,20 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
     // block-to-e-tile map
     using Block2ETileMap =
         remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
-
+#ifndef __HIPCC_RTC__
     // Argument
     struct Argument : public BaseArgument
     {
         Argument(const void* p_a_grid,
                  const void* p_b_grid,
-                 std::array<const void*, NumDTensor> p_ds_grid,
+                 ck::Array<const void*, NumDTensor> p_ds_grid,
                  void* p_e_grid,
                  index_t MRaw,
                  index_t NRaw,
                  index_t KRaw,
                  index_t StrideA,
                  index_t StrideB,
-                 std::array<index_t, NumDTensor> StrideDs,
+                 ck::Array<index_t, NumDTensor> StrideDs,
                  index_t StrideE,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
@@ -416,7 +418,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         index_t NRaw_;
         index_t KRaw_;
     };
-
     // Invoker
     struct Invoker : public BaseInvoker
     {
@@ -492,7 +493,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
-
+#endif
     static constexpr bool IsSupported(index_t MRaw_, index_t NRaw_, index_t KRaw_)
     {
         // check vector load/store
@@ -574,10 +575,12 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         }
         return true;
     }
-
+#ifndef __HIPCC_RTC__
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
+        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
+             ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
+             ck::get_device_name() == "gfx942"))
         {
             return false;
         }
@@ -595,17 +598,16 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-
     static auto MakeArgument(const void* p_a,
                              const void* p_b,
-                             std::array<const void*, NumDTensor> p_ds,
+                             ck::Array<const void*, NumDTensor> p_ds,
                              void* p_e,
                              index_t MRaw,
                              index_t NRaw,
                              index_t KRaw,
                              index_t StrideA,
                              index_t StrideB,
-                             std::array<index_t, NumDTensor> StrideDs,
+                             ck::Array<index_t, NumDTensor> StrideDs,
                              index_t StrideE,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
@@ -633,14 +635,14 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
-                        std::array<const void*, NumDTensor> p_ds,
+                        ck::Array<const void*, NumDTensor> p_ds,
                         void* p_e,
                         index_t MRaw,
                         index_t NRaw,
                         index_t KRaw,
                         index_t StrideA,
                         index_t StrideB,
-                        std::array<ck::index_t, NumDTensor> StrideDs,
+                        ck::Array<ck::index_t, NumDTensor> StrideDs,
                         index_t StrideE,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
@@ -673,11 +675,13 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
     {
         auto str = std::stringstream();
 
-        std::map<LoopScheduler, std::string> LoopSchedToString{
-            {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
+        std::map<LoopScheduler, std::string> LoopSchedToString{{LoopScheduler::Default, "Default"},
+                                                               { LoopScheduler::Interwave,
+                                                                 "Interwave" }};
 
         std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
-                                                                       {PipelineVersion::v2, "v2"}};
+                                                                       { PipelineVersion::v2,
+                                                                         "v2" }};
 
         // clang-format off
         str << "DeviceGemmMultipleD_Xdl_CShuffle"
@@ -706,6 +710,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
 
         return str.str();
     }
+#endif
 
     template <class ADesc, class BDesc, class DsDesc, class EDesc>
     struct Descriptor
@@ -722,10 +727,11 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         using BGridDesc_BK0_N_BK1 =
             remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(
                 DeviceOp::matrix_padder.PadBDescriptor_N_K(BDesc{})))>;
-        using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
-            GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(ds_tuple()))>;
-        using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock  = remove_cvref_t<decltype(
-            GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+        using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<
+            decltype(GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                ds_tuple()))>;
+        using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<
+            decltype(GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 DeviceOp::matrix_padder.PadCDescriptor_M_N(EDesc{})))>;
         using Block2ETileMap = remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(
             DeviceOp::matrix_padder.PadCDescriptor_M_N(EDesc{})))>;
@@ -735,7 +741,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock ds_grid_desc_mblock_mperblock_nblock_nperblock;
         EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock e_grid_desc_mblock_mperblock_nblock_nperblock;
         Block2ETileMap block_2_etile_map;
-        
+
         // element-wise op
         AElementwiseOperation a_element_op;
         BElementwiseOperation b_element_op;
@@ -786,10 +792,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         {
         }
 
-        constexpr bool IsValid() const
-        {
-            return is_valid;
-        }
+        constexpr bool IsValid() const { return is_valid; }
     };
 
     template <class ADesc, class BDesc, class DsDesc, class EDesc>
@@ -814,7 +817,9 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                                EDataType* __restrict__ p_e_grid)
     {
         __shared__ char p_shared_block[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#ifndef __HIPCC_RTC__
         assert(desc.is_valid);
+#endif
         if(desc.has_main_k_block_loop)
         {
             GridwiseGemm::template Run<true>(p_a_grid,

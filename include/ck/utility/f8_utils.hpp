@@ -44,7 +44,7 @@ __host__ __device__ f8_t run_cast_to_f8(T x, uint32_t rng)
     constexpr uint32_t nan_mask = is_half ? 0x7C00 : 0x7F800000;
 
     // convert to bitwise
-    typedef typename std::conditional<std::is_same<T, half_t>::value, uint16_t, uint32_t>::type
+    typedef typename ck::conditional<std::is_same<T, half_t>::value, uint16_t, uint32_t>::type
         T_bitwise;
     T_bitwise x_bitwise = *(reinterpret_cast<T_bitwise*>(&x));
 
@@ -180,7 +180,7 @@ __host__ __device__ T run_cast_from_f8(f8_t x)
 
     constexpr int exp_low_cutoff =
         (1 << (type_exp - 1)) - (1 << (f8_exp - 1)) + 1 - (negative_zero_nan ? 1 : 0);
-    typename std::conditional<std::is_same<T, half_t>::value, uint16_t, uint32_t>::type retval;
+    typename ck::conditional<std::is_same<T, half_t>::value, uint16_t, uint32_t>::type retval;
 
     if constexpr(negative_zero_nan)
     {

@@ -28,7 +28,7 @@ __host__ __device__ constexpr auto concat_tuple_of_reference(const Tuple<X&...>&
                                                              const Tuple<Y&...>& ty)
 {
     return unpack2(
-        [&](auto&&... zs) { return Tuple<decltype(zs)...>{std::forward<decltype(zs)>(zs)...}; },
+        [&](auto&&... zs) { return Tuple<decltype(zs)...>{ck::forward<decltype(zs)>(zs)...}; },
         tx,
         ty);
 }

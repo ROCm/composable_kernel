@@ -13,6 +13,7 @@
 namespace ck {
 namespace math {
 
+#ifndef __HIPCC_RTC__
 // math functions for the host,  some are implemented by calling C++ std functions
 
 static inline __host__ float abs(float x) { return std::abs(x); };
@@ -100,7 +101,7 @@ static inline __host__ half_t tanh(half_t x)
 static inline __host__ float tanh(float x) { return std::tanh(x); };
 
 static inline __host__ double tanh(double x) { return std::tanh(x); };
-
+#endif
 // math functions for the HIP kernel,  some are implemented by calling hip builtin functions
 
 static inline __device__ float abs(float x) { return ::abs(x); };

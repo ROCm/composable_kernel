@@ -4,10 +4,11 @@
 #pragma once
 
 #include "ck/config.h"
-
+#ifndef __HIPCC_RTC__
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
+#endif
 #endif
 
 #define CK_TIME_KERNEL 1

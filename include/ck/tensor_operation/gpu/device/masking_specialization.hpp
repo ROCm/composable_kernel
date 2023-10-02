@@ -13,6 +13,7 @@ enum struct MaskingSpecialization
     MaskOutUpperTriangle
 };
 
+#ifndef __HIPCC_RTC__
 inline std::string getMaskingSpecializationString(const MaskingSpecialization& s)
 {
     switch(s)
@@ -22,6 +23,7 @@ inline std::string getMaskingSpecializationString(const MaskingSpecialization& s
     default: return "Unrecognized specialization!";
     }
 }
+#endif
 
 struct MaskDisabledPredicate
 {

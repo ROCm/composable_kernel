@@ -9,6 +9,8 @@
 #include "type.hpp"
 #include "tuple.hpp"
 
+#define INT32_MAX 2147483647
+
 namespace ck {
 
 // magic number division
