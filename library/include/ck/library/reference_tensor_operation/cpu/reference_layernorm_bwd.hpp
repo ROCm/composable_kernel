@@ -29,35 +29,35 @@ struct ReferenceLayernormBwd : public device::BaseOperator
     // Argument
     struct Argument : public device::BaseArgument
     {
-        Argument(const Tensor<DYDataType>& dy_m_k,
-                 const Tensor<XDataType>& x_m_k,
-                 const Tensor<GammaDataType>& gamma_k,
+        Argument(const Tensor<DYDataType>& dy_m_n,
+                 const Tensor<XDataType>& x_m_n,
+                 const Tensor<GammaDataType>& gamma_n,
                  const Tensor<MeanInvStdDataType>& mean_m,
                  const Tensor<MeanInvStdDataType>& inv_std_m,
-                 Tensor<DGammaDataType>& dgamma_k,
-                 Tensor<DBetaDataType>& dbeta_k,
-                 Tensor<DXDataType>& dx_m_k,
+                 Tensor<DGammaDataType>& dgamma_n,
+                 Tensor<DBetaDataType>& dbeta_n,
+                 Tensor<DXDataType>& dx_m_n,
                  const std::vector<index_t> lengths)
-            : dy_m_k_(dy_m_k),
-              x_m_k_(x_m_k),
-              gamma_k_(gamma_k),
+            : dy_m_n_(dy_m_n),
+              x_m_n_(x_m_n),
+              gamma_n_(gamma_n),
               mean_m_(mean_m),
               inv_std_m_(inv_std_m),
-              dgamma_k_(dgamma_k),
-              dbeta_k_(dbeta_k),
-              dx_m_k_(dx_m_k),
+              dgamma_n_(dgamma_n),
+              dbeta_n_(dbeta_n),
+              dx_m_n_(dx_m_n),
               lengths_(lengths)
         {
         }
 
-        const Tensor<DYDataType>& dy_m_k_;
-        const Tensor<XDataType>& x_m_k_;
-        const Tensor<GammaDataType>& gamma_k_;
+        const Tensor<DYDataType>& dy_m_n_;
+        const Tensor<XDataType>& x_m_n_;
+        const Tensor<GammaDataType>& gamma_n_;
         const Tensor<MeanInvStdDataType>& mean_m_;
         const Tensor<MeanInvStdDataType>& inv_std_m_;
-        Tensor<DGammaDataType>& dgamma_k_;
-        Tensor<DBetaDataType>& dbeta_k_;
-        Tensor<DXDataType>& dx_m_k_;
+        Tensor<DGammaDataType>& dgamma_n_;
+        Tensor<DBetaDataType>& dbeta_n_;
+        Tensor<DXDataType>& dx_m_n_;
         std::vector<index_t> lengths_;
     };
 
@@ -67,25 +67,25 @@ struct ReferenceLayernormBwd : public device::BaseOperator
         float Run(const Argument& arg)
         {
             int M = arg.lengths_[0];
-            int K = arg.lengths_[1];
+            int N = arg.lengths_[1];
 
             // Calculate dgamma and dbeta
-            for(int k = 0; k < K; ++k)
+            for(int n = 0; n < N; ++n)
             {
                 ComputeDataType dgamma = 0;
                 ComputeDataType dbeta  = 0;
 
                 for(int m = 0; m < M; ++m)
                 {
-                    ComputeDataType dy   = ck::type_convert<ComputeDataType>(arg.dy_m_k_(m, k));
-                    ComputeDataType x    = ck::type_convert<ComputeDataType>(arg.x_m_k_(m, k));
+                    ComputeDataType dy   = ck::type_convert<ComputeDataType>(arg.dy_m_n_(m, n));
+                    ComputeDataType x    = ck::type_convert<ComputeDataType>(arg.x_m_n_(m, n));
                     ComputeDataType mean = ck::type_convert<ComputeDataType>(arg.mean_m_(m));
                     ComputeDataType rstd = ck::type_convert<ComputeDataType>(arg.inv_std_m_(m));
                     dgamma += dy * rstd * (x - mean);
                     dbeta += dy;
                 }
-                arg.dgamma_k_(k) = ck::type_convert<DGammaDataType>(dgamma);
-                arg.dbeta_k_(k)  = ck::type_convert<DBetaDataType>(dbeta);
+                arg.dgamma_n_(n) = ck::type_convert<DGammaDataType>(dgamma);
+                arg.dbeta_n_(n)  = ck::type_convert<DBetaDataType>(dbeta);
             }
 
             // Calculate dx
@@ -97,26 +97,26 @@ struct ReferenceLayernormBwd : public device::BaseOperator
                 ComputeDataType mean = ck::type_convert<ComputeDataType>(arg.mean_m_(m));
                 ComputeDataType rstd = ck::type_convert<ComputeDataType>(arg.inv_std_m_(m));
 
-                for(int k = 0; k < K; ++k)
+                for(int n = 0; n < N; ++n)
                 {
-                    ComputeDataType dy    = ck::type_convert<ComputeDataType>(arg.dy_m_k_(m, k));
-                    ComputeDataType x     = ck::type_convert<ComputeDataType>(arg.x_m_k_(m, k));
-                    ComputeDataType gamma = ck::type_convert<ComputeDataType>(arg.gamma_k_(k));
+                    ComputeDataType dy    = ck::type_convert<ComputeDataType>(arg.dy_m_n_(m, n));
+                    ComputeDataType x     = ck::type_convert<ComputeDataType>(arg.x_m_n_(m, n));
+                    ComputeDataType gamma = ck::type_convert<ComputeDataType>(arg.gamma_n_(n));
 
                     ds += dy * gamma * x;
                     db += dy * gamma;
                 }
 
-                for(int k = 0; k < K; ++k)
+                for(int n = 0; n < N; ++n)
                 {
-                    ComputeDataType dy    = ck::type_convert<ComputeDataType>(arg.dy_m_k_(m, k));
-                    ComputeDataType x     = ck::type_convert<ComputeDataType>(arg.x_m_k_(m, k));
-                    ComputeDataType gamma = ck::type_convert<ComputeDataType>(arg.gamma_k_(k));
+                    ComputeDataType dy    = ck::type_convert<ComputeDataType>(arg.dy_m_n_(m, n));
+                    ComputeDataType x     = ck::type_convert<ComputeDataType>(arg.x_m_n_(m, n));
+                    ComputeDataType gamma = ck::type_convert<ComputeDataType>(arg.gamma_n_(n));
 
-                    ComputeDataType b = (db * mean - ds) * rstd * rstd * rstd / K;
-                    ComputeDataType c = -b * mean - db * rstd / K;
+                    ComputeDataType b = (db * mean - ds) * rstd * rstd * rstd / N;
+                    ComputeDataType c = -b * mean - db * rstd / N;
 
-                    arg.dx_m_k_(m, k) = ck::type_convert<DXDataType>(dy * gamma * rstd + b * x + c);
+                    arg.dx_m_n_(m, n) = ck::type_convert<DXDataType>(dy * gamma * rstd + b * x + c);
                 }
             }
 
@@ -138,18 +138,18 @@ struct ReferenceLayernormBwd : public device::BaseOperator
 
     bool IsSupportedArgument(const device::BaseArgument*) override { return true; }
 
-    static auto MakeArgument(const Tensor<DYDataType>& dy_m_k,
-                             const Tensor<XDataType>& x_m_k,
-                             const Tensor<GammaDataType>& gamma_k,
+    static auto MakeArgument(const Tensor<DYDataType>& dy_m_n,
+                             const Tensor<XDataType>& x_m_n,
+                             const Tensor<GammaDataType>& gamma_n,
                              const Tensor<MeanInvStdDataType>& mean_m,
                              const Tensor<MeanInvStdDataType>& inv_std_m,
-                             Tensor<DGammaDataType>& dgamma_k,
-                             Tensor<DBetaDataType>& dbeta_k,
-                             Tensor<DXDataType>& dx_m_k,
+                             Tensor<DGammaDataType>& dgamma_n,
+                             Tensor<DBetaDataType>& dbeta_n,
+                             Tensor<DXDataType>& dx_m_n,
                              const std::vector<index_t> lengths)
     {
         return Argument{
-            dy_m_k, x_m_k, gamma_k, mean_m, inv_std_m, dgamma_k, dbeta_k, dx_m_k, lengths};
+            dy_m_n, x_m_n, gamma_n, mean_m, inv_std_m, dgamma_n, dbeta_n, dx_m_n, lengths};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
