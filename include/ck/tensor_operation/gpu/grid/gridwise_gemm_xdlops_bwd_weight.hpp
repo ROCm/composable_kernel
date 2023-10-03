@@ -269,7 +269,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
     // denorm test fix, required to work around fp16 mfma issue
     // we convert fp16->fp32->bf16 and execute bf16 mfma instruction
     // when mfma if fixed, remove this section and update
-    // FloatABAdjusted -> FloatAB throughout this file
+    // FloatAAdjusted -> ComputeTypeA, FloatBAdjusted -> ComputeTypeB,
+    // throughout this file
 #if CK_WORKAROUND_DENORM_FIX
     using FloatAAdjusted =
         conditional_t<is_same_v<ComputeTypeA, ck::half_t>, ck::bhalf_t, ComputeTypeA>;
