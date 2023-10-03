@@ -291,6 +291,7 @@ int main(int argc, char* argv[])
                                                                       BDataType,
                                                                       CShuffleDataType,
                                                                       AccDataType,
+                                                                      A0DataType,
                                                                       PassThrough,
                                                                       BElementOp>;
 
