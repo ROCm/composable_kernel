@@ -582,7 +582,9 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances(
                                                               PassThrough,
                                                               PassThrough,
                                                               PassThrough>>>& instances);
+#endif
 
+#ifdef CK_ENABLE_FP16
 void add_device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
                                                               NDHWGC,
@@ -596,7 +598,9 @@ void add_device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_f16_instances(
                                                               PassThrough,
                                                               PassThrough,
                                                               PassThrough>>>& instances);
+#endif
 
+#ifdef CK_ENABLE_FP16
 void add_device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_f16_1x1p0_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
                                                               NDHWGC,
@@ -610,7 +614,9 @@ void add_device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_f16_1x1p0_instances
                                                               PassThrough,
                                                               PassThrough,
                                                               PassThrough>>>& instances);
+#endif
 
+#ifdef CK_ENABLE_FP16
 void add_device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_f16_1x1s1p0_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
                                                               NDHWGC,
@@ -624,13 +630,79 @@ void add_device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_f16_1x1s1p0_instanc
                                                               PassThrough,
                                                               PassThrough,
                                                               PassThrough>>>& instances);
+#endif
 
+#ifdef CK_ENABLE_FP16
 void add_device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_f16_oddc_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
                                                               NDHWGC,
                                                               GKZYXC,
                                                               Empty_Tuple,
                                                               NDHWGK,
+                                                              F16,
+                                                              F16,
+                                                              Empty_Tuple,
+                                                              F16,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
+#endif
+
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv2d_fwd_wmma_gnhwc_gkyxc_gnhwk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              GNHWC,
+                                                              GKYXC,
+                                                              Empty_Tuple,
+                                                              GNHWK,
+                                                              F16,
+                                                              F16,
+                                                              Empty_Tuple,
+                                                              F16,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
+#endif
+
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv2d_fwd_wmma_gnhwc_gkyxc_gnhwk_f16_1x1p0_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              GNHWC,
+                                                              GKYXC,
+                                                              Empty_Tuple,
+                                                              GNHWK,
+                                                              F16,
+                                                              F16,
+                                                              Empty_Tuple,
+                                                              F16,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
+#endif
+
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv2d_fwd_wmma_gnhwc_gkyxc_gnhwk_f16_1x1s1p0_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              GNHWC,
+                                                              GKYXC,
+                                                              Empty_Tuple,
+                                                              GNHWK,
+                                                              F16,
+                                                              F16,
+                                                              Empty_Tuple,
+                                                              F16,
+                                                              PassThrough,
+                                                              PassThrough,
+                                                              PassThrough>>>& instances);
+#endif
+
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv2d_fwd_wmma_gnhwc_gkyxc_gnhwk_f16_oddc_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
+                                                              GNHWC,
+                                                              GKYXC,
+                                                              Empty_Tuple,
+                                                              GNHWK,
                                                               F16,
                                                               F16,
                                                               Empty_Tuple,
