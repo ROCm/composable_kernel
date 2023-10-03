@@ -27,12 +27,52 @@ using DBetaDataType      = ck::half_t;
 using DXDataType         = ck::half_t;
 using ComputeDataType    = float;
 
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+constexpr int Rank         = 2;
+constexpr int NumReduceDim = 1;
+
+// Layernorm:
+// dy:     M, N
+// x:      M, N
+// mean:   M, 1
+// rstd:   M, 1
+
+// reduced axis: 0
+
+// dgamma: 1, N
+// dbeta:  1, N
+
+// [CAUSION]
+// In DeviceNormalizationBwdGammaBetaImpl, M is invarient dimension, K is reduced dimension
+// M in layernorm and M in DeviceNormalizationBwdGammaBetaImpl is different
+using GammaBetaDeviceInstance = ck::tensor_operation::device::DeviceNormalizationBwdGammaBetaImpl<
+    DYDataType,
+    XDataType,
+    MeanInvStdDataType,
+    ComputeDataType,
+    DGammaDataType,
+    DBetaDataType,
+    Rank,
+    NumReduceDim,
+    256, // BlockSize
+    8,   // ClusterM
+    32,  // ClusterK
+    8,   // SliceM
+    1,   // SliceK
+    0,   // DYSrcVectorDim (0=M, 1=K)
+    8,   // DYSrcVectorSize
+    0,   // XSrcVectorDim (0=M, 1=K)
+    8,   // XSrcVectorSize
+    1,   // MeanInvStdSrcVectorDim (0=M, 1=K)
+    1,   // MeanInvStdSrcVectorSize
+    1,   // DGammaDstVectorSize
+    1>;  // DBetaDstVectorSize
 
 int main()
 {
+    bool time_kernel = false;
+
     ck::index_t M = 1024;
-    ck::index_t N = 1024;
+    ck::index_t N = 512;
 
     Tensor<DYDataType> dy({M, N});
     Tensor<XDataType> x({M, N});
@@ -44,11 +84,50 @@ int main()
     Tensor<DBetaDataType> dbeta({N});
     Tensor<DXDataType> dx({M, N});
 
-    dy.GenerateTensorValue(GeneratorTensor_3<XDataType>{0.0, 1.0});
+    dy.GenerateTensorValue(GeneratorTensor_3<DYDataType>{0.0, 1.0});
     x.GenerateTensorValue(GeneratorTensor_3<XDataType>{0.0, 1.0});
     gamma.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{0.0, 1.0});
     mean.GenerateTensorValue(GeneratorTensor_3<MeanInvStdDataType>{0.0, 1.0});
     inv_std.GenerateTensorValue(GeneratorTensor_3<MeanInvStdDataType>{0.0, 1.0});
+
+    DeviceMem dy_dev(sizeof(DYDataType) * dy.mDesc.GetElementSpaceSize());
+    DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpaceSize());
+    DeviceMem mean_dev(sizeof(MeanInvStdDataType) * mean.mDesc.GetElementSpaceSize());
+    DeviceMem inv_std_dev(sizeof(MeanInvStdDataType) * inv_std.mDesc.GetElementSpaceSize());
+    DeviceMem dgamma_dev(sizeof(DGammaDataType) * dgamma.mDesc.GetElementSpaceSize());
+    DeviceMem dbeta_dev(sizeof(DBetaDataType) * dbeta.mDesc.GetElementSpaceSize());
+
+    dy_dev.ToDevice(dy.mData.data());
+    x_dev.ToDevice(x.mData.data());
+    mean_dev.ToDevice(mean.mData.data());
+    inv_std_dev.ToDevice(inv_std.mData.data());
+
+    auto gamma_beta_device_instance = GammaBetaDeviceInstance{};
+    auto gamma_beta_argument_ptr =
+        gamma_beta_device_instance.MakeArgumentPointer({M, N}, // inLengths
+                                                       {N, 1}, // dyStrides
+                                                       {N, 1}, // xStrides
+                                                       {1, 0}, // meanStrides
+                                                       {1, 0}, // invStdStrides
+                                                       {N},    // outLengths
+                                                       {1},    // dgammaStrides
+                                                       {1},    // dbetaStrides
+                                                       {0},    // reduceDims
+                                                       dy_dev.GetDeviceBuffer(),
+                                                       x_dev.GetDeviceBuffer(),
+                                                       mean_dev.GetDeviceBuffer(),
+                                                       inv_std_dev.GetDeviceBuffer(),
+                                                       dgamma_dev.GetDeviceBuffer(),
+                                                       dbeta_dev.GetDeviceBuffer());
+
+    if(!gamma_beta_device_instance.IsSupportedArgument(gamma_beta_argument_ptr.get()))
+    {
+        std::cout << "The runtime parameters are not supported" << std::endl;
+        return 1;
+    };
+
+    auto gamma_beta_invoker_ptr = gamma_beta_device_instance.MakeInvokerPointer();
+    gamma_beta_invoker_ptr->Run(gamma_beta_argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
     bool pass = true;
     {
