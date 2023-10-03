@@ -72,6 +72,9 @@ __global__ void
 #else
     ignore = karg;
     ignore = b2c_map;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = c_element_op;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
