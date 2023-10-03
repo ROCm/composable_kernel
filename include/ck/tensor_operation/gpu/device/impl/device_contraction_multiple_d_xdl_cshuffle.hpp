@@ -112,6 +112,7 @@ template <index_t NumDimM,
           typename CShuffleDataType,
           typename DsDataType,
           typename EDataType,
+          typename ComputeDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
@@ -156,7 +157,8 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                                         EDataType,
                                         AElementwiseOperation,
                                         BElementwiseOperation,
-                                        CDEElementwiseOperation>
+                                        CDEElementwiseOperation,
+                                        ComputeDataType>
 {
     using DeviceOp = DeviceContractionMultipleD_Xdl_CShuffle;
 
@@ -309,8 +311,6 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
     using BGridDesc_N_K  = decltype(MakeBGridDescriptor_N_K({}, {}));
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({{}}, {{}}))>;
     using EGridDesc_M_N  = decltype(MakeEGridDescriptor_M_N({}, {}));
-
-    using ComputeDataType = ADataType;
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<

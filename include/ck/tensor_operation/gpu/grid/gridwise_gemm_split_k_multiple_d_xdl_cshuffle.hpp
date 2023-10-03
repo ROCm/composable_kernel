@@ -588,6 +588,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
             ABDataType,
+            ABDataType,
             AccDataType,
             decltype(a_block_desc_ak0_m_ak1),
             decltype(b_block_desc_bk0_n_bk1),
@@ -1011,6 +1012,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
+            ABDataType,
             ABDataType,
             AccDataType,
             decltype(a_block_desc_ak0_m_ak1),
