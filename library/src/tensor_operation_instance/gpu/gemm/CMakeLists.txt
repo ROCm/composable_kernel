@@ -99,10 +99,6 @@ add_instance_library(device_gemm_instance ${GEMM_INSTANCES})
 set(ENABLE_PIPELINE_V2_OPT)
 
 if (ENABLE_PIPELINE_V2_OPT)
-    set(MAX_ILP_OPTS
-       -mllvm
-       -amdgpu-enable-max-ilp-scheduling-strategy
-    )
     set(WAVES_PER_EU_DEFS
        CK_USE_WAVES_PER_EU=1
        CK_MIN_WAVES_PER_EU=1
@@ -118,7 +114,7 @@ if (ENABLE_PIPELINE_V2_OPT)
        COMPILE_DEFINITIONS "${WAVES_PER_EU_DEFS};${IGLP_OPT_DEFS}")
     # layout=NN
     set_source_files_properties(device_gemm_xdl_f16_f16_f16/km_nk_mn_default_pipeline_v2_opt_instance.cpp PROPERTIES
-       COMPILE_OPTIONS "${MAX_ILP_OPTS}"
+       COMPILE_OPTIONS ";;"
        COMPILE_DEFINITIONS "${WAVES_PER_EU_DEFS};${IGLP_OPT_DEFS}")
     # layout=TT
     set_source_files_properties(device_gemm_xdl_f16_f16_f16/mk_kn_mn_default_pipeline_v2_opt_instance.cpp PROPERTIES
@@ -126,7 +122,7 @@ if (ENABLE_PIPELINE_V2_OPT)
        COMPILE_DEFINITIONS "${WAVES_PER_EU_DEFS};${IGLP_OPT_DEFS}")
     # layout=TN
     set_source_files_properties(device_gemm_xdl_f16_f16_f16/mk_nk_mn_default_pipeline_v2_opt_instance.cpp PROPERTIES
-       COMPILE_OPTIONS "${MAX_ILP_OPTS}"
+       COMPILE_OPTIONS ";;"
        COMPILE_DEFINITIONS "${WAVES_PER_EU_DEFS};${IGLP_OPT_DEFS}")
 endif(ENABLE_PIPELINE_V2_OPT)
 
