@@ -401,7 +401,7 @@ __host__ __device__ constexpr auto
                       rh_major_minor_to_hidden_ids);
 }
 
-// FIXME: this is nasty. Need to find another way to hold this info
+// FIXME: this is nasty. Move it inside TileDistributionEncoding::Detail
 template <typename RhMajorMinor2AdaptorHiddenIdss> // Tuple<Sequence<...>, ...>
 struct TileDistributionDetail
 {

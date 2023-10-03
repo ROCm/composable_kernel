@@ -349,59 +349,6 @@ make_reduce_tile_distribution_encoding(InDstr, Sequence<InReduceDimXs...> reduce
                                           remove_cvref_t<decltype(ps_to_rhss_minor)>,
                                           remove_cvref_t<decltype(ys_to_rhs_major)>,
                                           remove_cvref_t<decltype(ys_to_rhs_minor)>>{};
-
-#if 0
-    if(ProgramServer::get_block_id() == 0 && ProgramServer::get_thread_id() == 0)
-    {
-        printf("ndim_x: ");
-        print(ndim_x);
-        printf("\n");
-
-        printf("ndim_p: ");
-        print(ndim_p);
-        printf("\n");
-
-        printf("ndim_y: ");
-        print(ndim_y);
-        printf("\n");
-
-        printf("ndim_r: ");
-        print(ndim_r);
-        printf("\n");
-
-        printf("ndims_hs_minor: ");
-        print(ndims_hs_minor);
-        printf("\n");
-
-        printf("ndims_ps_low: ");
-        print(ndims_ps_low);
-        printf("\n");
-
-        printf("rs_lengths: ");
-        print(rs_lengths);
-        printf("\n");
-
-        printf("hs_lengthss: ");
-        print(hs_lengthss);
-        printf("\n");
-
-        printf("ps_to_rhss_major: ");
-        print(ps_to_rhss_major);
-        printf("\n");
-
-        printf("ps_to_rhss_minor: ");
-        print(ps_to_rhss_minor);
-        printf("\n");
-
-        printf("ys_to_rhs_major: ");
-        print(ys_to_rhs_major);
-        printf("\n");
-
-        printf("ys_to_rhs_minor: ");
-        print(ys_to_rhs_minor);
-        printf("\n");
-    }
-#endif
 }
 
 } // namespace detail

@@ -13,7 +13,6 @@
 #include "ck/utility/tuple.hpp"
 
 #include "ck/tile_program/tile/tile_gemm_shape.hpp"
-#include "ck/tile_program/block_tile_pipeline/block_gemm_pipeline_problem.hpp"
 
 namespace ck {
 namespace detail {
@@ -48,9 +47,6 @@ __host__ __device__ static auto make_desc_to_block2tile_map_adaptor(Descriptor&&
 }
 } // namespace detail
 
-namespace tile_program {
-namespace grid {
-
 struct Block2TileMapNFast
 {
     __host__ __device__ static constexpr auto MakeBlock2TileMap(index_t NumTilesM,
@@ -63,8 +59,7 @@ struct Block2TileMapNFast
 
 struct Block2TileMapMFast
 {
-    __host__ __device__ static constexpr auto MakeBlock2TileMap(index_t NumTilesM,
-                                                                index_t NumTilesN)
+    __host__ __device__ constexpr auto operator()(index_t NumTilesM, index_t NumTilesN) const
     {
         const auto unmerge = make_merge_transform(make_tuple(NumTilesN, NumTilesM));
 
@@ -129,43 +124,4 @@ struct Block2TileMapMAdapt
 
 using DefaultBlock2TileMap = Block2TileMapMFast;
 
-namespace detail {
-template <typename TupleOfBaseTypes>
-struct InheritFromBaseTypes;
-
-template <typename... BaseTypes>
-struct InheritFromBaseTypes<Tuple<BaseTypes...>> : remove_cvref_t<BaseTypes>...
-{
-};
-} // namespace detail
-
-template <index_t kBlockSize_,
-          index_t kMPerBlock_,
-          index_t kNPerBlock_,
-          index_t kKPerBlock_,
-          template <typename /* BlockGemmPipelineProblem */, typename /* BlockGemmPipelinePolicy */>
-          class BlockGemmPipeline_,
-          typename TupleOfExtraPolicies>
-struct GridGemmPolicy : detail::InheritFromBaseTypes<TupleOfExtraPolicies>
-{
-    static constexpr auto kBlockSize = kBlockSize_;
-    static constexpr auto kMPerBlock = kMPerBlock_;
-    static constexpr auto kNPerBlock = kNPerBlock_;
-    static constexpr auto kKPerBlock = kKPerBlock_;
-
-    template <typename GridGemmProblem>
-    using BlockGemmPipelineProblem =
-        block::BlockGemmPipelineProblem<typename GridGemmProblem::ADataType,
-                                        typename GridGemmProblem::BDataType,
-                                        typename GridGemmProblem::AccDataType,
-                                        kBlockSize,
-                                        TileGemmShape<kMPerBlock, kNPerBlock, kKPerBlock>>;
-
-    template <typename GridGemmProblem>
-    using BlockGemmPipeline =
-        BlockGemmPipeline_<BlockGemmPipelineProblem<GridGemmProblem>, GridGemmPolicy>;
-};
-
-} // namespace grid
-} // namespace tile_program
 } // namespace ck

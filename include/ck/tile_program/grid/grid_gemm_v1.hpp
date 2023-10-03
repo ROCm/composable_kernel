@@ -4,11 +4,9 @@
 #pragma once
 
 namespace ck {
-namespace tile_program {
-namespace grid {
 
 template <typename Problem, typename Policy>
-struct GridGemm
+struct GridGemmV1
 {
     using ADataType        = typename Problem::ADataType;
     using BDataType        = typename Problem::BDataType;
@@ -20,8 +18,6 @@ struct GridGemm
     static constexpr auto kMPerBlock = Policy::kMPerBlock;
     static constexpr auto kNPerBlock = Policy::kNPerBlock;
     static constexpr auto kKPerBlock = Policy::kKPerBlock;
-
-    using BlockGemmPipeline = typename Policy::template BlockGemmPipeline<Problem>;
 
     template <typename AGridTensorView, typename BGridTensorView, typename CGridTensorView>
     __device__ void operator()(const AGridTensorView& a_grid,
@@ -35,9 +31,9 @@ struct GridGemm
         using namespace ck::tile_program;
         using namespace ck::tile_program::block;
 
-        const auto M = a_grid.desc_.GetLength(Number<0>{});
-        const auto N = c_grid.desc_.GetLength(Number<1>{});
-        const auto K = a_grid.desc_.GetLength(Number<1>{});
+        const auto M = a_grid.GetTensorDescriptor().GetLength(Number<0>{});
+        const auto N = c_grid.GetTensorDescriptor().GetLength(Number<1>{});
+        const auto K = a_grid.GetTensorDescriptor().GetLength(Number<1>{});
 
         // divide problem
         const auto id_block = get_block_id();
@@ -45,7 +41,7 @@ struct GridGemm
         const auto num_tile_m = M / kMPerBlock;
         const auto num_tile_n = N / kNPerBlock;
 
-        const auto block2tile = Policy::MakeBlock2TileMap(num_tile_m, num_tile_n);
+        const auto block2tile = Policy::template MakeBlock2TileMap<Problem>(num_tile_m, num_tile_n);
 
         const auto id_tile = block2tile(id_block);
 
@@ -61,7 +57,7 @@ struct GridGemm
             b_grid, make_tuple(Number<kNPerBlock>{}, Number<kKPerBlock>{}), {iN, 0});
 
         // Block GEMM pipeline
-        constexpr auto block_gemm_pipeline = BlockGemmPipeline{};
+        constexpr auto block_gemm_pipeline = Policy::template GetBlockGemmPipeline<Problem>();
 
         __shared__ char p_smem_char[block_gemm_pipeline.GetStaticLdsSize()];
 
@@ -85,6 +81,4 @@ struct GridGemm
     }
 };
 
-} // namespace grid
-} // namespace tile_program
 } // namespace ck

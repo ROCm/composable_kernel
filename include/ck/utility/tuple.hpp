@@ -258,6 +258,27 @@ struct Tuple<>
     __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }
 };
 
+template <typename... Xs>
+__host__ __device__ constexpr bool operator==(const Tuple<Xs...>& a, const Tuple<Xs...>& b)
+{
+    bool same = true;
+
+    static_for<0, sizeof...(Xs), 1>{}([&](auto i) {
+        if(a[i] != b[i])
+        {
+            same = false;
+        }
+    });
+
+    return same;
+}
+
+template <typename... Xs>
+__host__ __device__ constexpr bool operator!=(const Tuple<Xs...>& a, const Tuple<Xs...>& b)
+{
+    return !(a == b);
+}
+
 template <index_t I, typename TTuple>
 struct tuple_element
 {

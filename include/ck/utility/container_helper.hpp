@@ -3,12 +3,13 @@
 
 #pragma once
 
-#include "sequence.hpp"
-#include "sequence_helper.hpp"
-#include "array.hpp"
-#include "tuple.hpp"
-#include "tuple_helper.hpp"
-#include "statically_indexed_array.hpp"
+#include "ck/utility/sequence.hpp"
+#include "ck/utility/sequence_helper.hpp"
+#include "ck/utility/array.hpp"
+#include "ck/utility/tuple.hpp"
+#include "ck/utility/tuple_helper.hpp"
+#include "ck/utility/statically_indexed_array.hpp"
+#include "ck/utility/map.hpp"
 
 namespace ck {
 
@@ -36,6 +37,7 @@ __host__ __device__ constexpr auto container_push_back(const Tuple<Ts...>& a, co
     return container_concat(a, make_tuple(x));
 }
 
+// reorder Array
 template <typename TData, index_t NSize, index_t... IRs>
 __host__ __device__ constexpr auto
 container_reorder_given_new2old(const Array<TData, NSize>& old_array, Sequence<IRs...> /*new2old*/)
@@ -55,6 +57,38 @@ container_reorder_given_old2new(const Array<TData, NSize>& old_array, Sequence<I
         old_array, typename sequence_map_inverse<decltype(old2new)>::type{});
 }
 
+// reorder Array
+template <typename TData, index_t NSize>
+__host__ __device__ constexpr auto
+container_reorder_given_new2old(const Array<TData, NSize>& old_array,
+                                const Map<index_t, index_t>& new2old)
+{
+    Array<TData, NSize> new_array;
+
+    for(const auto& [new_pos, old_pos] : new2old)
+    {
+        new_array(new_pos) = old_array[old_pos];
+    }
+
+    return new_array;
+}
+
+template <typename TData, index_t NSize>
+__host__ __device__ constexpr auto
+container_reorder_given_old2new(const Array<TData, NSize>& old_array,
+                                const Map<index_t, index_t>& old2new)
+{
+    Array<TData, NSize> new_array;
+
+    for(const auto& [old_pos, new_pos] : old2new)
+    {
+        new_array(new_pos) = old_array[old_pos];
+    }
+
+    return new_array;
+}
+
+// reorder Tuple
 template <typename... Ts, index_t... IRs>
 __host__ __device__ constexpr auto container_reorder_given_new2old(const Tuple<Ts...>& old_tuple,
                                                                    Sequence<IRs...> /*new2old*/)
@@ -74,6 +108,7 @@ __host__ __device__ constexpr auto container_reorder_given_old2new(const Tuple<T
         old_tuple, typename sequence_map_inverse<decltype(old2new)>::type{});
 }
 
+// reorder Sequence
 template <index_t... Is, index_t... IRs>
 __host__ __device__ constexpr auto container_reorder_given_new2old(Sequence<Is...> /* old_seq */,
                                                                    Sequence<IRs...> /*new2old*/)

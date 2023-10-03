@@ -9,6 +9,9 @@
 
 namespace ck {
 
+// S: scalar type
+// NX: # of vector before transpose
+// NY: # of vector after transpose
 template <typename S,
           index_t NX,
           index_t NY,
@@ -59,6 +62,32 @@ struct transpose_vectors<half_t, NX, NY>
 
     __device__ void operator()(const StaticallyIndexedArray<const VX&, NX>& vx_tuple,
                                StaticallyIndexedArray<VY&, NY>& vy_tuple)
+    {
+        static constexpr auto I1 = Number<1>{};
+        static constexpr auto I2 = Number<2>{};
+
+        static_assert((NX % 2 == 0 && NY % 2 == 0), "wrong!");
+
+        // loop over 2x2 tile and transpose data from vx_tuple into vy_tuple
+        static_for<0, NY, 2>{}([&](auto iy) {
+            static_for<0, NX, 2>{}([&](auto ix) {
+                // reference to 2 half2_t data from vx_tuple
+                const auto& x_s2_0 = vx_tuple[ix].template AsType<half2_t>()[iy / I2];
+                const auto& x_s2_1 = vx_tuple[ix + I1].template AsType<half2_t>()[iy / I2];
+
+                // reference to 2 half2_t data from vy_tuple
+                auto& y_s2_0 = vy_tuple(iy).template AsType<half2_t>()(ix / I2);
+                auto& y_s2_1 = vy_tuple(iy + I1).template AsType<half2_t>()(ix / I2);
+
+                // transpose
+                transpose_fp16_2x2(x_s2_0, x_s2_1, y_s2_0, y_s2_1);
+            });
+        });
+    }
+
+    // FIXME: duplicated code
+    __device__ void operator()(const StaticallyIndexedArray<VX, NX>& vx_tuple,
+                               StaticallyIndexedArray<VY, NY>& vy_tuple)
     {
         static constexpr auto I1 = Number<1>{};
         static constexpr auto I2 = Number<2>{};

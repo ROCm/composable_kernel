@@ -641,6 +641,12 @@ __host__ __device__ constexpr bool operator==(Sequence<Xs...>, Sequence<Ys...>)
 }
 
 template <index_t... Xs, index_t... Ys>
+__host__ __device__ constexpr bool operator!=(Sequence<Xs...> x, Sequence<Ys...> y)
+{
+    return !(x == y);
+}
+
+template <index_t... Xs, index_t... Ys>
 __host__ __device__ constexpr auto operator+(Sequence<Xs...>, Sequence<Ys...>)
 {
     static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong! inconsistent size");

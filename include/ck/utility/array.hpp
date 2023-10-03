@@ -5,8 +5,8 @@
 
 #include <initializer_list>
 
-#include "functional2.hpp"
-#include "sequence.hpp"
+#include "ck/utility/functional2.hpp"
+#include "ck/utility/sequence.hpp"
 
 namespace ck {
 
@@ -112,6 +112,31 @@ struct Array<TData, 0>
 
     __host__ __device__ void Print() const { printf("Array{size: 0, data: []}"); }
 };
+
+template <typename TData, index_t NSize>
+__host__ __device__ constexpr bool operator==(const Array<TData, NSize>& a,
+                                              const Array<TData, NSize>& b)
+{
+    bool same = true;
+
+    for(index_t i = 0; i < NSize; ++i)
+    {
+        if(a[i] != b[i])
+        {
+            same = false;
+            break;
+        }
+    }
+
+    return same;
+}
+
+template <typename TData, index_t NSize>
+__host__ __device__ constexpr bool operator!=(const Array<TData, NSize>& a,
+                                              const Array<TData, NSize>& b)
+{
+    return !(a == b);
+}
 
 template <typename T, typename... Xs>
 __host__ __device__ constexpr auto make_array(Xs&&... xs)

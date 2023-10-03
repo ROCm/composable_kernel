@@ -23,37 +23,6 @@ template <typename ADataType,
           ck::index_t kNPerBlock>
 struct Softmax
 {
-#if 0
-     __device__ static constexpr auto MakeABlockTileDistribution()
-    {
-        using namespace ck;
-        using namespace ck::tile_program;
-
-        // 2x2 wave
-        return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<>,
-                                           Tuple<Sequence<2, 2, 4, 2, 4>, Sequence<2, 2, 32>>,
-                                           Tuple<Sequence<1, 2>, Sequence<1, 2>>,
-                                           Tuple<Sequence<1, 1>, Sequence<3, 2>>,
-                                           Sequence<1, 2, 1, 1>,
-                                           Sequence<0, 0, 2, 4>>{});
-    }
-#elif 0
-    __device__ static constexpr auto MakeABlockTileDistribution()
-    {
-        using namespace ck;
-        using namespace ck::tile_program;
-
-        // 2x2 wave
-        return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<>,
-                                           Tuple<Sequence<2, 2, 32>, Sequence<2, 2, 4, 2, 4>>,
-                                           Tuple<Sequence<2, 1>, Sequence<2, 1>>,
-                                           Tuple<Sequence<1, 1>, Sequence<3, 2>>,
-                                           Sequence<2, 1, 2, 2>,
-                                           Sequence<0, 0, 2, 4>>{});
-    }
-#elif 1
     __device__ static constexpr auto MakeABlockTileDistribution()
     {
         using namespace ck;
@@ -68,10 +37,9 @@ struct Softmax
                                            Sequence<1, 2, 1, 1>,
                                            Sequence<0, 0, 2, 4>>{});
     }
-#endif
 
     __device__ void
-    operator()(const ADataType* p_a, BDataType* p_b, ck::index_t M, ck::index_t N) const
+    MultiPassSoftmax(const ADataType* p_a, BDataType* p_b, ck::index_t M, ck::index_t N) const
     {
         using namespace ck;
         using namespace ck::tile_program;
@@ -80,144 +48,226 @@ struct Softmax
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
 
-        const auto a_m_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
+        // A DRAM tensor view
+        const auto a_dram = make_naive_tensor_view<AddressSpaceEnum::Global>(
             p_a, make_tuple(M, N), make_tuple(N, 1), Number<32>{}, Number<1>{});
 
         const auto iM = get_block_id() * kMPerBlock;
 
-        // A window
-        auto a_block_window =
-            make_tile_window(a_m_n,
+        // A DRAM window
+        auto a_dram_window =
+            make_tile_window(a_dram,
                              make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}),
                              {iM, 0},
                              MakeABlockTileDistribution());
 
-        constexpr auto reduce_dims = Sequence<1>{};
+        // m = rowmax(A)
+        const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
 
-        const auto f_max = [](auto v0, auto v1) { return max(v0, v1); };
-
-        const ADataType max_reduce_init_value = NumericLimits<ADataType>::Lowest();
-
-        // max = max(a)
-        auto max_block_tensor = decltype(block_tile_reduce<AccDataType>(
-            load_tile(a_block_window), reduce_dims, f_max, max_reduce_init_value)){};
+        auto m = decltype(block_tile_reduce<AccDataType>(
+            load_tile(a_dram_window), Sequence<1>{}, f_max, ADataType{})){};
 
         tile_elementwise_inout(
-            [&](auto& max) { max = type_convert<AccDataType>(max_reduce_init_value); },
-            max_block_tensor);
+            [&](auto& e) { e = type_convert<AccDataType>(NumericLimits<ADataType>::Lowest()); }, m);
 
         index_t iN = 0;
 
         do
         {
-            const auto a_block_tensor = load_tile(a_block_window);
+            // load A tile from DRAM
+            const auto a = load_tile(a_dram_window);
 
-            block_tile_reduce(max_block_tensor, a_block_tensor, reduce_dims, f_max);
+            // m = rowmax(A)
+            block_tile_reduce(m, a, Sequence<1>{}, f_max);
 
-            move_tile_window(a_block_window, {0, kNPerBlock});
+            move_tile_window(a_dram_window, {0, kNPerBlock});
 
             iN += kNPerBlock;
 
         } while(iN < N);
 
         // cross lane reduce: max
-        block_tile_reduce_sync(max_block_tensor, f_max);
-
-        // exp_sum = sum(exp(a - a_max))
-        auto exp_sum_block_tensor =
-            make_static_distributed_tensor<AccDataType>(max_block_tensor.GetTileDistribution());
-
-        tile_elementwise_inout([&](auto& exp_sum) { exp_sum = 0; }, exp_sum_block_tensor);
+        block_tile_reduce_sync(m, f_max);
 
         // reset window location
         iN = 0;
-        move_tile_window(a_block_window, {0, -N});
+        move_tile_window(a_dram_window, {0, -N});
+
+        // l = rowsum(exp(A - m))
+        auto l = make_static_distributed_tensor<AccDataType>(m.GetTileDistribution());
+
+        tile_elementwise_inout([&](auto& e) { e = 0; }, l);
 
         do
         {
-            const auto a_block_tensor = load_tile(a_block_window);
+            // load A tile from DRAM
+            const auto a = load_tile(a_dram_window);
 
-            constexpr auto a_spans = decltype(a_block_tensor)::GetDistributedSpans();
+            constexpr auto a_spans = decltype(a)::GetDistributedSpans();
 
-            //
             sweep_tile_span(a_spans[I0], [&](auto idx0) {
-                constexpr auto m_idx = make_tuple(idx0);
-
-                const auto v_max = max_block_tensor[m_idx];
-
-                AccDataType v_exp_sum = exp_sum_block_tensor[m_idx];
+                constexpr auto i_idx = make_tuple(idx0);
 
                 sweep_tile_span(a_spans[I1], [&](auto idx1) {
-                    constexpr auto m_n_idx = make_tuple(idx0, idx1);
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-                    const auto v_a = a_block_tensor[m_n_idx];
-
-                    // exp and sum
-                    v_exp_sum += math::exp(v_a - v_max);
+                    // l = rowsum(exp(A - m))
+                    l(i_idx) += math::exp(a[i_j_idx] - m[i_idx]);
                 });
-
-                exp_sum_block_tensor(m_idx) = v_exp_sum;
             });
 
-            move_tile_window(a_block_window, {0, kNPerBlock});
+            move_tile_window(a_dram_window, {0, kNPerBlock});
 
             iN += kNPerBlock;
 
         } while(iN < N);
 
         // cross lane reduce: sum
-        block_tile_reduce_sync(exp_sum_block_tensor, [](auto v0, auto v1) { return v0 + v1; });
-
-        // B
-        const auto b_m_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
-            p_b, make_tuple(M, N), make_tuple(N, 1), Number<32>{}, Number<1>{});
-
-        // B window
-        auto b_block_window = make_tile_window(
-            b_m_n, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0});
+        block_tile_reduce_sync(l, [](auto e0, auto e1) { return e0 + e1; });
 
         // reset window location
         iN = 0;
-        move_tile_window(a_block_window, {0, -N});
+        move_tile_window(a_dram_window, {0, -N});
 
+        // B DRAM tensor view
+        const auto b_dram = make_naive_tensor_view<AddressSpaceEnum::Global>(
+            p_b, make_tuple(M, N), make_tuple(N, 1), Number<32>{}, Number<1>{});
+
+        // B DRAM window
+        auto b_dram_window = make_tile_window(
+            b_dram, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0});
+
+        // B = exp(A - m) / l
         do
         {
-            const auto a_block_tensor = load_tile(a_block_window);
+            // load A tile from DRAM
+            const auto a = load_tile(a_dram_window);
 
-            constexpr auto a_spans = decltype(a_block_tensor)::GetDistributedSpans();
+            constexpr auto a_spans = decltype(a)::GetDistributedSpans();
 
-            auto b_block_tensor =
-                make_static_distributed_tensor<BDataType>(a_block_tensor.GetTileDistribution());
+            auto b = make_static_distributed_tensor<BDataType>(a.GetTileDistribution());
 
-            //
             sweep_tile_span(a_spans[I0], [&](auto idx0) {
-                constexpr auto m_idx = make_tuple(idx0);
-
-                const auto v_max = max_block_tensor[m_idx];
-
-                const auto v_exp_sum = exp_sum_block_tensor[m_idx];
+                constexpr auto i_idx = make_tuple(idx0);
 
                 sweep_tile_span(a_spans[I1], [&](auto idx1) {
-                    constexpr auto m_n_idx = make_tuple(idx0, idx1);
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-                    const auto v_a = a_block_tensor[m_n_idx];
-
-                    // exp
-                    const BDataType v_b =
-                        type_convert<BDataType>(math::exp(v_a - v_max) / v_exp_sum);
-
-                    b_block_tensor(m_n_idx) = v_b;
+                    // B = exp(A - m) / l
+                    b(i_j_idx) =
+                        type_convert<BDataType>(math::exp(a[i_j_idx] - m[i_idx]) / l[i_idx]);
                 });
             });
 
             // store B tile
-            store_tile(b_block_window, b_block_tensor);
+            store_tile(b_dram_window, b);
 
-            move_tile_window(a_block_window, {0, kNPerBlock});
-            move_tile_window(b_block_window, {0, kNPerBlock});
+            move_tile_window(a_dram_window, {0, kNPerBlock});
+            move_tile_window(b_dram_window, {0, kNPerBlock});
 
             iN += kNPerBlock;
 
         } while(iN < N);
+    }
+
+    __device__ void
+    SinglePassSoftmax(const ADataType* p_a, BDataType* p_b, ck::index_t M, ck::index_t N) const
+    {
+        using namespace ck;
+        using namespace ck::tile_program;
+        using namespace ck::tile_program::block;
+
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+
+        // A DRAM tensor view
+        const auto a_dram = make_naive_tensor_view<AddressSpaceEnum::Global>(
+            p_a, make_tuple(M, N), make_tuple(N, 1), Number<32>{}, Number<1>{});
+
+        const auto iM = get_block_id() * kMPerBlock;
+
+        // A DRAM window
+        auto a_dram_window =
+            make_tile_window(a_dram,
+                             make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}),
+                             {iM, 0},
+                             MakeABlockTileDistribution());
+
+        // f_max
+        const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
+
+        // m = rowmax(A)
+        auto m = decltype(block_tile_reduce<AccDataType>(
+            load_tile(a_dram_window), Sequence<1>{}, f_max, ADataType{})){};
+
+        tile_elementwise_inout(
+            [&](auto& e) { e = type_convert<AccDataType>(NumericLimits<ADataType>::Lowest()); }, m);
+
+        // l = rowsum(exp(A - m))
+        auto l = make_static_distributed_tensor<AccDataType>(m.GetTileDistribution());
+
+        tile_elementwise_inout([&](auto& e) { e = 0; }, l);
+
+        // load A tile from DRAM
+        const auto a = load_tile(a_dram_window);
+
+        constexpr auto a_spans = decltype(a)::GetDistributedSpans();
+
+        // m = rowmax(A)
+        block_tile_reduce(m, a, Sequence<1>{}, f_max);
+
+        // cross lane reduce: max
+        block_tile_reduce_sync(m, f_max);
+
+        // l = rowsum(exp(A - m))
+        sweep_tile_span(a_spans[I0], [&](auto idx0) {
+            constexpr auto i_idx = make_tuple(idx0);
+
+            sweep_tile_span(a_spans[I1], [&](auto idx1) {
+                constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                l(i_idx) += math::exp(a[i_j_idx] - m[i_idx]);
+            });
+        });
+
+        // cross lane reduce: sum
+        block_tile_reduce_sync(l, [](auto e0, auto e1) { return e0 + e1; });
+
+        auto b = make_static_distributed_tensor<BDataType>(a.GetTileDistribution());
+
+        // B = exp(A - m) / l
+        sweep_tile_span(a_spans[I0], [&](auto idx0) {
+            constexpr auto i_idx = make_tuple(idx0);
+
+            sweep_tile_span(a_spans[I1], [&](auto idx1) {
+                constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                b(i_j_idx) = type_convert<BDataType>(math::exp(a[i_j_idx] - m[i_idx]) / l[i_idx]);
+            });
+        });
+
+        // B DRAM tensor view
+        const auto b_dram = make_naive_tensor_view<AddressSpaceEnum::Global>(
+            p_b, make_tuple(M, N), make_tuple(N, 1), Number<32>{}, Number<1>{});
+
+        // B DRAM window
+        auto b_dram_window = make_tile_window(
+            b_dram, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0});
+
+        // store B tile
+        store_tile(b_dram_window, b);
+    }
+
+    __device__ void
+    operator()(const ADataType* p_a, BDataType* p_b, ck::index_t M, ck::index_t N) const
+    {
+        if(N > kNPerBlock)
+        {
+            MultiPassSoftmax(p_a, p_b, M, N);
+        }
+        else
+        {
+            SinglePassSoftmax(p_a, p_b, M, N);
+        }
     }
 };
