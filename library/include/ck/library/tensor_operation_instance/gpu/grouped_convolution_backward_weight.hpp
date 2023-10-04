@@ -216,6 +216,21 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances
                                                            PassThrough,
                                                            PassThrough>>>& instances);
 #endif
+#if defined CK_ENABLE_FP16 && defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
+void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_f8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           F16,
+                                                           F16,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           BF8,
+                                                           F8>>>& instances);
+#endif
 
 #ifdef DL_KERNELS
 // dl
@@ -464,7 +479,9 @@ template <ck::index_t NumDimSpatial,
           typename OutLayout,
           typename InDataType,
           typename WeiDataType,
-          typename OutDataType>
+          typename OutDataType,
+          typename ComputeTypeA,
+          typename ComputeTypeB>
 struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupedConvBwdWeight<
     NumDimSpatial,
     InLayout,
@@ -475,7 +492,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
     OutDataType,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough>>
+    ck::tensor_operation::element_wise::PassThrough,
+    ComputeTypeA,
+    ComputeTypeB>>
 {
     using DeviceOp = DeviceGroupedConvBwdWeight<NumDimSpatial,
                                                 InLayout,
@@ -486,7 +505,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                                                 OutDataType,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::PassThrough>;
+                                                ck::tensor_operation::element_wise::PassThrough,
+                                                ComputeTypeA,
+                                                ComputeTypeB>;
 
     static auto GetInstances()
     {
@@ -706,7 +727,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #endif
 #ifdef CK_ENABLE_FP16
                 else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                                  is_same_v<OutDataType, half_t>)
+                                  is_same_v<OutDataType, half_t> &&
+                                  is_same_v<ComputeTypeA, half_t> &&
+                                  is_same_v<ComputeTypeB, half_t>)
                 {
 #ifdef DL_KERNELS
                     add_device_grouped_conv3d_bwd_weight_dl_ndhwgc_gkzyxc_ndhwgk_f16_instances(
@@ -726,6 +749,15 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                         op_ptrs);
 #endif
                     add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
+                        op_ptrs);
+                }
+#endif
+#if defined CK_ENABLE_FP16 && defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
+                else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                                  is_same_v<OutDataType, half_t> &&
+                                  is_same_v<ComputeTypeA, bf8_t> && is_same_v<ComputeTypeB, f8_t>)
+                {
+                    add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_f8_instances(
                         op_ptrs);
                 }
 #endif

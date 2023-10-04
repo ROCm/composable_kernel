@@ -5,11 +5,12 @@
 
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle.hpp"
 
-using InDataType = BF16;
-// bf16 kernel use fp32 atomic add to accumulate Weight tensor into global memory
-using WeiDataType = F32;
-using OutDataType = BF16;
-using AccDataType = F32;
+using InDataType   = F16;
+using WeiDataType  = F16;
+using OutDataType  = F16;
+using AccDataType  = F32;
+using ComputeTypeA = BF8;
+using ComputeTypeB = F8;
 
 using InElementOp  = PassThrough;
 using WeiElementOp = PassThrough;
@@ -52,20 +53,22 @@ using DeviceConvBwdWeightInstance =
         S<0, 3, 1, 2>,        // ABlockTransferThreadClusterArrangeOrder
         S<0, 2, 1, 3>,        // ABlockTransferSrcAccessOrder
         2,                    // ABlockTransferSrcVectorDim
-        8,                    // ABlockTransferSrcScalarPerVector
-        2,                    // ABlockTransferDstScalarPerVector_K1
+        1,                    // ABlockTransferSrcScalarPerVector
+        1,                    // ABlockTransferDstScalarPerVector_K1
         true,                 // ABlockLdsAddExtraM
         S<1, 4, 16, 4>,       // BBlockTransferThreadClusterLengths_K0_N_K1
         S<0, 3, 1, 2>,        // BBlockTransferThreadClusterArrangeOrder
         S<0, 2, 1, 3>,        // BBlockTransferSrcAccessOrder
         2,                    // BBlockTransferSrcVectorDim
-        8,                    // BBlockTransferSrcScalarPerVector
-        2,                    // BBlockTransferDstScalarPerVector_K1
+        1,                    // BBlockTransferSrcScalarPerVector
+        1,                    // BBlockTransferDstScalarPerVector_K1
         true,                 // BBlockLdsAddExtraN
         1,                    // CShuffleMXdlPerWavePerShuffle
         1,                    // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 4>,       // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        128 / (sizeof(WeiDataType) * CHAR_BIT)>; // CBlockTransferScalarPerVector_NWaveNPerXdl
+        2,                    // CBlockTransferScalarPerVector_NWaveNPerXdl
+        ComputeTypeA,         // ComputeTypeA
+        ComputeTypeB>;        // ComputeTypeB
 
 template <ck::index_t NDimSpatial>
 using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
@@ -74,7 +77,9 @@ using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWe
                                                                                      OutDataType,
                                                                                      InElementOp,
                                                                                      WeiElementOp,
-                                                                                     OutElementOp>;
+                                                                                     OutElementOp,
+                                                                                     ComputeTypeA,
+                                                                                     ComputeTypeB>;
 
 #include "run_grouped_conv_bwd_weight_example.inc"
 
