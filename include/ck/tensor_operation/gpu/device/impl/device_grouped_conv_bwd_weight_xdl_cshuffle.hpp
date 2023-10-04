@@ -1227,8 +1227,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         index_t M01_;
         index_t N01_;
 
-        InElementwiseOperation a_element_op_;
-        OutElementwiseOperation b_element_op_;
+        OutElementwiseOperation a_element_op_;
+        InElementwiseOperation b_element_op_;
         WeiElementwiseOperation c_element_op_;
 
         // for checking IsSupportedArgument()
