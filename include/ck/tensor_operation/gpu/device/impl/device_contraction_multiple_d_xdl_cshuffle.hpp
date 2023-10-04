@@ -112,7 +112,6 @@ template <index_t NumDimM,
           typename CShuffleDataType,
           typename DsDataType,
           typename EDataType,
-          typename ComputeDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
@@ -146,7 +145,8 @@ template <index_t NumDimM,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched = make_default_loop_scheduler()>
+          typename ComputeDataType = ADataType,
+          LoopScheduler LoopSched  = make_default_loop_scheduler()>
 struct DeviceContractionMultipleD_Xdl_CShuffle
     : public DeviceContractionMultipleD<NumDimM,
                                         NumDimN,
