@@ -564,7 +564,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         // sanity check
         constexpr index_t KPack =
             math::max(math::lcm(AK1, BK1),
-                      MfmaSelector<AComputeDataType, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+                      MfmaSelector<AComputeDataType, MPerXdl, NPerXdl, BComputeDataType>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
