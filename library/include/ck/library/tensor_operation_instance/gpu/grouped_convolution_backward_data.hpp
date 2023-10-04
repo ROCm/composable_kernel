@@ -426,13 +426,32 @@ void add_device_grouped_conv3d_bwd_data_wmma_ndhwgk_gkzyxc_ndhwgc_i8_1x1s1p0_ins
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
 #endif
+#if defined CK_ENABLE_FP16 && defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
+void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_input_f16_comp_bf8f8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NDHWGC,
+                                                                  F16,
+                                                                  F16,
+                                                                  Empty_Tuple,
+                                                                  F16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  BF8,
+                                                                  F8>>>& instances);
+#endif
 template <ck::index_t NumDimSpatial,
           typename OutLayout,
           typename WeiLayout,
           typename InLayout,
           typename OutDataType,
           typename WeiDataType,
-          typename InDataType>
+          typename InDataType,
+          typename ComputeTypeA,
+          typename ComputeTypeB>
 struct DeviceOperationInstanceFactory<
     ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<
         NumDimSpatial,
@@ -446,7 +465,9 @@ struct DeviceOperationInstanceFactory<
         InDataType,
         ck::tensor_operation::element_wise::PassThrough,
         ck::tensor_operation::element_wise::PassThrough,
-        ck::tensor_operation::element_wise::PassThrough>>
+        ck::tensor_operation::element_wise::PassThrough,
+        ComputeTypeA,
+        ComputeTypeB>>
 {
     using DeviceOp =
         DeviceGroupedConvBwdDataMultipleD<NumDimSpatial,
@@ -460,7 +481,9 @@ struct DeviceOperationInstanceFactory<
                                           InDataType,
                                           ck::tensor_operation::element_wise::PassThrough,
                                           ck::tensor_operation::element_wise::PassThrough,
-                                          ck::tensor_operation::element_wise::PassThrough>;
+                                          ck::tensor_operation::element_wise::PassThrough,
+                                          ComputeTypeA,
+                                          ComputeTypeB>;
 
     static auto GetInstances()
     {
@@ -597,13 +620,23 @@ struct DeviceOperationInstanceFactory<
             {
 #ifdef CK_ENABLE_FP16
                 if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
-                             is_same_v<OutDataType, F16>)
+                             is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
+                             is_same_v<ComputeTypeB, F16>)
                 {
                     add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f16_instances(
                         op_ptrs);
                     add_device_grouped_conv3d_bwd_data_wmma_ndhwgk_gkzyxc_ndhwgc_f16_instances(
                         op_ptrs);
                     add_device_grouped_conv3d_bwd_data_wmma_ndhwgk_gkzyxc_ndhwgc_f16_1x1s1p0_instances(
+                        op_ptrs);
+                }
+#endif
+#if defined CK_ENABLE_FP16 && defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
+                else if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
+                                  is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, bf8_t> &&
+                                  is_same_v<ComputeTypeB, f8_t>)
+                {
+                    add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_input_f16_comp_bf8f8_instances(
                         op_ptrs);
                 }
 #endif
