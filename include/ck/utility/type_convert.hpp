@@ -221,7 +221,7 @@ inline __host__ __device__ bf8_t type_convert<bf8_t, half_t>(half_t x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // convert to float and use native converion
-    return type_convert<f8_t>(type_convert<float>(x));
+    return type_convert<bf8_t>(type_convert<float>(x));
 #else
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;

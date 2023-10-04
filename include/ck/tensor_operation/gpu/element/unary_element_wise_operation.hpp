@@ -185,7 +185,8 @@ struct PassThrough
     template <>
     __host__ __device__ void operator()<bf8_t, half_t>(bf8_t& y, const half_t& x) const
     {
-        y = type_convert<bf8_t>(x);
+        // to-do: fix half_t to bf8_t convert
+        y = ck::type_convert<bf8_t>(ck::type_convert<float>(x));
     }
 #endif
 };

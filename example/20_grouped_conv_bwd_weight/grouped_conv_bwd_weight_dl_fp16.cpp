@@ -65,6 +65,15 @@ using DeviceConvBwdWeightInstance = ck::tensor_operation::device::DeviceGroupedC
     5,                    // CThreadTransferSrcDstVectorDim
     4>;                   // CThreadTransferDstScalarPerVector
 
+template <ck::index_t NDimSpatial>
+using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
+                                                                                     InDataType,
+                                                                                     WeiDataType,
+                                                                                     OutDataType,
+                                                                                     InElementOp,
+                                                                                     WeiElementOp,
+                                                                                     OutElementOp>;
+
 #include "run_grouped_conv_bwd_weight_example.inc"
 
 int main(int argc, char* argv[]) { return !run_grouped_conv_bwd_weight_example(argc, argv); }
