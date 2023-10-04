@@ -30,20 +30,20 @@ void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_input_f16_comp_
     add_device_operation_instances(
         instances,
         device_grouped_conv_bwd_data_xdl_input_fp16_comp_bf8f8_instances<3,
-                                                       NDHWGK,
-                                                       GKZYXC,
-                                                       Empty_Tuple,
-                                                       NDHWGC,
-                                                       ConvBwdDataDefault>{});
+                                                                         NDHWGK,
+                                                                         GKZYXC,
+                                                                         Empty_Tuple,
+                                                                         NDHWGC,
+                                                                         ConvBwdDataDefault>{});
     // 2. Filter1x1Stride1Pad0
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_bwd_data_xdl_input_fp16_comp_bf8f8_instances<3,
-                                                       NDHWGK,
-                                                       GKZYXC,
-                                                       Empty_Tuple,
-                                                       NDHWGC,
-                                                       ConvBwdDataFilter1x1Stride1Pad0>{});
+    add_device_operation_instances(instances,
+                                   device_grouped_conv_bwd_data_xdl_input_fp16_comp_bf8f8_instances<
+                                       3,
+                                       NDHWGK,
+                                       GKZYXC,
+                                       Empty_Tuple,
+                                       NDHWGC,
+                                       ConvBwdDataFilter1x1Stride1Pad0>{});
 }
 
 } // namespace instance
