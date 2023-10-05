@@ -187,25 +187,6 @@ struct Bilinear
     };
 
     template <>
-    __host__ __device__ constexpr void
-    operator()<bhalf_t, bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x0, const bhalf_t& x1) const
-    {
-        const float x0_tmp = type_convert<float>(x0);
-        const float x1_tmp = type_convert<float>(x1);
-        const float y_tmp  = alpha_ * x0_tmp + beta_ * x1_tmp;
-        y                  = type_convert<bhalf_t>(y_tmp);
-    };
-
-    template <>
-    __host__ __device__ constexpr void
-    operator()<bhalf_t, float, bhalf_t>(bhalf_t& y, const float& x0, const bhalf_t& x1) const
-    {
-        const float x1_tmp = ck::type_convert<float>(x1);
-        const float y_tmp  = alpha_ * x0 + beta_ * x1_tmp;
-        y                  = y_tmp;
-    };
-
-    template <>
     __host__ __device__ constexpr void operator()<std::int8_t, std::int32_t, std::int8_t>(
         std::int8_t& y, const std::int32_t& x0, const std::int8_t& x1) const
     {

@@ -33,8 +33,7 @@ template <index_t NumDimM,
           typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CDEElementwiseOperation,
-          typename ComputeDataType = ADataType>
+          typename CDEElementwiseOperation>
 struct DeviceContractionMultipleD : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
