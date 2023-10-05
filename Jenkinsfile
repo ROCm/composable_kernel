@@ -528,9 +528,10 @@ def Build_CK(Map conf=[:]){
                     }
                     if (params.hipTensor_test){
                         //build and test hipTensor
-                        checkout scmGit(
-                            branches: [[name: 'mainline']],
-                            userRemoteConfigs: [[url: 'https://github.com/ROCmSoftwarePlatform/hipTensor.git']])
+                        git(
+                            url: 'https://github.com/ROCmSoftwarePlatform/hipTensor.git',
+                            branch: "mainline",
+                        )
                         dir("hipTensor"){
                             sh 'mkdir -p build'
                             sh 'CC=hipcc CXX=hipcc cmake -Bbuild . '
