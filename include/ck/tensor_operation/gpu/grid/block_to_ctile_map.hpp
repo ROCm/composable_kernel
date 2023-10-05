@@ -1192,8 +1192,9 @@ struct BlockToCTileMap_LinearKSplit
         M0_idx_     = block_1d_id / (N0 * KSplit_);
         block_1d_id = block_1d_id % (N0 * KSplit_);
 
-        N0_idx_ = block_1d_id / KSplit_;
-        K0_idx_ = block_1d_id % KSplit_;
+        N0_idx_                 = block_1d_id / KSplit_;
+        K0_idx_                 = block_1d_id % KSplit_;
+        is_first_k_split_block_ = K0_idx_ == 0;
         return make_tuple(M0_idx_, N0_idx_, K0_idx_);
     }
 
@@ -1204,8 +1205,9 @@ struct BlockToCTileMap_LinearKSplit
         M0_idx_     = __builtin_amdgcn_readfirstlane(block_1d_id / (N0 * KSplit_));
         block_1d_id = block_1d_id % (N0 * KSplit_);
 
-        N0_idx_ = __builtin_amdgcn_readfirstlane(block_1d_id / KSplit_);
-        K0_idx_ = __builtin_amdgcn_readfirstlane(block_1d_id % KSplit_);
+        N0_idx_                 = __builtin_amdgcn_readfirstlane(block_1d_id / KSplit_);
+        K0_idx_                 = __builtin_amdgcn_readfirstlane(block_1d_id % KSplit_);
+        is_first_k_split_block_ = K0_idx_ == 0;
         return make_tuple(M0_idx_, N0_idx_, K0_idx_);
     }
 
@@ -1214,6 +1216,11 @@ struct BlockToCTileMap_LinearKSplit
         return make_tuple(M0_idx_, N0_idx_, K0_idx_);
     }
 
+    ///
+    /// @brief      Return linear output tile index.
+    ///
+    /// @return     The output tile index.
+    ///
     __host__ __device__ index_t GetOutputTileIdx() const
     {
         const auto N0 = math::integer_divide_ceil(N_, NPerBlock);
@@ -1241,14 +1248,9 @@ struct BlockToCTileMap_LinearKSplit
     ///
     /// @brief      Determines whether the current workgroup processed first tile in K dimension
     ///
-    /// @param[in]  tiles_per_block  The number of tiles per block to process per workgroup.
-    ///
     /// @return     True if the current workgroup processed first tile. False otherwise.
     ///
-    __host__ __device__ bool IsFirstKSplitBlock(index_t tiles_per_block) const
-    {
-        return (K0_idx_ + 1 - tiles_per_block) <= 0;
-    }
+    __host__ __device__ bool IsFirstKSplitBlock() const { return is_first_k_split_block_; }
 
     __host__ __device__ index_t GetTileMIdx() const { return M0_idx_; }
     __host__ __device__ index_t GetTileNIdx() const { return N0_idx_; }
@@ -1261,6 +1263,7 @@ struct BlockToCTileMap_LinearKSplit
     index_t M0_idx_;
     index_t N0_idx_;
     index_t K0_idx_;
+    bool is_first_k_split_block_{false};
 };
 
 } // namespace ck
