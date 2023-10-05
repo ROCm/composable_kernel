@@ -526,6 +526,25 @@ def Build_CK(Map conf=[:]){
                            stash "ckprofiler_0.2.0_amd64.deb"
                         }
                     }
+                    if (params.hipTensor_test){
+                        //build and test hipTensor
+                        dir("/"){
+                            sh 'git clone -b mainline https://github.com/ROCmSoftwarePlatform/hipTensor.git'
+                        }
+                        dir("/hipTensor"){
+                            sh 'mkdir -p build'
+                            sh 'CC=hipcc CXX=hipcc cmake -Bbuild . '
+                            sh 'cmake --build build -- -j '
+                        }
+                        dir("/hipTensor/build/bin"){
+                            sh './bilinear_contraction_f32_test'
+                            sh './bilinear_contraction_f64_test'
+                            sh './scale_contraction_f32_test'
+                            sh './scale_contraction_f64_test'
+                            sh './simple_contraction_bilinear_f32'
+                            sh './simple_contraction_scale_f32'
+                        }
+                    }
                 }
             }
         }
@@ -654,6 +673,10 @@ pipeline {
             name: "DL_KERNELS",
             defaultValue: false,
             description: "Select whether to build DL kernels (default: OFF)")
+        booleanParam(
+            name: "hipTensor_test",
+            defaultValue: true,
+            description: "Use the CK build to verify hipTensor build and tests (default: ON)")
     }
     environment{
         dbuser = "${dbuser}"
