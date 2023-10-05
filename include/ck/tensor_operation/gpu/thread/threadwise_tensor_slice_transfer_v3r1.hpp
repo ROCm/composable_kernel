@@ -303,11 +303,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         // sub-dword transpose between src_thread_scratch_ and dst_thread_scratch_
         // TODO make this logic more generic for more sub-dword datatype
         if constexpr(SrcVectorDim != DstVectorDim &&
-                     ((is_same<half_t, remove_cvref_t<SrcData>>::value &&
-                       is_same<half_t, remove_cvref_t<DstData>>::value &&
+                     ((is_same<half_t, remove_cvref_t<DstData>>::value &&
                        SrcScalarPerVector % 2 == 0 && DstScalarPerVector % 2 == 0) ||
-                      (is_same<int8_t, remove_cvref_t<SrcData>>::value &&
-                       is_same<int8_t, remove_cvref_t<DstData>>::value &&
+                      (is_same<int8_t, remove_cvref_t<DstData>>::value &&
                        SrcScalarPerVector % 4 == 0 && DstScalarPerVector % 4 == 0)))
         {
             // each transpose does
@@ -341,7 +339,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 constexpr auto data_idx_seq = generate_sequence_v2(
                     [&](auto i) { return Number<data_idx[i]>{}; }, Number<nDim>{});
 
-                using src_vector_t = vector_type_maker_t<SrcData, SrcScalarPerVector>;
+                using src_vector_t = vector_type_maker_t<DstData, SrcScalarPerVector>;
                 using dst_vector_t = vector_type_maker_t<DstData, DstScalarPerVector>;
 
                 // get DstScalarPerVector # of read-only references to src vectors from
