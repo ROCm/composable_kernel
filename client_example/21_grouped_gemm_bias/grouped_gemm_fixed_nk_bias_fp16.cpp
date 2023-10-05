@@ -60,14 +60,13 @@ int main()
 
     int sum_of_m = 0;
 
-    Ms = {167, 183, 177, 181, 153, 139, 156, 173, 163, 150, 204, 184, 168, 156, 168, 148};
-
-    int group_count = Ms.size();
+    const int group_count = 16;
 
     for(int i = 0; i < group_count; ++i)
     {
-        Ns.push_back(768);
-        Ks.push_back(4608);
+        Ms.push_back(256 + 256 * i);
+        Ns.push_back(128 + 128 * i);
+        Ks.push_back(128 + 64 * i);
 
         StrideAs.push_back(std::is_same<Row, ALayout>::value ? Ks[i] : Ms[i]);
         StrideBs.push_back(std::is_same<Row, BLayout>::value ? Ns[i] : Ks[i]);

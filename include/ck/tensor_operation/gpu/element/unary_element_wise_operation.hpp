@@ -34,12 +34,6 @@ struct PassThrough
     }
 
     template <>
-    __host__ __device__ void operator()<double, float>(double& y, const float& x) const
-    {
-        y = type_convert<double>(x);
-    }
-
-    template <>
     __host__ __device__ void operator()<float, float>(float& y, const float& x) const
     {
         y = x;
@@ -73,12 +67,6 @@ struct PassThrough
     __host__ __device__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
     {
         y = type_convert<bhalf_t>(x);
-    }
-
-    template <>
-    __host__ __device__ void operator()<float, bhalf_t>(float& y, const bhalf_t& x) const
-    {
-        y = type_convert<float>(x);
     }
 
     template <>
@@ -185,7 +173,8 @@ struct PassThrough
     template <>
     __host__ __device__ void operator()<bf8_t, half_t>(bf8_t& y, const half_t& x) const
     {
-        y = type_convert<bf8_t>(x);
+        // to-do: fix half_t to bf8_t convert
+        y = ck::type_convert<bf8_t>(ck::type_convert<float>(x));
     }
 #endif
 };
@@ -241,20 +230,6 @@ struct Scale
 
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
-
-    template <>
-    __host__ __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
-    {
-        y = ck::type_convert<half_t>(scale_) * x;
-    };
-
-    template <>
-    __host__ __device__ void operator()<bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x) const
-    {
-        const float x_tmp = ck::type_convert<float>(x);
-        const float y_tmp = scale_ * x_tmp;
-        y                 = ck::type_convert<bhalf_t>(y_tmp);
-    };
 
     template <>
     __host__ __device__ void operator()<float, float>(float& y, const float& x) const
