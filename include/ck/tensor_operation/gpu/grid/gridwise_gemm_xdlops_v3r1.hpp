@@ -452,6 +452,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
+                                                                FloatAB,
                                                                 FloatAcc,
                                                                 decltype(a_block_desc_ak0_m_ak1),
                                                                 decltype(b_block_desc_bk0_n_bk1),

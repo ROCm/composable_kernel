@@ -1,6 +1,6 @@
 FROM ubuntu:20.04
 ARG DEBIAN_FRONTEND=noninteractive
-ARG ROCMVERSION=5.6
+ARG ROCMVERSION=5.7
 ARG compiler_version=""
 ARG compiler_commit=""
 
