@@ -528,17 +528,15 @@ def Build_CK(Map conf=[:]){
                     }
                     if (params.hipTensor_test){
                         //build and test hipTensor
-                        dir("/"){
-                            checkout scmGit(
-                                branches: [[name: 'mainline']],
-                                userRemoteConfigs: [[url: 'https://github.com/ROCmSoftwarePlatform/hipTensor.git']])
-                        }
-                        dir("/hipTensor"){
+                        checkout scmGit(
+                            branches: [[name: 'mainline']],
+                            userRemoteConfigs: [[url: 'https://github.com/ROCmSoftwarePlatform/hipTensor.git']])
+                        dir("hipTensor"){
                             sh 'mkdir -p build'
                             sh 'CC=hipcc CXX=hipcc cmake -Bbuild . '
                             sh 'cmake --build build -- -j '
                         }
-                        dir("/hipTensor/build/bin"){
+                        dir("hipTensor/build/bin"){
                             sh './bilinear_contraction_f32_test'
                             sh './bilinear_contraction_f64_test'
                             sh './scale_contraction_f32_test'
