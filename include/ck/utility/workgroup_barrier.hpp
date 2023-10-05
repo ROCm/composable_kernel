@@ -7,7 +7,7 @@ struct workgroup_barrier
 {
     __device__ workgroup_barrier(uint32_t* ptr) : base_ptr(ptr) {}
 
-    __device__ uint32_t ld(uint32_t offset)
+    __device__ uint32_t ld(uint32_t offset) const
     {
 #if 0
         float d = llvm_amdgcn_raw_buffer_load_fp32(
@@ -24,6 +24,11 @@ struct workgroup_barrier
         return x.u32;
 #endif
         return __atomic_load_n(base_ptr + offset, __ATOMIC_RELAXED);
+    }
+
+    __device__ void st(uint32_t offset, uint32_t value)
+    {
+        __atomic_store_n(base_ptr + offset, value, __ATOMIC_RELEASE);
     }
 
     __device__ void wait_eq(uint32_t offset, uint32_t value)
@@ -66,6 +71,15 @@ struct workgroup_barrier
         {
             atomicAdd(base_ptr + offset, 1);
         }
+    }
+
+    __device__ void reset(uint32_t offset)
+    {
+        if(threadIdx.x == 0)
+        {
+            st(offset, 0);
+        }
+        __syncthreads();
     }
 
     uint32_t* base_ptr;
