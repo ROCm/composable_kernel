@@ -297,9 +297,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     {
 #if !CK_EXPERIMENTAL_USE_IN_REGISTER_SUB_DWORD_TRANSPOSE
         static_ford<SliceLengths>{}([&](auto idx) {
-            // convert from SrcData to DstData here
-            dst_thread_scratch_(idx) =
-                type_convert<DstData>(src_thread_scratch_tuple_[thread_scratch_id][idx]);
+            dst_thread_scratch_(idx) = src_thread_scratch_tuple_[thread_scratch_id][idx];
         });
 #else
         // sub-dword transpose between src_thread_scratch_ and dst_thread_scratch_
@@ -373,9 +371,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         else
         {
             static_ford<SliceLengths>{}([&](auto idx) {
-                // convert from SrcData to DstData here
-                dst_thread_scratch_(idx) =
-                    type_convert<DstData>(src_thread_scratch_tuple_[thread_scratch_id][idx]);
+                dst_thread_scratch_(idx) = src_thread_scratch_tuple_[thread_scratch_id][idx];
             });
         }
 #endif
