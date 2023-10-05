@@ -529,7 +529,9 @@ def Build_CK(Map conf=[:]){
                     if (params.hipTensor_test){
                         //build and test hipTensor
                         dir("/"){
-                            sh 'git clone -b mainline https://github.com/ROCmSoftwarePlatform/hipTensor.git'
+                            checkout scmGit(
+                                branches: [[name: 'mainline']],
+                                userRemoteConfigs: [[url: 'https://github.com/ROCmSoftwarePlatform/hipTensor.git']])
                         }
                         dir("/hipTensor"){
                             sh 'mkdir -p build'
