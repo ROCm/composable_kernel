@@ -364,7 +364,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                     Number<num_dst_vector>{});
 
                 // do data transpose
-                transpose_vectors<SrcData, DstScalarPerVector, SrcScalarPerVector>{}(
+                transpose_vectors<DstData, DstScalarPerVector, SrcScalarPerVector>{}(
                     src_vector_refs, dst_vector_refs);
             });
         }
