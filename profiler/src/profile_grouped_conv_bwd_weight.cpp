@@ -84,12 +84,8 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
     using F32  = float;
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
-#ifdef CK_ENABLE_FP8
-    using F8 = ck::f8_t;
-#endif
-#ifdef CK_ENABLE_BF8
-    using BF8 = ck::bf8_t;
-#endif
+    using F8   = ck::f8_t;
+    using BF8  = ck::bf8_t;
 
     using namespace ck::tensor_layout::convolution;
 
@@ -139,80 +135,80 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         {
             return profile(I1, GNWC{}, GKXC{}, GNWK{}, F32{}, F32{}, F32{}, F32{}, F32{});
         }
-        else if(data_type == ConvDataType::F16_F16_F16)
+        if(data_type == ConvDataType::F16_F16_F16)
         {
             return profile(I1, GNWC{}, GKXC{}, GNWK{}, F16{}, F16{}, F16{}, F16{}, F16{});
         }
-        else if(data_type == ConvDataType::BF16_F32_BF16)
+        if(data_type == ConvDataType::BF16_F32_BF16)
         {
             // fp32 atomic add is used for weight tensor in bf16 kernel
             return profile(I1, GNWC{}, GKXC{}, GNWK{}, BF16{}, F32{}, BF16{}, BF16{}, BF16{});
         }
     }
-    else if(num_dim_spatial == 2 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
+    if(num_dim_spatial == 2 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
     {
         if(data_type == ConvDataType::F32_F32_F32)
         {
             return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, F32{}, F32{}, F32{}, F32{}, F32{});
         }
-        else if(data_type == ConvDataType::F16_F16_F16)
+        if(data_type == ConvDataType::F16_F16_F16)
         {
             return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, F16{}, F16{}, F16{}, F16{}, F16{});
         }
-        else if(data_type == ConvDataType::BF16_F32_BF16)
+        if(data_type == ConvDataType::BF16_F32_BF16)
         {
             // fp32 atomic add is used for weight tensor in bf16 kernel
             return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, BF16{}, F32{}, BF16{}, BF16{}, BF16{});
         }
     }
-    else if(num_dim_spatial == 2 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
+    if(num_dim_spatial == 2 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
     {
         if(data_type == ConvDataType::F32_F32_F32)
         {
             return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, F32{}, F32{}, F32{}, F32{}, F32{});
         }
-        else if(data_type == ConvDataType::F16_F16_F16)
+        if(data_type == ConvDataType::F16_F16_F16)
         {
             return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, F16{}, F16{}, F16{}, F16{}, F16{});
         }
-        else if(data_type == ConvDataType::BF16_F32_BF16)
+        if(data_type == ConvDataType::BF16_F32_BF16)
         {
             // fp32 atomic add is used for weight tensor in bf16 kernel
             return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, BF16{}, F32{}, BF16{}, BF16{}, BF16{});
         }
     }
-    else if(num_dim_spatial == 3 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
+    if(num_dim_spatial == 3 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
     {
         if(data_type == ConvDataType::F32_F32_F32)
         {
             return profile(I3, GNDHWC{}, GKZYXC{}, GNDHWK{}, F32{}, F32{}, F32{}, F32{}, F32{});
         }
-        else if(data_type == ConvDataType::F16_F16_F16)
+        if(data_type == ConvDataType::F16_F16_F16)
         {
             return profile(I3, GNDHWC{}, GKZYXC{}, GNDHWK{}, F16{}, F16{}, F16{}, F16{}, F16{});
         }
-        else if(data_type == ConvDataType::BF16_F32_BF16)
+        if(data_type == ConvDataType::BF16_F32_BF16)
         {
             // fp32 atomic add is used for weight tensor in bf16 kernel
             return profile(I3, GNDHWC{}, GKZYXC{}, GNDHWK{}, BF16{}, F32{}, BF16{}, BF16{}, BF16{});
         }
     }
-    else if(num_dim_spatial == 3 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
+    if(num_dim_spatial == 3 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
     {
         if(data_type == ConvDataType::F32_F32_F32)
         {
             return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F32{}, F32{}, F32{}, F32{}, F32{});
         }
-        else if(data_type == ConvDataType::F16_F16_F16)
+        if(data_type == ConvDataType::F16_F16_F16)
         {
             return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F16{}, F16{}, F16{}, F16{}, F16{});
         }
-        else if(data_type == ConvDataType::BF16_F32_BF16)
+        if(data_type == ConvDataType::BF16_F32_BF16)
         {
             // fp32 atomic add is used for weight tensor in bf16 kernel
             return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, BF16{}, F32{}, BF16{}, BF16{}, BF16{});
         }
-        else if(data_type == ConvDataType::F16_F16_F16_BF8_F8)
+        if(data_type == ConvDataType::F16_F16_F16_BF8_F8)
         {
             return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F16{}, F16{}, F16{}, BF8{}, F8{});
         }
