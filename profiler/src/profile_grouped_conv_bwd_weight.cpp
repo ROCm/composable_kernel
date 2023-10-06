@@ -212,10 +212,12 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
             // fp32 atomic add is used for weight tensor in bf16 kernel
             return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, BF16{}, F32{}, BF16{}, BF16{}, BF16{});
         }
+#if defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
         else if(data_type == ConvDataType::F16_F16_F16_BF8_F8)
         {
             return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F16{}, F16{}, F16{}, BF8{}, F8{});
         }
+#endif
     }
 
     std::cout << "this data_type & layout is not implemented" << std::endl;
