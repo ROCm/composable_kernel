@@ -537,13 +537,8 @@ def Build_CK(Map conf=[:]){
                             sh 'CC=hipcc CXX=hipcc cmake -Bbuild . '
                             sh 'cmake --build build -- -j '
                         }
-                        dir("hipTensor/build/bin"){
-                            sh './bilinear_contraction_f32_test'
-                            sh './bilinear_contraction_f64_test'
-                            sh './scale_contraction_f32_test'
-                            sh './scale_contraction_f64_test'
-                            sh './simple_contraction_bilinear_f32'
-                            sh './simple_contraction_scale_f32'
+                        dir("hipTensor/build/"){
+                            sh 'ctest'
                         }
                     }
                 }
