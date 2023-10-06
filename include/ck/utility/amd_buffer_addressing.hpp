@@ -479,7 +479,7 @@ amd_buffer_store_impl_raw(const typename vector_type<int8_t, N>::type src_thread
     }
     else if constexpr(N == 32)
     {
-        const auto tmp = bit_cast<vector_type<int32_t, 8>::type>(src_thread_data);
+        vector_type<int32_t, 8> tmp(bit_cast<vector_type<int32_t, 8>::type>(src_thread_data));
 
         llvm_amdgcn_raw_buffer_store_i32x4(tmp.template AsType<int32x4_t>()[Number<0>{}],
                                            dst_wave_buffer_resource,
@@ -495,7 +495,7 @@ amd_buffer_store_impl_raw(const typename vector_type<int8_t, N>::type src_thread
     }
     else if constexpr(N == 64)
     {
-        const auto tmp = bit_cast<vector_type<int32_t, 16>::type>(src_thread_data);
+        vector_type<int32_t, 16> tmp(bit_cast<vector_type<int32_t, 16>::type>(src_thread_data));
 
         llvm_amdgcn_raw_buffer_store_i32x4(tmp.template AsType<int32x4_t>()[Number<0>{}],
                                            dst_wave_buffer_resource,
