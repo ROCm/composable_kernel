@@ -18,8 +18,12 @@ namespace instance {
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
-using BF8  = ck::bf8_t;
-using F8   = ck::f8_t;
+#ifdef CK_ENABLE_BF8
+using BF8 = ck::bf8_t;
+#endif
+#ifdef CK_ENABLE_FP8
+using F8 = ck::f8_t;
+#endif
 
 using Empty_Tuple = ck::Tuple<>;
 
@@ -152,13 +156,13 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionBackwardDataSpecialization ConvSpec>
-using device_grouped_conv_bwd_data_xdl_input_fp16_comp_bf8f8_instances =
-    std::tuple<
-        // clang-format off
+using device_grouped_conv_bwd_data_xdl_input_fp16_comp_bf8f8_instances = std::tuple<
+// clang-format off
          // ##############################################|       NDim| ALayout| BLayout|    DsLayout| ELayout| AData| BData| AccData| CShuffle|      DsData| EData| AElementwise| BElementwise| CDEElementwise| ConvolutionBackward| DoPad| DoPad|      NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer|    MXdl|    NXdl|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CShuffleMXdl| CShuffleNXdl|   CDEBlockTransfer| CDEBlockTransfer|
          // ##############################################|    Spatial|        |        |            |        |  Type|  Type|    Type| DataType|        Type|  Type|    Operation|    Operation|      Operation|  DataSpecialization| GemmM| GemmN| PrefetchStage|  Size| Block| Block| Block|    |    |  XDL|  XDL| PerWave| PerWave|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|      PerWave|      PerWave|  _MBlock_MPerBlock|  ScalarPerVector|
          // ##############################################|           |        |        |            |        |      |      |        |         |            |      |             |             |               |                    |      |      |              |      |      |      |      |    |    |     |     |        |        | Lengths_AK0_M_AK1|   ArrangeOrder|               |               |      PerVector|  PerVector_AK1|          | Lengths_BK0_N_BK1|   ArrangeOrder|               |               |      PerVector|  PerVector_BK1|          |   PerShuffle|   PerShuffle|  _NBlock_NPerBlock|       _NPerBlock|
          // ##############################################|           |        |        |            |        |      |      |        |         |            |      |             |             |               |                    |      |      |              |      |      |      |      |    |    |     |     |        |        |                  |               |               |               |               |               |          |                  |               |               |               |               |               |          |             |             |                   |                 |
+        #if defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
         // generic instance
         DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1< NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F32, Empty_Tuple,   F16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,             1,    64,    64,    64,    32,   8,   8,   32,   32,       2,       2,       S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              4,         1,       S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              4,         1,            1,            1,     S<1, 16, 1, 4>,                1,  LoopScheduler::Default, BF8, F8>,
         // instances for small conv.K and conv.C
@@ -179,8 +183,9 @@ using device_grouped_conv_bwd_data_xdl_input_fp16_comp_bf8f8_instances =
         DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1< NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F32, Empty_Tuple,   F16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,             1,   128,    32,   128,    32,   8,   8,   32,   32,       1,       2,       S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,         1,       S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              4,         1,            1,            1,     S<1, 16, 1, 8>,                4,  LoopScheduler::Default, BF8, F8>,
         DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1< NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F32, Empty_Tuple,   F16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,             1,    64,    64,    32,    32,   8,   8,   32,   32,       2,       1,       S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,         1,        S<4, 8, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              4,         1,            1,            1,     S<1, 16, 1, 4>,                4,  LoopScheduler::Default, BF8, F8>,
         DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1< NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F32, Empty_Tuple,   F16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,             1,    64,    32,    64,    32,   8,   8,   32,   32,       1,       2,       S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,        S<4, 8, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              8,              8,         1,            1,            1,     S<1, 16, 1, 4>,                8,  LoopScheduler::Default, BF8, F8>
-        // clang-format on
-        >;
+        #endif
+    // clang-format on
+    >;
 
 } // namespace instance
 } // namespace device
