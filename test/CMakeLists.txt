@@ -32,7 +32,7 @@ function(add_test_executable TEST_NAME)
                 set(test 0)
                 break()
             elseif((source MATCHES "fp8" OR source MATCHES "fp32" OR source MATCHES "fp64" OR source MATCHES "bf16" OR source MATCHES "int8" OR source MATCHES "fp16" OR
-                source MATCHES "_f8" OR source MATCHES "_f32" OR source MATCHES "_f64" OR source MATCHES "_i8" OR source MATCHES "_f16" OR source MATCHES "_b16") AND 
+                source MATCHES "_f8" OR source MATCHES "_f32" OR source MATCHES "_f64" OR source MATCHES "_i8" OR source MATCHES "_f16" OR source MATCHES "_b16") AND
                 NOT(source MATCHES type OR source MATCHES type1))
                     #if filename contains a type which doesn't match any selected type, mark it for removal
                     set(test 1)
@@ -61,7 +61,7 @@ function(add_test_executable TEST_NAME)
         set(result 0)
     endif()
     #message("add_test returns ${result}")
-    return(PROPAGATE result)
+    set(result ${result} PARENT_SCOPE)
 endfunction(add_test_executable TEST_NAME)
 
 include(GoogleTest)
@@ -91,7 +91,7 @@ function(add_gtest_executable TEST_NAME)
                 set(test 0)
                 break()
             elseif((source MATCHES "fp8" OR source MATCHES "fp32" OR source MATCHES "fp64" OR source MATCHES "bf16" OR source MATCHES "int8" OR source MATCHES "fp16" OR
-                source MATCHES "_f8" OR source MATCHES "_f32" OR source MATCHES "_f64" OR source MATCHES "_i8" OR source MATCHES "_f16" OR source MATCHES "_b16") AND 
+                source MATCHES "_f8" OR source MATCHES "_f32" OR source MATCHES "_f64" OR source MATCHES "_i8" OR source MATCHES "_f16" OR source MATCHES "_b16") AND
                 NOT(source MATCHES type OR source MATCHES type1))
                     #if filename contains a type which doesn't match any selected type, mark it for removal
                     set(test 1)
@@ -123,7 +123,7 @@ function(add_gtest_executable TEST_NAME)
         set(result 0)
     endif()
     #message("add_gtest returns ${result}")
-    return(PROPAGATE result)
+    set(result ${result} PARENT_SCOPE)
 endfunction(add_gtest_executable TEST_NAME)
 
 add_subdirectory(magic_number_division)
