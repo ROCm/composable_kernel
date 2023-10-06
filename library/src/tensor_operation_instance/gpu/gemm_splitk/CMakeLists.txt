@@ -7,14 +7,18 @@ list(APPEND GEMM_SPLITK_INSTANCES device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_in
                                   device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instance.cpp
                                   device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instance.cpp
                                   device_gemm_xdl_splitk_f16_f16_f16_km_kn_mn_instance.cpp
-                                  device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instance.cpp
-                                  device_gemm_xdl_splitk_fp8_f16_f16_mk_kn_mn_instance.cpp
-                                  device_gemm_xdl_splitk_fp8_f16_f16_mk_nk_mn_instance.cpp
-                                  device_gemm_xdl_splitk_fp8_f16_f16_km_kn_mn_instance.cpp
-                                  device_gemm_xdl_splitk_fp8_f16_f16_km_nk_mn_instance.cpp
-                                  device_gemm_xdl_splitk_f16_fp8_f16_mk_kn_mn_instance.cpp
-                                  device_gemm_xdl_splitk_f16_fp8_f16_mk_nk_mn_instance.cpp
-                                  device_gemm_xdl_splitk_f16_fp8_f16_km_kn_mn_instance.cpp
-                                  device_gemm_xdl_splitk_f16_fp8_f16_km_nk_mn_instance.cpp)
+                                  device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instance.cpp)
+
+if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "fp16") OR NOT DEFINED DTYPES)
+    list(APPEND GEMM_SPLITK_INSTANCES
+        device_gemm_xdl_splitk_fp8_f16_f16_mk_kn_mn_instance.cpp
+        device_gemm_xdl_splitk_fp8_f16_f16_mk_nk_mn_instance.cpp
+        device_gemm_xdl_splitk_fp8_f16_f16_km_kn_mn_instance.cpp
+        device_gemm_xdl_splitk_fp8_f16_f16_km_nk_mn_instance.cpp
+        device_gemm_xdl_splitk_f16_fp8_f16_mk_kn_mn_instance.cpp
+        device_gemm_xdl_splitk_f16_fp8_f16_mk_nk_mn_instance.cpp
+        device_gemm_xdl_splitk_f16_fp8_f16_km_kn_mn_instance.cpp
+        device_gemm_xdl_splitk_f16_fp8_f16_km_nk_mn_instance.cpp)
+endif()
 
 add_instance_library(device_gemm_splitk_instance ${GEMM_SPLITK_INSTANCES})
