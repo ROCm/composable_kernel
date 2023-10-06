@@ -140,8 +140,9 @@ __global__ void grouped_gemm_naive_strided_tile_loop_reduce(const GemmArgDesc* p
                 partial_result;
         }
 
-        const index_t output_tile_idx        = b2c_tile_map.GetOutputTileIdx();
-        const index_t output_tile_idx_offset = offset / k_batch;
+        const index_t output_tile_idx =
+            __builtin_amdgcn_readfirstlane(b2c_tile_map.GetOutputTileIdx());
+        const index_t output_tile_idx_offset = __builtin_amdgcn_readfirstlane(offset / k_batch);
 
         work_scheduler.FlagFinished(k_batch, output_tile_idx, output_tile_idx_offset);
 
@@ -422,6 +423,7 @@ TEST(TestStridedReductionTileLoop, GroupedGemm_CrossGroups_CrossK_TilePerBlockLT
     constexpr index_t BlockSize = 256;
     const index_t kbatch        = 5;
     const index_t grid_size     = 7;
+    // tilse_per_block = 3
 
     std::vector<index_t> Ms(2, MPerBlock * 2);
     std::vector<index_t> Ns(2, NPerBlock);
@@ -439,6 +441,7 @@ TEST(TestStridedReductionTileLoop, GroupedGemm_CrossGroups_CrossK_TilePerBlockGT
     constexpr index_t BlockSize = 256;
     const index_t kbatch        = 5;
     const index_t grid_size     = 5;
+    // tiles_per_block = 8
 
     std::vector<index_t> Ms(2, MPerBlock * 2);
     std::vector<index_t> Ns(2, NPerBlock * 2);
@@ -457,6 +460,7 @@ TEST(TestStridedReductionTileLoop, GroupedGemm_CrossGroups_CrossK_TilePerBlockGT
     const index_t kbatch        = 5;
     // The covered number of tiles is more than actual data tiles.
     const index_t grid_size = 6;
+    // tilse_per_block = 7
 
     std::vector<index_t> Ms(2, MPerBlock * 2);
     std::vector<index_t> Ns(2, NPerBlock * 2);
