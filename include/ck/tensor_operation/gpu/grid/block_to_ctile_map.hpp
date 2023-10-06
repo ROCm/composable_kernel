@@ -1165,7 +1165,7 @@ struct BlockToCTileMap_LinearKSplit
     {
     }
 
-    __host__ constexpr index_t CalculateGridSize(index_t M, index_t N)
+    __host__ __device__ constexpr index_t CalculateGridSize(index_t M, index_t N)
     {
         const auto M0 = math::integer_divide_ceil(M, MPerBlock);
         const auto N0 = math::integer_divide_ceil(N, NPerBlock);
@@ -1174,7 +1174,7 @@ struct BlockToCTileMap_LinearKSplit
     }
 
     template <typename CGridDesc_M_N>
-    __host__ constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n)
+    __host__ __device__ constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n)
     {
         return CalculateGridSize(c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1));
     }
