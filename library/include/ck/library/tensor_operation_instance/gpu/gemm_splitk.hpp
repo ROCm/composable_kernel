@@ -58,7 +58,7 @@ void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(
         DeviceGemmSplitK<Row, Col, Row, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
         instances);
 #endif
-#if(defined(CK_ENABLE_FP16) || defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8))
 void add_device_gemm_xdl_splitk_f8_f16_f16_km_kn_mn_instances(
     std::vector<std::unique_ptr<
         DeviceGemmSplitK<Col, Row, Row, F8, F16, F16, PassThrough, PassThrough, PassThrough>>>&
@@ -182,7 +182,7 @@ struct DeviceOperationInstanceFactory<
             }
         }
 #endif
-#if(defined(CK_ENABLE_FP16) || defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8))
         else if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, half_t> &&
                           is_same_v<CDataType, half_t>)
         {
