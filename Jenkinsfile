@@ -530,14 +530,15 @@ def Build_CK(Map conf=[:]){
                         //build and test hipTensor
                         git(
                             url: 'https://github.com/ROCmSoftwarePlatform/hipTensor.git',
-                            branch: "mainline",
+                            branch: "mainline"
                         )
                         dir("hipTensor"){
-                            sh 'mkdir -p build'
+                            sh 'mkdir build'
+                            sh 'ls -ltr'
                             sh 'CC=hipcc CXX=hipcc cmake -Bbuild . '
                             sh 'cmake --build build -- -j '
                         }
-                        dir("hipTensor/build/"){
+                        dir("hipTensor/build"){
                             sh 'ctest'
                         }
                     }
