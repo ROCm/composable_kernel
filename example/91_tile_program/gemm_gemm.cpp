@@ -84,6 +84,7 @@ int main(int argc, char* argv[])
     constexpr ck::index_t kN0PerBlock = 128;
     constexpr ck::index_t kK0PerBlock = 32;
     constexpr ck::index_t kN1PerBlock = 128;
+    constexpr ck::index_t kK1PerBlock = 32;
 
     constexpr ck::index_t kBlockSize = 256;
     ck::index_t kGridSize            = (M0 / kM0PerBlock) * (N1 / kN1PerBlock);
@@ -107,7 +108,8 @@ int main(int argc, char* argv[])
                                                         kM0PerBlock,
                                                         kN0PerBlock,
                                                         kK0PerBlock,
-                                                        kN1PerBlock>{},
+                                                        kN1PerBlock,
+                                                        kK1PerBlock>{},
                                                kGridSize,
                                                kBlockSize,
                                                0,

@@ -447,6 +447,20 @@ __host__ __device__ constexpr void set_container_subset(Y& y, Sequence<Is...> pi
     }
 }
 
+// return the index of first occurance in the sequence.
+// return seq.Size(), if not found
+template <index_t... Is>
+constexpr index_t container_find(Sequence<Is...> seq, index_t value)
+{
+    for(auto i = 0; i < seq.Size(); i++)
+    {
+        if(seq[i] == value)
+            return i;
+    }
+
+    return seq.Size();
+}
+
 template <index_t... Is>
 __host__ __device__ constexpr auto sequence_to_tuple_of_number(Sequence<Is...>)
 {

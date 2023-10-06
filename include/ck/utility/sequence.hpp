@@ -809,6 +809,46 @@ __host__ __device__ constexpr auto inclusive_scan_sequence(Seq, Reduce, Number<I
     return reverse_inclusive_scan_sequence(Seq{}.Reverse(), Reduce{}, Number<Init>{}).Reverse();
 }
 
+// e.g. Seq<2, 3, 4> --> Seq<0, 2, 5>, Init=0, Reduce=Add
+//      ResultSeq  TargetSeq  Reduce
+template <typename, typename, typename>
+struct sequence_exclusive_scan;
+
+template <index_t... Xs, index_t Y, index_t... Ys, typename Reduce>
+struct sequence_exclusive_scan<Sequence<Xs...>, Sequence<Y, Ys...>, Reduce>
+{
+    using old_scan = typename sequence_merge<Sequence<Xs...>,
+                                             Sequence<Reduce{}(Y, Sequence<Xs...>{}.Back())>>::type;
+    using type     = typename sequence_exclusive_scan<old_scan, Sequence<Ys...>, Reduce>::type;
+};
+
+template <index_t... Xs, index_t Y, typename Reduce>
+struct sequence_exclusive_scan<Sequence<Xs...>, Sequence<Y>, Reduce>
+{
+    using type = Sequence<Xs...>;
+};
+
+template <index_t... Xs, typename Reduce>
+struct sequence_exclusive_scan<Sequence<Xs...>, Sequence<>, Reduce>
+{
+    using type = Sequence<Xs...>;
+};
+
+template <typename Seq, typename Reduce, index_t Init>
+constexpr auto exclusive_scan_sequence(Seq, Reduce, Number<Init>)
+{
+    // TODO: c++20 and later can pass in Reduce with a lambda expression
+    return typename sequence_exclusive_scan<Sequence<Init>, Seq, Reduce>::type{};
+}
+
+template <typename Seq>
+constexpr auto prefix_sum_sequence(Seq)
+{
+    return typename sequence_exclusive_scan<Sequence<0>,
+                                            typename sequence_merge<Seq, Sequence<0>>::type,
+                                            math::plus<index_t>>::type{};
+}
+
 template <typename Seq, index_t... Is>
 __host__ __device__ constexpr auto pick_sequence_elements_by_ids(Seq, Sequence<Is...> /* ids */)
 {

@@ -41,6 +41,7 @@ struct StaticTileDistributionEncoding
     static constexpr auto ys_to_rhs_minor_  = Ys2RHsMinor{};
 
     // redundant but useful info
+    // TODO: really bad code, should be over-hauled
     struct Detail
     {
         // ndim_rh_major_, ndim_span_mainor_
@@ -231,6 +232,62 @@ struct StaticTileDistributionEncoding
                 return Array<Array<index_t, NDimR>, NDimP>{};
             }
         }();
+
+        // e.g. tuple<seq<1, 4, 32>, seq<4, 1, 4, 2, 4>> --> seq<3, 5> --> seq<0, 3, 8>
+        __host__ __device__ static constexpr auto GetHDimLengthsPrefixSum()
+        {
+            // <len_d0, len_d1, ...>
+            // e.g. tuple<seq<1, 4, 32>, seq<4, 1, 4, 2, 4>> --> seq<3, 5>
+            constexpr auto uniformed_h_dim_lengths = generate_sequence_v2(
+                [&](auto i) {
+                    constexpr index_t size = HsLengthss{}[i].Size();
+                    return Number<size>{};
+                },
+                Number<NDimX>{});
+
+            // <0, len_d0, len_d0+len_d1, ...>
+            // e.g. seq<3, 5> --> seq<0, 3, 8>
+            constexpr auto h_dim_prefix_sum = prefix_sum_sequence(uniformed_h_dim_lengths);
+
+            return h_dim_prefix_sum;
+        }
+
+        __host__ __device__ static constexpr auto GetUniformedIdxY2H()
+        {
+            constexpr auto all_ys_2_rhss = transform_sequences(
+                [](auto major, auto minor) constexpr {
+                    // <0, 0, len_d0, len_d0+len_d1, ...>
+                    constexpr auto x_dim_prefix_sum =
+                        merge_sequences(Sequence<0>{} /*for R dims*/, GetHDimLengthsPrefixSum());
+                    return x_dim_prefix_sum.At(major) + minor;
+                },
+                Ys2RHsMajor{},
+                Ys2RHsMinor{});
+
+            return all_ys_2_rhss;
+        }
+
+        // return tuple<sorted_dims, sorted_maps, sorted_prefix_sum>
+        template <typename IdxSeq, typename PrefixSumSeq>
+        __host__ __device__ static constexpr auto GetSortedInfo(IdxSeq, PrefixSumSeq)
+        {
+            using sorted_idx =
+                sequence_unique_sort<IdxSeq, math::less<index_t>, math::equal<index_t>>;
+
+            constexpr auto sorted_dims = typename sorted_idx::type{};
+            constexpr auto sorted_maps = typename sorted_idx::sorted2unsorted_map{};
+
+            constexpr auto sorted_histogram =
+                histogram_sorted_sequence(sorted_dims, PrefixSumSeq{});
+            constexpr auto sorted_prefix_sum = prefix_sum_sequence(sorted_histogram);
+
+            return make_tuple(sorted_dims, sorted_maps, sorted_prefix_sum);
+        }
+
+        __host__ __device__ static constexpr auto GetSortedYInfo()
+        {
+            return GetSortedInfo(GetUniformedIdxY2H(), GetHDimLengthsPrefixSum());
+        }
 
         __host__ __device__ void Print() const
         {
