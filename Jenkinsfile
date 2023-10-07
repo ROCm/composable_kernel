@@ -526,14 +526,14 @@ def Build_CK(Map conf=[:]){
                            stash "ckprofiler_0.2.0_amd64.deb"
                         }
                     }
-                    if (params.hipTensor_test){
+                    if (params.hipTensor_test && navi_node == 0 ){
                         //build and test hipTensor
                         git(
                             url: 'https://github.com/ROCmSoftwarePlatform/hipTensor.git',
                             branch: "mainline"
                         )
                         dir("hipTensor"){
-                            sh 'mkdir build'
+                            sh 'mkdir -p build'
                             sh 'ls -ltr'
                             sh 'CC=hipcc CXX=hipcc cmake -Bbuild . '
                             sh 'cmake --build build -- -j '
