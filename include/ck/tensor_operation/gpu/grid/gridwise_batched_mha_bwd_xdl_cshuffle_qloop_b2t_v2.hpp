@@ -1620,7 +1620,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             p_y_grid, y_grid_desc_mblock_mperblock_oblock_operblock.GetElementSpaceSize());
         const auto lse_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_lse_grid, lse_grid_desc_m.GetElementSpaceSize());
-        const auto ygrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        // ygrad dynamic buffer used for calculating y_dot_dy
+        const auto ygrad_grid_buf1 = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_ygrad_grid, y_grid_desc_mblock_mperblock_oblock_operblock.GetElementSpaceSize());
+        // ygrad dynamic buffer used for calculating dV = Pdrop^T * dY or dPdrop = dY * V^T
+        const auto ygrad_grid_buf2 = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_ygrad_grid, ygrad_grid_desc_m0_o_m1.GetElementSpaceSize());
         auto vgrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_vgrad_grid, v_grid_desc_o0_n_o1.GetElementSpaceSize());
@@ -2208,7 +2212,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                        make_tuple(I0, I0, I0, I0),
                                        y_thread_buf);
             yygrad_threadwise_copy.Run(y_grid_desc_mblock_mperblock_oblock_operblock,
-                                       ygrad_grid_buf,
+                                       ygrad_grid_buf1,
                                        y_thread_desc_m0_m1_o0_o1,
                                        make_tuple(I0, I0, I0, I0),
                                        ygrad_thread_buf);
@@ -2492,7 +2496,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
                 // preload data into LDS
                 vgrad_gemm_tile_ygrad_blockwise_copy.RunRead(ygrad_grid_desc_m0_o_m1,
-                                                             ygrad_grid_buf);
+                                                             ygrad_grid_buf2);
 
                 vgrad_gemm_tile_ygrad_blockwise_copy.MoveSrcSliceWindow(
                     ygrad_grid_desc_m0_o_m1, Gemm1::b_block_slice_copy_step);
@@ -2513,7 +2517,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                                                              make_tuple(I0, I0, I0),
                                                              gemm1_a_thread_buf);
                         vgrad_gemm_tile_ygrad_blockwise_copy.RunRead(ygrad_grid_desc_m0_o_m1,
-                                                                     ygrad_grid_buf);
+                                                                     ygrad_grid_buf2);
 
                         block_sync_lds();
 
@@ -2553,7 +2557,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             {
                 // preload data into LDS
                 pgrad_gemm_tile_ygrad_blockwise_copy.RunRead(ygrad_grid_desc_o0_m_o1,
-                                                             ygrad_grid_buf);
+                                                             ygrad_grid_buf2);
 
                 pgrad_gemm_tile_ygrad_blockwise_copy.MoveSrcSliceWindow(
                     ygrad_grid_desc_o0_m_o1, Gemm0::a_block_slice_copy_step);
@@ -2570,7 +2574,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                 {
                     static_for<0, num_ok_block_main_loop - 1, 1>{}([&](auto i) {
                         pgrad_gemm_tile_ygrad_blockwise_copy.RunRead(ygrad_grid_desc_o0_m_o1,
-                                                                     ygrad_grid_buf);
+                                                                     ygrad_grid_buf2);
 
                         block_sync_lds();
 
