@@ -6,7 +6,7 @@
 #include <vector>
 #include <memory>
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/device_elementwise_3d_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_3d_impl.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 
