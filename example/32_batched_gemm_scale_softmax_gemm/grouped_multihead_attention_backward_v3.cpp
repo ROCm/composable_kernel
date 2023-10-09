@@ -657,7 +657,6 @@ int run(int argc, char* argv[])
                           QKVElementOp{},
                           YElementOp{},
                           p_drop,
-                          h_ratio,
                           std::tuple<unsigned long long, unsigned long long>(seed, offset));
 
     DeviceMem problem_desc_workspace(gemm.GetWorkSpaceSize(&argument));
@@ -707,7 +706,6 @@ int run(int argc, char* argv[])
                               QKVElementOp{},
                               YElementOp{},
                               p_drop,
-                              h_ratio,
                               std::tuple<unsigned long long, unsigned long long>(seed, offset));
         DeviceMem problem_desc_workspace_verify(gemm.GetWorkSpaceSize(&argument));
         gemm.SetWorkSpacePointer(&argument, problem_desc_workspace_verify.GetDeviceBuffer());

@@ -721,8 +721,7 @@ int run(int argc, char* argv[])
                                   Scale{alpha},
                                   QKVElementOp{},
                                   YElementOp{},
-                                  p_drop, // dropout ratio
-                                  h_ratio,
+                                  p_drop,          // dropout ratio
                                   {seed, offset}); // dropout random seed and offset, offset should
                                                    // be at least the number of elements on a thread
 
@@ -770,7 +769,6 @@ int run(int argc, char* argv[])
                                   QKVElementOp{},
                                   YElementOp{},
                                   p_drop,
-                                  h_ratio,
                                   std::tuple<unsigned long long, unsigned long long>(seed, offset));
 
         DeviceMem problem_desc_workspace_bwd(gemm_bwd.GetWorkSpaceSize(&argument_bwd));
@@ -820,8 +818,7 @@ int run(int argc, char* argv[])
                                   Scale{alpha},
                                   QKVElementOp{},
                                   YElementOp{},
-                                  p_drop, // dropout ratio
-                                  h_ratio,
+                                  p_drop,          // dropout ratio
                                   {seed, offset}); // dropout random seed and offset, offset should
                                                    // be at least the number of elements on a thread
 
@@ -861,7 +858,6 @@ int run(int argc, char* argv[])
                                   QKVElementOp{},
                                   YElementOp{},
                                   p_drop,
-                                  h_ratio,
                                   std::tuple<unsigned long long, unsigned long long>(seed, offset));
         DeviceMem problem_desc_workspace_bwd_verify(gemm_bwd.GetWorkSpaceSize(&argument_bwd));
         gemm_bwd.SetWorkSpacePointer(&argument_bwd,

@@ -930,15 +930,13 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                  B1ElementwiseOperation b1_element_op,
                  CElementwiseOperation c_element_op,
                  float p_drop,
-                 index_t h_ratio,
                  std::tuple<unsigned long long, unsigned long long> seeds)
             : a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               acc_element_op_{acc_element_op},
               b1_element_op_{b1_element_op},
               c_element_op_{c_element_op},
-              p_dropout_{p_drop},
-              h_ratio_{h_ratio}
+              p_dropout_{p_drop}
         {
             seed_   = std::get<0>(seeds);
             offset_ = std::get<1>(seeds);
@@ -971,6 +969,9 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
             index_t z_random_matrix_offset = 0;
 
             d_grid_size_ = 0;
+
+            h_ratio_ = problem_desc_vec[0].a_gs_ms_ks_lengths[NumDimG - 1] /
+                       problem_desc_vec[0].b_gs_ns_ks_lengths[NumDimG - 1];
 
             for(index_t i = 0; i < group_count_; i++)
             {
@@ -1453,7 +1454,6 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                              B1ElementwiseOperation b1_element_op,
                              CElementwiseOperation c_element_op,
                              float p_drop,
-                             index_t h_ratio,
                              std::tuple<unsigned long long, unsigned long long> seeds)
     {
         return Argument{p_As,
@@ -1478,7 +1478,6 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                         b1_element_op,
                         c_element_op,
                         p_drop,
-                        h_ratio,
                         seeds};
     }
 
@@ -1509,7 +1508,6 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                         B1ElementwiseOperation b1_element_op,
                         CElementwiseOperation c_element_op,
                         float p_drop,
-                        index_t h_ratio,
                         std::tuple<unsigned long long, unsigned long long> seeds) // override
     {
         return std::make_unique<Argument>(p_As,
@@ -1534,7 +1532,6 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
                                           b1_element_op,
                                           c_element_op,
                                           p_drop,
-                                          h_ratio,
                                           seeds);
     }
 

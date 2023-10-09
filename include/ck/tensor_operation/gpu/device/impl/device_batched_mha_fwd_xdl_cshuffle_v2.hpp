@@ -1024,8 +1024,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         const index_t a_m       = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
         const index_t b1_gemm1n = arg.b1_grid_desc_bk0_n_bk1_.GetLength(I1);
 
-        if(!(c_g == arg.batch_count_ && c_m == a_m && c_gemm1n == b1_gemm1n && c_g % b_g == 0 &&
-             b_g <= c_g))
+        if(!(c_g == arg.batch_count_ && c_m == a_m && c_gemm1n == b1_gemm1n && c_g % b_g == 0))
         {
             return false;
         }

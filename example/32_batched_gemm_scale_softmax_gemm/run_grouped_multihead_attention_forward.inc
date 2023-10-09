@@ -258,8 +258,7 @@ int run(int argc, char* argv[])
                           acc0_element_op,
                           b1_element_op,
                           c_element_op,
-                          p_drop, // dropout ratio
-                          h_ratio,
+                          p_drop,          // dropout ratio
                           {seed, offset}); // dropout random seed and offset, offset should be
                                            // at least the number of elements on a thread
 
@@ -302,8 +301,7 @@ int run(int argc, char* argv[])
                               acc0_element_op,
                               b1_element_op,
                               c_element_op,
-                              p_drop, // dropout ratio
-                              h_ratio,
+                              p_drop,          // dropout ratio
                               {seed, offset}); // dropout random seed and offset, offset should be
                                                // at least the number of elements on a thread
         // specify workspace for problem_desc
