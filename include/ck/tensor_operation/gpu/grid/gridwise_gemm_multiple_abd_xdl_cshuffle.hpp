@@ -428,14 +428,14 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
             [&](auto i) {
                 using ALayout = remove_cvref_t<tuple_element_t<i.value, AsLayout>>;
 
-                return MakeAGridDescriptor_M_N<ALayout, GemmSpec>(MRaws[i], KRaws[i], AsStride[i]);
+                return MakeAGridDescriptor_M_K<ALayout, GemmSpec>(MRaws[i], KRaws[i], AsStride[i]);
             },
             Number<NumATensor>{});
     }
 
     template <typename BLayout, GemmSpecialization GemmSpec>
     __host__ __device__ static auto
-    MakeBGridDescriptor_N_K(index_t KRaw, index_t NRaw, index_t StrideB)
+    MakeBGridDescriptor_N_K(index_t NRaw, index_t KRaw, index_t StrideB)
     {
         constexpr auto matrix_padder =
             ck::tensor_operation::device::MatrixPadder<GemmSpec, index_t, index_t, index_t>{
@@ -459,15 +459,15 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
 
     template <typename BsLayout, GemmSpecialization GemmSpec>
     __host__ __device__ static auto
-    MakeBsGridDescriptor_N_K(const std::array<index_t, NumBTensor>& KRaws,
-                             const std::array<index_t, NumBTensor>& NRaws,
+    MakeBsGridDescriptor_N_K(const std::array<index_t, NumBTensor>& NRaws,
+                             const std::array<index_t, NumBTensor>& KRaws,
                              const std::array<index_t, NumBTensor>& BsStride)
     {
         return generate_tuple(
             [&](auto i) {
                 using BLayout = remove_cvref_t<tuple_element_t<i.value, BsLayout>>;
 
-                return MakeBGridDescriptor_N_K<BLayout, GemmSpec>(KRaws[i], NRaws[i], BsStride[i]);
+                return MakeBGridDescriptor_N_K<BLayout, GemmSpec>(NRaws[i], KRaws[i], BsStride[i]);
             },
             Number<NumBTensor>{});
     }
@@ -571,6 +571,8 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
             return;
         }
 
+        // printf("%d %d\n", block_work_idx[I0], block_work_idx[I1]);
+
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
@@ -656,6 +658,7 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
+            ComputeDataType,
             ComputeDataType,
             AccDataType,
             decltype(a_block_desc_ak0_m_ak1),
@@ -953,22 +956,22 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
               typename DsLayout,
               typename ELayout,
               typename Block2ETileMap>
-    __device__ static void Run(AsGridPointer p_as_grid,
-                               BsGridPointer p_bs_grid,
-                               DsGridPointer p_ds_grid,
-                               void* __restrict__ p_e_grid_,
-                               void* __restrict__ p_shared,
-                               const AElementwiseOperation& a_element_op,
-                               const BElementwiseOperation& b_element_op,
-                               const CDEElementwiseOperation& cde_element_op,
-                               const index_t M,
-                               const index_t N,
-                               const index_t K,
-                               const std::array<index_t, NumATensor> StrideAs,
-                               const std::array<index_t, NumBTensor> StrideBs,
-                               const std::array<index_t, NumDTensor> StrideDs,
-                               const index_t StrideE,
-                               const Block2ETileMap& block_2_etile_map)
+    __device__ static void Run2(AsGridPointer p_as_grid,
+                                BsGridPointer p_bs_grid,
+                                DsGridPointer p_ds_grid,
+                                void* __restrict__ p_e_grid_,
+                                void* __restrict__ p_shared,
+                                const AElementwiseOperation& a_element_op,
+                                const BElementwiseOperation& b_element_op,
+                                const CDEElementwiseOperation& cde_element_op,
+                                const index_t M,
+                                const index_t N,
+                                const index_t K,
+                                const std::array<index_t, NumATensor> StrideAs,
+                                const std::array<index_t, NumBTensor> StrideBs,
+                                const std::array<index_t, NumDTensor> StrideDs,
+                                const index_t StrideE,
+                                const Block2ETileMap& block_2_etile_map)
     {
         using AsGridDesc_M_K =
             remove_cvref_t<decltype(MakeAsGridDescriptor_M_K<AsLayout, GemmSpec>({}, {}, {}))>;

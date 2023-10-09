@@ -142,9 +142,9 @@ struct ThreadwiseTensorSliceTransfer_v7r2
     __device__ void RunRead(const SrcDescs& src_descs, const SrcBuffers& src_bufs)
     {
         // loop over space-filling curve
-        static_for<0, num_access, 1>{}([&](auto iAccess) {
+        static_for<0, src_num_access, 1>{}([&](auto iAccess) {
             auto src_vectors = generate_vectors<SrcDatas, SrcScalarPerVector>();
-            auto dst_vectors = generate_vectors<DstDatas, DstScalarPerVector>();
+            auto dst_vectors = generate_vectors<DstDatas, SrcScalarPerVector>();
 
             // copy data from src_bufs into src_vectors
             static_for<0, nSrc, 1>{}([&](auto i) {
@@ -251,7 +251,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
             dst_vectors_tuple_(iAccess) = dst_vectors;
 
             // move coordinate
-            if constexpr(iAccess.value != num_access - 1)
+            if constexpr(iAccess.value != src_num_access - 1)
             {
                 constexpr auto forward_step = SrcSpaceFillingCurve::GetForwardStep(iAccess);
 
@@ -282,7 +282,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
     __device__ void RunWrite(const DstDescs& dst_descs, DstBuffers dst_bufs)
     {
         // loop over space-filling curve
-        static_for<0, num_access, 1>{}([&](auto iAccess) {
+        static_for<0, dst_num_access, 1>{}([&](auto iAccess) {
             auto dst_vectors = dst_vectors_tuple_[iAccess];
 
             // copy data from buf_vectors into dst_bufs
@@ -303,7 +303,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
             });
 
             // move coordinate
-            if constexpr(iAccess.value != num_access - 1)
+            if constexpr(iAccess.value != dst_num_access - 1)
             {
                 constexpr auto forward_step = DstSpaceFillingCurve::GetForwardStep(iAccess);
 
@@ -346,25 +346,25 @@ struct ThreadwiseTensorSliceTransfer_v7r2
 
     __device__ static constexpr auto GetSrcCoordinateResetStep()
     {
-        if constexpr(num_access == 0)
+        if constexpr(src_num_access == 0)
         {
             return typename SrcSpaceFillingCurve::Index{};
         }
         else
         {
-            return SrcSpaceFillingCurve::GetStepBetween(Number<num_access - 1>{}, Number<0>{});
+            return SrcSpaceFillingCurve::GetStepBetween(Number<src_num_access - 1>{}, Number<0>{});
         }
     }
 
     __device__ static constexpr auto GetDstCoordinateResetStep()
     {
-        if constexpr(num_access == 0)
+        if constexpr(dst_num_access == 0)
         {
             return typename DstSpaceFillingCurve::Index{};
         }
         else
         {
-            return DstSpaceFillingCurve::GetStepBetween(Number<num_access - 1>{}, Number<0>{});
+            return DstSpaceFillingCurve::GetStepBetween(Number<dst_num_access - 1>{}, Number<0>{});
         }
     }
 
@@ -408,9 +408,10 @@ struct ThreadwiseTensorSliceTransfer_v7r2
     using SrcVectorsType = decltype(generate_vectors<SrcDatas, SrcScalarPerVector>());
     using DstVectorsType = decltype(generate_vectors<DstDatas, DstScalarPerVector>());
 
-    static constexpr auto num_access = SrcSpaceFillingCurve::GetNumOfAccess();
+    static constexpr auto src_num_access = SrcSpaceFillingCurve::GetNumOfAccess();
+    static constexpr auto dst_num_access = DstSpaceFillingCurve::GetNumOfAccess();
 
-    StaticallyIndexedArray<DstVectorsType, num_access> dst_vectors_tuple_;
+    StaticallyIndexedArray<DstVectorsType, dst_num_access> dst_vectors_tuple_;
 
     SrcCoords src_coords_;
     DstCoords dst_coords_;

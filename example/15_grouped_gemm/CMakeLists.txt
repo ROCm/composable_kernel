@@ -42,3 +42,8 @@ if(USE_BITINT_EXTENSION_INT4)
     add_dependencies(example_grouped_gemm_xdl example_grouped_gemm_xdl_int4)
   endif()
 endif()
+
+add_example_executable(example_grouped_gemm_multi_abd_xdl_fixed_nk_bias_fp16 grouped_gemm_multi_abd_xdl_fixed_nk_bias_fp16.cpp)
+if(result EQUAL 0)
+  add_dependencies(example_grouped_gemm_xdl example_grouped_gemm_multi_abd_xdl_fixed_nk_bias_fp16)
+endif()
