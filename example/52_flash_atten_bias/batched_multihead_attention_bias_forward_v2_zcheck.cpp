@@ -71,11 +71,10 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 static constexpr auto MaskingSpec =
     ck::tensor_operation::device::MaskingSpecialization::MaskDisabled;
 
-static constexpr auto TensorSpecA   = ck::tensor_operation::device::TensorSpecialization::Default;
-static constexpr auto TensorSpecB0  = ck::tensor_operation::device::TensorSpecialization::Default;
-static constexpr auto TensorSpecB1  = ck::tensor_operation::device::TensorSpecialization::Default;
-static constexpr auto TensorSpecC   = ck::tensor_operation::device::TensorSpecialization::Default;
-static constexpr bool Deterministic = false;
+static constexpr auto TensorSpecA  = ck::tensor_operation::device::TensorSpecialization::Default;
+static constexpr auto TensorSpecB0 = ck::tensor_operation::device::TensorSpecialization::Default;
+static constexpr auto TensorSpecB1 = ck::tensor_operation::device::TensorSpecialization::Default;
+static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecialization::Default;
 
 #if(DIM <= 32)
 using DeviceGemmInstance =
@@ -149,8 +148,7 @@ using DeviceGemmInstance =
         S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         4,
-        MaskingSpec, // MaskingSpecialization
-        Deterministic>;
+        MaskingSpec>; // MaskingSpecialization
 #elif(DIM <= 64)
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2<
@@ -223,8 +221,7 @@ using DeviceGemmInstance =
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         4,
-        MaskingSpec, // MaskingSpecialization
-        Deterministic>;
+        MaskingSpec>; // MaskingSpecialization
 #elif(DIM <= 128)
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2<
@@ -297,8 +294,7 @@ using DeviceGemmInstance =
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
         4,
-        MaskingSpec, // MaskingSpecialization
-        Deterministic>;
+        MaskingSpec>; // MaskingSpecialization
 #endif
 
 using DeviceDropoutInstance = ck::tensor_operation::device::DeviceBatchedDropout<NumDimG,
