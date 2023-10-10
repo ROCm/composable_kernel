@@ -18,7 +18,7 @@ std::string ToString(DataType dt)
     throw std::runtime_error("Incorrect data type");
 }
 
-std::unordered_map<std::string, std::pair<const char*, const char*>> GetHeaders()
+std::unordered_map<std::string_view, std::string_view> GetHeaders()
 {
     return ck_headers();
 }

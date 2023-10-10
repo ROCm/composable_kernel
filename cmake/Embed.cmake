@@ -24,6 +24,36 @@
 find_program(EMBED_LD ld)
 find_program(EMBED_OBJCOPY objcopy)
 
+option(EMBED_USE_LD "Use ld to embed data files" ON)
+
+function(wrap_string)
+    set(options)
+    set(oneValueArgs VARIABLE AT_COLUMN)
+    set(multiValueArgs)
+    cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+    cmake_parse_arguments(WRAP_STRING "${options}" "${oneValueArgs}" "" ${ARGN})
+
+    string(LENGTH ${${PARSE_VARIABLE}} string_length)
+    math(EXPR offset "0")
+
+    while(string_length GREATER 0)
+
+        if(string_length GREATER ${PARSE_AT_COLUMN})
+            math(EXPR length "${PARSE_AT_COLUMN}")
+        else()
+            math(EXPR length "${string_length}")
+        endif()
+
+        string(SUBSTRING ${${PARSE_VARIABLE}} ${offset} ${length} line)
+        set(lines "${lines}\n${line}")
+
+        math(EXPR string_length "${string_length} - ${length}")
+        math(EXPR offset "${offset} + ${length}")
+    endwhile()
+
+    set(${PARSE_VARIABLE} "${lines}" PARENT_SCOPE)
+endfunction()
+
 function(generate_embed_source EMBED_NAME)
     set(options)
     set(oneValueArgs SRC HEADER RELATIVE)
@@ -47,14 +77,25 @@ function(generate_embed_source EMBED_NAME)
         list(GET PARSE_FILES ${idx} FILE)
 
         set(START_SYMBOL "_binary_${SYMBOL}_start")
-        set(END_SYMBOL "_binary_${SYMBOL}_length")
-        string(APPEND EXTERNS "
-            extern const char ${START_SYMBOL}[];
-            extern const char ${LENGTH_SYMBOL};
-        ")
+        set(LENGTH_SYMBOL "_binary_${SYMBOL}_length")
+        if(EMBED_USE_LD)
+            string(APPEND EXTERNS "
+extern const char ${START_SYMBOL}[];
+extern const size_t _binary_${SYMBOL}_size;
+const auto ${LENGTH_SYMBOL} = reinterpret_cast<size_t>(&_binary_${SYMBOL}_size);
+            ")
+        else()
+            string(APPEND EXTERNS "
+extern const char ${START_SYMBOL}[];
+extern const size_t ${LENGTH_SYMBOL};
+            ")
+        endif()
 
-
-        file(RELATIVE_PATH BASE_NAME ${PARSE_RELATIVE} "${FILE}")
+        if(PARSE_RELATIVE)
+            file(RELATIVE_PATH BASE_NAME ${PARSE_RELATIVE} "${FILE}")
+        else()
+            get_filename_component(BASE_NAME "${FILE}" NAME)
+        endif()
 
         string(APPEND INIT_KERNELS "
             { \"${BASE_NAME}\", { ${START_SYMBOL}, ${LENGTH_SYMBOL}} },")
@@ -64,7 +105,7 @@ function(generate_embed_source EMBED_NAME)
 #include <string_view>
 #include <unordered_map>
 #include <utility>
-const std::unordered_map<std::string_view, std::string_view> ${EMBED_NAME}();
+std::unordered_map<std::string_view, std::string_view> ${EMBED_NAME}();
 ")
 
     file(WRITE "${PARSE_SRC}" "
@@ -86,17 +127,38 @@ function(embed_file OUTPUT_FILE OUTPUT_SYMBOL FILE)
         string(MAKE_C_IDENTIFIER "${REL_FILE}" SYMBOL)
         get_filename_component(OUTPUT_FILE_DIR "${REL_FILE}" DIRECTORY)
         file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT_FILE_DIR}")
-        set(OUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.o") #use cpp?
+        if(EMBED_USE_LD)
+            set(OUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.o")
+        else()
+            set(OUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.cpp")
+        endif()
         set(${OUTPUT_SYMBOL} ${SYMBOL} PARENT_SCOPE)
         set(${OUTPUT_FILE} "${OUT_FILE}" PARENT_SCOPE)
-        add_custom_command(
-            OUTPUT "${OUT_FILE}"
-            COMMAND ${EMBED_LD} -r -o "${OUT_FILE}" -z noexecstack --format=binary "${REL_FILE}" 
-            COMMAND ${EMBED_OBJCOPY} --rename-section .data=.rodata,alloc,load,readonly,data,contents "${OUT_FILE}"
-            WORKING_DIRECTORY ${WORKING_DIRECTORY}
-            DEPENDS ${FILE}
-            VERBATIM
-        )
+        if(EMBED_USE_LD)
+            add_custom_command(
+                OUTPUT "${OUT_FILE}"
+                COMMAND ${EMBED_LD} -r -o "${OUT_FILE}" -z noexecstack --format=binary "${REL_FILE}" 
+                COMMAND ${EMBED_OBJCOPY} --rename-section .data=.rodata,alloc,load,readonly,data,contents "${OUT_FILE}"
+                WORKING_DIRECTORY ${WORKING_DIRECTORY}
+                DEPENDS ${FILE}
+                VERBATIM
+            )
+        else()
+            set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${FILE})
+            # reads source file contents as hex string
+            file(READ ${FILE} HEX_STRING HEX)
+            # wraps the hex string into multiple lines
+            wrap_string(VARIABLE HEX_STRING AT_COLUMN 80)
+            # adds '0x' prefix and comma suffix before and after every byte respectively
+            string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1, " ARRAY_VALUES ${HEX_STRING})
+            # removes trailing comma
+            string(REGEX REPLACE ", $" "" ARRAY_VALUES ${ARRAY_VALUES})
+            file(WRITE "${OUT_FILE}" "
+#include <cstddef>
+extern const char _binary_${SYMBOL}_start[] = { ${ARRAY_VALUES} };
+extern const size_t _binary_${SYMBOL}_length = sizeof(_binary_${SYMBOL}_start);
+")
+        endif()
     endforeach()
 endfunction()
 

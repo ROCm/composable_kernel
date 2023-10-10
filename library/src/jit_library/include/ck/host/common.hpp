@@ -4,6 +4,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <utility>
 #include <unordered_map>
 
@@ -27,7 +28,7 @@ enum class DataType
 
 std::string ToString(DataType dt);
 
-std::unordered_map<std::string, std::pair<const char*, const char*>> GetHeaders();
+std::unordered_map<std::string_view, std::string_view> GetHeaders();
 
 std::size_t integer_divide_ceil(std::size_t x, std::size_t y);
 
