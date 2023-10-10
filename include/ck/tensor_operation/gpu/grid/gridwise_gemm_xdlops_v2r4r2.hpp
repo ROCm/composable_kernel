@@ -22,31 +22,6 @@ namespace ck {
 template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-          typename Block2CTileMap>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
-#endif
-        kernel_gemm_xdlops_v2r4r2_simplified(typename GridwiseGemm::Argument karg,
-                                             const Block2CTileMap& b2c_map)
-{
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
-    constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
-
-    __shared__ uint8_t p_shared[shared_size];
-
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation>(
-        karg, static_cast<void*>(p_shared), b2c_map);
-#else
-    ignore = karg;
-    ignore = b2c_map;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
-}
-
-template <typename GridwiseGemm,
-          bool HasMainKBlockLoop,
-          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename Block2CTileMap,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
@@ -795,8 +770,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
-            ComputeType,
-            ComputeType,
+            ComputeType, // ComputeType A
+            ComputeType, // ComputeType B
             FloatAcc,
             decltype(a_k0_m_k1_block_desc),
             decltype(b_k0_n_k1_block_desc),

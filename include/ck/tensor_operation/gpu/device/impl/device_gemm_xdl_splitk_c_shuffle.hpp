@@ -170,7 +170,6 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
         CElementwiseOperation c_element_op;
     };
 
-    // using Argument              = typename GridwiseGemm::Argument;
     using DefaultBlock2CTileMap = typename GridwiseGemm::DefaultBlock2CTileMap;
 
     // Invoker
