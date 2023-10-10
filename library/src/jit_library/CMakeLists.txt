@@ -28,6 +28,8 @@ target_include_directories(jit_library SYSTEM PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/embed/ck_headers/include>
 )
 
+target_link_libraries(jit_library PRIVATE $<BUILD_INTERFACE:ck_headers>)
+
 rocm_install(
     TARGETS jit_library 
     EXPORT jit_libraryTargets
