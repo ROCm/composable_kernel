@@ -5,6 +5,10 @@
 #include <sys/time.h>
 #include <locale.h>
 #include <algorithm>
+#include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
+
+
 using namespace std;
 
 // created by tc_gen_definition_new()
