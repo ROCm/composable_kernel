@@ -67,6 +67,15 @@ using DeviceConvBwdWeightInstance =
         S<1, 32, 1, 4>,       // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         128 / (sizeof(WeiDataType) * CHAR_BIT)>; // CBlockTransferScalarPerVector_NWaveNPerXdl
 
+template <ck::index_t NDimSpatial>
+using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
+                                                                                     InDataType,
+                                                                                     WeiDataType,
+                                                                                     OutDataType,
+                                                                                     InElementOp,
+                                                                                     WeiElementOp,
+                                                                                     OutElementOp>;
+
 #include "run_grouped_conv_bwd_weight_example.inc"
 
 int main(int argc, char* argv[]) { return !run_grouped_conv_bwd_weight_example(argc, argv); }
