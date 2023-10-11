@@ -132,9 +132,6 @@ struct ThreadwiseTensorSliceTransfer_v7r2
             Number<num>{});
     }
 
-    template <typename T>
-    using has_vec_len = decltype(std::declval<T&>().vec_len);
-
     // SrcDescs: Tuple<const SrcDesc0&, const SrcDesc1&, ...>
     // SrcBuffers: Tuple<const SrcBuffer0&, const SrcBuffer1&, ...>
     template <typename SrcBuffers,
@@ -159,90 +156,63 @@ struct ThreadwiseTensorSliceTransfer_v7r2
                                                            is_src_valid);
             });
 
-            if constexpr(is_detected<has_vec_len, decltype(element_op_)>::value)
-            {
-                constexpr auto elem_op_vec_len = decltype(element_op_)::vec_len;
+            constexpr auto get_elem_op_vec_len = []() {
+                if constexpr(is_detected<is_pack8_invocable_t, decltype(element_op_)>::value)
+                {
+                    if constexpr(decltype(element_op_)::is_pack8_invocable)
+                        return math::min(8, SrcScalarPerVector);
+                }
+                if constexpr(is_detected<is_pack4_invocable_t, decltype(element_op_)>::value)
+                {
+                    if constexpr(decltype(element_op_)::is_pack4_invocable)
+                        return math::min(4, SrcScalarPerVector);
+                }
+                if constexpr(is_detected<is_pack2_invocable_t, decltype(element_op_)>::value)
+                {
+                    if constexpr(decltype(element_op_)::is_pack2_invocable)
+                        return math::min(2, SrcScalarPerVector);
+                }
+                return 1;
+            };
 
-                static_assert(is_same<remove_cvref_t<decltype(elem_op_vec_len)>, index_t>::value,
-                              "vec_len in element_op_ type is not index_t");
+            constexpr index_t elem_op_vec_len = get_elem_op_vec_len();
 
-                static_assert(SrcScalarPerVector % elem_op_vec_len == 0,
-                              "vec_len in element_op_ cannot be divided by SrcScalarPerVector!");
+            // apply pointwise function
+            static_for<0, SrcScalarPerVector / elem_op_vec_len, 1>{}([&](auto i) {
+                // get reference to src data
+                const auto src_data_refs = generate_tie(
+                    // return type should be lvalue
+                    [&](auto iSrc) -> const auto& {
+                        using SrcData = remove_cvref_t<tuple_element_t<iSrc.value, SrcDatas>>;
+
+                        using elem_op_vec_t = typename vector_type<SrcData, elem_op_vec_len>::type;
+
+                        return src_vectors[iSrc].template AsType<elem_op_vec_t>()[i];
+                    },
+                    Number<nSrc>{});
+
+                // get reference to dst data
+                auto dst_data_refs = generate_tie(
+                    // return type should be lvalue
+                    [&](auto iDst) -> auto& {
+                        using DstData = remove_cvref_t<tuple_element_t<iDst.value, DstDatas>>;
+
+                        using elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
+
+                        return dst_vectors(iDst).template AsType<elem_op_vec_t>()(i);
+                    },
+                    Number<nDst>{});
 
                 // apply pointwise function
-                static_for<0, SrcScalarPerVector / elem_op_vec_len, 1>{}([&](auto i) {
-                    // get reference to src data
-                    const auto src_data_refs = generate_tie(
-                        // return type should be lvalue
-                        [&](auto iSrc) -> const auto& {
-                            using SrcData = remove_cvref_t<tuple_element_t<iSrc.value, SrcDatas>>;
-
-                            using elem_op_vec_t =
-                                typename vector_type<SrcData, elem_op_vec_len>::type;
-
-                            return src_vectors[iSrc].template AsType<elem_op_vec_t>()[i];
-                        },
-                        Number<nSrc>{});
-
-                    // get reference to dst data
-                    auto dst_data_refs = generate_tie(
-                        // return type should be lvalue
-                        [&](auto iDst) -> auto& {
-                            using DstData = remove_cvref_t<tuple_element_t<iDst.value, DstDatas>>;
-
-                            using elem_op_vec_t =
-                                typename vector_type<DstData, elem_op_vec_len>::type;
-
-                            return dst_vectors(iDst).template AsType<elem_op_vec_t>()(i);
-                        },
-                        Number<nDst>{});
-
-                    // apply pointwise function
-                    // pointwise function signature:
-                    // element_op_(dst_data_refs[I0],
-                    //             dst_data_refs[I1],
-                    //             ...,
-                    //             src_data_refs[I0],
-                    //             src_data_refs[I1],
-                    //             ...)
-                    unpack2(element_op_, dst_data_refs, src_data_refs);
-                });
-            }
-            else
-            {
-                // apply pointwise function
-                static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
-                    // get reference to src data
-                    const auto src_data_refs = generate_tie(
-                        // return type should be lvalue
-                        [&](auto iSrc) -> const auto& {
-                            using SrcData = remove_cvref_t<tuple_element_t<iSrc.value, SrcDatas>>;
-
-                            return src_vectors[iSrc].template AsType<SrcData>()[i];
-                        },
-                        Number<nSrc>{});
-
-                    // get reference to dst data
-                    auto dst_data_refs = generate_tie(
-                        // return type should be lvalue
-                        [&](auto iDst) -> auto& {
-                            using DstData = remove_cvref_t<tuple_element_t<iDst.value, DstDatas>>;
-
-                            return dst_vectors(iDst).template AsType<DstData>()(i);
-                        },
-                        Number<nDst>{});
-
-                    // apply pointwise function
-                    // pointwise function signature:
-                    // element_op_(dst_data_refs[I0],
-                    //             dst_data_refs[I1],
-                    //             ...,
-                    //             src_data_refs[I0],
-                    //             src_data_refs[I1],
-                    //             ...)
-                    unpack2(element_op_, dst_data_refs, src_data_refs);
-                });
-            }
+                // pointwise function signature:
+                // element_op_(dst_data_refs[I0],
+                //             dst_data_refs[I1],
+                //             ...,
+                //             src_data_refs[I0],
+                //             src_data_refs[I1],
+                //             ...)
+                unpack2(element_op_, dst_data_refs, src_data_refs);
+            });
 
             dst_vectors_tuple_(iAccess) = dst_vectors;
 

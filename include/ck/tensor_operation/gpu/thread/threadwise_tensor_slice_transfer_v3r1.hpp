@@ -110,9 +110,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         dst_coord_ = make_tensor_coordinate(dst_desc, dst_slice_origin_idx);
     }
 
-    template <typename T>
-    using has_vec_len = decltype(std::declval<T&>().vec_len);
-
     template <typename SrcBuffer, index_t ThreadScratchId = 0>
     __device__ void RunRead(const SrcDesc& src_desc,
                             const SrcBuffer& src_buf,
@@ -219,27 +216,35 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             using dst_vector_t    = typename dst_vector_type::type;
             dst_vector_type op_r_v;
 
-            if constexpr(is_detected<has_vec_len, decltype(src_element_op_)>::value)
-            {
-                constexpr auto elem_op_vec_len = decltype(src_element_op_)::vec_len;
+            constexpr auto get_elem_op_vec_len = []() {
+                if constexpr(is_detected<is_pack8_invocable_t, decltype(src_element_op_)>::value)
+                {
+                    if constexpr(decltype(src_element_op_)::is_pack8_invocable)
+                        return math::min(8, SrcScalarPerVector);
+                }
+                if constexpr(is_detected<is_pack4_invocable_t, decltype(src_element_op_)>::value)
+                {
+                    if constexpr(decltype(src_element_op_)::is_pack4_invocable)
+                        return math::min(4, SrcScalarPerVector);
+                }
+                if constexpr(is_detected<is_pack2_invocable_t, decltype(src_element_op_)>::value)
+                {
+                    if constexpr(decltype(src_element_op_)::is_pack2_invocable)
+                        return math::min(2, SrcScalarPerVector);
+                }
+                return 1;
+            };
 
-                using src_elem_op_vec_t = typename vector_type<SrcData, elem_op_vec_len>::type;
-                using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
+            constexpr index_t elem_op_vec_len = get_elem_op_vec_len();
 
-                static_for<0, SrcScalarPerVector / elem_op_vec_len, 1>{}([&](auto idx) {
-                    // apply the src elementwise op and convert to DstData under the hood if needed
-                    src_element_op_(op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
-                                    src_vector_container.template AsType<src_elem_op_vec_t>()[idx]);
-                });
-            }
-            else
-            {
-                static_for<0, SrcScalarPerVector, 1>{}([&](auto idx) {
-                    // apply the src elementwise op and convert to DstData under the hood if needed
-                    src_element_op_(op_r_v.template AsType<DstData>()(idx),
-                                    src_vector_container.template AsType<SrcData>()[idx]);
-                });
-            }
+            using src_elem_op_vec_t = typename vector_type<SrcData, elem_op_vec_len>::type;
+            using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
+
+            static_for<0, SrcScalarPerVector / elem_op_vec_len, 1>{}([&](auto idx) {
+                // apply the src elementwise op and convert to DstData under the hood if needed
+                src_element_op_(op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
+                                src_vector_container.template AsType<src_elem_op_vec_t>()[idx]);
+            });
 
             // copy data from src_vector_container into src_thread_scratch_
             src_thread_scratch_tuple_(thread_scratch_id)
