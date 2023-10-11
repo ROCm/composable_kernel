@@ -268,11 +268,11 @@ int run(int argc, char* argv[])
 
     // Overall QKV matrices shape
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
-    // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
-    // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
+    // y_g0_g1q_m_o = reshape(y_g_m_o, [G0, G1Q, M, O])
+    // y_g0_m_g1q_o = permute(y_g0_g1q_m_o, [0, 2, 1, 3])
     float alpha  = 1.f / std::sqrt(DIM);
     float p_drop = 0.0;
-    int h_ratio  = 1; // G1 / G2
+    int h_ratio  = 1; // G1Q / G1KV
 
     bool input_permute  = true;
     bool output_permute = true;
@@ -369,61 +369,65 @@ int run(int argc, char* argv[])
     std::size_t flop = 0, num_byte = 0;
     for(std::size_t i = 0; i < group_count; i++)
     {
-        int M  = 128 * (rand() % 8) + (rand() % 128);
-        int N  = 128 * (rand() % 8) + (rand() % 128);
-        int K  = DIM;
-        int O  = DIM;
-        int G0 = rand() % 4 + 1;
-        int G2 = rand() % 4 + 1;
-        int G1 = G2 * h_ratio;
-        std::vector<ck::index_t> q_gs_ms_ks_lengths{G0, G1, M, K};
+        int M    = 128 * (rand() % 8) + (rand() % 128);
+        int N    = 128 * (rand() % 8) + (rand() % 128);
+        int K    = DIM;
+        int O    = DIM;
+        int G0   = rand() % 4 + 1;
+        int G1KV = rand() % 4 + 1;
+        int G1Q  = G1KV * h_ratio;
+        std::vector<ck::index_t> q_gs_ms_ks_lengths{G0, G1Q, M, K};
         std::vector<ck::index_t> q_gs_ms_ks_strides =
             input_permute
-                ? std::vector<ck::index_t>{M * G1 * K, K, G1 * K, 1} // Q layout [G0, M, G1, K]
-                : std::vector<ck::index_t>{G1 * M * K, M * K, K, 1}; // Q layout [G0, G1, M, K]
+                ? std::vector<ck::index_t>{M * G1Q * K, K, G1Q * K, 1} // Q layout [G0, M, G1Q, K]
+                : std::vector<ck::index_t>{G1Q * M * K, M * K, K, 1};  // Q layout [G0, G1Q, M, K]
 
-        std::vector<ck::index_t> k_gs_ns_ks_lengths{G0, G2, N, K};
+        std::vector<ck::index_t> k_gs_ns_ks_lengths{G0, G1KV, N, K};
         std::vector<ck::index_t> k_gs_ns_ks_strides =
             input_permute
-                ? std::vector<ck::index_t>{N * G2 * K, K, G2 * K, 1} // K layout [G0, N, G2, K]
-                : std::vector<ck::index_t>{G2 * N * K, N * K, K, 1}; // K layout [G0, G2, N, K]
+                ? std::vector<ck::index_t>{N * G1KV * K, K, G1KV * K, 1}
+                // K layout [G0, N, G1KV, K]
+                : std::vector<ck::index_t>{G1KV * N * K, N * K, K, 1}; // K layout [G0, G1KV, N, K]
 
-        std::vector<ck::index_t> v_gs_os_ns_lengths{G0, G2, O, N};
+        std::vector<ck::index_t> v_gs_os_ns_lengths{G0, G1KV, O, N};
         std::vector<ck::index_t> v_gs_os_ns_strides =
             input_permute
-                ? std::vector<ck::index_t>{N * G2 * O, O, 1, G2 * O} // V layout [G0, N, G2, O]
-                : std::vector<ck::index_t>{G2 * N * O, N * O, 1, O}; // V layout [G0, G2, N, O]
+                ? std::vector<ck::index_t>{N * G1KV * O, O, 1, G1KV * O}
+                // V layout [G0, N, G1KV, O]
+                : std::vector<ck::index_t>{G1KV * N * O, N * O, 1, O}; // V layout [G0, G1KV, N, O]
 
-        std::vector<ck::index_t> y_gs_ms_os_lengths{G0, G1, M, O};
+        std::vector<ck::index_t> y_gs_ms_os_lengths{G0, G1Q, M, O};
         std::vector<ck::index_t> y_gs_ms_os_strides =
             output_permute
-                ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // Y layout [G0, M, G1, O]
-                : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // Y layout [G0, G1, M, O]
+                ? std::vector<ck::index_t>{M * G1Q * O, O, G1Q * O, 1} // Y layout [G0, M, G1Q, O]
+                : std::vector<ck::index_t>{G1Q * M * O, M * O, O, 1};  // Y layout [G0, G1Q, M, O]
 
-        std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
+        std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1Q, M, N};
         std::vector<ck::index_t> z_gs_ms_ns_strides =
             input_permute
-                ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // Z layout [G0, M, G1, N]
-                : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // Z layout [G0, G1, M, N]
-        std::vector<ck::index_t> kgrad_gs_ns_ks_lengths{G0, G1, N, K};
+                ? std::vector<ck::index_t>{M * G1Q * N, N, G1Q * N, 1} // Z layout [G0, M, G1Q, N]
+                : std::vector<ck::index_t>{G1Q * M * N, M * N, N, 1};  // Z layout [G0, G1Q, M, N]
+        std::vector<ck::index_t> kgrad_gs_ns_ks_lengths{G0, G1Q, N, K};
         std::vector<ck::index_t> kgrad_gs_ns_ks_strides =
-            input_permute
-                ? std::vector<ck::index_t>{N * G1 * K, K, G1 * K, 1} // KGrad layout [G0, N, G1, K]
-                : std::vector<ck::index_t>{G1 * N * K, N * K, K, 1}; // KGrad layout [G0, G1, N, K]
+            input_permute ? std::vector<ck::index_t>{N * G1Q * K, K, G1Q * K, 1}
+                          // KGrad layout [G0, N, G1Q, K]
+                          : std::vector<ck::index_t>{
+                                G1Q * N * K, N * K, K, 1}; // KGrad layout [G0, G1Q, N, K]
 
-        std::vector<ck::index_t> vgrad_gs_os_ns_lengths{G0, G1, O, N};
+        std::vector<ck::index_t> vgrad_gs_os_ns_lengths{G0, G1Q, O, N};
         std::vector<ck::index_t> vgrad_gs_os_ns_strides =
-            input_permute
-                ? std::vector<ck::index_t>{N * G1 * O, O, 1, G1 * O} // VGrad layout [G0, N, G1, O]
-                : std::vector<ck::index_t>{G1 * N * O, N * O, 1, O}; // VGrad layout [G0, G1, N, O]
+            input_permute ? std::vector<ck::index_t>{N * G1Q * O, O, 1, G1Q * O}
+                          // VGrad layout [G0, N, G1Q, O]
+                          : std::vector<ck::index_t>{
+                                G1Q * N * O, N * O, 1, O}; // VGrad layout [G0, G1Q, N, O]
         // The softmax stat log-sum-exp (LSE) is used to speed up softmax calculation in backward
         // pass Pi = exp(Si) / sum(exp(S0) + exp(S1) + ...)
         //    = exp(Si) / exp(log(sum(exp() + ...)))
         //    = exp(Si - log(sum(exp() + ...)))
         //               ^^^^^^^^^^^^^^^^^^^^^
         //                       LSE
-        std::vector<ck::index_t> lse_gs_ms_lengths{G0, G1, M};
-        std::vector<ck::index_t> lse_gs_ms_strides{G1 * M, M, 1}; // LSE layout [G0, G1, M]
+        std::vector<ck::index_t> lse_gs_ms_lengths{G0, G1Q, M};
+        std::vector<ck::index_t> lse_gs_ms_strides{G1Q * M, M, 1}; // LSE layout [G0, G1Q, M]
         problem_descs.push_back({
             q_gs_ms_ks_lengths,
             q_gs_ms_ks_strides,
@@ -447,7 +451,7 @@ int run(int argc, char* argv[])
             {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
         });
 
-        int BatchCount = G0 * G1;
+        int BatchCount = G0 * G1Q;
         flop += (size_t(3) * M * N * K + size_t(2) * M * N * O) * 2 * BatchCount;
         // Q/K/V/Y, dQ/dK/dV/dY, LSE
         num_byte += (sizeof(InputDataType) * M * K + sizeof(InputDataType) * K * N +
@@ -509,14 +513,16 @@ int run(int argc, char* argv[])
             q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
             k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
             v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
-            ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<2>{}); // dy[g0, g1, m, o]
+            ygrad_gs_ms_os.GenerateTensorValue(
+                GeneratorTensor_Sequential<2>{}); // dy[g0, g1q, m, o]
             // dO dot O = [0; 1; 2; ...]
             break;
         case 6:
             q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
             k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
             v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
-            ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<3>{}); // dy[g0, g1, m, o]
+            ygrad_gs_ms_os.GenerateTensorValue(
+                GeneratorTensor_Sequential<3>{}); // dy[g0, g1q, m, o]
             // assume mnko = 256
             // P = softmax(QK) = 0.0039 * ones
             // O = P V = 0.0039 * ones
@@ -530,7 +536,7 @@ int run(int argc, char* argv[])
             k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
             v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
             ygrad_gs_ms_os.GenerateTensorValue(
-                GeneratorTensor_1<InputDataType>{1}); // dy[g0, g1, m, o]
+                GeneratorTensor_1<InputDataType>{1}); // dy[g0, g1q, m, o]
             // assume mnko = 256
             // P = softmax(QK) = 0.0039 * ones
             // O = P V = 0.0039 * ones
@@ -551,21 +557,21 @@ int run(int argc, char* argv[])
         Tensor<InputDataType> p_drop_g_m_n({BatchCount, M, N});
 
         q_gs_ms_ks.ForEach([&](auto& self, auto idx) {
-            q_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+            q_g_m_k(idx[0] * G1Q + idx[1], idx[2], idx[3]) = self(idx);
         });
         k_g_n_k.ForEach([&](auto& self, auto idx) {
-            const size_t& g0 = idx[0] / G1;
-            const size_t& g1 = idx[0] % G1;
-            const size_t& g2 = g1 / h_ratio;
+            const size_t& g0   = idx[0] / G1Q;
+            const size_t& g1q  = idx[0] % G1Q;
+            const size_t& g1kv = g1q / h_ratio;
 
-            self(idx) = k_gs_ns_ks(g0, g2, idx[1], idx[2]);
+            self(idx) = k_gs_ns_ks(g0, g1kv, idx[1], idx[2]);
         });
         v_g_n_o.ForEach([&](auto& self, auto idx) {
-            const size_t& g0 = idx[0] / G1;
-            const size_t& g1 = idx[0] % G1;
-            const size_t& g2 = g1 / h_ratio;
+            const size_t& g0   = idx[0] / G1Q;
+            const size_t& g1q  = idx[0] % G1Q;
+            const size_t& g1kv = g1q / h_ratio;
 
-            self(idx) = v_gs_os_ns(g0, g2, idx[2], idx[1]);
+            self(idx) = v_gs_os_ns(g0, g1kv, idx[2], idx[1]);
         });
 
         q_g_m_ks.push_back(q_g_m_k);
@@ -706,11 +712,11 @@ int run(int argc, char* argv[])
 
         for(std::size_t i = 0; i < group_count; i++)
         {
-            int G1 = q_tensors[i].GetLengths()[1];
+            int G1Q = q_tensors[i].GetLengths()[1];
             // copy z matirx data form device
             z_tensors_device[i]->FromDevice(z_tensors[i].mData.data());
             z_tensors[i].ForEach([&](auto& self, auto idx) {
-                z_g_m_ns[i](idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+                z_g_m_ns[i](idx[0] * G1Q + idx[1], idx[2], idx[3]) = self(idx);
             });
             run_attention_fwd_host(q_g_m_ks[i],
                                    k_g_n_ks[i],
@@ -726,11 +732,11 @@ int run(int argc, char* argv[])
                                    rp_dropout);
 
             y_tensors[i].ForEach([&](auto& self, auto idx) {
-                self(idx) = y_g_m_os[i](idx[0] * G1 + idx[1], idx[2], idx[3]);
+                self(idx) = y_g_m_os[i](idx[0] * G1Q + idx[1], idx[2], idx[3]);
             });
             y_tensors_device[i]->ToDevice(y_tensors[i].data());
             lse_tensors[i].ForEach([&](auto& self, auto idx) {
-                self(idx) = lse_g_ms[i](idx[0] * G1 + idx[1], idx[2]);
+                self(idx) = lse_g_ms[i](idx[0] * G1Q + idx[1], idx[2]);
             });
             lse_tensors_device[i]->ToDevice(lse_tensors[i].data());
             qgrad_tensors_device[i]->SetZero();
@@ -744,12 +750,12 @@ int run(int argc, char* argv[])
         {
 
             int G0         = q_tensors[i].GetLengths()[0];
-            int G1         = q_tensors[i].GetLengths()[1];
+            int G1Q        = q_tensors[i].GetLengths()[1];
             int O          = v_tensors[i].GetLengths()[2];
             int N          = v_tensors[i].GetLengths()[3];
             int M          = q_tensors[i].GetLengths()[2];
             int K          = q_tensors[i].GetLengths()[3];
-            int BatchCount = G0 * G1;
+            int BatchCount = G0 * G1Q;
             Tensor<OutputDataType> qgrad_g_m_k({BatchCount, M, K});
             Tensor<OutputDataType> kgrad_g_n_k({BatchCount, N, K});
             Tensor<OutputDataType> vgrad_g_n_o({BatchCount, N, O});
@@ -759,7 +765,7 @@ int run(int argc, char* argv[])
             Tensor<InputDataType> ygrad_g_m_o({BatchCount, M, O});
 
             ygrad_tensors[i].ForEach([&](auto& self, auto idx) {
-                ygrad_g_m_o(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+                ygrad_g_m_o(idx[0] * G1Q + idx[1], idx[2], idx[3]) = self(idx);
             });
             auto ref_gemm0_grad         = ReferenceGemm0GradInstance{};
             auto ref_gemm0_grad_invoker = ref_gemm0_grad.MakeInvoker();
@@ -819,26 +825,26 @@ int run(int argc, char* argv[])
             vgrad_tensors_device[i]->FromDevice(vgrad_gs_os_ns_device_result.data());
             // permute
             qgrad_gs_ms_ks_host_result.ForEach([&](auto& self, auto idx) {
-                const size_t& g0 = idx[0];
-                const size_t& g1 = idx[1];
+                const size_t& g0  = idx[0];
+                const size_t& g1q = idx[1];
 
-                const size_t g = g0 * G1 + g1;
+                const size_t g = g0 * G1Q + g1q;
 
                 self(idx) = qgrad_g_m_k(g, idx[2], idx[3]);
             });
             kgrad_gs_ns_ks_host_result.ForEach([&](auto& self, auto idx) {
-                const size_t& g0 = idx[0];
-                const size_t& g1 = idx[1];
+                const size_t& g0  = idx[0];
+                const size_t& g1q = idx[1];
 
-                const size_t g = g0 * G1 + g1;
+                const size_t g = g0 * G1Q + g1q;
 
                 self(idx) = kgrad_g_n_k(g, idx[2], idx[3]);
             });
             vgrad_gs_os_ns_host_result.ForEach([&](auto& self, auto idx) {
-                const size_t& g0 = idx[0];
-                const size_t& g1 = idx[1];
+                const size_t& g0  = idx[0];
+                const size_t& g1q = idx[1];
 
-                const size_t g = g0 * G1 + g1;
+                const size_t g = g0 * G1Q + g1q;
 
                 self(idx) = vgrad_g_n_o(g, idx[3], idx[2]);
             });
