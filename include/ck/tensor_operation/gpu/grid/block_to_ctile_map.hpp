@@ -271,8 +271,7 @@ struct BlockToCTileMap_KSplit_M00_N0_M01Adapt
     {
     }
 
-    __host__ __device__ constexpr index_t
-    CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
+    __host__ constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
     {
         const auto M0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I0), MPerBlock);
         const auto N0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I1), NPerBlock);
@@ -625,35 +624,23 @@ struct OffsettedBlockToCTileMap
     index_t block_start_;
 };
 
-///
-/// @brief      Simple tile mapping which creates 3D grid of block of threads.
-///
-/// @paragraph  Description
-///             This Block-to-C-tile-map creates a 3D grid (n_blocks, m_blocks, z_blocks) of thread
-///             blocks. The first 2D are regular 2D tiles created by division of output GEMM
-///             dimenions by corresponding tile size. The third dimension (Z) is a k-split
-///             dimension, which denotes the number of blocks we use to divide work on GEMM K
-///             dimension onto.
-///
-/// @tparam     MPerBlock  Output block tile size in M dimension.
-/// @tparam     NPerBlock  Output block tile size in N dimension.
-///
+/**
+ * @brief      Simple tile mapping which creates 3D grid of block of threads.
+ *
+ * @paragraph  Description
+ *             This Block-to-C-tile-map creates a 3D grid (n_blocks, m_blocks, z_blocks) of thread
+ *             blocks. The first 2D are regular 2D tiles created by division of output GEMM
+ *             dimenions by corresponding tile size. The third dimension (Z) is a k-split dimension,
+ *             which denotes the number of blocks we use to divide work on GEMM K dimension onto.
+ *
+ * @tparam     MPerBlock  Output block tile size in M dimension.
+ * @tparam     NPerBlock  Output block tile size in N dimension.
+ */
 template <index_t MPerBlock, index_t NPerBlock>
 struct BlockToCTileMap_3DGrid_KSplit
 {
-    __host__ __device__ BlockToCTileMap_3DGrid_KSplit() = default;
 
-    ///
-    /// @brief      Constructs a new instance.
-    ///
-    /// @param[in]  top_idx  Swallow blockIdx.
-    ///
-    /// @tparam     TopIdx   The type of block index.
-    ///
-    template <typename TopIdx>
-    __host__ __device__ BlockToCTileMap_3DGrid_KSplit([[maybe_unused]] TopIdx top_idx)
-    {
-    }
+    __host__ __device__ BlockToCTileMap_3DGrid_KSplit() = default;
 
     __host__ __device__ constexpr auto
     CalculateGridSize(index_t M, index_t N, index_t k_split) const
@@ -665,7 +652,8 @@ struct BlockToCTileMap_3DGrid_KSplit
         return std::make_tuple(N0, M0, k_split);
     }
 
-    __device__ constexpr auto CalculateBottomIndex() const
+    template <typename TopIdx>
+    __device__ constexpr auto CalculateBottomIndex(const TopIdx&) const
     {
         return make_tuple(blockIdx.z, blockIdx.y, blockIdx.x);
     }
@@ -692,53 +680,6 @@ struct BlockToCTileMap_3DGrid_KSplit
     {
         return true;
     }
-};
-
-///
-/// @brief      Block to CTile Map which foster external mechanism for setting up local block id.
-///
-///             In example this type can be easily used to implement tile looping work distribution
-///             scheme.
-///
-/// @tparam     UnderlyingBlockToCTileMap  The type of the local tile mapp.
-///
-template <typename UnderlyingBlockToCTileMap>
-struct LocalBlockToCTileMap
-{
-    using underlying_type = UnderlyingBlockToCTileMap;
-
-    __host__ __device__ LocalBlockToCTileMap(UnderlyingBlockToCTileMap block_to_ctile_map,
-                                             index_t local_id)
-        : block_to_ctile_map_{block_to_ctile_map}, local_block_id_{local_id}
-    {
-    }
-
-    __host__ __device__ constexpr auto CalculateBottomIndex() const
-    {
-        return block_to_ctile_map_.CalculateBottomIndex(make_multi_index(local_block_id_));
-    }
-
-    template <typename CTileIdx, typename CTileDim>
-    __host__ __device__ bool ValidCTileIndex(const CTileIdx& c_tile_idx,
-                                             const CTileDim& c_tile_dim) const
-    {
-        return block_to_ctile_map_.ValidCTileIndex(c_tile_idx, c_tile_dim);
-    }
-
-    template <typename CGridDesc_M_N>
-    __host__ bool CheckValidity(const CGridDesc_M_N& c_grid_desc_m_n) const
-    {
-        return block_to_ctile_map_.CheckValidity(c_grid_desc_m_n);
-    }
-
-    template <typename CGridDesc_M_N>
-    __host__ constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
-    {
-        return block_to_ctile_map_.CalculateGridSize(c_grid_desc_m_n);
-    }
-
-    UnderlyingBlockToCTileMap block_to_ctile_map_;
-    index_t local_block_id_;
 };
 
 enum StreamKReductionStrategy
