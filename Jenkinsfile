@@ -528,17 +528,15 @@ def Build_CK(Map conf=[:]){
                     }
                     if (params.hipTensor_test && navi_node == 0 ){
                         //build and test hipTensor
-                        git(
-                            url: 'https://github.com/ROCmSoftwarePlatform/hipTensor.git',
-                            branch: "mainline"
-                        )
-                        dir("hipTensor"){
+                        wget https://github.com/ROCmSoftwarePlatform/hipTensor/archive/refs/heads/mainline.zip
+                        unzip mainline.zip
+                        dir("hipTensor-mainline"){
                             sh 'mkdir -p build'
                             sh 'ls -ltr'
                             sh 'CC=hipcc CXX=hipcc cmake -Bbuild . '
                             sh 'cmake --build build -- -j '
                         }
-                        dir("hipTensor/build"){
+                        dir("hipTensor-mainline/build"){
                             sh 'ctest'
                         }
                     }
