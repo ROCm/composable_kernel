@@ -36,7 +36,7 @@ int bnorm_infer(
     const void* p_x,
     const void* p_scale,
     const void* p_bias,
-    double epsilon,
+    double _epsilon,
     const void* p_estimatedMean,
     const void* p_estimatedVariance,
     void* p_y)
@@ -101,7 +101,7 @@ int bnorm_infer(
         {yStrides},
         {p_x, p_estimatedMean, p_estimatedVariance, p_scale, p_bias},
         {p_y},
-        NormalizeInInfer{epsilon});
+        NormalizeInInfer{_epsilon});
 
     if(!dev_normalize.IsSupportedArgument(argument_ptr1.get()))
     {

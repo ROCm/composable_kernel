@@ -56,3 +56,8 @@ _templates/
 _toc.yml
 docBin/
 _doxygen/
+
+# JetBrains IDE
+.idea/
+cmake-build*/
+build*/

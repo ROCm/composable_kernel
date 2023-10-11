@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 function(add_instance_library INSTANCE_NAME)
     message("adding instance ${INSTANCE_NAME}")
     set(result 1)
@@ -128,7 +131,6 @@ set(DEV_OPS_INC_DIRS
     ${PROJECT_SOURCE_DIR}/library/include/ck/
 )
 
-target_compile_features(device_operations PUBLIC)
 set_target_properties(device_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(device_operations PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck>
@@ -154,6 +156,8 @@ target_include_directories(device_operations PUBLIC
 target_compile_options(device_operations PRIVATE
     --offload-arch=gfx908
     --offload-arch=gfx90a
+    --offload-arch=gfx1030
+    --offload-arch=gfx1100
 )
 
 # install(TARGETS device_operations LIBRARY DESTINATION lib)

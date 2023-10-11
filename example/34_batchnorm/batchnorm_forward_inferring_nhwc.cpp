@@ -119,7 +119,7 @@ bool bnorm_infer_nhwc_test(bool do_verification,
                            int init_method,
                            bool time_kernel,
                            const std::vector<size_t> inOutLengths,
-                           double epsilon)
+                           double _epsilon)
 {
     // for NHWC BatchNorm calculation of mean and meansquare
     constexpr int Rank         = 4;
@@ -251,7 +251,7 @@ bool bnorm_infer_nhwc_test(bool do_verification,
                                 x_dev.GetDeviceBuffer(),
                                 bnScale_dev.GetDeviceBuffer(),
                                 bnBias_dev.GetDeviceBuffer(),
-                                epsilon,
+                                _epsilon,
                                 estimatedMean_dev.GetDeviceBuffer(),
                                 estimatedVariance_dev.GetDeviceBuffer(),
                                 y_dev.GetDeviceBuffer());
@@ -289,7 +289,7 @@ bool bnorm_infer_nhwc_test(bool do_verification,
                                                    x.mData.data(),
                                                    bnScale.mData.data(),
                                                    bnBias.mData.data(),
-                                                   epsilon,
+                                                   _epsilon,
                                                    PassThroughOp{},
                                                    estimatedMean.mData.data(),
                                                    estimatedVariance.mData.data(),

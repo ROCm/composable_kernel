@@ -135,8 +135,8 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
                          const std::vector<size_t> inOutLengths,
                          bool updateMovingAverage,
                          bool saveMeanAndInvVariance,
-                         double averageFactor,
-                         double epsilon)
+                         double _averageFactor,
+                         double _epsilon)
 {
     // for NHWC BatchNorm calculation of mean and meansquare
     constexpr int Rank         = 4;
@@ -310,12 +310,12 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
         x_dev.GetDeviceBuffer(),
         bnScale_dev.GetDeviceBuffer(),
         bnBias_dev.GetDeviceBuffer(),
-        epsilon,
+        _epsilon,
         PassThroughOp{},
         y_dev.GetDeviceBuffer(),
         saveMeanAndInvVariance ? resultSaveMean_dev.GetDeviceBuffer() : nullptr,
         saveMeanAndInvVariance ? resultSaveInvVariance_dev.GetDeviceBuffer() : nullptr,
-        averageFactor,
+        _averageFactor,
         updateMovingAverage ? resultRunningMean_dev.GetDeviceBuffer() : nullptr,
         updateMovingAverage ? resultRunningVariance_dev.GetDeviceBuffer() : nullptr);
 
@@ -392,12 +392,12 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
             x.mData.data(),
             bnScale.mData.data(),
             bnBias.mData.data(),
-            epsilon,
+            _epsilon,
             PassThroughOp{},
             y_ref.mData.data(),
             saveMeanAndInvVariance ? resultSaveMean_ref.mData.data() : nullptr,
             saveMeanAndInvVariance ? resultSaveInvVariance_ref.mData.data() : nullptr,
-            averageFactor,
+            _averageFactor,
             updateMovingAverage ? resultRunningMean_ref.mData.data() : nullptr,
             updateMovingAverage ? resultRunningVariance_ref.mData.data() : nullptr);
 

@@ -1,9 +1,12 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/
     ${PROJECT_SOURCE_DIR}/profiler/include
 )
 
-include(googletest)
+include(GTest)
 
 add_custom_target(tests)
 
@@ -54,6 +57,7 @@ function(add_test_executable TEST_NAME)
     #only continue if there are some source files left on the list
     if(ARGN)
         add_executable(${TEST_NAME} ${ARGN})
+        target_link_libraries(${TEST_NAME} PRIVATE getopt::getopt)
         add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}>)
         add_dependencies(tests ${TEST_NAME})
         add_dependencies(check ${TEST_NAME})
@@ -62,9 +66,7 @@ function(add_test_executable TEST_NAME)
     endif()
     #message("add_test returns ${result}")
     set(result ${result} PARENT_SCOPE)
-endfunction(add_test_executable TEST_NAME)
-
-include(GoogleTest)
+endfunction()
 
 function(add_gtest_executable TEST_NAME)
     message("adding gtest ${TEST_NAME}")
@@ -117,14 +119,14 @@ function(add_gtest_executable TEST_NAME)
 
         # suppress gtest warnings
         target_compile_options(${TEST_NAME} PRIVATE -Wno-global-constructors -Wno-undef)
-        target_link_libraries(${TEST_NAME} PRIVATE gtest_main)
+        target_link_libraries(${TEST_NAME} PRIVATE gtest_main getopt::getopt)
         add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}>)
         rocm_install(TARGETS ${TEST_NAME} COMPONENT tests)
         set(result 0)
     endif()
     #message("add_gtest returns ${result}")
     set(result ${result} PARENT_SCOPE)
-endfunction(add_gtest_executable TEST_NAME)
+endfunction()
 
 add_subdirectory(magic_number_division)
 add_subdirectory(space_filling_curve)
