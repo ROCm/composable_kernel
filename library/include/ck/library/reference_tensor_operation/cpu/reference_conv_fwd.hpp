@@ -14,27 +14,27 @@ namespace ck {
 namespace tensor_operation {
 namespace host {
 
-//
-// @brief      Reference implementation for forward convolution.
-//
-// @paragraph
-//             Tensor descriptor in GNCHW/GKCXY/GNKHW dimensional order
-//             Supports both GNCHW/NGCHW as well as GNHWC/NHWGC physical layout
-//             as long as dimensions in tensor descriptor is in GNCHW order
-//
-// @tparam     InDataType               Input tensor data type.
-// @tparam     WeiDataType              Weights tensor data type.
-// @tparam     OutDataType              Output tensor data type.
-// @tparam     InElementwiseOperation   Functor for input tensor elementwise
-//                                      operation.
-// @tparam     WeiElementwiseOperation  Functor for weights tensor elementwise
-//                                      operation.
-// @tparam     NDimSpatial  Number of spatial dimensions.
-//
-// input descriptor in [G, N, C, Do, Ho, Wo] order
-// weight descriptor in [G, K, C, Z, Y, X] order
-// output descriptor in [G, N, K, Di, Hi, Wi] order
-// phyiscal layout is irrelavent
+///
+/// @brief      Reference implementation for forward convolution.
+///
+/// @paragraph
+///             Tensor descriptor in GNCHW/GKCXY/GNKHW dimensional order
+///             Supports both GNCHW/NGCHW as well as GNHWC/NHWGC physical layout
+///             as long as dimensions in tensor descriptor is in GNCHW order
+///
+/// @tparam     InDataType               Input tensor data type.
+/// @tparam     WeiDataType              Weights tensor data type.
+/// @tparam     OutDataType              Output tensor data type.
+/// @tparam     InElementwiseOperation   Functor for input tensor elementwise
+///                                      operation.
+/// @tparam     WeiElementwiseOperation  Functor for weights tensor elementwise
+///                                      operation.
+/// @tparam     NDimSpatial  Number of spatial dimensions.
+///
+/// input descriptor in [G, N, C, Do, Ho, Wo] order
+/// weight descriptor in [G, K, C, Z, Y, X] order
+/// output descriptor in [G, N, K, Di, Hi, Wi] order
+/// phyiscal layout is irrelavent
 template <ck::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,
