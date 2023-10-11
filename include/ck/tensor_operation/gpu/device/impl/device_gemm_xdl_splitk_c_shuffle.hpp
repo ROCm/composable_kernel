@@ -168,7 +168,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                                      stream_config.stream_id_));
 
                 ave_time = launch_and_time_kernel(
-                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg, b2c_map);
+                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg);
             };
 
             if(has_main_k0_block_loop)

@@ -348,24 +348,24 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
                         acc_elementwise_op};
     };
 
-    //
-    // @brief      Makes a pointer to Argument class.
-    //
-    // @param[in]  inLengths           Input tensor extent(s) from high to low dimension
-    // @param[in]  inStrides           Input tensor stride(s) from high to low dimension
-    // @param[in]  reduceDims          The dimension(s) the normalization operation is applied
-    // @param[in]  alpha               Typeless pointer in host memory storing the alpha scaling
-    //                                 value as type AccDataType
-    // @param[in]  beta                Typeless pointer in host memory storing the beta scaling
-    //                                 value as type AccDataType
-    // @param[in]  in_dev              Typeless const pointer in device memory storing the input
-    //                                 tensor
-    // @param      out_dev             Typeless pointer in device memory storing the output tensor
-    // @param[in]  in_elementwise_op   The input elementwise operation.
-    // @param[in]  acc_elementwise_op  The accumulation elementwise operation.
-    //
-    // @return     Unique pointer to the Argument class.
-    //
+    ///
+    /// @brief      Makes a pointer to Argument class.
+    ///
+    /// @param[in]  inLengths           Input tensor extent(s) from high to low dimension
+    /// @param[in]  inStrides           Input tensor stride(s) from high to low dimension
+    /// @param[in]  reduceDims          The dimension(s) the normalization operation is applied
+    /// @param[in]  alpha               Typeless pointer in host memory storing the alpha scaling
+    ///                                 value as type AccDataType
+    /// @param[in]  beta                Typeless pointer in host memory storing the beta scaling
+    ///                                 value as type AccDataType
+    /// @param[in]  in_dev              Typeless const pointer in device memory storing the input
+    ///                                 tensor
+    /// @param      out_dev             Typeless pointer in device memory storing the output tensor
+    /// @param[in]  in_elementwise_op   The input elementwise operation.
+    /// @param[in]  acc_elementwise_op  The accumulation elementwise operation.
+    ///
+    /// @return     Unique pointer to the Argument class.
+    ///
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<index_t> inLengths,
                                                       const std::vector<index_t> inStrides,
                                                       const std::vector<int> reduceDims,
