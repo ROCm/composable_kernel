@@ -969,7 +969,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
                     c_grid_desc_g_m_n,
                     bgrad_grid_desc_g_n_k,
                     b1grad_grid_desc_g_n_k,
-                    type_convert<index_t>(lse_grid_desc_m.GetElementSpaceSize()));
+                    type_convert<index_t>(problem_desc.lse_gs_ms_strides[NumDimG - 1]));
 
                 // C0 mask
                 const auto c0_matrix_mask =

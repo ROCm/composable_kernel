@@ -467,19 +467,6 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
-    //
-    // dP = dY * V^T
-    //
-
-    // YGrad in Gemm A position
-    static auto MakeYGradGridDescriptor_O0_M_O1(const std::vector<index_t>& y_gs_ms_os_lengths,
-                                                const std::vector<index_t>& y_gs_ms_os_strides)
-    {
-        return Transform::MakeAGridDescriptor_AK0_M_AK1(
-            Transform::MakeAGridDescriptor_M_K(y_gs_ms_os_lengths, y_gs_ms_os_strides),
-            Number<Y_O1>{});
-    }
-
     // V in Gemm B position
     static auto MakeVGridDescriptor_O0_N_O1(const std::vector<index_t>& v_gs_os_ns_lengths,
                                             const std::vector<index_t>& v_gs_os_ns_strides)
@@ -1039,7 +1026,7 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                     c_grid_desc_g_m_n,
                     bgrad_grid_desc_g_n_k,
                     b1grad_grid_desc_g_n_k,
-                    type_convert<index_t>(lse_grid_desc_m.GetElementSpaceSize()));
+                    type_convert<index_t>(problem_desc.lse_gs_ms_strides[NumDimG - 1]));
 
                 // C0 mask
                 const auto c0_matrix_mask =

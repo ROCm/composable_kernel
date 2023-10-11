@@ -320,18 +320,27 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         // dV_NOM / dK_NKM Gemm (Gemm2 crr)
         if(O != K)
         {
+            std::cerr << "O = " << O << " K = " << K << std::endl;
             std::cerr << "SizeK must be equal to SizeO (equal attention head size)" << '\n';
             return false;
         }
 
         if(!(M == y_grid_desc_m_o.GetLength(I0) && O == y_grid_desc_m_o.GetLength(I1)))
         {
+            std::cerr << "M = " << M << " O = " << O
+                      << " y_grid_desc_m_o = " << y_grid_desc_m_o.GetLength(I0) << " , "
+                      << y_grid_desc_m_o.GetLength(I1) << std::endl;
+            std::cerr << "Un-matched sizes!" << std::endl;
             return false;
         }
 
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0 &&
              O % Gemm1NPerBlock == 0))
         {
+            std::cerr << "M = " << M << " N = " << N << " O = " << O << std::endl;
+            std::cerr << "MPerBlock = " << MPerBlock << " NPerBlock = " << NPerBlock
+                      << " KPerBlock = " << KPerBlock << std::endl;
+            std::cerr << "Un-aligned sizes!" << std::endl;
             return false;
         }
 
