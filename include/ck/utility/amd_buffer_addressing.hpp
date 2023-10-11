@@ -490,7 +490,7 @@ amd_buffer_store_impl_raw(const typename vector_type<int8_t, N>::type src_thread
         llvm_amdgcn_raw_buffer_store_i32x4(tmp.template AsType<int32x4_t>()[Number<1>{}],
                                            dst_wave_buffer_resource,
                                            dst_thread_addr_offset,
-                                           dst_wave_addr_offset,
+                                           dst_wave_addr_offset + sizeof(int32_t) * 4,
                                            static_cast<index_t>(coherence));
     }
     else if constexpr(N == 64)
@@ -506,19 +506,19 @@ amd_buffer_store_impl_raw(const typename vector_type<int8_t, N>::type src_thread
         llvm_amdgcn_raw_buffer_store_i32x4(tmp.template AsType<int32x4_t>()[Number<1>{}],
                                            dst_wave_buffer_resource,
                                            dst_thread_addr_offset,
-                                           dst_wave_addr_offset,
+                                           dst_wave_addr_offset + sizeof(int32_t) * 4,
                                            static_cast<index_t>(coherence));
 
         llvm_amdgcn_raw_buffer_store_i32x4(tmp.template AsType<int32x4_t>()[Number<2>{}],
                                            dst_wave_buffer_resource,
                                            dst_thread_addr_offset,
-                                           dst_wave_addr_offset,
+                                           dst_wave_addr_offset + sizeof(int32_t) * 8,
                                            static_cast<index_t>(coherence));
 
         llvm_amdgcn_raw_buffer_store_i32x4(tmp.template AsType<int32x4_t>()[Number<3>{}],
                                            dst_wave_buffer_resource,
                                            dst_thread_addr_offset,
-                                           dst_wave_addr_offset,
+                                           dst_wave_addr_offset + sizeof(int32_t) * 12,
                                            static_cast<index_t>(coherence));
     }
 }
