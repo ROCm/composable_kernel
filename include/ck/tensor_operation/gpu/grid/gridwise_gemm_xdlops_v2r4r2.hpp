@@ -27,8 +27,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_v2r4r2_simplified(typename GridwiseGemm::Argument karg,
-                                             const Block2CTileMap& b2c_map)
+        kernel_gemm_xdlops_v2r4r2_simplified(typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
@@ -36,11 +35,12 @@ __global__ void
 
     __shared__ uint8_t p_shared[shared_size];
 
+    Block2CTileMap b2c_map{get_block_1d_id()};
+
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation>(
         karg, static_cast<void*>(p_shared), b2c_map);
 #else
     ignore = karg;
-    ignore = b2c_map;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -541,15 +541,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
     }
 
-    // return block_id to C matrix tile idx (m0, n0) mapping
-    template <typename CGridDesc>
-    __host__ __device__ static constexpr auto MakeCBlockClusterAdaptor(
-        const CGridDesc& c_m_n_grid_desc, index_t /* M01 */, index_t /* N01 */, index_t KBatch)
-    {
-        return BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc>(
-            c_m_n_grid_desc, 8, KBatch);
-    }
-
     __host__ __device__ static constexpr auto
     GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock()
     {
@@ -575,18 +566,28 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
               typename Block2CTileMap>
-    __device__ static void Run(const Argument& karg,
+    __device__ static void Run(const FloatA* p_a_grid,
+                               const FloatB* p_b_grid,
+                               FloatC* p_c_grid,
+                               index_t M,
+                               index_t N,
+                               index_t K,
+                               index_t StrideA,
+                               index_t StrideB,
+                               index_t StrideC,
+                               index_t MPadded,
+                               index_t NPadded,
+                               index_t KPadded,
+                               index_t K0,
+                               index_t k_batch,
                                void* __restrict__ p_shared_block,
                                const Block2CTileMap& block_2_ctile_map)
     {
-        const FloatA* p_a_grid           = karg.p_a_grid;
-        const FloatB* p_b_grid           = karg.p_b_grid;
-        FloatC* p_c_grid                 = karg.p_c_grid;
-        const auto a_b_k0_m_k1_grid_desc = MakeAGridDescriptor_KBatch_K0_M_K1(
-            karg.M, karg.MPadded, karg.K, karg.StrideA, karg.k_batch, karg.K0, karg.KPadded);
-        const auto b_b_k0_n_k1_grid_desc = MakeBGridDescriptor_KBatch_K0_N_K1(
-            karg.K, karg.NPadded, karg.N, karg.StrideB, karg.k_batch, karg.K0, karg.KPadded);
-        const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
+        const auto a_b_k0_m_k1_grid_desc =
+            MakeAGridDescriptor_KBatch_K0_M_K1(M, MPadded, K, StrideA, k_batch, K0, KPadded);
+        const auto b_b_k0_n_k1_grid_desc =
+            MakeBGridDescriptor_KBatch_K0_N_K1(K, NPadded, N, StrideB, k_batch, K0, KPadded);
+        const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(M, N, StrideC);
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
@@ -602,8 +603,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         // divide block work by [KBatch, M, N]
-        const auto block_work_idx =
-            block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
+        const auto block_work_idx = block_2_ctile_map.CalculateBottomIndex();
 
         if(!block_2_ctile_map.ValidCTileIndex(
                block_work_idx,
@@ -1009,6 +1009,34 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             });
         }
     }
+
+    template <bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+              typename Block2CTileMap>
+    __device__ static void Run(const Argument& karg,
+                               void* __restrict__ p_shared_block,
+                               const Block2CTileMap& block_2_ctile_map)
+    {
+        Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, Block2CTileMap>(karg.p_a_grid,
+                                                                           karg.p_b_grid,
+                                                                           karg.p_c_grid,
+                                                                           karg.M,
+                                                                           karg.N,
+                                                                           karg.K,
+                                                                           karg.StrideA,
+                                                                           karg.StrideB,
+                                                                           karg.StrideC,
+                                                                           karg.MPadded,
+                                                                           karg.NPadded,
+                                                                           karg.KPadded,
+                                                                           karg.K0,
+                                                                           karg.k_batch,
+                                                                           p_shared_block,
+                                                                           block_2_ctile_map);
+    }
+
+    static constexpr auto GetMPerBlock() { return MPerBlock; }
+    static constexpr auto GetNPerBlock() { return NPerBlock; }
 
     static std::string GetTypeString()
     {
