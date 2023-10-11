@@ -10,7 +10,6 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_data_multiple_d_xdl_cshuffle_v1.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 

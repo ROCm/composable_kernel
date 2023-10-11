@@ -19,6 +19,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_dl_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
@@ -28,51 +29,6 @@ namespace tensor_operation {
 namespace device {
 
 namespace {
-
-template <index_t NumDTensor>
-struct ComputePtrOffsetOfStridedBatch
-{
-    ComputePtrOffsetOfStridedBatch() = default;
-
-    ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
-                                   index_t BatchStrideB,
-                                   Array<ck::index_t, NumDTensor> BatchStrideDs,
-                                   index_t BatchStrideE)
-        : BatchStrideA_(BatchStrideA),
-          BatchStrideB_(BatchStrideB),
-          BatchStrideDs_(BatchStrideDs),
-          BatchStrideE_(BatchStrideE)
-    {
-    }
-
-    __host__ __device__ constexpr long_index_t GetAPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideA_);
-    }
-
-    __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideB_);
-    }
-
-    __host__ __device__ constexpr auto GetDsPtrOffset(index_t g_idx) const
-    {
-        Array<long_index_t, NumDTensor> ds_offset;
-        static_for<0, NumDTensor, 1>{}(
-            [&](auto i) { ds_offset(i) = g_idx * static_cast<long_index_t>(BatchStrideDs_[i]); });
-        return ds_offset;
-    }
-
-    __host__ __device__ constexpr long_index_t GetEPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideE_);
-    }
-
-    index_t BatchStrideA_;
-    index_t BatchStrideB_;
-    Array<ck::index_t, NumDTensor> BatchStrideDs_;
-    index_t BatchStrideE_;
-};
 
 /*
  * \brief Wrapper function of GridwiseGemm::Run to realize BatchedGEMM.
@@ -201,22 +157,22 @@ __global__ void
 }
 } // namespace
 
-//
-// @brief      Device Convolution operation.
-//
-// Supports:
-//  @li         Forward convolution with up to 3 spatial dimentions
-//  @li         Input tensor in GNWC data format
-//  @li         Weight tensor in GKXC data format
-//  @li         Output tensor in GNWK data format
-//
-// 1D:
-// out[N, Wo, K] = in[N, Wi, C] * wei[K, X, C]
-// 2D:
-// out[N, Ho, Wo, K] = in[N, Hi, Wi, C] * wei[K, Y, X, C]
-// 3D:
-// out[N, Do, Ho, Wo, K] = in[N, Di, Hi, Wi, C] * wei[K, Z, Y, X, C]
-//
+///
+/// @brief      Device Convolution operation.
+///
+/// Supports:
+///  @li         Forward convolution with up to 3 spatial dimentions
+///  @li         Input tensor in GNWC data format
+///  @li         Weight tensor in GKXC data format
+///  @li         Output tensor in GNWK data format
+///
+/// 1D:
+/// out[N, Wo, K] = in[N, Wi, C] * wei[K, X, C]
+/// 2D:
+/// out[N, Ho, Wo, K] = in[N, Hi, Wi, C] * wei[K, Y, X, C]
+/// 3D:
+/// out[N, Do, Ho, Wo, K] = in[N, Di, Hi, Wi, C] * wei[K, Z, Y, X, C]
+///
 template <index_t NDimSpatial,
           typename ADataType,
           typename BDataType,

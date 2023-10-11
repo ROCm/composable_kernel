@@ -303,7 +303,7 @@ struct deviceGemvDl : public DeviceGemv<ALayout,
                         StrideC,
                         GridwiseGemv::CalculateMPadded(M),
                         GridwiseGemv::CalculateNPadded(N),
-                        GridwiseGemv::CalculateKPadded(K, KBatch),
+                        K,
                         GridwiseGemv::CalculateK0(K, KBatch),
                         KBatch}; // //
     }
@@ -336,7 +336,7 @@ struct deviceGemvDl : public DeviceGemv<ALayout,
                                           StrideC,
                                           GridwiseGemv::CalculateMPadded(M),
                                           GridwiseGemv::CalculateNPadded(N),
-                                          GridwiseGemv::CalculateKPadded(K, KBatch),
+                                          K,
                                           GridwiseGemv::CalculateK0(K, KBatch),
                                           KBatch); // //
     }

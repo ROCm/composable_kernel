@@ -28,7 +28,7 @@ struct ProblemSize final // Default GEMV problem size
     ck::index_t N        = 1104;
     ck::index_t K        = 4608;
     ck::index_t stride_A = K;
-    ck::index_t stride_B = K;
+    ck::index_t stride_B = N; // K;
     ck::index_t stride_C = N;
     ck::index_t k_batch  = 1;
 };
