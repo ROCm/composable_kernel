@@ -367,8 +367,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
     template <index_t NDim, typename ck::enable_if<NDim == 3, bool>::type = false>
     static auto GetABCGridDesc()
     {
-        const index_t dim   = 1;
-        const index_t batch = 1;
+        const index_t dim = 1;
         const std::array<index_t, NDimSpatial> lengths{1, 1, 1};
         const std::array<index_t, NDimSpatial + 3> strides{1, 1, 1, 1, 1, 1};
         const std::array<index_t, NDimSpatial> params{1, 1, 1};

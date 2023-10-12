@@ -14,13 +14,10 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using BF16 = ck::bhalf_t;
-using F16  = ck::half_t;
-using F32  = float;
-using I8   = int8_t;
-using I32  = int32_t;
-
-using Empty_Tuple = ck::Tuple<>;
+using F16 = ck::half_t;
+using F32 = float;
+using I8  = int8_t;
+using I32 = int32_t;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
