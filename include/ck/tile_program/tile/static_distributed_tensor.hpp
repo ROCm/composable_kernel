@@ -58,7 +58,7 @@ struct StaticDistributedTensor
     }
 
     template <index_t... YSliceOrigins, index_t... YSliceLengths>
-    __host__ __device__ auto GetSlicedThreadData(Sequence<YSliceOrigins...>,
+    __host__ __device__ auto GetYSlicedThreadData(Sequence<YSliceOrigins...>,
                                                  Sequence<YSliceLengths...>) const
     {
         static_assert(sizeof...(YSliceOrigins) == StaticTileDistribution::NDimY &&
@@ -85,7 +85,7 @@ struct StaticDistributedTensor
     }
 
     template <index_t... YSliceOrigins, index_t... YSliceLengths, index_t NSlicedData>
-    __host__ __device__ void SetSlicedThreadData(
+    __host__ __device__ void SetYSlicedThreadData(
         Sequence<YSliceOrigins...>,
         Sequence<YSliceLengths...>,
         const StaticBuffer<AddressSpaceEnum::Vgpr, DataType, NSlicedData, true>& sliced_thread_data)

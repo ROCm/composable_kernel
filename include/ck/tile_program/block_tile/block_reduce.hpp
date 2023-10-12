@@ -6,7 +6,7 @@
 #include "ck/utility/common_header.hpp"
 
 #include "ck/tile_program/tile/static_distributed_tensor.hpp"
-#include "ck/tile_program/tile/static_tile_distribution_encoding_helper.hpp"
+#include "ck/tile_program/tile/static_tile_distribution_helper.hpp"
 #include "ck/tile_program/tile/distributed_tile_sweep.hpp"
 
 namespace ck {

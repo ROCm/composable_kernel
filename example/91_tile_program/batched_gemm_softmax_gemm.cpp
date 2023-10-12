@@ -29,7 +29,7 @@ int main(int argc, char* argv[])
     using ODataType           = ck::half_t;
 
     ck::index_t Batch = 16;
-    ck::index_t M0    = 4096;
+    ck::index_t M0    = 3328;
     ck::index_t N0    = 4096;
     ck::index_t K0    = 128;
     ck::index_t N1    = 128;

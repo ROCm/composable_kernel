@@ -19,6 +19,7 @@ namespace tile_program {
 // detail used by tile-programming APIs(), not supposed to be used directly
 namespace detail {
 
+// TODO: deprecate
 // "Y dimension": Y dimensions inside TileWindowWithStaticDistribution
 // input:
 //   y_slice_origin: starting slice origin of Y dimension
@@ -177,14 +178,144 @@ load_tile(TileWindowWithStaticDistribution<BottomTensorView_, WindowLengths_, Ti
 
     constexpr auto tile_dstr = TileDstr{};
 
-    constexpr index_t NDimY = tile_dstr.GetYs2DDescriptor().GetNumOfDimension();
+    auto dst_tensor = make_static_distributed_tensor<DataType>(tile_dstr);
 
-    auto dstr_tensor = make_static_distributed_tensor<DataType>(tile_dstr);
+    constexpr auto thread_tensor_lengths_ys =
+        to_sequence(tile_dstr.GetYs2DDescriptor().GetLengths());
 
-    dstr_tensor.GetThreadBuffer() = detail::load_sliced_thread_data_from_tile_window(
-        tile_window, MultiIndex<NDimY>{0}, to_sequence(tile_dstr.GetYs2DDescriptor().GetLengths()));
+    constexpr index_t NDimP = TileDstr::GetNumOfDimensionP();
+    constexpr index_t NDimY = TileDstr::GetNumOfDimensionY();
 
-    return dstr_tensor;
+    static_assert(TileWindow::HasStaticTileDistribution(),
+                  "wrong! assume static tile distribution");
+
+    constexpr auto tmp = [&thread_tensor_lengths_ys]() {
+        const auto [ys_vector_lengths, ys_vector_strides] =
+            TileWindow::GetWindowAdaptorYsSafeVectorLengthStrides();
+
+        index_t VectorDimY      = 0;
+        index_t ScalarPerVector = 1;
+
+        for(index_t i = 0; i < NDimY; ++i)
+        {
+            if(ys_vector_strides[i] == 1 && ys_vector_lengths[i] > ScalarPerVector)
+            {
+                ScalarPerVector = ys_vector_lengths[i];
+                VectorDimY      = i;
+            }
+        }
+
+        return make_tuple(VectorDimY, ScalarPerVector);
+    }();
+
+    constexpr index_t VectorDimY      = tmp.template At<0>();
+    constexpr index_t ScalarPerVector = tmp.template At<1>();
+
+    // FIXME
+    using DimAccessOrder = typename arithmetic_sequence_gen<0, NDimY, 1>::type;
+
+    constexpr auto scalars_per_access_arr = generate_array(
+        [&](auto i) { return (i == VectorDimY) ? ScalarPerVector : 1; }, Number<NDimY>{});
+
+    constexpr auto scalars_per_access = TO_SEQUENCE(scalars_per_access_arr, NDimY);
+
+    using vector_type_t = vector_type_maker_t<DataType, ScalarPerVector>;
+    using vector_t      = typename vector_type_t::type;
+
+    using SFC_Ys = SpaceFillingCurve<decltype(thread_tensor_lengths_ys),
+                                     DimAccessOrder,
+                                     decltype(scalars_per_access)>;
+
+    constexpr index_t num_access = SFC_Ys::GetNumOfAccess();
+
+    static_assert(num_access > 0, "wrong! num_access should be larger than 0");
+
+#if 1 // debug
+    // loop over thread tensor space [y0, y1, ...]
+    static_for<0, num_access, 1>{}([&](auto iAccess) {
+        // read from bottom tensor
+        const vector_t vec_value =
+            tile_window.GetBottomTensorView().template GetVectorizedElements<vector_t>(
+                tile_window.GetBottomTensorThreadCoordinate());
+
+        const vector_type_t vec{vec_value};
+
+        // data index [y0, y1, ...]
+        constexpr auto idx_ys_start = SFC_Ys::GetIndex(iAccess);
+
+        // write into distributed tensor
+        static_for<0, ScalarPerVector, 1>{}([&](auto j) {
+            constexpr auto idx_ys = generate_array(
+                [&](auto jj) {
+                    return jj == VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
+                },
+                Number<NDimY>{});
+
+            constexpr index_t d = tile_dstr.GetYs2DDescriptor().CalculateOffset(idx_ys);
+
+            dst_tensor.GetThreadBuffer().template At<d>() = vec.template AsType<DataType>()[j];
+        });
+
+        // move thread coordinate
+        if constexpr(iAccess.value != num_access - 1)
+        {
+            constexpr auto idx_diff_ys = SFC_Ys::GetForwardStep(iAccess);
+
+            constexpr auto idx_diff_ps_ys = container_concat(Array<index_t, NDimP>{0}, idx_diff_ys);
+
+            tile_window.MoveWindowAdaptorAndBottomTensorThreadCoordinate(idx_diff_ps_ys);
+        }
+    });
+
+    // move thread coordinate back to origin
+    {
+        constexpr auto idx_diff_ys = SFC_Ys::GetStepBetween(Number<num_access - 1>{}, Number<0>{});
+
+        constexpr auto idx_diff_ps_ys = container_concat(Array<index_t, NDimP>{0}, idx_diff_ys);
+
+        tile_window.MoveWindowAdaptorAndBottomTensorThreadCoordinate(idx_diff_ps_ys);
+    }
+#else
+    auto tile_window_tmp = tile_window;
+
+    // loop over thread tensor space [y0, y1, ...]
+    static_for<0, num_access, 1>{}([&](auto iAccess) {
+        // read from bottom tensor
+        const vector_t vec_value =
+            tile_window.GetBottomTensorView().template GetVectorizedElements<vector_t>(
+                tile_window_tmp.GetBottomTensorThreadCoordinate());
+
+        const vector_type_t vec{vec_value};
+
+        // data index [y0, y1, ...]
+        constexpr auto idx_ys_start = SFC_Ys::GetIndex(iAccess);
+
+        // write into distributed tensor
+        static_for<0, ScalarPerVector, 1>{}([&](auto j) {
+            constexpr auto idx_ys = generate_array(
+                [&](auto jj) {
+                    return jj == VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
+                },
+                Number<NDimY>{});
+
+            constexpr index_t d = tile_dstr.GetYs2DDescriptor().CalculateOffset(idx_ys);
+
+            dst_tensor.GetThreadBuffer().template At<d>() = vec.template AsType<DataType>()[j];
+        });
+
+        // move thread coordinate
+        if constexpr(iAccess.value != num_access - 1)
+        {
+            constexpr auto idx_diff_ys = SFC_Ys::GetForwardStep(iAccess);
+
+            constexpr auto idx_diff_ps_ys = container_concat(Array<index_t, NDimP>{0}, idx_diff_ys);
+
+            tile_window_tmp.MoveWindowAdaptorAndBottomTensorThreadCoordinate(idx_diff_ps_ys);
+        }
+    });
+#endif
+
+    return dst_tensor;
 }
 
 } // namespace tile_program

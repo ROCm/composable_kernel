@@ -256,6 +256,8 @@ struct Tuple<>
 
     // FIXME: remove
     __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }
+
+    __host__ __device__ void Print() const { printf("Tuple{size: 0, data: []}"); }
 };
 
 template <typename... Xs>

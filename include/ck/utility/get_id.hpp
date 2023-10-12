@@ -27,7 +27,10 @@ __device__ index_t get_block_1d_id() { return blockIdx.x; }
 // Use these instead
 __device__ index_t get_lane_id() { return __lane_id(); }
 
-__device__ index_t get_warp_id() { return threadIdx.x / get_warp_size(); }
+__device__ index_t get_warp_id()
+{
+    return __builtin_amdgcn_readfirstlane(threadIdx.x / get_warp_size());
+}
 
 __device__ index_t get_thread_id() { return threadIdx.x; }
 

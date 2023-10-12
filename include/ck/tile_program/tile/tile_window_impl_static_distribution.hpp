@@ -8,6 +8,7 @@
 #include "ck/tensor_description/tensor_adaptor_coordinate.hpp"
 
 #include "ck/tile_program/tile/tile_distribution.hpp"
+#include "ck/tile_program/tile/static_tile_distribution_helper.hpp"
 
 namespace ck {
 namespace tile_program {
@@ -57,10 +58,48 @@ struct TileWindowWithStaticDistribution
           window_origin_{window_origin},
           bottom_tensor_thread_coord_{},
           tile_dstr_{tile_distribution},
-          window_adaptor_thread_coord_{
-              make_tensor_adaptor_coordinate(tile_distribution.GetPsYs2XsAdaptor(),
-                                             AdaptorTopIndex{get_warp_id(), get_lane_id(), 0})}
+          window_adaptor_thread_coord_{}
     {
+#if 0 // debug
+      // only support warp-tile and block-tile
+        static_assert(TileDstr::NDimP == 1 or TileDstr::NDimP == 2, "wrong!");
+
+        if constexpr(TileDstr::NDimP == 1)
+        {
+            window_adaptor_thread_coord_ = make_tensor_adaptor_coordinate(
+                tile_distribution.GetPsYs2XsAdaptor(), AdaptorTopIndex{get_lane_id(), 0});
+        }
+        else if constexpr(TileDstr::NDimP == 2)
+        {
+            window_adaptor_thread_coord_ =
+                make_tensor_adaptor_coordinate(tile_distribution.GetPsYs2XsAdaptor(),
+                                               AdaptorTopIndex{get_warp_id(), get_lane_id(), 0});
+        }
+#elif 0
+        // only support warp-tile and block-tile
+        static_assert(TileDstr::NDimP == 1 or TileDstr::NDimP == 2, "wrong!");
+
+        if constexpr(TileDstr::NDimP == 1)
+        {
+            window_adaptor_thread_coord_ = make_tensor_adaptor_coordinate(
+                tile_distribution.GetPsYs2XsAdaptor(),
+                container_concat(Array<index_t, 1>{get_lane_id()},
+                                 Array<index_t, TileDstr::NDimY>{0}));
+        }
+        else if constexpr(TileDstr::NDimP == 2)
+        {
+            window_adaptor_thread_coord_ = make_tensor_adaptor_coordinate(
+                tile_distribution.GetPsYs2XsAdaptor(),
+                container_concat(Array<index_t, 2>{get_warp_id(), get_lane_id()},
+                                 Array<index_t, TileDstr::NDimY>{0}));
+        }
+#else
+        window_adaptor_thread_coord_ = make_tensor_adaptor_coordinate(
+            tile_distribution.GetPsYs2XsAdaptor(),
+            container_concat(detail::get_partition_index(tile_distribution),
+                             Array<index_t, TileDstr::NDimY>{0}));
+#endif
+
         BottomTensorIndex bottom_tensor_thread_origin_idx;
 
         for(index_t i = 0; i < NDimBottomTensor; ++i)
