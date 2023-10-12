@@ -83,4 +83,22 @@ using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWe
 
 #include "run_grouped_conv_bwd_weight_example.inc"
 
-int main(int argc, char* argv[]) { return !run_grouped_conv_bwd_weight_example(argc, argv); }
+int main(int argc, char* argv[])
+{
+    ExecutionConfig config;
+    ck::utils::conv::ConvParam conv_param = DefaultConvParam;
+
+    if(!parse_cmd_args(argc, argv, config, conv_param))
+    {
+        return 1;
+    }
+
+    switch(conv_param.num_dim_spatial_)
+    {
+    case 1: return !run_grouped_conv_bwd_weight<1>(config, conv_param);
+    case 2: return !run_grouped_conv_bwd_weight<2>(config, conv_param);
+    case 3: return !run_grouped_conv_bwd_weight<3>(config, conv_param);
+    }
+
+    return 1;
+}

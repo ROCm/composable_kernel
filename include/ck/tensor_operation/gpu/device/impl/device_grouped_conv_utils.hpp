@@ -48,10 +48,18 @@ struct ComputePtrOffsetOfStridedBatch
         return g_idx * static_cast<long_index_t>(BatchStrideE_);
     }
 
+    // alias for kernels without multiple D
+    template <typename enable_if<NumDTensor == 0, bool>::type = false>
+    __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
+    {
+        return g_idx * static_cast<long_index_t>(BatchStrideE_);
+    }
+
     index_t BatchStrideA_;
     index_t BatchStrideB_;
     Array<ck::index_t, NumDTensor> BatchStrideDs_;
     index_t BatchStrideE_;
+    index_t& BatchStrideC_ = BatchStrideE_; // alias for kernels without multiple D
 };
 
 } // namespace device
