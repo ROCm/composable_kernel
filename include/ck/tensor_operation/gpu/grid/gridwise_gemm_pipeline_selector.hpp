@@ -4,8 +4,6 @@
 #pragma once
 
 #include <iostream>
-#include <ostream>
-#include <string>
 
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v2.hpp"
@@ -44,20 +42,4 @@ constexpr auto GridwiseGemmPipeline_Selector()
     }
 }
 
-inline std::string getPipelineVersionString(const PipelineVersion& pv)
-{
-    switch(pv)
-    {
-    case PipelineVersion::v1: return "PipelineVersion::v1";
-    case PipelineVersion::v2: return "PipelineVersion::v2";
-    default: return "Unrecognized pipeline version!";
-    }
-}
-
 } // namespace ck
-
-inline std::ostream& operator<<(std::ostream& os, const ck::PipelineVersion pv)
-{
-    os << ck::getPipelineVersionString(pv);
-    return os;
-}
