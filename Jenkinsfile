@@ -531,12 +531,12 @@ def Build_CK(Map conf=[:]){
                         sh 'wget https://github.com/ROCmSoftwarePlatform/hipTensor/archive/refs/heads/mainline.zip'
                         sh 'unzip mainline.zip'
                         dir("hipTensor-mainline"){
-                            sh '''
+                            sh """
                                 mkdir -p build
                                 ls -ltr
-                                CC=hipcc CXX=hipcc cmake -Bbuild . -D CMAKE_PREFIX_PATH="/opt/rocm;${env.WORKSPACE}/install"
+                                CC=hipcc CXX=hipcc cmake -Bbuild . -D CMAKE_PREFIX_PATH=/opt/rocm;${env.WORKSPACE}/install
                                 cmake --build build -- -j
-                            '''
+                            """
                         }
                         dir("hipTensor-mainline/build"){
                             sh 'ctest'
