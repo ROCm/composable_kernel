@@ -34,7 +34,8 @@ template <typename QDataType,
           ck::index_t kM0PerBlock,
           ck::index_t kN0PerBlock,
           ck::index_t kK0PerBlock,
-          ck::index_t kN1PerBlock>
+          ck::index_t kN1PerBlock,
+          ck::index_t kK1PerBlock>
 struct BatchedGemmSoftmaxGemm
 {
     __device__ void operator()(const QDataType* q_ptr,
@@ -89,7 +90,8 @@ struct BatchedGemmSoftmaxGemm
                                                      kM0PerBlock,
                                                      kN0PerBlock,
                                                      kK0PerBlock,
-                                                     kN1PerBlock>{};
+                                                     kN1PerBlock,
+                                                     kK1PerBlock>{};
 
         kernel_impl(q_ptr + iBatch * BatchStrideQ,
                     k_ptr + iBatch * BatchStrideK,
