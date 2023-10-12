@@ -82,4 +82,4 @@ if(result EQUAL 0)
 endif()
 
 
-add_example_executable(gemm_xdl_input_i16_comp_i8_scale_ab gemm_xdl_input_i16_comp_i8_scale_ab.cpp)
+add_example_executable(example_gemm_xdl_input_i16_comp_i8_scale_ab gemm_xdl_input_i16_comp_i8_scale_ab.cpp)

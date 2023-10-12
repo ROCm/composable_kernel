@@ -44,16 +44,34 @@ struct i32_to_i8
 {
     __host__ __device__ void operator()(I8& y, const I32& x) const
     {
-        y = ck::type_convert<I8>(ck::type_convert<float>(x) * reduced_amex_scale);
+        float scale = (1.0 / reduced_amax) * int8_max;
+        y           = ck::type_convert<I8>(ck::type_convert<float>(x) * scale);
     }
 
+    static constexpr float int8_max = 127;
     // this attribute will trigger a reduction op of the tensor to get the true amax scalue
-    float reduced_amex_scale = 1.0;
+    float reduced_amax = 1.0;
+};
+
+struct i8_to_i32
+{
+    __host__ __device__ void operator()(I32& y, const I8& x) const
+    {
+        float a_scale = (1.0 / a_reduced_amax) * int8_max;
+        float b_scale = (1.0 / b_reduced_amax) * int8_max;
+        float c_scale = (1.0 / (a_scale * b_scale));
+
+        y = ck::type_convert<I32>(ck::type_convert<float>(x) * c_scale);
+    }
+
+    static constexpr float int8_max = 127;
+    float a_reduced_amax            = 1.0;
+    float b_reduced_amax            = 1.0;
 };
 
 using AElementOp   = i32_to_i8;
 using BElementOp   = i32_to_i8;
-using CDEElementOp = PassThrough;
+using CDEElementOp = i8_to_i32;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
@@ -261,17 +279,18 @@ int main(int argc, char* argv[])
         auto ref_argument = ref_gemm.MakeArgument(a_m_k,
                                                   b_k_n,
                                                   c_m_n,
-                                                  AElementOp{static_cast<float>(1.0) / amax},
-                                                  BElementOp{static_cast<float>(1.0) / bmax},
+                                                  AElementOp{static_cast<float>(amax)},
+                                                  BElementOp{static_cast<float>(bmax)},
                                                   PassThrough{});
 
         ref_invoker.Run(ref_argument);
+        auto cde_element_op_ = CDEElementOp{static_cast<float>(amax), static_cast<float>(bmax)};
 
         for(int m = 0; m < M; ++m)
         {
             for(int n = 0; n < N; ++n)
             {
-                cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n));
+                cde_element_op_(e_m_n_host_result(m, n), c_m_n(m, n));
             }
         }
 

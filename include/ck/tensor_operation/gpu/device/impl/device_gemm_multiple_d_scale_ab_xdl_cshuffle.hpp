@@ -571,7 +571,7 @@ struct DeviceGemmMultipleDScaleAB_Xdl_CShuffle
         using Argument = DeviceOp::Argument;
 
         template <typename T>
-        using has_reduced_amex_scale = decltype(std::declval<T&>().reduced_amex_scale);
+        using has_reduced_amex = decltype(std::declval<T&>().reduced_amax);
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
@@ -586,9 +586,11 @@ struct DeviceGemmMultipleDScaleAB_Xdl_CShuffle
 
             float kern_time = 0;
 
-            AElementwiseOperation a_element_op_ = arg.a_element_op_;
+            auto a_element_op_   = arg.a_element_op_;
+            auto b_element_op_   = arg.b_element_op_;
+            auto cde_element_op_ = arg.cde_element_op_;
 
-            if constexpr(is_detected<has_reduced_amex_scale, AElementwiseOperation>::value)
+            if constexpr(is_detected<has_reduced_amex, AElementwiseOperation>::value)
             {
                 ADataType amax_a;
 
@@ -608,19 +610,18 @@ struct DeviceGemmMultipleDScaleAB_Xdl_CShuffle
                                                       hipMemcpyDeviceToHost,
                                                       stream_config.stream_id_));
 
-                static_assert(is_same<decltype(arg.a_element_op_.reduced_amex_scale), float>::value,
+                static_assert(is_same<decltype(arg.a_element_op_.reduced_amax), float>::value,
                               "scale is not float!");
 
-                a_element_op_.reduced_amex_scale = 1.0 / amax_a;
+                a_element_op_.reduced_amax = amax_a;
 
                 // std::cout << " amax_a: " << amax_a << std::endl;
+                cde_element_op_.a_reduced_amax = a_element_op_.reduced_amax;
             }
 
-            BElementwiseOperation b_element_op_ = arg.b_element_op_;
-
-            if constexpr(is_detected<has_reduced_amex_scale, BElementwiseOperation>::value)
+            if constexpr(is_detected<has_reduced_amex, BElementwiseOperation>::value)
             {
-                ADataType amax_b;
+                BDataType amax_b;
 
                 auto reduce_b = Reduce2D<BDataType, BLayout>{};
                 kern_time += reduce_b.Run({arg.KRaw_, arg.NRaw_},
@@ -638,12 +639,13 @@ struct DeviceGemmMultipleDScaleAB_Xdl_CShuffle
                                                       hipMemcpyDeviceToHost,
                                                       stream_config.stream_id_));
 
-                static_assert(is_same<decltype(arg.b_element_op_.reduced_amex_scale), float>::value,
+                static_assert(is_same<decltype(arg.b_element_op_.reduced_amax), float>::value,
                               "scale is not float!");
 
-                b_element_op_.reduced_amex_scale = 1.0 / amax_b;
+                b_element_op_.reduced_amax = amax_b;
 
                 // std::cout << " amax_b: " << amax_b << std::endl;
+                cde_element_op_.b_reduced_amax = b_element_op_.reduced_amax;
             }
 
             const index_t grid_size =
@@ -679,7 +681,7 @@ struct DeviceGemmMultipleDScaleAB_Xdl_CShuffle
                                               arg.p_e_grid_,
                                               a_element_op_,
                                               b_element_op_,
-                                              arg.cde_element_op_,
+                                              cde_element_op_,
                                               arg.a_grid_desc_ak0_m_ak1_,
                                               arg.b_grid_desc_bk0_n_bk1_,
                                               arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
