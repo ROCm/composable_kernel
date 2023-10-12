@@ -528,8 +528,8 @@ def Build_CK(Map conf=[:]){
                     }
                     if (params.hipTensor_test && navi_node == 0 ){
                         //build and test hipTensor
-                        wget https://github.com/ROCmSoftwarePlatform/hipTensor/archive/refs/heads/mainline.zip
-                        unzip mainline.zip
+                        sh 'wget https://github.com/ROCmSoftwarePlatform/hipTensor/archive/refs/heads/mainline.zip'
+                        sh 'unzip mainline.zip'
                         dir("hipTensor-mainline"){
                             sh 'mkdir -p build'
                             sh 'ls -ltr'
