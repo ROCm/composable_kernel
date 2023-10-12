@@ -533,7 +533,7 @@ def Build_CK(Map conf=[:]){
                         dir("hipTensor-mainline"){
                             sh 'mkdir -p build'
                             sh 'ls -ltr'
-                            sh 'CC=hipcc CXX=hipcc cmake -Bbuild . '
+                            sh 'CC=hipcc CXX=hipcc cmake -Bbuild . -D CMAKE_PREFIX_PATH="/opt/rocm;${env.WORKSPACE}/hipTensor-mainline;${env.WORKSPACE}/install"'
                             sh 'cmake --build build -- -j '
                         }
                         dir("hipTensor-mainline/build"){
