@@ -43,14 +43,13 @@ struct ComputePtrOffsetOfStridedBatch
         return ds_offset;
     }
 
-    __host__ __device__ constexpr long_index_t GetEPtrOffset(index_t g_idx) const
+    [[maybe_unused]] __host__ __device__ constexpr long_index_t GetEPtrOffset(index_t g_idx) const
     {
         return g_idx * static_cast<long_index_t>(BatchStrideE_);
     }
 
     // alias for kernels without multiple D
-    template <typename enable_if<NumDTensor == 0, bool>::type = false>
-    __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
+    [[maybe_unused]] __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
     {
         return g_idx * static_cast<long_index_t>(BatchStrideE_);
     }
