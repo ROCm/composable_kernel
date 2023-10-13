@@ -20,7 +20,8 @@ template <typename ALayout,
           typename CDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CElementwiseOperation>
+          typename CElementwiseOperation,
+          typename ComputeType = CDataType>
 struct DeviceGemmSplitK : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
@@ -48,7 +49,8 @@ template <typename ALayout,
           typename CDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CElementwiseOperation>
+          typename CElementwiseOperation,
+          typename ComputeType = CDataType>
 using DeviceGemmSplitKPtr = std::unique_ptr<DeviceGemmSplitK<ALayout,
                                                              BLayout,
                                                              CLayout,
@@ -57,7 +59,8 @@ using DeviceGemmSplitKPtr = std::unique_ptr<DeviceGemmSplitK<ALayout,
                                                              CDataType,
                                                              AElementwiseOperation,
                                                              BElementwiseOperation,
-                                                             CElementwiseOperation>>;
+                                                             CElementwiseOperation,
+                                                             ComputeType>>;
 
 } // namespace device
 } // namespace tensor_operation
