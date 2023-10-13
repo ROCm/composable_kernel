@@ -83,3 +83,6 @@ endif()
 
 
 add_example_executable(example_gemm_xdl_input_i16_comp_i8_scale_ab gemm_xdl_input_i16_comp_i8_scale_ab.cpp)
+if(result EQUAL 0)
+    add_dependencies(example_gemm_xdl example_gemm_xdl_input_i16_comp_i8_scale_ab)
+endif()
