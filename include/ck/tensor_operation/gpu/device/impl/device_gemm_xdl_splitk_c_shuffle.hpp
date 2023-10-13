@@ -69,7 +69,8 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                                              CDataType,
                                                              AElementwiseOperation,
                                                              BElementwiseOperation,
-                                                             CElementwiseOperation>
+                                                             CElementwiseOperation,
+                                                             ComputeType>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
