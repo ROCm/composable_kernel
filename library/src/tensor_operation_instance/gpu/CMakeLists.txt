@@ -67,6 +67,10 @@ IF(IS_DIRECTORY "${subdir_path}")
             message("fp8 instance found!")
             set(add_inst 1)
     endif()
+    if(("${cmake_instance}" MATCHES "_bf8" OR "${cmake_instance}" MATCHES "_b8") AND DTYPES MATCHES "bf8")
+            message("bf8 instance found!")
+            set(add_inst 1)
+    endif()
     if(("${cmake_instance}" MATCHES "_fp16" OR "${cmake_instance}" MATCHES "_f16") AND DTYPES MATCHES "fp16")
             message("fp16 instance found!")
             set(add_inst 1)
@@ -98,6 +102,8 @@ IF(IS_DIRECTORY "${subdir_path}")
                    NOT "${cmake_instance}" MATCHES "_bf16" AND
                    NOT "${cmake_instance}" MATCHES "_int8" AND
                    NOT "${cmake_instance}" MATCHES "_i8" AND
+                   NOT "${cmake_instance}" MATCHES "_bf8" AND
+                   NOT "${cmake_instance}" MATCHES "_b8" AND
                    NOT "${cmake_instance}" MATCHES "_int4") OR
                    NOT DEFINED DTYPES)
              message("instance should be built for all types!")

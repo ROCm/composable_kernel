@@ -18,9 +18,12 @@ namespace instance {
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
-using BF8  = ck::bf8_t;
-using F8   = ck::f8_t;
-
+#if defined CK_ENABLE_BF8
+using BF8 = ck::bf8_t;
+#endif
+#if defined CK_ENABLE_FP8
+using F8 = ck::f8_t;
+#endif
 using Empty_Tuple = ck::Tuple<>;
 
 template <ck::index_t... Is>
@@ -146,6 +149,7 @@ using device_grouped_conv_bwd_data_xdl_f32_instances =
         >;
 
 // f16_f16_f16_comp_f8
+#if defined CK_ENABLE_BF8 && defined CK_ENABLE_FP8
 template <index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
@@ -181,7 +185,7 @@ using device_grouped_conv_bwd_data_xdl_input_fp16_comp_bf8f8_instances =
         DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1< NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F32, Empty_Tuple,   F16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,             1,    64,    32,    64,    32,   8,   8,   32,   32,       1,       2,       S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,        S<4, 8, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              8,              8,         1,            1,            1,     S<1, 16, 1, 4>,                8,  LoopScheduler::Default, BF8, F8>
         // clang-format on
         >;
-
+#endif
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
