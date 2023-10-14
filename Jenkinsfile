@@ -528,13 +528,13 @@ def Build_CK(Map conf=[:]){
                     }
                     if (params.hipTensor_test && navi_node == 0 ){
                         //build and test hipTensor
-                        sh '''#!/bin/bash
-                            rm -rf mainline.zip
-                            rm -rf hipTensor-mainline
-                            wget https://github.com/ROCmSoftwarePlatform/hipTensor/archive/refs/heads/mainline.zip
-                            unzip -o mainline.zip
-                        '''
-                        dir("hipTensor-mainline"){
+                        sh """#!/bin/bash
+                            rm -rf "${params.hipTensor_branch}".zip
+                            rm -rf hipTensor-"${params.hipTensor_branch}"
+                            wget https://github.com/ROCmSoftwarePlatform/hipTensor/archive/refs/heads/"${params.hipTensor_branch}".zip
+                            unzip -o "${params.hipTensor_branch}".zip
+                        """
+                        dir("hipTensor-${params.hipTensor_branch}"){
                             sh """#!/bin/bash
                                 mkdir -p build
                                 ls -ltr
@@ -542,7 +542,7 @@ def Build_CK(Map conf=[:]){
                                 cmake --build build -- -j
                             """
                         }
-                        dir("hipTensor-mainline/build"){
+                        dir("hipTensor-${params.hipTensor_branch}/build"){
                             sh 'ctest'
                         }
                     }
@@ -678,6 +678,11 @@ pipeline {
             name: "hipTensor_test",
             defaultValue: true,
             description: "Use the CK build to verify hipTensor build and tests (default: ON)")
+        string(
+            name: 'hipTensor_branch',
+            defaultValue: 'mainline',
+            description: 'Specify which branch of hipTensor to use (default: mainline)')
+
     }
     environment{
         dbuser = "${dbuser}"
