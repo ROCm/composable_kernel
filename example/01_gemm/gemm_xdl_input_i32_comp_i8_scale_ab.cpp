@@ -297,5 +297,5 @@ int main(int argc, char* argv[])
         return ck::utils::check_err(e_m_n_device_result, e_m_n_host_result) ? 0 : 1;
     }
 
-    return true;
+    return 0;
 }
