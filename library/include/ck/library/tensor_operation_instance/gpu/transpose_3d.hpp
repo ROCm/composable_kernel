@@ -15,8 +15,6 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using namespace ck::transpose_op;
-
 void add_device_transpose_f16_instances(
     std::vector<std::unique_ptr<DeviceElementwise3dImpl<F16, F16, NCDHW, 3>>>& instances);
 
