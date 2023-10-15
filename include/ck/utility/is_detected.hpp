@@ -31,4 +31,13 @@ struct nonesuch
 template <template <class...> class Op, class... Args>
 using is_detected = typename detail::detector<nonesuch, void, Op, Args...>::value_t;
 
+template <typename T>
+using is_pack2_invocable_t = decltype(std::declval<T&>().is_pack2_invocable);
+
+template <typename T>
+using is_pack4_invocable_t = decltype(std::declval<T&>().is_pack4_invocable);
+
+template <typename T>
+using is_pack8_invocable_t = decltype(std::declval<T&>().is_pack8_invocable);
+
 } // namespace ck

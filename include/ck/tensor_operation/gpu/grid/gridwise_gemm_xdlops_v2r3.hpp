@@ -945,7 +945,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext
             }
         }();
 
-        if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding)
+        if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
+                     GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)
         {
             return transform_tensor_descriptor(c_grid_desc_m_n,
                                                make_tuple(make_right_pad_transform(M, MPad - M),
