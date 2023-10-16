@@ -38,6 +38,7 @@ ENV PATH=$PATH:${SCCACHE_INSTALL_LOCATION}
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     build-essential \
     cmake \
+    ccache \
     git \
     hip-rocclr \
     jq \
