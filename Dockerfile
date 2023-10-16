@@ -70,7 +70,7 @@ RUN gunzip /usr/local/bin/ninja.gz
 RUN chmod a+x /usr/local/bin/ninja
 RUN git clone https://github.com/nico/ninjatracing.git
 # Update the cmake to the latest version
-RUN pip install --upgrade cmake=3.27.5
+RUN pip install --upgrade cmake==3.27.5
 
 # Setup ubsan environment to printstacktrace
 RUN ln -s /usr/bin/llvm-symbolizer-3.8 /usr/local/bin/llvm-symbolizer
@@ -84,10 +84,10 @@ ARG PREFIX=/opt/rocm
 # Install packages for processing the performance results
 RUN pip3 install --upgrade pip
 RUN pip3 install sqlalchemy==1.4.46
-RUN pip3 install pymysql=1.4.6
-RUN pip3 install pandas=2.0.3
+RUN pip3 install pymysql==1.4.6
+RUN pip3 install pandas==2.0.3
 RUN pip3 install setuptools-rust
-RUN pip3 install sshtunnel=0.4.0
+RUN pip3 install sshtunnel==0.4.0
 # Setup ubsan environment to printstacktrace
 ENV UBSAN_OPTIONS=print_stacktrace=1
 
