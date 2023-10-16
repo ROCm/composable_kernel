@@ -84,7 +84,7 @@ ARG PREFIX=/opt/rocm
 # Install packages for processing the performance results
 RUN pip3 install --upgrade pip
 RUN pip3 install sqlalchemy==1.4.46
-RUN pip3 install pymysql==1.4.6
+RUN pip3 install pymysql
 RUN pip3 install pandas==2.0.3
 RUN pip3 install setuptools-rust
 RUN pip3 install sshtunnel==0.4.0
