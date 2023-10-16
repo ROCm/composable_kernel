@@ -5,7 +5,7 @@ template <ck::index_t NDimSpatial>
 bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                  const ck::utils::conv::ConvParam& conv_param)
 {
-    // Dl and WMMA ops doesn't support split_k > 1
+    // Dl and WMMA ops don't support split_k > 1
     constexpr ck::index_t split_k = 1;
 
     const auto in_g_n_c_wis_desc =

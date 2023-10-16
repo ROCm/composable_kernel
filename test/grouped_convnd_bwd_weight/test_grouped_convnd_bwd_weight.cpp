@@ -36,7 +36,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
     {
         // Odd K or C values are supported only by DL and WMMA
         // kernels (only applies to fp16)
-        // DL kernel currently supports only `split_k=1`
+        // DL and WMMA kernels currently support only `split_k=1`
         if constexpr(std::is_same_v<InDataType, ck::half_t>)
         {
             if(split_k != 1 && (params.K_ % 2 != 0 || params.C_ % 2 != 0))

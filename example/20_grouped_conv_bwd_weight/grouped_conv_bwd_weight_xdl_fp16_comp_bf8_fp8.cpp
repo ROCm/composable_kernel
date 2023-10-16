@@ -98,6 +98,7 @@ int main(int argc, char* argv[])
     case 1: return !run_grouped_conv_bwd_weight<1>(config, conv_param);
     case 2: return !run_grouped_conv_bwd_weight<2>(config, conv_param);
     case 3: return !run_grouped_conv_bwd_weight<3>(config, conv_param);
+    default: break;
     }
 
     return 1;

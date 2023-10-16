@@ -61,9 +61,10 @@ template <index_t NDimSpatial,
           index_t CShuffleNRepeatPerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          index_t NumGemmKPrefetchStage   = 1,
-          LoopScheduler LoopSched         = make_default_loop_scheduler(),
-          ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
+          index_t NumGemmKPrefetchStage                        = 1,
+          LoopScheduler LoopSched                              = make_default_loop_scheduler(),
+          ck::PipelineVersion PipelineVer                      = ck::PipelineVersion::v1,
+          typename ck::enable_if<NDimSpatial == 3, bool>::type = false>
 struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
     : public DeviceGroupedConvBwdWeight<NDimSpatial,
                                         InLayout,
@@ -332,7 +333,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
-            // Padd
+            // Pad
             const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_pad_grid_desc =
                 transform_tensor_descriptor(
                     out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
@@ -362,7 +363,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
                               in_gemmkbatch_gemmk0_gemmn_gemmk1_pad_grid_desc,
                               wei_gemmm_gemmn_pad_grid_desc);
         }
-    } // function end
+    }
 
     template <index_t NDim, typename ck::enable_if<NDim == 3, bool>::type = false>
     static auto GetABCGridDesc()
@@ -716,14 +717,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
             return false;
         }
 
-        if constexpr(NDimSpatial == 3)
-        {
-            if constexpr(!(is_NDHWGK_GKZYXC_NDHWGC || is_GNDHWK_GKZYXC_GNDHWC))
-            {
-                return false;
-            }
-        }
-        else
+        if constexpr(!(is_NDHWGK_GKZYXC_NDHWGC || is_GNDHWK_GKZYXC_GNDHWC))
         {
             return false;
         }
@@ -731,7 +725,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
         if constexpr(ConvBackwardWeightSpecialization ==
                      ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0)
         {
-            // check if it's 1x1, stride=1 pad = 0 conv
+            // check if it's a 1x1 convolution with stride=1 and no padding
             for(int i = 0; i < NDimSpatial; i++)
             {
                 if(!(arg.filter_spatial_lengths_[i] == 1 && arg.conv_filter_strides_[i] == 1 &&

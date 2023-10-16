@@ -137,13 +137,13 @@ TYPED_TEST_SUITE(TestGroupedConvndBwdWeightDefault3d, KernelTypes3d);
 
 TYPED_TEST(TestGroupedConvndBwdWeightFilter1x13d, SpecializationCheck)
 {
-    // Check filter 3,3 instead of 1,1
+    // Check filter 3x3x3 instead of 1x1x1
     this->conv_param = {
         3, 2, 4, 192, 192, {3, 3, 3}, {28, 28, 28}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}};
     bool is_supported = this->template Run<1>();
     EXPECT_FALSE(is_supported);
 
-    // Check strides 2,2 instead of 1,1
+    // Check strides 2x2x2 instead of 1x1x1
     this->conv_param = {
         3, 2, 4, 192, 192, {1, 1, 1}, {28, 28, 28}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}};
     is_supported = this->template Run<1>();

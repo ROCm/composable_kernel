@@ -81,6 +81,7 @@ int main(int argc, char* argv[])
     switch(conv_param.num_dim_spatial_)
     {
     case 3: return !run_grouped_conv_bwd_weight<3>(config, conv_param);
+    default: break;
     }
 
     return 1;
