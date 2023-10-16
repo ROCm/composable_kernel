@@ -252,35 +252,33 @@ struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
         return PadTensorDescriptor(grid_desc_m_k, make_tuple(MPerTile, KPerTile), DoPads{});
     }
 
-    static auto MakeSaveMeanInvStdDescriptor_M(const std::vector<index_t>& inLengths,
-                                               const std::vector<index_t>& inStrides)
+    static auto MakeSaveMeanInvStdDescriptor_M(const std::vector<index_t>& lengths,
+                                               const std::vector<index_t>& strides)
     {
         using InvariantDims = typename arithmetic_sequence_gen<0, NumInvariantDim, 1>::type;
 
-        const auto tupleSrcLengths =
-            make_tuple_from_array_and_index_seq(inLengths, InvariantDims{});
-        const auto tupleSrcStrides =
-            make_tuple_from_array_and_index_seq(inStrides, InvariantDims{});
+        const auto tupleSrcLengths = make_tuple_from_array_and_index_seq(lengths, InvariantDims{});
+        const auto tupleSrcStrides = make_tuple_from_array_and_index_seq(strides, InvariantDims{});
 
-        const auto inDesc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
+        const auto desc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
 
-        const auto in_grid_desc_m =
-            transform_tensor_descriptor(inDesc,
+        const auto grid_desc_m =
+            transform_tensor_descriptor(desc,
                                         make_tuple(make_merge_transform(tupleSrcLengths)),
                                         make_tuple(InvariantDims{}),
                                         make_tuple(Sequence<0>{}));
 
-        const auto invariantLength = in_grid_desc_m.GetLength(Number<0>{});
-        const auto inPad_M =
+        const auto invariantLength = grid_desc_m.GetLength(Number<0>{});
+        const auto pad_M =
             math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
 
-        auto in_grid_desc_m_padded = transform_tensor_descriptor(
-            in_grid_desc_m,
-            make_tuple(make_right_pad_transform(invariantLength, inPad_M)),
+        auto grid_desc_m_padded = transform_tensor_descriptor(
+            grid_desc_m,
+            make_tuple(make_right_pad_transform(invariantLength, pad_M)),
             make_tuple(Sequence<0>{}),
             make_tuple(Sequence<0>{}));
 
-        return in_grid_desc_m_padded;
+        return grid_desc_m_padded;
     }
 
     using SrcGridDesc_M_K = decltype(MakeSrc2dDescriptor({1}, {1}, 1, 1));
@@ -538,9 +536,9 @@ struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
                 arg.numBlockTileIteration_,
                 arg.kGridSize_,
                 arg.epsilon_,
-                static_cast<WorkspaceMeanVarDataType*>(arg.p_workspace_mean_),
-                static_cast<WorkspaceMeanVarDataType*>(arg.p_workspace_var_),
-                static_cast<int32_t*>(arg.p_workspace_count_),
+                static_cast<const WorkspaceMeanVarDataType*>(arg.p_workspace_mean_),
+                static_cast<const WorkspaceMeanVarDataType*>(arg.p_workspace_var_),
+                static_cast<const int32_t*>(arg.p_workspace_count_),
                 arg.p_x_,
                 arg.p_gamma_,
                 arg.p_beta_,
