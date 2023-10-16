@@ -49,6 +49,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     vim \
     nano \
     zlib1g-dev \
+    zip \
     openssh-server \
     clang-format-12 \
     kmod && \
