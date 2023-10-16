@@ -102,9 +102,11 @@ struct ReferenceLayernorm : public device::BaseOperator
 
                 for(int n = 0; n < N; ++n)
                 {
-                    auto x_val = ck::type_convert<ComputeDataType>(arg.x_m_n_(m, n));
-                    auto y_val = (x_val - mean(m)) * divisor;
-                    y_val      = (y_val * arg.gamma_n_(n)) + arg.beta_n_(n);
+                    auto x_val     = ck::type_convert<ComputeDataType>(arg.x_m_n_(m, n));
+                    auto gamma_val = ck::type_convert<ComputeDataType>(arg.gamma_n_(n));
+                    auto beta_val  = ck::type_convert<ComputeDataType>(arg.beta_n_(n));
+                    auto y_val     = (x_val - mean(m)) * divisor;
+                    y_val          = (y_val * gamma_val) + beta_val;
                     arg.y_elementwise_op_(y_val, y_val);
                     arg.y_m_n_(m, n) = ck::type_convert<YDataType>(y_val);
                 }

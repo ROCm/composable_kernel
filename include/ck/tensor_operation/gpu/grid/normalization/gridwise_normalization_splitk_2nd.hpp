@@ -391,7 +391,8 @@ struct GridwiseNormalizationSplitK2nd
             BlockwiseWelford::Run(
                 mean_thread_buf(I), var_thread_buf(I), welford_count_thread_buf(I));
 
-            inv_std_thread_buf(I) = 1 / ck::math::sqrt(var_thread_buf(I) + epsilon);
+            inv_std_thread_buf(I) =
+                type_convert<ComputeDataType>(1.0f) / ck::math::sqrt(var_thread_buf(I) + epsilon);
         });
 
         // step2: save mean and inverse std for backward (optional)

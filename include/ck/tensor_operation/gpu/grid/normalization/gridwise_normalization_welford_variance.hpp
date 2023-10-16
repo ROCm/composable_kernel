@@ -339,7 +339,8 @@ struct GridwiseNormalizationWelfordVariance_mk_to_mk
 
                 int count = threadwise_welford.cur_count_;
                 BlockwiseWelford::Run(mean_thread_buf(I), var_thread_buf(I), count);
-                inv_std_thread_buf(I) = 1 / ck::math::sqrt(var_thread_buf(I) + epsilon);
+                inv_std_thread_buf(I) = type_convert<ComputeDataType>(1.0f) /
+                                        ck::math::sqrt(var_thread_buf(I) + epsilon);
             });
 
             // save mean and inverse std for backward (optional)

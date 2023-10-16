@@ -304,7 +304,8 @@ struct GridwiseNormalizationNaiveVariance_mk_to_mk
 
         // E(x), E[x^2], var(x)
         // FIXME: Should not hack the transform from deviceOP
-        int reduce_length = x_grid_desc_m_k.GetTransforms()[I2].GetUpperLengths()[I0];
+        ComputeDataType reduce_length = type_convert<ComputeDataType>(
+            x_grid_desc_m_k.GetTransforms()[I2].GetUpperLengths()[I0]);
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             mean_thread_buf(I)        = reduce::Add::template GetIdentityValue<ComputeDataType>();
@@ -364,7 +365,8 @@ struct GridwiseNormalizationNaiveVariance_mk_to_mk
                 var_thread_buf(I) =
                     mean_square_thread_buf(I) - (mean_thread_buf(I) * mean_thread_buf(I));
 
-                inv_std_thread_buf(I) = 1 / ck::math::sqrt(var_thread_buf(I) + epsilon);
+                inv_std_thread_buf(I) = type_convert<ComputeDataType>(1.0f) /
+                                        ck::math::sqrt(var_thread_buf(I) + epsilon);
             });
 
             // save mean and inverse std for backward (optional)
