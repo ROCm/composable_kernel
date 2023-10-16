@@ -69,7 +69,8 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                                              CDataType,
                                                              AElementwiseOperation,
                                                              BElementwiseOperation,
-                                                             CElementwiseOperation>
+                                                             CElementwiseOperation,
+                                                             ComputeType>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -168,7 +169,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                                      stream_config.stream_id_));
 
                 ave_time = launch_and_time_kernel(
-                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg);
+                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, karg, b2c_map);
             };
 
             if(has_main_k0_block_loop)
