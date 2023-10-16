@@ -221,7 +221,7 @@ def cmake_build(Map conf=[:]){
     }
     if(env.CK_CCACHE)
     {
-        setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER='ccache' -DCMAKE_C_COMPILER_LAUNCHER='ccache' " + setup_args
+        setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache " + setup_args
     }
     echo "ccache server: ${env.CK_CCACHE}"
 

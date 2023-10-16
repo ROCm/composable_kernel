@@ -86,7 +86,6 @@ cmake                                                                           
 If GPU_TARGETS is not set on the cmake command line, CK will be built for all targets supported by the 
 current compiler.
 
-
 Additional cmake flags can be used to significantly speed-up the build:
 
 INSTANCES_ONLY (by default is OFF) must be set to ON in order to build only the instances and library
@@ -98,11 +97,31 @@ of select data types only. Currently, building of int8 instances is taking a lot
 DL_KERNELS (by default is OFF) must be set to ON in order to build the gemm_dl and batched_gemm_multi_d_dl 
 instances. Those instances are only needed for the NAVI2x platforms.
 
+### Using sccache for building
+
+The default CK dockers come with pre-installed version of sccache which supports clang being used as hip-compiler
+" -x hip". Using sccache can help reduce the time to re-build the code from hours to 1 - 2 minutes. In order to
+invoke sccache, you need to run
+
+```bash
+ sccache --start-server
+```
+and add the following flags to the cmake command line:
+
+```bash
+ -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache
+```
+
 ### Build examples and tests
 
 ```bash
  make -j examples tests
- make test
+```
+
+### Build and run all examples and tests
+
+```bash
+ make -j check
 ```
 
 Instructions for running each individual examples are under [example](/example)
