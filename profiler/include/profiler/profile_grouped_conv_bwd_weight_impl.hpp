@@ -33,7 +33,9 @@ template <ck::index_t NDimSpatial,
           typename OutLayout,
           typename InDataType,
           typename WeiDataType,
-          typename OutDataType>
+          typename OutDataType,
+          typename ComputeTypeA = InDataType,
+          typename ComputeTypeB = ComputeTypeA>
 bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                           int init_method,
                                           bool do_log,
@@ -120,7 +122,9 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                                                               OutDataType,
                                                                               InElementOp,
                                                                               WeiElementOp,
-                                                                              OutElementOp>;
+                                                                              OutElementOp,
+                                                                              ComputeTypeA,
+                                                                              ComputeTypeB>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
