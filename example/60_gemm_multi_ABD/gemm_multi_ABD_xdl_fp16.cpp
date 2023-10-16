@@ -74,8 +74,9 @@ struct AddScale
         a = scale * (a0 + a1);
     }
 
-    // this attribute will force copy_function applying element_wise with vector_type
-    static constexpr ck::index_t vec_len = 4;
+    // this attribute controls the copy_function applying element_wise_op with
+    // pack4_data
+    constexpr const static bool is_pack4_invocable = true;
 
     float scale = 1.0;
 };
