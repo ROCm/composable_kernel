@@ -428,7 +428,7 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
             [&](auto i) {
                 using ALayout = remove_cvref_t<tuple_element_t<i.value, AsLayout>>;
 
-                return MakeAGridDescriptor_M_N<ALayout, GemmSpec>(MRaws[i], KRaws[i], AsStride[i]);
+                return MakeAGridDescriptor_M_K<ALayout, GemmSpec>(MRaws[i], KRaws[i], AsStride[i]);
             },
             Number<NumATensor>{});
     }
@@ -656,7 +656,8 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
-            ComputeDataType,
+            ComputeDataType, // ComputeDataType for A
+            ComputeDataType, // ComputeDataType for B
             AccDataType,
             decltype(a_block_desc_ak0_m_ak1),
             decltype(b_block_desc_bk0_n_bk1),
