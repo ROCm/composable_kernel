@@ -241,6 +241,7 @@ def cmake_build(Map conf=[:]){
                 export COMPILERS_HASH_DIR=/tmp/.sccache
                 export SCCACHE_BIN=/usr/local/.cargo/bin/sccache
                 export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
+                export SCCACHE_REDIS="redis://${env.CK_CCACHE}"
                 ../script/sccache_wrapper.sh --enforce_redis
             fi
         """
