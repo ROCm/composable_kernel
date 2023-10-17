@@ -147,7 +147,9 @@ GB/s: 127.947
 # arg1: tensor operation (grouped_conv_bwd_weight: Grouped Convolution Backward Weight)
 # arg2: data type (0: Input fp32, Weight fp32, Output fp32
 #                  1: Input fp16, Weight fp16, Output fp16
-#                  2: Input bf16, Weight fp32, Output bf16)
+#                  2: Input bf16, Weight fp32, Output bf16
+#                  3: Input fp16, Weight fp16, Output fp16, Gemm bf8@fp8
+#                  4: Input int8, Weight int8, Output int8)
 # arg3: tensor layout (0: Input[G, N, C, Hi, Wi], Weight[G, K, C, Y, X], Output[G, N, K, Ho, Wo]
 #                      1: Input[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Output[G, N, Ho, Wo, K]
 #                      2: Input[N, Hi, Wi, G, C], Weight[G, K, Y, X, C], Output[N, Ho, Wo, G, K]
@@ -167,7 +169,7 @@ GB/s: 127.947
 # SplitK
 
  ################                   op   datatype  layout  verify  init  log  time  Ndims  G   N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx  SplitK
-./bin/ckProfiler grouped_conv_bwd_weight          1       0       1     1    0     1      2 32 256 256 512  3  3  28  28   1   1   1   1       1       0        0        0       1
+./bin/ckProfiler grouped_conv_bwd_weight         1       1      0     1    0     1      2 32 256 256 512  3  3  28  28   1   1   1   1       1       0        0        0       1
 
  ```
 

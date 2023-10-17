@@ -526,6 +526,26 @@ def Build_CK(Map conf=[:]){
                            stash "ckprofiler_0.2.0_amd64.deb"
                         }
                     }
+                    if (params.hipTensor_test && navi_node == 0 ){
+                        //build and test hipTensor
+                        sh """#!/bin/bash
+                            rm -rf "${params.hipTensor_branch}".zip
+                            rm -rf hipTensor-"${params.hipTensor_branch}"
+                            wget https://github.com/ROCmSoftwarePlatform/hipTensor/archive/refs/heads/"${params.hipTensor_branch}".zip
+                            unzip -o "${params.hipTensor_branch}".zip
+                        """
+                        dir("hipTensor-${params.hipTensor_branch}"){
+                            sh """#!/bin/bash
+                                mkdir -p build
+                                ls -ltr
+                                CC=hipcc CXX=hipcc cmake -Bbuild . -D CMAKE_PREFIX_PATH="/opt/rocm;${env.WORKSPACE}/install"
+                                cmake --build build -- -j
+                            """
+                        }
+                        dir("hipTensor-${params.hipTensor_branch}/build"){
+                            sh 'ctest'
+                        }
+                    }
                 }
             }
         }
@@ -654,6 +674,15 @@ pipeline {
             name: "DL_KERNELS",
             defaultValue: false,
             description: "Select whether to build DL kernels (default: OFF)")
+        booleanParam(
+            name: "hipTensor_test",
+            defaultValue: true,
+            description: "Use the CK build to verify hipTensor build and tests (default: ON)")
+        string(
+            name: 'hipTensor_branch',
+            defaultValue: 'mainline',
+            description: 'Specify which branch of hipTensor to use (default: mainline)')
+
     }
     environment{
         dbuser = "${dbuser}"
