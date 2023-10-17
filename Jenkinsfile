@@ -234,6 +234,13 @@ def cmake_build(Map conf=[:]){
             mkdir install
             cd build
             if [ "${env.CK_CCACHE}" ]; then \
+                export ROCM_PATH=/opt/rocm
+                export SCCACHE_ENABLED=true
+                export SCCACHE_LOG_LEVEL=debug
+                export SCCACHE_IDLE_TIMEOUT=14400
+                export COMPILERS_HASH_DIR=/usr/local/.sccache
+                export SCCACHE_BIN=/usr/local/.cargo/bin/sccache
+                export SCCACHE_EXTRAFILES=/usr/local/.sccache/rocm_compilers_hash_file
                 ../script/sccache_wrapper.sh;
             fi
         """
