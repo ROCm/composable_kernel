@@ -110,7 +110,7 @@ def getDockerImage(Map conf=[:]){
         {
             echo "CCACHE SERVER: ${env.CK_CCACHE} NOT FOUND, got ${check_host} response"
         }
-        dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CK_CCACHE}' --build-arg COMPILER_LAUNCHER='ccache' "
+        dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CK_CCACHE}' --build-arg COMPILER_LAUNCHER='sccache' "
         env.CCACHE_DIR = """/tmp/ccache_store"""
         env.CCACHE_SECONDARY_STORAGE="""redis://${env.CK_CCACHE}"""
     }
@@ -153,7 +153,7 @@ def buildDocker(install_prefix){
         {
             echo "CCACHE SERVER: ${env.CK_CCACHE} NOT FOUND, got ${check_host} response"
         }
-        dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CK_CCACHE}' --build-arg COMPILER_LAUNCHER='ccache' "
+        dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CK_CCACHE}' --build-arg COMPILER_LAUNCHER='sccache' "
         env.CCACHE_DIR = """/tmp/ccache_store"""
         env.CCACHE_SECONDARY_STORAGE="""redis://${env.CK_CCACHE}"""
     }
@@ -233,6 +233,9 @@ def cmake_build(Map conf=[:]){
             rm -rf install
             mkdir install
             cd build
+            if [ "${env.CK_CCACHE}" ]; then \
+                ../script/sccache_wrapper.sh;
+            fi
         """
     def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
     // reduce parallelism when compiling, clang uses too much memory
@@ -251,7 +254,7 @@ def cmake_build(Map conf=[:]){
     sh cmd
 
     // Only archive from master or develop
-    if (package_build == true && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master")) {
+    if (package_build == true && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "amd-master")) {
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
 }
