@@ -154,7 +154,7 @@ def buildDocker(install_prefix){
             echo "CCACHE SERVER: ${env.CK_CCACHE} NOT FOUND, got ${check_host} response"
         }
         dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CK_CCACHE}' --build-arg COMPILER_LAUNCHER='sccache' "
-        env.CCACHE_DIR = """/tmp/ccache_store"""
+        env.CCACHE_DIR = """/tmp/.sccache"""
         env.CCACHE_SECONDARY_STORAGE="""redis://${env.CK_CCACHE}"""
     }
 
@@ -233,8 +233,15 @@ def cmake_build(Map conf=[:]){
             rm -rf install
             mkdir install
             cd build
-            if [ "${env.CK_CCACHE}" ]; then \
-                sccache --start-server
+            if [ "${env.CK_CCACHE}" != "null" ]; then \
+                export ROCM_PATH=/opt/rocm
+                export SCCACHE_ENABLED=true
+                export SCCACHE_LOG_LEVEL=debug
+                export SCCACHE_IDLE_TIMEOUT=14400
+                export COMPILERS_HASH_DIR=/tmp/.sccache
+                export SCCACHE_BIN=/usr/local/.cargo/bin/sccache
+                export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
+                ../script/sccache_wrapper.sh --enforce_redis
             fi
         """
     def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
