@@ -31,19 +31,23 @@ constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
 
 // Layernorm:
-// dy:     M, N
-// x:      M, N
-// mean:   M, 1
-// rstd:   M, 1
 
-// reduced axis: 0
+// Input shape
+// dy:        [M, N]
+// x:         [M, N]
+// mean:      [M, 1]
+// inv_std:   [M, 1]
 
-// dgamma: 1, N
-// dbeta:  1, N
+// Output shape
+// dgamma: [1, N]
+// dbeta:  [1, N]
+
+// dgamma = reduce_sum(dy * (x - mean) * inv_std, axis=0)
+// dbeta = reduce_sum(dy, axis=0)
 
 // [CAUSION]
 // In DeviceNormalizationBwdGammaBetaImpl, M is invarient dimension, K is reduced dimension
-// M in layernorm and M in DeviceNormalizationBwdGammaBetaImpl is different
+// Hence, M in this example and DeviceNormalizationBwdGammaBetaImpl is different
 using GammaBetaDeviceInstance = ck::tensor_operation::device::DeviceNormalizationBwdGammaBetaImpl<
     DYDataType,
     XDataType,
@@ -53,19 +57,19 @@ using GammaBetaDeviceInstance = ck::tensor_operation::device::DeviceNormalizatio
     DBetaDataType,
     Rank,
     NumReduceDim,
-    256, // BlockSize
-    8,   // ClusterM
-    32,  // ClusterK
-    8,   // SliceM
-    1,   // SliceK
-    0,   // DYSrcVectorDim (0=M, 1=K)
-    8,   // DYSrcVectorSize
-    0,   // XSrcVectorDim (0=M, 1=K)
-    8,   // XSrcVectorSize
-    1,   // MeanInvStdSrcVectorDim (0=M, 1=K)
-    1,   // MeanInvStdSrcVectorSize
-    1,   // DGammaDstVectorSize
-    1>;  // DBetaDstVectorSize
+    256,   // BlockSize
+    8,     // ClusterInvarient
+    32,    // ClusterReduce
+    8,     // SliceInvarient
+    1,     // SliceReduce
+    false, // IsDYSrcVectorDimReduced
+    8,     // DYSrcVectorSize
+    false, // IsXSrcVectorDimReduced
+    8,     // XSrcVectorSize
+    true,  // IsMeanInvStdSrcVectorDimReduced
+    1,     // MeanInvStdSrcVectorSize
+    1,     // DGammaDstVectorSize
+    1>;    // DBetaDstVectorSize
 
 int main()
 {

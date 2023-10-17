@@ -51,19 +51,19 @@ using GammaBetaDeviceInstance = ck::tensor_operation::device::DeviceNormalizatio
     DBetaDataType,
     Rank,
     NumReduceDim,
-    256, // BlockSize
-    8,   // ClusterM
-    32,  // ClusterK
-    8,   // SliceM
-    1,   // SliceK
-    0,   // DYSrcVectorDim (0=M, 1=K)
-    8,   // DYSrcVectorSize
-    0,   // XSrcVectorDim (0=M, 1=K)
-    8,   // XSrcVectorSize
-    0,   // MeanInvStdSrcVectorDim (0=M, 1=K)
-    1,   // MeanInvStdSrcVectorSize
-    1,   // DGammaDstVectorSize
-    1>;  // DBetaDstVectorSize
+    256,   // BlockSize
+    8,     // ClusterInvarient
+    32,    // ClusterReduce
+    8,     // SliceInvarient
+    1,     // SliceReduce
+    false, // IsDYSrcVectorDimReduced
+    8,     // DYSrcVectorSize
+    false, // IsXSrcVectorDimReduced
+    8,     // XSrcVectorSize
+    false, // IsMeanInvStdSrcVectorDimReduced
+    1,     // MeanInvStdSrcVectorSize
+    1,     // DGammaDstVectorSize
+    1>;    // DBetaDstVectorSize
 
 int main()
 {

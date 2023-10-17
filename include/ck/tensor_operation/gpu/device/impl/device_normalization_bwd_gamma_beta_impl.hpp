@@ -30,11 +30,11 @@ template <typename DYDataType,
           index_t KThreadClusterSize,
           index_t MThreadSliceSize,
           index_t KThreadSliceSize,
-          index_t DYSrcVectorDim,
+          bool IsDYSrcVectorDimReduced,
           index_t DYSrcVectorSize,
-          index_t XSrcVectorDim,
+          bool IsXSrcVectorDimReduced,
           index_t XSrcVectorSize,
-          index_t MeanInvStdSrcVectorDim,
+          bool IsMeanInvStdSrcVectorDimReduced,
           index_t MeanInvStdSrcVectorSize,
           index_t DGammaDstVectorSize,
           index_t DBetaDstVectorSize>
@@ -47,6 +47,11 @@ struct DeviceNormalizationBwdGammaBetaImpl
                                              Rank,
                                              NumReduceDim>
 {
+
+    static constexpr index_t DYSrcVectorDim         = IsDYSrcVectorDimReduced ? 1 : 0;
+    static constexpr index_t XSrcVectorDim          = IsXSrcVectorDimReduced ? 1 : 0;
+    static constexpr index_t MeanInvStdSrcVectorDim = IsMeanInvStdSrcVectorDimReduced ? 1 : 0;
+
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize);
 
     static_assert(((DYSrcVectorDim == 0 && MThreadSliceSize % DYSrcVectorSize == 0) ||
