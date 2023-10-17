@@ -43,7 +43,13 @@ struct ComputePtrOffsetOfStridedBatch
         return ds_offset;
     }
 
-    __host__ __device__ constexpr long_index_t GetEPtrOffset(index_t g_idx) const
+    [[maybe_unused]] __host__ __device__ constexpr long_index_t GetEPtrOffset(index_t g_idx) const
+    {
+        return g_idx * static_cast<long_index_t>(BatchStrideE_);
+    }
+
+    // alias for kernels without multiple D
+    [[maybe_unused]] __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
     {
         return g_idx * static_cast<long_index_t>(BatchStrideE_);
     }
@@ -52,6 +58,7 @@ struct ComputePtrOffsetOfStridedBatch
     index_t BatchStrideB_;
     Array<ck::index_t, NumDTensor> BatchStrideDs_;
     index_t BatchStrideE_;
+    index_t& BatchStrideC_ = BatchStrideE_; // alias for kernels without multiple D
 };
 
 } // namespace device
