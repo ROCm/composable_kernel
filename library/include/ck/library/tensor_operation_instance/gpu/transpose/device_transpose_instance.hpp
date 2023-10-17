@@ -21,7 +21,7 @@ template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using device_transpose_f16_instances = std::tuple<
-	// FOR 16, 32, 16, 32, 16
+    // FOR 16, 32, 16, 32, 16
     // clang-format off
     DeviceElementwise3dImpl<ck::Tuple<F16>, ck::Tuple<F16>, PassThrough, 2, 2, 1, 8, 8, 8, ck::Sequence<8>, ck::Sequence<8>>,
     DeviceElementwise3dImpl<ck::Tuple<F16>, ck::Tuple<F16>, PassThrough, 2, 2, 1, 8, 8, 8, ck::Sequence<8>, ck::Sequence<1>>,
@@ -35,7 +35,7 @@ using device_transpose_f16_instances = std::tuple<
     >;
 
 using device_transpose_f32_instances = std::tuple<
-	// for 16, 8, 16, 32, 8 -> test with instances for fp16
+    // for 16, 8, 16, 32, 8 -> test with instances for fp16
     // clang-format off
     DeviceElementwise3dImpl<ck::Tuple<F32>, ck::Tuple<F32>, PassThrough, 2, 2, 1, 4, 4, 4, ck::Sequence<1>, ck::Sequence<1>>,
     DeviceElementwise3dImpl<ck::Tuple<F32>, ck::Tuple<F32>, PassThrough, 2, 2, 1, 4, 4, 4, ck::Sequence<8>, ck::Sequence<1>>,
