@@ -37,7 +37,7 @@ struct DeviceOperationInstanceFactory<
         DeviceElementwise<InDataTypeTuple, OutDataTypeTuple, ElementwiseOperation, NumDim>>
 {
     using DeviceOp =
-        DeviceElementwise3dImpl<InDataTypeTuple, OutDataTypeTuple, ElementwiseOperation, NumDim>;
+        DeviceElementwise<InDataTypeTuple, OutDataTypeTuple, ElementwiseOperation, NumDim>;
 
     static auto GetInstances()
     {
@@ -52,7 +52,6 @@ struct DeviceOperationInstanceFactory<
         }
     }
     return op_ptrs;
-}
 };
 
 } // namespace instance
