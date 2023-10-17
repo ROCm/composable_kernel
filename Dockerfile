@@ -41,6 +41,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     ccache \
     git \
     hip-rocclr \
+    iputils-ping \
     jq \
     libelf-dev \
     libncurses5-dev \
@@ -52,6 +53,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3 \
     python3-dev \
     python3-pip \
+    redis \
     sshpass \
     software-properties-common \
     vim \
