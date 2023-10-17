@@ -5,7 +5,7 @@ template <ck::index_t NDimSpatial>
 bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                  const ck::utils::conv::ConvParam& conv_param)
 {
-    // Dl op doesn't support split_k > 1
+    // Dl and WMMA ops don't support split_k > 1
     constexpr ck::index_t split_k = 1;
 
     const auto in_g_n_c_wis_desc =
@@ -142,24 +142,4 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
               << "DeviceOp: " << conv.GetTypeString() << std::endl;
 
     return true;
-}
-
-bool run_grouped_conv_bwd_weight_example(int argc, char* argv[])
-{
-    ExecutionConfig config;
-    ck::utils::conv::ConvParam conv_param = DefaultConvParam;
-
-    if(!parse_cmd_args(argc, argv, config, conv_param))
-    {
-        return false;
-    }
-
-    switch(conv_param.num_dim_spatial_)
-    {
-    case 1: return run_grouped_conv_bwd_weight<1>(config, conv_param);
-    case 2: return run_grouped_conv_bwd_weight<2>(config, conv_param);
-    case 3: return run_grouped_conv_bwd_weight<3>(config, conv_param);
-    }
-
-    return false;
 }

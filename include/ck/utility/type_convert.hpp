@@ -146,7 +146,7 @@ inline __host__ __device__ f8_t type_convert<f8_t, half_t>(half_t x)
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // convert to float and use native converion
     return type_convert<f8_t>(type_convert<float>(x));
-#else
+#elif 0
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::standard;
@@ -154,6 +154,8 @@ inline __host__ __device__ f8_t type_convert<f8_t, half_t>(half_t x)
     return utils::
         cast_to_f8<half_t, f8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
             x, rng);
+#else
+    return type_convert<f8_t>(type_convert<float>(x));
 #endif
 }
 
@@ -164,9 +166,11 @@ inline __host__ __device__ half_t type_convert<half_t, f8_t>(f8_t x)
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // use native conversion to float and convert to fp16
     return type_convert<half_t>(type_convert<float>(x));
-#else
+#elif 0
     constexpr bool negative_zero_nan = true;
     return utils::cast_from_f8<f8_t, half_t, negative_zero_nan>(x);
+#else
+    return type_convert<half_t>(type_convert<float>(x));
 #endif
 }
 #endif
@@ -222,7 +226,7 @@ inline __host__ __device__ bf8_t type_convert<bf8_t, half_t>(half_t x)
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // convert to float and use native converion
     return type_convert<bf8_t>(type_convert<float>(x));
-#else
+#elif 0
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::standard;
@@ -230,6 +234,8 @@ inline __host__ __device__ bf8_t type_convert<bf8_t, half_t>(half_t x)
     return utils::
         cast_to_f8<half_t, bf8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
             x, rng);
+#else
+    return type_convert<bf8_t>(type_convert<float>(x));
 #endif
 }
 
@@ -240,9 +246,11 @@ inline __host__ __device__ half_t type_convert<half_t, bf8_t>(bf8_t x)
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // use native conversion to float and convert to fp16
     return type_convert<half_t>(type_convert<float>(x));
-#else
+#elif 0
     constexpr bool negative_zero_nan = true;
     return utils::cast_from_f8<bf8_t, half_t, negative_zero_nan>(x);
+#else
+    return type_convert<half_t>(type_convert<float>(x));
 #endif
 }
 #endif
@@ -344,7 +352,7 @@ inline __host__ __device__ f8_t f8_convert_sr<f8_t, half_t>(half_t x)
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // convert to float and use native converion
     return f8_convert_sr<f8_t>(type_convert<float>(x));
-#else
+#elif 0
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
@@ -353,6 +361,8 @@ inline __host__ __device__ f8_t f8_convert_sr<f8_t, half_t>(half_t x)
     return utils::
         cast_to_f8<half_t, f8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
             x, rng);
+#else
+    return f8_convert_sr<f8_t>(type_convert<float>(x));
 #endif
 }
 #endif
@@ -393,7 +403,7 @@ inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, half_t>(half_t x)
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // convert to float and use native converion
     return f8_convert_sr<f8_t>(type_convert<float>(x));
-#else
+#elif 0
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
@@ -403,6 +413,8 @@ inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, half_t>(half_t x)
     return utils::
         cast_to_f8<half_t, bf8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
             x, rng);
+#else
+    return f8_convert_sr<bf8_t>(type_convert<float>(x));
 #endif
 }
 #endif
