@@ -88,6 +88,9 @@ template <typename InputDataType,
           PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
 {
+    static_assert(AK1Value % ABlockTransferDstScalarPerVector_AK1 == 0);
+    static_assert(BK1Value % BBlockTransferDstScalarPerVector_BK1 == 0);
+
     static_assert(KPerBlock == Gemm1NPerBlock);
     static_assert(MPerBlock % Gemm1KPerBlock == 0);
     static_assert(NPerBlock % Gemm2KPerBlock == 0);
