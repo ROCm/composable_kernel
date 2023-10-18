@@ -22,7 +22,6 @@ None
 
 ### Changes
  - Changed the grouped convolution API to maintain consistency with other convolution kernels (#817)
- - Layernorm and Groupnorm optionally save the mean and inverse std in forward (#929).
 
 ## CK 0.2.0 for ROCm 5.7.0
 
