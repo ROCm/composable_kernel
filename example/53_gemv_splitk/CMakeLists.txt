@@ -1,5 +1,11 @@
-
-add_custom_target(example_gemv_splitk)
-add_example_executable(example_gemv_splitk_fp16 gemv_splitk_fp16.cpp)
-add_dependencies(example_gemv_splitk
-              example_gemv_splitk_fp16)
+list(APPEND gpu_list gfx908 gfx90a gfx940 gfx941 gfx942)
+set(target 0)
+foreach(gpu IN LISTS GPU_TARGETS)
+ if(gpu IN_LIST gpu_list AND target EQUAL 0)
+   add_custom_target(example_gemv_splitk)
+   add_example_executable(example_gemv_splitk_fp16 gemv_splitk_fp16.cpp)
+   add_dependencies(example_gemv_splitk
+                example_gemv_splitk_fp16)
+   set(target 1)
+  endif()
+endforeach()
