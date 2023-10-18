@@ -155,7 +155,7 @@ struct DeviceOperationInstanceFactory<
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 #ifdef CK_ENABLE_FP32
         if constexpr(is_same_v<ADataType, float> && is_same_v<BDataType, float> &&
-                     is_same_v<CDataType, float>)
+                     is_same_v<CDataType, float> && is_same_v<ComputeType, float>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
@@ -180,8 +180,8 @@ struct DeviceOperationInstanceFactory<
         }
 #endif
 #ifdef CK_ENABLE_FP16
-        else if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
-                          is_same_v<CDataType, half_t> && is_same_v<ComputeType, half_t>)
+        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
+                     is_same_v<CDataType, half_t> && is_same_v<ComputeType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
@@ -206,8 +206,8 @@ struct DeviceOperationInstanceFactory<
         }
 #endif
 #if(defined(CK_ENABLE_FP16) || defined(CK_ENABLE_FP8))
-        else if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, half_t> &&
-                          is_same_v<CDataType, half_t>)
+        if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, half_t> &&
+                     is_same_v<CDataType, half_t> && is_same_v<ComputeType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
@@ -230,8 +230,8 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_xdl_splitk_f8_f16_f16_km_nk_mn_instances(op_ptrs);
             }
         }
-        else if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, f8_t> &&
-                          is_same_v<CDataType, half_t>)
+        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, f8_t> &&
+                     is_same_v<CDataType, half_t> && is_same_v<ComputeType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
