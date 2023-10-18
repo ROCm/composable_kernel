@@ -160,24 +160,7 @@ __global__ void
         if(!b2c_tile_map.IsFirstKSplitBlock())
         {
             // Store partial results to auxilliary workspace.
-
-            // make results buffer tensor descriptor (registers).
-            // make workspace gmem tensor descriptor
-            // create ThreadGroupTransform and run copy
-            // if (threadIdx.x == 0)
-            // {
-            //     // using CThreadBuffer = decltype(results_buffer);
-
-            //     // constexpr index_t n_scalars = CThreadBuffer::s_per_buf.value;
-            //     constexpr index_t n_scalars = 4;
-
-            //     static_for<0, n_scalars, 1>{}([&](auto i) {
-            //         printf("[kernel] bid: %d; c_thread_buff[%d]: %f\n",
-            //                 static_cast<index_t>(blockIdx.x),
-            //                 i.value,
-            //                 static_cast<float>(results_buffer[i]));
-            //     });
-            // }
+            gridwise_gemm.StorePartials(p_workspace);
         }
 
         const index_t output_tile_idx =
@@ -196,21 +179,6 @@ __global__ void
             // read actual flag value.
             [[maybe_unused]] const index_t flag_v = __builtin_amdgcn_readfirstlane(
                 work_scheduler.GetFlagValue(k_batch, output_tile_idx, output_tile_idx_offset));
-
-            // if(threadIdx.x == 0)
-            // {
-            //     // using CThreadBuffer = decltype(results_buffer);
-
-            //     // constexpr index_t n_scalars = CThreadBuffer::s_per_buf.value;
-            //     constexpr index_t n_scalars = 4;
-
-            //     static_for<0, n_scalars, 1>{}([&](auto i) {
-            //         printf("[kernel] bid: %d; c_thread_buff[%d]: %f\n",
-            //                 static_cast<index_t>(blockIdx.x),
-            //                 i.value,
-            //                 static_cast<float>(results_buffer[i]));
-            //     });
-            // }
 
             // TODO: do blockwise reduction from workspace (GMEM) to results_buffer (registers)
 
