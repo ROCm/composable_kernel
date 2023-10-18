@@ -56,10 +56,6 @@ struct DeviceGroupedGemmMultiABDFixedNK : DeviceGroupedGemmMultiABD<AsLayout,
     virtual void SetDeviceKernelArgs(BaseArgument* p_arg, const void* kernel_args) const = 0;
     virtual size_t GetDeviceKernelArgSize(const BaseArgument* p_arg) const               = 0;
     virtual void SetKBatch(BaseArgument* p_arg, index_t k_batch) const                   = 0;
-    virtual void SetElementwiseOps(BaseArgument* p_arg,
-                                   AElementwiseOperation a_element_op,
-                                   BElementwiseOperation b_element_op,
-                                   CElementwiseOperation cde_element_op) const           = 0;
 };
 
 } // namespace device
