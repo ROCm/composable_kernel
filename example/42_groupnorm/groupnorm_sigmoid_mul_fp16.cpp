@@ -6,11 +6,14 @@
 constexpr int Rank         = 5;
 constexpr int NumReduceDim = 3;
 
-using XDataType       = ck::half_t;
-using GammaDataType   = ck::half_t;
-using BetaDataType    = ck::half_t;
-using YDataType       = ck::half_t;
-using ComputeDataType = float;
+using XDataType              = ck::half_t;
+using GammaDataType          = ck::half_t;
+using BetaDataType           = ck::half_t;
+using YDataType              = ck::half_t;
+using SaveMeanInvStdDataType = float;
+using ComputeDataType        = float;
+
+#define SAVE_MEAN_INV_STD
 
 struct YElementOp
 {
@@ -39,6 +42,7 @@ using DeviceInstance =
                                                           BetaDataType,
                                                           ComputeDataType,
                                                           YDataType,
+                                                          SaveMeanInvStdDataType,
                                                           YElementOp,
                                                           Rank,
                                                           NumReduceDim,
@@ -53,7 +57,8 @@ using DeviceInstance =
                                                           2,    // GammaScalarPerVector
                                                           1,    // BetaVecDim (0=M, 1=K)
                                                           2,    // BetaScalarPerVector
-                                                          2>;   // OutScalarPerVector
+                                                          2,    // YScalarPerVector
+                                                          1>;   // SaveMeanInvStdScalarPerVector
 
 #include "run_groupnorm_example.inc"
 

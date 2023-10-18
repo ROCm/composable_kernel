@@ -93,12 +93,12 @@ int profile_groupnorm(int argc, char* argv[])
 
     if(data_type == ck::DataTypeEnum::Float)
     {
-        ck::profiler::profile_groupnorm_impl<F32, F32, F32, F32, F32>(
+        ck::profiler::profile_groupnorm_impl<F32, F32, F32, F32, F32, F32, false>(
             do_verification, init_method, do_log, time_kernel, length);
     }
     else if(data_type == ck::DataTypeEnum::Half)
     {
-        ck::profiler::profile_groupnorm_impl<F16, F16, F16, F32, F16>(
+        ck::profiler::profile_groupnorm_impl<F16, F16, F16, F32, F16, F32, false>(
             do_verification, init_method, do_log, time_kernel, length);
     }
     else
