@@ -12,6 +12,10 @@ list(APPEND GEMM_INSTANCES device_gemm_xdl_f32_f32_f32_mk_kn_mn_instance.cpp
                            device_gemm_xdl_c_shuffle_f32_f32_f32_mk_nk_mn_instance.cpp
                            device_gemm_xdl_c_shuffle_f32_f32_f32_km_kn_mn_instance.cpp
                            device_gemm_xdl_c_shuffle_f32_f32_f32_km_nk_mn_instance.cpp
+                           device_gemm_xdl_c_shuffle_lds_direct_load_f32_f32_f32_km_kn_mn_instance.cpp
+                           device_gemm_xdl_c_shuffle_lds_direct_load_f32_f32_f32_km_nk_mn_instance.cpp
+                           device_gemm_xdl_c_shuffle_lds_direct_load_f32_f32_f32_mk_kn_mn_instance.cpp
+                           device_gemm_xdl_c_shuffle_lds_direct_load_f32_f32_f32_mk_nk_mn_instance.cpp
                            device_gemm_dl_f32_f32_f32_mk_kn_mn_instance.cpp
                            device_gemm_dl_f32_f32_f32_mk_nk_mn_instance.cpp
                            device_gemm_dl_f32_f32_f32_km_kn_mn_instance.cpp

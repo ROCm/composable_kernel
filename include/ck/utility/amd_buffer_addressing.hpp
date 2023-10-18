@@ -944,4 +944,36 @@ amd_buffer_atomic_max(const typename vector_type_maker<T, N>::type::type src_thr
 #endif
 }
 
+// Direct loads from global to LDS.
+__device__ void
+llvm_amdgcn_raw_buffer_load_lds(int32x4_t rsrc,
+                                __attribute__((address_space(3))) float* lds_ptr,
+                                index_t size,
+                                index_t voffset,
+                                index_t soffset,
+                                index_t offset,
+                                index_t aux) __asm("llvm.amdgcn.raw.buffer.load.lds");
+
+template <typename T>
+__device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
+                                              const index_t global_offset,
+                                              T* lds_base_ptr,
+                                              const index_t lds_offset,
+                                              const bool is_valid,
+                                              const index_t src_element_space_size)
+{
+    // Direct loads require that each thread writes a single DWORD.
+    static_assert(sizeof(T) == 4);
+
+    const int32x4_t src_resource =
+        make_wave_buffer_resource(global_base_ptr, src_element_space_size);
+    const index_t global_offset_bytes = is_valid ? global_offset * sizeof(T) : 0x80000000;
+    // LDS pointer must be attributed with the LDS address space.
+    __attribute__((address_space(3))) T* lds_ptr =
+        reinterpret_cast<__attribute__((address_space(3))) T*>(
+            reinterpret_cast<uintptr_t>(lds_base_ptr + lds_offset));
+
+    llvm_amdgcn_raw_buffer_load_lds(src_resource, lds_ptr, sizeof(T), global_offset_bytes, 0, 0, 0);
+}
+
 } // namespace ck
