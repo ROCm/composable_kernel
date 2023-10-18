@@ -8,4 +8,4 @@ using OutElementOp = ck::tensor_operation::element_wise::Relu;
 using DeviceGroupedConvNDFwdActivInstance = DeviceGroupedConvNDFwdInstance<OutElementOp>;
 #include "run_convnd_fwd_activ_example.inc"
 
-int main(int argc, char* argv[]) { return run_convnd_fwd_example(argc, argv) ? 0 : 1; }
+int main(int argc, char* argv[]) { return !run_convnd_fwd_example(argc, argv); }

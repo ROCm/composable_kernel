@@ -94,14 +94,6 @@ using DeviceGroupedConvNDFwdInstance =
         S<1, 32, 1, 8>,
         8>;
 
-void print_helper_msg()
-{
-    std::cout << "arg1: verification (0=no, 1=yes)\n"
-              << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
-              << "arg3: time kernel (0=no, 1=yes)\n"
-              << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
-}
-
 template <ck::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,

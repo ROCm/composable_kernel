@@ -451,8 +451,8 @@ struct Sigmoid
                           is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
                           is_same<T, int32_t>::value,
                       "Data type is not supported by this operation!");
-        constexpr T one{1};
-        y = one / (ck::type_convert<T>(one) + ck::math::exp(-x));
+        constexpr T one = type_convert<T>(1);
+        y               = one / (ck::type_convert<T>(one) + ck::math::exp(-x));
     };
 };
 
@@ -489,7 +489,7 @@ struct Swish
         y        = type_convert<Y>(x / (1.f + ck::math::exp(bx)));
     };
 
-    float beta_ = 1.0f;
+    const float beta_;
 };
 
 struct SoftRelu
@@ -503,11 +503,11 @@ struct SoftRelu
                           is_same<T, half_t>::value || is_same<T, int32_t>::value ||
                           is_same<T, int8_t>::value,
                       "Data type is not supported by this operation!");
-        T casted_alpha = type_convert<T>(alpha_);
-        constexpr T one{1};
-        y = ck::math::log(one + ck::math::exp(x * casted_alpha)) / casted_alpha;
+        T casted_alpha  = type_convert<T>(alpha_);
+        constexpr T one = type_convert<T>(1);
+        y               = ck::math::log(one + ck::math::exp(x * casted_alpha)) / casted_alpha;
     }
-    float alpha_;
+    const float alpha_;
 };
 
 struct Power
@@ -528,9 +528,9 @@ struct Power
         T shifted_scaled_x = casted_alpha + casted_beta * x;
         y                  = ck::math::pow(shifted_scaled_x, casted_gamma);
     }
-    float alpha_;
-    float beta_;
-    float gamma_;
+    const float alpha_;
+    const float beta_;
+    const float gamma_;
 };
 
 struct ClippedRelu
@@ -548,8 +548,8 @@ struct ClippedRelu
         T casted_beta  = type_convert<T>(beta_);
         y              = ck::math::min(casted_beta, ck::math::max(casted_alpha, x));
     }
-    float alpha_;
-    float beta_;
+    const float alpha_;
+    const float beta_;
 };
 
 struct LeakyRelu
@@ -566,7 +566,7 @@ struct LeakyRelu
         T casted_alpha = type_convert<T>(alpha_);
         y              = x >= 0 ? x : x * casted_alpha;
     }
-    float alpha_;
+    const float alpha_;
 };
 
 struct Elu
@@ -583,7 +583,7 @@ struct Elu
         T casted_alpha = type_convert<T>(alpha_);
         y              = x > 0 ? x : casted_alpha * ck::math::expm1(x);
     }
-    float alpha_;
+    const float alpha_;
 };
 
 } // namespace element_wise

@@ -3,6 +3,14 @@
 
 #pragma once
 
+void print_helper_msg()
+{
+    std::cout << "arg1: verification (0=no, 1=yes)\n"
+              << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
+              << "arg3: time kernel (0=no, 1=yes)\n"
+              << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
+}
+
 bool run_convnd_fwd_example(int argc, char* argv[])
 {
     print_helper_msg();
@@ -79,5 +87,5 @@ bool run_convnd_fwd_example(int argc, char* argv[])
         return run();
     }
 
-    return true;
+    return false;
 }
