@@ -130,10 +130,11 @@ struct GeneratorTensor_3<ck::bhalf_t>
 template <typename T>
 struct GeneratorTensor_4
 {
-    std::default_random_engine generator;
+    std::mt19937 generator;
     std::normal_distribution<float> distribution;
 
-    GeneratorTensor_4(float mean, float stddev) : generator(1), distribution(mean, stddev){};
+    GeneratorTensor_4(float mean, float stddev, unsigned int seed = 1)
+        : generator(seed), distribution(mean, stddev){};
 
     template <typename... Is>
     T operator()(Is...)
