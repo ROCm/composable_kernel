@@ -4,7 +4,7 @@ arg1: verification (0=no, 1=yes)
 arg2: initialization (0=no init, 1=integer value, 2=decimal value)
 arg3: time kernel (0=no, 1=yes)
 Following arguments (depending on number of spatial dims):
- Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
+ Number of spatial dimensions (1=Conv1D, 2=Conv2D, 3=Conv3D)
  G, N, K, C,
  <filter spatial dimensions>, (ie Y, X for 2D)
  <input image spatial dimensions>, (ie Hi, Wi for 2D)
