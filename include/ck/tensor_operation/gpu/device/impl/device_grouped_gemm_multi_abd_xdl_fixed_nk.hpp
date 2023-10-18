@@ -158,10 +158,9 @@ __global__ void
     ignore = barrier_size_grp;
     ignore = group_count;
     ignore = grid_size_grp;
-    ignore = KBatch;
     ignore = a_element_op;
     ignore = b_element_op;
-    ignore = c_element_op;
+    ignore = cde_element_op;
 #endif
 }
 
