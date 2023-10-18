@@ -243,8 +243,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     std::vector<void*> p_Cs                      = {};
 
     // do GEMM
-    auto argument = gemm.MakeArgument(
-        p_As, p_Bs, p_Ds, p_Cs, gemm_descs, a_element_op, b_element_op, cde_element_op);
+    auto argument = gemm.MakeArgument(p_As, p_Bs, p_Ds, p_Cs, gemm_descs);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -264,6 +263,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     gemm.SetDeviceKernelArgs(argument, gemm_kernel_args_dev.GetDeviceBuffer());
     gemm.SetKBatch(argument, config.k_batch);
+
+    gemm.SetElementwiseOps(argument, a_element_op, b_element_op, cde_element_op);
 
     invoker.Run(argument, StreamConfig{nullptr, false});
 

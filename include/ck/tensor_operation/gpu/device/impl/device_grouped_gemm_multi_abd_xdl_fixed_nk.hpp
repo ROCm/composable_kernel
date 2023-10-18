@@ -453,9 +453,9 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
                  std::vector<std::array<const void*, NumDTensor>>&,
                  std::vector<void*>&,
                  std::vector<GemmMultiABDDesc>& gemm_descs,
-                 AElementwiseOperation a_element_op,
-                 BElementwiseOperation b_element_op,
-                 CDEElementwiseOperation c_element_op)
+                 AElementwiseOperation a_element_op   = AElementwiseOperation{},
+                 BElementwiseOperation b_element_op   = BElementwiseOperation{},
+                 CDEElementwiseOperation c_element_op = CDEElementwiseOperation{})
             : a_element_op_{a_element_op}, b_element_op_{b_element_op}, c_element_op_{c_element_op}
         {
             grid_size_ = 0;
@@ -754,9 +754,9 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
                              std::vector<std::array<const void*, NumDTensor>>& p_Ds,
                              std::vector<void*>& p_Es,
                              std::vector<GemmMultiABDDesc> gemm_descs,
-                             AElementwiseOperation a_element_op,
-                             BElementwiseOperation b_element_op,
-                             CDEElementwiseOperation c_element_op)
+                             AElementwiseOperation a_element_op   = AElementwiseOperation{},
+                             BElementwiseOperation b_element_op   = BElementwiseOperation{},
+                             CDEElementwiseOperation c_element_op = CDEElementwiseOperation{})
     {
         return Argument{
             p_As, p_Bs, p_Ds, p_Es, gemm_descs, a_element_op, b_element_op, c_element_op};
@@ -771,9 +771,9 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
                         std::vector<std::array<const void*, NumDTensor>>& p_Ds,
                         std::vector<void*>& p_Es,
                         std::vector<GemmMultiABDDesc>& gemm_descs,
-                        AElementwiseOperation a_element_op,
-                        BElementwiseOperation b_element_op,
-                        CDEElementwiseOperation c_element_op) override
+                        AElementwiseOperation a_element_op   = AElementwiseOperation{},
+                        BElementwiseOperation b_element_op   = BElementwiseOperation{},
+                        CDEElementwiseOperation c_element_op = CDEElementwiseOperation{}) override
     {
         return std::make_unique<Argument>(
             p_As, p_Bs, p_Ds, p_Es, gemm_descs, a_element_op, b_element_op, c_element_op);
@@ -814,6 +814,16 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
         return str.str();
     }
 
+    static void SetElementwiseOps(Argument& arg,
+                                  AElementwiseOperation a_element_op,
+                                  BElementwiseOperation b_element_op,
+                                  CDEElementwiseOperation c_element_op)
+    {
+        arg.a_element_op_ = a_element_op;
+        arg.b_element_op_ = b_element_op;
+        arg.c_element_op_ = c_element_op;
+    }
+
     static void SetDeviceKernelArgs(Argument& arg, const void* kernel_args)
     {
         arg.grouped_gemm_kernel_args_dev = kernel_args;
@@ -823,6 +833,16 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
     void SetDeviceKernelArgs(BaseArgument* p_arg, const void* kernel_args) const override
     {
         return SetDeviceKernelArgs(*dynamic_cast<Argument*>(p_arg), kernel_args);
+    }
+
+    void SetElementwiseOps(BaseArgument* p_arg,
+                           AElementwiseOperation a_element_op,
+                           BElementwiseOperation b_element_op,
+                           CDEElementwiseOperation c_element_op) const override
+    {
+
+        SetElementwiseOps(
+            *dynamic_cast<Argument*>(p_arg), a_element_op, b_element_op, c_element_op);
     }
 
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
