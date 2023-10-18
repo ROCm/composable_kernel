@@ -59,21 +59,21 @@ int main()
     SimpleDeviceMem a_dev_buf(sizeof(ADataType) * size);
     SimpleDeviceMem b_dev_buf(sizeof(BDataType) * size);
 
-    std::array<const void*, 1> input = {a_device_buf.GetDeviceBuffer()};
-    std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
+    std::array<const void*, 1> input = {a_dev_buf.GetDeviceBuffer()};
+    std::array<void*, 1> output      = {b_dev_buf.GetDeviceBuffer()};
 
     using DeviceElementwisePermuteInstance =
-        ck::tensor_operation::device::DeviceElementwise3dImpl<ck::Tuple<ADataType>,
-                                                              ck::Tuple<BDataType>,
-                                                              PassThrough,
-                                                              2,
-                                                              2,
-                                                              1,
-                                                              8,
-                                                              8,
-                                                              8,
-                                                              ck::Sequence<8>,
-                                                              ck::Sequence<1>>;
+        ck::tensor_operation::device::DeviceElementwise<ck::Tuple<ADataType>,
+                                                        ck::Tuple<BDataType>,
+                                                        PassThrough,
+                                                        2,
+                                                        2,
+                                                        1,
+                                                        8,
+                                                        8,
+                                                        8,
+                                                        ck::Sequence<8>,
+                                                        ck::Sequence<1>>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -104,7 +104,7 @@ int main()
         {
             float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
-            std::size_t num_btype =
+            std::size_t num_byte =
                 sizeof(ADataType) * (ncdhw[0] * ncdhw[1] * ncdhw[2] * ncdhw[3] * ncdhw[4]) +
                 sizeof(BDataType) * (ncdhw[0] * ncdhw[1] * ncdhw[2] * ncdhw[3] * ncdhw[4]);
 
