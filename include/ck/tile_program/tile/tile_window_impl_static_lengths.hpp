@@ -46,6 +46,9 @@ struct TileWindowWithStaticLengths
 
     __device__ constexpr auto GetWindowOrigin() const { return window_origin_; }
 
+    // move window-origin
+    __device__ void Move(const BottomTensorIndex& step) { window_origin_ += step; }
+
     // this is the bottom tensor view
     // [x0', x1', ...] ==> [offset]
     BottomTensorView bottom_tensor_view_;
@@ -73,10 +76,10 @@ make_tile_window(const TensorView_& tensor_view,
 template <typename TensorView_, typename WindowLengths_>
 __device__ void move_tile_window(
     TileWindowWithStaticLengths<TensorView_, WindowLengths_>& window,
-    const MultiIndex<TileWindowWithStaticLengths<TensorView_, WindowLengths_>::GetNumOfDimension()>&
+    const typename TileWindowWithStaticLengths<TensorView_, WindowLengths_>::BottomTensorIndex&
         step)
 {
-    window.window_origin_ += step;
+    window.Move(step);
 }
 
 } // namespace tile_program

@@ -48,18 +48,18 @@ struct SpaceFillingCurve
                ScalarPerVector;
     }
 
-    template <index_t AccessIdx1dBegin, index_t AccessIdx1dEnd>
-    static __device__ __host__ constexpr auto GetStepBetween(Number<AccessIdx1dBegin>,
-                                                             Number<AccessIdx1dEnd>)
+    template <index_t AccessIdx1dHead, index_t AccessIdx1dTail>
+    static __device__ __host__ constexpr auto GetStepBetween(Number<AccessIdx1dHead>,
+                                                             Number<AccessIdx1dTail>)
     {
-        static_assert(AccessIdx1dBegin >= 0, "1D index should be non-negative");
-        static_assert(AccessIdx1dBegin < GetNumOfAccess(), "1D index should be larger than 0");
-        static_assert(AccessIdx1dEnd >= 0, "1D index should be non-negative");
-        static_assert(AccessIdx1dEnd < GetNumOfAccess(), "1D index should be larger than 0");
+        static_assert(AccessIdx1dHead >= 0 && AccessIdx1dHead < GetNumOfAccess(),
+                      "1D index out of range");
+        static_assert(AccessIdx1dTail >= 0 && AccessIdx1dTail < GetNumOfAccess(),
+                      "1D index out of range");
 
-        constexpr auto idx_begin = GetIndex(Number<AccessIdx1dBegin>{});
-        constexpr auto idx_end   = GetIndex(Number<AccessIdx1dEnd>{});
-        return idx_end - idx_begin;
+        constexpr auto idx_head = GetIndex(Number<AccessIdx1dHead>{});
+        constexpr auto idx_tail = GetIndex(Number<AccessIdx1dTail>{});
+        return idx_tail - idx_head;
     }
 
     template <index_t AccessIdx1d>

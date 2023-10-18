@@ -238,16 +238,16 @@ struct GemmSoftmaxGemmImpl
         using SBlockTileType = decltype(tile_elementwise_in(
             type_convert<SMPLComputeDataType, SaccDataType>, SaccBlockTileType{}));
 
-        using PBlockTileType = decltype(
-            tile_elementwise_in(type_convert<PDataType, SaccDataType>, SaccBlockTileType{}));
+        using PBlockTileType = decltype(tile_elementwise_in(type_convert<PDataType, SaccDataType>,
+                                                            SaccBlockTileType{}));
 
         using MLBlockTileType = decltype(block_tile_reduce<SMPLComputeDataType>(
             SBlockTileType{}, Sequence<1>{}, f_max, SMPLComputeDataType{0}));
 
-        using OaccBlockTileType = decltype(
-            gemm1(get_slice_tile(
-                      PBlockTileType{}, Sequence<0, 0>{}, Sequence<kM0PerBlock, kK1PerBlock>{}),
-                  v_dram_window));
+        using OaccBlockTileType = decltype(gemm1(
+            get_slice_tile(
+                PBlockTileType{}, Sequence<0, 0>{}, Sequence<kM0PerBlock, kK1PerBlock>{}),
+            v_dram_window));
 
         // init Oacc, M, L
         auto o_acc = OaccBlockTileType{};
@@ -322,7 +322,7 @@ struct GemmSoftmaxGemmImpl
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
                     // FIXME: this use different equation from FA v2 paper,
-                    // but produce correc result.
+                    // but produce correct result.
                     // Is the equation wrong?
                     o_acc(i_j_idx) *= tmp;
                 });
@@ -336,6 +336,7 @@ struct GemmSoftmaxGemmImpl
             const auto p =
                 tile_elementwise_in(type_convert<PDataType, SMPLComputeDataType>, p_compute);
 
+            // Oacc{j}
             constexpr index_t k1_loops = kN0PerBlock / kK1PerBlock;
 
             if constexpr(k1_loops > 1)
@@ -369,7 +370,7 @@ struct GemmSoftmaxGemmImpl
 
         } while(iN0 < N0);
 
-        // O
+        // Oacc
         constexpr auto o_spans = decltype(o_acc)::GetDistributedSpans();
 
         sweep_tile_span(o_spans[I0], [&](auto idx0) {
