@@ -95,7 +95,6 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int8_t>(int8_
     return type_convert<bhalf_t>(x_fp32);
 }
 
-#if defined CK_ENABLE_FP8
 // convert fp32 to fp8
 template <>
 inline __host__ __device__ f8_t type_convert<f8_t, float>(float x)
@@ -173,9 +172,7 @@ inline __host__ __device__ half_t type_convert<half_t, f8_t>(f8_t x)
     return type_convert<half_t>(type_convert<float>(x));
 #endif
 }
-#endif
 
-#if defined CK_ENABLE_BF8
 // convert fp32 to bf8
 template <>
 inline __host__ __device__ bf8_t type_convert<bf8_t, float>(float x)
@@ -253,7 +250,6 @@ inline __host__ __device__ half_t type_convert<half_t, bf8_t>(bf8_t x)
     return type_convert<half_t>(type_convert<float>(x));
 #endif
 }
-#endif
 
 // Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
@@ -316,7 +312,6 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, half_t>(h
 template <typename Y, typename X>
 __host__ __device__ constexpr Y f8_convert_sr(X x);
 
-#if defined CK_ENABLE_FP8
 // convert fp32 to fp8 with stochastic rounding
 template <>
 inline __host__ __device__ f8_t f8_convert_sr<f8_t, float>(float x)
@@ -365,9 +360,7 @@ inline __host__ __device__ f8_t f8_convert_sr<f8_t, half_t>(half_t x)
     return f8_convert_sr<f8_t>(type_convert<float>(x));
 #endif
 }
-#endif
 
-#if defined CK_ENABLE_BF8
 // convert fp32 to bf8 with stochastic rounding
 template <>
 inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, float>(float x)
@@ -417,6 +410,5 @@ inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, half_t>(half_t x)
     return f8_convert_sr<bf8_t>(type_convert<float>(x));
 #endif
 }
-#endif
 
 } // namespace ck
