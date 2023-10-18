@@ -12,31 +12,42 @@ template <typename GridwiseReduction,
           typename GammaDataType,
           typename BetaDataType,
           typename YDataType,
+          typename SaveMeanInvStdDataType,
           typename ComputeDataType,
           typename YElementwiseOperation,
-          typename GridDesc_M_K>
-__global__ void kernel_normalization(const GridDesc_M_K x_grid_desc_m_k,
-                                     const GridDesc_M_K gamma_grid_desc_m_k,
-                                     const GridDesc_M_K beta_grid_desc_m_k,
-                                     const GridDesc_M_K y_grid_desc_m_k,
-                                     index_t num_k_block_tile_iteration,
-                                     ComputeDataType epsilon,
-                                     const XDataType* const __restrict__ p_x_global,
-                                     const GammaDataType* const __restrict__ p_gamma_global,
-                                     const BetaDataType* const __restrict__ p_beta_global,
-                                     YDataType* const __restrict__ p_y_global,
-                                     const YElementwiseOperation y_elementwise_op)
+          typename GridDesc_M_K,
+          typename GridDesc_M>
+__global__ void
+kernel_normalization(const GridDesc_M_K x_grid_desc_m_k,
+                     const GridDesc_M_K gamma_grid_desc_m_k,
+                     const GridDesc_M_K beta_grid_desc_m_k,
+                     const GridDesc_M_K y_grid_desc_m_k,
+                     const GridDesc_M save_mean_grid_desc_m,
+                     const GridDesc_M save_inv_std_grid_desc_m,
+                     index_t num_k_block_tile_iteration,
+                     ComputeDataType epsilon,
+                     const XDataType* const __restrict__ p_x_global,
+                     const GammaDataType* const __restrict__ p_gamma_global,
+                     const BetaDataType* const __restrict__ p_beta_global,
+                     YDataType* const __restrict__ p_y_global,
+                     SaveMeanInvStdDataType* const __restrict__ p_save_mean_global,
+                     SaveMeanInvStdDataType* const __restrict__ p_save_inv_std_global,
+                     const YElementwiseOperation y_elementwise_op)
 {
     GridwiseReduction::Run(x_grid_desc_m_k,
                            gamma_grid_desc_m_k,
                            beta_grid_desc_m_k,
                            y_grid_desc_m_k,
+                           save_mean_grid_desc_m,
+                           save_inv_std_grid_desc_m,
                            num_k_block_tile_iteration,
                            epsilon,
                            p_x_global,
                            p_gamma_global,
                            p_beta_global,
                            p_y_global,
+                           p_save_mean_global,
+                           p_save_inv_std_global,
                            y_elementwise_op);
 };
 
@@ -44,9 +55,11 @@ template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
           typename YDataType,
+          typename SaveMeanInvStdDataType,
           typename ComputeDataType,
           typename YElementwiseOperation,
           typename GridDesc_M_K,
+          typename GridDesc_M,
           index_t BlockSize,
           index_t MThreadClusterSize,
           index_t KThreadClusterSize,
@@ -60,6 +73,7 @@ template <typename XDataType,
           index_t BetaSrcVectorSize,
           index_t YDstVectorDim,
           index_t YDstVectorSize,
+          index_t SaveMeanInvStdDstVectorSize,
           bool UseWelford>
 auto NormalizationKernelSelector(bool isSweepOnce)
 {
@@ -68,9 +82,11 @@ auto NormalizationKernelSelector(bool isSweepOnce)
                                                     GammaDataType,
                                                     BetaDataType,
                                                     YDataType,
+                                                    SaveMeanInvStdDataType,
                                                     ComputeDataType,
                                                     YElementwiseOperation,
                                                     GridDesc_M_K,
+                                                    GridDesc_M,
                                                     BlockSize,
                                                     MThreadClusterSize,
                                                     KThreadClusterSize,
@@ -84,15 +100,18 @@ auto NormalizationKernelSelector(bool isSweepOnce)
                                                     BetaSrcVectorSize,
                                                     YDstVectorDim,
                                                     YDstVectorSize,
+                                                    SaveMeanInvStdDstVectorSize,
                                                     false>;
     using GridwiseNormalizationSweepOnceNaive =
         GridwiseNormalizationNaiveVariance_mk_to_mk<XDataType,
                                                     GammaDataType,
                                                     BetaDataType,
                                                     YDataType,
+                                                    SaveMeanInvStdDataType,
                                                     ComputeDataType,
                                                     YElementwiseOperation,
                                                     GridDesc_M_K,
+                                                    GridDesc_M,
                                                     BlockSize,
                                                     MThreadClusterSize,
                                                     KThreadClusterSize,
@@ -106,15 +125,18 @@ auto NormalizationKernelSelector(bool isSweepOnce)
                                                     BetaSrcVectorSize,
                                                     YDstVectorDim,
                                                     YDstVectorSize,
+                                                    SaveMeanInvStdDstVectorSize,
                                                     true>;
     using GridwiseNormalizationGenericWelford =
         GridwiseNormalizationWelfordVariance_mk_to_mk<XDataType,
                                                       GammaDataType,
                                                       BetaDataType,
                                                       YDataType,
+                                                      SaveMeanInvStdDataType,
                                                       ComputeDataType,
                                                       YElementwiseOperation,
                                                       GridDesc_M_K,
+                                                      GridDesc_M,
                                                       BlockSize,
                                                       MThreadClusterSize,
                                                       KThreadClusterSize,
@@ -128,15 +150,18 @@ auto NormalizationKernelSelector(bool isSweepOnce)
                                                       BetaSrcVectorSize,
                                                       YDstVectorDim,
                                                       YDstVectorSize,
+                                                      SaveMeanInvStdDstVectorSize,
                                                       false>;
     using GridwiseNormalizationSweepOnceWelford =
         GridwiseNormalizationWelfordVariance_mk_to_mk<XDataType,
                                                       GammaDataType,
                                                       BetaDataType,
                                                       YDataType,
+                                                      SaveMeanInvStdDataType,
                                                       ComputeDataType,
                                                       YElementwiseOperation,
                                                       GridDesc_M_K,
+                                                      GridDesc_M,
                                                       BlockSize,
                                                       MThreadClusterSize,
                                                       KThreadClusterSize,
@@ -150,6 +175,7 @@ auto NormalizationKernelSelector(bool isSweepOnce)
                                                       BetaSrcVectorSize,
                                                       YDstVectorDim,
                                                       YDstVectorSize,
+                                                      SaveMeanInvStdDstVectorSize,
                                                       true>;
 
     if constexpr(UseWelford)
@@ -159,17 +185,21 @@ auto NormalizationKernelSelector(bool isSweepOnce)
                                                   GammaDataType,
                                                   BetaDataType,
                                                   YDataType,
+                                                  SaveMeanInvStdDataType,
                                                   ComputeDataType,
                                                   YElementwiseOperation,
-                                                  GridDesc_M_K>
+                                                  GridDesc_M_K,
+                                                  GridDesc_M>
                            : kernel_normalization<GridwiseNormalizationGenericWelford,
                                                   XDataType,
                                                   GammaDataType,
                                                   BetaDataType,
                                                   YDataType,
+                                                  SaveMeanInvStdDataType,
                                                   ComputeDataType,
                                                   YElementwiseOperation,
-                                                  GridDesc_M_K>;
+                                                  GridDesc_M_K,
+                                                  GridDesc_M>;
     }
     else
     {
@@ -178,17 +208,21 @@ auto NormalizationKernelSelector(bool isSweepOnce)
                                                   GammaDataType,
                                                   BetaDataType,
                                                   YDataType,
+                                                  SaveMeanInvStdDataType,
                                                   ComputeDataType,
                                                   YElementwiseOperation,
-                                                  GridDesc_M_K>
+                                                  GridDesc_M_K,
+                                                  GridDesc_M>
                            : kernel_normalization<GridwiseNormalizationGenericNaive,
                                                   XDataType,
                                                   GammaDataType,
                                                   BetaDataType,
                                                   YDataType,
+                                                  SaveMeanInvStdDataType,
                                                   ComputeDataType,
                                                   YElementwiseOperation,
-                                                  GridDesc_M_K>;
+                                                  GridDesc_M_K,
+                                                  GridDesc_M>;
     }
 }
 

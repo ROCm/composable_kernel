@@ -66,12 +66,15 @@ void host_gemm_layernorm(Tensor<HDataType>& h_m_n,
                                                                               BetaDataType,
                                                                               HDataType,
                                                                               AccDataType,
+                                                                              AccDataType,
                                                                               HElementOp,
                                                                               2,
                                                                               1>;
 
     Tensor<EMeanVarDataType> e_m_n(HostTensorDescriptor{M, N});
     Tensor<AccDataType> c_m_n(HostTensorDescriptor{M, N});
+    Tensor<AccDataType> save_mean({M});
+    Tensor<AccDataType> save_inv_std({M});
 
     auto ref_gemm         = ReferenceGemm{};
     auto ref_gemm_invoker = ref_gemm.MakeInvoker();
@@ -97,7 +100,7 @@ void host_gemm_layernorm(Tensor<HDataType>& h_m_n,
     auto ref_layernorm_invoker = ref_layernorm.MakeInvoker();
 
     auto ref_layernorm_argument = ref_layernorm.MakeArgument(
-        e_m_n, gamma_n, beta_n, h_m_n, h_element_op, {M, N}, {1}, epsilon);
+        e_m_n, gamma_n, beta_n, h_m_n, save_mean, save_inv_std, h_element_op, {M, N}, {1}, epsilon);
     ref_layernorm_invoker.Run(ref_layernorm_argument);
 }
 
