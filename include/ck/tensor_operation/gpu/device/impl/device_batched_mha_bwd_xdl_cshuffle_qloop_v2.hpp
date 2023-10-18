@@ -1189,6 +1189,17 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             return false;
         }
 
+        // saving dQ data with atomic_add instruction, so KzRaw must be a multiple of 2
+        if constexpr(is_same<OutputDataType, half_t>::value ||
+                     is_same<OutputDataType, bhalf_t>::value)
+        {
+            if(KzRaw % 2 != 0)
+            {
+                std::cout << "K_q must be a multiple of 2" << std::endl;
+                return false;
+            }
+        }
+
         // Check vector load/store requirement
         const auto a_stride_lowest =
             ABlockTransferSrcVectorDim == 2 ? arg.a_mz_kz_strides_[1] : arg.a_mz_kz_strides_[0];
