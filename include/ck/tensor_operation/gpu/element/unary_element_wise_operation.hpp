@@ -452,7 +452,7 @@ struct Sigmoid
                           is_same<T, int32_t>::value,
                       "Data type is not supported by this operation!");
         constexpr T one = type_convert<T>(1);
-        y               = one / (ck::type_convert<T>(one) + ck::math::exp(-x));
+        y               = one / (one + ck::math::exp(-x));
     };
 };
 
