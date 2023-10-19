@@ -77,7 +77,7 @@ int main()
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
+        DeviceElementwisePermuteInstance>::GetInstances();
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
     std::string best_op_name;
