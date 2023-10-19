@@ -450,7 +450,7 @@ struct DppGemm
     {
         static_assert(is_same<BaseType, double>::value || is_same<BaseType, float>::value ||
                           is_same<BaseType, half_t>::value || is_same<BaseType, bhalf_t>::value ||
-                          is_same<BaseType, f8_t>::value || is_same<BaseType, int8_t>::value,
+                          is_same<BaseType, int8_t>::value || is_same<BaseType, f8_t>::value,
                       "base BaseType must be double, float, half, bfloat16, and int8_t!");
 
         static_for<0, KPack / dpp_instr.k_per_dpp, 1>{}([&](auto k) {
