@@ -21,7 +21,8 @@ template <typename ADataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename ComputType = ADataType>
+          typename ComputeTypeA = ADataType,
+          typename ComputeTypeB = ComputeTypeA>
 struct ReferenceGemm : public device::BaseOperator
 {
     // Argument
@@ -65,8 +66,8 @@ struct ReferenceGemm : public device::BaseOperator
 
                 for(int k = 0; k < K; ++k)
                 {
-                    ComputType v_a;
-                    ComputType v_b;
+                    ComputeTypeA v_a;
+                    ComputeTypeB v_b;
 
                     // use PassThrough instead of ConvertBF16RTN for reference calculation
                     if constexpr(is_same_v<AElementwiseOperation,

@@ -33,7 +33,7 @@ def runShell(String command){
 
 def getDockerImageName(){
     def img
-    if (params.ROCMVERSION != "5.7"){
+    if (params.ROCMVERSION != "6.0"){
        if (params.COMPILER_VERSION == "") {
            img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
        }
@@ -526,6 +526,26 @@ def Build_CK(Map conf=[:]){
                            stash "ckprofiler_0.2.0_amd64.deb"
                         }
                     }
+                    if (params.hipTensor_test && navi_node == 0 ){
+                        //build and test hipTensor
+                        sh """#!/bin/bash
+                            rm -rf "${params.hipTensor_branch}".zip
+                            rm -rf hipTensor-"${params.hipTensor_branch}"
+                            wget https://github.com/ROCmSoftwarePlatform/hipTensor/archive/refs/heads/"${params.hipTensor_branch}".zip
+                            unzip -o "${params.hipTensor_branch}".zip
+                        """
+                        dir("hipTensor-${params.hipTensor_branch}"){
+                            sh """#!/bin/bash
+                                mkdir -p build
+                                ls -ltr
+                                CC=hipcc CXX=hipcc cmake -Bbuild . -D CMAKE_PREFIX_PATH="/opt/rocm;${env.WORKSPACE}/install"
+                                cmake --build build -- -j
+                            """
+                        }
+                        dir("hipTensor-${params.hipTensor_branch}/build"){
+                            sh 'ctest'
+                        }
+                    }
                 }
             }
         }
@@ -613,8 +633,8 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=5.7;COMPILER_VERSION=rc1
-                                              0 21 * * * % ROCMVERSION=5.6;COMPILER_VERSION=;COMPILER_COMMIT=
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=5.7;COMPILER_VERSION=
+                                              0 21 * * * % ROCMVERSION=5.7;COMPILER_VERSION=;COMPILER_COMMIT=
                                               0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=''' : ""
 
 pipeline {
@@ -632,8 +652,8 @@ pipeline {
             description: "Force building docker image (default: false), set to true if docker image needs to be updated.")
         string(
             name: 'ROCMVERSION', 
-            defaultValue: '5.6', 
-            description: 'Specify which ROCM version to use: 5.6 (default).')
+            defaultValue: '5.7', 
+            description: 'Specify which ROCM version to use: 5.7 (default).')
         string(
             name: 'COMPILER_VERSION', 
             defaultValue: '', 
@@ -654,6 +674,15 @@ pipeline {
             name: "DL_KERNELS",
             defaultValue: false,
             description: "Select whether to build DL kernels (default: OFF)")
+        booleanParam(
+            name: "hipTensor_test",
+            defaultValue: true,
+            description: "Use the CK build to verify hipTensor build and tests (default: ON)")
+        string(
+            name: 'hipTensor_branch',
+            defaultValue: 'mainline',
+            description: 'Specify which branch of hipTensor to use (default: mainline)')
+
     }
     environment{
         dbuser = "${dbuser}"
@@ -713,8 +742,8 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx908 || gfx90a") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941" """
-                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ 
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ 
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')

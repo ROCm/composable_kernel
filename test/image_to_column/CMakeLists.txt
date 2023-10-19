@@ -1,4 +1,0 @@
-add_gtest_executable(test_image_to_column test_image_to_column.cpp)
-target_link_libraries(test_image_to_column PRIVATE utility device_image_to_column_instance)
-add_gtest_executable(test_image_to_column_interface test_image_to_column_interface.cpp)
-target_link_libraries(test_image_to_column_interface PRIVATE utility)
