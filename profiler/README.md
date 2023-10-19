@@ -22,7 +22,7 @@ c_m_n: dim 2, lengths {3840, 4096}, strides {4096, 1}
 Best Perf: 1.1933 ms, 107.977 TFlops, 79.0848 GB/s
 ```
 
-## Profile 2d forward convolution kernels
+## Profile 2D forward convolution kernels
 ```bash
 #arg1: tensor operation (conv=Convolution)
 #arg2: data type (0=fp32, 1=fp16)
@@ -115,7 +115,7 @@ Best Perf: 58.0306 ms, 37.8942 TFlops, 27.7545 GB/s
 # arg6: print tensor value (0: no; 1: yes)
 # arg7: time kernel (0: no, 1: yes)
 # Following arguments (depending on number of spatial dims):
-#  Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
+#  Number of spatial dimensions (1=Conv1D, 2=Conv2D, 3=Conv3D)
 #  G, N, K, C, 
 #  <filter spatial dimensions>, (ie Y, X for 2D)
 #  <input image spatial dimensions>, (ie Hi, Wi for 2D)
@@ -158,7 +158,7 @@ GB/s: 127.947
 # arg6: print tensor value (0: no; 1: yes)
 # arg7: time kernel (0: no, 1: yes)
 # Following arguments (depending on number of spatial dims):
-#  Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
+#  Number of spatial dimensions (1=Conv1D, 2=Conv2D, 3=Conv3D)
 #  G, N, K, C, 
 #  <filter spatial dimensions>, (ie Y, X for 2D)
 #  <input image spatial dimensions>, (ie Hi, Wi for 2D)
@@ -201,7 +201,7 @@ Note: This kernel use atomic add, this will cause output buffer to be accumulate
 # arg7: time kernel (0: no, 1: yes)
 # arg8: operation type (0: ImageToColumn, 1: ColumnToImage)
 # Following arguments (depending on number of spatial dims):
-#  Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
+#  Number of spatial dimensions (1=Conv1D, 2=Conv2D, 3=Conv3D)
 #  G, N, K, C, 
 #  <filter spatial dimensions>, (ie Y, X for 2D)
 #  <input image spatial dimensions>, (ie Hi, Wi for 2D)

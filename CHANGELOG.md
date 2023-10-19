@@ -17,7 +17,7 @@ None
 - Support for 3D grouped convolution on RDNA 3 GPUs (#935, #950, #985)
 - Grouped convolution support for small K and C (#822 #879 #897)
 - Support for NHWGC (2D and 3D) grouped convolution backward weight (#769 #804)
-- Support for bf16/f32/f16 and NHWGC (2D and 3d) grouped convolution backward data (#757 #799)
+- Support for bf16/f32/f16 and NHWGC (2D and 3D) grouped convolution backward data (#757 #799)
 - Support for Batched Gemm DL (#732)
 
 ### Changes
