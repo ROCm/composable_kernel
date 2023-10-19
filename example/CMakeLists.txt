@@ -62,6 +62,12 @@ function(add_example_executable EXAMPLE_NAME FILE_NAME)
     set(result ${result} PARENT_SCOPE)
 endfunction(add_example_executable EXAMPLE_NAME)
 
+function(add_example_dependencies EXAMPLE_NAME FILE_NAME)
+    if(result EQUAL 0)
+        add_dependencies(${EXAMPLE_NAME} ${FILE_NAME})
+    endif()
+endfunction(add_example_dependencies EXAMPLE_NAME)
+
 function(add_example_executable_no_testing EXAMPLE_NAME FILE_NAME)
     message("adding example ${EXAMPLE_NAME}")
     set(result 1)
