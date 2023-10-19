@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "ck/tensor_operation/gpu/device/device_normalization_bwd_gamma_beta.hpp"
+#include "ck/tensor_operation/gpu/grid/normalization/gridwise_normalization_bwd_gamma_beta.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
@@ -17,6 +18,45 @@
 namespace ck {
 namespace tensor_operation {
 namespace device {
+
+template <typename GridwiseReduction,
+          typename DYDataType,
+          typename XDataType,
+          typename MeanInvStdDataType,
+          typename DGammaDataType,
+          typename DBetaDataType,
+          typename GridDesc_M_K,
+          typename GridDesc_M>
+__global__ void
+kernel_normalization_bwd_gamma_beta(const GridDesc_M_K dy_grid_desc_m_k,
+                                    const GridDesc_M_K x_grid_desc_m_k,
+                                    const GridDesc_M_K mean_grid_desc_m_k,
+                                    const GridDesc_M_K inv_std_grid_desc_m_k,
+                                    const GridDesc_M dgamma_grid_desc_m,
+                                    const GridDesc_M dbeta_grid_desc_m,
+                                    index_t num_k_block_tile_iteration,
+                                    const DYDataType* const __restrict__ p_dy_global,
+                                    const XDataType* const __restrict__ p_x_global,
+                                    const MeanInvStdDataType* const __restrict__ p_mean_global,
+                                    const MeanInvStdDataType* const __restrict__ p_inv_std_global,
+                                    DGammaDataType* const __restrict__ p_dgamma_global,
+                                    DBetaDataType* const __restrict__ p_dbeta_global)
+{
+    GridwiseReduction::Run(dy_grid_desc_m_k,
+                           x_grid_desc_m_k,
+                           mean_grid_desc_m_k,
+                           inv_std_grid_desc_m_k,
+                           dgamma_grid_desc_m,
+                           dbeta_grid_desc_m,
+                           num_k_block_tile_iteration,
+                           p_dy_global,
+                           p_x_global,
+                           p_mean_global,
+                           p_inv_std_global,
+                           p_dgamma_global,
+                           p_dbeta_global);
+};
+
 template <typename DYDataType,
           typename XDataType,
           typename MeanInvStdDataType,
@@ -155,6 +195,29 @@ struct DeviceNormalizationBwdGammaBetaImpl
     using GridDesc_M_K = decltype(MakeSrc2dDescriptor({1}, {1}, 1));
     using GridDesc_M   = decltype(MakeDst1dDescriptor({1}, {1}));
 
+    using GridwiseNormalizationBwdGammaBeta =
+        GridwiseNormalizationBwdGammaBeta_mk_to_k<DYDataType,
+                                                  XDataType,
+                                                  MeanInvStdDataType,
+                                                  ComputeDataType,
+                                                  DGammaDataType,
+                                                  DBetaDataType,
+                                                  GridDesc_M_K,
+                                                  GridDesc_M,
+                                                  BlockSize,
+                                                  MThreadClusterSize,
+                                                  KThreadClusterSize,
+                                                  MThreadSliceSize,
+                                                  KThreadSliceSize,
+                                                  DYSrcVectorDim,
+                                                  DYSrcVectorSize,
+                                                  XSrcVectorDim,
+                                                  XSrcVectorSize,
+                                                  MeanInvStdSrcVectorDim,
+                                                  MeanInvStdSrcVectorSize,
+                                                  DGammaDstVectorSize,
+                                                  DBetaDstVectorSize>;
+
     struct Argument : public BaseArgument
     {
         Argument(const std::vector<index_t> inLengths,
@@ -243,10 +306,34 @@ struct DeviceNormalizationBwdGammaBetaImpl
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            // TODO
-            ignore = arg;
-            ignore = stream_config;
-            return 0;
+            const auto kernel_main =
+                kernel_normalization_bwd_gamma_beta<GridwiseNormalizationBwdGammaBeta,
+                                                    DYDataType,
+                                                    XDataType,
+                                                    MeanInvStdDataType,
+                                                    DGammaDataType,
+                                                    DBetaDataType,
+                                                    GridDesc_M_K,
+                                                    GridDesc_M>;
+
+            return launch_and_time_kernel(stream_config,
+                                          kernel_main,
+                                          dim3(arg.gridSize_),
+                                          dim3(BlockSize),
+                                          0,
+                                          arg.dy_grid_desc_m_k_,
+                                          arg.x_grid_desc_m_k_,
+                                          arg.mean_grid_desc_m_k_,
+                                          arg.inv_std_grid_desc_m_k_,
+                                          arg.dgamma_grid_desc_m_,
+                                          arg.dbeta_grid_desc_m_,
+                                          arg.numBlockTileIteration_,
+                                          arg.p_dy_,
+                                          arg.p_x_,
+                                          arg.p_mean_,
+                                          arg.p_invStd_,
+                                          arg.p_dgamma_,
+                                          arg.p_dbeta_);
         }
 
         float Run(const BaseArgument* p_arg,
