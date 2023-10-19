@@ -9,6 +9,7 @@
 
 #include "ck/tile_program/tile/tile_distribution.hpp"
 #include "ck/tile_program/tile/static_tile_distribution_helper.hpp"
+#include "ck/tile_program/tile/static_distributed_tensor.hpp"
 
 namespace ck {
 namespace tile_program {
