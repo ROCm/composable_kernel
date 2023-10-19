@@ -9,11 +9,9 @@ namespace ck {
 
 using bhalf_t = ushort;
 using half_t  = _Float16;
-#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-using int4_t = _BitInt(4);
-#endif
-using f8_t  = _BitInt(8);
-using bf8_t = unsigned _BitInt(8);
+using int4_t  = _BitInt(4);
+using f8_t    = _BitInt(8);
+using bf8_t   = unsigned _BitInt(8);
 
 // vector_type
 template <typename T, index_t N>
@@ -1123,5 +1121,4 @@ struct NumericUtils<bf8_t>
     static constexpr int bias = 16; // negative zero nan mode
     // static constexpr int bias = 15; // ieee mode
 };
-
 } // namespace ck
