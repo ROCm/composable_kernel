@@ -48,6 +48,7 @@ set(__default_compile_options
         -Wno-option-ignored
         -Wsign-compare
         -Wno-extra-semi-stmt
+        -Wno-unused-template
     )
 
 ## Strict compile options for Clang compilers
