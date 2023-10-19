@@ -177,8 +177,10 @@ __global__ void
 
             // Accumulate partial results. We can have different # of workgroups to reduce, thus we
             // read actual flag value.
-            [[maybe_unused]] const index_t flag_v = __builtin_amdgcn_readfirstlane(
+            const index_t flag_v = __builtin_amdgcn_readfirstlane(
                 work_scheduler.GetFlagValue(k_batch, output_tile_idx, output_tile_idx_offset));
+
+            gridwise_gemm.AccumulatePartials(p_workspace, flag_v);
 
             // TODO: do blockwise reduction from workspace (GMEM) to results_buffer (registers)
 
