@@ -113,7 +113,6 @@ struct PassThrough
     }
 #endif
 
-#if defined CK_ENABLE_FP8
     template <>
     __host__ __device__ void operator()<f8_t, f8_t>(f8_t& y, const f8_t& x) const
     {
@@ -143,9 +142,7 @@ struct PassThrough
     {
         y = type_convert<f8_t>(x);
     }
-#endif
 
-#if defined CK_ENABLE_BF8
     template <>
     __host__ __device__ void operator()<bf8_t, bf8_t>(bf8_t& y, const bf8_t& x) const
     {
@@ -175,7 +172,6 @@ struct PassThrough
     {
         y = ck::type_convert<bf8_t>(x);
     }
-#endif
 };
 
 struct UnaryConvert
@@ -204,7 +200,6 @@ struct ConvertBF16RTN
     }
 };
 
-#if defined CK_ENABLE_FP8
 struct ConvertF8SR
 {
     // convert to fp8 using stochastic rounding (SR)
@@ -212,7 +207,8 @@ struct ConvertF8SR
     __host__ __device__ void operator()(Y& y, const X& x) const
     {
         // check Y datatype
-        static_assert(is_same<Y, f8_t>::value, "Data type is not supported by this operation!");
+        static_assert(is_same<Y, f8_t>::value || is_same<Y, bf8_t>::value,
+                      "Data type is not supported by this operation!");
 
         // check X datatype
         static_assert(is_same<X, float>::value || is_same<X, half_t>::value,
@@ -221,7 +217,6 @@ struct ConvertF8SR
         y = f8_convert_sr<Y>(x);
     }
 };
-#endif
 
 struct Scale
 {
