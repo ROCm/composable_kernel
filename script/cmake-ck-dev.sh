@@ -12,11 +12,7 @@ cmake                                                                           
 -save-temps=$PWD"                                                                                 \
 -D CMAKE_BUILD_TYPE=Release                                                                       \
 -D BUILD_DEV=ON                                                                                   \
-<<<<<<< HEAD
 -D GPU_TARGETS="gfx908;gfx90a;gfx940"                                                            \
-=======
--D GPU_TARGETS="gfx908;gfx90a;gfx940"                                                             \
->>>>>>> c99323be6e4a5c610e33493d2c30be73e4d0891c
 -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON                                                                 \
 -D USE_BITINT_EXTENSION_INT4=OFF                                                                  \
 ${MY_PROJECT_SOURCE}
