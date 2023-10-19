@@ -130,9 +130,7 @@ __global__ void
         const auto StrideA = gemm_desc_ptr[group_id].StrideA;
         const auto StrideB = gemm_desc_ptr[group_id].StrideB;
 
-        auto gridwise_gemm   = GridwiseGemm();
-        auto& results_buffer = gridwise_gemm.GetCThreadBuffer();
-
+        auto gridwise_gemm = GridwiseGemm();
         b2c_tile_map.CalculateBottomIndex(work_scheduler.tile_id_ - offset);
 
         // Iterate over K dimension for this [M,N] tile
