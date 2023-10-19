@@ -13,27 +13,12 @@
 #include "ck/tile_program/tile/tile_elementwise.hpp"
 #include "ck/tile_program/tile/tile_gemm_shape.hpp"
 #include "ck/tile_program/warp_tile/warp_gemm.hpp"
+#include "ck/tile_program/block_tile/block_gemm_areg_bsmem_creg_problem.hpp"
 #include "ck/tile_program/block_tile/block_gemm_areg_bsmem_creg_v1_default_policy.hpp"
 
 namespace ck {
 namespace tile_program {
 namespace block {
-
-// Problem Description for BlockGemmARegBSmemCRegV1
-template <typename ADataType_,
-          typename BDataType_,
-          typename CDataType_,
-          index_t kBlockSize_,
-          typename BlockGemmShape_>
-struct BlockGemmARegBSmemCRegV1Problem
-{
-    using ADataType      = remove_cvref_t<ADataType_>;
-    using BDataType      = remove_cvref_t<BDataType_>;
-    using CDataType      = remove_cvref_t<CDataType_>;
-    using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
-
-    static constexpr index_t kBlockSize = kBlockSize_;
-};
 
 // A is block distributed tensor
 // B is block window on shared memory
