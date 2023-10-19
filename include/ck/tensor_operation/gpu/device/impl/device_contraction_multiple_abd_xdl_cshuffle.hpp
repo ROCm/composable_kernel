@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <vector>
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
