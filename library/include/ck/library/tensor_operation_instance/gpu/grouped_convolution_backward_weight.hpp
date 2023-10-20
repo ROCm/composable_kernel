@@ -780,7 +780,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #endif
 #ifdef CK_ENABLE_FP16
                 if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                             is_same_v<OutDataType, half_t>)
+                             is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, half_t> &&
+                             is_same_v<ComputeTypeB, half_t>)
                 {
 #ifdef DL_KERNELS
                     add_device_grouped_conv3d_bwd_weight_dl_gndhwc_gkzyxc_gndhwk_f16_instances(
