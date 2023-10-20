@@ -233,7 +233,7 @@ def cmake_build(Map conf=[:]){
             rm -rf install
             mkdir install
             cd build
-            if [ "${env.CK_SCCACHE}" != "null" && "${params.COMPILER_VERSION}" != "amd-stg-open" ]; then \
+            if [ "${env.CK_SCCACHE}" != "null" ] && [ "${params.COMPILER_VERSION}" != "amd-stg-open" ]; then \
                 export ROCM_PATH=/opt/rocm
                 export SCCACHE_ENABLED=true
                 export SCCACHE_LOG_LEVEL=debug
@@ -242,7 +242,6 @@ def cmake_build(Map conf=[:]){
                 export SCCACHE_BIN=/usr/local/.cargo/bin/sccache
                 export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
                 export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
-
                 ../script/sccache_wrapper.sh --enforce_redis
             fi
         """
