@@ -167,20 +167,31 @@ int main()
                            XElementwiseOperation>(x, a, b, mn, XElementwiseOperation{});
 
         Tensor<YDataType> host_y(f_host_tensor_descriptor2d(M, N, Stride));
+        Tensor<AccDataType> host_save_mean({M});
+        Tensor<AccDataType> host_save_inv_std({M});
         using ReferenceInstance =
             ck::tensor_operation::host::ReferenceLayernorm<XDataType,
                                                            GammaDataType,
                                                            BetaDataType,
                                                            YDataType,
                                                            AccDataType,
+                                                           AccDataType,
                                                            YElementwiseOperation,
                                                            Rank,
                                                            NumReduceDim>;
 
         ReferenceInstance ref;
-        auto ref_argument =
-            ref.MakeArgument(x, gamma, beta, host_y, YElementwiseOperation{}, {M, N}, {1}, 1e-4);
-        auto ref_invoker = ref.MakeInvoker();
+        auto ref_argument = ref.MakeArgument(x,
+                                             gamma,
+                                             beta,
+                                             host_y,
+                                             host_save_mean,
+                                             host_save_inv_std,
+                                             YElementwiseOperation{},
+                                             {M, N},
+                                             {1},
+                                             1e-4);
+        auto ref_invoker  = ref.MakeInvoker();
         ref_invoker.Run(ref_argument);
 
         y_dev.FromDevice(y.mData.data());
