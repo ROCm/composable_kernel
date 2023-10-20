@@ -48,6 +48,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libnuma-dev \
     libpthread-stubs0-dev \
     llvm-amdgpu \
+    net-tools \
     pkg-config \
     python \
     python3 \
@@ -55,6 +56,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3-pip \
     redis \
     sshpass \
+    stunnel \
     software-properties-common \
     vim \
     nano \

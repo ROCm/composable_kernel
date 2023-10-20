@@ -242,6 +242,8 @@ def cmake_build(Map conf=[:]){
                 export SCCACHE_BIN=/usr/local/.cargo/bin/sccache
                 export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
                 export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
+                echo "connect = ${env.CK_SCCACHE}" >> ../script/redis-cli.conf
+                stunnel ../script/redis-cli.conf
                 ../script/sccache_wrapper.sh --enforce_redis
             fi
         """
