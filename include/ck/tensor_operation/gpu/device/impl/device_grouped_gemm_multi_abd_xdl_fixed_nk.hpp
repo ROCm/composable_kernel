@@ -93,14 +93,6 @@ __global__ void
     typename GridwiseGemm::BsGridPointer p_bs_grid_;
     typename GridwiseGemm::DsGridPointer p_ds_grid_;
 
-    // constexpr auto I0 = Number<0>{};
-
-    // using AsDataType = remove_cvref_t<decltype(p_as_grid_(I0))>;
-    // p_as_grid_(I0)  = static_cast<AsDataType>(gemm_desc_ptr[group_id].p_a_grid);
-
-    // using BsDataType = remove_cvref_t<decltype(p_bs_grid_(I0))>;
-    // p_bs_grid_(I0)  = static_cast<BsDataType>(gemm_desc_ptr[group_id].p_b_grid);
-
     static_for<0, NumATensor, 1>{}([&](auto i) {
         using ADataType = remove_cvref_t<decltype(p_as_grid_(i))>;
         p_as_grid_(i)   = static_cast<ADataType>(gemm_desc_ptr[group_id].p_as_grid[i]);
@@ -500,35 +492,32 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
 
                 const index_t StrideE = gemm_descs[i].stride_C_;
 
-                static_for<0, NumATensor, 1>{}([&](auto j) {
-                    if(gemm_descs[i].stride_As_.size() != NumATensor)
-                    {
-                        throw std::runtime_error(
-                            "wrong! gemm_descs[i].stride_As_.size() does not match NumATensor");
-                    }
+                if(gemm_descs[i].stride_As_.size() != NumATensor)
+                {
+                    throw std::runtime_error(
+                        "wrong! gemm_descs[i].stride_As_.size() does not match NumATensor");
+                }
 
-                    StrideAs[j] = gemm_descs[i].stride_As_[j];
-                });
+                static_for<0, NumATensor, 1>{}(
+                    [&](auto j) { StrideAs[j] = gemm_descs[i].stride_As_[j]; });
 
-                static_for<0, NumBTensor, 1>{}([&](auto j) {
-                    if(gemm_descs[i].stride_Bs_.size() != NumBTensor)
-                    {
-                        throw std::runtime_error(
-                            "wrong! gemm_descs[i].stride_Bs_.size() does not match NumBTensor");
-                    }
+                if(gemm_descs[i].stride_Bs_.size() != NumBTensor)
+                {
+                    throw std::runtime_error(
+                        "wrong! gemm_descs[i].stride_Bs_.size() does not match NumBTensor");
+                }
 
-                    StrideBs[j] = gemm_descs[i].stride_Bs_[j];
-                });
+                static_for<0, NumBTensor, 1>{}(
+                    [&](auto j) { StrideBs[j] = gemm_descs[i].stride_Bs_[j]; });
 
-                static_for<0, NumDTensor, 1>{}([&](auto j) {
-                    if(gemm_descs[i].stride_Ds_.size() != NumDTensor)
-                    {
-                        throw std::runtime_error(
-                            "wrong! gemm_descs[i].stride_Ds_.size() does not match NumDTensor");
-                    }
+                if(gemm_descs[i].stride_Ds_.size() != NumDTensor)
+                {
+                    throw std::runtime_error(
+                        "wrong! gemm_descs[i].stride_Ds_.size() does not match NumDTensor");
+                }
 
-                    StrideDs[j] = gemm_descs[i].stride_Ds_[j];
-                });
+                static_for<0, NumDTensor, 1>{}(
+                    [&](auto j) { StrideDs[j] = gemm_descs[i].stride_Ds_[j]; });
 
                 const auto e_grid_desc_m_n =
                     GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
@@ -551,14 +540,6 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
                 {
                     throw std::runtime_error("wrong! block_2_etile_map validation failed");
                 }
-
-                // if(!GridwiseGemm::
-                // template CheckValidity<AsLayout, BsLayout, DsLayout, ELayout, GemmSpec>(
-                // AverM, N, K, StrideA, StrideB, StrideDs, StrideE, 1))
-                //{
-                // throw std::runtime_error(
-                //"wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
-                //}
 
                 gemm_desc_kernel_arg_.push_back(GemmBiasTransKernelArg{
                     p_as_grid,
