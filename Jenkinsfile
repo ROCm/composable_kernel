@@ -219,7 +219,7 @@ def cmake_build(Map conf=[:]){
     }else{
         setup_args = " -DCMAKE_BUILD_TYPE=release" + setup_args
     }
-    if(env.CK_SCCACHE)
+    if(env.CK_SCCACHE && "${params.COMPILER_VERSION}" != "amd-stg-open")
     {
         setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache " + setup_args
     }
@@ -233,7 +233,7 @@ def cmake_build(Map conf=[:]){
             rm -rf install
             mkdir install
             cd build
-            if [ "${env.CK_SCCACHE}" != "null" ]; then \
+            if [ "${env.CK_SCCACHE}" != "null" && "${params.COMPILER_VERSION}" != "amd-stg-open" ]; then \
                 export ROCM_PATH=/opt/rocm
                 export SCCACHE_ENABLED=true
                 export SCCACHE_LOG_LEVEL=debug
