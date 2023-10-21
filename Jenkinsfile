@@ -244,6 +244,7 @@ def cmake_build(Map conf=[:]){
                 export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
                 echo "connect = ${env.CK_SCCACHE}" >> ../script/redis-cli.conf
                 stunnel ../script/redis-cli.conf
+                netstat -tulnp | grep -i stunnel
                 ../script/sccache_wrapper.sh --enforce_redis
             fi
         """
