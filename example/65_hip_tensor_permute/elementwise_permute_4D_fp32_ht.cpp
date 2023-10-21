@@ -3,7 +3,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl_ht.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
@@ -18,25 +18,35 @@ using ADataType = F32;
 using BDataType = F32;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using Square      = ck::tensor_operation::element_wise::UnarySquare;
+// ck::index_t scalar_mult = 2;
+
 using DeviceElementwisePermuteInstance =
     ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ADataType>,
                                                         ck::Tuple<BDataType>,
                                                         PassThrough,
+                                                        Square,
                                                         4,
                                                         8,
+                                                        2,
                                                         ck::Sequence<8>,
                                                         ck::Sequence<1>>;
 
-template <typename HostTensorA, typename HostTensorB, typename Functor>
-void host_elementwise4D(HostTensorB& B_nhwc, const HostTensorA& A_nchw, Functor functor)
+template <typename HostTensorA, typename HostTensorB, typename FunctorA, typename FunctorB>
+void host_elementwise4D(HostTensorB& B_nhwc,
+                        const HostTensorA& A_nchw,
+                        FunctorA functor_a,
+                        FunctorB functor_b)
 {
     for(std::size_t n = 0; n < A_nchw.mDesc.GetLengths()[0]; ++n)
         for(std::size_t c = 0; c < A_nchw.mDesc.GetLengths()[1]; ++c)
             for(std::size_t h = 0; h < A_nchw.mDesc.GetLengths()[2]; ++h)
                 for(std::size_t w = 0; w < A_nchw.mDesc.GetLengths()[3]; ++w)
                 {
+                    ADataType tmp_val;
                     auto a_val = A_nchw(n, c, h, w);
-                    functor(B_nhwc(n, h, w, c), a_val);
+                    functor_b(tmp_val, a_val);
+                    functor_a(B_nhwc(n, h, w, c), 2 * tmp_val);
                 }
 }
 
@@ -74,7 +84,7 @@ int main()
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
     auto argument         = broadcastPermute.MakeArgumentPointer(
-        ab_lengths, {a_strides}, {b_strides}, input, output, PassThrough{});
+        ab_lengths, {a_strides}, {b_strides}, input, output, PassThrough{}, Square{});
 
     if(!broadcastPermute.IsSupportedArgument(argument.get()))
     {
@@ -106,7 +116,7 @@ int main()
     {
         b_device_buf.FromDevice(b.mData.data());
         Tensor<BDataType> host_b(nhwc);
-        host_elementwise4D(host_b, a, PassThrough{});
+        host_elementwise4D(host_b, a, PassThrough{}, Square{});
 
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
