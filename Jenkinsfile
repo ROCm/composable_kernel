@@ -225,7 +225,7 @@ def cmake_build(Map conf=[:]){
     }
     echo "ccache server: ${env.CK_SCCACHE}"
 
-    def pre_setup_cmd = """
+    def pre_setup_cmd = """#!/bin/bash
             echo \$HSA_ENABLE_SDMA
             ulimit -c unlimited
             rm -rf build
