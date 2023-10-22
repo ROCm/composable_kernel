@@ -244,11 +244,11 @@ def cmake_build(Map conf=[:]){
                 export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
                 echo "connect = ${env.CK_SCCACHE}" >> ../script/redis-cli.conf
                 echo "setup_args: ${setup_args}"
-                if [ "${setup_args}" =~ "gfx1100" ]; then
+                if [[ "${setup_args}" =~ "gfx1100" ]]; then
                     export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx11
-                elif [ "${setup_args}" =~ "gfx1030" ]; then
+                elif [[ "${setup_args}" =~ "gfx1030" ]]; then
                     export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx10
-                elif [ "${setup_args}" =~ "gfx940" ]; then
+                elif [[ "${setup_args}" =~ "gfx940" ]]; then
                     export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx94
                 else
                     export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx90
