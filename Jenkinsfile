@@ -243,8 +243,18 @@ def cmake_build(Map conf=[:]){
                 export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
                 export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
                 echo "connect = ${env.CK_SCCACHE}" >> ../script/redis-cli.conf
+                echo "setup_args: ${setup_args}"
+                if [ "${setup_args}" =~ "gfx1100" ]; then
+                    export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx11
+                elif [ "${setup_args}" =~ "gfx1030" ]; then
+                    export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx10
+                elif [ "${setup_args}" =~ "gfx940" ]; then
+                    export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx94
+                else
+                    export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx90
+                fi
+                echo "SCCACHE_C_CUSTOM_CACHE_BUSTER: ${SCCACHE_C_CUSTOM_CACHE_BUSTER}"
                 stunnel ../script/redis-cli.conf
-                netstat -tulnp | grep -i stunnel
                 ../script/sccache_wrapper.sh --enforce_redis
             fi
         """
