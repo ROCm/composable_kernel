@@ -35,7 +35,7 @@ template <typename GridwiseGemm,
           typename BGridDesc_BK0_N_BK1,
           typename B1GridDesc_BK0_N_BK1,
           typename C1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-          typename D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
+          typename D0GridDescriptor_M0_N0_N1_N2_M1_N3,
           typename Block2CTileMap,
           typename ComputeBasePtrOfStridedBatch,
           typename C0MatrixMask,
@@ -60,8 +60,7 @@ __global__ void
             const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
             const C1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
                 c1_grid_desc_mblock_mperblock_nblock_nperblock,
-            const D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
-                d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+            const D0GridDescriptor_M0_N0_N1_N2_M1_N3 d0_grid_desc_m0_n0_m1_m2_n1_m3,
             const Block2CTileMap block_2_ctile_map,
             const index_t batch_count,
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
@@ -107,7 +106,7 @@ __global__ void
                                                   c1de_element_op,
                                                   a_grid_desc_ak0_m_ak1,
                                                   b_grid_desc_bk0_n_bk1,
-                                                  d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                                  d0_grid_desc_m0_n0_m1_m2_n1_m3,
                                                   b1_grid_desc_bk0_n_bk1,
                                                   c1_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   block_2_ctile_map,
@@ -127,7 +126,7 @@ __global__ void
     ignore = b_grid_desc_bk0_n_bk1;
     ignore = b1_grid_desc_bk0_n_bk1;
     ignore = c1_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore = d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
+    ignore = d0_grid_desc_m0_n0_m1_m2_n1_m3;
     ignore = block_2_ctile_map;
     ignore = batch_count;
     ignore = compute_base_ptr_of_batch;
@@ -533,9 +532,8 @@ struct DeviceBatchedMultiheadAttentionInfer_Xdl_CShuffle
                 {
                     D0GridDesc_M_N d0_grid_desc_m_n_ = MakeD0GridDescriptor_M_N(
                         acc0_bias_gs_ms_ns_lengths, acc0_bias_gs_ms_ns_strides);
-                    d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
-                        GridwiseGemm::MakeD0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
-                            d0_grid_desc_m_n_);
+                    d0_grid_desc_m0_n0_m1_m2_n1_m3_ =
+                        GridwiseGemm::MakeD0GridDescriptor_M0_N0_N1_N2_M1_N3(d0_grid_desc_m_n_);
 
                     d0_grid_desc_g_m_n_ = MakeD0GridDescriptor_G_M_N(acc0_bias_gs_ms_ns_lengths,
                                                                      acc0_bias_gs_ms_ns_strides);
@@ -588,8 +586,7 @@ struct DeviceBatchedMultiheadAttentionInfer_Xdl_CShuffle
 
         typename GridwiseGemm::C1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c1_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
-            d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
+        typename GridwiseGemm::D0GridDescriptor_M0_N0_N1_N2_M1_N3 d0_grid_desc_m0_n0_m1_m2_n1_m3_;
 
         // block-to-c-tile map
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
@@ -655,7 +652,7 @@ struct DeviceBatchedMultiheadAttentionInfer_Xdl_CShuffle
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     DeviceOp::B1GridDesc_BK0_N_BK1,
                     typename GridwiseGemm::C1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
+                    typename GridwiseGemm::D0GridDescriptor_M0_N0_N1_N2_M1_N3,
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     ComputeBasePtrOfStridedBatch,
                     C0MatrixMask,
@@ -680,7 +677,7 @@ struct DeviceBatchedMultiheadAttentionInfer_Xdl_CShuffle
                                               arg.b_grid_desc_bk0_n_bk1_,
                                               arg.b1_grid_desc_bk0_n_bk1_,
                                               arg.c1_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                              arg.d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
+                                              arg.d0_grid_desc_m0_n0_m1_m2_n1_m3_,
                                               arg.block_2_ctile_map_,
                                               arg.batch_count_,
                                               arg.compute_base_ptr_of_batch_,
