@@ -538,7 +538,6 @@ struct GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle
         const Block2CTileMap& block_2_ctile_map,
         const C0MatrixMask& c0_matrix_mask)
     {
-        ignore                = d0_grid_desc_m0_n0_n1_n2_m1_n3;
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -899,7 +898,6 @@ struct GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle
         running_max_new = NumericLimits<FloatGemmAcc>::Lowest();
 
         // gemm1 K loop
-        ignore                           = wave_m_n_id;
         auto d0_block_copy_global_to_lds = typename D0Operator::D0BlockwiseCopyGlobalToLds(
             d0_grid_desc_m0_n0_n1_n2_m1_n3,
             make_multi_index(block_work_idx[I0], 0, 0, 0, 0, 0),
@@ -1004,7 +1002,6 @@ struct GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle
             // add bias
             if constexpr(!is_same<D0DataType, void>::value)
             {
-                ignore = d0_thread_copy_lds_to_vgpr;
                 if(p_d0_grid != nullptr)
                 {
                     static constexpr auto& c_thread_desc = blockwise_gemm.GetCThreadDesc();
@@ -1018,10 +1015,7 @@ struct GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle
 
                     auto d0_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, D0DataType>(
                         D0Operator::d0_thread_desc_.GetElementSpaceSize());
-                    ignore = c_thread_desc;
-                    ignore = d0_grid_buf;
-                    ignore = d0_block_buf;
-                    ignore = d0_thread_buf;
+
                     static_for<0, D0N0, 1>{}([&](auto nr) {
                         // load data to lds
                         d0_block_copy_global_to_lds.RunRead(d0_grid_desc_m0_n0_n1_n2_m1_n3,
@@ -1045,7 +1039,7 @@ struct GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle
                         static_for<0, d0_thread_buf.Size(), 1>{}([&](auto i) {
                             constexpr index_t c_offset =
                                 c_thread_desc.CalculateOffset(make_tuple(I0, nr, i));
-                            ignore = c_offset;
+
                             acc_thread_buf(Number<c_offset>{}) +=
                                 ck::type_convert<FloatGemmAcc>(d0_thread_buf[i]);
                         });
