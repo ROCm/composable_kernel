@@ -65,7 +65,7 @@ def getDockerImageName(){
 }
 
 def check_host() {
-    if ("${env.CK_SCCACHE}" != "null"){
+    if ("${env.CK_SCCACHE}" != "null" && params.USE_SCCACHE){
         def SCCACHE_SERVER="${env.CK_SCCACHE.split(':')[0]}"
         echo "ccache server: ${SCCACHE_SERVER}"
         sh '''ping -c 1 -p 6379 "${SCCACHE_SERVER}" | echo $? > tmp.txt'''
@@ -96,24 +96,9 @@ def build_compiler(){
 
 def getDockerImage(Map conf=[:]){
     env.DOCKER_BUILDKIT=1
-    def prefixpath = conf.get("prefixpath", "/opt/rocm") // prefix:/opt/rocm
+    def prefixpath = conf.get("prefixpath", "/opt/rocm")
     def no_cache = conf.get("no_cache", false)
     def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-    echo "ccache server: ${env.CK_SCCACHE}"
-    if(env.CK_SCCACHE)
-    {
-        if(check_host())
-        {
-            echo "FOUND SCCACHE SERVER: ${env.CK_SCCACHE}"
-        }
-        else 
-        {
-            echo "SCCACHE SERVER: ${env.CK_SCCACHE} NOT FOUND, got ${check_host} response"
-        }
-        dockerArgs = dockerArgs + " --build-arg SCCACHE_SECONDARY_STORAGE='redis://${env.CK_SCCACHE}' --build-arg COMPILER_LAUNCHER='sccache' "
-        env.CCACHE_DIR = """/tmp/.sccache"""
-        env.CCACHE_SECONDARY_STORAGE="""redis://${env.CK_SCCACHE}"""
-    }
     if(no_cache)
     {
         dockerArgs = dockerArgs + " --no-cache "
@@ -142,21 +127,6 @@ def buildDocker(install_prefix){
     def image_name = getDockerImageName()
     echo "Building Docker for ${image_name}"
     def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${install_prefix} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-    echo "ccache server: ${env.CK_SCCACHE}"
-    if(env.CK_SCCACHE)
-    {
-        if(check_host())
-        {
-            echo "FOUND SCCACHE SERVER: ${env.CK_SCCACHE}"
-        }
-        else 
-        {
-            echo "SCCACHE SERVER: ${env.CK_SCCACHE} NOT FOUND, got ${check_host} response"
-        }
-        dockerArgs = dockerArgs + " --build-arg SCCACHE_SECONDARY_STORAGE='redis://${env.CK_SCCACHE}' --build-arg COMPILER_LAUNCHER='sccache' "
-        env.CCACHE_DIR = """/tmp/.sccache"""
-        env.CCACHE_SECONDARY_STORAGE="""redis://${env.CK_SCCACHE}"""
-    }
 
     echo "Build Args: ${dockerArgs}"
     try{
@@ -219,11 +189,10 @@ def cmake_build(Map conf=[:]){
     }else{
         setup_args = " -DCMAKE_BUILD_TYPE=release" + setup_args
     }
-    if(env.CK_SCCACHE && "${params.COMPILER_VERSION}" != "amd-stg-open")
+    if(env.CK_SCCACHE && params.USE_SCCACHE)
     {
         setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache " + setup_args
     }
-    echo "ccache server: ${env.CK_SCCACHE}"
 
     def pre_setup_cmd = """#!/bin/bash
             echo \$HSA_ENABLE_SDMA
@@ -233,7 +202,7 @@ def cmake_build(Map conf=[:]){
             rm -rf install
             mkdir install
             cd build
-            if [ "${env.CK_SCCACHE}" != "null" ] && [ "${params.COMPILER_VERSION}" != "amd-stg-open" ]; then \
+            if [ "${env.CK_SCCACHE}" != "null" ] && [ "${params.USE_SCCACHE}" = "true" ]; then \
                 export ROCM_PATH=/opt/rocm
                 export SCCACHE_ENABLED=true
                 export SCCACHE_LOG_LEVEL=debug
@@ -659,7 +628,7 @@ def process_results(Map conf=[:]){
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=5.7;COMPILER_VERSION=
                                               0 21 * * * % ROCMVERSION=5.7;COMPILER_VERSION=;COMPILER_COMMIT=
-                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=''' : ""
+                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=;USE_SCCACHE=false''' : ""
 
 pipeline {
     agent none
@@ -706,7 +675,10 @@ pipeline {
             name: 'hipTensor_branch',
             defaultValue: 'mainline',
             description: 'Specify which branch of hipTensor to use (default: mainline)')
-
+        booleanParam(
+            name: "USE_SCCACHE",
+            defaultValue: true,
+            description: "Use the sccache for building CK (default: ON)")
     }
     environment{
         dbuser = "${dbuser}"
