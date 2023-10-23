@@ -65,9 +65,9 @@ def getDockerImageName(){
 }
 
 def check_host() {
-    if ("${env.CK_SCCACHE}" != "null" && params.USE_SCCACHE){
+    if ("${env.CK_SCCACHE}" != "null"){
         def SCCACHE_SERVER="${env.CK_SCCACHE.split(':')[0]}"
-        echo "ccache server: ${SCCACHE_SERVER}"
+        echo "sccache server: ${SCCACHE_SERVER}"
         sh '''ping -c 1 -p 6379 "${SCCACHE_SERVER}" | echo $? > tmp.txt'''
         def output = readFile(file: "tmp.txt")
         echo "tmp.txt contents: \$output"
@@ -189,7 +189,7 @@ def cmake_build(Map conf=[:]){
     }else{
         setup_args = " -DCMAKE_BUILD_TYPE=release" + setup_args
     }
-    if(env.CK_SCCACHE && params.USE_SCCACHE)
+    if(env.CK_SCCACHE && params.USE_SCCACHE && check_host())
     {
         setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache " + setup_args
     }
@@ -202,31 +202,33 @@ def cmake_build(Map conf=[:]){
             rm -rf install
             mkdir install
             cd build
-            if [ "${env.CK_SCCACHE}" != "null" ] && [ "${params.USE_SCCACHE}" = "true" ]; then \
-                export ROCM_PATH=/opt/rocm
-                export SCCACHE_ENABLED=true
-                export SCCACHE_LOG_LEVEL=debug
-                export SCCACHE_IDLE_TIMEOUT=14400
-                export COMPILERS_HASH_DIR=/tmp/.sccache
-                export SCCACHE_BIN=/usr/local/.cargo/bin/sccache
-                export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
-                export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
-                echo "connect = ${env.CK_SCCACHE}" >> ../script/redis-cli.conf
-                echo "setup_args: ${setup_args}"
-                if [[ "${setup_args}" =~ "gfx1100" ]]; then
-                    export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx11
-                elif [[ "${setup_args}" =~ "gfx1030" ]]; then
-                    export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx10
-                elif [[ "${setup_args}" =~ "gfx940" ]]; then
-                    export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx94
-                else
-                    export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx90
-                fi
-                echo \$SCCACHE_C_CUSTOM_CACHE_BUSTER
-                stunnel ../script/redis-cli.conf
-                ../script/sccache_wrapper.sh --enforce_redis
-            fi
         """
+    if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null") {
+        pre_setup_cmd = pre_setup_cmd + """#!/bin/bash
+            export ROCM_PATH=/opt/rocm
+            export SCCACHE_ENABLED=true
+            export SCCACHE_LOG_LEVEL=debug
+            export SCCACHE_IDLE_TIMEOUT=14400
+            export COMPILERS_HASH_DIR=/tmp/.sccache
+            export SCCACHE_BIN=/usr/local/.cargo/bin/sccache
+            export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
+            export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
+            echo "connect = ${env.CK_SCCACHE}" >> ../script/redis-cli.conf
+            echo "setup_args: ${setup_args}"
+            if [[ "${setup_args}" =~ "gfx1100" ]]; then
+                export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx11
+            elif [[ "${setup_args}" =~ "gfx1030" ]]; then
+                export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx10
+            elif [[ "${setup_args}" =~ "gfx940" ]]; then
+                export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx94
+            else
+                export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx90
+            fi
+            echo \$SCCACHE_C_CUSTOM_CACHE_BUSTER
+            stunnel ../script/redis-cli.conf
+            ../script/sccache_wrapper.sh --enforce_redis
+        """
+    }
     def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
     // reduce parallelism when compiling, clang uses too much memory
     def nt = nthreads()
