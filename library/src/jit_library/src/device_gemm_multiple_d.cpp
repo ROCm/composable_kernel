@@ -38,7 +38,7 @@ std::size_t GetGridSize(const std::size_t m,
 
 const std::unordered_set<std::string>& get_xdlop_archs()
 {
-    static std::unordered_set<std::string> supported_archs{"gfx90a", "gfx908", "gfx940"};
+    static std::unordered_set<std::string> supported_archs{"gfx90a", "gfx908", "gfx940", "gfx942"};
     return supported_archs;
 }
 
