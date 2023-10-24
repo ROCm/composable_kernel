@@ -205,6 +205,19 @@ def cmake_build(Map conf=[:]){
             cd build
         """
     if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null") {
+        def invocation_tag
+        if ("${setup_args}".contains("gfx11")){
+            invocation_tag="gfx11"
+        }
+        if ("${setup_args}".contains("gfx10")){
+            invocation_tag="gfx10"
+        }
+        if ("${setup_args}".contains("gfx94")){
+            invocation_tag="gfx94"
+        }
+        else {
+            invocation_tag="gfx90"
+        }
         pre_setup_cmd = pre_setup_cmd + """
             #!/bin/bash
             export ROCM_PATH=/opt/rocm
@@ -216,15 +229,7 @@ def cmake_build(Map conf=[:]){
             export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
             export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
             echo "connect = ${env.CK_SCCACHE}" >> ../script/redis-cli.conf
-            if [[ "${setup_args}" =~ "gfx11" ]]; then
-                export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx11
-            elif [[ "${setup_args}" =~ "gfx10" ]]; then
-                export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx10
-            elif [[ "${setup_args}" =~ "gfx94" ]]; then
-                export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx94
-            else
-                export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx90
-            fi
+            export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
             echo \$SCCACHE_C_CUSTOM_CACHE_BUSTER
             stunnel ../script/redis-cli.conf
             ../script/sccache_wrapper.sh --enforce_redis
