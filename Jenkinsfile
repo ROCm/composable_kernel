@@ -189,10 +189,6 @@ def cmake_build(Map conf=[:]){
     }else{
         setup_args = " -DCMAKE_BUILD_TYPE=release" + setup_args
     }
-    if(env.CK_SCCACHE && params.USE_SCCACHE && check_host())
-    {
-        setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache " + setup_args
-    }
 
     def pre_setup_cmd = """
             #!/bin/bash
@@ -204,20 +200,20 @@ def cmake_build(Map conf=[:]){
             mkdir install
             cd build
         """
-    if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null") {
-        def invocation_tag
-        if ("${setup_args}".contains("gfx11")){
-            invocation_tag="gfx11"
-        }
-        if ("${setup_args}".contains("gfx10")){
-            invocation_tag="gfx10"
-        }
-        if ("${setup_args}".contains("gfx94")){
-            invocation_tag="gfx94"
-        }
-        else {
-            invocation_tag="gfx90"
-        }
+    def invocation_tag=""
+    if ("gfx11" in "${setup_args}"){
+        invocation_tag="gfx11"
+    }
+    if ("gfx10" in "${setup_args}"){
+        invocation_tag="gfx10"
+    }
+    if ("gfx90" in "${setup_args}"){
+        invocation_tag="gfx90"
+    }
+    if ("gfx94" in "${setup_args}"){
+        invocation_tag="gfx94"
+    }
+    if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null" && "${invocation_tag}" != "") {
         pre_setup_cmd = pre_setup_cmd + """
             #!/bin/bash
             export ROCM_PATH=/opt/rocm
@@ -234,6 +230,7 @@ def cmake_build(Map conf=[:]){
             stunnel ../script/redis-cli.conf
             ../script/sccache_wrapper.sh --enforce_redis
         """
+        setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache " + setup_args
     }
     def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
     // reduce parallelism when compiling, clang uses too much memory
