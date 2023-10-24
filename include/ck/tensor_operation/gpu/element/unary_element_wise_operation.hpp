@@ -212,7 +212,8 @@ struct ConvertF8SR
     __host__ __device__ void operator()(Y& y, const X& x) const
     {
         // check Y datatype
-        static_assert(is_same<Y, f8_t>::value, "Data type is not supported by this operation!");
+        static_assert(is_same<Y, f8_t>::value || is_same<Y, bf8_t>::value,
+                      "Data type is not supported by this operation!");
 
         // check X datatype
         static_assert(is_same<X, float>::value || is_same<X, half_t>::value,

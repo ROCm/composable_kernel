@@ -1075,6 +1075,7 @@ struct NumericUtils<float>
 {
     static constexpr int exp            = 8;
     static constexpr int mant           = 23;
+    static constexpr int bias           = 127;
     static constexpr uint32_t nan_mask  = 0x7F800000;
     static constexpr uint32_t head_mask = 0xFF800000;
     static constexpr uint32_t mant_mask = 0x7FFFFF;
@@ -1091,6 +1092,7 @@ struct NumericUtils<half_t>
 {
     static constexpr int exp            = 5;
     static constexpr int mant           = 10;
+    static constexpr int bias           = 15;
     static constexpr uint16_t nan_mask  = 0x7C00;
     static constexpr uint16_t head_mask = 0xFC00;
     static constexpr uint16_t mant_mask = 0x3FF;
@@ -1107,6 +1109,8 @@ struct NumericUtils<f8_t>
 {
     static constexpr int exp  = 4;
     static constexpr int mant = 3;
+    static constexpr int bias = 8; // negative zero nan mode
+    // static constexpr int bias = 7; // ieee mode
 };
 
 template <>
@@ -1114,6 +1118,7 @@ struct NumericUtils<bf8_t>
 {
     static constexpr int exp  = 5;
     static constexpr int mant = 2;
+    static constexpr int bias = 16; // negative zero nan mode
+    // static constexpr int bias = 15; // ieee mode
 };
-//
 } // namespace ck
