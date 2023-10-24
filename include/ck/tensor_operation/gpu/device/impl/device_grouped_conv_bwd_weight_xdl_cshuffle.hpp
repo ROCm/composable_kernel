@@ -14,38 +14,13 @@
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_weight.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_bwd_weight.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-
-namespace {
-
-struct ComputePtrOffsetOfStridedBatch
-{
-    __host__ __device__ constexpr long_index_t GetAPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideA_);
-    }
-
-    __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideB_);
-    }
-
-    __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideC_);
-    }
-
-    index_t BatchStrideA_;
-    index_t BatchStrideB_;
-    index_t BatchStrideC_;
-};
-
-} // namespace
 
 template <typename GridwiseGemm,
           typename FloatA,
@@ -1222,7 +1197,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         Block2CTileMap block_2_ctile_map_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<I0> compute_ptr_offset_of_batch_;
 
         index_t M01_;
         index_t N01_;
@@ -1301,7 +1276,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                     remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                     remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                     remove_reference_t<DeviceOp::Block2CTileMap>,
-                    ComputePtrOffsetOfStridedBatch,
+                    ComputePtrOffsetOfStridedBatch<I0>,
                     has_main_loop>;
 
                 return launch_and_time_kernel(stream_config,
@@ -1348,6 +1323,10 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(!ck::is_xdl_supported())
+        {
+            return false;
+        }
         if constexpr(NDimSpatial == 1)
         {
             if constexpr(!is_GNWK_GKXC_GNWC)
