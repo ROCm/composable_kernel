@@ -45,12 +45,7 @@ int main()
 
     std::vector<std::size_t> ncdhw = {N, C, D, H, W};
     std::vector<std::size_t> nchwd = {N, C, H, W, D};
-    // Tensor<ADataType> a(ncdhw);
-    // Tensor<BDataType> b(nchwd);
-
-    auto size = N * C * D * H * W;
-
-    // a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+    auto size                      = N * C * D * H * W;
 
     std::array<ck::index_t, 5> ab_lengths{N, C, H, W, D};
     std::array<ck::index_t, 5> a_strides = {C * D * H * W, D * H * W, 1, D * H, D};

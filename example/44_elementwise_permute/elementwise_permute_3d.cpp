@@ -19,17 +19,17 @@ using BDataType = F16;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using DeviceElementwisePermuteInstance =
-    ck::tensor_operation::device::DeviceElementwise3dImpl<ck::Tuple<ADataType>,
-                                                          ck::Tuple<BDataType>,
-                                                          PassThrough,
-                                                          2, // NumDim_m, {N, C}
-                                                          2, // NumDim_n, {H, W}
-                                                          1, // NumDim_k, {D}
-                                                          8,
-                                                          8,
-                                                          8,
-                                                          ck::Sequence<8>,
-                                                          ck::Sequence<8>>;
+    ck::tensor_operation::device::DeviceElementwise3dImpl<ck::Tuple<ADataType>, // InDataTypeTuple
+                                                          ck::Tuple<BDataType>, // OutDataTypeTuple
+                                                          PassThrough,          // ElementwiseOp
+                                                          2,                    // NumDim_m, {N, C}
+                                                          2,                    // NumDim_n, {H, W}
+                                                          1,                    // NumDim_k, {D}
+                                                          8,                    // MPerThread
+                                                          8,                    // NPerThread
+                                                          8,                    // KPerThread
+                                                          ck::Sequence<1>,  // InScalarPerVectorSeq
+                                                          ck::Sequence<1>>; // OutScalarPerVectorSeq
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
 void host_elementwise4D(HostTensorB& B_nchwd, const HostTensorA& A_ncdhw, Functor functor)
@@ -109,12 +109,8 @@ int main()
     if(do_verification)
     {
         b_device_buf.FromDevice(b.mData.data());
-
-        // LogRangeAsType<float>(std::cout << "A  : ", a.mData, ",") << std::endl;
-        // LogRangeAsType<float>(std::cout << "B  : ", b.mData, ",") << std::endl;
         Tensor<BDataType> host_b(nchwd);
         host_elementwise4D(host_b, a, PassThrough{});
-        // LogRangeAsType<float>(std::cout << "Host B  : ", host_b.mData, ",") << std::endl;
 
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);

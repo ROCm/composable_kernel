@@ -19,13 +19,13 @@ using BDataType = F16;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using DeviceElementwisePermuteInstance =
-    ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ADataType>,
-                                                        ck::Tuple<BDataType>,
-                                                        PassThrough,
-                                                        5,
-                                                        8,
-                                                        ck::Sequence<8>,
-                                                        ck::Sequence<1>>;
+    ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ADataType>, // InDataTypeTuple
+                                                        ck::Tuple<BDataType>, // OutDataTypeTuple
+                                                        PassThrough,          // ElementwiseOp
+                                                        5,                    // NumDim
+                                                        8,                    // MPerThread
+                                                        ck::Sequence<8>,  // InScalarPerVectorSeq
+                                                        ck::Sequence<1>>; // OutScalarPerVectorSeq
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
 void host_elementwise4D(HostTensorB& B_nchwd, const HostTensorA& A_ncdhw, Functor functor)
@@ -103,7 +103,6 @@ int main()
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-    // LogRangeAsType<float>(std::cout << "A  : ", a.mData, ",") << std::endl;
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
 
@@ -114,9 +113,6 @@ int main()
         b_device_buf.FromDevice(b.mData.data());
         Tensor<BDataType> host_b(nchwd);
         host_elementwise4D(host_b, a, PassThrough{});
-
-        // LogRangeAsType<float>(std::cout << "B  : ", b.mData, ",") << std::endl;
-        // LogRangeAsType<float>(std::cout << "Host B  : ", host_b.mData, ",") << std::endl;
 
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);

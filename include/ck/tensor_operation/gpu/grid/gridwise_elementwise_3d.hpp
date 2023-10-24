@@ -143,8 +143,9 @@ struct GridwiseElementwise_3D
                     Sequence<MPerThread, NPerThread, KPerThread>, // SliceLengths
                     Sequence<0, 1, 2>,                            // DimAccessOrder
                     0,                                            // SrcVectorDim
-                    1, // InScalarPerVectorSeq::At(I),                  // ScalarPerVector
-                    1, // SrcScalarStrideInVector
+                    InScalarPerVectorSeq::At(I), // InScalarPerVectorSeq::At(I),                  //
+                                                 // ScalarPerVector
+                    1,                           // SrcScalarStrideInVector
                     true>{in_grid_3d_desc_tuple[I], thread_global_offset};
             },
             Number<NumInput>{});
@@ -163,7 +164,7 @@ struct GridwiseElementwise_3D
                     Sequence<MPerThread, NPerThread, KPerThread>, // SliceLengths
                     Sequence<0, 1, 2>,                            // DimAccessOrder
                     1,                                            // SrcVectorDim
-                    1,                                            // OutScalarPerVectorSeq::At(I),
+                    OutScalarPerVectorSeq::At(I),                 // OutScalarPerVectorSeq::At(I),
                     InMemoryDataOperationEnum::Set,
                     1,
                     true>(out_grid_3d_desc_tuple[I], thread_global_offset, PassThroughOp{});

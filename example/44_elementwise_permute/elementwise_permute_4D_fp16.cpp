@@ -19,13 +19,13 @@ using BDataType = F16;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using DeviceElementwisePermuteInstance =
-    ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ADataType>,
-                                                        ck::Tuple<BDataType>,
-                                                        PassThrough,
-                                                        4,
-                                                        8,
-                                                        ck::Sequence<8>,
-                                                        ck::Sequence<1>>;
+    ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ADataType>, // InDataTypeTuple
+                                                        ck::Tuple<BDataType>, // OutDataTypeTuple
+                                                        PassThrough,          // Elementwise op
+                                                        4,                    // NumDim
+                                                        8,                    // MPerThread
+                                                        ck::Sequence<8>,  // InScalarPerVectorSeq
+                                                        ck::Sequence<1>>; // OutScalarPerVectorSeq
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
 void host_elementwise4D(HostTensorB& B_nhwc, const HostTensorA& A_nchw, Functor functor)
@@ -106,8 +106,6 @@ int main()
         b_device_buf.FromDevice(b.mData.data());
         Tensor<BDataType> host_b(nhwc);
         host_elementwise4D(host_b, a, PassThrough{});
-        // LogRangeAsType<float>(std::cout << "A  : ", a.mData, ",") << std::endl;
-        // LogRangeAsType<float>(std::cout << "B  : ", host_b.mData, ",") << std::endl;
 
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);

@@ -42,16 +42,18 @@ struct DeviceOperationInstanceFactory<
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-        if constexpr(is_same_v<InDataType, float> && is_same_v<OutDataType, float>)
+        if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
+                     is_same_v<OutDataTypeTuple, ck::Tuple<F32>>)
         {
             add_device_transpose_f32_instances(op_ptrs);
         }
-        else if constexpr(is_same_v<InDataType, half_t> && is_same_v<OutDataType, half_t>)
+        else if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F16>> &&
+                          is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
         {
             add_device_transpose_f16_instances(op_ptrs);
         }
+        return op_ptrs;
     }
-    return op_ptrs;
 };
 
 } // namespace instance
