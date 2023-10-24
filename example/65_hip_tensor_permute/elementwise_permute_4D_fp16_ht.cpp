@@ -3,7 +3,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl_ht.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
@@ -18,25 +18,35 @@ using ADataType = F16;
 using BDataType = F16;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using DeviceElementwisePermuteInstance =
-    ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ADataType>,
-                                                        ck::Tuple<BDataType>,
-                                                        PassThrough,
-                                                        4,
-                                                        8,
-                                                        ck::Sequence<8>,
-                                                        ck::Sequence<1>>;
+using UnaryOp     = ck::tensor_operation::element_wise::UnarySquare;
+// ck::index_t scalar_mult = 2;
 
-template <typename HostTensorA, typename HostTensorB, typename Functor>
-void host_elementwise4D(HostTensorB& B_nhwc, const HostTensorA& A_nchw, Functor functor)
+using DeviceElementwisePermuteInstance =
+    ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ADataType>, // InDataTypeTuple
+                                                        ck::Tuple<BDataType>, // OutDataTypeTuple
+                                                        PassThrough,          // ElementwiseOp
+                                                        UnaryOp,              // UnaryOp
+                                                        4,                    // NumDim
+                                                        8,                    // MPerThread
+                                                        2,                    // ScalarMult (alpha)
+                                                        ck::Sequence<8>,  // InScalarPerVectorSeq
+                                                        ck::Sequence<1>>; // OutScalarPerVectorSeq
+
+template <typename HostTensorA, typename HostTensorB, typename FunctorA, typename FunctorB>
+void host_elementwise4D(HostTensorB& B_nhwc,
+                        const HostTensorA& A_nchw,
+                        FunctorA functor_a,
+                        FunctorB functor_b)
 {
     for(std::size_t n = 0; n < A_nchw.mDesc.GetLengths()[0]; ++n)
         for(std::size_t c = 0; c < A_nchw.mDesc.GetLengths()[1]; ++c)
             for(std::size_t h = 0; h < A_nchw.mDesc.GetLengths()[2]; ++h)
                 for(std::size_t w = 0; w < A_nchw.mDesc.GetLengths()[3]; ++w)
                 {
+                    ADataType tmp_val;
                     auto a_val = A_nchw(n, c, h, w);
-                    functor(B_nhwc(n, h, w, c), a_val);
+                    functor_b(tmp_val, a_val);
+                    functor_a(B_nhwc(n, h, w, c), 2 * tmp_val);
                 }
 }
 
@@ -74,7 +84,7 @@ int main()
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
     auto argument         = broadcastPermute.MakeArgumentPointer(
-        ab_lengths, {a_strides}, {b_strides}, input, output, PassThrough{});
+        ab_lengths, {a_strides}, {b_strides}, input, output, PassThrough{}, UnaryOp{});
 
     if(!broadcastPermute.IsSupportedArgument(argument.get()))
     {
@@ -106,7 +116,7 @@ int main()
     {
         b_device_buf.FromDevice(b.mData.data());
         Tensor<BDataType> host_b(nhwc);
-        host_elementwise4D(host_b, a, PassThrough{});
+        host_elementwise4D(host_b, a, PassThrough{}, UnaryOp{});
 
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);

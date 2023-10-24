@@ -18,19 +18,19 @@ using ADataType = F32;
 using BDataType = F32;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Square      = ck::tensor_operation::element_wise::UnarySquare;
+using UnaryOp     = ck::tensor_operation::element_wise::UnarySquare;
 // ck::index_t scalar_mult = 2;
 
 using DeviceElementwisePermuteInstance =
-    ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ADataType>,
-                                                        ck::Tuple<BDataType>,
-                                                        PassThrough,
-                                                        Square,
-                                                        4,
-                                                        8,
-                                                        2,
-                                                        ck::Sequence<8>,
-                                                        ck::Sequence<1>>;
+    ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ADataType>, // InDataTypeTuple
+                                                        ck::Tuple<BDataType>, // OutDataTypeTuple
+                                                        PassThrough,          // ElementwiseOp
+                                                        UnaryOp,              // UnaryOp
+                                                        4,                    // NumDim
+                                                        8,                    // MPerThread
+                                                        2,                    // ScalarMult (alpha)
+                                                        ck::Sequence<8>,  // InScalarPerVectorSeq
+                                                        ck::Sequence<1>>; // OutScalarPerVectorSeq
 
 template <typename HostTensorA, typename HostTensorB, typename FunctorA, typename FunctorB>
 void host_elementwise4D(HostTensorB& B_nhwc,
@@ -84,7 +84,7 @@ int main()
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
     auto argument         = broadcastPermute.MakeArgumentPointer(
-        ab_lengths, {a_strides}, {b_strides}, input, output, PassThrough{}, Square{});
+        ab_lengths, {a_strides}, {b_strides}, input, output, PassThrough{}, UnaryOp{});
 
     if(!broadcastPermute.IsSupportedArgument(argument.get()))
     {
@@ -116,7 +116,7 @@ int main()
     {
         b_device_buf.FromDevice(b.mData.data());
         Tensor<BDataType> host_b(nhwc);
-        host_elementwise4D(host_b, a, PassThrough{}, Square{});
+        host_elementwise4D(host_b, a, PassThrough{}, UnaryOp{});
 
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
