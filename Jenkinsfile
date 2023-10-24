@@ -194,7 +194,8 @@ def cmake_build(Map conf=[:]){
         setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache " + setup_args
     }
 
-    def pre_setup_cmd = """#!/bin/bash
+    def pre_setup_cmd = """
+            #!/bin/bash
             echo \$HSA_ENABLE_SDMA
             ulimit -c unlimited
             rm -rf build
@@ -204,7 +205,8 @@ def cmake_build(Map conf=[:]){
             cd build
         """
     if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null") {
-        pre_setup_cmd = pre_setup_cmd + """#!/bin/bash
+        pre_setup_cmd = pre_setup_cmd + """
+            #!/bin/bash
             export ROCM_PATH=/opt/rocm
             export SCCACHE_ENABLED=true
             export SCCACHE_LOG_LEVEL=debug
@@ -214,17 +216,16 @@ def cmake_build(Map conf=[:]){
             export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
             export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
             echo "connect = ${env.CK_SCCACHE}" >> ../script/redis-cli.conf
-            echo "setup_args: ${setup_args}"
-            if [[ "${setup_args}" =~ "gfx1100" ]]; then
+            if [[ "${setup_args}" =~ "gfx11" ]]; then
                 export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx11
-            elif [[ "${setup_args}" =~ "gfx1030" ]]; then
+            elif [[ "${setup_args}" =~ "gfx10" ]]; then
                 export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx10
-            elif [[ "${setup_args}" =~ "gfx940" ]]; then
+            elif [[ "${setup_args}" =~ "gfx94" ]]; then
                 export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx94
             else
                 export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx90
             fi
-            echo \$SCCACHE_C_CUSTOM_CACHE_BUSTER
+            echo "$SCCACHE_C_CUSTOM_CACHE_BUSTER"
             stunnel ../script/redis-cli.conf
             ../script/sccache_wrapper.sh --enforce_redis
         """
