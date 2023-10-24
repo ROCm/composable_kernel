@@ -225,7 +225,7 @@ def cmake_build(Map conf=[:]){
             else
                 export SCCACHE_C_CUSTOM_CACHE_BUSTER=gfx90
             fi
-            echo "$SCCACHE_C_CUSTOM_CACHE_BUSTER"
+            echo \$SCCACHE_C_CUSTOM_CACHE_BUSTER
             stunnel ../script/redis-cli.conf
             ../script/sccache_wrapper.sh --enforce_redis
         """
