@@ -201,16 +201,16 @@ def cmake_build(Map conf=[:]){
             cd build
         """
     def invocation_tag=""
-    if ("gfx11" in "${setup_args}"){
+    if (setup_args.contains("gfx11")){
         invocation_tag="gfx11"
     }
-    if ("gfx10" in "${setup_args}"){
+    if (setup_args.contains("gfx10")){
         invocation_tag="gfx10"
     }
-    if ("gfx90" in "${setup_args}"){
+    if (setup_args.contains("gfx90")){
         invocation_tag="gfx90"
     }
-    if ("gfx94" in "${setup_args}"){
+    if (setup_args.contains("gfx94")){
         invocation_tag="gfx94"
     }
     if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null" && "${invocation_tag}" != "") {
