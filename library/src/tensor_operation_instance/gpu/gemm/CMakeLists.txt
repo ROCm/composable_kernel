@@ -108,6 +108,8 @@ if (ENABLE_PIPELINE_V2_OPT)
        CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT=1
     )
 
+    # TODO: The "-vectorize-slp=false" LLVM option is a workaround to prevent inefficient instruction scheduling
+    #       caused by SLP Vectorizer. Remove this option after fix the SLP Vectorizer issue.
     # layout=NT
     set_source_files_properties(device_gemm_xdl_f16_f16_f16/km_kn_mn_default_pipeline_v2_opt_instance.cpp PROPERTIES
        COMPILE_OPTIONS ";-mllvm;-vectorize-slp=false"
