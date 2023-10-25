@@ -88,11 +88,6 @@ template <typename FloatAB,
           PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle
 {
-    static_assert(D0BlockTransferSrcScalarPerVector == 1 ||
-                      D0BlockTransferSrcScalarPerVector == 2 ||
-                      D0BlockTransferSrcScalarPerVector == 4,
-                  "D0BlockTransferSrcScalarPerVector must be 1 or 2 or 4");
-
     static_assert(LoopSched == LoopScheduler::Default,
                   "Non-default loop scheduler is currently not supported");
 
@@ -392,20 +387,18 @@ struct GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle
     struct D0Operator
     {
         static_assert(ABlockTransferThreadClusterLengths_AK0_M_AK1::Size() == 3);
+        static_assert(ABlockTransferDstScalarPerVector_AK1 % D0BlockTransferSrcScalarPerVector ==
+                      0);
 
         template <typename DataType>
         struct TypeTransform
         {
-            using Type                     = DataType;
-            static constexpr index_t Size0 = sizeof(DataType);
-            static constexpr index_t Size  = sizeof(DataType);
+            using Type = DataType;
         };
         template <>
         struct TypeTransform<void>
         {
-            using Type                     = ck::half_t;
-            static constexpr index_t Size0 = 0;
-            static constexpr index_t Size  = sizeof(ck::half_t);
+            using Type = ck::half_t;
         };
 
         __host__ __device__ static constexpr auto GetD0BlockGlobalDescriptor_M0_N0_N1_N2_M1_N3()
@@ -463,7 +456,7 @@ struct GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle
             Sequence<0, 1, 2, 4, 3, 5>,
             5,
             5,
-            ABlockTransferSrcScalarPerVector,
+            D0BlockTransferSrcScalarPerVector,
             ABlockTransferDstScalarPerVector_AK1,
             1,
             1,
