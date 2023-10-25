@@ -59,7 +59,8 @@ template <typename ADataType,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CBlockTransferScalarPerVector_NWaveNPerXDL,
           typename ComputeType        = CDataType,
-          PipelineVersion PipelineVer = PipelineVersion::v1>
+          PipelineVersion PipelineVer = PipelineVersion::v1,
+          LoopScheduler LoopSched     = make_default_loop_scheduler()>
 
 struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                                              BLayout,
@@ -79,7 +80,6 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
 
     // TODO: should be exposed as Tparams.
     static constexpr index_t NumGemmKPrefetchStage = 1;
-    static constexpr LoopScheduler LoopSched       = make_default_loop_scheduler();
 
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
