@@ -232,8 +232,8 @@ def cmake_build(Map conf=[:]){
                 set -e
                 ../script/sccache_wrapper.sh --enforce_redis
             )
-            error_code=$?
-            if [ $error_code -ne 0 ]; then
+            error_code=\$?
+            if [ \$error_code -ne 0 ]; then
                 echo "could not connect to the redis server. using sccache locally."
                 ../script/sccache_wrapper.sh
             fi
