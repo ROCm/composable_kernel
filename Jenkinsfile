@@ -228,7 +228,15 @@ def cmake_build(Map conf=[:]){
             export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
             echo \$SCCACHE_C_CUSTOM_CACHE_BUSTER
             stunnel ../script/redis-cli.conf
-            ../script/sccache_wrapper.sh --enforce_redis
+            (
+                set -e
+                ../script/sccache_wrapper.sh --enforce_redis
+            )
+            error_code=$?
+            if [ $error_code -ne 0 ]; then
+                echo "could not connect to the redis server. using sccache locally."
+                ../script/sccache_wrapper.sh
+            fi
         """
         setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache " + setup_args
     }
