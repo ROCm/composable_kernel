@@ -141,7 +141,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                  index_t MPadded_,
                  index_t NPadded_,
                  index_t KPadded_,
-                 index_t K0_,
+                 index_t K0Padded_,
                  index_t k_batch_,
                  AElementwiseOperation a_element_op_,
                  BElementwiseOperation b_element_op_,
@@ -158,7 +158,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                      MPadded_,
                                      NPadded_,
                                      KPadded_,
-                                     K0_,
+                                     K0Padded_,
                                      k_batch_),
               a_element_op(a_element_op_),
               b_element_op(b_element_op_),
@@ -198,9 +198,9 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
             const auto b2c_map = DefaultBlock2CTileMap{};
             index_t gdx, gdy, gdz;
             std::tie(gdx, gdy, gdz) = b2c_map.CalculateGridSize(karg.M, karg.N, karg.k_batch);
-            const auto K0           = karg.K0;
+            const auto K0Padded     = karg.K0Padded;
 
-            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0Padded);
 
             float ave_time = 0;
 
@@ -342,7 +342,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                         GridwiseGemm::CalculateMPadded(M),
                         GridwiseGemm::CalculateNPadded(N),
                         GridwiseGemm::CalculateKPadded(K, KBatch),
-                        GridwiseGemm::CalculateK0(K, KBatch),
+                        GridwiseGemm::CalculateK0Padded(K, KBatch),
                         KBatch,
                         a_element_op,
                         b_element_op,
@@ -378,7 +378,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                           GridwiseGemm::CalculateMPadded(M),
                                           GridwiseGemm::CalculateNPadded(N),
                                           GridwiseGemm::CalculateKPadded(K, KBatch),
-                                          GridwiseGemm::CalculateK0(K, KBatch),
+                                          GridwiseGemm::CalculateK0Padded(K, KBatch),
                                           KBatch,
                                           a_element_op,
                                           b_element_op,
