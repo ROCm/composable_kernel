@@ -53,7 +53,7 @@ class TestConvTensorRearrangeInterface : public ::testing::Test
     template <typename ConvTensorRearrangeOp>
     bool Run()
     {
-
+        const auto G = conv_param.N_;
         const auto N = conv_param.N_;
         const auto C = conv_param.C_;
         const auto FakeC =
@@ -100,6 +100,7 @@ class TestConvTensorRearrangeInterface : public ::testing::Test
             auto img2col  = DeviceImgToColInstance{};
             auto argument = img2col.MakeArgument(nullptr,
                                                  nullptr,
+                                                 G,
                                                  N,
                                                  IsCPacked ? C : FakeC,
                                                  input_spatial_lengths,
@@ -119,6 +120,7 @@ class TestConvTensorRearrangeInterface : public ::testing::Test
             auto col2img  = DeviceColToimgInstance{};
             auto argument = col2img.MakeArgument(nullptr,
                                                  nullptr,
+                                                 G,
                                                  N,
                                                  IsCPacked ? C : FakeC,
                                                  input_spatial_lengths,
