@@ -53,7 +53,7 @@ class TestConvTensorRearrangeInterface : public ::testing::Test
     template <typename ConvTensorRearrangeOp>
     bool Run()
     {
-        const auto G = conv_param.N_;
+        const auto G = conv_param.G_;
         const auto N = conv_param.N_;
         const auto C = conv_param.C_;
         const auto FakeC =
