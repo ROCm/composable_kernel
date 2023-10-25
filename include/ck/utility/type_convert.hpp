@@ -144,15 +144,21 @@ inline __host__ __device__ f8_t type_convert<f8_t, half_t>(half_t x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // convert to float and use native converion
-    return type_convert<f8_t>(type_convert<float>(x));
+    // return type_convert<f8_t>(type_convert<float>(x));
+    std::ignore      = x;
+    const f8_t dummy = 0;
+    return dummy;
 #else
-    constexpr bool negative_zero_nan = true;
-    constexpr bool clip              = true;
-    constexpr f8_rounding_mode rm    = f8_rounding_mode::standard;
-    constexpr uint32_t rng           = 0;
-    return utils::
-        cast_to_f8<half_t, f8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
-            x, rng);
+    // constexpr bool negative_zero_nan = true;
+    // constexpr bool clip              = true;
+    // constexpr f8_rounding_mode rm    = f8_rounding_mode::standard;
+    // constexpr uint32_t rng           = 0;
+    // return utils::
+    //     cast_to_f8<half_t, f8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
+    //         x, rng);
+    std::ignore      = x;
+    const f8_t dummy = 0;
+    return dummy;
 #endif
 }
 
@@ -218,15 +224,21 @@ inline __host__ __device__ bf8_t type_convert<bf8_t, half_t>(half_t x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // convert to float and use native converion
-    return type_convert<bf8_t>(type_convert<float>(x));
+    // return type_convert<bf8_t>(type_convert<float>(x));
+    std::ignore      = x;
+    const f8_t dummy = 0;
+    return dummy;
 #else
-    constexpr bool negative_zero_nan = true;
-    constexpr bool clip              = true;
-    constexpr f8_rounding_mode rm    = f8_rounding_mode::standard;
-    constexpr uint32_t rng           = 0;
-    return utils::
-        cast_to_f8<half_t, bf8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
-            x, rng);
+    // constexpr bool negative_zero_nan = true;
+    // constexpr bool clip              = true;
+    // constexpr f8_rounding_mode rm    = f8_rounding_mode::standard;
+    // constexpr uint32_t rng           = 0;
+    // return utils::
+    //     cast_to_f8<half_t, bf8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
+    //         x, rng);
+    std::ignore       = x;
+    const bf8_t dummy = 0;
+    return dummy;
 #endif
 }
 
