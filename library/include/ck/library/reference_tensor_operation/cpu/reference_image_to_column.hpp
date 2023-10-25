@@ -19,9 +19,7 @@ namespace host {
  * \brief Reference implementation for image to column.
  *
  * Input tensor descriptor has [G, N, C, Di, Hi, Wi] data layout.
- * G must be equal to 1. Memory layout is [G, N, Di, Hi, Wi, C].
- * Output tensor descriptor has [N * Do * Ho * Wo, Z * Y * X * C] data layout.
- * Memory layout is the same.
+ * Output tensor descriptor has [G * N * Do * Ho * Wo, Z * Y * X * C] data layout.
  *
  * \tparam NDimSpatial Number of spatial dimensions.
  * \tparam ImageLayout Image Layout.
@@ -94,21 +92,31 @@ struct ReferenceImageToColumn : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
+            using namespace ck::tensor_layout::convolution;
             if(!(arg.input_.GetNumOfDimension() == NDimSpatial + 3 &&
                  arg.output_.GetNumOfDimension() == 2))
             {
                 throw std::runtime_error("wrong! inconsistent dimension");
             }
 
+            const index_t G = arg.input_.GetLengths()[0];
             const index_t N = arg.input_.GetLengths()[1];
             const index_t C = arg.input_.GetLengths()[2];
 
             if constexpr(NDimSpatial == 1)
             {
                 const index_t Wo = arg.output_spatial_lengths_[0];
-                auto func        = [&](auto n, auto wo) {
-                    index_t row    = n * Wo + wo;
+                auto func        = [&](auto g, auto n, auto wo) {
+                    index_t row    = 0;
                     index_t column = 0;
+                    if constexpr(std::is_same_v<ImageLayout, GNWC>)
+                    {
+                        row = g * N * Wo + n * Wo + wo;
+                    }
+                    else if constexpr(std::is_same_v<ImageLayout, NWGC>)
+                    {
+                        row = n * Wo * G + wo * G + g;
+                    }
 
                     for(index_t x = 0; x < arg.filter_spatial_lengths_[0]; ++x)
                     {
@@ -121,7 +129,7 @@ struct ReferenceImageToColumn : public device::BaseOperator
                             if(wi >= 0 &&
                                ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[3])
                             {
-                                InDataType v_in          = arg.input_(0, n, c, wi);
+                                InDataType v_in          = arg.input_(g, n, c, wi);
                                 arg.output_(row, column) = ck::type_convert<OutDataType>(v_in);
                             }
                             column++;
@@ -129,7 +137,7 @@ struct ReferenceImageToColumn : public device::BaseOperator
                     }
                 };
 
-                make_ParallelTensorFunctor(func, N, Wo)(std::thread::hardware_concurrency());
+                make_ParallelTensorFunctor(func, G, N, Wo)(std::thread::hardware_concurrency());
 
                 return 0;
             }
@@ -138,9 +146,17 @@ struct ReferenceImageToColumn : public device::BaseOperator
                 const index_t Ho = arg.output_spatial_lengths_[0];
                 const index_t Wo = arg.output_spatial_lengths_[1];
 
-                auto func = [&](auto n, auto ho, auto wo) {
-                    index_t row    = n * Ho * Wo + ho * Wo + wo;
+                auto func = [&](auto g, auto n, auto ho, auto wo) {
+                    index_t row    = 0;
                     index_t column = 0;
+                    if constexpr(std::is_same_v<ImageLayout, GNHWC>)
+                    {
+                        row = g * N * Ho * Wo + n * Ho * Wo + ho * Wo + wo;
+                    }
+                    else if constexpr(std::is_same_v<ImageLayout, NHWGC>)
+                    {
+                        row = n * Ho * Wo * G + ho * Wo * G + wo * G + g;
+                    }
 
                     for(index_t y = 0; y < arg.filter_spatial_lengths_[0]; ++y)
                     {
@@ -162,7 +178,7 @@ struct ReferenceImageToColumn : public device::BaseOperator
                                    wi >= 0 &&
                                    ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[4])
                                 {
-                                    InDataType v_in          = arg.input_(0, n, c, hi, wi);
+                                    InDataType v_in          = arg.input_(g, n, c, hi, wi);
                                     arg.output_(row, column) = ck::type_convert<OutDataType>(v_in);
                                 }
                                 column++;
@@ -171,7 +187,7 @@ struct ReferenceImageToColumn : public device::BaseOperator
                     }
                 };
 
-                make_ParallelTensorFunctor(func, N, Ho, Wo)(std::thread::hardware_concurrency());
+                make_ParallelTensorFunctor(func, G, N, Ho, Wo)(std::thread::hardware_concurrency());
 
                 return 0;
             }
@@ -181,9 +197,18 @@ struct ReferenceImageToColumn : public device::BaseOperator
                 const index_t Ho = arg.output_spatial_lengths_[1];
                 const index_t Wo = arg.output_spatial_lengths_[2];
 
-                auto func = [&](auto n, auto d_o, auto ho, auto wo) {
-                    index_t row    = n * Do * Ho * Wo + d_o * Ho * Wo + ho * Wo + wo;
+                auto func = [&](auto g, auto n, auto d_o, auto ho, auto wo) {
+                    index_t row    = 0;
                     index_t column = 0;
+                    if constexpr(std::is_same_v<ImageLayout, GNDHWC>)
+                    {
+                        row =
+                            g * N * Do * Ho * Wo + n * Do * Ho * Wo + d_o * Ho * Wo + ho * Wo + wo;
+                    }
+                    else if constexpr(std::is_same_v<ImageLayout, NDHWGC>)
+                    {
+                        row = n * Do * Ho * Wo * G + d_o * Ho * Wo * G + ho * Wo * G + wo * G + g;
+                    }
 
                     for(index_t z = 0; z < arg.filter_spatial_lengths_[0]; ++z)
                     {
@@ -213,7 +238,7 @@ struct ReferenceImageToColumn : public device::BaseOperator
                                        ck::type_convert<std::size_t>(wi) <
                                            arg.input_.GetLengths()[5])
                                     {
-                                        InDataType v_in = arg.input_(0, n, c, di, hi, wi);
+                                        InDataType v_in = arg.input_(g, n, c, di, hi, wi);
                                         arg.output_(row, column) =
                                             ck::type_convert<OutDataType>(v_in);
                                     }
@@ -224,7 +249,7 @@ struct ReferenceImageToColumn : public device::BaseOperator
                     }
                 };
 
-                make_ParallelTensorFunctor(func, N, Do, Ho, Wo)(
+                make_ParallelTensorFunctor(func, G, N, Do, Ho, Wo)(
                     std::thread::hardware_concurrency());
 
                 return 0;

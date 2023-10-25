@@ -19,7 +19,7 @@ using OutDataType = ck::half_t;
 using ImageLayout = ck::tensor_layout::convolution::GNHWC;
 
 static constexpr ck::index_t NumDimSpatial = 2;
-static constexpr ck::index_t G             = 1;
+static constexpr ck::index_t G             = 2;
 static constexpr ck::index_t N             = 32; // batch size
 static constexpr ck::index_t C             = 32; // input channel (per group)
 static constexpr ck::index_t Y             = 3;  // filter H
@@ -64,7 +64,7 @@ int main()
     std::array<ck::index_t, NumDimSpatial> input_right_pads{1, 1};
 
     SimpleDeviceMem in(sizeof(InDataType) * N * Hi * Wi * G * C);
-    SimpleDeviceMem out(sizeof(OutDataType) * N * Ho * Wo * Y * X * C);
+    SimpleDeviceMem out(sizeof(OutDataType) * G * N * Ho * Wo * Y * X * C);
 
     using namespace ck::conv_tensor_rearrange_op;
 
@@ -93,6 +93,7 @@ int main()
         auto& op_ptr        = op_ptrs[i];
         auto argument_ptr   = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
                                                         out.GetDeviceBuffer(),
+                                                        G,
                                                         N,
                                                         C,
                                                         in_spatial_lengths,
@@ -112,7 +113,7 @@ int main()
             float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
             std::size_t num_bytes = sizeof(InDataType) * N * Hi * Wi * G * C +
-                                    sizeof(OutDataType) * N * Ho * Wo * Y * X * C;
+                                    sizeof(OutDataType) * G * N * Ho * Wo * Y * X * C;
 
             float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
@@ -149,6 +150,7 @@ int main()
                   << std::endl;
         auto argument_ptr = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
                                                         out.GetDeviceBuffer(),
+                                                        G,
                                                         N,
                                                         C,
                                                         in_spatial_lengths,

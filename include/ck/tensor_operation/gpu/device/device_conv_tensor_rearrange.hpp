@@ -14,11 +14,12 @@ namespace device {
 /**
  * \brief Convolution Tensor Rearrange.
  *
- * This Device operator supports conversion image ([G, N, Di, Hi, Wi, C]) to
- * the gemm problem([N * Do * Ho * Wo, Z *  Y * X * C]) (Image to Column) and
+ * This Device operator supports conversion image to
+ * the gemm problem (Image to Column) and
  * conversion gemm form to the image (Column to Image).
- *
- * Note that G must be equal to 1.
+ * Supported layouts:
+ * [G, N, Di, Hi, Wi, C] <-> [G * N * Do * Ho * Wo, Z *  Y * X * C]
+ * [N, Di, Hi, Wi, G, C] <-> [N * Do * Ho * Wo * G, Z *  Y * X * C]
  *
  * \tparam NDimSpatial Number of spatial dimensions.
  * \tparam ImageLayout Input Layout.
@@ -39,6 +40,7 @@ struct DeviceConvTensorRearrange : public BaseOperator
      *
      * \param p_in A pointer to the device memory of the input image.
      * \param p_out A pointer to the device memory of the output.
+     * \param G Convolution number of groups.
      * \param N Convolution batch size.
      * \param C Convolution number of channels.
      * \param input_spatial_lengths Input spatial lengths.
@@ -55,6 +57,7 @@ struct DeviceConvTensorRearrange : public BaseOperator
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_in,
                         void* p_out,
+                        const ck::index_t G,
                         const ck::index_t N,
                         const ck::index_t C,
                         const std::array<index_t, NDimSpatial>& input_spatial_lengths,

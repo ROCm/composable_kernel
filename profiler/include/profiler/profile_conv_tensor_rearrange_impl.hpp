@@ -104,8 +104,8 @@ bool profile_conv_tensor_rearrange_impl(int do_verification,
                                         bool time_kernel,
                                         const ck::utils::conv::ConvParam& conv_param)
 {
-    const ck::index_t NDoHoWo =
-        conv_param.N_ *
+    const ck::index_t GNDoHoWo =
+        conv_param.G_ * conv_param.N_ *
         ck::accumulate_n<ck::index_t>(
             conv_param.output_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
     const ck::index_t CZYX =
@@ -116,7 +116,7 @@ bool profile_conv_tensor_rearrange_impl(int do_verification,
     const auto image_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InputLayout>(
             conv_param);
-    const auto gemm_desc = HostTensorDescriptor({NDoHoWo, CZYX});
+    const auto gemm_desc = HostTensorDescriptor({GNDoHoWo, CZYX});
 
     std::array<ck::index_t, NDimSpatial> input_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
@@ -212,6 +212,7 @@ bool profile_conv_tensor_rearrange_impl(int do_verification,
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             static_cast<InputDataType*>(in_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(out_device_buf.GetDeviceBuffer()),
+            conv_param.G_,
             conv_param.N_,
             conv_param.C_,
             input_spatial_lengths,
@@ -234,7 +235,7 @@ bool profile_conv_tensor_rearrange_impl(int do_verification,
             float avg_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
             std::size_t num_btype =
-                NDoHoWo * CZYX * (sizeof(OutputDataType) + sizeof(InputDataType));
+                GNDoHoWo * CZYX * (sizeof(OutputDataType) + sizeof(InputDataType));
             float gb_per_sec = num_btype / 1.E6 / avg_time;
             std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << gb_per_sec << " GB/s, "
                       << op_name << std::endl;

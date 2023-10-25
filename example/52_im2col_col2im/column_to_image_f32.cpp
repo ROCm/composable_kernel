@@ -20,18 +20,19 @@ using DeviceColToImgInstance = ck::tensor_operation::device::DeviceColumnToImage
 
 bool RunColumnToImage(const ExecutionConfig& config, const ck::utils::conv::ConvParam& conv_params)
 {
-
+    const auto G = conv_params.G_;
     const auto N = conv_params.N_;
     const auto C = conv_params.C_;
 
-    const ck::index_t NDoHoWo =
-        N * ck::accumulate_n<ck::index_t>(
-                conv_params.output_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
+    const ck::index_t GNDoHoWo =
+        G * N *
+        ck::accumulate_n<ck::index_t>(
+            conv_params.output_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
     const ck::index_t CZYX =
         C * ck::accumulate_n<ck::index_t>(
                 conv_params.filter_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
 
-    const auto in_desc = HostTensorDescriptor({NDoHoWo, CZYX});
+    const auto in_desc = HostTensorDescriptor({GNDoHoWo, CZYX});
     const auto out_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ImLayout>(conv_params);
 
@@ -86,6 +87,7 @@ bool RunColumnToImage(const ExecutionConfig& config, const ck::utils::conv::Conv
     auto invoker  = col2img.MakeInvoker();
     auto argument = col2img.MakeArgument(in_device_buf.GetDeviceBuffer(),
                                          out_device_buf.GetDeviceBuffer(),
+                                         G,
                                          N,
                                          C,
                                          input_spatial_lengths,
@@ -108,7 +110,7 @@ bool RunColumnToImage(const ExecutionConfig& config, const ck::utils::conv::Conv
     }
 
     float ave_time        = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-    std::size_t num_btype = NDoHoWo * CZYX * (sizeof(OutDataType) + sizeof(InDataType));
+    std::size_t num_btype = GNDoHoWo * CZYX * (sizeof(OutDataType) + sizeof(InDataType));
     float gb_per_sec      = num_btype / 1.E6 / ave_time;
     std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
 
