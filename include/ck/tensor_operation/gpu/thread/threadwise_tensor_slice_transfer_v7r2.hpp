@@ -141,7 +141,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
         // loop over space-filling curve
         static_for<0, src_num_access, 1>{}([&](auto iAccess) {
             auto src_vectors = generate_vectors<SrcDatas, SrcScalarPerVector>();
-            auto dst_vectors = generate_vectors<DstDatas, SrcScalarPerVector>();
+            auto elm_vectors = generate_vectors<DstDatas, SrcScalarPerVector>();
 
             // copy data from src_bufs into src_vectors
             static_for<0, nSrc, 1>{}([&](auto i) {
@@ -199,7 +199,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
 
                         using elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
 
-                        return dst_vectors(iDst).template AsType<elem_op_vec_t>()(i);
+                        return elm_vectors(iDst).template AsType<elem_op_vec_t>()(i);
                     },
                     Number<nDst>{});
 
@@ -214,7 +214,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
                 unpack2(element_op_, dst_data_refs, src_data_refs);
             });
 
-            dst_vectors_tuple_(iAccess) = dst_vectors;
+            elm_vectors_tuple_(iAccess) = elm_vectors;
 
             // move coordinate
             if constexpr(iAccess.value != src_num_access - 1)
@@ -247,6 +247,8 @@ struct ThreadwiseTensorSliceTransfer_v7r2
               enable_if_t<DstDescs::Size() == DstBuffers::Size(), bool> = false>
     __device__ void RunWrite(const DstDescs& dst_descs, DstBuffers dst_bufs)
     {
+        dst_vectors_tuple_ = bit_cast<decltype(dst_vectors_tuple_)>(elm_vectors_tuple_);
+
         // loop over space-filling curve
         static_for<0, dst_num_access, 1>{}([&](auto iAccess) {
             auto dst_vectors = dst_vectors_tuple_[iAccess];
@@ -372,11 +374,13 @@ struct ThreadwiseTensorSliceTransfer_v7r2
 
     private:
     using SrcVectorsType = decltype(generate_vectors<SrcDatas, SrcScalarPerVector>());
+    using ElmVectorsType = decltype(generate_vectors<DstDatas, SrcScalarPerVector>());
     using DstVectorsType = decltype(generate_vectors<DstDatas, DstScalarPerVector>());
 
     static constexpr auto src_num_access = SrcSpaceFillingCurve::GetNumOfAccess();
     static constexpr auto dst_num_access = DstSpaceFillingCurve::GetNumOfAccess();
 
+    StaticallyIndexedArray<ElmVectorsType, src_num_access> elm_vectors_tuple_;
     StaticallyIndexedArray<DstVectorsType, dst_num_access> dst_vectors_tuple_;
 
     SrcCoords src_coords_;
