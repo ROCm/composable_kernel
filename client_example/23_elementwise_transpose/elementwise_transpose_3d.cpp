@@ -58,7 +58,7 @@ int main()
     std::array<void*, 1> output      = {b_dev_buf.GetDeviceBuffer()};
 
     using DeviceElementwisePermuteInstance = ck::tensor_operation::device::
-        DeviceElementwiseImpl<ck::Tuple<ADataType>, ck::Tuple<BDataType>, PassThrough, 5>;
+        DeviceElementwise<ck::Tuple<ADataType>, ck::Tuple<BDataType>, PassThrough, 5>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
