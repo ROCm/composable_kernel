@@ -1,5 +1,3 @@
-if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
-    add_example_executable(example_groupnorm_sigmoid_mul_fp16 groupnorm_sigmoid_mul_fp16.cpp)
-    add_example_executable(example_groupnorm_splitk_fp16 groupnorm_splitk_fp16.cpp)
-    add_example_executable(example_groupnorm_swish_fp16 groupnorm_swish_fp16.cpp)
-endif()
+add_example_executable(example_groupnorm_sigmoid_mul_fp16 groupnorm_sigmoid_mul_fp16.cpp)
+add_example_executable(example_groupnorm_splitk_fp16 groupnorm_splitk_fp16.cpp)
+add_example_executable(example_groupnorm_swish_fp16 groupnorm_swish_fp16.cpp)

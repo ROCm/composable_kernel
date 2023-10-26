@@ -19,6 +19,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_wmma_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
@@ -26,55 +27,6 @@
 namespace ck {
 namespace tensor_operation {
 namespace device {
-
-namespace {
-
-template <index_t NumDTensor>
-struct ComputePtrOffsetOfStridedBatch
-{
-    ComputePtrOffsetOfStridedBatch() = default;
-
-    ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
-                                   index_t BatchStrideB,
-                                   Array<ck::index_t, NumDTensor> BatchStrideDs,
-                                   index_t BatchStrideE)
-        : BatchStrideA_(BatchStrideA),
-          BatchStrideB_(BatchStrideB),
-          BatchStrideDs_(BatchStrideDs),
-          BatchStrideE_(BatchStrideE)
-    {
-    }
-
-    __host__ __device__ constexpr long_index_t GetAPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideA_);
-    }
-
-    __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideB_);
-    }
-
-    __host__ __device__ constexpr auto GetDsPtrOffset(index_t g_idx) const
-    {
-        Array<long_index_t, NumDTensor> ds_offset;
-        static_for<0, NumDTensor, 1>{}(
-            [&](auto i) { ds_offset(i) = g_idx * static_cast<long_index_t>(BatchStrideDs_[i]); });
-        return ds_offset;
-    }
-
-    __host__ __device__ constexpr long_index_t GetEPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideE_);
-    }
-
-    index_t BatchStrideA_;
-    index_t BatchStrideB_;
-    Array<ck::index_t, NumDTensor> BatchStrideDs_;
-    index_t BatchStrideE_;
-};
-
-} // namespace
 
 //
 // @brief      Device Convolution operation.
@@ -519,7 +471,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;
 
-                const auto kernel = kernel_grouped_conv_fwd_multiple_d_wmma_cshuffle<
+                const auto kernel = kernel_grouped_conv_multiple_d_wmma_cshuffle<
                     GridwiseOp,
                     ADataType,
                     BDataType,
@@ -599,7 +551,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             // check if it's 1x1, stride=1 conv
             for(index_t i = 0; i < NDimSpatial; ++i)
             {
-                const index_t X          = arg.b_g_k_c_xs_lengths_[i + 2];
+                const index_t X          = arg.b_g_k_c_xs_lengths_[i + 3];
                 const index_t ConvStride = arg.conv_filter_strides_[i];
                 const index_t LeftPad    = arg.input_left_pads_[i];
                 const index_t RightPad   = arg.input_right_pads_[i];
@@ -616,7 +568,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             // check if it's 1x1 conv
             for(index_t i = 0; i < NDimSpatial; ++i)
             {
-                const index_t X        = arg.b_g_k_c_xs_lengths_[i + 2];
+                const index_t X        = arg.b_g_k_c_xs_lengths_[i + 3];
                 const index_t LeftPad  = arg.input_left_pads_[i];
                 const index_t RightPad = arg.input_right_pads_[i];
 

@@ -137,13 +137,12 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                 constexpr index_t src_offset = src_desc.CalculateOffset(
                     src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
 
-                SrcData v;
+                DstData v;
 
                 // apply element-wise operation
                 element_op_(v, src_buf[Number<src_offset>{}]);
 
-                // apply type convert
-                dst_vector.template AsType<DstData>()(i) = type_convert<DstData>(v);
+                dst_vector.template AsType<DstData>()(i) = v;
             });
 
             const bool is_dst_valid =
@@ -1289,13 +1288,13 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic
                 constexpr index_t dst_offset = dst_desc.CalculateOffset(
                     dst_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
 
-                SrcData v;
+                DstData v;
 
                 // apply element-wise operation
                 element_op_(v, src_buf[Number<src_offset>{}]);
 
                 // apply type convert
-                dst_buf(Number<dst_offset>{}) = type_convert<DstData>(v);
+                dst_buf(Number<dst_offset>{}) = v;
             });
         });
     }

@@ -12,12 +12,14 @@
 
 #include "ck/library/tensor_operation_instance/gpu/normalization.hpp"
 
-using XDataType       = ck::half_t;
-using GammaDataType   = ck::half_t;
-using BetaDataType    = ck::half_t;
-using YDataType       = ck::half_t;
-using ComputeDataType = float;
-using PassThrough     = ck::tensor_operation::element_wise::PassThrough;
+using XDataType              = ck::half_t;
+using GammaDataType          = ck::half_t;
+using BetaDataType           = ck::half_t;
+using YDataType              = ck::half_t;
+using SaveMeanInvStdDataType = float;
+using PassThrough            = ck::tensor_operation::element_wise::PassThrough;
+
+#define SAVE_MEAN_INV_STD
 
 constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
@@ -50,12 +52,16 @@ int main(int argc, char* argv[])
     SimpleDeviceMem gamma_device_buf(sizeof(GammaDataType) * N);
     SimpleDeviceMem beta_device_buf(sizeof(BetaDataType) * N);
     SimpleDeviceMem y_device_buf(sizeof(YDataType) * xy_size);
+#ifdef SAVE_MEAN_INV_STD
+    SimpleDeviceMem save_mean_device_buf(sizeof(SaveMeanInvStdDataType) * M);
+    SimpleDeviceMem save_inv_std_device_buf(sizeof(SaveMeanInvStdDataType) * M);
+#endif
 
     using DeviceOp = ck::tensor_operation::device::DeviceNormalization<XDataType,
                                                                        GammaDataType,
                                                                        BetaDataType,
-                                                                       ComputeDataType,
                                                                        YDataType,
+                                                                       SaveMeanInvStdDataType,
                                                                        PassThrough,
                                                                        Rank,
                                                                        NumReduceDim>;
@@ -84,14 +90,21 @@ int main(int argc, char* argv[])
                                                         {0, 1},      // gammaStrides
                                                         {0, 1},      // betaStrides
                                                         {Stride, 1}, // yStrides
+                                                        {1},         // save_mean Strides
+                                                        {1},         // save_inv_std Strides
                                                         {1},         // reduceDims
                                                         1e-4,
                                                         x_device_buf.GetDeviceBuffer(),
                                                         gamma_device_buf.GetDeviceBuffer(),
                                                         beta_device_buf.GetDeviceBuffer(),
                                                         y_device_buf.GetDeviceBuffer(),
+#ifdef SAVE_MEAN_INV_STD
+                                                        save_mean_device_buf.GetDeviceBuffer(),
+                                                        save_inv_std_device_buf.GetDeviceBuffer(),
+#else
                                                         nullptr,
                                                         nullptr,
+#endif
                                                         PassThrough{});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
@@ -100,10 +113,18 @@ int main(int argc, char* argv[])
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
+            SimpleDeviceMem workspace(workspace_sz);
+            op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace.GetDeviceBuffer());
+
             float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
             std::size_t num_byte = sizeof(XDataType) * M * N + sizeof(GammaDataType) * N +
                                    sizeof(BetaDataType) * N + sizeof(YDataType) * M * N;
+
+#ifdef SAVE_MEAN_INV_STD
+            num_byte += sizeof(SaveMeanInvStdDataType) * M * 2;
+#endif
 
             float gb_per_sec = num_byte / 1.E6 / ave_time;
 
@@ -136,23 +157,34 @@ int main(int argc, char* argv[])
 
         auto argument_ptr = op_ptr->MakeArgumentPointer({M, N},      // lengths
                                                         {Stride, 1}, // xStrides
-                                                        {1},         // gammaStrides
-                                                        {1},         // betaStrides
+                                                        {0, 1},      // gammaStrides
+                                                        {0, 1},      // betaStrides
                                                         {Stride, 1}, // yStrides
+                                                        {1},         // save_mean Strides
+                                                        {1},         // save_inv_std Strides
                                                         {1},         // reduceDims
                                                         1e-4,
                                                         x_device_buf.GetDeviceBuffer(),
                                                         gamma_device_buf.GetDeviceBuffer(),
                                                         beta_device_buf.GetDeviceBuffer(),
                                                         y_device_buf.GetDeviceBuffer(),
+#ifdef SAVE_MEAN_INV_STD
+                                                        save_mean_device_buf.GetDeviceBuffer(),
+                                                        save_inv_std_device_buf.GetDeviceBuffer(),
+#else
                                                         nullptr,
                                                         nullptr,
+#endif
                                                         PassThrough{});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
+            SimpleDeviceMem workspace(workspace_sz);
+            op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace.GetDeviceBuffer());
+
             invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
         }
 

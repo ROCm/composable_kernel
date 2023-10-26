@@ -5,6 +5,7 @@ set(PROFILER_SOURCES
     profile_gemm_splitk.cpp
     profile_gemm_bias_add_reduce.cpp
     profile_gemm_add_multiply.cpp
+    profile_gemm_multiply_add.cpp
     profile_gemm_reduce.cpp
     profile_batched_gemm.cpp
     profile_batched_gemm_reduce.cpp
@@ -18,13 +19,14 @@ set(PROFILER_SOURCES
     profile_groupnorm.cpp
     profile_layernorm.cpp
     profile_max_pool3d_fwd.cpp
+    profile_avg_pool3d_bwd.cpp
+    profile_max_pool3d_bwd.cpp
     profile_softmax.cpp
     profile_batchnorm_fwd.cpp
     profile_batchnorm_bwd.cpp
     profile_batchnorm_infer.cpp
-    profile_contraction_bilinear.cpp
-    profile_contraction_scale.cpp
     profile_grouped_conv_bwd_data.cpp
+    profile_conv_tensor_rearrange.cpp
 )
 if(DL_KERNELS)
   list(APPEND PROFILER_SOURCES profile_batched_gemm_multi_d.cpp)
@@ -42,6 +44,11 @@ if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
   list(APPEND PROFILER_SOURCES profile_grouped_gemm_fastgelu.cpp)
 endif()
 
+if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)
+  list(APPEND PROFILER_SOURCES profile_contraction_bilinear.cpp)
+  list(APPEND PROFILER_SOURCES profile_contraction_scale.cpp)
+endif()
+
 set(PROFILER_EXECUTABLE ckProfiler)
 
 add_executable(${PROFILER_EXECUTABLE} ${PROFILER_SOURCES})
@@ -51,6 +58,7 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE utility)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_splitk_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_multiply_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_multiply_add_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_reduce_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_bias_add_reduce_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_instance)
@@ -71,14 +79,25 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_normalization_instan
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_softmax_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_reduce_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batchnorm_instance)
-target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_bilinear_instance)
-target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_scale_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_pool3d_fwd_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_avg_pool3d_bwd_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_max_pool_bwd_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv2d_bwd_data_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_bwd_data_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_image_to_column_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_column_to_image_instance)
+
+if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_bilinear_instance)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_scale_instance)
+endif()
+
+
+
 if(DL_KERNELS)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_multi_d_instance)
 endif()
+
 if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_fastgelu_instance)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_relu_add_layernorm_instance)
