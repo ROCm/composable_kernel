@@ -262,8 +262,9 @@ struct DeviceImageToColumnImpl
             const auto block_2_tile_map =
                 BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, KPerBlock, OutputGridDesc>(
                     arg.out_grid_desc_m_k_);
-            const index_t grid_size = block_2_tile_map.CalculateGridSize(arg.out_grid_desc_m_k_);
-            const auto kernel       = kernel_tensor_rearrange<InputGridDesc,
+            const index_t grid_size =
+                block_2_tile_map.CalculateGridSize(arg.out_grid_desc_m_k_) * arg.G_;
+            const auto kernel = kernel_tensor_rearrange<InputGridDesc,
                                                         InputDataType,
                                                         OutputGridDesc,
                                                         OutputDataType,

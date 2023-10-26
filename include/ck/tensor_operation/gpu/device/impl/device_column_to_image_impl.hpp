@@ -501,7 +501,7 @@ struct DeviceColumnToImageImpl
                     BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, KPerBlock, InputGridDesc>(
                         arg.out_grid_desc_m_k_container_[i]);
                 const index_t grid_size =
-                    block_2_tile_map.CalculateGridSize(arg.in_grid_desc_m_k_container_[i]);
+                    block_2_tile_map.CalculateGridSize(arg.in_grid_desc_m_k_container_[i]) * arg.G_;
                 elapsed_time += launch_and_time_kernel(stream_config,
                                                        kernel,
                                                        dim3(grid_size),

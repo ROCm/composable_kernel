@@ -113,22 +113,24 @@ struct GridwiseTensorRearrange
                 make_tuple(make_multi_index(m_block_data_idx_on_grid, k_block_data_idx_on_grid)),
                 tensor_operation::element_wise::PassThrough{}};
 
-        for(index_t idx = 0; idx < batch_count; idx++)
-        {
-            // Global Memory
-            const index_t a_batch_offset =
-                __builtin_amdgcn_readfirstlane(compute_ptr_offset_of_batch.GetAPtrOffset(idx));
-            const index_t c_batch_offset =
-                __builtin_amdgcn_readfirstlane(compute_ptr_offset_of_batch.GetCPtrOffset(idx));
+        const index_t num_blocks_per_batch =
+            __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
+        const index_t g_idx =
+            __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
-            const auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_in_global + a_batch_offset, in_grid_desc.GetElementSpaceSize());
-            auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_out_global + c_batch_offset, out_grid_desc.GetElementSpaceSize());
+        // Global Memory
+        const index_t a_batch_offset =
+            __builtin_amdgcn_readfirstlane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
+        const index_t c_batch_offset =
+            __builtin_amdgcn_readfirstlane(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx));
 
-            copy_global_to_global.Run(
-                tie(in_grid_desc), tie(in_global_buf), tie(out_grid_desc), tie(out_global_buf));
-        }
+        const auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_in_global + a_batch_offset, in_grid_desc.GetElementSpaceSize());
+        auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_out_global + c_batch_offset, out_grid_desc.GetElementSpaceSize());
+
+        copy_global_to_global.Run(
+            tie(in_grid_desc), tie(in_global_buf), tie(out_grid_desc), tie(out_global_buf));
     }
 
     __host__ static constexpr bool CheckValidity(const InputGridDesc& in_grid_desc,
