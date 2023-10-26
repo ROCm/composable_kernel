@@ -11,6 +11,7 @@ int run(int argc, char* argv[])
     bool output_permute = true;
 
     float p_drop                    = 0.2;
+    int h_ratio                     = 1; // G1Q / G1KV
     const unsigned long long seed   = 1;
     const unsigned long long offset = 0;
 
@@ -24,22 +25,25 @@ int run(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 7)
+    else if(argc == 8)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
 
         p_drop         = std::stoi(argv[4]);
-        input_permute  = std::stoi(argv[5]);
-        output_permute = std::stoi(argv[6]);
+        h_ratio        = std::stof(argv[5]);
+        input_permute  = std::stoi(argv[6]);
+        output_permute = std::stoi(argv[7]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 5: input / output permute\n");
+        printf("arg4: p_drop\n");
+        printf("arg5: h_ratio\n");
+        printf("arg6 to 7: input / output permute\n");
         exit(0);
     }
 
@@ -60,7 +64,7 @@ int run(int argc, char* argv[])
     std::vector<void*> p_z;         // for result verification
     std::vector<void*> p_z_nullptr; // for time test
     std::vector<void*> p_lse;
-    std::vector<std::vector<int>> g0_g1_m_n_k_o;
+    std::vector<std::vector<int>> g0_g1q_m_n_k_o;
 
     std::vector<Tensor<ADataType>> a_tensors;
     std::vector<Tensor<B0DataType>> b0_tensors;
@@ -83,48 +87,51 @@ int run(int argc, char* argv[])
     for(std::size_t i = 0; i < group_count; i++)
     {
 
-        int M  = 128 * (rand() % 8) + (rand() % 128);
-        int N  = 128 * (rand() % 8) + (rand() % 128);
-        int K  = DIM;
-        int O  = DIM;
-        int G0 = rand() % 3 + 1;
-        int G1 = rand() % 5 + 1;
+        int M    = 128 * (rand() % 8) + (rand() % 128);
+        int N    = 128 * (rand() % 8) + (rand() % 128);
+        int K    = DIM;
+        int O    = DIM;
+        int G0   = rand() % 3 + 1;
+        int G1KV = rand() % 5 + 1;
+        int G1Q  = G1KV * h_ratio;
 
-        g0_g1_m_n_k_o.push_back({G0, G1, M, N, K, O});
+        g0_g1q_m_n_k_o.push_back({G0, G1Q, M, N, K, O});
 
-        std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
+        std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1Q, M, K};
         std::vector<ck::index_t> a_gs_ms_ks_strides =
             input_permute
-                ? std::vector<ck::index_t>{M * G1 * K, K, G1 * K, 1} // A layout [G0, M, G1, K]
-                : std::vector<ck::index_t>{G1 * M * K, M * K, K, 1}; // A layout [G0, G1, M, K]
+                ? std::vector<ck::index_t>{M * G1Q * K, K, G1Q * K, 1} // A layout [G0, M, G1Q, K]
+                : std::vector<ck::index_t>{G1Q * M * K, M * K, K, 1};  // A layout [G0, G1Q, M, K]
 
-        std::vector<ck::index_t> b0_gs_ns_ks_lengths{G0, G1, N, K};
+        std::vector<ck::index_t> b0_gs_ns_ks_lengths{G0, G1KV, N, K};
         std::vector<ck::index_t> b0_gs_ns_ks_strides =
             input_permute
-                ? std::vector<ck::index_t>{N * G1 * K, K, G1 * K, 1} // B0 layout [G0, N, G1, K]
-                : std::vector<ck::index_t>{G1 * N * K, N * K, K, 1}; // B0 layout [G0, G1, N, K]
+                ? std::vector<ck::index_t>{N * G1KV * K, K, G1KV * K, 1}
+                // B0 layout [G0, N, G1KV, K]
+                : std::vector<ck::index_t>{G1KV * N * K, N * K, K, 1}; // B0 layout [G0, G1KV, N, K]
 
-        std::vector<ck::index_t> b1_gs_os_ns_lengths{G0, G1, O, N};
+        std::vector<ck::index_t> b1_gs_os_ns_lengths{G0, G1KV, O, N};
         std::vector<ck::index_t> b1_gs_os_ns_strides =
             input_permute
-                ? std::vector<ck::index_t>{N * G1 * O, O, 1, G1 * O} // B1 layout [G0, N, G1, O]
-                : std::vector<ck::index_t>{G1 * N * O, N * O, 1, O}; // B1 layout [G0, G1, N, O]
+                ? std::vector<ck::index_t>{N * G1KV * O, O, 1, G1KV * O}
+                // B1 layout [G0, N, G1KV, O]
+                : std::vector<ck::index_t>{G1KV * N * O, N * O, 1, O}; // B1 layout [G0, G1KV, N, O]
 
-        std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1, M, O};
+        std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1Q, M, O};
         std::vector<ck::index_t> c_gs_ms_os_strides =
             output_permute
-                ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // C layout [G0, M, G1, O]
-                : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
+                ? std::vector<ck::index_t>{M * G1Q * O, O, G1Q * O, 1} // C layout [G0, M, G1Q, O]
+                : std::vector<ck::index_t>{G1Q * M * O, M * O, O, 1};  // C layout [G0, G1Q, M, O]
 
-        std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
+        std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1Q, M, N};
         std::vector<ck::index_t> z_gs_ms_ns_strides =
             input_permute
-                ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // Z layout [G0, M, G1, N]
-                : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // Z layout [G0, G1, M, N]
+                ? std::vector<ck::index_t>{M * G1Q * N, N, G1Q * N, 1} // Z layout [G0, M, G1Q, N]
+                : std::vector<ck::index_t>{G1Q * M * N, M * N, N, 1};  // Z layout [G0, G1Q, M, N]
 
-        std::vector<ck::index_t> lse_gs_ms_lengths{G0, G1, M};
+        std::vector<ck::index_t> lse_gs_ms_lengths{G0, G1Q, M};
         std::vector<ck::index_t> lse_gs_ms_strides =
-            std::vector<ck::index_t>{G1 * M, M, 1}; // LSE layout [G0, G1, M]
+            std::vector<ck::index_t>{G1Q * M, M, 1}; // LSE layout [G0, G1Q, M]
 
         problem_descs.push_back({a_gs_ms_ks_lengths,
                                  a_gs_ms_ks_strides,
@@ -151,7 +158,7 @@ int run(int argc, char* argv[])
         Tensor<ZDataType> z_gs_ms_ns(z_gs_ms_ns_lengths, z_gs_ms_ns_strides);
         Tensor<LSEDataType> lse_gs_ms_device_result(lse_gs_ms_lengths, lse_gs_ms_strides);
 
-        int Batch = G0 * G1;
+        int Batch = G0 * G1Q;
         flop += (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * Batch;
         num_byte += (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
                      sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O) *
@@ -308,12 +315,12 @@ int run(int argc, char* argv[])
 
         for(std::size_t i = 0; i < group_count; i++)
         {
-            const int& G0 = g0_g1_m_n_k_o[i][0];
-            const int& G1 = g0_g1_m_n_k_o[i][1];
-            const int& M  = g0_g1_m_n_k_o[i][2];
-            const int& N  = g0_g1_m_n_k_o[i][3];
-            const int& K  = g0_g1_m_n_k_o[i][4];
-            const int& O  = g0_g1_m_n_k_o[i][5];
+            const int& G0  = g0_g1q_m_n_k_o[i][0];
+            const int& G1Q = g0_g1q_m_n_k_o[i][1];
+            const int& M   = g0_g1q_m_n_k_o[i][2];
+            const int& N   = g0_g1q_m_n_k_o[i][3];
+            const int& K   = g0_g1q_m_n_k_o[i][4];
+            const int& O   = g0_g1q_m_n_k_o[i][5];
 
             const auto& c_gs_ms_os_lengths = problem_descs[i].c_gs_ms_os_lengths;
             const auto& c_gs_ms_os_strides = problem_descs[i].c_gs_ms_os_strides;
@@ -334,31 +341,39 @@ int run(int argc, char* argv[])
             z_gs_ms_ns_device_buf.FromDevice(z_gs_ms_ns_device_result.mData.data());
             lse_gs_ms_device_buf.FromDevice(lse_gs_ms_device_result.mData.data());
 
-            Tensor<ADataType> a_g_m_k({G0 * G1, M, K});
-            Tensor<B0DataType> b0_g_k_n({G0 * G1, K, N});
-            Tensor<B1DataType> b1_g_n_o({G0 * G1, N, O});
-            Tensor<AccDataType> acc0_g_m_n({G0 * G1, M, N});        // scratch object after gemm0
-            Tensor<ADataType> a1_g_m_n({G0 * G1, M, N});            // scratch object after softmax
-            Tensor<ADataType> a1_g_m_n_drop({G0 * G1, M, N});       // scratch object after softmax
-            Tensor<CDataType> c_g_m_o_host_result({G0 * G1, M, O}); // scratch object after gemm1
+            Tensor<ADataType> a_g_m_k({G0 * G1Q, M, K});
+            Tensor<B0DataType> b0_g_k_n({G0 * G1Q, K, N});
+            Tensor<B1DataType> b1_g_n_o({G0 * G1Q, N, O});
+            Tensor<AccDataType> acc0_g_m_n({G0 * G1Q, M, N});        // scratch object after gemm0
+            Tensor<ADataType> a1_g_m_n({G0 * G1Q, M, N});            // scratch object after softmax
+            Tensor<ADataType> a1_g_m_n_drop({G0 * G1Q, M, N});       // scratch object after softmax
+            Tensor<CDataType> c_g_m_o_host_result({G0 * G1Q, M, O}); // scratch object after gemm1
             Tensor<CDataType> c_gs_ms_os_host_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
-            Tensor<ZDataType> z_g_m_n({G0 * G1, M, N});
-            Tensor<LSEDataType> lse_g_m_host_result({G0 * G1, M}); // scratch object after gemm1
+            Tensor<ZDataType> z_g_m_n({G0 * G1Q, M, N});
+            Tensor<LSEDataType> lse_g_m_host_result({G0 * G1Q, M}); // scratch object after gemm1
             Tensor<LSEDataType> lse_gs_ms_host_result(lse_gs_ms_lengths, lse_gs_ms_strides);
 
             // permute
             a_gs_ms_ks.ForEach([&](auto& self, auto idx) {
-                a_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+                a_g_m_k(idx[0] * G1Q + idx[1], idx[2], idx[3]) = self(idx);
             });
-            b0_gs_ns_ks.ForEach([&](auto& self, auto idx) {
-                b0_g_k_n(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+            b0_g_k_n.ForEach([&](auto& self, auto idx) {
+                const size_t& g0   = idx[0] / G1Q;
+                const size_t& g1q  = idx[0] % G1Q;
+                const size_t& g1kv = g1q / h_ratio;
+
+                self(idx) = b0_gs_ns_ks(g0, g1kv, idx[2], idx[1]);
             });
-            b1_gs_os_ns.ForEach([&](auto& self, auto idx) {
-                b1_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+            b1_g_n_o.ForEach([&](auto& self, auto idx) {
+                const size_t& g0   = idx[0] / G1Q;
+                const size_t& g1q  = idx[0] % G1Q;
+                const size_t& g1kv = g1q / h_ratio;
+
+                self(idx) = b1_gs_os_ns(g0, g1kv, idx[2], idx[1]);
             });
 
             z_gs_ms_ns_device_result.ForEach([&](auto& self, auto idx) {
-                z_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+                z_g_m_n(idx[0] * G1Q + idx[1], idx[2], idx[3]) = self(idx);
             });
 
             // gemm 0
@@ -408,18 +423,18 @@ int run(int argc, char* argv[])
 
             // permute
             c_gs_ms_os_host_result.ForEach([&](auto& self, auto idx) {
-                const size_t& g0 = idx[0];
-                const size_t& g1 = idx[1];
+                const size_t& g0  = idx[0];
+                const size_t& g1q = idx[1];
 
-                const size_t g = g0 * G1 + g1;
+                const size_t g = g0 * G1Q + g1q;
 
                 self(idx) = c_g_m_o_host_result(g, idx[2], idx[3]);
             });
             lse_gs_ms_host_result.ForEach([&](auto& self, auto idx) {
-                const size_t& g0 = idx[0];
-                const size_t& g1 = idx[1];
+                const size_t& g0  = idx[0];
+                const size_t& g1q = idx[1];
 
-                const size_t g = g0 * G1 + g1;
+                const size_t g = g0 * G1Q + g1q;
 
                 self(idx) = lse_g_m_host_result(g, idx[2]);
             });

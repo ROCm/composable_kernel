@@ -88,6 +88,10 @@ template <typename FloatAB,
           PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle
 {
+    static_assert(AK1Value % ABlockTransferDstScalarPerVector_AK1 == 0);
+    static_assert(BK1Value % BBlockTransferDstScalarPerVector_BK1 == 0);
+    static_assert(B1K1Value % B1BlockTransferDstScalarPerVector_BK1 == 0);
+
     static_assert(LoopSched == LoopScheduler::Default,
                   "Non-default loop scheduler is currently not supported");
 

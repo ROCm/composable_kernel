@@ -94,10 +94,13 @@ template <typename FloatAB,
           LoopScheduler LoopSched,
           bool PadN,
           bool MaskOutUpperTriangle,
-          bool Deterministic,
           PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
 {
+    static_assert(AK1Value % ABlockTransferDstScalarPerVector_AK1 == 0);
+    static_assert(BK1Value % BBlockTransferDstScalarPerVector_BK1 == 0);
+    static_assert(B1K1Value % B1BlockTransferDstScalarPerVector_BK1 == 0);
+
     static_assert(D0BlockTransferSrcScalarPerVector == 1 ||
                       D0BlockTransferSrcScalarPerVector == 2 ||
                       D0BlockTransferSrcScalarPerVector == 4,
@@ -531,8 +534,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                                FloatGemmAcc p_dropout_rescale,
                                ck::philox& ph,
                                const index_t z_random_matrix_offset,
-                               const index_t raw_n_padded,
-                               const index_t block_idx_m)
+                               const index_t raw_n_padded)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -557,7 +559,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             return;
         }
 
-        const index_t block_work_idx_m = Deterministic ? block_idx_m : block_work_idx[I0];
+        const index_t block_work_idx_m = block_work_idx[I0];
 
         // HACK: this force m/gemm1_n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
@@ -1144,11 +1146,6 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                                                                       wave_m_n_id[I0],
                                                                       0),
                                                      tensor_operation::element_wise::PassThrough{}};
-
-        if constexpr(Deterministic)
-        {
-            block_sync_lds();
-        }
 
         do
         {

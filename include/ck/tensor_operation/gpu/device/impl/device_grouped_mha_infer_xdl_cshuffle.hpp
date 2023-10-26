@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <cstring>
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -685,12 +686,34 @@ struct DeviceGroupedMultiheadAttentionInfer_Xdl_CShuffle
                 some_has_main_k_block_loop |= y;
             }
 
-            hipGetErrorString(
-                hipMemcpyWithStream(arg.p_workspace_,
-                                    arg.group_kernel_args_.data(),
-                                    arg.group_kernel_args_.size() * sizeof(GroupKernelArg),
-                                    hipMemcpyHostToDevice,
-                                    stream_config.stream_id_));
+            hipStreamCaptureStatus status = hipStreamCaptureStatusNone;
+
+            HIP_CHECK_ERROR(hipStreamIsCapturing(stream_config.stream_id_, &status));
+
+            if(status == hipStreamCaptureStatusActive)
+            {
+                size_t copy_size = arg.group_kernel_args_.size() * sizeof(GroupKernelArg);
+
+                // ToDO: when to release this memory buffer?
+                char* persistent_ptr = new char[copy_size];
+
+                (void)std::memcpy(persistent_ptr, arg.group_kernel_args_.data(), copy_size);
+
+                HIP_CHECK_ERROR(hipMemcpyAsync(arg.p_workspace_,
+                                               persistent_ptr,
+                                               copy_size,
+                                               hipMemcpyHostToDevice,
+                                               stream_config.stream_id_));
+            }
+            else
+            {
+                HIP_CHECK_ERROR(
+                    hipMemcpyAsync(arg.p_workspace_,
+                                   arg.group_kernel_args_.data(),
+                                   arg.group_kernel_args_.size() * sizeof(GroupKernelArg),
+                                   hipMemcpyHostToDevice,
+                                   stream_config.stream_id_));
+            }
 
             float ave_time = 0;
 

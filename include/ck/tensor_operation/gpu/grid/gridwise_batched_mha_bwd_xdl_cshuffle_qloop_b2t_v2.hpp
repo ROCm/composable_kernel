@@ -95,6 +95,10 @@ template <typename InputDataType,
           PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 {
+    static_assert(AK1Value % ABlockTransferDstScalarPerVector_AK1 == 0);
+    static_assert(BK1Value % BBlockTransferDstScalarPerVector_BK1 == 0);
+    static_assert(B1K1Value % B1BlockTransferDstScalarPerVector_BK1 == 0);
+
     static_assert(Gemm1NPerBlock % KPerBlock == 0);
     static_assert(MPerBlock % Gemm1KPerBlock == 0);
     static_assert(NPerBlock % Gemm2KPerBlock == 0);
@@ -320,18 +324,27 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         // dV_NOM / dK_NKM Gemm (Gemm2 crr)
         if(O != K)
         {
+            std::cerr << "O = " << O << " K = " << K << std::endl;
             std::cerr << "SizeK must be equal to SizeO (equal attention head size)" << '\n';
             return false;
         }
 
         if(!(M == y_grid_desc_m_o.GetLength(I0) && O == y_grid_desc_m_o.GetLength(I1)))
         {
+            std::cerr << "M = " << M << " O = " << O
+                      << " y_grid_desc_m_o = " << y_grid_desc_m_o.GetLength(I0) << " , "
+                      << y_grid_desc_m_o.GetLength(I1) << std::endl;
+            std::cerr << "Un-matched sizes!" << std::endl;
             return false;
         }
 
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0 &&
              O % Gemm1NPerBlock == 0))
         {
+            std::cerr << "M = " << M << " N = " << N << " O = " << O << std::endl;
+            std::cerr << "MPerBlock = " << MPerBlock << " NPerBlock = " << NPerBlock
+                      << " KPerBlock = " << KPerBlock << std::endl;
+            std::cerr << "Un-aligned sizes!" << std::endl;
             return false;
         }
 
@@ -1587,10 +1600,12 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         const CElementwiseOperation& c_element_op,
         const QGridDesc_K0_M_K1& q_grid_desc_k0_m_k1,
         const KGridDesc_K0_N_K1& k_grid_desc_k0_n_k1,
+        const KGridDesc_K0_N_K1& kgrad_grid_desc_k0_n_k1,
         const D0GridDescriptor_M0_N0_M1_M2_N1_M3& d0_grid_desc_m0_n0_m1_m2_n1_m3,
         const ZGridDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3&
             z_grid_desc_m0_n0_m1_n1_m2_n2_m3_m4_m5_n3,
         const VGridDesc_O0_N_O1& v_grid_desc_o0_n_o1,
+        const VGridDesc_O0_N_O1& vgrad_grid_desc_o0_n_o1,
         const YGridDescriptor_MBlock_MPerBlock_OBlock_OPerBlock&
             y_grid_desc_mblock_mperblock_oblock_operblock,
         const LSEGridDesc_M& lse_grid_desc_m,
@@ -1623,11 +1638,11 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
         const auto ygrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_ygrad_grid, ygrad_grid_desc_m0_o_m1.GetElementSpaceSize());
         auto vgrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_vgrad_grid, v_grid_desc_o0_n_o1.GetElementSpaceSize());
+            p_vgrad_grid, vgrad_grid_desc_o0_n_o1.GetElementSpaceSize());
         auto qgrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_qgrad_grid, q_grid_desc_k0_m_k1.GetElementSpaceSize());
         auto kgrad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_kgrad_grid, k_grid_desc_k0_n_k1.GetElementSpaceSize());
+            p_kgrad_grid, kgrad_grid_desc_k0_n_k1.GetElementSpaceSize());
 
         // divide block work by [N, K]
         const auto block_work_idx =
@@ -1800,7 +1815,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
         // dV: transform input and output tensor descriptors
         auto vgrad_grid_desc_nblock_nperblock_oblock_operblock =
-            MakeVGradGridDesc_NBlock_NPerBlock_OBlock_OPerBlock(v_grid_desc_o0_n_o1);
+            MakeVGradGridDesc_NBlock_NPerBlock_OBlock_OPerBlock(vgrad_grid_desc_o0_n_o1);
 
         // dK: transform input and output tensor descriptors
         const auto q_grid_desc_m0_k_m1 =
@@ -1833,7 +1848,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
 
         // dK: transform input and output tensor descriptors
         auto kgrad_grid_desc_nblock_nperblock_oblock_operblock =
-            MakeKGradGridDesc_NBlock_NPerBlock_OBlock_OPerBlock(k_grid_desc_k0_n_k1);
+            MakeKGradGridDesc_NBlock_NPerBlock_OBlock_OPerBlock(kgrad_grid_desc_k0_n_k1);
 
         //
         // set up dQ Gemm (type 3 crr)
