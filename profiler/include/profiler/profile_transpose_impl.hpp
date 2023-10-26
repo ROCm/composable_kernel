@@ -38,9 +38,9 @@ bool profile_gemm_splitk_impl(int do_verification,
     bool pass = true;
 
     std::vector<std::size_t> ncdhw = {N, C, D, H, W};
-    std::vector<std::size_t> nchwd = {N, C, H, W, D};
+    std::vector<std::size_t> ndhwc = {N, D, H, W, C};
     Tensor<ADataType> a(ncdhw);
-    Tensor<BDataType> b(nchwd);
+    Tensor<BDataType> b(ndhwc);
 
     // a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
 
@@ -48,8 +48,8 @@ bool profile_gemm_splitk_impl(int do_verification,
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
 
     std::array<ck::index_t, 5> ab_lengths{N, C, H, W, D};
-    std::array<ck::index_t, 5> a_strides = {C * D * H * W, D * H * W, 1, D * H, D};
-    std::array<ck::index_t, 5> b_strides = {C * H * W * D, H * W * D, W * D, D, 1};
+    std::array<ck::index_t, 5> a_strides = {C * D * H * W, H * W, W, 1, D * H * W}; // N, C, D, H, W
+    std::array<ck::index_t, 5> b_strides = {C * H * W * D, H * W * D, W * D, D, 1}; // N, D, H, W, C
 
     std::cout << "A: " << a.mDesc << std::endl;
     std::cout << "B: " << b.mDesc << std::endl;

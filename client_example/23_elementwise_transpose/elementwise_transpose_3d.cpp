@@ -48,8 +48,8 @@ int main()
     auto size                      = N * C * D * H * W;
 
     std::array<ck::index_t, 5> ab_lengths{N, C, H, W, D};
-    std::array<ck::index_t, 5> a_strides = {C * D * H * W, D * H * W, 1, D * H, D};
-    std::array<ck::index_t, 5> b_strides = {C * H * W * D, H * W * D, W * D, D, 1};
+    std::array<ck::index_t, 5> a_strides = {C * D * H * W, H * W, W, 1, D * H * W}; // N, C, D, H, W
+    std::array<ck::index_t, 5> b_strides = {C * H * W * D, H * W * D, W * D, D, 1}; // N, C, H, W, D
 
     SimpleDeviceMem a_dev_buf(sizeof(ADataType) * size);
     SimpleDeviceMem b_dev_buf(sizeof(BDataType) * size);
