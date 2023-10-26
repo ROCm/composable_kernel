@@ -1545,8 +1545,8 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
             static_cast<OutputDataType*>(p_vgrad_grid),
             static_cast<const D0DataType*>(p_acc0_bias), // cast in struct Argument
             static_cast<const D1DataType*>(p_acc1_bias), // cast in struct Argument
-            static_cast<const D0DataType*>(p_d0grad_grid),
-            static_cast<const D1DataType*>(p_d1grad_grid),
+            static_cast<D0DataType*>(p_d0grad_grid),
+            static_cast<D1DataType*>(p_d1grad_grid),
             a_gs_ms_ks_lengths,
             a_gs_ms_ks_strides,
             b_gs_ns_ks_lengths,
