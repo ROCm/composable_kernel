@@ -202,7 +202,7 @@ template <index_t NumDimG,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           MaskingSpecialization MaskingSpec,
-          LoopScheduler LoopSched           = LoopScheduler::Default>
+          LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceBatchedMultiheadAttentionInfer_Xdl_CShuffle
     : public DeviceBatchedMultiheadAttentionInfer<NumDimG,
                                                   NumDimM,
