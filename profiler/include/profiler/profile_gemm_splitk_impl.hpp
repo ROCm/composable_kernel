@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <iostream>
 #include <typeinfo>
+#include <unistd.h>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -143,8 +144,7 @@ bool profile_gemm_splitk_impl(int do_verification,
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
-        std::vector<int> kbatch_list = {1,  2,  4,  8,  12, 16,  20,  24,  32,  36,  40, 60,
-                                        64, 72, 80, 88, 96, 128, 144, 160, 176, 192, 256};
+        std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 20, 32, 36, 40, 64, 96, 128};
 
         if(KBatch > 0)
         {
@@ -251,6 +251,8 @@ bool profile_gemm_splitk_impl(int do_verification,
                           << std::endl;
             }
         }
+
+        sleep(1);
     }
 
     if constexpr(is_same<CDataType, float>::value)

@@ -392,7 +392,21 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
     }
 
     // polymorphic
-    std::string GetTypeString() const override { return GridwiseGemm::GetTypeString(); }
+    std::string GetTypeString() const override
+    {
+        auto str = std::stringstream();
+
+        std::map<LoopScheduler, std::string> LoopSchedToString{
+            {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
+
+        std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
+                                                                       {PipelineVersion::v2, "v2"}};
+
+        str << GridwiseGemm::GetTypeString() << " LoopScheduler: " << LoopSchedToString[LoopSched]
+            << ", PipelineVersion: " << PipelineVersionToString[PipelineVer];
+
+        return str.str();
+    }
 };
 
 } // namespace device

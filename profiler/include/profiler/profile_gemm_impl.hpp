@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <iostream>
 #include <typeinfo>
+#include <unistd.h>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -200,6 +201,8 @@ int profile_gemm_impl(int do_verification,
                         << std::endl;
                 }
             }
+
+            sleep(1);
         }
         else
         {
