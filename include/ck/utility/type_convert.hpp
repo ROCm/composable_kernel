@@ -100,6 +100,14 @@ template <>
 inline __host__ __device__ f8_t type_convert<f8_t, float>(float x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+    if(x > type_convert<float>(NumericLimits<f8_t>::Max()))
+    {
+        x = type_convert<float>(NumericLimits<f8_t>::Max());
+    }
+    else if(x < type_convert<float>(-NumericLimits<f8_t>::Max()))
+    {
+        x = type_convert<float>(-NumericLimits<f8_t>::Max());
+    }
     union
     {
         float fval;
@@ -110,15 +118,6 @@ inline __host__ __device__ f8_t type_convert<f8_t, float>(float x)
     uint32_t ival = 0;
     ival       = __builtin_amdgcn_cvt_pk_fp8_f32(val.fval, val.fval, ival, false); // false -> WORD0
     val.i32val = ival;
-    const uint8_t nan_code = 0x80;
-    if(val.i8val[0] == nan_code)
-    {
-        return NumericLimits<f8_t>::Max();
-    }
-    else
-    {
-        return val.i8val[0];
-    }
 #else
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
