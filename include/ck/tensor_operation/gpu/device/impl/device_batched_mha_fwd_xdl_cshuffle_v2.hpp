@@ -77,6 +77,7 @@ __global__ void
             const LSEGridDescriptor_M lse_grid_desc_m,
             const Block2CTileMap block_2_ctile_map,
             const index_t batch_count,
+            const index_t h_ratio,
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch,
             const C0MatrixMask c0_matrix_mask,
             const uint8_t p_dropout_in_uint8_t,
@@ -92,13 +93,14 @@ __global__ void
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
+    const index_t gkv_idx = __builtin_amdgcn_readfirstlane(g_idx / h_ratio);
 
     const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetABasePtr(g_idx)));
     const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetBBasePtr(g_idx)));
+        static_cast<long_index_t>(compute_base_ptr_of_batch.GetBBasePtr(gkv_idx)));
     const long_index_t b1_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetB1BasePtr(g_idx)));
+        static_cast<long_index_t>(compute_base_ptr_of_batch.GetB1BasePtr(gkv_idx)));
     const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetCBasePtr(g_idx)));
     const long_index_t z_batch_offset = __builtin_amdgcn_readfirstlane(
@@ -170,6 +172,7 @@ __global__ void
     ignore = lse_grid_desc_m;
     ignore = block_2_ctile_map;
     ignore = batch_count;
+    ignore = h_ratio;
     ignore = compute_base_ptr_of_batch;
     ignore = c0_matrix_mask;
     ignore = p_dropout_in_uint8_t;
@@ -618,7 +621,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                                 b1_gs_gemm1ns_gemm1ks_strides[NumDimG + NumDimO + NumDimN - 1]},
               c_mz_gemm1nz_strides_{c_gs_ms_gemm1ns_strides[NumDimG + NumDimM - 1],
                                     c_gs_ms_gemm1ns_strides[NumDimG + NumDimM + NumDimO - 1]},
-              batch_count_{c_grid_desc_g_m_n_.GetLength(I0)}
+              batch_count_{c_grid_desc_g_m_n_.GetLength(I0)},
+              h_ratio_{c_grid_desc_g_m_n_.GetLength(I0) / b_grid_desc_g_n_k_.GetLength(I0)}
         {
             // TODO ANT: implement bias addition
             ignore = p_acc1_biases;
@@ -692,10 +696,8 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             std::cout << "d0_grid_desc_g_m_n_: " << d0_grid_desc_g_m_n_.GetLength(I0) << ", "
                       << d0_grid_desc_g_m_n_.GetLength(I1) << ", "
                       << d0_grid_desc_g_m_n_.GetLength(I2) << '\n';
-
             std::cout << "d0_grid_desc_m_n_: " << d0_grid_desc_m_n_.GetLength(I0) << ", "
                       << d0_grid_desc_m_n_.GetLength(I1) << '\n';
-
             std::cout << "b1_grid_desc_g_n_k_: " << b1_grid_desc_g_n_k_.GetLength(I0) << ", "
                       << b1_grid_desc_g_n_k_.GetLength(I1) << ", "
                       << b1_grid_desc_g_n_k_.GetLength(I2) << '\n';
@@ -758,6 +760,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
         std::vector<index_t> c_mz_gemm1nz_strides_;
 
         index_t batch_count_;
+        index_t h_ratio_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
 
         float p_dropout_;
@@ -853,6 +856,7 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
                                               arg.lse_grid_desc_m_,
                                               arg.block_2_ctile_map_,
                                               arg.batch_count_,
+                                              arg.h_ratio_,
                                               arg.compute_base_ptr_of_batch_,
                                               arg.c0_matrix_mask_,
                                               arg.p_dropout_in_uint8_t_,
@@ -966,12 +970,13 @@ struct DeviceBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
 
         // Check if C permute dimension matches GEMM + GEMM shape
         const index_t c_g       = arg.c_grid_desc_g_m_n_.GetLength(I0); // unpadded
+        const index_t b_g       = arg.b_grid_desc_g_n_k_.GetLength(I0);
         const index_t c_m       = arg.c_grid_desc_m_n_.GetLength(I0);
         const index_t c_gemm1n  = arg.c_grid_desc_m_n_.GetLength(I1);
         const index_t a_m       = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
         const index_t b1_gemm1n = arg.b1_grid_desc_bk0_n_bk1_.GetLength(I1);
 
-        if(!(c_g == arg.batch_count_ && c_m == a_m && c_gemm1n == b1_gemm1n))
+        if(!(c_g == arg.batch_count_ && c_m == a_m && c_gemm1n == b1_gemm1n && c_g % b_g == 0))
         {
             return false;
         }

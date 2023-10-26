@@ -299,14 +299,15 @@ int run(int argc, char* argv[])
 
     // Overall QKV matrices shape
     // y_g_m_o = Softmax(alpha * Q_g_m_k * K_g_k_n) * V_g_n_o
-    // y_g0_g1_m_o = reshape(y_g_m_o, [G0, G1, M, O])
-    // y_g0_m_g1_o = permute(y_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t N  = 500; // 512
-    ck::index_t M  = 500; // 512
-    ck::index_t K  = DIM;
-    ck::index_t O  = DIM;
-    ck::index_t G0 = 4; // 54
-    ck::index_t G1 = 6; // 16
+    // y_g0_g1q_m_o = reshape(y_g_m_o, [G0, G1Q, M, O])
+    // y_g0_m_g1q_o = permute(y_g0_g1q_m_o, [0, 2, 1, 3])
+    ck::index_t N    = 500; // 512
+    ck::index_t M    = 500; // 512
+    ck::index_t K    = DIM;
+    ck::index_t O    = DIM;
+    ck::index_t G0   = 4;
+    ck::index_t G1Q  = 6; // h_q
+    ck::index_t G1KV = 6; // h_kv
 
     bool input_permute  = false;
     bool output_permute = false;
@@ -325,32 +326,33 @@ int run(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 13)
+    else if(argc == 14)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
 
-        M  = std::stoi(argv[4]);
-        N  = std::stoi(argv[5]);
-        K  = std::stoi(argv[6]);
-        O  = std::stoi(argv[7]);
-        G0 = std::stoi(argv[8]);
-        G1 = std::stoi(argv[9]);
+        M    = std::stoi(argv[4]);
+        N    = std::stoi(argv[5]);
+        K    = std::stoi(argv[6]);
+        O    = std::stoi(argv[7]);
+        G0   = std::stoi(argv[8]);
+        G1Q  = std::stoi(argv[9]);
+        G1KV = std::stoi(argv[10]);
 
-        p_drop = std::stof(argv[10]);
+        p_drop = std::stof(argv[11]);
 
-        input_permute  = std::stoi(argv[11]);
-        output_permute = std::stoi(argv[12]);
+        input_permute  = std::stoi(argv[12]);
+        output_permute = std::stoi(argv[13]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 11: M, N, K, O, G0, G1\n");
-        printf("arg10: scale (alpha)\n");
-        printf("arg11 to 12: input / output permute\n");
+        printf("arg4 to 10: M, N, K, O, G0, G1Q, G1KV\n");
+        printf("arg11: p_drop\n");
+        printf("arg12 to 13: input / output permute\n");
         exit(0);
     }
 
@@ -367,7 +369,8 @@ int run(int argc, char* argv[])
     std::cout << "K: " << K << std::endl;
     std::cout << "O: " << O << std::endl;
     std::cout << "G0: " << G0 << std::endl;
-    std::cout << "G1: " << G1 << std::endl;
+    std::cout << "G1Q: " << G1Q << std::endl;
+    std::cout << "G1KV: " << G1KV << std::endl;
     std::cout << "alpha: " << alpha << std::endl;
     std::cout << "input_permute: " << input_permute << std::endl;
     std::cout << "output_permute: " << output_permute << std::endl;
@@ -375,45 +378,57 @@ int run(int argc, char* argv[])
     std::cout << "seed: " << seed << std::endl;
     std::cout << "offset: " << offset << std::endl;
 
-    const ck::index_t BatchCount = G0 * G1;
+    const ck::index_t BatchCount = G0 * G1Q;
 
-    std::vector<ck::index_t> q_gs_ms_ks_lengths{G0, G1, M, K};
+    std::vector<ck::index_t> q_gs_ms_ks_lengths{G0, G1Q, M, K};
     std::vector<ck::index_t> q_gs_ms_ks_strides =
         input_permute
-            ? std::vector<ck::index_t>{M * G1 * K, K, G1 * K, 1} // Q layout [G0, M, G1, K]
-            : std::vector<ck::index_t>{G1 * M * K, M * K, K, 1}; // Q layout [G0, G1, M, K]
+            ? std::vector<ck::index_t>{M * G1Q * K, K, G1Q * K, 1} // Q layout [G0, M, G1Q, K]
+            : std::vector<ck::index_t>{G1Q * M * K, M * K, K, 1};  // Q layout [G0, G1Q, M, K]
 
-    std::vector<ck::index_t> k_gs_ns_ks_lengths{G0, G1, N, K};
+    std::vector<ck::index_t> k_gs_ns_ks_lengths{G0, G1KV, N, K};
     std::vector<ck::index_t> k_gs_ns_ks_strides =
         input_permute
-            ? std::vector<ck::index_t>{N * G1 * K, K, G1 * K, 1} // K layout [G0, N, G1, K]
-            : std::vector<ck::index_t>{G1 * N * K, N * K, K, 1}; // K layout [G0, G1, N, K]
+            ? std::vector<ck::index_t>{N * G1KV * K, K, G1KV * K, 1} // K layout [G0, N, G1KV, K]
+            : std::vector<ck::index_t>{G1KV * N * K, N * K, K, 1};   // K layout [G0, G1KV, N, K]
 
-    std::vector<ck::index_t> v_gs_os_ns_lengths{G0, G1, O, N};
+    std::vector<ck::index_t> v_gs_os_ns_lengths{G0, G1KV, O, N};
     std::vector<ck::index_t> v_gs_os_ns_strides =
         input_permute
-            ? std::vector<ck::index_t>{N * G1 * O, O, 1, G1 * O} // V layout [G0, N, G1, O]
-            : std::vector<ck::index_t>{G1 * N * O, N * O, 1, O}; // V layout [G0, G1, N, O]
+            ? std::vector<ck::index_t>{N * G1KV * O, O, 1, G1KV * O} // V layout [G0, N, G1KV, O]
+            : std::vector<ck::index_t>{G1KV * N * O, N * O, 1, O};   // V layout [G0, G1KV, N, O]
 
-    std::vector<ck::index_t> y_gs_ms_os_lengths{G0, G1, M, O};
+    std::vector<ck::index_t> y_gs_ms_os_lengths{G0, G1Q, M, O};
     std::vector<ck::index_t> y_gs_ms_os_strides =
         output_permute
-            ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // Y layout [G0, M, G1, O]
-            : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // Y layout [G0, G1, M, O]
+            ? std::vector<ck::index_t>{M * G1Q * O, O, G1Q * O, 1} // Y layout [G0, M, G1Q, O]
+            : std::vector<ck::index_t>{G1Q * M * O, M * O, O, 1};  // Y layout [G0, G1Q, M, O]
 
-    std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
+    std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1Q, M, N};
     std::vector<ck::index_t> z_gs_ms_ns_strides =
         input_permute
-            ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // Z layout [G0, M, G1, N]
-            : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // Z layout [G0, G1, M, N]
+            ? std::vector<ck::index_t>{M * G1Q * N, N, G1Q * N, 1} // Z layout [G0, M, G1Q, N]
+            : std::vector<ck::index_t>{G1Q * M * N, M * N, N, 1};  // Z layout [G0, G1Q, M, N]
+
+    std::vector<ck::index_t> kgrad_gs_ns_ks_lengths{G0, G1Q, N, K};
+    std::vector<ck::index_t> kgrad_gs_ns_ks_strides =
+        input_permute
+            ? std::vector<ck::index_t>{N * G1Q * K, K, G1Q * K, 1} // KGrad layout [G0, N, G1Q, K]
+            : std::vector<ck::index_t>{G1Q * N * K, N * K, K, 1};  // KGrad layout [G0, G1Q, N, K]
+
+    std::vector<ck::index_t> vgrad_gs_os_ns_lengths{G0, G1Q, O, N};
+    std::vector<ck::index_t> vgrad_gs_os_ns_strides =
+        input_permute
+            ? std::vector<ck::index_t>{N * G1Q * O, O, 1, G1Q * O} // VGrad layout [G0, N, G1Q, O]
+            : std::vector<ck::index_t>{G1Q * N * O, N * O, 1, O};  // VGrad layout [G0, G1Q, N, O]
     // The softmax stat log-sum-exp (LSE) is used to speed up softmax calculation in backward pass
     // Pi = exp(Si) / sum(exp(S0) + exp(S1) + ...)
     //    = exp(Si) / exp(log(sum(exp() + ...)))
     //    = exp(Si - log(sum(exp() + ...)))
     //               ^^^^^^^^^^^^^^^^^^^^^
     //                       LSE
-    std::vector<ck::index_t> lse_gs_ms_lengths{G0, G1, M};
-    std::vector<ck::index_t> lse_gs_ms_strides{G1 * M, M, 1}; // LSE layout [G0, G1, M]
+    std::vector<ck::index_t> lse_gs_ms_lengths{G0, G1Q, M};
+    std::vector<ck::index_t> lse_gs_ms_strides{G1Q * M, M, 1}; // LSE layout [G0, G1Q, M]
 
     Tensor<InputDataType> q_gs_ms_ks(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
     Tensor<InputDataType> k_gs_ns_ks(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
@@ -424,8 +439,10 @@ int run(int argc, char* argv[])
     Tensor<InputDataType> y_gs_ms_os_device_result(y_gs_ms_os_lengths, y_gs_ms_os_strides);
     Tensor<LSEDataType> lse_gs_ms_device_result(lse_gs_ms_lengths, lse_gs_ms_strides);
     Tensor<OutputDataType> qgrad_gs_ms_ks_device_result(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
-    Tensor<OutputDataType> kgrad_gs_ns_ks_device_result(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
-    Tensor<OutputDataType> vgrad_gs_os_ns_device_result(v_gs_os_ns_lengths, v_gs_os_ns_strides);
+    Tensor<OutputDataType> kgrad_gs_ns_ks_device_result(kgrad_gs_ns_ks_lengths,
+                                                        kgrad_gs_ns_ks_strides);
+    Tensor<OutputDataType> vgrad_gs_os_ns_device_result(vgrad_gs_os_ns_lengths,
+                                                        vgrad_gs_os_ns_strides);
 
     std::cout << "q_gs_ms_ks: " << q_gs_ms_ks.mDesc << std::endl;
     std::cout << "k_gs_ns_ks: " << k_gs_ns_ks.mDesc << std::endl;
@@ -467,14 +484,14 @@ int run(int argc, char* argv[])
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
-        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<2>{}); // dy[g0, g1, m, o]
+        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<2>{}); // dy[g0, g1q, m, o]
         // dO dot O = [0; 1; 2; ...]
         break;
     case 6:
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
-        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<3>{}); // dy[g0, g1, m, o]
+        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_Sequential<3>{}); // dy[g0, g1q, m, o]
         // assume mnko = 256
         // P = softmax(QK) = 0.0039 * ones
         // O = P V = 0.0039 * ones
@@ -487,7 +504,8 @@ int run(int argc, char* argv[])
         q_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1});
         k_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
         v_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<InputDataType>{});
-        ygrad_gs_ms_os.GenerateTensorValue(GeneratorTensor_1<InputDataType>{1}); // dy[g0, g1, m, o]
+        ygrad_gs_ms_os.GenerateTensorValue(
+            GeneratorTensor_1<InputDataType>{1}); // dy[g0, g1q, m, o]
         // assume mnko = 256
         // P = softmax(QK) = 0.0039 * ones
         // O = P V = 0.0039 * ones
@@ -612,6 +630,10 @@ int run(int argc, char* argv[])
             y_gs_ms_os_lengths,
             y_gs_ms_os_strides,
             lse_gs_ms_lengths,
+            kgrad_gs_ns_ks_lengths,
+            kgrad_gs_ns_ks_strides,
+            vgrad_gs_os_ns_lengths,
+            vgrad_gs_os_ns_strides,
             {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
             {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
             {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
@@ -656,8 +678,10 @@ int run(int argc, char* argv[])
         Tensor<InputDataType> y_gs_ms_os_host_result(y_gs_ms_os_lengths, y_gs_ms_os_strides);
         Tensor<LSEDataType> lse_gs_ms_host_result(lse_gs_ms_lengths, lse_gs_ms_strides);
         Tensor<OutputDataType> qgrad_gs_ms_ks_host_result(q_gs_ms_ks_lengths, q_gs_ms_ks_strides);
-        Tensor<OutputDataType> kgrad_gs_ns_ks_host_result(k_gs_ns_ks_lengths, k_gs_ns_ks_strides);
-        Tensor<OutputDataType> vgrad_gs_os_ns_host_result(v_gs_os_ns_lengths, v_gs_os_ns_strides);
+        Tensor<OutputDataType> kgrad_gs_ns_ks_host_result(kgrad_gs_ns_ks_lengths,
+                                                          kgrad_gs_ns_ks_strides);
+        Tensor<OutputDataType> vgrad_gs_os_ns_host_result(vgrad_gs_os_ns_lengths,
+                                                          vgrad_gs_os_ns_strides);
 
         Tensor<InputDataType> q_g_m_k({BatchCount, M, K});
         Tensor<InputDataType> k_g_n_k({BatchCount, N, K});
@@ -760,6 +784,10 @@ int run(int argc, char* argv[])
                 y_gs_ms_os_lengths,
                 y_gs_ms_os_strides,
                 lse_gs_ms_lengths,
+                kgrad_gs_ns_ks_lengths,
+                kgrad_gs_ns_ks_strides,
+                vgrad_gs_os_ns_lengths,
+                vgrad_gs_os_ns_strides,
                 {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
                 {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
                 {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
@@ -793,16 +821,24 @@ int run(int argc, char* argv[])
         }
 
         q_gs_ms_ks.ForEach([&](auto& self, auto idx) {
-            q_g_m_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+            q_g_m_k(idx[0] * G1Q + idx[1], idx[2], idx[3]) = self(idx);
         });
-        k_gs_ns_ks.ForEach([&](auto& self, auto idx) {
-            k_g_n_k(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+        k_g_n_k.ForEach([&](auto& self, auto idx) {
+            const size_t& g0   = idx[0] / G1Q;
+            const size_t& g1q  = idx[0] % G1Q;
+            const size_t& g1kv = g1q / (G1Q / G1KV);
+
+            self(idx) = k_gs_ns_ks(g0, g1kv, idx[1], idx[2]);
         });
-        v_gs_os_ns.ForEach([&](auto& self, auto idx) {
-            v_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
+        v_g_n_o.ForEach([&](auto& self, auto idx) {
+            const size_t& g0   = idx[0] / G1Q;
+            const size_t& g1q  = idx[0] % G1Q;
+            const size_t& g1kv = g1q / (G1Q / G1KV);
+
+            self(idx) = v_gs_os_ns(g0, g1kv, idx[2], idx[1]);
         });
         z_fwd_gs_ms_ns.ForEach([&](auto& self, auto idx) {
-            z_fwd_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+            z_fwd_g_m_n(idx[0] * G1Q + idx[1], idx[2], idx[3]) = self(idx);
         });
 
         run_attention_fwd_host(q_g_m_k,
@@ -819,10 +855,10 @@ int run(int argc, char* argv[])
                                rp_dropout);
 
         ygrad_gs_ms_os.ForEach([&](auto& self, auto idx) {
-            ygrad_g_m_o(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+            ygrad_g_m_o(idx[0] * G1Q + idx[1], idx[2], idx[3]) = self(idx);
         });
         z_bwd_gs_ms_ns.ForEach([&](auto& self, auto idx) {
-            z_bwd_g_m_n(idx[0] * G1 + idx[1], idx[2], idx[3]) = self(idx);
+            z_bwd_g_m_n(idx[0] * G1Q + idx[1], idx[2], idx[3]) = self(idx);
         });
 
 #if PRINT_HOST
@@ -925,42 +961,42 @@ int run(int argc, char* argv[])
 
         // permute
         y_gs_ms_os_host_result.ForEach([&](auto& self, auto idx) {
-            const size_t& g0 = idx[0];
-            const size_t& g1 = idx[1];
+            const size_t& g0  = idx[0];
+            const size_t& g1q = idx[1];
 
-            const size_t g = g0 * G1 + g1;
+            const size_t g = g0 * G1Q + g1q;
 
             self(idx) = y_g_m_o(g, idx[2], idx[3]);
         });
         lse_gs_ms_host_result.ForEach([&](auto& self, auto idx) {
-            const size_t& g0 = idx[0];
-            const size_t& g1 = idx[1];
+            const size_t& g0  = idx[0];
+            const size_t& g1q = idx[1];
 
-            const size_t g = g0 * G1 + g1;
+            const size_t g = g0 * G1Q + g1q;
 
             self(idx) = lse_g_m(g, idx[2]);
         });
         qgrad_gs_ms_ks_host_result.ForEach([&](auto& self, auto idx) {
-            const size_t& g0 = idx[0];
-            const size_t& g1 = idx[1];
+            const size_t& g0  = idx[0];
+            const size_t& g1q = idx[1];
 
-            const size_t g = g0 * G1 + g1;
+            const size_t g = g0 * G1Q + g1q;
 
             self(idx) = qgrad_g_m_k(g, idx[2], idx[3]);
         });
         kgrad_gs_ns_ks_host_result.ForEach([&](auto& self, auto idx) {
-            const size_t& g0 = idx[0];
-            const size_t& g1 = idx[1];
+            const size_t& g0  = idx[0];
+            const size_t& g1q = idx[1];
 
-            const size_t g = g0 * G1 + g1;
+            const size_t g = g0 * G1Q + g1q;
 
             self(idx) = kgrad_g_n_k(g, idx[2], idx[3]);
         });
         vgrad_gs_os_ns_host_result.ForEach([&](auto& self, auto idx) {
-            const size_t& g0 = idx[0];
-            const size_t& g1 = idx[1];
+            const size_t& g0  = idx[0];
+            const size_t& g1q = idx[1];
 
-            const size_t g = g0 * G1 + g1;
+            const size_t g = g0 * G1Q + g1q;
 
             self(idx) = vgrad_g_n_o(g, idx[3], idx[2]);
         });
