@@ -69,7 +69,7 @@ ck:latest                                      \
 /bin/bash
 ```
 
-After launching the container you can clone Composable Kernel source code from the github repository and strat the build:
+After launching the container you can clone Composable Kernel source code from the github repository and start the build:
 
 ```bash
 git clone https://github.com/ROCmSoftwarePlatform/composable_kernel.git && \
@@ -77,9 +77,9 @@ cd composable_kernel && \
 mkdir build && \
 cd build
 ```
-You will then need to set the GPU_TARGETS macro to specify GPU target architecture(s) that you want 
+You will need to set the GPU_TARGETS macro to specify GPU target architecture(s) that you want
 to execute CK on, e.g., gfx908, or gfx908;gfx90a;gfx940.
-You are can specify either single or multiple architectures (use semicolon to separate), e.g.:
+You can specify either single or multiple architectures (use semicolon to separate), e.g.:
 
 ```bash
 cmake                                                                                             \
@@ -89,7 +89,10 @@ cmake                                                                           
 -D GPU_TARGETS="gfx908;gfx90a"                                                                    \
 ..
 ```
-After that you can build the entire CK library with just 
+If GPU_TARGETS is not set on the cmake command line, CK will be built for all GPU targets supported by the
+current compiler (this may take quite a long time).
+
+After that you can build the entire CK library with just
 
 ```bash
 make -j
@@ -128,19 +131,18 @@ Depending on the number of CPU cores and the amount of RAM on your system, it ma
 By default, "-j" will try to launch one thread per CPU core. This could potentially cause the build to run out of memory and crash,
 for example if you have a 128-core CPU and 64Gb of RAM. In such cases, you can try to reduce the number of threads to 32 by using "-j32".
 
-If GPU_TARGETS is not set on the cmake command line, CK will be built for all targets supported by the 
-current compiler.
-
 Additional cmake flags can be used to significantly speed-up the build:
 
 INSTANCES_ONLY (by default is OFF) must be set to ON in order to build only the instances and library
-while skipping all tests, examples, and profiler. This is useful for libraries that use CK as a dependency.
+while skipping all tests, examples, and profiler. This is useful in cases when you plan to use CK as a dependency and don't plan to
+run any examples or tests.
 
-DTYPES (by default not set) can be set to any subset of "fp64;fp32;fp16;fp8;bf16;int8" to build instances 
-of select data types only. Currently, building of int8 instances is taking a lot of time (the compiler fix is in the works).
+DTYPES (by default not set) can be set to any subset of "fp64;fp32;fp16;fp8;bf16;int8" to build instances
+of select data types only. The main default data types are fp32 and fp16, other data types can be safely skipped.
 
-DL_KERNELS (by default is OFF) must be set to ON in order to build the gemm_dl and batched_gemm_multi_d_dl 
-instances. Those instances are only needed for the NAVI2x platforms.
+DL_KERNELS (by default is OFF) must be set to ON in order to build instances, such as, gemm_dl or batched_gemm_multi_d_dl.
+Those instances are mostly useful on architectures such the NAVI2x, since of most other platforms miuch faster "xdl" or "wmma"
+instances are available.
 
 ## Using sccache for building
 
@@ -156,6 +158,8 @@ and add the following flags to the cmake command line:
 ```bash
  -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache
 ```
+You may need to clean up the build folder and repeat the cmake and make steps in order to take advantage of the sccache
+during the subsequent builds.
 
 ## Using CK as pre-built kernel library
 
