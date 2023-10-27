@@ -1,7 +1,5 @@
 # Composable Kernel
 
-## Methodology
-
 Composable Kernel (CK) library aims to provide a programming model for writing performance critical kernels for machine learning workloads across multiple architectures including GPUs, CPUs, etc, through general purpose kernel languages, like HIP C++.
 
 CK utilizes two concepts to achieve performance portability and code maintainability:
@@ -45,17 +43,20 @@ If you use CK, please use following citations:
 CK is released under the MIT license. [License File](/LICENSE)
 
 
-# Build CK
+# Build Composable Kernel
 
-## Build docker image
+We recommend building Composable Kernel inside docker containers that include 
+all necessary packages. Pre-built docker images are available from this public repo: 
+
+https://hub.docker.com/r/rocm/composable_kernel/tags
+
+In order to build a new docker image, you can use the Dockerfile provided with the source code as shown below:
 
 ```bash
 DOCKER_BUILDKIT=1 docker build -t ck:latest -f Dockerfile .
 ```
-Pre-built dockers are available from this public repo: 
-https://hub.docker.com/r/rocm/composable_kernel/tags
 
-## Launch docker
+The docker container can then be launched, e.g., using the following command:
 
 ```bash
 docker run                                     \
@@ -68,13 +69,19 @@ ck:latest                                      \
 /bin/bash
 ```
 
-## Build CK
+After launching the container you can clone Composable Kernel source code from the github repository and strat the build:
 
 ```bash
-mkdir build && cd build
+git clone https://github.com/ROCmSoftwarePlatform/composable_kernel.git && \
+cd composable_kernel && \
+mkdir build && \
+cd build
+```
+You will then need to set the GPU_TARGETS macro to specify GPU target architecture(s) that you want 
+to execute CK on, e.g., gfx908, or gfx908;gfx90a;gfx940.
+You are can specify either single or multiple architectures (use semicolon to separate), e.g.:
 
-# Need to specify target ID, example below is for gfx908 and gfx90a
-
+```bash
 cmake                                                                                             \
 -D CMAKE_PREFIX_PATH=/opt/rocm                                                                    \
 -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                         \
@@ -82,43 +89,25 @@ cmake                                                                           
 -D GPU_TARGETS="gfx908;gfx90a"                                                                    \
 ..
 ```
-
-If GPU_TARGETS is not set on the cmake command line, CK will be built for all targets supported by the 
-current compiler.
-
-Additional cmake flags can be used to significantly speed-up the build:
-
-INSTANCES_ONLY (by default is OFF) must be set to ON in order to build only the instances and library
-while skipping all tests, examples, and profiler. This is useful for libraries that use CK as a dependency.
-
-DTYPES (by default not set) can be set to any subset of "fp64;fp32;fp16;fp8;bf16;int8" to build instances 
-of select data types only. Currently, building of int8 instances is taking a lot of time (the compiler fix is in the works).
-
-DL_KERNELS (by default is OFF) must be set to ON in order to build the gemm_dl and batched_gemm_multi_d_dl 
-instances. Those instances are only needed for the NAVI2x platforms.
-
-### Using sccache for building
-
-The default CK dockers come with pre-installed version of sccache which supports clang being used as hip-compiler
-" -x hip". Using sccache can help reduce the time to re-build the code from hours to 1 - 2 minutes. In order to
-invoke sccache, you need to run
+After that you can build the entire CK library with just 
 
 ```bash
- sccache --start-server
+make -j
 ```
-and add the following flags to the cmake command line:
+
+## Install CK
 
 ```bash
- -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache
+make -j install
 ```
 
-### Build examples and tests
+## Build examples and tests
 
 ```bash
  make -j examples tests
 ```
 
-### Build and run all examples and tests
+## Build and run all examples and tests
 
 ```bash
  make -j check
@@ -134,10 +123,38 @@ Instructions for running each individual examples are under [example](/example)
 ```
 Instructions for running ckProfiler are under [profiler](/profiler)
 
-## Install CK
+Please note the "-j" option for building with multiple threads in parallel. This speeds up the build significantly.
+Depending on the number of CPU cores and the amount of RAM on your system, it may be advizable to limit the number of threads.
+By default, "-j" will try to launch one thread per CPU core. This could potentially cause the build to run out of memory and crash,
+for example if you have a 128-core CPU and 64Gb of RAM. In such cases, you can try to reduce the number of threads to 32 by using "-j32".
+
+If GPU_TARGETS is not set on the cmake command line, CK will be built for all targets supported by the 
+current compiler.
+
+Additional cmake flags can be used to significantly speed-up the build:
+
+INSTANCES_ONLY (by default is OFF) must be set to ON in order to build only the instances and library
+while skipping all tests, examples, and profiler. This is useful for libraries that use CK as a dependency.
+
+DTYPES (by default not set) can be set to any subset of "fp64;fp32;fp16;fp8;bf16;int8" to build instances 
+of select data types only. Currently, building of int8 instances is taking a lot of time (the compiler fix is in the works).
+
+DL_KERNELS (by default is OFF) must be set to ON in order to build the gemm_dl and batched_gemm_multi_d_dl 
+instances. Those instances are only needed for the NAVI2x platforms.
+
+## Using sccache for building
+
+The default CK docker images come with pre-installed version of sccache which supports clang being used as hip-compiler
+" -x hip". Using sccache can help reduce the time to re-build the code from hours to 1 - 2 minutes. In order to
+invoke sccache, you need to run
 
 ```bash
-make install
+ sccache --start-server
+```
+and add the following flags to the cmake command line:
+
+```bash
+ -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache
 ```
 
 ## Using CK as pre-built kernel library
