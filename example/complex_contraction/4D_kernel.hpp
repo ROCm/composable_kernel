@@ -67,17 +67,17 @@ __device__ Complex ComplexAdd(Complex a, Complex b)
 }
 
 
-__global__ void kernel__1_1(float* dev_t3, 
-float* dev_t2, 
-float* dev_v2, 
+__global__ void kernel__1_1(Complex* dev_t3, 
+Complex* dev_t2, 
+Complex* dev_v2, 
 int size_a, int size_b, int size_c, int size_d, int size_e, int size_f, 
 int numBlk_a, int numBlk_b, int numBlk_c, int numBlk_d, 
 int stride_reg_x, int stride_reg_y, 
 int size_internal)
 {
 	// For Shared Memory,
-	__shared__ float sm_a[16][96];
-	__shared__ float sm_b[16][96];
+	__shared__ Complex sm_a[16][96];
+	__shared__ Complex sm_b[16][96];
 
 
 	// when opt_pre_computed == -1, all indices will be calculated manually
@@ -101,13 +101,17 @@ int size_internal)
 	int t3_base_thread = blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + (blk_idx_c * SIZE_SLICE_1_C + (blk_idx_d * SIZE_SLICE_1_D + idx_d) * size_c) * size_b) * size_a;
 
 
-	float temp_av;
-	float temp_bv[6];
-	float reg_tile[6][6];
+	Complex temp_av;
+	Complex temp_bv[6];
+	Complex reg_tile[6][6];
 
-	for (int i = 0; i < 6; i++)
-	for (int j = 0; j < 6; j++)
-	reg_tile[i][j] = 0.0;
+	for (int i = 0; i < 6; i++){
+		for (int j = 0; j < 6; j++){
+
+			reg_tile[i][j].re = 0.0;
+			reg_tile[i][j].im = 0.0;
+		}
+	}
 
 	// tensor contraction: [[16, 'STR_SD2_T2_H7', 'x', 't2', ['a', 'e', 'b', 'f']], [16, 'STR_SD2_V2_H7', 'y', 'v2', ['d', 'f', 'c', 'e']], '+=']
 	#pragma unroll 1
@@ -154,12 +158,19 @@ int size_internal)
 			{
 				temp_av = sm_a[ll][idx_a + (xx * 16)];
 
-				reg_tile[0][xx] += temp_av * temp_bv[0];
-				reg_tile[1][xx] += temp_av * temp_bv[1];
-				reg_tile[2][xx] += temp_av * temp_bv[2];
-				reg_tile[3][xx] += temp_av * temp_bv[3];
-				reg_tile[4][xx] += temp_av * temp_bv[4];
-				reg_tile[5][xx] += temp_av * temp_bv[5];
+				// reg_tile[0][xx] += temp_av * temp_bv[0];
+				// reg_tile[1][xx] += temp_av * temp_bv[1];
+				// reg_tile[2][xx] += temp_av * temp_bv[2];
+				// reg_tile[3][xx] += temp_av * temp_bv[3];
+				// reg_tile[4][xx] += temp_av * temp_bv[4];
+				// reg_tile[5][xx] += temp_av * temp_bv[5];
+
+				reg_tile[0][xx] = ComplexAdd(reg_tile[0][xx] , ComplexMul(temp_av, temp_bv[0] )) ;
+				reg_tile[1][xx] = ComplexAdd(reg_tile[1][xx] , ComplexMul(temp_av, temp_bv[1] )) ;
+				reg_tile[2][xx] = ComplexAdd(reg_tile[2][xx] , ComplexMul(temp_av, temp_bv[2] )) ;
+				reg_tile[3][xx] = ComplexAdd(reg_tile[3][xx] , ComplexMul(temp_av, temp_bv[3] )) ;
+				reg_tile[4][xx] = ComplexAdd(reg_tile[4][xx] , ComplexMul(temp_av, temp_bv[4] )) ;
+				reg_tile[5][xx] = ComplexAdd(reg_tile[5][xx] , ComplexMul(temp_av, temp_bv[5] )) ;
 			}
 		}
 		__syncthreads();
@@ -179,18 +190,18 @@ int size_internal)
 	}
 }
 
-// created by tc_gen_code_Kernel()
-__global__ void kernel__2_1(float* dev_t3, 
-float* dev_t2, 
-float* dev_v2, 
+// Tensor Contraction Kernel
+__global__ void kernel__2_1(Complex* dev_t3, 
+Complex* dev_t2, 
+Complex* dev_v2, 
 int size_a, int size_b, int size_c, int size_d, int size_e, int size_f, 
 int numBlk_a, int numBlk_b, int numBlk_c, int numBlk_d, 
 int stride_reg_x, int stride_reg_y, 
 int size_internal)
 {
 	// For Shared Memory,
-	__shared__ float sm_a[16][96];
-	__shared__ float sm_b[16][96];
+	__shared__ Complex sm_a[16][96];
+	__shared__ Complex sm_b[16][96];
 
 
 	int internal_upperbound   = 0;
@@ -217,13 +228,17 @@ int size_internal)
 	int t3_base_thread = blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + (blk_idx_c * SIZE_SLICE_1_C + (blk_idx_d * SIZE_SLICE_1_D + idx_d) * size_c) * size_b) * size_a;
 
 
-	float temp_av;
-	float temp_bv[6];
-	float reg_tile[6][6];
+	Complex temp_av;
+	Complex temp_bv[6];
+	Complex reg_tile[6][6];
 
-	for (int i = 0; i < 6; i++)
-	for (int j = 0; j < 6; j++)
-	reg_tile[i][j] = 0.0;
+	for (int i = 0; i < 6; i++){
+		for (int j = 0; j < 6; j++){
+
+			reg_tile[i][j].re = 0.0;
+			reg_tile[i][j].im = 0.0;
+		}
+	}
 
 	// tensor contraction: [[16, 'STR_SD2_T2_H7', 'x', 't2', ['a', 'e', 'b', 'f']], [16, 'STR_SD2_V2_H7', 'y', 'v2', ['d', 'f', 'c', 'e']], '+=']
 	#pragma unroll 1
@@ -274,12 +289,19 @@ int size_internal)
 			{
 				temp_av = sm_a[ll][idx_a + (xx * 16)];
 
-				reg_tile[0][xx] += temp_av * temp_bv[0];
-				reg_tile[1][xx] += temp_av * temp_bv[1];
-				reg_tile[2][xx] += temp_av * temp_bv[2];
-				reg_tile[3][xx] += temp_av * temp_bv[3];
-				reg_tile[4][xx] += temp_av * temp_bv[4];
-				reg_tile[5][xx] += temp_av * temp_bv[5];
+				// reg_tile[0][xx] += temp_av * temp_bv[0];
+				// reg_tile[1][xx] += temp_av * temp_bv[1];
+				// reg_tile[2][xx] += temp_av * temp_bv[2];
+				// reg_tile[3][xx] += temp_av * temp_bv[3];
+				// reg_tile[4][xx] += temp_av * temp_bv[4];
+				// reg_tile[5][xx] += temp_av * temp_bv[5];
+
+				reg_tile[0][xx] = ComplexAdd(reg_tile[0][xx] , ComplexMul(temp_av, temp_bv[0] )) ;
+				reg_tile[1][xx] = ComplexAdd(reg_tile[1][xx] , ComplexMul(temp_av, temp_bv[1] )) ;
+				reg_tile[2][xx] = ComplexAdd(reg_tile[2][xx] , ComplexMul(temp_av, temp_bv[2] )) ;
+				reg_tile[3][xx] = ComplexAdd(reg_tile[3][xx] , ComplexMul(temp_av, temp_bv[3] )) ;
+				reg_tile[4][xx] = ComplexAdd(reg_tile[4][xx] , ComplexMul(temp_av, temp_bv[4] )) ;
+				reg_tile[5][xx] = ComplexAdd(reg_tile[5][xx] , ComplexMul(temp_av, temp_bv[5] )) ;
 			}
 		}
 		__syncthreads();
@@ -299,7 +321,7 @@ int size_internal)
 	}
 }
 
-// created by tc_gen_code_Kernel()
+// Tensor Contraction Kernel
 __global__ void kernel__3_1(Complex* dev_t3, 
 Complex* dev_t2, 
 Complex* dev_v2, 
@@ -376,7 +398,7 @@ int size_internal)
 		for (int j = 0; j < 6; j++){
 
 			reg_tile[i][j].re = 0.0;
-			reg_tile[i][j].im
+			reg_tile[i][j].im = 0.0;
 		}
 	}
 		
@@ -463,18 +485,18 @@ int size_internal)
 	}
 }
 
-// created by tc_gen_code_Kernel()
-__global__ void kernel__4_1(float* dev_t3, 
-float* dev_t2, 
-float* dev_v2, 
+// Tensor Contraction Kernel
+__global__ void kernel__4_1(Complex* dev_t3, 
+Complex* dev_t2, 
+Complex* dev_v2, 
 int size_a, int size_b, int size_c, int size_d, int size_e, int size_f, 
 int numBlk_a, int numBlk_b, int numBlk_c, int numBlk_d, 
 int stride_reg_x, int stride_reg_y, 
 int size_internal)
 {
 	// For Shared Memory,
-	__shared__ float sm_a[16][96];
-	__shared__ float sm_b[16][96];
+	__shared__ Complex sm_a[16][96];
+	__shared__ Complex sm_b[16][96];
 
 
 	int internal_upperbound   = 0;
@@ -535,13 +557,17 @@ int size_internal)
 		rng_d = size_d % SIZE_SLICE_1_D;
 	}
 
-	float temp_av;
-	float temp_bv[6];
-	float reg_tile[6][6];
+	Complex temp_av;
+	Complex temp_bv[6];
+	Complex reg_tile[6][6];
 
-	for (int i = 0; i < 6; i++)
-	for (int j = 0; j < 6; j++)
-	reg_tile[i][j] = 0.0;
+	for (int i = 0; i < 6; i++){
+		for (int j = 0; j < 6; j++){
+
+			reg_tile[i][j].re = 0.0;
+			reg_tile[i][j].im = 0.0;
+		}
+	}
 
 	// tensor contraction: [[16, 'STR_SD2_T2_H7', 'x', 't2', ['a', 'e', 'b', 'f']], [16, 'STR_SD2_V2_H7', 'y', 'v2', ['d', 'f', 'c', 'e']], '+=']
 	#pragma unroll 1
@@ -592,12 +618,20 @@ int size_internal)
 			{
 				temp_av = sm_a[ll][idx_a + (xx * 16)];
 
-				reg_tile[0][xx] += temp_av * temp_bv[0];
-				reg_tile[1][xx] += temp_av * temp_bv[1];
-				reg_tile[2][xx] += temp_av * temp_bv[2];
-				reg_tile[3][xx] += temp_av * temp_bv[3];
-				reg_tile[4][xx] += temp_av * temp_bv[4];
-				reg_tile[5][xx] += temp_av * temp_bv[5];
+				// reg_tile[0][xx] += temp_av * temp_bv[0];
+				// reg_tile[1][xx] += temp_av * temp_bv[1];
+				// reg_tile[2][xx] += temp_av * temp_bv[2];
+				// reg_tile[3][xx] += temp_av * temp_bv[3];
+				// reg_tile[4][xx] += temp_av * temp_bv[4];
+				// reg_tile[5][xx] += temp_av * temp_bv[5];
+
+				reg_tile[0][xx] = ComplexAdd(reg_tile[0][xx] , ComplexMul(temp_av, temp_bv[0] )) ;
+				reg_tile[1][xx] = ComplexAdd(reg_tile[1][xx] , ComplexMul(temp_av, temp_bv[1] )) ;
+				reg_tile[2][xx] = ComplexAdd(reg_tile[2][xx] , ComplexMul(temp_av, temp_bv[2] )) ;
+				reg_tile[3][xx] = ComplexAdd(reg_tile[3][xx] , ComplexMul(temp_av, temp_bv[3] )) ;
+				reg_tile[4][xx] = ComplexAdd(reg_tile[4][xx] , ComplexMul(temp_av, temp_bv[4] )) ;
+				reg_tile[5][xx] = ComplexAdd(reg_tile[5][xx] , ComplexMul(temp_av, temp_bv[5] )) ;
+
 			}
 		}
 		__syncthreads();
@@ -614,16 +648,16 @@ int size_internal)
 		{
 			if(i < rng_c && j < rng_b)
 			{
-			dev_t3[t3_base_thread + (i * stride_reg_y) + (j * stride_reg_x)] = reg_tile[i][j];
+				dev_t3[t3_base_thread + (i * stride_reg_y) + (j * stride_reg_x)] = reg_tile[i][j];
 			}
 		}
 	}
 }
 
-// created by tc_gen_code_Kernel()
-__global__ void kernel__1_tex_1(float* dev_t3, 
-float* dev_t2, 
-float* dev_v2, 
+// Tensor Contraction Kernel
+__global__ void kernel__1_tex_1(Complex* dev_t3, 
+Complex* dev_t2, 
+Complex* dev_v2, 
 int size_a, int size_b, int size_c, int size_d, int size_e, int size_f, 
 int numBlk_a, int numBlk_b, int numBlk_c, int numBlk_d, 
 int* dev_internal_offset_t2, int* dev_internal_offset_v2, 
@@ -631,8 +665,8 @@ int stride_reg_x, int stride_reg_y,
 int size_internal)
 {
 	// For Shared Memory,
-	__shared__ float sm_a[16][96];
-	__shared__ float sm_b[16][96];
+	__shared__ Complex sm_a[16][96];
+	__shared__ Complex sm_b[16][96];
 
 
 	// when opt_pre_computed == -1, all indices will be calculated manually
@@ -656,13 +690,17 @@ int size_internal)
 	int t3_base_thread = blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + (blk_idx_c * SIZE_SLICE_1_C + (blk_idx_d * SIZE_SLICE_1_D + idx_d) * size_c) * size_b) * size_a;
 
 
-	float temp_av;
-	float temp_bv[6];
-	float reg_tile[6][6];
+	Complex temp_av;
+	Complex temp_bv[6];
+	Complex reg_tile[6][6];
 
-	for (int i = 0; i < 6; i++)
-	for (int j = 0; j < 6; j++)
-	reg_tile[i][j] = 0.0;
+	for (int i = 0; i < 6; i++){
+		for (int j = 0; j < 6; j++){
+
+			reg_tile[i][j].re = 0.0;
+			reg_tile[i][j].im = 0.0;
+		}
+	}
 
 	// tensor contraction: [[16, 'STR_SD2_T2_H7', 'x', 't2', ['a', 'e', 'b', 'f']], [16, 'STR_SD2_V2_H7', 'y', 'v2', ['d', 'f', 'c', 'e']], '+=']
 	#pragma unroll 1
@@ -709,12 +747,19 @@ int size_internal)
 			{
 				temp_av = sm_a[ll][idx_a + (xx * 16)];
 
-				reg_tile[0][xx] += temp_av * temp_bv[0];
-				reg_tile[1][xx] += temp_av * temp_bv[1];
-				reg_tile[2][xx] += temp_av * temp_bv[2];
-				reg_tile[3][xx] += temp_av * temp_bv[3];
-				reg_tile[4][xx] += temp_av * temp_bv[4];
-				reg_tile[5][xx] += temp_av * temp_bv[5];
+				// reg_tile[0][xx] += temp_av * temp_bv[0];
+				// reg_tile[1][xx] += temp_av * temp_bv[1];
+				// reg_tile[2][xx] += temp_av * temp_bv[2];
+				// reg_tile[3][xx] += temp_av * temp_bv[3];
+				// reg_tile[4][xx] += temp_av * temp_bv[4];
+				// reg_tile[5][xx] += temp_av * temp_bv[5];
+
+				reg_tile[0][xx] = ComplexAdd(reg_tile[0][xx] , ComplexMul(temp_av, temp_bv[0] )) ;
+				reg_tile[1][xx] = ComplexAdd(reg_tile[1][xx] , ComplexMul(temp_av, temp_bv[1] )) ;
+				reg_tile[2][xx] = ComplexAdd(reg_tile[2][xx] , ComplexMul(temp_av, temp_bv[2] )) ;
+				reg_tile[3][xx] = ComplexAdd(reg_tile[3][xx] , ComplexMul(temp_av, temp_bv[3] )) ;
+				reg_tile[4][xx] = ComplexAdd(reg_tile[4][xx] , ComplexMul(temp_av, temp_bv[4] )) ;
+				reg_tile[5][xx] = ComplexAdd(reg_tile[5][xx] , ComplexMul(temp_av, temp_bv[5] )) ;
 			}
 		}
 		__syncthreads();
@@ -735,9 +780,9 @@ int size_internal)
 }
 
 
-__global__ void kernel__2_tex_1(float* dev_t3, 
-float* dev_t2, 
-float* dev_v2, 
+__global__ void kernel__2_tex_1(Complex* dev_t3, 
+Complex* dev_t2, 
+Complex* dev_v2, 
 int size_a, int size_b, int size_c, int size_d, int size_e, int size_f, 
 int numBlk_a, int numBlk_b, int numBlk_c, int numBlk_d, 
 int* dev_internal_offset_t2, int* dev_internal_offset_v2, 
@@ -745,8 +790,8 @@ int stride_reg_x, int stride_reg_y,
 int size_internal)
 {
 	// For Shared Memory,
-	__shared__ float sm_a[16][96];
-	__shared__ float sm_b[16][96];
+	__shared__ Complex sm_a[16][96];
+	__shared__ Complex sm_b[16][96];
 
 
 	int internal_upperbound   = 0;
@@ -772,14 +817,18 @@ int size_internal)
 
 	int t3_base_thread = blk_idx_a * SIZE_SLICE_1_A + idx_a + (blk_idx_b * SIZE_SLICE_1_B + (blk_idx_c * SIZE_SLICE_1_C + (blk_idx_d * SIZE_SLICE_1_D + idx_d) * size_c) * size_b) * size_a;
 
+	Complex temp_av;
+	Complex temp_bv[6];
+	Complex reg_tile[6][6];
 
-	float temp_av;
-	float temp_bv[6];
-	float reg_tile[6][6];
+	for (int i = 0; i < 6; i++){
+		for (int j = 0; j < 6; j++){
 
-	for (int i = 0; i < 6; i++)
-	for (int j = 0; j < 6; j++)
-	reg_tile[i][j] = 0.0;
+			reg_tile[i][j].re = 0.0;
+			reg_tile[i][j].im = 0.0;
+		}
+	}
+
 
 	// tensor contraction: [[16, 'STR_SD2_T2_H7', 'x', 't2', ['a', 'e', 'b', 'f']], [16, 'STR_SD2_V2_H7', 'y', 'v2', ['d', 'f', 'c', 'e']], '+=']
 	#pragma unroll 1
@@ -830,12 +879,19 @@ int size_internal)
 			{
 				temp_av = sm_a[ll][idx_a + (xx * 16)];
 
-				reg_tile[0][xx] += temp_av * temp_bv[0];
-				reg_tile[1][xx] += temp_av * temp_bv[1];
-				reg_tile[2][xx] += temp_av * temp_bv[2];
-				reg_tile[3][xx] += temp_av * temp_bv[3];
-				reg_tile[4][xx] += temp_av * temp_bv[4];
-				reg_tile[5][xx] += temp_av * temp_bv[5];
+				// reg_tile[0][xx] += temp_av * temp_bv[0];
+				// reg_tile[1][xx] += temp_av * temp_bv[1];
+				// reg_tile[2][xx] += temp_av * temp_bv[2];
+				// reg_tile[3][xx] += temp_av * temp_bv[3];
+				// reg_tile[4][xx] += temp_av * temp_bv[4];
+				// reg_tile[5][xx] += temp_av * temp_bv[5];
+
+				reg_tile[0][xx] = ComplexAdd(reg_tile[0][xx] , ComplexMul(temp_av, temp_bv[0] )) ;
+				reg_tile[1][xx] = ComplexAdd(reg_tile[1][xx] , ComplexMul(temp_av, temp_bv[1] )) ;
+				reg_tile[2][xx] = ComplexAdd(reg_tile[2][xx] , ComplexMul(temp_av, temp_bv[2] )) ;
+				reg_tile[3][xx] = ComplexAdd(reg_tile[3][xx] , ComplexMul(temp_av, temp_bv[3] )) ;
+				reg_tile[4][xx] = ComplexAdd(reg_tile[4][xx] , ComplexMul(temp_av, temp_bv[4] )) ;
+				reg_tile[5][xx] = ComplexAdd(reg_tile[5][xx] , ComplexMul(temp_av, temp_bv[5] )) ;
 			}
 		}
 		__syncthreads();
@@ -855,10 +911,10 @@ int size_internal)
 	}
 }
 
-// created by tc_gen_code_Kernel()
-__global__ void kernel__3_tex_1(float* dev_t3, 
-float* dev_t2, 
-float* dev_v2, 
+// Tensor Contraction Kernel
+__global__ void kernel__3_tex_1(Complex* dev_t3, 
+Complex* dev_t2, 
+Complex* dev_v2, 
 int size_a, int size_b, int size_c, int size_d, int size_e, int size_f, 
 int numBlk_a, int numBlk_b, int numBlk_c, int numBlk_d, 
 int* dev_internal_offset_t2, int* dev_internal_offset_v2, 
@@ -866,8 +922,8 @@ int stride_reg_x, int stride_reg_y,
 int size_internal)
 {
 	// For Shared Memory,
-	__shared__ float sm_a[16][96];
-	__shared__ float sm_b[16][96];
+	__shared__ Complex sm_a[16][96];
+	__shared__ Complex sm_b[16][96];
 
 
 	// when opt_pre_computed == -1, all indices will be calculated manually
@@ -925,13 +981,17 @@ int size_internal)
 		rng_d = size_d % SIZE_SLICE_1_D;
 	}
 
-	float temp_av;
-	float temp_bv[6];
-	float reg_tile[6][6];
+	Complex temp_av;
+	Complex temp_bv[6];
+	Complex reg_tile[6][6];
 
-	for (int i = 0; i < 6; i++)
-	for (int j = 0; j < 6; j++)
-	reg_tile[i][j] = 0.0;
+	for (int i = 0; i < 6; i++){
+		for (int j = 0; j < 6; j++){
+
+			reg_tile[i][j].re = 0.0;
+			reg_tile[i][j].im = 0.0;
+		}
+	}
 
 	// tensor contraction: [[16, 'STR_SD2_T2_H7', 'x', 't2', ['a', 'e', 'b', 'f']], [16, 'STR_SD2_V2_H7', 'y', 'v2', ['d', 'f', 'c', 'e']], '+=']
 	#pragma unroll 1
@@ -978,12 +1038,20 @@ int size_internal)
 			{
 				temp_av = sm_a[ll][idx_a + (xx * 16)];
 
-				reg_tile[0][xx] += temp_av * temp_bv[0];
-				reg_tile[1][xx] += temp_av * temp_bv[1];
-				reg_tile[2][xx] += temp_av * temp_bv[2];
-				reg_tile[3][xx] += temp_av * temp_bv[3];
-				reg_tile[4][xx] += temp_av * temp_bv[4];
-				reg_tile[5][xx] += temp_av * temp_bv[5];
+				// reg_tile[0][xx] += temp_av * temp_bv[0];
+				// reg_tile[1][xx] += temp_av * temp_bv[1];
+				// reg_tile[2][xx] += temp_av * temp_bv[2];
+				// reg_tile[3][xx] += temp_av * temp_bv[3];
+				// reg_tile[4][xx] += temp_av * temp_bv[4];
+				// reg_tile[5][xx] += temp_av * temp_bv[5];
+
+				reg_tile[0][xx] = ComplexAdd(reg_tile[0][xx] , ComplexMul(temp_av, temp_bv[0] )) ;
+				reg_tile[1][xx] = ComplexAdd(reg_tile[1][xx] , ComplexMul(temp_av, temp_bv[1] )) ;
+				reg_tile[2][xx] = ComplexAdd(reg_tile[2][xx] , ComplexMul(temp_av, temp_bv[2] )) ;
+				reg_tile[3][xx] = ComplexAdd(reg_tile[3][xx] , ComplexMul(temp_av, temp_bv[3] )) ;
+				reg_tile[4][xx] = ComplexAdd(reg_tile[4][xx] , ComplexMul(temp_av, temp_bv[4] )) ;
+				reg_tile[5][xx] = ComplexAdd(reg_tile[5][xx] , ComplexMul(temp_av, temp_bv[5] )) ;
+
 			}
 		}
 		__syncthreads();
@@ -1006,10 +1074,10 @@ int size_internal)
 	}
 }
 
-// created by tc_gen_code_Kernel()
-__global__ void kernel__4_tex_1(float* dev_t3, 
-float* dev_t2, 
-float* dev_v2, 
+// Tensor Contraction Kernel
+__global__ void kernel__4_tex_1(Complex* dev_t3, 
+Complex* dev_t2, 
+Complex* dev_v2, 
 int size_a, int size_b, int size_c, int size_d, int size_e, int size_f, 
 int numBlk_a, int numBlk_b, int numBlk_c, int numBlk_d, 
 int* dev_internal_offset_t2, int* dev_internal_offset_v2, 
@@ -1017,8 +1085,8 @@ int stride_reg_x, int stride_reg_y,
 int size_internal)
 {
 	// For Shared Memory,
-	__shared__ float sm_a[16][96];
-	__shared__ float sm_b[16][96];
+	__shared__ Complex sm_a[16][96];
+	__shared__ Complex sm_b[16][96];
 
 
 	int internal_upperbound   = 0;
@@ -1079,13 +1147,17 @@ int size_internal)
 		rng_d = size_d % SIZE_SLICE_1_D;
 	}
 
-	float temp_av;
-	float temp_bv[6];
-	float reg_tile[6][6];
+	Complex temp_av;
+	Complex temp_bv[6];
+	Complex reg_tile[6][6];
 
-	for (int i = 0; i < 6; i++)
-	for (int j = 0; j < 6; j++)
-	reg_tile[i][j] = 0.0;
+	for (int i = 0; i < 6; i++){
+		for (int j = 0; j < 6; j++){
+
+			reg_tile[i][j].re = 0.0;
+			reg_tile[i][j].im = 0.0;
+		}
+	}
 
 	// tensor contraction: [[16, 'STR_SD2_T2_H7', 'x', 't2', ['a', 'e', 'b', 'f']], [16, 'STR_SD2_V2_H7', 'y', 'v2', ['d', 'f', 'c', 'e']], '+=']
 	#pragma unroll 1
@@ -1136,12 +1208,19 @@ int size_internal)
 			{
 				temp_av = sm_a[ll][idx_a + (xx * 16)];
 
-				reg_tile[0][xx] += temp_av * temp_bv[0];
-				reg_tile[1][xx] += temp_av * temp_bv[1];
-				reg_tile[2][xx] += temp_av * temp_bv[2];
-				reg_tile[3][xx] += temp_av * temp_bv[3];
-				reg_tile[4][xx] += temp_av * temp_bv[4];
-				reg_tile[5][xx] += temp_av * temp_bv[5];
+				// reg_tile[0][xx] += temp_av * temp_bv[0];
+				// reg_tile[1][xx] += temp_av * temp_bv[1];
+				// reg_tile[2][xx] += temp_av * temp_bv[2];
+				// reg_tile[3][xx] += temp_av * temp_bv[3];
+				// reg_tile[4][xx] += temp_av * temp_bv[4];
+				// reg_tile[5][xx] += temp_av * temp_bv[5];
+
+				reg_tile[0][xx] = ComplexAdd(reg_tile[0][xx] , ComplexMul(temp_av, temp_bv[0] )) ;
+				reg_tile[1][xx] = ComplexAdd(reg_tile[1][xx] , ComplexMul(temp_av, temp_bv[1] )) ;
+				reg_tile[2][xx] = ComplexAdd(reg_tile[2][xx] , ComplexMul(temp_av, temp_bv[2] )) ;
+				reg_tile[3][xx] = ComplexAdd(reg_tile[3][xx] , ComplexMul(temp_av, temp_bv[3] )) ;
+				reg_tile[4][xx] = ComplexAdd(reg_tile[4][xx] , ComplexMul(temp_av, temp_bv[4] )) ;
+				reg_tile[5][xx] = ComplexAdd(reg_tile[5][xx] , ComplexMul(temp_av, temp_bv[5] )) ;
 			}
 		}
 		__syncthreads();
@@ -1166,27 +1245,27 @@ int size_internal)
 
 
 extern "C"
-void sd_t_d2_fusion(int size_a, int size_b, int size_c, int size_d, int size_e, int size_f, float* t3, float* host_t2, float* host_v2, int cond_kernel_1, int opt_register_transpose)
+void sd_t_d2_fusion(int size_a, int size_b, int size_c, int size_d, int size_e, int size_f, Complex* t3, Complex* host_t2, Complex* host_v2, int cond_kernel_1, int opt_register_transpose)
 {
 	int num_thread_blocks_kernel_1;
 
-	float* dev_t3;
-	float* dev_t2;
-	float* dev_v2;
+	Complex* dev_t3;
+	Complex* dev_t2;
+	Complex* dev_v2;
 
 	int* host_internal_left_offset;
 	int* host_internal_right_offset;
 
 	num_thread_blocks_kernel_1 = CEIL(size_a, SIZE_SLICE_1_A) * CEIL(size_b, SIZE_SLICE_1_B) * CEIL(size_c, SIZE_SLICE_1_C) * CEIL(size_d, SIZE_SLICE_1_D);
 	// hipMalloc()
-	hipMalloc((void**) &dev_t3, sizeof(float) * size_a * size_b * size_c * size_d);
-	hipMalloc((void**) &dev_t2, sizeof(float) * size_f * size_b * size_e * size_a);
-	hipMalloc((void**) &dev_v2, sizeof(float) * size_e * size_c * size_f * size_d);
+	hipMalloc((void**) &dev_t3, sizeof(Complex) * size_a * size_b * size_c * size_d);
+	hipMalloc((void**) &dev_t2, sizeof(Complex) * size_f * size_b * size_e * size_a);
+	hipMalloc((void**) &dev_v2, sizeof(Complex) * size_e * size_c * size_f * size_d);
 
 	// hipMemcpy()
-	hipMemcpy(dev_t3, t3, sizeof(float) * size_a * size_b * size_c * size_d, hipMemcpyHostToDevice);
-	hipMemcpy(dev_t2, host_t2, sizeof(float) * size_f * size_b * size_e * size_a, hipMemcpyHostToDevice);
-	hipMemcpy(dev_v2, host_v2, sizeof(float) * size_e * size_c * size_f * size_d, hipMemcpyHostToDevice);
+	hipMemcpy(dev_t3, t3, sizeof(Complex) * size_a * size_b * size_c * size_d, hipMemcpyHostToDevice);
+	hipMemcpy(dev_t2, host_t2, sizeof(Complex) * size_f * size_b * size_e * size_a, hipMemcpyHostToDevice);
+	hipMemcpy(dev_v2, host_v2, sizeof(Complex) * size_e * size_c * size_f * size_d, hipMemcpyHostToDevice);
 
 	// Related to Kernels
 	// There are 1 Basic Kernels
@@ -1302,7 +1381,7 @@ void sd_t_d2_fusion(int size_a, int size_b, int size_c, int size_d, int size_e, 
 	}
 
 	// Copy the Result from Device to Host
-	hipMemcpy(t3, dev_t3, sizeof(float) * (size_a * size_b * size_c * size_d), hipMemcpyDeviceToHost);
+	hipMemcpy(t3, dev_t3, sizeof(Complex) * (size_a * size_b * size_c * size_d), hipMemcpyDeviceToHost);
 
 	// hipFree()
 	hipFree(dev_t3);	hipFree(dev_t2);	hipFree(dev_v2);
@@ -1315,7 +1394,7 @@ void sd_t_d2_fusion(int size_a, int size_b, int size_c, int size_d, int size_e, 
 // This is written by tc_interface.tc_gen_code_interface()
 // This Interface Should be Called to Run the Kernels
 extern "C"
-void sd_t_d2_fusion_(int size_a, int size_b, int size_c, int size_d, int size_e, int size_f, float* t3, float* t2, float* v2, int cond_kernel_1, int opt_register_transpose)
+void sd_t_d2_fusion_(int size_a, int size_b, int size_c, int size_d, int size_e, int size_f, Complex* t3, Complex* t2, Complex* v2, int cond_kernel_1, int opt_register_transpose)
 {
 	// Pre-Processing for Split
 	// Based on Tile-Sizes and Problem-Size
