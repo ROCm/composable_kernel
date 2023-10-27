@@ -101,14 +101,7 @@ inline __host__ __device__ f8_t type_convert<f8_t, float>(float x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     float max_fp8 = 240.0f;
-    if(x > max_fp8)
-    {
-        x = max_fp8;
-    }
-    else if(x < -max_fp8)
-    {
-        x = -max_fp8;
-    }
+    x = x > max_fp8 ? max_fp8 : (x < -max_fp8 ? -max_fp8 : x);
     union
     {
         float fval;
