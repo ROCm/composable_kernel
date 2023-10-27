@@ -63,6 +63,7 @@ struct BlockFmhaPipelineQKVS
                const KElementFunction& k_element_func,
                const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
                const VElementFunction& v_element_func,
+               float scale,
                index_t num_total_loop,
                index_t num_sub_loop_qk,
                void* smem_ptr) const
@@ -215,6 +216,8 @@ struct BlockFmhaPipelineQKVS
             }
 
             // STAGE 2, scale softmax
+            tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, s_acc);
+
             const auto s =
                 tile_elementwise_in(type_convert<SMPLComputeDataType, SaccDataType>, s_acc); // S{j}
             auto m_local = block_tile_reduce<SMPLComputeDataType>(
@@ -245,11 +248,12 @@ struct BlockFmhaPipelineQKVS
 
             block_tile_reduce_sync(rowsum_p, f_sum);
             // l{j}, Oacc{j}
-            sweep_tile_span(p_spans[Number<0>{}], [&](auto idx0) {
+            constexpr auto o_spans = decltype(o_acc)::GetDistributedSpans();
+            sweep_tile_span(o_spans[Number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
                 const auto tmp       = math::exp(m_old[i_idx] - m[i_idx]);
                 l(i_idx)             = tmp * l[i_idx] + rowsum_p[i_idx];
-                sweep_tile_span(p_spans[Number<1>{}], [&](auto idx1) {
+                sweep_tile_span(o_spans[Number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
                     // FIXME: this use different equation from FA v2 paper,
                     // but produce correc result.
@@ -319,6 +323,7 @@ struct BlockFmhaPipelineQKVS
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
+               float scale,
                index_t num_total_loop,
                index_t num_sub_loop_qk,
                void* smem_ptr) const
@@ -330,6 +335,7 @@ struct BlockFmhaPipelineQKVS
             [](const KDataType& x) { return x; },
             v_dram_block_window_tmp,
             [](const VDataType& x) { return x; },
+            scale,
             num_total_loop,
             num_sub_loop_qk,
             smem_ptr);

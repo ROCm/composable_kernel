@@ -11,9 +11,12 @@
 // P[seqlen_q, seqlen_k] = Softmax(S[seqlen_q, seqlen_k])
 // O[seqlen_q, hdim_v] = P[seqlen_q, seqlen_k] * V[hdim_v, seqlen_k]
 
-template <typename FmhaPipeline_, typename EpiloguePipeline_>
+#define C_LOG2E    1.44269504088896340736   // log2(e)
+
+template <typename TilePartitioner_, typename FmhaPipeline_, typename EpiloguePipeline_>
 struct FmhaFwdKernel
 {
+    using TilePartitioner                   = ck::remove_cvref_t<TilePartitioner_>;
     using FmhaPipeline                      = ck::remove_cvref_t<FmhaPipeline_>;
     using EpiloguePipeline                  = ck::remove_cvref_t<EpiloguePipeline_>;
     static constexpr ck::index_t kBlockSize = FmhaPipeline::kBlockSize;
@@ -33,10 +36,19 @@ struct FmhaFwdKernel
         ck::index_t seqlen_k;
         ck::index_t hdim_q;
         ck::index_t hdim_v;
+
+        float scale;
+
         ck::index_t stride_q;
         ck::index_t stride_k;
         ck::index_t stride_v;
         ck::index_t stride_o;
+
+        ck::index_t nhead_stride_q;
+        ck::index_t nhead_stride_k;
+        ck::index_t nhead_stride_v;
+        ck::index_t nhead_stride_o;
+
         ck::index_t batch_stride_q;
         ck::index_t batch_stride_k;
         ck::index_t batch_stride_v;
@@ -51,37 +63,33 @@ struct FmhaFwdKernel
                                               ck::index_t seqlen_k,
                                               ck::index_t hdim_q,
                                               ck::index_t hdim_v,
+                                              float scale,
                                               ck::index_t stride_q,
                                               ck::index_t stride_k,
                                               ck::index_t stride_v,
                                               ck::index_t stride_o,
+                                              ck::index_t nhead_stride_q,
+                                              ck::index_t nhead_stride_k,
+                                              ck::index_t nhead_stride_v,
+                                              ck::index_t nhead_stride_o,
                                               ck::index_t batch_stride_q,
                                               ck::index_t batch_stride_k,
                                               ck::index_t batch_stride_v,
                                               ck::index_t batch_stride_o)
     {
-        return Kargs{q_ptr,
-                     k_ptr,
-                     v_ptr,
-                     o_ptr,
-                     seqlen_q,
-                     seqlen_k,
-                     hdim_q,
-                     hdim_v,
-                     stride_q,
-                     stride_k,
-                     stride_v,
-                     stride_o,
-                     batch_stride_q,
-                     batch_stride_k,
-                     batch_stride_v,
+        return Kargs{q_ptr,          k_ptr,          v_ptr,          o_ptr,          seqlen_q,
+                     seqlen_k,       hdim_q,         hdim_v,         scale,          stride_q,
+                     stride_k,       stride_v,       stride_o,       nhead_stride_q, nhead_stride_k,
+                     nhead_stride_v, nhead_stride_o, batch_stride_q, batch_stride_k, batch_stride_v,
                      batch_stride_o};
     }
 
-    __host__ static constexpr auto
-    GridSize(ck::index_t batch_size_, ck::index_t seqlen_q_, ck::index_t hdim_v_)
+    __host__ static constexpr auto GridSize(ck::index_t batch_size_,
+                                            ck::index_t nhead_,
+                                            ck::index_t seqlen_q_,
+                                            ck::index_t hdim_v_)
     {
-        return dim3(batch_size_ * (seqlen_q_ / FmhaPipeline::kM0) * (hdim_v_ / FmhaPipeline::kN1));
+        return TilePartitioner::GridSize(batch_size_, nhead_, seqlen_q_, hdim_v_);
     }
 
     __host__ static constexpr auto BlockSize() { return dim3(kBlockSize); }
@@ -101,34 +109,21 @@ struct FmhaFwdKernel
         __shared__ char smem_ptr[GetSmemSize()];
 
         // divide problem
-        const index_t num_tile_m0 = kargs.seqlen_q / FmhaPipeline::kM0;
-        const index_t num_tile_n1 = kargs.hdim_v / FmhaPipeline::kN1;
+        const auto [i_tile_m, i_tile_n, i_nhead, i_batch] =
+            TilePartitioner{}(kargs.seqlen_q, kargs.hdim_v);
 
-        const index_t id_block = ck::get_block_id();
-
-        const auto f = [](index_t dividend, index_t divisor) {
-            index_t quotient = dividend / divisor;
-            index_t modulus  = dividend - quotient * divisor;
-
-            return ck::make_tuple(quotient, modulus);
-        };
-
-        const auto [itmp, id_tile_n]          = f(id_block, num_tile_n1);
-        const auto [id_tile_batch, id_tile_m] = f(itmp, num_tile_m0);
-
-        const index_t i_batch = __builtin_amdgcn_readfirstlane(id_tile_batch);
-        const index_t i_m0    = __builtin_amdgcn_readfirstlane(id_tile_m * FmhaPipeline::kM0);
-        const index_t i_n1    = __builtin_amdgcn_readfirstlane(id_tile_n * FmhaPipeline::kN1);
+        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
+        const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
 
         // for simplicity, batch stride we just modify the pointer
-        const QDataType* q_ptr =
-            reinterpret_cast<const QDataType*>(kargs.q_ptr) + i_batch * kargs.batch_stride_q;
-        const KDataType* k_ptr =
-            reinterpret_cast<const KDataType*>(kargs.k_ptr) + i_batch * kargs.batch_stride_k;
-        const VDataType* v_ptr =
-            reinterpret_cast<const VDataType*>(kargs.v_ptr) + i_batch * kargs.batch_stride_v;
-        ODataType* o_ptr =
-            reinterpret_cast<ODataType*>(kargs.o_ptr) + i_batch * kargs.batch_stride_o;
+        const QDataType* q_ptr = reinterpret_cast<const QDataType*>(kargs.q_ptr) +
+                                 i_nhead * kargs.nhead_stride_q + i_batch * kargs.batch_stride_q;
+        const KDataType* k_ptr = reinterpret_cast<const KDataType*>(kargs.k_ptr) +
+                                 i_nhead * kargs.nhead_stride_k + i_batch * kargs.batch_stride_k;
+        const VDataType* v_ptr = reinterpret_cast<const VDataType*>(kargs.v_ptr) +
+                                 i_nhead * kargs.nhead_stride_v + i_batch * kargs.batch_stride_v;
+        ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr) +
+                           i_nhead * kargs.nhead_stride_o + i_batch * kargs.batch_stride_o;
 
         // Q/K/V DRAM and DRAM window
         // FIXME: assume layout Q[seqlen_q, hdim_q], K[seqlen_k, hdim_q], V[hdim_v, seqlen_k],
@@ -169,6 +164,7 @@ struct FmhaFwdKernel
         auto o_acc_tile = FmhaPipeline{}(q_dram_window,
                                          k_dram_window,
                                          v_dram_window,
+                                         kargs.scale,
                                          kargs.seqlen_k / FmhaPipeline::kN0,
                                          kargs.hdim_q / FmhaPipeline::kK0,
                                          smem_ptr);

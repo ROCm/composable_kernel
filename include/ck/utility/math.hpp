@@ -183,6 +183,37 @@ inline __host__ double exp<double>(double x)
     return std::exp(x);
 }
 
+// prevent implicit type casting
+template <typename T>
+__host__ T exp2(T x);
+
+template <typename T>
+__device__ T exp2(T x);
+
+template <>
+inline __device__ float exp2<float>(float x)
+{
+    return exp2f(x);
+}
+
+template <>
+inline __device__ double exp2<double>(double x)
+{
+    return exp2(x);
+}
+
+template <>
+inline __host__ float exp2<float>(float x)
+{
+    return std::exp2f(x);
+}
+
+template <>
+inline __host__ double exp2<double>(double x)
+{
+    return std::exp2l(x); // TODO: std does not have exp2 for double till c++23
+}
+
 // greatest common divisor, aka highest common factor
 __host__ __device__ constexpr index_t gcd(index_t x, index_t y)
 {

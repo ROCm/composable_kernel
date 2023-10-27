@@ -6,10 +6,19 @@
 #include "ck/utility/common_header.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename AElementOp,
+          typename BElementOp,
+          typename ACCElementOp>
 void reference_batched_gemm(const Tensor<ADataType>& a_b_m_k,
                             const Tensor<BDataType>& b_b_n_k,
-                            Tensor<CDataType>& c_b_m_n)
+                            Tensor<CDataType>& c_b_m_n,
+                            const AElementOp& a_element_op,
+                            const BElementOp& b_element_op,
+                            const ACCElementOp& acc_element_op)
 {
     const int N = b_b_n_k.mDesc.GetLengths()[1];
     const int K = b_b_n_k.mDesc.GetLengths()[2];
@@ -21,16 +30,30 @@ void reference_batched_gemm(const Tensor<ADataType>& a_b_m_k,
 
             for(int k = 0; k < K; ++k)
             {
-                ADataType v_a = a_b_m_k(batch, m, k);
-                BDataType v_b = b_b_n_k(batch, n, k);
+                ADataType v_a = a_element_op(a_b_m_k(batch, m, k));
+                BDataType v_b = b_element_op(b_b_n_k(batch, n, k));
 
                 v_acc += ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
             }
 
-            c_b_m_n(batch, m, n) = ck::type_convert<CDataType>(v_acc);
+            c_b_m_n(batch, m, n) = ck::type_convert<CDataType>(acc_element_op(v_acc));
         }
     };
 
     make_ParallelTensorFunctor(f, c_b_m_n.mDesc.GetLengths()[0], c_b_m_n.mDesc.GetLengths()[1])(
         std::thread::hardware_concurrency());
+}
+
+template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
+void reference_batched_gemm(const Tensor<ADataType>& a_b_m_k,
+                            const Tensor<BDataType>& b_b_n_k,
+                            Tensor<CDataType>& c_b_m_n)
+{
+    reference_batched_gemm<ADataType, BDataType, AccDataType, CDataType>(
+        a_b_m_k,
+        b_b_n_k,
+        c_b_m_n,
+        [](const ADataType& x) { return x; },
+        [](const BDataType& x) { return x; },
+        [](const AccDataType& x) { return x; });
 }
