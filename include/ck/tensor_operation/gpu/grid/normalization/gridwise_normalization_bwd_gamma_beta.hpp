@@ -35,12 +35,13 @@ template <typename DYDataType,
           index_t DBetaDstVectorSize>
 struct GridwiseNormalizationBwdGammaBeta_mk_to_k
 {
-    static_assert(((DYSrcVectorDim == 0 && MThreadSliceSize % DYSrcVectorSize == 0) ||
-                   (DYSrcVectorDim == 1 && KThreadSliceSize % DYSrcVectorSize == 0)),
+    // if we just check ThreadSliceSize  & VectorSize == 0, the performance may be poor
+    static_assert(((DYSrcVectorDim == 0 && MThreadSliceSize == DYSrcVectorSize) ||
+                   (DYSrcVectorDim == 1 && KThreadSliceSize == DYSrcVectorSize)),
                   "Invalid thread slice sizes and/or dy vector sizes configuration, please check!");
 
-    static_assert(((XSrcVectorDim == 0 && MThreadSliceSize % XSrcVectorSize == 0) ||
-                   (XSrcVectorDim == 1 && KThreadSliceSize % XSrcVectorSize == 0)),
+    static_assert(((XSrcVectorDim == 0 && MThreadSliceSize == XSrcVectorSize) ||
+                   (XSrcVectorDim == 1 && KThreadSliceSize == XSrcVectorSize)),
                   "Invalid thread slice sizes and/or x vector sizes configuration, please check!");
 
     using ThreadClusterLengths_M_K = Sequence<MThreadClusterSize, KThreadClusterSize>;
