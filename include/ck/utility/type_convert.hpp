@@ -9,13 +9,28 @@
 
 namespace ck {
 
-// Convert X to Y
-template <typename Y, typename X>
+// Convert X to Y, both X and Y are non-const data types.
+template <typename Y,
+          typename X,
+          std::enable_if_t<!(std::is_const_v<Y> || std::is_const_v<X>), bool> = false>
 __host__ __device__ constexpr Y type_convert(X x)
 {
     static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
 
     return static_cast<Y>(x);
+}
+
+// Convert X to Y, either X or Y is a const data type.
+template <typename Y,
+          typename X,
+          std::enable_if_t<std::is_const_v<Y> || std::is_const_v<X>, bool> = false>
+__host__ __device__ constexpr Y type_convert(X x)
+{
+    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
+
+    using NonConstY = std::remove_const_t<Y>;
+    using NonConstX = std::remove_const_t<X>;
+    return static_cast<Y>(type_convert<NonConstY, NonConstX>(x));
 }
 
 // convert bfp16 to fp32
@@ -80,7 +95,6 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int8_t>(int8_
     return type_convert<bhalf_t>(x_fp32);
 }
 
-#if defined CK_ENABLE_FP8
 // convert fp32 to fp8
 template <>
 inline __host__ __device__ f8_t type_convert<f8_t, float>(float x)
@@ -154,9 +168,7 @@ inline __host__ __device__ half_t type_convert<half_t, f8_t>(f8_t x)
     return utils::cast_from_f8<f8_t, half_t, negative_zero_nan>(x);
 #endif
 }
-#endif
 
-#if defined CK_ENABLE_BF8
 // convert fp32 to bf8
 template <>
 inline __host__ __device__ bf8_t type_convert<bf8_t, float>(float x)
@@ -206,7 +218,7 @@ inline __host__ __device__ bf8_t type_convert<bf8_t, half_t>(half_t x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // convert to float and use native converion
-    return type_convert<f8_t>(type_convert<float>(x));
+    return type_convert<bf8_t>(type_convert<float>(x));
 #else
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
@@ -230,7 +242,6 @@ inline __host__ __device__ half_t type_convert<half_t, bf8_t>(bf8_t x)
     return utils::cast_from_f8<bf8_t, half_t, negative_zero_nan>(x);
 #endif
 }
-#endif
 
 // Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
@@ -293,7 +304,6 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, half_t>(h
 template <typename Y, typename X>
 __host__ __device__ constexpr Y f8_convert_sr(X x);
 
-#if defined CK_ENABLE_FP8
 // convert fp32 to fp8 with stochastic rounding
 template <>
 inline __host__ __device__ f8_t f8_convert_sr<f8_t, float>(float x)
@@ -340,9 +350,7 @@ inline __host__ __device__ f8_t f8_convert_sr<f8_t, half_t>(half_t x)
             x, rng);
 #endif
 }
-#endif
 
-#if defined CK_ENABLE_BF8
 // convert fp32 to bf8 with stochastic rounding
 template <>
 inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, float>(float x)
@@ -390,6 +398,5 @@ inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, half_t>(half_t x)
             x, rng);
 #endif
 }
-#endif
 
 } // namespace ck

@@ -1,6 +1,6 @@
 FROM ubuntu:20.04
 ARG DEBIAN_FRONTEND=noninteractive
-ARG ROCMVERSION=5.6
+ARG ROCMVERSION=5.7
 ARG compiler_version=""
 ARG compiler_commit=""
 
@@ -49,6 +49,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     vim \
     nano \
     zlib1g-dev \
+    zip \
     openssh-server \
     clang-format-12 \
     kmod && \

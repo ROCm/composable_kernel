@@ -2,19 +2,10 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 template <ck::index_t NDimSpatial>
-using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
-                                                                                     InDataType,
-                                                                                     WeiDataType,
-                                                                                     OutDataType,
-                                                                                     InElementOp,
-                                                                                     WeiElementOp,
-                                                                                     OutElementOp>;
-
-template <ck::index_t NDimSpatial>
 bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                  const ck::utils::conv::ConvParam& conv_param)
 {
-    // Dl op doesn't support split_k > 1
+    // Dl and WMMA ops don't support split_k > 1
     constexpr ck::index_t split_k = 1;
 
     const auto in_g_n_c_wis_desc =
@@ -46,8 +37,8 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
         out.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
         break;
     default:
-        in.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
-        out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.5, 0.5});
+        in.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 0.2});
+        out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.1, 0.1});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
@@ -113,18 +104,7 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
         return true;
     }
 
-    float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-
-    std::size_t flop      = conv_param.GetFlops();
-    std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
-
-    float tflops = static_cast<float>(flop) / 1.E9 / avg_time;
-
-    float gb_per_sec = num_btype / 1.E6 / avg_time;
-
-    std::cerr << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
-              << std::endl
-              << "DeviceOp: " << conv.GetTypeString() << std::endl;
+    invoker.Run(argument, StreamConfig{nullptr, false});
 
     if(config.do_verification)
     {
@@ -148,25 +128,18 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
         return ck::utils::check_err(wei_device_result.mData, wei_host_result.mData);
     }
 
+    float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+
+    std::size_t flop      = conv_param.GetFlops();
+    std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
+
+    float tflops = static_cast<float>(flop) / 1.E9 / avg_time;
+
+    float gb_per_sec = num_btype / 1.E6 / avg_time;
+
+    std::cerr << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
+              << std::endl
+              << "DeviceOp: " << conv.GetTypeString() << std::endl;
+
     return true;
-}
-
-bool run_grouped_conv_bwd_weight_example(int argc, char* argv[])
-{
-    ExecutionConfig config;
-    ck::utils::conv::ConvParam conv_param = DefaultConvParam;
-
-    if(!parse_cmd_args(argc, argv, config, conv_param))
-    {
-        return false;
-    }
-
-    switch(conv_param.num_dim_spatial_)
-    {
-    case 1: return run_grouped_conv_bwd_weight<1>(config, conv_param);
-    case 2: return run_grouped_conv_bwd_weight<2>(config, conv_param);
-    case 3: return run_grouped_conv_bwd_weight<3>(config, conv_param);
-    }
-
-    return false;
 }

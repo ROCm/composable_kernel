@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
-cmake_policy(SET CMP0140 NEW)
+if(POLICY CMP0140)
+  # policies CMP0140 not known to CMake until 3.25
+  cmake_policy(SET CMP0140 NEW)
+endif()
 
 # This has to be initialized before the project() command appears
 # Set the default of CMAKE_BUILD_TYPE to be release, unless user specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
@@ -29,12 +32,10 @@ if (DTYPES)
     if (DTYPES MATCHES "fp8")
         add_definitions(-DCK_ENABLE_FP8)
         set(CK_ENABLE_FP8 "ON")
-        add_compile_options(-Wno-bit-int-extension)
     endif()
     if (DTYPES MATCHES "bf8")
         add_definitions(-DCK_ENABLE_BF8)
         set(CK_ENABLE_BF8 "ON")
-        add_compile_options(-Wno-bit-int-extension)
     endif()
     if (DTYPES MATCHES "fp16")
         add_definitions(-DCK_ENABLE_FP16)
@@ -56,8 +57,10 @@ if (DTYPES)
 else()
     add_definitions(-DCK_ENABLE_INT8 -DCK_ENABLE_FP8 -DCK_ENABLE_BF8 -DCK_ENABLE_FP16 -DCK_ENABLE_FP32 -DCK_ENABLE_FP64 -DCK_ENABLE_BF16)
     set(CK_ENABLE_ALL_DTYPES "ON")
-    add_compile_options(-Wno-bit-int-extension) # enable fp8 and bf8
 endif()
+
+#for f8/bf8_t type
+add_compile_options(-Wno-bit-int-extension)
 
 if(DL_KERNELS)
     add_definitions(-DDL_KERNELS)
@@ -103,21 +106,23 @@ message("checking which targets are supported")
 #Setting GPU_TARGETS on command line will override this list
 if(NOT PROFILER_ONLY)
     rocm_check_target_ids(DEFAULT_GPU_TARGETS
-        TARGETS "gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
+        TARGETS "gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
 else()
     add_definitions(-DPROFILER_ONLY)
     set(GPU_TARGETS "" CACHE STRING "" FORCE)
     if(GPU_TARGETS)
-        message(FATAL_ERROR "For PROFILE_ONLY build, please do not set GPU_TARGETS, use GPU_ARCH = gfx9, gfx10, or gfx11")
+        message(FATAL_ERROR "For PROFILE_ONLY build, please do not set GPU_TARGETS, use GPU_ARCH = gfx90, gfx94, gfx10, or gfx11")
     endif()
-    if(GPU_ARCH MATCHES "gfx9")
-        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942")
+    if(GPU_ARCH MATCHES "gfx90")
+        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx908;gfx90a")
+    elseif(GPU_ARCH MATCHES "gfx94")
+        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx940;gfx941;gfx942")
     elseif(GPU_ARCH MATCHES "gfx10")
         rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx1030")
     elseif(GPU_ARCH MATCHES "gfx11")
         rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx1100;gfx1101;gfx1102")
     else()
-        message(FATAL_ERROR "For PROFILE_ONLY build, please specify GPU_ARCH as gfx9, gfx10, or gfx11")
+        message(FATAL_ERROR "For PROFILE_ONLY build, please specify GPU_ARCH as gfx90, gfx94, gfx10, or gfx11")
     endif()
     set(GPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " " FORCE)
 endif()
@@ -441,14 +446,14 @@ if(NOT DEFINED INSTANCES_ONLY)
 
    rocm_package_setup_component(profiler
         LIBRARY_NAME composablekernel
-        PACKAGE_NAME ckProfiler
+        PACKAGE_NAME ckprofiler
    )
    add_subdirectory(profiler)
   else()
     #When building PROFILER_ONLY, label the package with GPU_ARCH
     rocm_package_setup_component(profiler
        LIBRARY_NAME composablekernel
-       PACKAGE_NAME ckProfiler_${GPU_ARCH}
+       PACKAGE_NAME ckprofiler_${GPU_ARCH}
     )
     add_subdirectory(profiler)
   endif()

@@ -22,7 +22,7 @@ c_m_n: dim 2, lengths {3840, 4096}, strides {4096, 1}
 Best Perf: 1.1933 ms, 107.977 TFlops, 79.0848 GB/s
 ```
 
-## Profile 2d forward convolution kernels
+## Profile 2D forward convolution kernels
 ```bash
 #arg1: tensor operation (conv=Convolution)
 #arg2: data type (0=fp32, 1=fp16)
@@ -115,7 +115,7 @@ Best Perf: 58.0306 ms, 37.8942 TFlops, 27.7545 GB/s
 # arg6: print tensor value (0: no; 1: yes)
 # arg7: time kernel (0: no, 1: yes)
 # Following arguments (depending on number of spatial dims):
-#  Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
+#  Number of spatial dimensions (1=Conv1D, 2=Conv2D, 3=Conv3D)
 #  G, N, K, C, 
 #  <filter spatial dimensions>, (ie Y, X for 2D)
 #  <input image spatial dimensions>, (ie Hi, Wi for 2D)
@@ -147,7 +147,9 @@ GB/s: 127.947
 # arg1: tensor operation (grouped_conv_bwd_weight: Grouped Convolution Backward Weight)
 # arg2: data type (0: Input fp32, Weight fp32, Output fp32
 #                  1: Input fp16, Weight fp16, Output fp16
-#                  2: Input bf16, Weight fp32, Output bf16)
+#                  2: Input bf16, Weight fp32, Output bf16
+#                  3: Input fp16, Weight fp16, Output fp16, Gemm bf8@fp8
+#                  4: Input int8, Weight int8, Output int8)
 # arg3: tensor layout (0: Input[G, N, C, Hi, Wi], Weight[G, K, C, Y, X], Output[G, N, K, Ho, Wo]
 #                      1: Input[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Output[G, N, Ho, Wo, K]
 #                      2: Input[N, Hi, Wi, G, C], Weight[G, K, Y, X, C], Output[N, Ho, Wo, G, K]
@@ -156,7 +158,7 @@ GB/s: 127.947
 # arg6: print tensor value (0: no; 1: yes)
 # arg7: time kernel (0: no, 1: yes)
 # Following arguments (depending on number of spatial dims):
-#  Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
+#  Number of spatial dimensions (1=Conv1D, 2=Conv2D, 3=Conv3D)
 #  G, N, K, C, 
 #  <filter spatial dimensions>, (ie Y, X for 2D)
 #  <input image spatial dimensions>, (ie Hi, Wi for 2D)
@@ -167,7 +169,7 @@ GB/s: 127.947
 # SplitK
 
  ################                   op   datatype  layout  verify  init  log  time  Ndims  G   N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx  SplitK
-./bin/ckProfiler grouped_conv_bwd_weight          1       0       1     1    0     1      2 32 256 256 512  3  3  28  28   1   1   1   1       1       0        0        0       1
+./bin/ckProfiler grouped_conv_bwd_weight         1       1      0     1    0     1      2 32 256 256 512  3  3  28  28   1   1   1   1       1       0        0        0       1
 
  ```
 
@@ -185,7 +187,7 @@ GB/s: 69.2301
 ```
 Note: This kernel use atomic add, this will cause output buffer to be accumulated multiple times, causing verification failure. To work around it, do not use CK's own timer and do verification at the same time.
 
-## Profile image to column kernels
+## Profile image to column/column to image kernels
 ```bash
 # arg1: tensor operation (" OP_NAME ": " OP_DESC ")
 # arg2: data type (0: Input fp32, Weight fp32, Output fp32
@@ -197,8 +199,9 @@ Note: This kernel use atomic add, this will cause output buffer to be accumulate
 # arg5: initialization (0: no init, 1: integer value, 2: decimal value)
 # arg6: print tensor value (0: no; 1: yes)
 # arg7: time kernel (0: no, 1: yes)
+# arg8: operation type (0: ImageToColumn, 1: ColumnToImage)
 # Following arguments (depending on number of spatial dims):
-#  Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
+#  Number of spatial dimensions (1=Conv1D, 2=Conv2D, 3=Conv3D)
 #  G, N, K, C, 
 #  <filter spatial dimensions>, (ie Y, X for 2D)
 #  <input image spatial dimensions>, (ie Hi, Wi for 2D)
@@ -207,8 +210,8 @@ Note: This kernel use atomic add, this will cause output buffer to be accumulate
 #  <left padding>, (ie LeftPy, LeftPx for 2D)
 #  <right padding>, (ie RightPy, RightPx for 2D)
 
- ################             op   datatype  layout  verify  init  log  time  Ndims  G   N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx
-./bin/ckProfiler image_to_column          0       0       1     1    0     1      2  1 256   1 512  3  3   28  28   1   1   1   1        0       0       0        0
+ ################                   op   datatype  layout  verify  init  log  time opType Ndims  G   N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx
+./bin/ckProfiler conv_tensor_rearrange          0       0       0     1    0     1      0     2  1 256   1 512  3  3   28  28   1   1   1   1        0       0       0        0
 
  ```
 
@@ -222,3 +225,4 @@ name: DeviceImageToColumn<128, 32, 64, 4>
 avg_time: 3.12326
 GB/s: 2042.59
 ```
+Note: Column to image kernel adds to the output memory, this will cause output buffer to be accumulated multiple times, causing verification failure. To work around it, do not use CK's own timer and do verification at the same time.
