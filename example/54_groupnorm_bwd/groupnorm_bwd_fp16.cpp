@@ -155,6 +155,12 @@ int main()
             dy, x, gamma, mean, inv_std, host_dgamma, host_dbeta, host_dx, {N, H, W, G, C});
         auto ref_invoker = ref.MakeInvoker();
         ref_invoker.Run(ref_argument);
+
+        dgamma_dev.FromDevice(dgamma.mData.data());
+        dbeta_dev.FromDevice(dbeta.mData.data());
+
+        pass &= ck::utils::check_err(dgamma, host_dgamma, "Error: Incorrect dgamma", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(dbeta, host_dbeta, "Error: Incorrect dbeta", 1e-3, 1e-3);
     }
 
     return (pass ? 0 : 1);
