@@ -379,10 +379,15 @@ struct DeviceGemmMultipleABD_Xdl_CShuffle : public DeviceGemmMultipleABD<AsLayou
                 // B pointer
                 p_bs_grid_(i) = static_cast<const BDataType*>(p_bs_grid[i]);
 
+                auto stride = StrideBs[i];
+                // if constexpr (is_same_v<packed_f4_t, BDataType>) {
+                //     stride /= 2;  // FIXME: adhoc
+                // }
+
                 // B desc
                 bs_grid_desc_n_k_(i) =
                     GridwiseGemm::template MakeBGridDescriptor_N_K<BLayout, GemmSpec>(
-                        KRaw, NRaw, StrideBs[i]);
+                        KRaw, NRaw, stride);
             });
 
             // populate pointer, desc for Ds

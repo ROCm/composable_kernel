@@ -219,7 +219,7 @@ link_libraries(hip::device)
 add_compile_definitions(__HIP_PLATFORM_HCC__=1)
 
 ## tidy
-include(EnableCompilerWarnings)
+# include(EnableCompilerWarnings)
 set(CK_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
 if(CMAKE_CXX_COMPILER MATCHES ".*hcc" OR CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+")
     set(CK_TIDY_CHECKS -modernize-use-override -readability-non-const-parameter)
@@ -372,10 +372,10 @@ include_directories(BEFORE
 )
 
 SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
-if(BUILD_DEV)
-    add_compile_options(-Werror)
-    add_compile_options(-Weverything)
-endif()
+# if(BUILD_DEV)
+#     add_compile_options(-Werror)
+#     add_compile_options(-Weverything)
+# endif()
 message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})

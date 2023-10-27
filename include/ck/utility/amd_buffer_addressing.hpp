@@ -409,6 +409,7 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
                                                                  index_t src_thread_addr_offset,
                                                                  index_t src_wave_addr_offset)
 {
+    static_assert(!(is_same<T, packed_f4_t>::value && N == 1), "access subbyte of packed_f4_t is not allowed");
     static_assert(
         (is_same<T, double>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
@@ -416,12 +417,19 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
             (is_same<T, bhalf_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, f8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (is_same<T, packed_f4_t>::value && (N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, bf8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
         "wrong! not implemented");
 
+    constexpr const int NumElemPerByte = [&]() {
+        if constexpr (is_same<T, packed_f4_t>::value) return 2;
+        else return 1;
+    }();
+    static_assert(N % NumElemPerByte == 0);
+
     using r_t     = typename vector_type<T, N>::type;
-    auto raw_data = amd_buffer_load_impl_raw<sizeof(T) * N, coherence>(
+    auto raw_data = amd_buffer_load_impl_raw<sizeof(T) * N / NumElemPerByte, coherence>(
         src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset);
     return bit_cast<r_t>(raw_data);
 }
@@ -805,6 +813,9 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
 
     vector_t tmp = amd_buffer_load_impl<scalar_t, vector_size, coherence>(
         src_wave_buffer_resource, src_thread_addr_offset, 0);
+
+    // print_type<vector_t, scalar_t>();
+
     return src_thread_element_valid ? tmp : vector_t(0);
 #endif
 }

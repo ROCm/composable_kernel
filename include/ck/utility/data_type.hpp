@@ -7,11 +7,27 @@
 
 namespace ck {
 
+template <class... T>
+__host__ __device__ void print_type()
+{
+    static_assert(sizeof...(T) < 0, "Printing type T.");
+}
+
+template <class... T>
+__host__ __device__ void print_type(T&&...)
+{
+    static_assert(sizeof...(T) < 0, "Printing type T.");
+}
+
 using bhalf_t = ushort;
 using half_t  = _Float16;
 using int4_t  = _BitInt(4);
 using f8_t    = _BitInt(8);
 using bf8_t   = unsigned _BitInt(8);
+
+// this is not f4_t x 2 as a vector type, but 2 fp4_t packed in one byte, sub-byte access with
+// vector is not allowed. using packed_f4_t  = _BitInt(8);
+using packed_f4_t = unsigned char; // This the scalar type and must not be used
 
 // vector_type
 template <typename T, index_t N>
@@ -42,7 +58,10 @@ struct vector_type_maker
 template <typename T, index_t N0, index_t N1>
 struct vector_type_maker<T __attribute__((ext_vector_type(N1))), N0>
 {
-    using type = vector_type<T, N0 * N1>;
+    using type = conditional_t<is_same_v<T, packed_f4_t>,
+                               vector_type<T, N0*(N1 * 2)>, //  N1 is the number of bytes, not
+                                                            //  number of elems
+                               vector_type<T, N0 * N1>>;
 };
 
 template <typename T, index_t N0, index_t N1>
@@ -911,6 +930,183 @@ struct vector_type<T, 256>
     }
 };
 
+template <typename T>
+constexpr bool always_false = false;
+
+// f4_t x 1 in 1 bytes is not allowed
+template <>
+struct vector_type<packed_f4_t, 1>
+{
+    using type = packed_f4_t;
+
+    // static_assert(false, "wrong! access subbyte of packed_f4_t is not allowed");
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(always_false<X>, "wrong! access subbyte of packed_f4_t is not allowed");
+    }
+
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(always_false<X>, "wrong! access subbyte of packed_f4_t is not allowed");
+    }
+};
+
+// f4_t x 2 packed in 1 bytes
+template <>
+struct vector_type<packed_f4_t, 2>
+{
+    typedef packed_f4_t d2_t __attribute__((ext_vector_type(1)));
+
+    using type = d2_t;
+
+    union
+    {
+        d2_t d2_;
+        StaticallyIndexedArray<d2_t, 1> d2x1_;
+    } data_;
+
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
+
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
+
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same<X, d2_t>::value, "wrong!");
+
+        if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x1_;
+        }
+    }
+
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(is_same<X, d2_t>::value, "wrong!");
+
+        if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x1_;
+        }
+    }
+};
+
+// f4_t x 4 packed in 2 bytes
+template <>
+struct vector_type<packed_f4_t, 4>
+{
+    typedef packed_f4_t d2_t __attribute__((ext_vector_type(1)));
+    typedef packed_f4_t d4_t __attribute__((ext_vector_type(2)));
+
+    using type = d4_t;
+
+    union
+    {
+        d4_t d4_;
+        StaticallyIndexedArray<d2_t, 2> d2x2_;
+        StaticallyIndexedArray<d4_t, 1> d4x1_;
+    } data_;
+
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
+
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
+
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same<X, d2_t>::value || is_same<X, d4_t>::value, "wrong!");
+
+        if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x2_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x1_;
+        }
+    }
+
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(is_same<X, d2_t>::value || is_same<X, d4_t>::value, "wrong!");
+
+        if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x2_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x1_;
+        }
+    }
+};
+
+template <>
+struct vector_type<packed_f4_t, 8>
+{
+    typedef packed_f4_t d2_t __attribute__((ext_vector_type(1)));
+    typedef packed_f4_t d4_t __attribute__((ext_vector_type(2)));
+    typedef packed_f4_t d8_t __attribute__((ext_vector_type(4)));
+
+    using type = d8_t;
+
+    union
+    {
+        d8_t d8_;
+        StaticallyIndexedArray<d2_t, 4> d2x4_;
+        StaticallyIndexedArray<d4_t, 2> d4x2_;
+        StaticallyIndexedArray<d8_t, 1> d8x1_;
+    } data_;
+
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
+
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
+
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same<X, d2_t>::value || is_same<X, d4_t>::value || is_same<X, d8_t>::value,
+                      "wrong!");
+
+        if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x4_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x2_;
+        }
+        else if constexpr(is_same<X, d8_t>::value)
+        {
+            return data_.d8x1_;
+        }
+    }
+
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(is_same<X, d2_t>::value || is_same<X, d4_t>::value || is_same<X, d8_t>::value,
+                      "wrong!");
+
+        if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x4_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x2_;
+        }
+        else if constexpr(is_same<X, d8_t>::value)
+        {
+            return data_.d8x1_;
+        }
+    }
+};
+
 using int64_t = long;
 
 // fp64
@@ -972,6 +1168,33 @@ using bf8x8_t  = typename vector_type<bf8_t, 8>::type;
 using bf8x16_t = typename vector_type<bf8_t, 16>::type;
 using bf8x32_t = typename vector_type<bf8_t, 32>::type;
 using bf8x64_t = typename vector_type<bf8_t, 64>::type;
+
+using packed_f4x2_t = typename vector_type<packed_f4_t, 2>::type;
+using packed_f4x4_t = typename vector_type<packed_f4_t, 4>::type;
+using packed_f4x8_t = typename vector_type<packed_f4_t, 8>::type;
+// using packed_f4x16_t = typename vector_type<packed_f4_t, 16>::type;
+// using packed_f4x32_t = typename vector_type<packed_f4_t, 32>::type;
+// using packed_f4x64_t = typename vector_type<packed_f4_t, 64>::type;
+
+template <>
+struct scalar_type<packed_f4_t>
+{
+    using type                           = packed_f4_t; // should have been packed_f4x2_t ?
+    static constexpr index_t vector_size = 1;
+};
+
+template <index_t N>
+struct scalar_type<packed_f4_t __attribute__((ext_vector_type(N)))>
+{
+    using type                           = packed_f4_t;
+    static constexpr index_t vector_size = N * 2;
+};
+
+static_assert(is_same_v<packed_f4x8_t, typename vector_type_maker_t<packed_f4_t, 8>::type>);
+static_assert(is_same_v<packed_f4x8_t, typename vector_type_maker_t<packed_f4x2_t, 4>::type>);
+static_assert(is_same_v<packed_f4x8_t, typename vector_type_maker_t<packed_f4x4_t, 2>::type>);
+static_assert(is_same_v<packed_f4x8_t, typename vector_type_maker_t<packed_f4x8_t, 1>::type>);
+
 
 template <typename T>
 struct NumericLimits

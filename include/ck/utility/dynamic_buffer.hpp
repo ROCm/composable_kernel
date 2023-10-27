@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <utility>
+
 #include "ck/ck.hpp"
 #include "ck/utility/data_type.hpp"
 #include "enable_if.hpp"
@@ -11,6 +13,16 @@
 #include "generic_memory_space_atomic.hpp"
 
 namespace ck {
+
+template <typename T>
+using true_base_type_t =
+    std::remove_cv_t<std::remove_reference_t<std::remove_pointer_t<std::remove_reference_t<T>>>>;
+
+template <typename T>
+using maybe_prompt_fp4x2_t =
+    std::conditional_t<std::is_same_v<true_base_type_t<T>, packed_f4_t>,
+                       std::conditional_t<std::is_const_v<T>, const packed_f4x2_t, packed_f4x2_t>,
+                       T>;
 
 // T may be scalar or vector
 // X may be scalar or vector
@@ -23,7 +35,7 @@ template <AddressSpaceEnum BufferAddressSpace,
           AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
 struct DynamicBuffer
 {
-    using type = T;
+    using type = maybe_prompt_fp4x2_t<T>;
 
     T* p_data_;
     ElementSpaceSize element_space_size_;
@@ -48,9 +60,35 @@ struct DynamicBuffer
         return BufferAddressSpace;
     }
 
-    __host__ __device__ constexpr const T& operator[](index_t i) const { return p_data_[i]; }
+    __host__ __device__ constexpr const type& operator[](index_t i) const
+    {
+        static_assert(!std::is_same_v<true_base_type_t<type>, packed_f4_t>,
+                      "packed_f4_t sub-byte access is not allowed");
+        if constexpr(std::is_same_v<true_base_type_t<type>, packed_f4_t>)
+            static_assert(always_false<T>, "packed_f4_t sub-byte access is not allowed");
+        if constexpr(std::is_same_v<true_base_type_t<type>, packed_f4x2_t>)
+        {
+            return p_data_[i / 2];
+        }
+        else
+        {
+            return p_data_[i];
+        }
+    }
 
-    __host__ __device__ constexpr T& operator()(index_t i) { return p_data_[i]; }
+    __host__ __device__ constexpr type& operator()(index_t i)
+    {
+        static_assert(!std::is_same_v<true_base_type_t<type>, packed_f4_t>,
+                      "packed_f4_t sub-byte access is not allowed");
+        if constexpr(std::is_same_v<true_base_type_t<type>, packed_f4x2_t>)
+        {
+            return p_data_[i / 2];
+        }
+        else
+        {
+            return p_data_[i];
+        }
+    }
 
     template <typename X,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
@@ -75,6 +113,9 @@ struct DynamicBuffer
         if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing)
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+
+            // print_type<T, X>();
+            // print_type(Number<t_per_x>{}, Number<scalar_per_t_vector>{}, Number<scalar_per_x_vector>{});
 
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
