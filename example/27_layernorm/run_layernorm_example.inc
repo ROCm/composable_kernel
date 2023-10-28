@@ -8,8 +8,8 @@ int run_groupnorm_example()
 {
     bool time_kernel = false;
 
-    ck::index_t M      = 1024;
-    ck::index_t N      = 1024;
+    ck::index_t M = 1024;
+    ck::index_t N = 1024;
 
     Tensor<XDataType> x({M, N});
     Tensor<GammaDataType> gamma({N});
@@ -44,9 +44,9 @@ int run_groupnorm_example()
         {0, 1},
         std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{save_mean.mDesc.GetStrides().begin(),
-                                    save_mean.mDesc.GetStrides().end()},
+                                 save_mean.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{save_mean.mDesc.GetStrides().begin(),
-                                    save_mean.mDesc.GetStrides().end()},
+                                 save_mean.mDesc.GetStrides().end()},
         {1},
         1e-4,
         x_dev.GetDeviceBuffer(),
