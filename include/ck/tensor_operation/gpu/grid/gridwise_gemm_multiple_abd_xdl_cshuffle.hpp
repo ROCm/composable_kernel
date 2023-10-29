@@ -956,22 +956,22 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
               typename DsLayout,
               typename ELayout,
               typename Block2ETileMap>
-    __device__ static void Run2(AsGridPointer p_as_grid,
-                                BsGridPointer p_bs_grid,
-                                DsGridPointer p_ds_grid,
-                                void* __restrict__ p_e_grid_,
-                                void* __restrict__ p_shared,
-                                const AElementwiseOperation& a_element_op,
-                                const BElementwiseOperation& b_element_op,
-                                const CDEElementwiseOperation& cde_element_op,
-                                const index_t M,
-                                const index_t N,
-                                const index_t K,
-                                const std::array<index_t, NumATensor> StrideAs,
-                                const std::array<index_t, NumBTensor> StrideBs,
-                                const std::array<index_t, NumDTensor> StrideDs,
-                                const index_t StrideE,
-                                const Block2ETileMap& block_2_etile_map)
+    __device__ static void Run(AsGridPointer p_as_grid,
+                               BsGridPointer p_bs_grid,
+                               DsGridPointer p_ds_grid,
+                               void* __restrict__ p_e_grid_,
+                               void* __restrict__ p_shared,
+                               const AElementwiseOperation& a_element_op,
+                               const BElementwiseOperation& b_element_op,
+                               const CDEElementwiseOperation& cde_element_op,
+                               const index_t M,
+                               const index_t N,
+                               const index_t K,
+                               const std::array<index_t, NumATensor> StrideAs,
+                               const std::array<index_t, NumBTensor> StrideBs,
+                               const std::array<index_t, NumDTensor> StrideDs,
+                               const index_t StrideE,
+                               const Block2ETileMap& block_2_etile_map)
     {
         using AsGridDesc_M_K =
             remove_cvref_t<decltype(MakeAsGridDescriptor_M_K<AsLayout, GemmSpec>({}, {}, {}))>;

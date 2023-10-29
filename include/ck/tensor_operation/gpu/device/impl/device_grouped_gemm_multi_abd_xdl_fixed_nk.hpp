@@ -123,7 +123,7 @@ __global__ void
         ignore = barrier_count_finished;
 
         GridwiseGemm::
-            template Run2<HasMainKBlockLoop, GemmSpec, AsLayout, BsLayout, DsLayout, ELayout>(
+            template Run<HasMainKBlockLoop, GemmSpec, AsLayout, BsLayout, DsLayout, ELayout>(
                 p_as_grid_,
                 p_bs_grid_,
                 p_ds_grid_,
