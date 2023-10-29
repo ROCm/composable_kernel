@@ -24,8 +24,6 @@ class TestTranspose : public testing::Test
     using F32 = float;
 
     protected:
-    // using ALayout   = std::tuple_element_t<0, Tuple>;
-    // using BLayout   = std::tuple_element_t<1, Tuple>;
     using ADataType = std::tuple_element_t<0, Tuple>;
     using BDataType = std::tuple_element_t<1, Tuple>;
 
@@ -42,7 +40,7 @@ class TestTranspose : public testing::Test
 
     void RunSingle(const int N, const int C, const int D, const int H, const int W)
     {
-        bool pass = ck::profiler::profile_transpose_impl<ADataType, BDataType, >(
+        bool pass = ck::profiler::profile_transpose_impl<ADataType, BDataType, 5>(
             verify_, init_method_, log_, bench_, N, C, D, H, W);
         EXPECT_TRUE(pass);
     }

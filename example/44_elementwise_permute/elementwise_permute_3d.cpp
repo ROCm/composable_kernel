@@ -50,14 +50,20 @@ int main()
     bool do_verification = true;
     bool time_kernel     = true;
 
-    const int N = 4;
+    /**const int N = 4;
     const int C = 16;
     const int H = 32;
     const int W = 5;
-    const int D = 16;
+    const int D = 16;**/
 
-    std::vector<std::size_t> ncdhw = {N, C, D, H, W};
-    std::vector<std::size_t> nchwd = {N, C, H, W, D};
+    ck::index_t N = 4;
+    ck::index_t C = 16;
+    ck::index_t H = 32;
+    ck::index_t W = 5;
+    ck::index_t D = 16;
+
+    std::vector<ck::index_t> ncdhw = {N, C, D, H, W};
+    std::vector<ck::index_t> nchwd = {N, C, H, W, D};
     Tensor<ADataType> a(ncdhw);
     Tensor<BDataType> b(nchwd);
 

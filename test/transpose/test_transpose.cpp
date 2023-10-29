@@ -5,19 +5,13 @@
 
 #include "gtest/gtest.h"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "test_tranpose_util.hpp"
+#include "test_transpose_util.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
 
-enum struct MatrixLayout
-{
-    NCDHW, // 0
-    NCHWD, // 1
-};
-
 template <typename Tuple>
-class TestTranspose : public ck::test::TestTranspose<typename MatrixLayout<NCDHW>::type>
+class TestTranspose : public ck::test::TestTranspose<Tuple>
 {
 };
 
@@ -28,6 +22,6 @@ using KernelTypes = ::testing::Types<
     >;
 // clang-format on
 
-TYPED_TEST_SUITE(TestGemmSplitK_MK_KN, KernelTypes);
+TYPED_TEST_SUITE(TestTranspose, KernelTypes);
 
 //#include "test_transpose_ut_cases.inc"

@@ -9,43 +9,55 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_splitk.hpp"
+#include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_3d_impl.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/gemm_splitk.hpp"
+#include "ck/library/tensor_operation_instance/gpu/transpose_3d.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
 namespace profiler {
 
-template <typename ADataType, typename BDataType>
-bool profile_gemm_splitk_impl(int do_verification,
-                              int init_method,
-                              bool do_log,
-                              bool time_kernel,
-                              int N,
-                              int C,
-                              int D,
-                              int H,
-                              int W)
+template <typename HostTensorA, typename HostTensorB, typename Functor>
+void host_elementwise4D(HostTensorB& B_nchwd, const HostTensorA& A_ncdhw, Functor functor)
+{
+    for(std::size_t n = 0; n < A_ncdhw.mDesc.GetLengths()[0]; ++n)
+        for(std::size_t c = 0; c < A_ncdhw.mDesc.GetLengths()[1]; ++c)
+            for(std::size_t d = 0; d < A_ncdhw.mDesc.GetLengths()[2]; ++d)
+                for(std::size_t h = 0; h < A_ncdhw.mDesc.GetLengths()[3]; ++h)
+                    for(std::size_t w = 0; w < A_ncdhw.mDesc.GetLengths()[4]; ++w)
+                    {
+                        auto a_val = A_ncdhw(n, c, d, h, w);
+                        functor(B_nchwd(n, c, h, w, d), a_val);
+                    }
+}
+
+template <typename ADataType, typename BDataType, index_t NumDim>
+bool profile_transpose_impl(int do_verification,
+                            int init_method,
+                            bool do_log,
+                            bool time_kernel,
+                            ck::index_t N,
+                            ck::index_t C,
+                            ck::index_t D,
+                            ck::index_t H,
+                            ck::index_t W)
 {
     bool pass = true;
 
-    std::vector<std::size_t> ncdhw = {N, C, D, H, W};
-    std::vector<std::size_t> ndhwc = {N, D, H, W, C};
+    std::vector<ck::index_t> ncdhw = {N, C, D, H, W};
+    std::vector<ck::index_t> ndhwc = {N, D, H, W, C};
     Tensor<ADataType> a(ncdhw);
     Tensor<BDataType> b(ndhwc);
+    Tensor<BDataType> host_b(ndhwc);
 
     // a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-
-    std::array<const void*, 1> input = {a_device_buf.GetDeviceBuffer()};
-    std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
 
     std::array<ck::index_t, 5> ab_lengths{N, C, H, W, D};
     std::array<ck::index_t, 5> a_strides = {C * D * H * W, H * W, W, 1, D * H * W}; // N, C, D, H, W
@@ -63,25 +75,17 @@ bool profile_gemm_splitk_impl(int do_verification,
 
     using ElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-    const auto element_op = ElementOp{};
+    // const auto element_op = ElementOp{};
 
     DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a.mData.data());
 
-    using DeviceOp =
-        ck::tensor_operation::device::DeviceElementwise3dImpl<ck::Tuple<ADataType>,
-                                                              ck::Tuple<BDataType>,
-                                                              ElementOp,
-                                                              NumDim_m,
-                                                              NumDim_n,
-                                                              NumDim_k,
-                                                              MPerThread,
-                                                              NPerThread,
-                                                              KPerThread,
-                                                              ck::Sequence<InScalarPerVector>,
-                                                              ck::Sequence<OutScalarPerVector>>;
+    std::array<const void*, 1> input = {a_device_buf.GetDeviceBuffer()};
+    std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
+    using DeviceOp                   = ck::tensor_operation::device::
+        DeviceElementwise<ck::Tuple<ADataType>, ck::Tuple<BDataType>, ElementOp, NumDim>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -91,19 +95,7 @@ bool profile_gemm_splitk_impl(int do_verification,
 
     if(do_verification)
     {
-        using ReferenceTransposeInstance = ck::tensor_operation::host::ReferenceTranspose
-                                           << ck::Tuple<ADataType>,
-              ck::Tuple<BDataType>, ElementOp, NumDim_m, NumDim_n, NumDim_k, MPerThread, NPerThread,
-              KPerThread, ck::Sequence<InScalarPerVector>, ck::Sequence<OutScalarPerVector> > ;
-
-        auto ref_transpose = ReferenceTransposeInstance{};
-        auto ref_invoker   = ref_transpose.MakeInvoker();
-
-        auto ref_argument =
-            ref_transpose
-                .MakeArgument(ab_lengths, {a_strides}, {b_strides}, input, output, element_op{})
-
-                    ref_invoker.Run(ref_argument);
+        host_elementwise4D(host_b, a, ElementOp{});
     }
 
     std::string best_op_name;
@@ -114,7 +106,7 @@ bool profile_gemm_splitk_impl(int do_verification,
     for(auto& op_ptr : op_ptrs)
     {
         auto argument_ptr = op_ptr->MakeArgumentPointer(
-            ab_lengths, {a_strides}, {b_strides}, input, output, element_op{});
+            ab_lengths, {a_strides}, {b_strides}, input, output, ElementOp{});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -128,9 +120,11 @@ bool profile_gemm_splitk_impl(int do_verification,
 
             if(do_verification)
             {
-                b_device_buf.FromDevice(b_device_result.mData.data());
+                b_device_buf.FromDevice(b.mData.data());
 
-                pass = pass & ck::utils::check_err(b_device_result, b_host_result);
+                // pass = pass & ck::utils::check_err(b_device_result, b_host_result);
+                pass &= ck::utils::check_err(
+                    b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
 
                 if(do_log)
                 {
@@ -158,7 +152,9 @@ bool profile_gemm_splitk_impl(int do_verification,
             std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
                       << gb_per_sec << " GB/s, " << op_name << std::endl;
 
-            pass = pass & ck::utils::check_err(b_device_result, b_host_result);
+            // pass = pass & ck::utils::check_err(b_device_result, b_host_result);
+            pass &= ck::utils::check_err(
+                b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
 
             if(tflops > best_tflops)
             {
@@ -173,22 +169,12 @@ bool profile_gemm_splitk_impl(int do_verification,
             std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
         }
     }
-}
 
-if constexpr(is_same<BDataType, float>::value)
-{
-    std::cout << "Best Perf for datatype = f32";
-}
-else if constexpr(is_same<BDataType, half_t>::value)
-{
-    std::cout << "Best Perf for datatype = f16";
-}
+    std::cout << " N = " << N << " C = " << C << " D = " << D << " H = " << H << " W = " << W
+              << " : " << best_ave_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec
+              << " GB/s, " << best_op_name << std::endl;
 
-std::cout << " N = " << N << " C = " << C << " D = " << D << " H = " << H << " W = " << W << " : "
-          << best_ave_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
-          << best_op_name << std::endl;
-
-return pass;
+    return pass;
 }
 
 } // namespace profiler
