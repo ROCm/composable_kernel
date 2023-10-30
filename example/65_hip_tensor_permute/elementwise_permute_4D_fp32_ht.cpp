@@ -19,16 +19,15 @@ using BDataType = F32;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using UnaryOp     = ck::tensor_operation::element_wise::UnarySquare;
-// ck::index_t scalar_mult = 2;
-
+using Scale       = ck::tensor_operation::element_wise::Scale;
 using DeviceElementwisePermuteInstance =
     ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ADataType>, // InDataTypeTuple
                                                         ck::Tuple<BDataType>, // OutDataTypeTuple
                                                         PassThrough,          // ElementwiseOp
                                                         UnaryOp,              // UnaryOp
+                                                        Scale,                // Scalar
                                                         4,                    // NumDim
                                                         8,                    // MPerThread
-                                                        2,                    // ScalarMult (alpha)
                                                         ck::Sequence<8>,  // InScalarPerVectorSeq
                                                         ck::Sequence<1>>; // OutScalarPerVectorSeq
 
@@ -36,7 +35,8 @@ template <typename HostTensorA, typename HostTensorB, typename FunctorA, typenam
 void host_elementwise4D(HostTensorB& B_nhwc,
                         const HostTensorA& A_nchw,
                         FunctorA functor_a,
-                        FunctorB functor_b)
+                        FunctorB functor_b,
+                        float scale)
 {
     for(std::size_t n = 0; n < A_nchw.mDesc.GetLengths()[0]; ++n)
         for(std::size_t c = 0; c < A_nchw.mDesc.GetLengths()[1]; ++c)
@@ -46,7 +46,7 @@ void host_elementwise4D(HostTensorB& B_nhwc,
                     ADataType tmp_val;
                     auto a_val = A_nchw(n, c, h, w);
                     functor_b(tmp_val, a_val);
-                    functor_a(B_nhwc(n, h, w, c), 2 * tmp_val);
+                    functor_a(B_nhwc(n, h, w, c), scale * tmp_val);
                 }
 }
 
@@ -59,7 +59,7 @@ int main()
     std::vector<std::size_t> nhwc = {16, 32, 64, 128};
     Tensor<ADataType> a(nchw);
     Tensor<BDataType> b(nhwc);
-
+    float scale = 2.f;
     a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
 
     DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
@@ -83,8 +83,14 @@ int main()
     ck::ranges::copy(nchw, ab_lengths.begin());
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
-    auto argument         = broadcastPermute.MakeArgumentPointer(
-        ab_lengths, {a_strides}, {b_strides}, input, output, PassThrough{}, UnaryOp{});
+    auto argument         = broadcastPermute.MakeArgumentPointer(ab_lengths,
+                                                         {a_strides},
+                                                         {b_strides},
+                                                         input,
+                                                         output,
+                                                         PassThrough{},
+                                                         UnaryOp{},
+                                                         Scale{scale});
 
     if(!broadcastPermute.IsSupportedArgument(argument.get()))
     {
@@ -116,7 +122,7 @@ int main()
     {
         b_device_buf.FromDevice(b.mData.data());
         Tensor<BDataType> host_b(nhwc);
-        host_elementwise4D(host_b, a, PassThrough{}, UnaryOp{});
+        host_elementwise4D(host_b, a, PassThrough{}, UnaryOp{}, scale);
 
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);

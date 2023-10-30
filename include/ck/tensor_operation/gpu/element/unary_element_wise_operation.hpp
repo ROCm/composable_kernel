@@ -226,6 +226,12 @@ struct Scale
     __host__ __device__ void operator()(Y& y, const X& x) const;
 
     template <>
+    __host__ __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
+    {
+        y = scale_ * x;
+    };
+
+    template <>
     __host__ __device__ void operator()<float, float>(float& y, const float& x) const
     {
         y = scale_ * x;
