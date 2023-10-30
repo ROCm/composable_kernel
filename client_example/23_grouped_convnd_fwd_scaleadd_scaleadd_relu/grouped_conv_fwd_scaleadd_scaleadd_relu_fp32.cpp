@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <tuple>
+
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/tuple.hpp"
-#include <tuple>
 
 using InDataType  = float;
 using WeiDataType = float;
