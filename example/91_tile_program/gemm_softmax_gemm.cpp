@@ -69,13 +69,13 @@ int main(int argc, char* argv[])
     Tensor<ODataType> o_host_dev(o_lengths, o_strides);
 
 #if 0
-    ck::utils::FillUniformDistributionIntegerValue<QDataType>{-3.f, 3.f}(q_host);
-    ck::utils::FillUniformDistributionIntegerValue<KDataType>{-3.f, 3.f}(k_host);
-    ck::utils::FillUniformDistributionIntegerValue<VDataType>{-3.f, 3.f}(v_host);
+    ck::utils::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f}(q_host);
+    ck::utils::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f}(k_host);
+    ck::utils::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f}(v_host);
 #else
-    ck::utils::FillUniformDistribution<QDataType>{-3.f, 3.f}(q_host);
-    ck::utils::FillUniformDistribution<KDataType>{-3.f, 3.f}(k_host);
-    ck::utils::FillUniformDistribution<VDataType>{-3.f, 3.f}(v_host);
+    ck::utils::FillUniformDistribution<QDataType>{-2.f, 2.f}(q_host);
+    ck::utils::FillUniformDistribution<KDataType>{-2.f, 2.f}(k_host);
+    ck::utils::FillUniformDistribution<VDataType>{-2.f, 2.f}(v_host);
 #endif
 
     // reference
