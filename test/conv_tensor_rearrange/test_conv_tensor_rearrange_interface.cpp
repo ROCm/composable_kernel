@@ -71,13 +71,13 @@ class TestConvTensorRearrangeInterface : public ::testing::Test
         const auto image_desc =
             ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ImLayout>(
                 conv_param);
-        const auto gemm_desc = HostTensorDescriptor({NDoHoWo, CZYX});
+        const auto gemm_desc = HostTensorDescriptor({G, NDoHoWo, CZYX});
 
         std::array<ck::index_t, NDimSpatial> input_spatial_lengths{};
         std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
         std::array<ck::index_t, NDimSpatial> output_spatial_lengths{};
         std::array<ck::index_t, NDimSpatial + 3> input_g_n_c_wis_strides{};
-        std::array<ck::index_t, 2> output_m_k_strides{};
+        std::array<ck::index_t, 3> output_g_m_k_strides{};
         std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
         std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
         std::array<ck::index_t, NDimSpatial> input_left_pads{};
@@ -89,7 +89,7 @@ class TestConvTensorRearrangeInterface : public ::testing::Test
         copy(conv_param.filter_spatial_lengths_, filter_spatial_lengths);
         copy(conv_param.output_spatial_lengths_, output_spatial_lengths);
         copy(image_desc.GetStrides(), input_g_n_c_wis_strides);
-        copy(gemm_desc.GetStrides(), output_m_k_strides);
+        copy(gemm_desc.GetStrides(), output_g_m_k_strides);
         copy(conv_param.conv_filter_strides_, conv_filter_strides);
         copy(conv_param.conv_filter_dilations_, conv_filter_dilations);
         copy(conv_param.input_left_pads_, input_left_pads);
@@ -107,7 +107,7 @@ class TestConvTensorRearrangeInterface : public ::testing::Test
                                                  filter_spatial_lengths,
                                                  output_spatial_lengths,
                                                  input_g_n_c_wis_strides,
-                                                 output_m_k_strides,
+                                                 output_g_m_k_strides,
                                                  conv_filter_strides,
                                                  conv_filter_dilations,
                                                  input_left_pads,
@@ -127,7 +127,7 @@ class TestConvTensorRearrangeInterface : public ::testing::Test
                                                  filter_spatial_lengths,
                                                  output_spatial_lengths,
                                                  input_g_n_c_wis_strides,
-                                                 output_m_k_strides,
+                                                 output_g_m_k_strides,
                                                  conv_filter_strides,
                                                  conv_filter_dilations,
                                                  input_left_pads,

@@ -92,9 +92,8 @@ struct ReferenceImageToColumn : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
-            using namespace ck::tensor_layout::convolution;
             if(!(arg.input_.GetNumOfDimension() == NDimSpatial + 3 &&
-                 arg.output_.GetNumOfDimension() == 2))
+                 arg.output_.GetNumOfDimension() == 3))
             {
                 throw std::runtime_error("wrong! inconsistent dimension");
             }
@@ -107,16 +106,8 @@ struct ReferenceImageToColumn : public device::BaseOperator
             {
                 const index_t Wo = arg.output_spatial_lengths_[0];
                 auto func        = [&](auto g, auto n, auto wo) {
-                    index_t row    = 0;
+                    index_t row    = n * Wo + wo;
                     index_t column = 0;
-                    if constexpr(std::is_same_v<ImageLayout, GNWC>)
-                    {
-                        row = g * N * Wo + n * Wo + wo;
-                    }
-                    else if constexpr(std::is_same_v<ImageLayout, NWGC>)
-                    {
-                        row = n * Wo * G + wo * G + g;
-                    }
 
                     for(index_t x = 0; x < arg.filter_spatial_lengths_[0]; ++x)
                     {
@@ -129,8 +120,8 @@ struct ReferenceImageToColumn : public device::BaseOperator
                             if(wi >= 0 &&
                                ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[3])
                             {
-                                InDataType v_in          = arg.input_(g, n, c, wi);
-                                arg.output_(row, column) = ck::type_convert<OutDataType>(v_in);
+                                InDataType v_in             = arg.input_(g, n, c, wi);
+                                arg.output_(g, row, column) = ck::type_convert<OutDataType>(v_in);
                             }
                             column++;
                         }
@@ -147,16 +138,8 @@ struct ReferenceImageToColumn : public device::BaseOperator
                 const index_t Wo = arg.output_spatial_lengths_[1];
 
                 auto func = [&](auto g, auto n, auto ho, auto wo) {
-                    index_t row    = 0;
+                    index_t row    = n * Ho * Wo + ho * Wo + wo;
                     index_t column = 0;
-                    if constexpr(std::is_same_v<ImageLayout, GNHWC>)
-                    {
-                        row = g * N * Ho * Wo + n * Ho * Wo + ho * Wo + wo;
-                    }
-                    else if constexpr(std::is_same_v<ImageLayout, NHWGC>)
-                    {
-                        row = n * Ho * Wo * G + ho * Wo * G + wo * G + g;
-                    }
 
                     for(index_t y = 0; y < arg.filter_spatial_lengths_[0]; ++y)
                     {
@@ -178,8 +161,9 @@ struct ReferenceImageToColumn : public device::BaseOperator
                                    wi >= 0 &&
                                    ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[4])
                                 {
-                                    InDataType v_in          = arg.input_(g, n, c, hi, wi);
-                                    arg.output_(row, column) = ck::type_convert<OutDataType>(v_in);
+                                    InDataType v_in = arg.input_(g, n, c, hi, wi);
+                                    arg.output_(g, row, column) =
+                                        ck::type_convert<OutDataType>(v_in);
                                 }
                                 column++;
                             }
@@ -198,17 +182,8 @@ struct ReferenceImageToColumn : public device::BaseOperator
                 const index_t Wo = arg.output_spatial_lengths_[2];
 
                 auto func = [&](auto g, auto n, auto d_o, auto ho, auto wo) {
-                    index_t row    = 0;
+                    index_t row    = n * Do * Ho * Wo + d_o * Ho * Wo + ho * Wo + wo;
                     index_t column = 0;
-                    if constexpr(std::is_same_v<ImageLayout, GNDHWC>)
-                    {
-                        row =
-                            g * N * Do * Ho * Wo + n * Do * Ho * Wo + d_o * Ho * Wo + ho * Wo + wo;
-                    }
-                    else if constexpr(std::is_same_v<ImageLayout, NDHWGC>)
-                    {
-                        row = n * Do * Ho * Wo * G + d_o * Ho * Wo * G + ho * Wo * G + wo * G + g;
-                    }
 
                     for(index_t z = 0; z < arg.filter_spatial_lengths_[0]; ++z)
                     {
@@ -239,7 +214,7 @@ struct ReferenceImageToColumn : public device::BaseOperator
                                            arg.input_.GetLengths()[5])
                                     {
                                         InDataType v_in = arg.input_(g, n, c, di, hi, wi);
-                                        arg.output_(row, column) =
+                                        arg.output_(g, row, column) =
                                             ck::type_convert<OutDataType>(v_in);
                                     }
                                     column++;
@@ -292,8 +267,9 @@ struct ReferenceImageToColumn : public device::BaseOperator
             C * ck::accumulate_n<index_t>(
                     arg.filter_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
 
-        if(!(arg.output_.GetLengths()[0] == static_cast<std::size_t>(NDoHoWo) &&
-             arg.output_.GetLengths()[1] == static_cast<std::size_t>(CZYX)))
+        if(!(arg.output_.GetLengths()[0] == static_cast<std::size_t>(G) &&
+             arg.output_.GetLengths()[1] == static_cast<std::size_t>(NDoHoWo) &&
+             arg.output_.GetLengths()[2] == static_cast<std::size_t>(CZYX)))
         {
             return false;
         }

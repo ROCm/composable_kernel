@@ -25,9 +25,9 @@ namespace tensor_operation {
 namespace device {
 
 // Column to Image:
-//   input : gemm form [G * N * Do * Ho * Wo, Z * Y * X * C]
+//   input : gemm form [G, N * Do * Ho * Wo, Z * Y * X * C]
 //   output : input image [G, N, Di, Hi, Wi, C]
-//   input : gemm form [N * Do * Ho * Wo * G, Z * Y * X * C]
+//   input : gemm form [N * Do * Ho * Wo, G, Z * Y * X * C]
 //   output : input image [N, Di, Hi, Wi, G, C]
 template <index_t NDimSpatial,
           typename ImageLayout,
@@ -96,13 +96,12 @@ struct DeviceColumnToImageImpl
 
     // Make column form descriptor
     static auto
-    MakeInputDescriptor_M_K(const ck::index_t G,
-                            const ck::index_t N,
+    MakeInputDescriptor_M_K(const ck::index_t N,
                             const ck::index_t C,
                             const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
                             const std::array<index_t, NDimSpatial>& output_spatial_lengths,
                             const std::array<index_t, NDimSpatial>& conv_filter_strides,
-                            const std::array<index_t, 2>& gemm_m_k_strides,
+                            const std::array<index_t, 3>& gemm_g_m_k_strides,
                             const std::array<index_t, NDimSpatial>& independent_filters,
                             const std::array<index_t, NDimSpatial>& effs)
     {
@@ -112,26 +111,23 @@ struct DeviceColumnToImageImpl
             C * ck::accumulate_n<index_t>(
                     filter_spatial_lengths.begin(), NDimSpatial, 1, std::multiplies<>());
 
-        const index_t AdditionalGroupStride = is_NSpatialGC ? G : 1;
-        const index_t NStride =
-            DoHoWo * gemm_m_k_strides[I0] * gemm_m_k_strides[I1] * AdditionalGroupStride;
+        const index_t NStride = DoHoWo * gemm_g_m_k_strides[I1] * gemm_g_m_k_strides[I2];
         // Calculate the appropriate stride for each set of independent filters
         // in each dimension
         const index_t WStride = math::integer_divide_ceil(effs[XIdx], conv_filter_strides[XIdx]) *
-                                gemm_m_k_strides[I0] * AdditionalGroupStride;
+                                gemm_g_m_k_strides[I1];
         const index_t HStride = math::integer_divide_ceil(effs[YIdx], conv_filter_strides[YIdx]) *
-                                output_spatial_lengths[XIdx] * gemm_m_k_strides[I0] *
-                                AdditionalGroupStride;
+                                output_spatial_lengths[XIdx] * gemm_g_m_k_strides[I1];
         const index_t DStride = math::integer_divide_ceil(effs[ZIdx], conv_filter_strides[ZIdx]) *
                                 output_spatial_lengths[YIdx] * output_spatial_lengths[XIdx] *
-                                gemm_m_k_strides[I0] * AdditionalGroupStride;
+                                gemm_g_m_k_strides[I1];
         // Create descriptor for independent filters in each dimension and
         // then merge them into column form
         if constexpr(NDimSpatial == 1)
         {
             const auto desc_gemm_form =
                 make_naive_tensor_descriptor(make_tuple(N, independent_filters[XIdx], CZYX),
-                                             make_tuple(NStride, WStride, gemm_m_k_strides[I1]));
+                                             make_tuple(NStride, WStride, gemm_g_m_k_strides[I2]));
             const auto desc_gemm_form_merged_filters = transform_tensor_descriptor(
                 desc_gemm_form,
                 make_tuple(make_merge_transform(make_tuple(N, independent_filters[XIdx])),
@@ -145,7 +141,7 @@ struct DeviceColumnToImageImpl
         {
             const auto desc_gemm_form = make_naive_tensor_descriptor(
                 make_tuple(N, independent_filters[YIdx], independent_filters[XIdx], CZYX),
-                make_tuple(NStride, HStride, WStride, gemm_m_k_strides[I1]));
+                make_tuple(NStride, HStride, WStride, gemm_g_m_k_strides[I2]));
             const auto desc_gemm_form_merged_filters = transform_tensor_descriptor(
                 desc_gemm_form,
                 make_tuple(make_merge_transform(
@@ -164,7 +160,7 @@ struct DeviceColumnToImageImpl
                            independent_filters[YIdx],
                            independent_filters[XIdx],
                            CZYX),
-                make_tuple(NStride, DStride, HStride, WStride, gemm_m_k_strides[I1]));
+                make_tuple(NStride, DStride, HStride, WStride, gemm_g_m_k_strides[I2]));
             const auto desc_gemm_form_merged_filters = transform_tensor_descriptor(
                 desc_gemm_form,
                 make_tuple(make_merge_transform(make_tuple(N,
@@ -259,7 +255,7 @@ struct DeviceColumnToImageImpl
     }
 
     using InputGridDesc =
-        remove_cvref_t<decltype(MakeInputDescriptor_M_K(1, 1, 1, {}, {}, {}, {}, {}, {}))>;
+        remove_cvref_t<decltype(MakeInputDescriptor_M_K(1, 1, {}, {}, {}, {}, {}, {}))>;
     using OutputGridDesc = remove_cvref_t<decltype(MakeOutDescriptor_M_K(
         1, 1, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}))>;
 
@@ -292,7 +288,7 @@ struct DeviceColumnToImageImpl
                  const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
                  const std::array<index_t, NDimSpatial>& output_spatial_lengths,
                  const std::array<index_t, NDimSpatial + 3>& image_g_n_c_wis_strides,
-                 const std::array<index_t, 2>& gemm_m_k_strides,
+                 const std::array<index_t, 3>& gemm_g_m_k_strides,
                  const std::array<index_t, NDimSpatial>& conv_filter_strides,
                  const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                  const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -308,21 +304,7 @@ struct DeviceColumnToImageImpl
               input_left_pads_{input_left_pads},
               input_right_pads_{input_right_pads}
         {
-            using namespace tensor_layout::convolution;
-            if constexpr(is_NSpatialGC)
-            {
-                compute_ptr_offset_of_batch_.BatchStrideA_ =
-                    gemm_m_k_strides[I0] * gemm_m_k_strides[I1];
-            }
-            else if constexpr(is_GNSpatialC)
-            {
-                const index_t NDoHoWo =
-                    N * ck::accumulate_n<index_t>(
-                            output_spatial_lengths.begin(), NDimSpatial, 1, std::multiplies<>());
-                compute_ptr_offset_of_batch_.BatchStrideA_ =
-                    NDoHoWo * gemm_m_k_strides[I0] * gemm_m_k_strides[I1];
-            }
-
+            compute_ptr_offset_of_batch_.BatchStrideA_ = gemm_g_m_k_strides[I0];
             compute_ptr_offset_of_batch_.BatchStrideC_ = image_g_n_c_wis_strides[I0];
 
             const index_t x_eff =
@@ -385,13 +367,12 @@ struct DeviceColumnToImageImpl
                             continue;
 
                         const auto in_grid_desc_m_k =
-                            MakeInputDescriptor_M_K(G,
-                                                    N,
+                            MakeInputDescriptor_M_K(N,
                                                     C,
                                                     filter_spatial_lengths,
                                                     output_spatial_lengths,
                                                     conv_filter_strides,
-                                                    gemm_m_k_strides,
+                                                    gemm_g_m_k_strides,
                                                     independent_filters,
                                                     effs);
                         const auto out_grid_desc_m_k =
@@ -421,13 +402,12 @@ struct DeviceColumnToImageImpl
                         const index_t z_offset_with_pad =
                             math::max(0, z_img_offset - input_left_pads[ZIdx]);
 
-                        const index_t AdditionalGroupStride = is_NSpatialGC ? G : 1;
                         // Memory offsets to next set of independent filters,
                         // move to independent filters in each dimension
                         const index_t in_offset =
                             (x_idx + y_idx * output_spatial_lengths[XIdx] +
                              z_idx * output_spatial_lengths[YIdx] * output_spatial_lengths[XIdx]) *
-                            gemm_m_k_strides[0] * AdditionalGroupStride;
+                            gemm_g_m_k_strides[I1];
                         // Move to independent filters in appropriate dimensions
                         const index_t out_offset =
                             x_offset_with_pad * image_g_n_c_wis_strides[spatial_offset + XIdx] +
@@ -583,7 +563,7 @@ struct DeviceColumnToImageImpl
                              const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
                              const std::array<index_t, NDimSpatial>& output_spatial_lengths,
                              const std::array<index_t, NDimSpatial + 3>& image_g_n_c_wis_strides,
-                             const std::array<index_t, 2>& gemm_m_k_strides,
+                             const std::array<index_t, 3>& gemm_g_m_k_strides,
                              const std::array<index_t, NDimSpatial>& conv_filter_strides,
                              const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                              const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -598,7 +578,7 @@ struct DeviceColumnToImageImpl
                         filter_spatial_lengths,
                         output_spatial_lengths,
                         image_g_n_c_wis_strides,
-                        gemm_m_k_strides,
+                        gemm_g_m_k_strides,
                         conv_filter_strides,
                         conv_filter_dilations,
                         input_left_pads,
@@ -617,7 +597,7 @@ struct DeviceColumnToImageImpl
                         const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
                         const std::array<index_t, NDimSpatial>& output_spatial_lengths,
                         const std::array<index_t, NDimSpatial + 3>& image_g_n_c_wis_strides,
-                        const std::array<index_t, 2>& gemm_m_k_strides,
+                        const std::array<index_t, 3>& gemm_g_m_k_strides,
                         const std::array<index_t, NDimSpatial>& conv_filter_strides,
                         const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                         const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -632,7 +612,7 @@ struct DeviceColumnToImageImpl
                                           filter_spatial_lengths,
                                           output_spatial_lengths,
                                           image_g_n_c_wis_strides,
-                                          gemm_m_k_strides,
+                                          gemm_g_m_k_strides,
                                           conv_filter_strides,
                                           conv_filter_dilations,
                                           input_left_pads,

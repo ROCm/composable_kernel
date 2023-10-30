@@ -93,6 +93,26 @@ static auto make_ref_op()
     }
 }
 
+template <typename InputLayout>
+static auto create_gemm_desc(const ck::index_t G, const ck::index_t NDoHoWo, const ck::index_t CZYX)
+{
+    using namespace ck::tensor_layout::convolution;
+    if constexpr(std::is_same_v<InputLayout, GNWC> || std::is_same_v<InputLayout, GNHWC> ||
+                 std::is_same_v<InputLayout, GNDHWC>)
+    {
+        return HostTensorDescriptor({G, NDoHoWo, CZYX});
+    }
+    else if constexpr(std::is_same_v<InputLayout, NWGC> || std::is_same_v<InputLayout, NHWGC> ||
+                      std::is_same_v<InputLayout, NDHWGC>)
+    {
+        return HostTensorDescriptor({G, NDoHoWo, CZYX}, {CZYX, CZYX * G, 1});
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported layout!");
+    }
+}
+
 template <index_t NDimSpatial,
           typename InputLayout,
           typename InputDataType,
@@ -104,8 +124,8 @@ bool profile_conv_tensor_rearrange_impl(int do_verification,
                                         bool time_kernel,
                                         const ck::utils::conv::ConvParam& conv_param)
 {
-    const ck::index_t GNDoHoWo =
-        conv_param.G_ * conv_param.N_ *
+    const ck::index_t NDoHoWo =
+        conv_param.N_ *
         ck::accumulate_n<ck::index_t>(
             conv_param.output_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
     const ck::index_t CZYX =
@@ -116,13 +136,13 @@ bool profile_conv_tensor_rearrange_impl(int do_verification,
     const auto image_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InputLayout>(
             conv_param);
-    const auto gemm_desc = HostTensorDescriptor({GNDoHoWo, CZYX});
+    const auto gemm_desc = create_gemm_desc<InputLayout>(conv_param.G_, NDoHoWo, CZYX);
 
     std::array<ck::index_t, NDimSpatial> input_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial> output_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> image_g_n_c_wis_strides{};
-    std::array<ck::index_t, 2> gemm_m_k_strides{};
+    std::array<ck::index_t, 3> gemm_g_m_k_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
@@ -134,7 +154,7 @@ bool profile_conv_tensor_rearrange_impl(int do_verification,
     copy(conv_param.filter_spatial_lengths_, filter_spatial_lengths);
     copy(conv_param.output_spatial_lengths_, output_spatial_lengths);
     copy(image_desc.GetStrides(), image_g_n_c_wis_strides);
-    copy(gemm_desc.GetStrides(), gemm_m_k_strides);
+    copy(gemm_desc.GetStrides(), gemm_g_m_k_strides);
     copy(conv_param.conv_filter_strides_, conv_filter_strides);
     copy(conv_param.conv_filter_dilations_, conv_filter_dilations);
     copy(conv_param.input_left_pads_, input_left_pads);
@@ -219,7 +239,7 @@ bool profile_conv_tensor_rearrange_impl(int do_verification,
             filter_spatial_lengths,
             output_spatial_lengths,
             image_g_n_c_wis_strides,
-            gemm_m_k_strides,
+            gemm_g_m_k_strides,
             conv_filter_strides,
             conv_filter_dilations,
             input_left_pads,
@@ -235,7 +255,7 @@ bool profile_conv_tensor_rearrange_impl(int do_verification,
             float avg_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
             std::size_t num_btype =
-                GNDoHoWo * CZYX * (sizeof(OutputDataType) + sizeof(InputDataType));
+                conv_param.G_ * NDoHoWo * CZYX * (sizeof(OutputDataType) + sizeof(InputDataType));
             float gb_per_sec = num_btype / 1.E6 / avg_time;
             std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << gb_per_sec << " GB/s, "
                       << op_name << std::endl;

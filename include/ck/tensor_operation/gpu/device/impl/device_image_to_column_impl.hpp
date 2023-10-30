@@ -116,12 +116,11 @@ struct DeviceImageToColumnImpl
     }
 
     static auto
-    MakeOutDescriptor_M_K(const ck::index_t G,
-                          const ck::index_t N,
+    MakeOutDescriptor_M_K(const ck::index_t N,
                           const ck::index_t C,
                           const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
                           const std::array<index_t, NDimSpatial>& output_spatial_lengths,
-                          const std::array<index_t, 2>& gemm_m_k_strides)
+                          const std::array<index_t, 3>& gemm_g_m_k_strides)
     {
         const index_t NDoHoWo =
             N * ck::accumulate_n<index_t>(
@@ -130,24 +129,14 @@ struct DeviceImageToColumnImpl
             C * ck::accumulate_n<index_t>(
                     filter_spatial_lengths.begin(), NDimSpatial, 1, std::multiplies<>());
 
-        if constexpr(is_NSpatialGC)
-        {
-            const auto desc_mraw_kraw = make_naive_tensor_descriptor(
-                make_tuple(NDoHoWo, CZYX),
-                make_tuple(gemm_m_k_strides[I0] * G, gemm_m_k_strides[I1]));
-            return matrix_padder.PadADescriptor_M_K(desc_mraw_kraw);
-        }
-        else if constexpr(is_GNSpatialC)
-        {
-            const auto desc_mraw_kraw = make_naive_tensor_descriptor(
-                make_tuple(NDoHoWo, CZYX), make_tuple(gemm_m_k_strides[I0], gemm_m_k_strides[I1]));
-            return matrix_padder.PadADescriptor_M_K(desc_mraw_kraw);
-        }
+        const auto desc_mraw_kraw = make_naive_tensor_descriptor(
+            make_tuple(NDoHoWo, CZYX), make_tuple(gemm_g_m_k_strides[I1], gemm_g_m_k_strides[I2]));
+        return matrix_padder.PadADescriptor_M_K(desc_mraw_kraw);
     }
 
     using InputGridDesc =
         remove_cvref_t<decltype(MakeInputDescriptor_M_K(1, 1, {}, {}, {}, {}, {}, {}, {}, {}))>;
-    using OutputGridDesc = remove_cvref_t<decltype(MakeOutDescriptor_M_K(1, 1, 1, {}, {}, {}))>;
+    using OutputGridDesc = remove_cvref_t<decltype(MakeOutDescriptor_M_K(1, 1, {}, {}, {}))>;
 
     using Block2ETileMap = remove_cvref_t<
         decltype(BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, KPerBlock, OutputGridDesc>(
@@ -178,7 +167,7 @@ struct DeviceImageToColumnImpl
                  const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
                  const std::array<index_t, NDimSpatial>& output_spatial_lengths,
                  const std::array<index_t, NDimSpatial + 3>& image_g_n_c_wis_strides,
-                 const std::array<index_t, 2>& gemm_m_k_strides,
+                 const std::array<index_t, 3>& gemm_g_m_k_strides,
                  const std::array<index_t, NDimSpatial>& conv_filter_strides,
                  const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                  const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -207,22 +196,10 @@ struct DeviceImageToColumnImpl
                                                         input_right_pads);
 
             out_grid_desc_m_k_ = MakeOutDescriptor_M_K(
-                G, N, C, filter_spatial_lengths, output_spatial_lengths, gemm_m_k_strides);
+                N, C, filter_spatial_lengths, output_spatial_lengths, gemm_g_m_k_strides);
 
             compute_ptr_offset_of_batch_.BatchStrideA_ = image_g_n_c_wis_strides[I0];
-            if constexpr(is_NSpatialGC)
-            {
-                compute_ptr_offset_of_batch_.BatchStrideC_ =
-                    gemm_m_k_strides[I0] * gemm_m_k_strides[I1];
-            }
-            else if constexpr(is_GNSpatialC)
-            {
-                const index_t NDoHoWo =
-                    N * ck::accumulate_n<index_t>(
-                            output_spatial_lengths.begin(), NDimSpatial, 1, std::multiplies<>());
-                compute_ptr_offset_of_batch_.BatchStrideC_ =
-                    NDoHoWo * gemm_m_k_strides[I0] * gemm_m_k_strides[I1];
-            }
+            compute_ptr_offset_of_batch_.BatchStrideC_ = gemm_g_m_k_strides[I0];
         }
 
         void Print() const
@@ -346,7 +323,7 @@ struct DeviceImageToColumnImpl
                              const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
                              const std::array<index_t, NDimSpatial>& output_spatial_lengths,
                              const std::array<index_t, NDimSpatial + 3>& image_g_n_c_wis_strides,
-                             const std::array<index_t, 2>& gemm_m_k_strides,
+                             const std::array<index_t, 3>& gemm_g_m_k_strides,
                              const std::array<index_t, NDimSpatial>& conv_filter_strides,
                              const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                              const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -361,7 +338,7 @@ struct DeviceImageToColumnImpl
                         filter_spatial_lengths,
                         output_spatial_lengths,
                         image_g_n_c_wis_strides,
-                        gemm_m_k_strides,
+                        gemm_g_m_k_strides,
                         conv_filter_strides,
                         conv_filter_dilations,
                         input_left_pads,
@@ -380,7 +357,7 @@ struct DeviceImageToColumnImpl
                         const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
                         const std::array<index_t, NDimSpatial>& output_spatial_lengths,
                         const std::array<index_t, NDimSpatial + 3>& image_g_n_c_wis_strides,
-                        const std::array<index_t, 2>& gemm_m_k_strides,
+                        const std::array<index_t, 3>& gemm_g_m_k_strides,
                         const std::array<index_t, NDimSpatial>& conv_filter_strides,
                         const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                         const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -395,7 +372,7 @@ struct DeviceImageToColumnImpl
                                           filter_spatial_lengths,
                                           output_spatial_lengths,
                                           image_g_n_c_wis_strides,
-                                          gemm_m_k_strides,
+                                          gemm_g_m_k_strides,
                                           conv_filter_strides,
                                           conv_filter_dilations,
                                           input_left_pads,

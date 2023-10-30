@@ -24,15 +24,14 @@ bool RunColumnToImage(const ExecutionConfig& config, const ck::utils::conv::Conv
     const auto N = conv_params.N_;
     const auto C = conv_params.C_;
 
-    const ck::index_t GNDoHoWo =
-        G * N *
-        ck::accumulate_n<ck::index_t>(
-            conv_params.output_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
+    const ck::index_t NDoHoWo =
+        N * ck::accumulate_n<ck::index_t>(
+                conv_params.output_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
     const ck::index_t CZYX =
         C * ck::accumulate_n<ck::index_t>(
                 conv_params.filter_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
 
-    const auto in_desc = HostTensorDescriptor({GNDoHoWo, CZYX});
+    const auto in_desc = HostTensorDescriptor({G, NDoHoWo, CZYX});
     const auto out_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ImLayout>(conv_params);
 
@@ -40,7 +39,7 @@ bool RunColumnToImage(const ExecutionConfig& config, const ck::utils::conv::Conv
     std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial> output_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> image_g_n_c_wis_strides{};
-    std::array<ck::index_t, 2> gemm_m_k_strides{};
+    std::array<ck::index_t, 3> gemm_g_m_k_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
@@ -51,7 +50,7 @@ bool RunColumnToImage(const ExecutionConfig& config, const ck::utils::conv::Conv
     copy(conv_params.input_spatial_lengths_, input_spatial_lengths);
     copy(conv_params.filter_spatial_lengths_, filter_spatial_lengths);
     copy(conv_params.output_spatial_lengths_, output_spatial_lengths);
-    copy(in_desc.GetStrides(), gemm_m_k_strides);
+    copy(in_desc.GetStrides(), gemm_g_m_k_strides);
     copy(out_desc.GetStrides(), image_g_n_c_wis_strides);
     copy(conv_params.conv_filter_strides_, conv_filter_strides);
     copy(conv_params.conv_filter_dilations_, conv_filter_dilations);
@@ -94,7 +93,7 @@ bool RunColumnToImage(const ExecutionConfig& config, const ck::utils::conv::Conv
                                          filter_spatial_lengths,
                                          output_spatial_lengths,
                                          image_g_n_c_wis_strides,
-                                         gemm_m_k_strides,
+                                         gemm_g_m_k_strides,
                                          conv_filter_strides,
                                          conv_filter_dilations,
                                          input_left_pads,
@@ -110,7 +109,7 @@ bool RunColumnToImage(const ExecutionConfig& config, const ck::utils::conv::Conv
     }
 
     float ave_time        = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-    std::size_t num_btype = GNDoHoWo * CZYX * (sizeof(OutDataType) + sizeof(InDataType));
+    std::size_t num_btype = G * NDoHoWo * CZYX * (sizeof(OutDataType) + sizeof(InDataType));
     float gb_per_sec      = num_btype / 1.E6 / ave_time;
     std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
 

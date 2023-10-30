@@ -92,9 +92,8 @@ struct ReferenceColumnToImage : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
-            using namespace ck::tensor_layout::convolution;
             if(!(arg.output_.GetNumOfDimension() == NDimSpatial + 3 &&
-                 arg.input_.GetNumOfDimension() == 2))
+                 arg.input_.GetNumOfDimension() == 3))
             {
                 throw std::runtime_error("wrong! inconsistent dimension");
             }
@@ -111,14 +110,6 @@ struct ReferenceColumnToImage : public device::BaseOperator
                     {
                         index_t row    = n * Wo + wo;
                         index_t column = 0;
-                        if constexpr(std::is_same_v<ImageLayout, GNWC>)
-                        {
-                            row = g * N * Wo + n * Wo + wo;
-                        }
-                        else if constexpr(std::is_same_v<ImageLayout, NWGC>)
-                        {
-                            row = n * Wo * G + wo * G + g;
-                        }
 
                         for(index_t x = 0; x < arg.filter_spatial_lengths_[0]; ++x)
                         {
@@ -131,7 +122,8 @@ struct ReferenceColumnToImage : public device::BaseOperator
                                 if(wi >= 0 &&
                                    ck::type_convert<std::size_t>(wi) < arg.output_.GetLengths()[3])
                                 {
-                                    float v_in  = ck::type_convert<float>(arg.input_(row, column));
+                                    float v_in =
+                                        ck::type_convert<float>(arg.input_(g, row, column));
                                     float v_out = ck::type_convert<float>(arg.output_(g, n, c, wi));
                                     arg.output_(g, n, c, wi) =
                                         ck::type_convert<OutDataType>(v_in + v_out);
@@ -156,16 +148,8 @@ struct ReferenceColumnToImage : public device::BaseOperator
                     {
                         for(index_t wo = 0; wo < Wo; ++wo)
                         {
-                            index_t row    = 0;
+                            index_t row    = n * Ho * Wo + ho * Wo + wo;
                             index_t column = 0;
-                            if constexpr(std::is_same_v<ImageLayout, GNHWC>)
-                            {
-                                row = g * N * Ho * Wo + n * Ho * Wo + ho * Wo + wo;
-                            }
-                            else if constexpr(std::is_same_v<ImageLayout, NHWGC>)
-                            {
-                                row = n * Ho * Wo * G + ho * Wo * G + wo * G + g;
-                            }
 
                             for(index_t y = 0; y < arg.filter_spatial_lengths_[0]; ++y)
                             {
@@ -192,7 +176,7 @@ struct ReferenceColumnToImage : public device::BaseOperator
                                                arg.output_.GetLengths()[4])
                                         {
                                             float v_in =
-                                                ck::type_convert<float>(arg.input_(row, column));
+                                                ck::type_convert<float>(arg.input_(g, row, column));
                                             float v_out = ck::type_convert<float>(
                                                 arg.output_(g, n, c, hi, wi));
                                             arg.output_(g, n, c, hi, wi) =
@@ -223,18 +207,8 @@ struct ReferenceColumnToImage : public device::BaseOperator
                         {
                             for(index_t wo = 0; wo < Wo; ++wo)
                             {
-                                index_t row    = 0;
+                                index_t row    = n * Do * Ho * Wo + d_o * Ho * Wo + ho * Wo + wo;
                                 index_t column = 0;
-                                if constexpr(std::is_same_v<ImageLayout, GNDHWC>)
-                                {
-                                    row = g * N * Do * Ho * Wo + n * Do * Ho * Wo + d_o * Ho * Wo +
-                                          ho * Wo + wo;
-                                }
-                                else if constexpr(std::is_same_v<ImageLayout, NDHWGC>)
-                                {
-                                    row = n * Do * Ho * Wo * G + d_o * Ho * Wo * G + ho * Wo * G +
-                                          wo * G + g;
-                                }
 
                                 for(index_t z = 0; z < arg.filter_spatial_lengths_[0]; ++z)
                                 {
@@ -271,7 +245,7 @@ struct ReferenceColumnToImage : public device::BaseOperator
                                                        arg.output_.GetLengths()[5])
                                                 {
                                                     float v_in = ck::type_convert<float>(
-                                                        arg.input_(row, column));
+                                                        arg.input_(g, row, column));
                                                     float v_out = ck::type_convert<float>(
                                                         arg.output_(g, n, c, di, hi, wi));
                                                     arg.output_(g, n, c, di, hi, wi) =
@@ -329,8 +303,9 @@ struct ReferenceColumnToImage : public device::BaseOperator
             C * ck::accumulate_n<index_t>(
                     arg.filter_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
 
-        if(!(arg.input_.GetLengths()[0] == static_cast<std::size_t>(NDoHoWo) &&
-             arg.input_.GetLengths()[1] == static_cast<std::size_t>(CZYX)))
+        if(!(arg.input_.GetLengths()[0] == static_cast<std::size_t>(G) &&
+             arg.input_.GetLengths()[1] == static_cast<std::size_t>(NDoHoWo) &&
+             arg.input_.GetLengths()[2] == static_cast<std::size_t>(CZYX)))
         {
             return false;
         }

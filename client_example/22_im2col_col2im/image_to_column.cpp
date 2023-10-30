@@ -16,7 +16,7 @@
 using InDataType  = ck::half_t;
 using OutDataType = ck::half_t;
 
-using ImageLayout = ck::tensor_layout::convolution::GNHWC;
+using ImageLayout = ck::tensor_layout::convolution::NHWGC;
 
 static constexpr ck::index_t NumDimSpatial = 2;
 static constexpr ck::index_t G             = 2;
@@ -52,11 +52,11 @@ int main()
     std::array<ck::index_t, 2> wei_spatial_lengths{Y, X};
     std::array<ck::index_t, 2> out_spatial_lengths{Ho, Wo};
 
-    // We have NHWGC in memory space (G is dummy)
+    // We have NHWGC in memory space
     // However, CK's API only accept length and stride with order of GNCHW
     // Hence, we need to adjust the order of stride
     std::array<ck::index_t, 5> image_strides{C, Hi * Wi * G * C, 1, Wi * G * C, G * C};
-    std::array<ck::index_t, 2> gemm_strides{Y * X * C, 1};
+    std::array<ck::index_t, 3> gemm_strides{Y * X * C, G * Y * X * C, 1};
 
     std::array<ck::index_t, NumDimSpatial> filter_strides{1, 1};
     std::array<ck::index_t, NumDimSpatial> filter_dilations{1, 1};
