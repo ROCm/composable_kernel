@@ -14,9 +14,9 @@ namespace device {
 /**
  * \brief Convolution Tensor Rearrange.
  *
- * This Device operator supports conversion image to
- * the gemm problem (Image to Column) and
- * conversion gemm form to the image (Column to Image).
+ * This Device operator supports converting an image to
+ * the GEMM representation (Image to Column) and
+ * converting a GEMM form to the image (Column to Image).
  * Supported layouts:
  * [G, N, Di, Hi, Wi, C] <-> [G, N * Do * Ho * Wo, Z *  Y * X * C]
  * [N, Di, Hi, Wi, G, C] <-> [N * Do * Ho * Wo, G, Z *  Y * X * C]

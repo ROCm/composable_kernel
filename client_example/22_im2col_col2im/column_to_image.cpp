@@ -53,8 +53,8 @@ int main()
     std::array<ck::index_t, 2> out_spatial_lengths{Ho, Wo};
 
     // We have NHWGC in memory space
-    // However, CK's API only accept length and stride with order of GNCHW
-    // Hence, we need to adjust the order of stride
+    // However, CK's API only accepts lengths and strides with order of GNCHW.
+    // Hence, we need to adjust the order of strides.
     std::array<ck::index_t, 5> image_strides{C, Hi * Wi * G * C, 1, Wi * G * C, G * C};
     std::array<ck::index_t, 3> gemm_strides{Y * X * C, G * Y * X * C, 1};
 

@@ -21,7 +21,7 @@ using namespace ck::conv_tensor_rearrange_op;
 
 // GNWC/GNHWC/GNDHWC
 // Image to Column
-// nhwc, 1d
+// GNWC, 1d
 void add_device_image_to_column_gnwc_1d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, GNWC, BF16, BF16, ImageToColumn>>>&
         instances);
@@ -37,7 +37,7 @@ void add_device_image_to_column_gnwc_1d_f32_instances(
 void add_device_image_to_column_gnwc_1d_i8_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, GNWC, int8_t, int8_t, ImageToColumn>>>&
         instances);
-// nhwc, 2d
+// GNHWC, 2d
 void add_device_image_to_column_gnhwc_2d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, BF16, BF16, ImageToColumn>>>&
         instances);
@@ -54,7 +54,7 @@ void add_device_image_to_column_gnhwc_2d_i8_instances(
     std::vector<
         std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, int8_t, int8_t, ImageToColumn>>>&
         instances);
-// nhwc, 3d
+// GNDHWC, 3d
 void add_device_image_to_column_gndhwc_3d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, GNDHWC, BF16, BF16, ImageToColumn>>>&
         instances);
@@ -73,7 +73,7 @@ void add_device_image_to_column_gndhwc_3d_i8_instances(
         instances);
 
 // Column to Image
-// nhwc, 1d
+// GNWC, 1d
 void add_device_column_to_image_gnwc_1d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, GNWC, BF16, BF16, ColumnToImage>>>&
         instances);
@@ -89,7 +89,7 @@ void add_device_column_to_image_gnwc_1d_f32_instances(
 void add_device_column_to_image_gnwc_1d_i8_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, GNWC, int8_t, int8_t, ColumnToImage>>>&
         instances);
-// nhwc, 2d
+// GNHWC, 2d
 void add_device_column_to_image_gnhwc_2d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, BF16, BF16, ColumnToImage>>>&
         instances);
@@ -106,7 +106,7 @@ void add_device_column_to_image_gnhwc_2d_i8_instances(
     std::vector<
         std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, int8_t, int8_t, ColumnToImage>>>&
         instances);
-// nhwc, 3d
+// GNDHWC, 3d
 void add_device_column_to_image_gndhwc_3d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, GNDHWC, BF16, BF16, ColumnToImage>>>&
         instances);
@@ -125,7 +125,7 @@ void add_device_column_to_image_gndhwc_3d_i8_instances(
         instances);
 // NWGC/NHWGC/NDHWGC
 // Image to Column
-// nhwc, 1d
+// NWGC, 1d
 void add_device_image_to_column_nwgc_1d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, NWGC, BF16, BF16, ImageToColumn>>>&
         instances);
@@ -141,7 +141,7 @@ void add_device_image_to_column_nwgc_1d_f32_instances(
 void add_device_image_to_column_nwgc_1d_i8_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, NWGC, int8_t, int8_t, ImageToColumn>>>&
         instances);
-// nhwc, 2d
+// NHWGC, 2d
 void add_device_image_to_column_nhwgc_2d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, NHWGC, BF16, BF16, ImageToColumn>>>&
         instances);
@@ -158,7 +158,7 @@ void add_device_image_to_column_nhwgc_2d_i8_instances(
     std::vector<
         std::unique_ptr<DeviceConvTensorRearrange<2, NHWGC, int8_t, int8_t, ImageToColumn>>>&
         instances);
-// nhwc, 3d
+// NDHWGC, 3d
 void add_device_image_to_column_ndhwgc_3d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, NDHWGC, BF16, BF16, ImageToColumn>>>&
         instances);
@@ -177,7 +177,7 @@ void add_device_image_to_column_ndhwgc_3d_i8_instances(
         instances);
 
 // Column to Image
-// nhwc, 1d
+// NWGC, 1d
 void add_device_column_to_image_nwgc_1d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, NWGC, BF16, BF16, ColumnToImage>>>&
         instances);
@@ -193,7 +193,7 @@ void add_device_column_to_image_nwgc_1d_f32_instances(
 void add_device_column_to_image_nwgc_1d_i8_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, NWGC, int8_t, int8_t, ColumnToImage>>>&
         instances);
-// nhwc, 2d
+// NHWGC, 2d
 void add_device_column_to_image_nhwgc_2d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, NHWGC, BF16, BF16, ColumnToImage>>>&
         instances);
@@ -210,7 +210,7 @@ void add_device_column_to_image_nhwgc_2d_i8_instances(
     std::vector<
         std::unique_ptr<DeviceConvTensorRearrange<2, NHWGC, int8_t, int8_t, ColumnToImage>>>&
         instances);
-// nhwc, 3d
+// NDHWGC, 3d
 void add_device_column_to_image_ndhwgc_3d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, NDHWGC, BF16, BF16, ColumnToImage>>>&
         instances);

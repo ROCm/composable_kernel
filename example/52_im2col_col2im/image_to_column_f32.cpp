@@ -39,7 +39,7 @@ bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::Conv
     std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial> output_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> image_g_n_c_wis_strides{};
-    std::array<ck::index_t, 3> gemm_m_k_strides{};
+    std::array<ck::index_t, 3> gemm_g_m_k_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
@@ -51,7 +51,7 @@ bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::Conv
     copy(conv_params.filter_spatial_lengths_, filter_spatial_lengths);
     copy(conv_params.output_spatial_lengths_, output_spatial_lengths);
     copy(in_desc.GetStrides(), image_g_n_c_wis_strides);
-    copy(out_desc.GetStrides(), gemm_m_k_strides);
+    copy(out_desc.GetStrides(), gemm_g_m_k_strides);
     copy(conv_params.conv_filter_strides_, conv_filter_strides);
     copy(conv_params.conv_filter_dilations_, conv_filter_dilations);
     copy(conv_params.input_left_pads_, input_left_pads);
@@ -93,7 +93,7 @@ bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::Conv
                                          filter_spatial_lengths,
                                          output_spatial_lengths,
                                          image_g_n_c_wis_strides,
-                                         gemm_m_k_strides,
+                                         gemm_g_m_k_strides,
                                          conv_filter_strides,
                                          conv_filter_dilations,
                                          input_left_pads,
