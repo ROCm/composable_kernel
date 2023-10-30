@@ -543,15 +543,6 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
 
         const auto bs_grid_buf = generate_tuple(
             [&](auto i) {
-                // print_type(p_bs_grid[i]);
-                // print_type<std::decay_t<decltype(p_bs_grid[i])>>();
-                // if constexpr (is_same_v<packed_f4_t, >)  {
-                //     return make_dynamic_buffer<AddressSpaceEnum::Global>(
-                //         reinterpret_cast<const packed_f4x2_t * const>(p_bs_grid[i]), bs_grid_desc_bk0_n_bk1[i].GetElementSpaceSize() / 2);
-                // } else {
-                //     return make_dynamic_buffer<AddressSpaceEnum::Global>(
-                //         p_bs_grid[i], bs_grid_desc_bk0_n_bk1[i].GetElementSpaceSize());
-                // }
                 return make_dynamic_buffer<AddressSpaceEnum::Global>(
                     p_bs_grid[i], bs_grid_desc_bk0_n_bk1[i].GetElementSpaceSize());
             },

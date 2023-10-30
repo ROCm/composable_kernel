@@ -114,9 +114,6 @@ struct DynamicBuffer
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
-            // print_type<T, X>();
-            // print_type(Number<t_per_x>{}, Number<scalar_per_t_vector>{}, Number<scalar_per_x_vector>{});
-
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
                 return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>,
