@@ -935,7 +935,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #endif
 #ifdef CK_ENABLE_FP16
             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                         is_same_v<OutDataType, half_t>)
+                         is_same_v<OutDataType, half_t> && is_same_v<ComputeType, half_t>)
             {
                 add_device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_f16_instances(op_ptrs);
             }
@@ -977,7 +977,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 
 #ifdef CK_ENABLE_FP16
             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                         is_same_v<OutDataType, half_t>)
+                         is_same_v<OutDataType, half_t> && is_same_v<ComputeType, half_t>)
             {
                 add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f16_instances(op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_gnhwc_gkyxc_gnhwk_f16_instances(op_ptrs);
@@ -989,7 +989,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 
 #if(defined(CK_ENABLE_FP16) && defined(DL_KERNELS))
             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                         is_same_v<OutDataType, half_t>)
+                         is_same_v<OutDataType, half_t> && is_same_v<ComputeType, half_t>)
             {
                 add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f16_instances(op_ptrs);
             }
@@ -1045,7 +1045,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 
 #if(defined(CK_ENABLE_FP16) && defined(DL_KERNELS))
             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                         is_same_v<OutDataType, half_t>)
+                         is_same_v<OutDataType, half_t> && is_same_v<ComputeType, half_t>)
             {
                 add_device_grouped_conv2d_fwd_dl_nhwgc_gkyxc_nhwgk_f16_instances(op_ptrs);
             }
@@ -1082,7 +1082,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #endif
 #ifdef CK_ENABLE_FP16
             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                         is_same_v<OutDataType, half_t>)
+                         is_same_v<OutDataType, half_t> && is_same_v<ComputeType, half_t>)
             {
                 add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_f16_instances(op_ptrs);
                 add_device_grouped_conv3d_fwd_wmma_gndhwc_gkzyxc_gndhwk_f16_instances(op_ptrs);
