@@ -28,6 +28,16 @@ inline __host__ __device__ Y fast_type_convert(X x)
     (void)x;
 }
 
+using _0 = ck::Number<0>;
+using _1 = ck::Number<1>;
+using _2 = ck::Number<2>;
+using _3 = ck::Number<3>;
+using _4 = ck::Number<4>;
+using _5 = ck::Number<5>;
+using _6 = ck::Number<6>;
+using _7 = ck::Number<7>;
+using _8 = ck::Number<8>;
+
 // template <>
 // inline __host__ __device__ ck::half_t fast_type_convert<ck::half_t, ck::f8_t>(ck::f8_t x)
 // {
@@ -52,28 +62,30 @@ fast_type_convert<ck::half2_t, ck::packed_f4x2_t>(ck::packed_f4x2_t x)
     uint8_t x_h  = (x_u8 & 0xf0) >> 4;
 
     // FIXME:
-    return {ck::type_convert<ck::half_t>(0.06125f * x_l),
-            ck::type_convert<ck::half_t>(0.06125f * x_h)};
+    ck::vector_type_maker_t<ck::half_t, 2> y;
+    y.AsType<ck::half_t>()(_0{}) = ck::type_convert<ck::half_t>(0.06125f * x_l);
+    y.AsType<ck::half_t>()(_1{}) = ck::type_convert<ck::half_t>(0.06125f * x_h);
+    return y.AsType<ck::half2_t>()[_0{}];
 
-    uint8_t l_s  = x_l & 0x8;
-    uint8_t l_em = x_l & 0x7;
-    uint8_t l_u8 = (l_s << 4) | (l_em << 2);
-    l_u8 += 0x38;
-    // l_u8 = 0;
+    // uint8_t l_s  = x_l & 0x8;
+    // uint8_t l_em = x_l & 0x7;
+    // uint8_t l_u8 = (l_s << 4) | (l_em << 2);
+    // l_u8 += 0x38;
+    // // l_u8 = 0;
 
-    uint8_t h_s  = x_h & 0x8;
-    uint8_t h_em = x_h & 0x7;
-    uint8_t h_u8 = (h_s << 4) | (h_em << 2);
-    h_u8 += 0x38;
-    // h_u8= 0;
+    // uint8_t h_s  = x_h & 0x8;
+    // uint8_t h_em = x_h & 0x7;
+    // uint8_t h_u8 = (h_s << 4) | (h_em << 2);
+    // h_u8 += 0x38;
+    // // h_u8= 0;
 
-    auto l_f16 = ck::type_convert<ck::half_t>(ck::bit_cast<ck::f8_t>(l_u8));
-    auto h_f16 = ck::type_convert<ck::half_t>(ck::bit_cast<ck::f8_t>(h_u8));
+    // auto l_f16 = ck::type_convert<ck::half_t>(ck::bit_cast<ck::f8_t>(l_u8));
+    // auto h_f16 = ck::type_convert<ck::half_t>(ck::bit_cast<ck::f8_t>(h_u8));
 
-    half2 result;
-    result.data[0] = l_f16;
-    result.data[1] = h_f16;
-    return ck::bit_cast<ck::half2_t>(result);
+    // half2 result;
+    // result.data[0] = l_f16;
+    // result.data[1] = h_f16;
+    // return ck::bit_cast<ck::half2_t>(result);
 }
 
 template <ck::index_t... Is>
@@ -130,8 +142,8 @@ struct ElementwiseScale
 //     float beta_;
 // };
 
-using AElementOp   = PassThrough;
-using BElementOp   = ElementwiseScale;
+using AElementOp = PassThrough;
+using BElementOp = ElementwiseScale;
 // using CDEElementOp = AlphaBetaAdd;
 using CDEElementOp = PassThrough;
 
@@ -190,13 +202,13 @@ int main(int argc, char* argv[])
 
     // GEMM shape
     ck::index_t M = 1;
-    ck::index_t N = 128;
-    ck::index_t K = 128;
+    ck::index_t N = 8192;
+    ck::index_t K = 8192;
 
-    ck::index_t StrideA = 128;
-    ck::index_t StrideB = 128;
-    ck::index_t StrideD = 128;
-    ck::index_t StrideE = 128;
+    ck::index_t StrideA = 8192;
+    ck::index_t StrideB = 8192;
+    ck::index_t StrideD = 8192;
+    ck::index_t StrideE = 8192;
 
     float alpha = 1.0f;
     float beta  = 1.0f;
@@ -277,15 +289,17 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
+        // clang-format off
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});   // input, random
-        // a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{});        // input, all 1
+        // a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{});         // input, all 1
         b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{0, 256}); // weight. random
-        // b0_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{0});     // weight. all 0
+        // b0_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{0}); // weight. all 0
         // b0_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{34});     // weight. all 1, 0b0010_0010, high and low 4 bits are both 1.0
         // b0_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{162});    // weight. 1, -1, 1, -1, ...  0b1010_0010, high and low 4 bits are both 1.0
         // b1_k_n.GenerateTensorValue(GeneratorTensor_2<B1DataType>{56, 57}); // weight scale
-        b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});          // weight scale, all 1
+        b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{}); // weight scale, all 1
         break;
+        // clang-format on
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         // b0_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});  // FIXME:
@@ -297,9 +311,15 @@ int main(int argc, char* argv[])
     //        0,
     //        sizeof(B0DataType) * b0_k_n.mDesc.GetElementSpaceSize() / 2);
 
-    // b0_k_n(0, 0) = (2 < 4) | 1;
-    // b0_k_n(1, 0) = (4 < 4) | 3;
-    // b0_k_n(2, 0) = (6 < 4) | 5;
+    // b0_k_n(0, 0) = (12 << 4) | 1;
+    // b0_k_n(0, 1) = (14 << 4) | 3;
+    // b0_k_n(0, 2) = (0 << 4) | 5;
+    // b0_k_n(0, 4) = (2 << 4) | 7;
+    // b0_k_n(0, 5) = (2 << 4) | 9;
+    // b0_k_n(0, 6) = (4 << 4) | 11;
+    // b0_k_n(0, 7) = (6 << 4) | 13;
+    // b0_k_n(0, 8) = (8 << 4) | 15;
+    // b0_k_n(0, 9) = (10 << 4) | 1;
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b0_device_buf(sizeof(B0DataType) * b0_k_n.mDesc.GetElementSpaceSize());
@@ -365,21 +385,35 @@ int main(int argc, char* argv[])
         Tensor<CShuffleDataType> c_m_n({M, N});
 
         Tensor<ADataType> b_k_n({K, N});
-        ck::vector_type_maker_t<ADataType, 2> tmp_out;
-
+        auto tmp_y  = ck::vector_type<ck::half_t, 2>{};
+        auto tmp_x0 = ck::vector_type<B0DataType, 2>{};
+        auto tmp_x1 = ck::vector_type<B1DataType, 2>{};
 
         for(int n = 0; n < N; ++n)
         {
             for(int k = 0; k < K; k += 2)
             {
-                b_element_op(
-                    reinterpret_cast<ck::vector_type_maker_t<ADataType, 2>::type&>(tmp_out),
-                    *reinterpret_cast<ck::vector_type_maker_t<B0DataType, 2>::type*>(
-                        &b0_k_n(k / 2, n)),
-                    *reinterpret_cast<ck::vector_type_maker_t<B1DataType, 2>::type*>(
-                        &b1_k_n(k, n)));
-                b_k_n(k, n)     = tmp_out.AsType<ADataType>()(ck::Number<0>{});
-                b_k_n(k + 1, n) = tmp_out.AsType<ADataType>()(ck::Number<1>{});
+                // packed, load one element
+                tmp_x0 = b0_k_n(k, n); // NOTE: equiv to b0_k_n.mData[offset]; where the offset is
+                                       // automatically divided by 2 for packed_f4_t
+
+                tmp_x1.AsType<ck::vector_type<B1DataType, 1>::type>()(_0{}) = b1_k_n(k, n);
+                tmp_x1.AsType<ck::vector_type<B1DataType, 1>::type>()(_1{}) = b1_k_n(k + 1, n);
+
+                b_element_op(tmp_y.AsType<ck::vector_type<ck::half_t, 2>::type>()(_0{}),
+                             tmp_x0.AsType<ck::vector_type<B0DataType, 2>::type>()[_0{}],
+                             tmp_x1.AsType<ck::vector_type<B1DataType, 2>::type>()[_0{}]);
+
+                b_k_n(k, n)     = tmp_y.AsType<ADataType>()(ck::Number<0>{});
+                b_k_n(k + 1, n) = tmp_y.AsType<ADataType>()(ck::Number<1>{});
+                // if(n < 8 && k < 32)
+                // {
+                //     printf("(%d,%d) low:%f, high:%f\n",
+                //            k,
+                //            n,
+                //            ck::type_convert<float>(tmp_y.AsType<ADataType>()(ck::Number<0>{})),
+                //            ck::type_convert<float>(tmp_y.AsType<ADataType>()(ck::Number<1>{})));
+                // }
             }
         }
 
