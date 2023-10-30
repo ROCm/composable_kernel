@@ -409,7 +409,8 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
                                                                  index_t src_thread_addr_offset,
                                                                  index_t src_wave_addr_offset)
 {
-    static_assert(!(is_same<T, packed_f4_t>::value && N == 1), "access subbyte of packed_f4_t is not allowed");
+    static_assert(!(is_same<T, packed_f4_t>::value && N == 1),
+                  "access subbyte of packed_f4_t is not allowed");
     static_assert(
         (is_same<T, double>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
@@ -422,14 +423,16 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
             (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
         "wrong! not implemented");
 
-    constexpr const int NumElemPerByte = [&]() {
-        if constexpr (is_same<T, packed_f4_t>::value) return 2;
-        else return 1;
+    constexpr const int NumElemPerType = [&]() {
+        if constexpr(is_same<T, packed_f4_t>::value)
+            return 2;
+        else
+            return 1;
     }();
-    static_assert(N % NumElemPerByte == 0);
+    static_assert(N % NumElemPerType == 0);
 
     using r_t     = typename vector_type<T, N>::type;
-    auto raw_data = amd_buffer_load_impl_raw<sizeof(T) * N / NumElemPerByte, coherence>(
+    auto raw_data = amd_buffer_load_impl_raw<sizeof(T) * N / NumElemPerType, coherence>(
         src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset);
     return bit_cast<r_t>(raw_data);
 }
@@ -797,7 +800,19 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
     const int32x4_t src_wave_buffer_resource =
         make_wave_buffer_resource(p_src_wave, src_element_space_size);
 
-    index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
+
+    constexpr const auto NumElemPerType = []() {
+        if constexpr(is_same_v<remove_cvref_t<T>, packed_f4_t>)
+        {
+            return 2;
+        }
+        else
+        {
+            return 1;
+        }
+    }();
+
+    index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T) / NumElemPerType;
 
     using vector_t = typename vector_type_maker<T, N>::type::type;
     using scalar_t = typename scalar_type<vector_t>::type;
