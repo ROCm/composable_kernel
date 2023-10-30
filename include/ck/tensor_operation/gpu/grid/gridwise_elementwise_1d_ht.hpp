@@ -21,20 +21,23 @@ template <typename GridwiseElementwise1dFunctor,
           typename InDataTypePointerTuple,
           typename OutDataTypePointerTuple,
           typename ElementwiseOperation,
-          typename UnaryOperation>
+          typename UnaryOperation,
+	  typename Scale>
 __global__ void kernel_elementwise_1d(const InGrid1dDescTuple in_grid_1d_desc_tuple,
                                       const OutGrid1dDescTuple out_grid_1d_desc_tuple,
                                       const InDataTypePointerTuple p_in_global_tuple,
                                       const OutDataTypePointerTuple p_out_global_tuple,
                                       const ElementwiseOperation elementwise_op,
-                                      const UnaryOperation unary_op)
+                                      const UnaryOperation unary_op,
+				      const Scale scale_op)
 {
     GridwiseElementwise1dFunctor::Run(in_grid_1d_desc_tuple,
                                       out_grid_1d_desc_tuple,
                                       p_in_global_tuple,
                                       p_out_global_tuple,
                                       elementwise_op,
-                                      unary_op);
+                                      unary_op,
+				      scale_op);
 }
 
 template <typename InGrid1dDescTuple,
@@ -43,8 +46,8 @@ template <typename InGrid1dDescTuple,
           typename OutDataTypePointerTuple,
           typename ElementwiseOperation,
           typename UnaryOperation,
+	  typename Scale,
           index_t MPerThread,
-          index_t ScalarMult,
           typename InScalarPerVectorSeq,
           typename OutScalarPerVectorSeq>
 struct GridwiseElementwise_1D
@@ -70,7 +73,8 @@ struct GridwiseElementwise_1D
                                const InDataTypePointerTuple p_in_global_tuple,
                                const OutDataTypePointerTuple p_out_global_tuple,
                                const ElementwiseOperation elementwise_op,
-                               const UnaryOperation unary_op)
+                               const UnaryOperation unary_op,
+			       const Scale scale_op)
     {
         const index_t thread_global_id = get_thread_global_1d_id();
 
@@ -78,15 +82,6 @@ struct GridwiseElementwise_1D
             [&](auto I) {
                 using DataTypePointer = remove_cvref_t<decltype(InDataTypePointerTuple{}[I])>;
                 using DataType        = remove_cv_t<remove_pointer_t<DataTypePointer>>;
-
-                return StaticBuffer<AddressSpaceEnum::Vgpr, DataType, MPerThread, true>{};
-            },
-            Number<NumInput>{});
-
-        auto tmp_thread_buf_tuple = generate_tuple(
-            [&](auto I) {
-                using DataTypePointer = remove_cvref_t<decltype(InDataTypePointerTuple{}[I])>;
-                using DataType        = remove_pointer_t<DataTypePointer>;
 
                 return StaticBuffer<AddressSpaceEnum::Vgpr, DataType, MPerThread, true>{};
             },
@@ -168,7 +163,7 @@ struct GridwiseElementwise_1D
             },
             Number<NumOutput>{});
 
-        const auto& scalar = ScalarMult;
+        //const auto& scalar = ScalarMult;
         index_t num_iter   = M / (loop_step);
         do
         {
@@ -183,17 +178,8 @@ struct GridwiseElementwise_1D
                                                            loop_step_index);
             });
 
-            // static_for<0, MPerThread, 1>{}(
-            //  [&](auto I){
-            // InDataTypePointerTuple tmp;
-            //	unary_op(in_thread_buf_tuple(I), in_thread_buf_tuple(I));
-            // in_thread_buf_tuple(I) = tmp;
-            //});
 
             static_for<0, MPerThread, 1>{}([&](auto iM) {
-                // tmp_thread_buf_tuple = [&](auto I){ unary_op(in_thread_buf_tuple(I)(iM),
-                // in_thread_buf_tuple(I)(iM)); }; unary_op(in_thread_buf_tuple(iM),
-                // in_thread_buf_tuple(iM));
                 // get reference to in data
                 auto uop_data_refs = generate_tie(
                     // return type should be lvalue
@@ -208,13 +194,25 @@ struct GridwiseElementwise_1D
 
                 unpack2(unary_op, uop_data_refs, uop_data_refs);
 
+		auto sop_in_data_refs = generate_tie(
+		    // return type should be lvalue
+		    [&](auto I) -> const auto& { return in_thread_buf_tuple(I)(iM); },
+		    Number<NumInput>{});
+
+		auto sop_out_data_refs = generate_tie(
+		    // return type should be lvalue
+		    [&](auto I) -> auto& { return in_thread_buf_tuple(I)(iM); },
+		    Number<NumInput>{});
+
+		unpack2(scale_op, sop_out_data_refs, sop_in_data_refs);
+
                 const auto in_data_refs = generate_tie(
                     // return type should be lvalue
-                    [&](auto I) -> const auto& { return in_thread_buf_tuple(I)(iM) *= scalar; },
+                    [&](auto I) -> const auto& { return in_thread_buf_tuple(I)(iM); },
                     Number<NumInput>{});
 
                 unpack2(elementwise_op, out_data_refs, in_data_refs);
-                UNUSED(tmp_thread_buf_tuple);
+                UNUSED(scale_op);
             });
 
             static_for<0, NumOutput, 1>{}([&](auto I) {

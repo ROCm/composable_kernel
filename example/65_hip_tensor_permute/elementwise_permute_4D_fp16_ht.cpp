@@ -19,16 +19,16 @@ using BDataType = F16;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using UnaryOp     = ck::tensor_operation::element_wise::UnarySquare;
-// ck::index_t scalar_mult = 2;
-
+using Scale       = ck::tensor_operation::element_wise::Scale;
+//float scale = 1.f;
 using DeviceElementwisePermuteInstance =
     ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ADataType>, // InDataTypeTuple
                                                         ck::Tuple<BDataType>, // OutDataTypeTuple
                                                         PassThrough,          // ElementwiseOp
                                                         UnaryOp,              // UnaryOp
+						        Scale,		      // Scalar
                                                         4,                    // NumDim
                                                         8,                    // MPerThread
-                                                        2,                    // ScalarMult (alpha)
                                                         ck::Sequence<8>,  // InScalarPerVectorSeq
                                                         ck::Sequence<1>>; // OutScalarPerVectorSeq
 
@@ -46,7 +46,7 @@ void host_elementwise4D(HostTensorB& B_nhwc,
                     ADataType tmp_val;
                     auto a_val = A_nchw(n, c, h, w);
                     functor_b(tmp_val, a_val);
-                    functor_a(B_nhwc(n, h, w, c), 2 * tmp_val);
+                    functor_a(B_nhwc(n, h, w, c), 1 * tmp_val);
                 }
 }
 
@@ -59,7 +59,7 @@ int main()
     std::vector<std::size_t> nhwc = {16, 32, 64, 128};
     Tensor<ADataType> a(nchw);
     Tensor<BDataType> b(nhwc);
-
+    float scale = 1.f;
     a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
 
     DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
@@ -84,7 +84,7 @@ int main()
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
     auto argument         = broadcastPermute.MakeArgumentPointer(
-        ab_lengths, {a_strides}, {b_strides}, input, output, PassThrough{}, UnaryOp{});
+        ab_lengths, {a_strides}, {b_strides}, input, output, PassThrough{}, UnaryOp{}, Scale{scale});
 
     if(!broadcastPermute.IsSupportedArgument(argument.get()))
     {
