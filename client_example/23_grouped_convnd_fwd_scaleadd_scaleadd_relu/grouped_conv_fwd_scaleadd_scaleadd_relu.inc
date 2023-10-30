@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "ck/ck.hpp"
-#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_scaleaddx2_relu.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_scaleadd_scaleadd_relu.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -50,11 +50,11 @@ struct SimpleDeviceMem
     void* p_mem_;
 };
 
-int main()
+int execute_conv_fwd_scaleadd_scaleadd_relu()
 {
-    // We have NHWGC/GKYXC/NHWGK (x, weight, y) in memory space
-    // However, CK's API only accept length and stride with order of GNCDHW/GKCZYX/GNKDHW
-    // Hence, we need to adjust the order of stride
+    // We have NHWGC/GKYXC/NHWGK (x, weight, y) in memory space.
+    // However, CK's API only accepts lengths and strides with order of GNCDHW/GKCZYX/GNKDHW.
+    // Hence, we need to adjust the order of strides.
     std::array<ck::index_t, 6> in_lengths{G, N, C, Di, Hi, Wi};
     std::array<ck::index_t, 6> in_strides{
         C, Di * Hi * Wi * G * C, 1, Hi * Wi * G * C, Wi * G * C, G * C};
@@ -208,4 +208,5 @@ int main()
 
         std::cout << "Done" << std::endl;
     }
+    return 0;
 }

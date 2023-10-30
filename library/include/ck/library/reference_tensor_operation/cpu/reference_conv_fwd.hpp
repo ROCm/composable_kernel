@@ -59,11 +59,11 @@ struct ReferenceConvFwd : public device::BaseOperator
                  InElementwiseOperation in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op,
-                 const std::array<Tensor<OutDataType>, NumDTensor>& postop_tensors)
+                 const std::array<Tensor<OutDataType>, NumDTensor>& d_tensors)
             : input_{input},
               weight_{weight},
               output_{output},
-              postop_tensors_{postop_tensors},
+              d_tensors_{d_tensors},
               conv_strides_{conv_filter_strides},
               conv_dilations_{conv_filter_dilations},
               in_left_pads_{input_left_pads},
@@ -78,7 +78,7 @@ struct ReferenceConvFwd : public device::BaseOperator
         const Tensor<WeiDataType>& weight_;
         Tensor<OutDataType>& output_;
 
-        const std::array<Tensor<OutDataType>, NumDTensor>& postop_tensors_;
+        const std::array<Tensor<OutDataType>, NumDTensor>& d_tensors_;
 
         std::vector<index_t> conv_strides_;
         std::vector<index_t> conv_dilations_;
@@ -141,19 +141,18 @@ struct ReferenceConvFwd : public device::BaseOperator
                     }
                     else if constexpr(NumDTensor == 1)
                     {
-                        arg.out_element_op_(
-                            v_out, v_acc_converted, arg.postop_tensors_[0](g, n, k, wo));
+                        arg.out_element_op_(v_out, v_acc_converted, arg.d_tensors_[0](g, n, k, wo));
                     }
                     else if constexpr(NumDTensor == 2)
                     {
                         arg.out_element_op_(v_out,
                                             v_acc_converted,
-                                            arg.postop_tensors_[0](g, n, k, wo),
-                                            arg.postop_tensors_[1](g, n, k, wo));
+                                            arg.d_tensors_[0](g, n, k, wo),
+                                            arg.d_tensors_[1](g, n, k, wo));
                     }
                     else
                     {
-                        throw std::runtime_error("ElementOp not supported in reference.");
+                        throw std::runtime_error("Output ElementOp not supported in reference.");
                     }
                     arg.output_(g, n, k, wo) = v_out;
                 };
@@ -216,18 +215,18 @@ struct ReferenceConvFwd : public device::BaseOperator
                     else if constexpr(NumDTensor == 1)
                     {
                         arg.out_element_op_(
-                            v_out, v_acc_converted, arg.postop_tensors_[0](g, n, k, ho, wo));
+                            v_out, v_acc_converted, arg.d_tensors_[0](g, n, k, ho, wo));
                     }
                     else if constexpr(NumDTensor == 2)
                     {
                         arg.out_element_op_(v_out,
                                             v_acc_converted,
-                                            arg.postop_tensors_[0](g, n, k, ho, wo),
-                                            arg.postop_tensors_[1](g, n, k, ho, wo));
+                                            arg.d_tensors_[0](g, n, k, ho, wo),
+                                            arg.d_tensors_[1](g, n, k, ho, wo));
                     }
                     else
                     {
-                        throw std::runtime_error("ElementOp not supported in reference.");
+                        throw std::runtime_error("Output ElementOp not supported in reference.");
                     }
                     arg.output_(g, n, k, ho, wo) = v_out;
                 };
@@ -303,18 +302,18 @@ struct ReferenceConvFwd : public device::BaseOperator
                     else if constexpr(NumDTensor == 1)
                     {
                         arg.out_element_op_(
-                            v_out, v_acc_converted, arg.postop_tensors_[0](g, n, k, d_o, ho, wo));
+                            v_out, v_acc_converted, arg.d_tensors_[0](g, n, k, d_o, ho, wo));
                     }
                     else if constexpr(NumDTensor == 2)
                     {
                         arg.out_element_op_(v_out,
                                             v_acc_converted,
-                                            arg.postop_tensors_[0](g, n, k, d_o, ho, wo),
-                                            arg.postop_tensors_[1](g, n, k, d_o, ho, wo));
+                                            arg.d_tensors_[0](g, n, k, d_o, ho, wo),
+                                            arg.d_tensors_[1](g, n, k, d_o, ho, wo));
                     }
                     else
                     {
-                        throw std::runtime_error("ElementOp not supported in reference.");
+                        throw std::runtime_error("Output ElementOp not supported in reference.");
                     }
                     arg.output_(g, n, k, d_o, ho, wo) = v_out;
                 };
@@ -360,7 +359,7 @@ struct ReferenceConvFwd : public device::BaseOperator
                              InElementwiseOperation in_element_op,
                              WeiElementwiseOperation wei_element_op,
                              OutElementwiseOperation out_element_op,
-                             const std::array<Tensor<OutDataType>, NumDTensor>& postop_tensors = {})
+                             const std::array<Tensor<OutDataType>, NumDTensor>& d_tensors = {})
     {
         return Argument{input,
                         weight,
@@ -372,7 +371,7 @@ struct ReferenceConvFwd : public device::BaseOperator
                         in_element_op,
                         wei_element_op,
                         out_element_op,
-                        postop_tensors};
+                        d_tensors};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

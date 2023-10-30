@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <memory>
+
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -22,7 +23,7 @@ using ScaleAddScaleAddRelu = ck::tensor_operation::element_wise::ScaleAddScaleAd
 
 #ifdef CK_ENABLE_BF16
 // grouped conv3d forward, NDHWGC/GKZYXC/NDHWGK
-void add_device_grouped_conv3d_fwd_xdl_scaleaddx2_relu_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+void add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
                                                               NDHWGC,
                                                               GKZYXC,
@@ -38,7 +39,7 @@ void add_device_grouped_conv3d_fwd_xdl_scaleaddx2_relu_ndhwgc_gkzyxc_ndhwgk_bf16
 #endif
 
 #ifdef CK_ENABLE_FP16
-void add_device_grouped_conv3d_fwd_xdl_scaleaddx2_relu_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+void add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
                                                               NDHWGC,
                                                               GKZYXC,
@@ -54,7 +55,7 @@ void add_device_grouped_conv3d_fwd_xdl_scaleaddx2_relu_ndhwgc_gkzyxc_ndhwgk_f16_
 #endif
 
 #ifdef CK_ENABLE_FP32
-void add_device_grouped_conv3d_fwd_xdl_scaleaddx2_relu_ndhwgc_gkzyxc_ndhwgk_f32_instances(
+void add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
                                                               NDHWGC,
                                                               GKZYXC,
@@ -70,7 +71,7 @@ void add_device_grouped_conv3d_fwd_xdl_scaleaddx2_relu_ndhwgc_gkzyxc_ndhwgk_f32_
 #endif
 
 #ifdef CK_ENABLE_INT8
-void add_device_grouped_conv3d_fwd_xdl_scaleaddx2_relu_ndhwgc_gkzyxc_ndhwgk_int8_instances(
+void add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
                                                               NDHWGC,
                                                               GKZYXC,
@@ -135,7 +136,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
-                add_device_grouped_conv3d_fwd_xdl_scaleaddx2_relu_ndhwgc_gkzyxc_ndhwgk_f32_instances(
+                add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_f32_instances(
                     op_ptrs);
             }
 #endif
@@ -143,7 +144,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
                          is_same_v<OutDataType, half_t> && is_same_v<ComputeType, half_t>)
             {
-                add_device_grouped_conv3d_fwd_xdl_scaleaddx2_relu_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+                add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_f16_instances(
                     op_ptrs);
             }
 #endif
@@ -151,7 +152,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
                          is_same_v<WeiDataType, ck::bhalf_t> && is_same_v<OutDataType, ck::bhalf_t>)
             {
-                add_device_grouped_conv3d_fwd_xdl_scaleaddx2_relu_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+                add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
                     op_ptrs);
             }
 #endif
@@ -159,7 +160,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
                          is_same_v<OutDataType, int8_t>)
             {
-                add_device_grouped_conv3d_fwd_xdl_scaleaddx2_relu_ndhwgc_gkzyxc_ndhwgk_int8_instances(
+                add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_int8_instances(
                     op_ptrs);
             }
 #endif

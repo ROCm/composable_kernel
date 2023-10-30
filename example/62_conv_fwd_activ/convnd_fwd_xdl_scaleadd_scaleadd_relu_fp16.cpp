@@ -97,7 +97,7 @@ using DeviceGroupedConvNDFwdInstance =
 using DeviceGroupedConvNDFwdActivInstance = DeviceGroupedConvNDFwdInstance<OutElementOp>;
 
 namespace {
-// Use own implementation to pass two more tensors for post op
+// Use custom implementation to pass two more tensors for post op
 template <ck::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,
@@ -181,7 +181,7 @@ bool run_grouped_conv_fwd(bool do_verification,
     copy(conv_param.input_right_pads_, input_right_pads);
 
     const std::array<const void*, NumDs> ds = {d0_buf.GetDeviceBuffer(), d1_buf.GetDeviceBuffer()};
-    // do Conv
+
     auto conv     = DeviceConvNDFwdInstance{};
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
@@ -208,9 +208,8 @@ bool run_grouped_conv_fwd(bool do_verification,
 
     if(!conv.IsSupportedArgument(argument))
     {
-        throw std::runtime_error(
-            "wrong! device_conv with the specified compilation parameters does "
-            "not support this Conv problem");
+        throw std::runtime_error("The device op with the specified compilation parameters does "
+                                 "not support this convolution problem.");
     }
 
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
