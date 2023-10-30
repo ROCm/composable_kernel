@@ -193,12 +193,3 @@ script/uninstall_precommit.sh
 
 If you need to temporarily disable pre-commit hooks, you can add the `--no-verify` option to the
 `git commit` command.
-
-## Caveat
-
-**Kernel Timing and Verification**: CK's own kernel timer will warn up-kernel once, and then run it
-multiple times to get average kernel time. For some kernels that use atomic add, this causes the
-output buffer to be accumulated multiple times, causing verification failure. To work around this, don't
-use CK's own timer and do verification at the same time.
-CK's own timer and verification in each example and ckProfiler can be enabled or
-disabled from command line.
