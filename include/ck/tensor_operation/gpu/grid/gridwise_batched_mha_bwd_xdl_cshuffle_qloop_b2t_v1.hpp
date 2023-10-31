@@ -1362,7 +1362,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             Sequence<0, 1, 2, 4, 3, 5>,                    // DstDimAccessOrder
             4,                                             // SrcVectorDim
             5,                                             // DstVectorDim
-            4,                                             // SrcScalarPerVector
+            D0BlockTransferSrcScalarPerVector,                                             // SrcScalarPerVector
             4,                                             // DstScalarPerVector
             1,
             1,
