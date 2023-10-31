@@ -194,7 +194,8 @@ Note: This kernel use atomic add, this will cause output buffer to be accumulate
 #                  1: Input fp16, Weight fp16, Output fp16
 #                  2: Input bf16, Weight bf16, Output bf16
 #                  3: Input int8, Weight int8, Output int8)
-# arg3: tensor layout (0: Input[N, Hi, Wi, C], Output[N * Ho * Wo, Y * X * C])
+# arg3: tensor layout (0: Input[G, N, Hi, Wi, C], Output[G * N * Ho * Wo, Y * X * C],
+#                      1: Input[N, Hi, Wi, G, C], Output[N * Ho * Wo * G, Y * X * C])
 # arg4: verification (0: no, 1: yes)
 # arg5: initialization (0: no init, 1: integer value, 2: decimal value)
 # arg6: print tensor value (0: no; 1: yes)
