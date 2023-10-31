@@ -9,7 +9,7 @@
 #include <sstream>
 #include <iterator>
 #include <numeric>
-#include "ck/host/common.hpp"
+#include "ck/host/types.hpp"
 
 namespace ck {
 namespace host {
@@ -31,6 +31,10 @@ struct Problem
     std::string AElementOp           = "ck::tensor_operation::element_wise::PassThrough";
     std::string BElementOp           = "ck::tensor_operation::element_wise::PassThrough";
     std::string CDEElementOp         = "ck::Tuple<>";
+
+    std::string GetIncludeHeader() const;
+
+    std::vector<Solution> GetSolutions(const std::string& arch) const;
 };
 
 } // namespace device_gemm_multiple_d

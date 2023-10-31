@@ -28,6 +28,10 @@ struct Problem
     std::string AElementOp           = PassThrough;
     std::string BElementOp           = PassThrough;
     std::string CDEElementOp         = "ck::Tuple<>";
+
+    std::string GetIncludeHeader() const;
+
+    std::vector<Solution> GetSolutions(const std::string& arch) const;
 };
 
 } // namespace device_gemm_multiple_d
