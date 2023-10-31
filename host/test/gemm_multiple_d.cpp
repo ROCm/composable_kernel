@@ -26,9 +26,9 @@ const std::string gemm_compile_check = R"__ck__(
 extern "C" __global__ void f(const ck::half_t* a, const ck::half_t* b, ck::half_t* c) {
     using G = ${template};
     constexpr auto desc = ${template}::make_descriptor(ck::make_naive_tensor_descriptor_packed(ck::make_tuple(${m}, ${k})),
-                                             ck::make_naive_tensor_descriptor_packed(ck::make_tuple(${n, ${k})),
+                                             ck::make_naive_tensor_descriptor_packed(ck::make_tuple(${n}, ${k})),
                                              ck::make_tuple(),
-                                             ck::make_naive_tensor_descriptor_packed(ck::make_tuple(${m, ${n})));
+                                             ck::make_naive_tensor_descriptor_packed(ck::make_tuple(${m}, ${n})));
 
     static_assert(desc.IsValid(), "Invalid ck gemm.");
 
@@ -49,7 +49,7 @@ TEST_CASE(test_problem_kernel)
     prob.K = 256;
     for(auto solution : prob.GetSolutions("gfx90a"))
     {
-        auto src  = ck::host::InterpolateString(compile_check,
+        auto src  = ck::host::InterpolateString(gemm_compile_check,
                                                {{"include", prob.GetIncludeHeader()},
                                                 {"template", solution.ToTemplateString()},
                                                 {"m", std::to_string(prob.M)},
