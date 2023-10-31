@@ -28,8 +28,8 @@ using DeviceElementwisePermuteInstance =
                                                           8,                    // MPerThread
                                                           8,                    // NPerThread
                                                           8,                    // KPerThread
-                                                          ck::Sequence<1>,  // InScalarPerVectorSeq
-                                                          ck::Sequence<1>>; // OutScalarPerVectorSeq
+                                                          ck::Sequence<8>,  // InScalarPerVectorSeq
+                                                          ck::Sequence<4>>; // OutScalarPerVectorSeq
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
 void host_elementwise4D(HostTensorB& B_ndhwc, const HostTensorA& A_ncdhw, Functor functor)

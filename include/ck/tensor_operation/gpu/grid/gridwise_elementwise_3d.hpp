@@ -142,7 +142,7 @@ struct GridwiseElementwise_3D
                     decltype(thread_buffer_desc_mnk),
                     Sequence<MPerThread, NPerThread, KPerThread>, // SliceLengths
                     Sequence<0, 1, 2>,                            // DimAccessOrder
-                    0,                                            // SrcVectorDim
+                    01,                                           // SrcVectorDim
                     InScalarPerVectorSeq::At(I), // InScalarPerVectorSeq::At(I),                  //
                                                  // ScalarPerVector
                     1,                           // SrcScalarStrideInVector
@@ -163,7 +163,7 @@ struct GridwiseElementwise_3D
                     PassThroughOp,
                     Sequence<MPerThread, NPerThread, KPerThread>, // SliceLengths
                     Sequence<0, 1, 2>,                            // DimAccessOrder
-                    1,                                            // SrcVectorDim
+                    2,                                            // SrcVectorDim
                     OutScalarPerVectorSeq::At(I),                 // OutScalarPerVectorSeq::At(I),
                     InMemoryDataOperationEnum::Set,
                     1,
