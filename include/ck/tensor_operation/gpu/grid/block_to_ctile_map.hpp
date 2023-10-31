@@ -24,10 +24,10 @@ struct BlockToCTileMap_M00_N0_M01
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-    __host__ __device__ BlockToCTileMap_M00_N0_M01() = default;
+    __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01() = default;
 
-    __host__ __device__ BlockToCTileMap_M00_N0_M01(const CGridDesc_M_N& c_grid_desc_m_n,
-                                                   index_t M01 = 1)
+    __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01(const CGridDesc_M_N& c_grid_desc_m_n,
+                                                             index_t M01 = 1)
         : M01_(M01), underlying_map_(GetBlockToCTileMap(c_grid_desc_m_n, M01))
     {
     }
@@ -51,8 +51,8 @@ struct BlockToCTileMap_M00_N0_M01
     }
 
     template <typename CTileIdx, typename CTileDim>
-    __host__ __device__ bool ValidCTileIndex(const CTileIdx& c_tile_idx,
-                                             const CTileDim& c_tile_dim) const
+    __host__ __device__ constexpr bool ValidCTileIndex(const CTileIdx& c_tile_idx,
+                                                       const CTileDim& c_tile_dim) const
     {
         if constexpr(DeviceCTileIndexCheck)
             return DefaultValidCTileIndex(c_tile_idx, c_tile_dim);
@@ -60,7 +60,7 @@ struct BlockToCTileMap_M00_N0_M01
             return true;
     }
 
-    __host__ bool CheckValidity(const CGridDesc_M_N& c_grid_desc_m_n) const
+    __host__ constexpr bool CheckValidity(const CGridDesc_M_N& c_grid_desc_m_n) const
     {
         if constexpr(DeviceCTileIndexCheck)
             return true; // validity check moved to kernel
@@ -120,25 +120,27 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
 
-    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt() = default;
+    __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt() = default;
 
-    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(const BlockToCTileMap_M00_N0_M01Adapt&) =
-        default;
-    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(BlockToCTileMap_M00_N0_M01Adapt&&) =
-        default;
-    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt&
+    __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(
+        const BlockToCTileMap_M00_N0_M01Adapt&) = default;
+    __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(
+        BlockToCTileMap_M00_N0_M01Adapt&&) = default;
+    __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt&
     operator=(const BlockToCTileMap_M00_N0_M01Adapt&) = default;
-    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt&
+    __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt&
     operator=(BlockToCTileMap_M00_N0_M01Adapt&&) = default;
 
-    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(index_t M, index_t N, index_t M01 = 8)
+    __host__
+        __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(index_t M, index_t N, index_t M01 = 8)
         : M_(M), N_(N), M01_(M01)
     {
     }
 
     template <typename CGridDesc_M_N>
-    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(const CGridDesc_M_N& c_grid_desc_m_n,
-                                                        index_t M01 = 8)
+    __host__
+        __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(const CGridDesc_M_N& c_grid_desc_m_n,
+                                                             index_t M01 = 8)
         : BlockToCTileMap_M00_N0_M01Adapt(
               c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1), M01)
     {
@@ -232,8 +234,8 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
     }
 
     template <typename CTileIdx, typename CTileDim>
-    __host__ __device__ bool ValidCTileIndex(const CTileIdx& /* c_tile_idx */,
-                                             const CTileDim& /* c_tile_dim */) const
+    __host__ __device__ constexpr bool ValidCTileIndex(const CTileIdx& /* c_tile_idx */,
+                                                       const CTileDim& /* c_tile_dim */) const
     {
         return true; // always valid provided that user gets grid size from CalculateGridSize()
     }
