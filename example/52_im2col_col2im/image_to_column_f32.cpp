@@ -20,7 +20,7 @@ using DeviceImgToColInstance = ck::tensor_operation::device::DeviceImageToColumn
 
 bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::ConvParam& conv_params)
 {
-
+    const auto G = conv_params.G_;
     const auto N = conv_params.N_;
     const auto C = conv_params.C_;
 
@@ -33,13 +33,13 @@ bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::Conv
 
     const auto in_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ImLayout>(conv_params);
-    const auto out_desc = HostTensorDescriptor({NDoHoWo, CZYX});
+    const auto out_desc = HostTensorDescriptor({G, NDoHoWo, CZYX});
 
     std::array<ck::index_t, NDimSpatial> input_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial> output_spatial_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> image_g_n_c_wis_strides{};
-    std::array<ck::index_t, 2> gemm_m_k_strides{};
+    std::array<ck::index_t, 3> gemm_g_m_k_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
@@ -51,7 +51,7 @@ bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::Conv
     copy(conv_params.filter_spatial_lengths_, filter_spatial_lengths);
     copy(conv_params.output_spatial_lengths_, output_spatial_lengths);
     copy(in_desc.GetStrides(), image_g_n_c_wis_strides);
-    copy(out_desc.GetStrides(), gemm_m_k_strides);
+    copy(out_desc.GetStrides(), gemm_g_m_k_strides);
     copy(conv_params.conv_filter_strides_, conv_filter_strides);
     copy(conv_params.conv_filter_dilations_, conv_filter_dilations);
     copy(conv_params.input_left_pads_, input_left_pads);
@@ -86,13 +86,14 @@ bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::Conv
     auto invoker  = img2col.MakeInvoker();
     auto argument = img2col.MakeArgument(in_device_buf.GetDeviceBuffer(),
                                          out_device_buf.GetDeviceBuffer(),
+                                         G,
                                          N,
                                          C,
                                          input_spatial_lengths,
                                          filter_spatial_lengths,
                                          output_spatial_lengths,
                                          image_g_n_c_wis_strides,
-                                         gemm_m_k_strides,
+                                         gemm_g_m_k_strides,
                                          conv_filter_strides,
                                          conv_filter_dilations,
                                          input_left_pads,
@@ -108,7 +109,7 @@ bool RunImageToColumn(const ExecutionConfig& config, const ck::utils::conv::Conv
     }
 
     float ave_time        = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-    std::size_t num_btype = NDoHoWo * CZYX * (sizeof(OutDataType) + sizeof(InDataType));
+    std::size_t num_btype = G * NDoHoWo * CZYX * (sizeof(OutDataType) + sizeof(InDataType));
     float gb_per_sec      = num_btype / 1.E6 / ave_time;
     std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
 
