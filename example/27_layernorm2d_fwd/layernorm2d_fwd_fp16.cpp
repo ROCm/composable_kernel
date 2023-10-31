@@ -41,4 +41,4 @@ using DeviceInstance =
                                                           1>;  // SaveMeanInvStdScalarPerVector
 #include "run_layernorm_example.inc"
 
-int main() { return run_groupnorm_example<DeviceInstance>(); }
+int main() { return run_layernorm2d_fwd_example<DeviceInstance>(); }
