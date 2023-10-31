@@ -19,108 +19,213 @@ namespace instance {
 
 using namespace ck::conv_tensor_rearrange_op;
 
+// GNWC/GNHWC/GNDHWC
 // Image to Column
-// nhwc, 1d
-void add_device_image_to_column_nwc_1d_bf16_instances(
+// GNWC, 1d
+void add_device_image_to_column_gnwc_1d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, GNWC, BF16, BF16, ImageToColumn>>>&
         instances);
 
-void add_device_image_to_column_nwc_1d_f16_instances(
+void add_device_image_to_column_gnwc_1d_f16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, GNWC, F16, F16, ImageToColumn>>>&
         instances);
 
-void add_device_image_to_column_nwc_1d_f32_instances(
+void add_device_image_to_column_gnwc_1d_f32_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, GNWC, F32, F32, ImageToColumn>>>&
         instances);
 
-void add_device_image_to_column_nwc_1d_i8_instances(
+void add_device_image_to_column_gnwc_1d_i8_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, GNWC, int8_t, int8_t, ImageToColumn>>>&
         instances);
-// nhwc, 2d
-void add_device_image_to_column_nhwc_2d_bf16_instances(
+// GNHWC, 2d
+void add_device_image_to_column_gnhwc_2d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, BF16, BF16, ImageToColumn>>>&
         instances);
 
-void add_device_image_to_column_nhwc_2d_f16_instances(
+void add_device_image_to_column_gnhwc_2d_f16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, F16, F16, ImageToColumn>>>&
         instances);
 
-void add_device_image_to_column_nhwc_2d_f32_instances(
+void add_device_image_to_column_gnhwc_2d_f32_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, F32, F32, ImageToColumn>>>&
         instances);
 
-void add_device_image_to_column_nhwc_2d_i8_instances(
+void add_device_image_to_column_gnhwc_2d_i8_instances(
     std::vector<
         std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, int8_t, int8_t, ImageToColumn>>>&
         instances);
-// nhwc, 3d
-void add_device_image_to_column_ndhwc_3d_bf16_instances(
+// GNDHWC, 3d
+void add_device_image_to_column_gndhwc_3d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, GNDHWC, BF16, BF16, ImageToColumn>>>&
         instances);
 
-void add_device_image_to_column_ndhwc_3d_f16_instances(
+void add_device_image_to_column_gndhwc_3d_f16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, GNDHWC, F16, F16, ImageToColumn>>>&
         instances);
 
-void add_device_image_to_column_ndhwc_3d_f32_instances(
+void add_device_image_to_column_gndhwc_3d_f32_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, GNDHWC, F32, F32, ImageToColumn>>>&
         instances);
 
-void add_device_image_to_column_ndhwc_3d_i8_instances(
+void add_device_image_to_column_gndhwc_3d_i8_instances(
     std::vector<
         std::unique_ptr<DeviceConvTensorRearrange<3, GNDHWC, int8_t, int8_t, ImageToColumn>>>&
         instances);
 
 // Column to Image
-// nhwc, 1d
-void add_device_column_to_image_nwc_1d_bf16_instances(
+// GNWC, 1d
+void add_device_column_to_image_gnwc_1d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, GNWC, BF16, BF16, ColumnToImage>>>&
         instances);
 
-void add_device_column_to_image_nwc_1d_f16_instances(
+void add_device_column_to_image_gnwc_1d_f16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, GNWC, F16, F16, ColumnToImage>>>&
         instances);
 
-void add_device_column_to_image_nwc_1d_f32_instances(
+void add_device_column_to_image_gnwc_1d_f32_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, GNWC, F32, F32, ColumnToImage>>>&
         instances);
 
-void add_device_column_to_image_nwc_1d_i8_instances(
+void add_device_column_to_image_gnwc_1d_i8_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, GNWC, int8_t, int8_t, ColumnToImage>>>&
         instances);
-// nhwc, 2d
-void add_device_column_to_image_nhwc_2d_bf16_instances(
+// GNHWC, 2d
+void add_device_column_to_image_gnhwc_2d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, BF16, BF16, ColumnToImage>>>&
         instances);
 
-void add_device_column_to_image_nhwc_2d_f16_instances(
+void add_device_column_to_image_gnhwc_2d_f16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, F16, F16, ColumnToImage>>>&
         instances);
 
-void add_device_column_to_image_nhwc_2d_f32_instances(
+void add_device_column_to_image_gnhwc_2d_f32_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, F32, F32, ColumnToImage>>>&
         instances);
 
-void add_device_column_to_image_nhwc_2d_i8_instances(
+void add_device_column_to_image_gnhwc_2d_i8_instances(
     std::vector<
         std::unique_ptr<DeviceConvTensorRearrange<2, GNHWC, int8_t, int8_t, ColumnToImage>>>&
         instances);
-// nhwc, 3d
-void add_device_column_to_image_ndhwc_3d_bf16_instances(
+// GNDHWC, 3d
+void add_device_column_to_image_gndhwc_3d_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, GNDHWC, BF16, BF16, ColumnToImage>>>&
         instances);
 
-void add_device_column_to_image_ndhwc_3d_f16_instances(
+void add_device_column_to_image_gndhwc_3d_f16_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, GNDHWC, F16, F16, ColumnToImage>>>&
         instances);
 
-void add_device_column_to_image_ndhwc_3d_f32_instances(
+void add_device_column_to_image_gndhwc_3d_f32_instances(
     std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, GNDHWC, F32, F32, ColumnToImage>>>&
         instances);
 
-void add_device_column_to_image_ndhwc_3d_i8_instances(
+void add_device_column_to_image_gndhwc_3d_i8_instances(
     std::vector<
         std::unique_ptr<DeviceConvTensorRearrange<3, GNDHWC, int8_t, int8_t, ColumnToImage>>>&
+        instances);
+// NWGC/NHWGC/NDHWGC
+// Image to Column
+// NWGC, 1d
+void add_device_image_to_column_nwgc_1d_bf16_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, NWGC, BF16, BF16, ImageToColumn>>>&
+        instances);
+
+void add_device_image_to_column_nwgc_1d_f16_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, NWGC, F16, F16, ImageToColumn>>>&
+        instances);
+
+void add_device_image_to_column_nwgc_1d_f32_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, NWGC, F32, F32, ImageToColumn>>>&
+        instances);
+
+void add_device_image_to_column_nwgc_1d_i8_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, NWGC, int8_t, int8_t, ImageToColumn>>>&
+        instances);
+// NHWGC, 2d
+void add_device_image_to_column_nhwgc_2d_bf16_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, NHWGC, BF16, BF16, ImageToColumn>>>&
+        instances);
+
+void add_device_image_to_column_nhwgc_2d_f16_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, NHWGC, F16, F16, ImageToColumn>>>&
+        instances);
+
+void add_device_image_to_column_nhwgc_2d_f32_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, NHWGC, F32, F32, ImageToColumn>>>&
+        instances);
+
+void add_device_image_to_column_nhwgc_2d_i8_instances(
+    std::vector<
+        std::unique_ptr<DeviceConvTensorRearrange<2, NHWGC, int8_t, int8_t, ImageToColumn>>>&
+        instances);
+// NDHWGC, 3d
+void add_device_image_to_column_ndhwgc_3d_bf16_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, NDHWGC, BF16, BF16, ImageToColumn>>>&
+        instances);
+
+void add_device_image_to_column_ndhwgc_3d_f16_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, NDHWGC, F16, F16, ImageToColumn>>>&
+        instances);
+
+void add_device_image_to_column_ndhwgc_3d_f32_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, NDHWGC, F32, F32, ImageToColumn>>>&
+        instances);
+
+void add_device_image_to_column_ndhwgc_3d_i8_instances(
+    std::vector<
+        std::unique_ptr<DeviceConvTensorRearrange<3, NDHWGC, int8_t, int8_t, ImageToColumn>>>&
+        instances);
+
+// Column to Image
+// NWGC, 1d
+void add_device_column_to_image_nwgc_1d_bf16_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, NWGC, BF16, BF16, ColumnToImage>>>&
+        instances);
+
+void add_device_column_to_image_nwgc_1d_f16_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, NWGC, F16, F16, ColumnToImage>>>&
+        instances);
+
+void add_device_column_to_image_nwgc_1d_f32_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, NWGC, F32, F32, ColumnToImage>>>&
+        instances);
+
+void add_device_column_to_image_nwgc_1d_i8_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<1, NWGC, int8_t, int8_t, ColumnToImage>>>&
+        instances);
+// NHWGC, 2d
+void add_device_column_to_image_nhwgc_2d_bf16_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, NHWGC, BF16, BF16, ColumnToImage>>>&
+        instances);
+
+void add_device_column_to_image_nhwgc_2d_f16_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, NHWGC, F16, F16, ColumnToImage>>>&
+        instances);
+
+void add_device_column_to_image_nhwgc_2d_f32_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<2, NHWGC, F32, F32, ColumnToImage>>>&
+        instances);
+
+void add_device_column_to_image_nhwgc_2d_i8_instances(
+    std::vector<
+        std::unique_ptr<DeviceConvTensorRearrange<2, NHWGC, int8_t, int8_t, ColumnToImage>>>&
+        instances);
+// NDHWGC, 3d
+void add_device_column_to_image_ndhwgc_3d_bf16_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, NDHWGC, BF16, BF16, ColumnToImage>>>&
+        instances);
+
+void add_device_column_to_image_ndhwgc_3d_f16_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, NDHWGC, F16, F16, ColumnToImage>>>&
+        instances);
+
+void add_device_column_to_image_ndhwgc_3d_f32_instances(
+    std::vector<std::unique_ptr<DeviceConvTensorRearrange<3, NDHWGC, F32, F32, ColumnToImage>>>&
+        instances);
+
+void add_device_column_to_image_ndhwgc_3d_i8_instances(
+    std::vector<
+        std::unique_ptr<DeviceConvTensorRearrange<3, NDHWGC, int8_t, int8_t, ColumnToImage>>>&
         instances);
 
 template <ck::index_t NumDimSpatial,
@@ -151,60 +256,120 @@ struct DeviceOperationInstanceFactory<
             {
                 if constexpr(is_same_v<InDataType, float> && is_same_v<OutDataType, float>)
                 {
-                    add_device_image_to_column_nwc_1d_f32_instances(op_ptrs);
+                    add_device_image_to_column_gnwc_1d_f32_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, half_t> && is_same_v<OutDataType, half_t>)
                 {
-                    add_device_image_to_column_nwc_1d_f16_instances(op_ptrs);
+                    add_device_image_to_column_gnwc_1d_f16_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
                                   is_same_v<OutDataType, ck::bhalf_t>)
                 {
-                    add_device_image_to_column_nwc_1d_bf16_instances(op_ptrs);
+                    add_device_image_to_column_gnwc_1d_bf16_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<OutDataType, int8_t>)
                 {
-                    add_device_image_to_column_nwc_1d_i8_instances(op_ptrs);
+                    add_device_image_to_column_gnwc_1d_i8_instances(op_ptrs);
                 }
             }
             else if constexpr(NumDimSpatial == 2 && is_same_v<ImageLayout, GNHWC>)
             {
                 if constexpr(is_same_v<InDataType, float> && is_same_v<OutDataType, float>)
                 {
-                    add_device_image_to_column_nhwc_2d_f32_instances(op_ptrs);
+                    add_device_image_to_column_gnhwc_2d_f32_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, half_t> && is_same_v<OutDataType, half_t>)
                 {
-                    add_device_image_to_column_nhwc_2d_f16_instances(op_ptrs);
+                    add_device_image_to_column_gnhwc_2d_f16_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
                                   is_same_v<OutDataType, ck::bhalf_t>)
                 {
-                    add_device_image_to_column_nhwc_2d_bf16_instances(op_ptrs);
+                    add_device_image_to_column_gnhwc_2d_bf16_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<OutDataType, int8_t>)
                 {
-                    add_device_image_to_column_nhwc_2d_i8_instances(op_ptrs);
+                    add_device_image_to_column_gnhwc_2d_i8_instances(op_ptrs);
                 }
             }
             else if constexpr(NumDimSpatial == 3 && is_same_v<ImageLayout, GNDHWC>)
             {
                 if constexpr(is_same_v<InDataType, float> && is_same_v<OutDataType, float>)
                 {
-                    add_device_image_to_column_ndhwc_3d_f32_instances(op_ptrs);
+                    add_device_image_to_column_gndhwc_3d_f32_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, half_t> && is_same_v<OutDataType, half_t>)
                 {
-                    add_device_image_to_column_ndhwc_3d_f16_instances(op_ptrs);
+                    add_device_image_to_column_gndhwc_3d_f16_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
                                   is_same_v<OutDataType, ck::bhalf_t>)
                 {
-                    add_device_image_to_column_ndhwc_3d_bf16_instances(op_ptrs);
+                    add_device_image_to_column_gndhwc_3d_bf16_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<OutDataType, int8_t>)
                 {
-                    add_device_image_to_column_ndhwc_3d_i8_instances(op_ptrs);
+                    add_device_image_to_column_gndhwc_3d_i8_instances(op_ptrs);
+                }
+            }
+            else if constexpr(NumDimSpatial == 1 && is_same_v<ImageLayout, NWGC>)
+            {
+                if constexpr(is_same_v<InDataType, float> && is_same_v<OutDataType, float>)
+                {
+                    add_device_image_to_column_nwgc_1d_f32_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, half_t> && is_same_v<OutDataType, half_t>)
+                {
+                    add_device_image_to_column_nwgc_1d_f16_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                                  is_same_v<OutDataType, ck::bhalf_t>)
+                {
+                    add_device_image_to_column_nwgc_1d_bf16_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<OutDataType, int8_t>)
+                {
+                    add_device_image_to_column_nwgc_1d_i8_instances(op_ptrs);
+                }
+            }
+            else if constexpr(NumDimSpatial == 2 && is_same_v<ImageLayout, NHWGC>)
+            {
+                if constexpr(is_same_v<InDataType, float> && is_same_v<OutDataType, float>)
+                {
+                    add_device_image_to_column_nhwgc_2d_f32_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, half_t> && is_same_v<OutDataType, half_t>)
+                {
+                    add_device_image_to_column_nhwgc_2d_f16_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                                  is_same_v<OutDataType, ck::bhalf_t>)
+                {
+                    add_device_image_to_column_nhwgc_2d_bf16_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<OutDataType, int8_t>)
+                {
+                    add_device_image_to_column_nhwgc_2d_i8_instances(op_ptrs);
+                }
+            }
+            else if constexpr(NumDimSpatial == 3 && is_same_v<ImageLayout, NDHWGC>)
+            {
+                if constexpr(is_same_v<InDataType, float> && is_same_v<OutDataType, float>)
+                {
+                    add_device_image_to_column_ndhwgc_3d_f32_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, half_t> && is_same_v<OutDataType, half_t>)
+                {
+                    add_device_image_to_column_ndhwgc_3d_f16_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                                  is_same_v<OutDataType, ck::bhalf_t>)
+                {
+                    add_device_image_to_column_ndhwgc_3d_bf16_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<OutDataType, int8_t>)
+                {
+                    add_device_image_to_column_ndhwgc_3d_i8_instances(op_ptrs);
                 }
             }
         }
@@ -214,60 +379,120 @@ struct DeviceOperationInstanceFactory<
             {
                 if constexpr(is_same_v<InDataType, float> && is_same_v<OutDataType, float>)
                 {
-                    add_device_column_to_image_nwc_1d_f32_instances(op_ptrs);
+                    add_device_column_to_image_gnwc_1d_f32_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, half_t> && is_same_v<OutDataType, half_t>)
                 {
-                    add_device_column_to_image_nwc_1d_f16_instances(op_ptrs);
+                    add_device_column_to_image_gnwc_1d_f16_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
                                   is_same_v<OutDataType, ck::bhalf_t>)
                 {
-                    add_device_column_to_image_nwc_1d_bf16_instances(op_ptrs);
+                    add_device_column_to_image_gnwc_1d_bf16_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<OutDataType, int8_t>)
                 {
-                    add_device_column_to_image_nwc_1d_i8_instances(op_ptrs);
+                    add_device_column_to_image_gnwc_1d_i8_instances(op_ptrs);
                 }
             }
             else if constexpr(NumDimSpatial == 2 && is_same_v<ImageLayout, GNHWC>)
             {
                 if constexpr(is_same_v<InDataType, float> && is_same_v<OutDataType, float>)
                 {
-                    add_device_column_to_image_nhwc_2d_f32_instances(op_ptrs);
+                    add_device_column_to_image_gnhwc_2d_f32_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, half_t> && is_same_v<OutDataType, half_t>)
                 {
-                    add_device_column_to_image_nhwc_2d_f16_instances(op_ptrs);
+                    add_device_column_to_image_gnhwc_2d_f16_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
                                   is_same_v<OutDataType, ck::bhalf_t>)
                 {
-                    add_device_column_to_image_nhwc_2d_bf16_instances(op_ptrs);
+                    add_device_column_to_image_gnhwc_2d_bf16_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<OutDataType, int8_t>)
                 {
-                    add_device_column_to_image_nhwc_2d_i8_instances(op_ptrs);
+                    add_device_column_to_image_gnhwc_2d_i8_instances(op_ptrs);
                 }
             }
             else if constexpr(NumDimSpatial == 3 && is_same_v<ImageLayout, GNDHWC>)
             {
                 if constexpr(is_same_v<InDataType, float> && is_same_v<OutDataType, float>)
                 {
-                    add_device_column_to_image_ndhwc_3d_f32_instances(op_ptrs);
+                    add_device_column_to_image_gndhwc_3d_f32_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, half_t> && is_same_v<OutDataType, half_t>)
                 {
-                    add_device_column_to_image_ndhwc_3d_f16_instances(op_ptrs);
+                    add_device_column_to_image_gndhwc_3d_f16_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
                                   is_same_v<OutDataType, ck::bhalf_t>)
                 {
-                    add_device_column_to_image_ndhwc_3d_bf16_instances(op_ptrs);
+                    add_device_column_to_image_gndhwc_3d_bf16_instances(op_ptrs);
                 }
                 else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<OutDataType, int8_t>)
                 {
-                    add_device_column_to_image_ndhwc_3d_i8_instances(op_ptrs);
+                    add_device_column_to_image_gndhwc_3d_i8_instances(op_ptrs);
+                }
+            }
+            else if constexpr(NumDimSpatial == 1 && is_same_v<ImageLayout, NWGC>)
+            {
+                if constexpr(is_same_v<InDataType, float> && is_same_v<OutDataType, float>)
+                {
+                    add_device_column_to_image_nwgc_1d_f32_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, half_t> && is_same_v<OutDataType, half_t>)
+                {
+                    add_device_column_to_image_nwgc_1d_f16_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                                  is_same_v<OutDataType, ck::bhalf_t>)
+                {
+                    add_device_column_to_image_nwgc_1d_bf16_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<OutDataType, int8_t>)
+                {
+                    add_device_column_to_image_nwgc_1d_i8_instances(op_ptrs);
+                }
+            }
+            else if constexpr(NumDimSpatial == 2 && is_same_v<ImageLayout, NHWGC>)
+            {
+                if constexpr(is_same_v<InDataType, float> && is_same_v<OutDataType, float>)
+                {
+                    add_device_column_to_image_nhwgc_2d_f32_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, half_t> && is_same_v<OutDataType, half_t>)
+                {
+                    add_device_column_to_image_nhwgc_2d_f16_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                                  is_same_v<OutDataType, ck::bhalf_t>)
+                {
+                    add_device_column_to_image_nhwgc_2d_bf16_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<OutDataType, int8_t>)
+                {
+                    add_device_column_to_image_nhwgc_2d_i8_instances(op_ptrs);
+                }
+            }
+            else if constexpr(NumDimSpatial == 3 && is_same_v<ImageLayout, NDHWGC>)
+            {
+                if constexpr(is_same_v<InDataType, float> && is_same_v<OutDataType, float>)
+                {
+                    add_device_column_to_image_ndhwgc_3d_f32_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, half_t> && is_same_v<OutDataType, half_t>)
+                {
+                    add_device_column_to_image_ndhwgc_3d_f16_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                                  is_same_v<OutDataType, ck::bhalf_t>)
+                {
+                    add_device_column_to_image_ndhwgc_3d_bf16_instances(op_ptrs);
+                }
+                else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<OutDataType, int8_t>)
+                {
+                    add_device_column_to_image_ndhwgc_3d_i8_instances(op_ptrs);
                 }
             }
         }
