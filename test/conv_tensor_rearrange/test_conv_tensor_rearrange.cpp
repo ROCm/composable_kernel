@@ -45,14 +45,20 @@ class TestConvTensorRearrange : public ::testing::Test
 using namespace ck::tensor_layout::convolution;
 using namespace ck::conv_tensor_rearrange_op;
 
-using KernelTypes1d =
-    ::testing::Types<std::tuple<GNWC, ImageToColumn>, std::tuple<GNWC, ColumnToImage>>;
+using KernelTypes1d = ::testing::Types<std::tuple<GNWC, ImageToColumn>,
+                                       std::tuple<GNWC, ColumnToImage>,
+                                       std::tuple<NWGC, ImageToColumn>,
+                                       std::tuple<NWGC, ColumnToImage>>;
 
-using KernelTypes2d =
-    ::testing::Types<std::tuple<GNHWC, ImageToColumn>, std::tuple<GNHWC, ColumnToImage>>;
+using KernelTypes2d = ::testing::Types<std::tuple<GNHWC, ImageToColumn>,
+                                       std::tuple<GNHWC, ColumnToImage>,
+                                       std::tuple<NHWGC, ImageToColumn>,
+                                       std::tuple<NHWGC, ColumnToImage>>;
 
-using KernelTypes3d =
-    ::testing::Types<std::tuple<GNDHWC, ImageToColumn>, std::tuple<GNDHWC, ColumnToImage>>;
+using KernelTypes3d = ::testing::Types<std::tuple<GNDHWC, ImageToColumn>,
+                                       std::tuple<GNDHWC, ColumnToImage>,
+                                       std::tuple<NDHWGC, ImageToColumn>,
+                                       std::tuple<NDHWGC, ColumnToImage>>;
 
 template <typename Tuple>
 class TestConvTensorRearrange1d : public TestConvTensorRearrange<Tuple>
@@ -77,16 +83,16 @@ TYPED_TEST(TestConvTensorRearrange1d, Test1D)
 {
     this->conv_params.clear();
 
-    this->conv_params.push_back({1, 1, 4, 1, 192, {3}, {28}, {1}, {1}, {1}, {1}});
-    this->conv_params.push_back({1, 1, 64, 1, 64, {3}, {14}, {1}, {1}, {1}, {1}});
-    this->conv_params.push_back({1, 1, 64, 1, 64, {1}, {7}, {3}, {1}, {0}, {0}});
-    this->conv_params.push_back({1, 1, 64, 1, 64, {1}, {3}, {1}, {1}, {0}, {0}});
+    this->conv_params.push_back({1, 2, 4, 1, 192, {3}, {28}, {1}, {1}, {1}, {1}});
+    this->conv_params.push_back({1, 2, 64, 1, 64, {3}, {14}, {1}, {1}, {1}, {1}});
+    this->conv_params.push_back({1, 2, 64, 1, 64, {1}, {7}, {3}, {1}, {0}, {0}});
+    this->conv_params.push_back({1, 2, 64, 1, 64, {1}, {3}, {1}, {1}, {0}, {0}});
     // ScalarPerVector should be 1
-    this->conv_params.push_back({1, 1, 4, 1, 1, {3}, {28}, {1}, {1}, {1}, {1}});
+    this->conv_params.push_back({1, 2, 4, 1, 1, {3}, {28}, {1}, {1}, {1}, {1}});
     // stride != 1
-    this->conv_params.push_back({1, 1, 1, 1, 4, {3}, {28}, {2}, {1}, {1}, {1}});
+    this->conv_params.push_back({1, 2, 1, 1, 4, {3}, {28}, {2}, {1}, {1}, {1}});
     // dilation != 1
-    this->conv_params.push_back({1, 1, 1, 1, 4, {3}, {28}, {1}, {2}, {1}, {1}});
+    this->conv_params.push_back({1, 2, 1, 1, 4, {3}, {28}, {1}, {2}, {1}, {1}});
 #ifdef CK_ENABLE_FP32
     this->template Run<1, float, float>();
 #endif
@@ -106,13 +112,13 @@ TYPED_TEST(TestConvTensorRearrange2d, Test2D)
     this->conv_params.clear();
 
     this->conv_params.push_back(
-        {2, 1, 4, 1, 192, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
+        {2, 2, 4, 1, 192, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back(
-        {2, 1, 64, 1, 64, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
+        {2, 2, 64, 1, 64, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back({2, 1, 64, 1, 64, {1, 1}, {7, 7}, {3, 3}, {1, 1}, {0, 0}, {0, 0}});
     this->conv_params.push_back({2, 1, 64, 1, 64, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
     this->conv_params.push_back(
-        {2, 1, 64, 1, 64, {3, 3}, {28, 28}, {2, 2}, {2, 2}, {1, 1}, {1, 1}});
+        {2, 2, 64, 1, 64, {3, 3}, {28, 28}, {2, 2}, {2, 2}, {1, 1}, {1, 1}});
 #ifdef CK_ENABLE_FP32
     this->template Run<2, float, float>();
 #endif
@@ -131,13 +137,13 @@ TYPED_TEST(TestConvTensorRearrange3d, Test3D)
 {
     this->conv_params.clear();
     this->conv_params.push_back(
-        {3, 1, 16, 1, 64, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {3, 3, 3}, {0, 0, 0}, {0, 0, 0}});
+        {3, 2, 16, 1, 64, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {3, 3, 3}, {0, 0, 0}, {0, 0, 0}});
     this->conv_params.push_back(
-        {3, 1, 2, 1, 64, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 2, 2, 1, 64, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
-        {3, 1, 32, 1, 64, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+        {3, 2, 32, 1, 64, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     this->conv_params.push_back(
-        {3, 1, 64, 1, 64, {3, 3, 3}, {14, 14, 14}, {2, 2, 2}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}});
+        {3, 2, 64, 1, 64, {3, 3, 3}, {14, 14, 14}, {2, 2, 2}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}});
 #ifdef CK_ENABLE_FP32
     this->template Run<3, float, float>();
 #endif
