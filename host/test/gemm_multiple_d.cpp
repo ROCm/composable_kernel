@@ -23,7 +23,7 @@ std::vector<rtc::src_file> get_headers_for_test()
 const std::string gemm_compile_check = R"__ck__(
 #include <${include}>
 
-extern "C" __global__ void f(const ck::half_t* a, const ck::half_t* b, const ck::half_t* c) {
+extern "C" __global__ void f(const ck::half_t* a, const ck::half_t* b, ck::half_t* c) {
     using G = ${template};
     constexpr auto desc = ${template}::make_descriptor(ck::make_naive_tensor_descriptor_packed(ck::make_tuple(${m}, ${k})),
                                              ck::make_naive_tensor_descriptor_packed(ck::make_tuple(${n, ${k})),
