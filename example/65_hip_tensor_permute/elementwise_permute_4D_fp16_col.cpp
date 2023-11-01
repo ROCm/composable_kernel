@@ -14,8 +14,8 @@
 using F16 = ck::half_t;
 using F32 = float;
 
-using ADataType = F32;
-using BDataType = F32;
+using ADataType = F16;
+using BDataType = F16;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using UnaryOp     = ck::tensor_operation::element_wise::UnarySquare;
