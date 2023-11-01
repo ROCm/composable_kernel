@@ -71,9 +71,59 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
     static constexpr auto thread_single_load_size = generate_sequence(
         detail::lambda_scalar_per_access<DstVectorDim, ScalarPerVector>{}, Number<nDim>{});
     // After a load, each thread moves by `thread_steps` instead of loading the next elements.
-    // It makes whole wavefront load contiguous memory, what is required for direct loads.
+    // It makes the whole wavefront load contiguous memory, what is required for direct loads.
     static constexpr auto thread_steps         = thread_cluster_lengths * thread_single_load_size;
     static constexpr auto thread_slice_lengths = block_slice_lengths / thread_steps;
+
+    static __device__ constexpr bool AreThreadClusterLengthsValid()
+    {
+        // Make sure that ThreadClusterLengths are set in a way that allows for contiguous writes to
+        // LDS by the threads from a single wavefront.
+        // Examples (assuming 64 threads in a wavefront, 128 in a thread block):
+        // 1. BlockSliceLengths = [K0PerBlock, MPerBlock, K1PerBlock] = [4, 128, 8],
+        //    data type = fp32 -> ScalarPerVector = 1
+        //    INVALID: ThreadClusterLengths = [4, 4, 8] since in the first iteration, threads 0-31
+        //             write [0, 0, 0] - [0, 3, 7] and thread 32 writes [1, 0, 0] instead of
+        //             [0, 4, 0].
+        //    VALID: ThreadClusterLengths = [2, 8, 8] or [1, 16, 8] since in the first iteration,
+        //           threads 0-63 write [0, 0, 0] - [0, 7, 7] -> 64 consecutive elements (DWORDs).
+        // 2. BlockSliceLengths = [K0PerBlock, MPerBlock, K1PerBlock] = [4, 128, 8],
+        //    data type = fp16 -> ScalarPerVector = 2
+        //    NOTE: ThreadClusterLengths must take into account that each thread writes two
+        //          elements (single DWORD) along the contiguous dimension.
+        //    INVALID: ThreadClusterLengths = [4, 4, 8] since each 8 threads would try to write
+        //             8 * 2 elements of K1PerBlock and there are only 8;
+        //             ThreadClusterLengths = [4, 8, 4] since in the first iteration, threads 0-31
+        //             write [0, 0, 0] - [0, 7, 7] (7 since each writes 2 elements) and thread 32
+        //             writes [1, 0, 0] instead of [0, 8, 0].
+        //    VALID: ThreadClusterLengths = [4, 16, 4] or [2, 32, 4] or [1, 64, 4] since in the
+        //           first iteration, threads 0-63 write [0, 0, 0] -  [0, 15, 7] -> 128 consecutive
+        //           elements = 64 consecutive DWORDs.
+        int num_contiguous_dwords = 1;
+        bool is_contiguous        = true;
+        static_for<0, nDim, 1>{}([&](auto i) {
+            if(is_contiguous)
+            {
+                num_contiguous_dwords *= thread_cluster_lengths[nDim - i - 1];
+            }
+            if(thread_slice_lengths[nDim - i - 1] > 1)
+            {
+                is_contiguous = false;
+            }
+        });
+        constexpr index_t wavefront_size = get_warp_size();
+        const bool wave_contiguous       = num_contiguous_dwords % wavefront_size == 0;
+
+        bool thread_slice_lengths_correct = true;
+        static_for<0, nDim, 1>{}([&](auto i) {
+            if(thread_slice_lengths[i] <= 0)
+            {
+                thread_slice_lengths_correct = false;
+            }
+        });
+
+        return wave_contiguous && thread_slice_lengths_correct;
+    }
 
     __device__ constexpr ThreadGroupTensorSliceTransfer_DirectLoad(
         const SrcDesc& src_desc,
@@ -111,6 +161,11 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         static_assert(ThreadGroup::GetNumOfThread() >= thread_cluster_desc_.GetElementSize(),
                       "The number of threads cannot be less than the number of elements in "
                       "thread cluster lengths.");
+
+        static_assert(
+            AreThreadClusterLengthsValid(),
+            "Thread cluster lengths are incorrect. They must be set in a way that allows a single "
+            "wavefront to write contiguous DWORDs into LDS memory. ");
 
         const auto thread_cluster_idx =
             thread_cluster_desc_.CalculateBottomIndex(make_multi_index(ThreadGroup::GetThreadId()));
