@@ -12,29 +12,9 @@ using BetaDataType           = ck::half_t;
 using YDataType              = ck::half_t;
 using SaveMeanInvStdDataType = float;
 using ComputeDataType        = float;
+using YElementOp             = ck::tensor_operation::element_wise::Swish;
 
 #define SAVE_MEAN_INV_STD
-
-struct YElementOp
-{
-    template <typename Y, typename X>
-    __host__ __device__ void operator()(Y& y, const X& x) const
-    {
-        static_assert(ck::is_same<X, float>::value || ck::is_same<X, double>::value ||
-                          ck::is_same<X, ck::half_t>::value,
-                      "Data type is not supported by this operation!");
-
-        static_assert(ck::is_same<Y, float>::value || ck::is_same<Y, double>::value ||
-                          ck::is_same<Y, ck::half_t>::value,
-                      "Data type is not supported by this operation!");
-
-        X a;
-
-        ck::tensor_operation::element_wise::Sigmoid{}(a, x);
-
-        y = ck::type_convert<Y>(x * a);
-    };
-};
 
 using DeviceInstance =
     ck::tensor_operation::device::DeviceNormalizationImpl<XDataType,
@@ -60,6 +40,6 @@ using DeviceInstance =
                                                           2,    // YScalarPerVector
                                                           1>;   // SaveMeanInvStdScalarPerVector
 
-#include "run_groupnorm_example.inc"
+#include "run_groupnorm_fwd_example.inc"
 
-int main(int argc, char* argv[]) { run_groupnorm_example(argc, argv); }
+int main(int argc, char* argv[]) { run_groupnorm_fwd_example(argc, argv); }

@@ -40,6 +40,6 @@ using DeviceInstance =
                                                                 2,   // YScalarPerVector
                                                                 1>; // SaveMeanInvStdScalarPerVector
 
-#include "run_groupnorm_example.inc"
+#include "run_groupnorm_fwd_example.inc"
 
-int main(int argc, char* argv[]) { run_groupnorm_example(argc, argv); }
+int main(int argc, char* argv[]) { run_groupnorm_fwd_example(argc, argv); }
