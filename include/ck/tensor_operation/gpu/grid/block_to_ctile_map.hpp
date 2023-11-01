@@ -161,7 +161,7 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
     }
 
     template <typename CGridDesc_M_N>
-    __host__ bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const
+    __host__ constexpr bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const
     {
         return true;
     }
@@ -317,7 +317,10 @@ struct BlockToCTileMap_KSplit_M00_N0_M01Adapt
         return true; // always valid provided that user gets grid size from CalculateGridSize()
     }
 
-    __host__ bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const { return true; }
+    __host__ constexpr bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const
+    {
+        return true;
+    }
 
     private:
     index_t M01_;
@@ -375,7 +378,7 @@ struct BlockToCTileMap_M00_N00_M01_N01
             return true;
     }
 
-    __host__ bool CheckValidity(const CGridDesc_M_N& c_grid_desc_m_n) const
+    __host__ constexpr bool CheckValidity(const CGridDesc_M_N& c_grid_desc_m_n) const
     {
         if constexpr(DeviceCTileIndexCheck)
             return true; // validity check moved to kernel
@@ -487,7 +490,7 @@ struct BlockToCTileMap_KSplit_M00_N00_M01_N01
             return true;
     }
 
-    __host__ bool CheckValidity(const CGridDesc_M_N& c_grid_desc_m_n) const
+    __host__ constexpr bool CheckValidity(const CGridDesc_M_N& c_grid_desc_m_n) const
     {
         if constexpr(DeviceCTileIndexCheck)
             return true; // validity check moved to kernel
@@ -611,7 +614,7 @@ struct OffsettedBlockToCTileMap
     }
 
     template <typename CGridDesc_M_N>
-    __host__ bool CheckValidity(const CGridDesc_M_N& c_grid_desc_m_n) const
+    __host__ constexpr bool CheckValidity(const CGridDesc_M_N& c_grid_desc_m_n) const
     {
         return block_to_ctile_map_.CheckValidity(c_grid_desc_m_n);
     }
@@ -668,7 +671,7 @@ struct BlockToCTileMap_3DGrid_KSplit
     }
 
     template <typename CGridDesc_M_N>
-    __host__ bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const
+    __host__ constexpr bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const
     {
         return true;
     }

@@ -32,11 +32,14 @@ extern "C" __global__ void f(const ck::half_t* a, const ck::half_t* b, ck::half_
 
     static_assert(desc.IsValid(), "Invalid ck gemm.");
 
-    ${template}::Run(desc,
-           a,
-           b,
-           ck::make_tuple(),
-           c);
+    if constexpr(desc.IsValid())
+    {
+        ${template}::Run(desc,
+               a,
+               b,
+               ck::make_tuple(),
+               c);
+    }
 }
 
 )__ck__";

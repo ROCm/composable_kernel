@@ -503,7 +503,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         // check vector load/store
         using Row = ck::tensor_layout::gemm::RowMajor;
         using Col = ck::tensor_layout::gemm::ColumnMajor;
-
         // check vector load of A
         if constexpr(is_same_v<ALayout, Row> && ABlockTransferSrcVectorDim == 2)
         {
@@ -524,7 +523,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         {
             return false;
         }
-
         // check vector laod of B
         if constexpr(is_same_v<BLayout, Col> && BBlockTransferSrcVectorDim == 2)
         {
@@ -723,6 +721,13 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                 [&](auto d) constexpr { return DeviceOp::matrix_padder.PadCDescriptor_M_N(d); },
                 DsDesc{});
         }
+        using AGridDesc_M_K =
+            remove_cvref_t<decltype(DeviceOp::matrix_padder.PadADescriptor_M_K(ADesc{}))>;
+        using BGridDesc_N_K =
+            remove_cvref_t<decltype(DeviceOp::matrix_padder.PadBDescriptor_N_K(BDesc{}))>;
+        using DsGridDesc_M_N = remove_cvref_t<decltype(ds_tuple())>;
+        using EGridDesc_M_N =
+            remove_cvref_t<decltype(DeviceOp::matrix_padder.PadCDescriptor_M_N(EDesc{}))>;
         using AGridDesc_AK0_M_AK1 =
             remove_cvref_t<decltype(GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(
                 DeviceOp::matrix_padder.PadADescriptor_M_K(ADesc{})))>;
@@ -806,7 +811,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
 
         constexpr bool IsValid() const
         {
-            return GridwiseGemm::CheckValidity((a_grid_desc_m_k),
+            return GridwiseGemm::CheckValidity(a_grid_desc_m_k,
                                                b_grid_desc_n_k,
                                                ds_grid_desc_m_n,
                                                e_grid_desc_m_n,
@@ -844,7 +849,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                                EDataType* __restrict__ p_e_grid)
     {
         __shared__ char p_shared_block[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-        assert(desc.is_valid);
+        assert(desc.IsValid());
         if(desc.has_main_k_block_loop)
         {
             GridwiseGemm::template Run<true>(p_a_grid,
