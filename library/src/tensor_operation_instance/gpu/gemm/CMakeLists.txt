@@ -42,6 +42,7 @@ list(APPEND GEMM_INSTANCES device_gemm_dl_f16_f16_f16_mk_kn_mn_instance.cpp
                            device_gemm_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instance.cpp
                            device_gemm_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instance.cpp
                            device_gemm_xdl_c_shuffle_2_stage_f16_f16_f16_mk_nk_mn_instance.cpp
+                           device_gemm_xdl_c_shuffle_lds_direct_load_f16_f16_f16_mk_nk_mn_instance.cpp
                            device_gemm_xdl_f16_f16_f16/km_kn_mn_add_instance.cpp
                            device_gemm_xdl_f16_f16_f16/km_kn_mn_default_pipeline_v1_instance.cpp
                            device_gemm_xdl_f16_f16_f16/km_kn_mn_default_pipeline_v2_instance.cpp

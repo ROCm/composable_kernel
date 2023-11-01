@@ -173,7 +173,7 @@ struct DynamicBuffer
         }
     }
 
-    template <typename DstBuffer>
+    template <typename DstBuffer, index_t NumElemsPerThread>
     __host__ __device__ void
     CopyTo(DstBuffer& dst_buf, index_t src_offset, index_t dst_offset, bool is_valid_element) const
     {
@@ -182,12 +182,12 @@ struct DynamicBuffer
         static_assert(DstBuffer::GetAddressSpace() == AddressSpaceEnum::Lds,
                       "Destination data must be stored in an LDS memory buffer.");
 
-        amd_direct_load_global_to_lds(p_data_,
-                                      src_offset,
-                                      dst_buf.p_data_,
-                                      dst_offset,
-                                      is_valid_element,
-                                      element_space_size_);
+        amd_direct_load_global_to_lds<T, NumElemsPerThread>(p_data_,
+                                                            src_offset,
+                                                            dst_buf.p_data_,
+                                                            dst_offset,
+                                                            is_valid_element,
+                                                            element_space_size_);
     }
 
     template <typename X,

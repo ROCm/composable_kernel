@@ -38,8 +38,13 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
     static constexpr auto block_slice_lengths    = BlockSliceLengths{};
     static constexpr auto thread_cluster_lengths = ThreadClusterLengths{};
-    static constexpr auto thread_slice_lengths   = block_slice_lengths / thread_cluster_lengths;
-    static constexpr auto thread_steps           = thread_cluster_lengths;
+
+    static constexpr auto thread_single_load_size = generate_sequence(
+        detail::lambda_scalar_per_access<DstVectorDim, ScalarPerVector>{}, Number<nDim>{});
+    // After a load, each thread moves by `thread_steps` instead of loading the next elements.
+    // It makes whole wavefront load contiguous memory, what is required for direct loads.
+    static constexpr auto thread_steps         = thread_cluster_lengths * thread_single_load_size;
+    static constexpr auto thread_slice_lengths = block_slice_lengths / thread_steps;
 
     __device__ constexpr ThreadGroupTensorSliceTransfer_DirectLoad(
         const SrcDesc& src_desc,
@@ -51,17 +56,28 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         static_assert(NumLdsBuffers == 1,
                       "Direct load transfer does not support multiple LDS buffers.");
 
-        static_assert(ScalarPerVector == 1,
-                      "Direct load transfer does not support vectorized transfers.");
+        static_assert(ck::is_same_v<SrcData, DstData>,
+                      "Direct load transfer does not support datatypes conversion. Source and "
+                      "destination data types must be the same.");
+
+        static_assert(
+            DstVectorDim == nDim - 1,
+            "Direct load transfer requires the destination vector dimension to be the last one.");
+
+        static_assert(ScalarPerVector == 1 || SrcVectorDim == DstVectorDim,
+                      "When loading more than one element per thread at once, the contiguous "
+                      "dimension must be the same between source and destination.");
+
+        constexpr auto dword_bytes           = 4;
+        constexpr auto bytes_per_thread_load = ScalarPerVector * sizeof(SrcData);
+        static_assert(bytes_per_thread_load == dword_bytes,
+                      "Direct load transfer requires each thread to load exactly a single "
+                      "DWORD of data.");
 
         static_assert(nDim == remove_cvref_t<SrcDesc>::GetNumOfDimension() &&
                           nDim == remove_cvref_t<DstDesc>::GetNumOfDimension() &&
                           nDim == ThreadClusterLengths::Size(),
                       "Inconsistent number of dimensions across lengths and descriptors.");
-
-        static_assert(
-            is_same<BlockSliceLengths, decltype(thread_slice_lengths * ThreadClusterLengths{})>{},
-            "Threads must be mapped to cover entire slicing window.");
 
         static_assert(ThreadGroup::GetNumOfThread() >= thread_cluster_desc_.GetElementSize(),
                       "The number of threads cannot be less than the number of elements in "
@@ -70,7 +86,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         const auto thread_cluster_idx =
             thread_cluster_desc_.CalculateBottomIndex(make_multi_index(ThreadGroup::GetThreadId()));
 
-        const auto thread_data_idx_begin = thread_cluster_idx;
+        const auto thread_data_idx_begin = thread_cluster_idx * thread_single_load_size;
 
         SetSrcSliceOrigin(src_desc, src_block_slice_origin + thread_data_idx_begin);
         SetDstSliceOrigin(dst_desc, dst_block_slice_origin + thread_data_idx_begin);
@@ -105,10 +121,10 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                       "Destination data must be stored in an LDS memory buffer.");
 
         static_assert(
-            is_same<remove_cvref_t<typename SrcBuffer::type>, remove_cvref_t<SrcData>>::value,
+            ck::is_same_v<remove_cvref_t<typename SrcBuffer::type>, remove_cvref_t<SrcData>>,
             "SrcBuffer and SrcData data types must be consistent.");
         static_assert(
-            is_same<remove_cvref_t<typename DstBuffer::type>, remove_cvref_t<DstData>>::value,
+            ck::is_same_v<remove_cvref_t<typename DstBuffer::type>, remove_cvref_t<DstData>>,
             "DstBuffer and DstData data types must be consistent.");
 
         constexpr auto dst_access_lengths = thread_slice_lengths;
@@ -127,7 +143,8 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
             const bool is_src_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
 
-            src_buf.CopyTo(dst_buf, src_offset, dst_offset, is_src_valid);
+            src_buf.template CopyTo<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector>(
+                dst_buf, src_offset, dst_offset, is_src_valid);
 
             constexpr auto move_on_dim = [&]() constexpr
             {
