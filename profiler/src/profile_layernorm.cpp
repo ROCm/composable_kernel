@@ -76,19 +76,46 @@ int profile_layernorm(int argc, char* argv[])
     arg_parser(argc, argv);
     const std::vector<index_t> length = arg_parser.long_opts["length"];
 
-    using F16          = ck::half_t;
-    using F32          = float;
-    constexpr int rank = 2;
+    using F16 = ck::half_t;
+    using F32 = float;
 
-    if(data_type == ck::DataTypeEnum::Half)
+    if(length.size() == 2)
     {
-        ck::profiler::profile_layernorm_impl<F16, F16, F16, F32, F16, F32, false, rank>(
-            do_verification, init_method, do_log, time_kernel, length);
+        constexpr int rank = 2;
+
+        if(data_type == ck::DataTypeEnum::Half)
+        {
+            ck::profiler::profile_layernorm_impl<F16, F16, F16, F32, F16, F32, false, rank>(
+                do_verification, init_method, do_log, time_kernel, length);
+        }
+        else if(data_type == ck::DataTypeEnum::Float)
+        {
+            ck::profiler::profile_layernorm_impl<F32, F32, F32, F32, F32, F32, false, rank>(
+                do_verification, init_method, do_log, time_kernel, length);
+        }
+        else
+        {
+            throw std::runtime_error("not implemented yet");
+        }
     }
-    else if(data_type == ck::DataTypeEnum::Float)
+    else if(length.size() == 4)
     {
-        ck::profiler::profile_layernorm_impl<F32, F32, F32, F32, F32, F32, false, rank>(
-            do_verification, init_method, do_log, time_kernel, length);
+        constexpr int rank = 4;
+
+        if(data_type == ck::DataTypeEnum::Half)
+        {
+            ck::profiler::profile_layernorm_impl<F16, F16, F16, F32, F16, F32, false, rank>(
+                do_verification, init_method, do_log, time_kernel, length);
+        }
+        else if(data_type == ck::DataTypeEnum::Float)
+        {
+            ck::profiler::profile_layernorm_impl<F32, F32, F32, F32, F32, F32, false, rank>(
+                do_verification, init_method, do_log, time_kernel, length);
+        }
+        else
+        {
+            throw std::runtime_error("not implemented yet");
+        }
     }
     else
     {
