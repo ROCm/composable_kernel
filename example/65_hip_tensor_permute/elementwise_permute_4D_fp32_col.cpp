@@ -38,15 +38,20 @@ void host_elementwise4D(HostTensorB& B_nhwc,
                         FunctorB functor_b,
                         float scale)
 {
-    for(std::size_t n = 0; n < A_nchw.mDesc.GetLengths()[0]; ++n)
-        for(std::size_t c = 0; c < A_nchw.mDesc.GetLengths()[1]; ++c)
-            for(std::size_t h = 0; h < A_nchw.mDesc.GetLengths()[2]; ++h)
-                for(std::size_t w = 0; w < A_nchw.mDesc.GetLengths()[3]; ++w)
+    std::size_t N = A_nchw.mDesc.GetLengths()[0];
+    std::size_t C = A_nchw.mDesc.GetLengths()[1];
+    std::size_t H = A_nchw.mDesc.GetLengths()[2];
+    std::size_t W = A_nchw.mDesc.GetLengths()[3];
+    for(std::size_t w = 0; w < W; ++w)
+        for(std::size_t h = 0; h < H; ++h)
+            for(std::size_t c = 0; c < C; ++c)
+                for(std::size_t n = 0; n < N; ++n)
                 {
                     ADataType tmp_val;
-                    auto a_val = A_nchw(n, c, h, w);
+                    auto a_val = A_nchw.mData[(n) + (c * N) + (h * C * N) + (w * H * C * N)];
                     functor_b(tmp_val, a_val);
-                    functor_a(B_nhwc(n, h, w, c), scale * tmp_val);
+                    functor_a(B_nhwc.mData[(n) + (c * W * H * N) + (h * N) + (w * H * N)],
+                              scale * tmp_val);
                 }
 }
 
@@ -60,13 +65,7 @@ int main()
     Tensor<ADataType> a(nchw);
     Tensor<BDataType> b(nhwc);
     float scale = 1.f;
-    // a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-    //
-    // for(std::size_t i = 0; i < a.mData.size(); i++){
-    //	    a.mData[i] = i;
-    //  }
-    //
-    auto i = 0;
+    auto i      = 0;
     for(std::size_t w = 0; w < a.mDesc.GetLengths()[3]; ++w)
         for(std::size_t h = 0; h < a.mDesc.GetLengths()[2]; ++h)
             for(std::size_t c = 0; c < a.mDesc.GetLengths()[1]; ++c)
@@ -86,15 +85,16 @@ int main()
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
 
     std::array<ck::index_t, 4> ab_lengths;
-    std::array<ck::index_t, 4> a_strides = {static_cast<int>(nchw[1] * nchw[2] * nchw[3]),
-                                            static_cast<int>(nchw[2] * nchw[3]),
-                                            static_cast<int>(nchw[3]),
-                                            1};
-    std::array<ck::index_t, 4> b_strides = {static_cast<int>(nhwc[1] * nhwc[2] * nhwc[3]),
-                                            1,
-                                            static_cast<int>(nhwc[2] * nhwc[3]),
-                                            static_cast<int>(nhwc[3])};
 
+    std::array<ck::index_t, 4> a_strides = {1,
+                                            static_cast<int>(nchw[0]),
+                                            static_cast<int>(nchw[0] * nchw[1]),
+                                            static_cast<int>(nchw[0] * nchw[1] * nchw[2])};
+
+    std::array<ck::index_t, 4> b_strides = {1,
+                                            static_cast<int>(nhwc[0] * nhwc[1] * nhwc[2]),
+                                            static_cast<int>(nhwc[0]),
+                                            static_cast<int>(nhwc[0] * nhwc[1])};
     ck::ranges::copy(nchw, ab_lengths.begin());
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
@@ -133,15 +133,11 @@ int main()
 
     bool pass = true;
 
-    LogRangeAsType<float>(std::cout << "A  : ", a.mData, ",") << std::endl;
     if(do_verification)
     {
         b_device_buf.FromDevice(b.mData.data());
         Tensor<BDataType> host_b(nhwc);
         host_elementwise4D(host_b, a, PassThrough{}, UnaryOp{}, scale);
-
-        LogRangeAsType<float>(std::cout << "B  : ", b.mData, ",") << std::endl;
-        LogRangeAsType<float>(std::cout << "Host B  : ", host_b.mData, ",") << std::endl;
 
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
