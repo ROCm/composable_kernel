@@ -118,7 +118,6 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
 
     using Argument = typename GridwiseGemm::Argument;
 
-    // Invoker
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
@@ -186,7 +185,6 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
             }
         }
 
-        // polymorphic
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
         {
@@ -201,12 +199,12 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
             return false;
         }
 
-        // check vector load/store
+        // Check vector load/store.
         {
             using Row = ck::tensor_layout::gemm::RowMajor;
             using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-            // check vector load of A
+            // Check vector load of A.
             if constexpr(is_same_v<ALayout, Row> && ABlockTransferSrcVectorDim == 2)
             {
                 if(arg.KRaw_ % ABlockTransferScalarPerVector != 0)
@@ -216,7 +214,6 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
             }
             else if constexpr(is_same_v<ALayout, Col> && ABlockTransferSrcVectorDim == 1)
             {
-                // FIXME: not rigorous
                 if(arg.MRaw_ % ABlockTransferScalarPerVector != 0)
                 {
                     return false;
@@ -227,7 +224,7 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
                 return false;
             }
 
-            // check vector load of B
+            // Check vector load of B.
             if constexpr(is_same_v<BLayout, Col> && BBlockTransferSrcVectorDim == 2)
             {
                 if(arg.KRaw_ % BBlockTransferScalarPerVector != 0)
@@ -237,7 +234,6 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
             }
             else if constexpr(is_same_v<BLayout, Row> && BBlockTransferSrcVectorDim == 1)
             {
-                // FIXME: not rigorous
                 if(arg.NRaw_ % BBlockTransferScalarPerVector != 0)
                 {
                     return false;
@@ -248,8 +244,8 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
                 return false;
             }
 
-            // check vector store of E
-            // only support RowMajor for now
+            // Check vector load of E.
+            // For now, only the RowMajor layout is supported.
             if constexpr(is_same_v<ELayout, Row>)
             {
                 if(arg.NRaw_ % CDEBlockTransferScalarPerVector_NPerBlock != 0)
@@ -270,7 +266,6 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
                                            arg.block_2_etile_map_);
     }
 
-    // polymorphic
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
@@ -310,7 +305,6 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
 
     static auto MakeInvoker() { return Invoker{}; }
 
-    // polymorphic
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
@@ -344,13 +338,11 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
                                           cde_element_op);
     }
 
-    // polymorphic
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
         return std::make_unique<Invoker>(Invoker{});
     }
 
-    // polymorphic
     std::string GetTypeString() const override
     {
         auto str = std::stringstream();

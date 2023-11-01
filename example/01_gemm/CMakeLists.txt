@@ -44,7 +44,7 @@ if(USE_BITINT_EXTENSION_INT4)
     add_example_dependencies(example_gemm_xdl example_gemm_xdl_int4)
 endif(USE_BITINT_EXTENSION_INT4)
 
-# FIXME: re-enable this exampe as test when SWDEV-335738 is fixed
+# FIXME: re-enable this example as test when SWDEV-335738 is fixed
 add_example_executable_no_testing(example_gemm_xdl_fp64 gemm_xdl_fp64.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp64)
 
@@ -58,9 +58,7 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8_bf8)
 
 if(GPU_TARGETS MATCHES "gfx90a")
   add_example_executable(example_gemm_xdl_lds_direct_load_fp32 gemm_xdl_lds_direct_load_fp32.cpp)
-  if(result EQUAL 0)
-    add_dependencies(example_gemm_xdl example_gemm_xdl_lds_direct_load_fp32)
-  endif()
+  add_example_dependencies(example_gemm_xdl example_gemm_xdl_lds_direct_load_fp32)
 endif()
 
 add_example_executable(example_gemm_xdl_fp16_fp8 gemm_xdl_fp16_fp8.cpp)

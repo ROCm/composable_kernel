@@ -67,17 +67,13 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                       "The number of threads cannot be less than the number of elements in "
                       "thread cluster lengths.");
 
-        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
-           ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
-        {
-            const auto thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
-                make_multi_index(ThreadGroup::GetThreadId()));
+        const auto thread_cluster_idx =
+            thread_cluster_desc_.CalculateBottomIndex(make_multi_index(ThreadGroup::GetThreadId()));
 
-            const auto thread_data_idx_begin = thread_cluster_idx;
+        const auto thread_data_idx_begin = thread_cluster_idx;
 
-            SetSrcSliceOrigin(src_desc, src_block_slice_origin + thread_data_idx_begin);
-            SetDstSliceOrigin(dst_desc, dst_block_slice_origin + thread_data_idx_begin);
-        }
+        SetSrcSliceOrigin(src_desc, src_block_slice_origin + thread_data_idx_begin);
+        SetDstSliceOrigin(dst_desc, dst_block_slice_origin + thread_data_idx_begin);
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
@@ -103,11 +99,6 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                         const DstDesc& dst_desc,
                         DstBuffer& dst_buf)
     {
-        if(ThreadGroup::GetNumOfThread() != thread_cluster_desc_.GetElementSize() &&
-           ThreadGroup::GetThreadId() >= thread_cluster_desc_.GetElementSize())
-        {
-            return;
-        }
         static_assert(SrcBuffer::GetAddressSpace() == AddressSpaceEnum::Global,
                       "Source data must come from a global memory buffer.");
         static_assert(DstBuffer::GetAddressSpace() == AddressSpaceEnum::Lds,
@@ -120,21 +111,19 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
             is_same<remove_cvref_t<typename DstBuffer::type>, remove_cvref_t<DstData>>::value,
             "DstBuffer and DstData data types must be consistent.");
 
-        constexpr auto dst_access_lengths   = thread_slice_lengths;
-        constexpr auto dst_dim_access_order = Sequence<0, 1, 2>{};
-        constexpr auto ordered_dst_access_lengths =
-            container_reorder_given_new2old(dst_access_lengths, dst_dim_access_order);
+        constexpr auto dst_access_lengths = thread_slice_lengths;
 
         const auto dst_forward_steps  = generate_steps(dst_desc, 1);
         const auto dst_backward_steps = generate_steps(dst_desc, -1);
         const auto src_forward_steps  = generate_steps(src_desc, 1);
         const auto src_backward_steps = generate_steps(src_desc, -1);
 
-        // loop over tensor and copy
-        static_ford<decltype(ordered_dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
+        // Loop over the destination block and copy data.
+        static_ford<decltype(dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
             const auto src_offset = src_coord_.GetOffset();
             const auto dst_offset = dst_coord_.GetOffset();
 
+            // Check if src data is not in the logic padding area.
             const bool is_src_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
 
@@ -145,11 +134,10 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
-                    move_on_dim_(i) = ordered_dst_access_idx[i] < ordered_dst_access_lengths[i] - 1;
+                    move_on_dim_(i) = ordered_dst_access_idx[i] < dst_access_lengths[i] - 1;
 
                     static_for<i + 1, nDim, 1>{}([&](auto j) {
-                        move_on_dim_(i) &=
-                            ordered_dst_access_idx[j] == ordered_dst_access_lengths[j] - 1;
+                        move_on_dim_(i) &= ordered_dst_access_idx[j] == dst_access_lengths[j] - 1;
                     });
                 });
 
@@ -157,7 +145,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
             }
             ();
 
-            // judge move forward or move backward
+            // Decide whether to move forward or backward.
             constexpr auto forward_sweep = [&]() {
                 StaticallyIndexedArray<bool, nDim> forward_sweep_;
 
@@ -167,7 +155,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                     index_t tmp = ordered_dst_access_idx[I0];
 
                     static_for<1, i, 1>{}([&](auto j) {
-                        tmp = tmp * ordered_dst_access_lengths[j] + ordered_dst_access_idx[j];
+                        tmp = tmp * dst_access_lengths[j] + ordered_dst_access_idx[j];
                     });
 
                     forward_sweep_(i) = tmp % 2 == 0;
@@ -181,33 +169,26 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                 {
                     if constexpr(forward_sweep[i])
                     {
-                        move_tensor_coordinate(
-                            dst_desc, dst_coord_, dst_forward_steps[dst_dim_access_order[i]]);
-                        move_tensor_coordinate(
-                            src_desc, src_coord_, src_forward_steps[dst_dim_access_order[i]]);
+                        move_tensor_coordinate(dst_desc, dst_coord_, dst_forward_steps[i]);
+                        move_tensor_coordinate(src_desc, src_coord_, src_forward_steps[i]);
                     }
                     else
                     {
-                        move_tensor_coordinate(
-                            dst_desc, dst_coord_, dst_backward_steps[dst_dim_access_order[i]]);
-                        move_tensor_coordinate(
-                            src_desc, src_coord_, src_backward_steps[dst_dim_access_order[i]]);
+                        move_tensor_coordinate(dst_desc, dst_coord_, dst_backward_steps[i]);
+                        move_tensor_coordinate(src_desc, src_coord_, src_backward_steps[i]);
                     }
                 }
             });
         });
 
+        // Reset the destination slice since the entire buffer has been already filled.
         ResetDstSliceWindow(dst_desc);
     }
 
     __device__ void MoveSrcSliceWindow(const SrcDesc& src_desc, const Index& step)
     {
-        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
-           ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
-        {
-            src_slice_origin_ = src_slice_origin_ + step;
-            src_coord_        = make_tensor_coordinate(src_desc, src_slice_origin_);
-        }
+        src_slice_origin_ = src_slice_origin_ + step;
+        src_coord_        = make_tensor_coordinate(src_desc, src_slice_origin_);
     }
 
     template <typename DescType>
