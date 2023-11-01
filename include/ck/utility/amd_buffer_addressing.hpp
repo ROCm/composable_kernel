@@ -962,7 +962,7 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
                                               const bool is_valid,
                                               const index_t src_element_space_size)
 {
-    // Direct loads require that each thread writes a single DWORD.
+    // Direct loads require that each thread reads and writes exactly a single DWORD.
     constexpr auto dword_bytes      = 4;
     constexpr auto bytes_per_thread = sizeof(T) * NumElemsPerThread;
     static_assert(bytes_per_thread == dword_bytes);

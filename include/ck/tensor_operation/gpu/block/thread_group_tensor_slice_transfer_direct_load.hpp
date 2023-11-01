@@ -11,7 +11,36 @@
 
 namespace ck {
 
-// TODO: Write the description.
+/**
+ * Transfer that uses direct load instructions to copy data from global to LDS memory.
+ *
+ * Traditional loads first copy data from global to registers, and then from registers to LDS.
+ * Direct loads do not need an intermediate step, data is copied directly from global to LDS,
+ * without the use of additional registers.
+ *
+ * However, the instruction has limitations:
+ * - each thread must copy exactly a single DWORD - 4 bytes;
+ * - threads within a single wavefront must write consecutive DWORDS into LDS,
+ *   (data in global do not need to be contiguous, each thread might have its own offset).
+ *
+ * To make sure that all the transfers finished, the `waitcnt` instruction must be used with
+ * `vmcnt` instead of `lgkmcnt`.
+ *
+ * Limitations of the transfer class:
+ * - `SrcData` must be the same as `DstData` - no possibility to convert the data type in flight;
+ * - `DstVectorDim` must be the last dimension;
+ * - `SrcVectorDim` must be the last dimension if `ScalarPerVector` is greater than 1;
+ * - `ScalarPerVector` times the number of bytes of `DstData` must be equal to a single DWORD = 4B
+ *   (for examlpe if `DstData` is fp32, then `ScalarPerVector` must be 1; if `DstData` is fp16,
+ *   `ScalarPerVector` must be 2);
+ * - if `ScalarPerVector` is greater than 1, the contiguous dimension in src and dst must be
+ *   the same dimension;
+ * - threads in a wavefront must write contiguous data to LDS (when wavefront size is 64,
+ *   they must write 64 contiguous DWORDs) - `ThreadClusterLengths` must be prepared in such a way
+ *   to guarantee that.
+ *
+ * For now, only single LDS buffer is supported.
+ */
 template <typename ThreadGroup,
           typename BlockSliceLengths,
           typename ThreadClusterLengths,

@@ -177,6 +177,7 @@ struct DynamicBuffer
     __host__ __device__ void
     CopyTo(DstBuffer& dst_buf, index_t src_offset, index_t dst_offset, bool is_valid_element) const
     {
+        // Copy data from global to LDS memory using direct loads.
         static_assert(GetAddressSpace() == AddressSpaceEnum::Global,
                       "Source data must come from a global memory buffer.");
         static_assert(DstBuffer::GetAddressSpace() == AddressSpaceEnum::Lds,
