@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -78,8 +78,8 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
     using ThreadwiseWolfordDesc2D = decltype(make_naive_tensor_descriptor_packed(make_tuple(
         Number<DimSubBlocks * DimThreadSize>{}, Number<RowSubBlocks * RowVectorSize>{})));
 
-    using ThreadwiseWolfordDescReduce = decltype(
-        make_naive_tensor_descriptor_packed(make_tuple(Number<DimSubBlocks * DimThreadSize>{})));
+    using ThreadwiseWolfordDescReduce = decltype(make_naive_tensor_descriptor_packed(
+        make_tuple(Number<DimSubBlocks * DimThreadSize>{})));
 
     using ThreadwiseWelford =
         ThreadwiseWelford<AccDataType, ThreadwiseWolfordDesc2D, ThreadwiseWolfordDescReduce>;

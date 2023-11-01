@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
-#include <cstdlib>
-
+#include <vector>
+#include <memory>
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_multiple_d_gemm_multiple_d.hpp"
@@ -14,7 +14,7 @@
 
 using CDE0ElementOp = ck::tensor_operation::element_wise::AddRelu;
 using CDE1ElementOp = ck::tensor_operation::element_wise::Add;
-
+#ifdef CK_ENABLE_FP16
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -137,3 +137,4 @@ struct DeviceOperationInstanceFactory<
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#endif

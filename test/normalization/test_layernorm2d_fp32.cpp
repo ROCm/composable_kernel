@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
 #include "profiler/profile_layernorm_impl.hpp"
@@ -12,11 +12,12 @@ template <typename Tuple>
 class TestLayernorm2d : public ::testing::Test
 {
     protected:
-    using XDataType       = std::tuple_element_t<0, Tuple>;
-    using GammaDataType   = std::tuple_element_t<1, Tuple>;
-    using BetaDataType    = std::tuple_element_t<2, Tuple>;
-    using ComputeDataType = std::tuple_element_t<3, Tuple>;
-    using YDataType       = std::tuple_element_t<4, Tuple>;
+    using XDataType              = std::tuple_element_t<0, Tuple>;
+    using GammaDataType          = std::tuple_element_t<1, Tuple>;
+    using BetaDataType           = std::tuple_element_t<2, Tuple>;
+    using ComputeDataType        = std::tuple_element_t<3, Tuple>;
+    using YDataType              = std::tuple_element_t<4, Tuple>;
+    using SaveMeanInvStdDataType = std::tuple_element_t<5, Tuple>;
 
     void Run()
     {
@@ -31,6 +32,8 @@ class TestLayernorm2d : public ::testing::Test
                                                                 BetaDataType,
                                                                 ComputeDataType,
                                                                 YDataType,
+                                                                SaveMeanInvStdDataType,
+                                                                true,
                                                                 2>(true, 2, false, false, length);
             EXPECT_TRUE(success);
         }
@@ -39,7 +42,7 @@ class TestLayernorm2d : public ::testing::Test
 
 using KernelTypes = ::testing::Types<
     // XDataType, GammaDataType, BetaDataType, ComputeDataType, YDataType>
-    std::tuple<F32, F32, F32, F32, F32>>;
+    std::tuple<F32, F32, F32, F32, F32, F32>>;
 
 TYPED_TEST_SUITE(TestLayernorm2d, KernelTypes);
 TYPED_TEST(TestLayernorm2d, Test_FP32) { this->Run(); }

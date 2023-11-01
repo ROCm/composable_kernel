@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,6 +34,13 @@ struct Add
     operator()<float>(float& y, const float& x0, const half_t& x1) const
     {
         y = x0 + type_convert<half_t>(x1);
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t>(half_t& y, const float& x0, const float& x1) const
+    {
+        y = type_convert<half_t>(x0 + x1);
     };
 
     template <>
@@ -177,6 +184,13 @@ struct Bilinear
     operator()<half_t, float, half_t>(half_t& y, const float& x0, const half_t& x1) const
     {
         y = type_convert<half_t>(alpha_ * x0 + beta_ * ck::type_convert<float>(x1));
+    };
+
+    template <>
+    __host__ __device__ constexpr void operator()<std::int8_t, std::int32_t, std::int8_t>(
+        std::int8_t& y, const std::int32_t& x0, const std::int8_t& x1) const
+    {
+        y = type_convert<std::int8_t>(x0 + ck::type_convert<std::int32_t>(x1));
     };
 
     float alpha_;

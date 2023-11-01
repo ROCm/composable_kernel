@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -18,7 +18,8 @@ template <typename InDataType,
           typename OutDataType,
           typename InElementwiseOp,
           typename AccElementwiseOp,
-          index_t Rank>
+          index_t Rank,
+          index_t NumReduceDim>
 struct DeviceSoftmax : public BaseOperator
 {
     //
@@ -49,8 +50,6 @@ struct DeviceSoftmax : public BaseOperator
                         AccElementwiseOp acc_elementwise_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
-    virtual index_t GetRank() const                           = 0;
-    virtual index_t GetNumReduceDim() const                   = 0;
 };
 
 template <typename InDataType,
@@ -58,9 +57,15 @@ template <typename InDataType,
           typename OutDataType,
           typename InElementwiseOp,
           typename AccElementwiseOp,
-          index_t Rank>
-using DeviceSoftmaxPtr = std::unique_ptr<
-    DeviceSoftmax<InDataType, AccDataType, OutDataType, InElementwiseOp, AccElementwiseOp, Rank>>;
+          index_t Rank,
+          index_t NumReduceDim>
+using DeviceSoftmaxPtr = std::unique_ptr<DeviceSoftmax<InDataType,
+                                                       AccDataType,
+                                                       OutDataType,
+                                                       InElementwiseOp,
+                                                       AccElementwiseOp,
+                                                       Rank,
+                                                       NumReduceDim>>;
 
 } // namespace device
 } // namespace tensor_operation

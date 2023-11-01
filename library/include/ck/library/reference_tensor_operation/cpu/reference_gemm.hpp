@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <iostream>
 #include <sstream>
 
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 
@@ -19,7 +20,9 @@ template <typename ADataType,
           typename AccDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CElementwiseOperation>
+          typename CElementwiseOperation,
+          typename ComputeTypeA = ADataType,
+          typename ComputeTypeB = ComputeTypeA>
 struct ReferenceGemm : public device::BaseOperator
 {
     // Argument
@@ -63,21 +66,39 @@ struct ReferenceGemm : public device::BaseOperator
 
                 for(int k = 0; k < K; ++k)
                 {
-                    ADataType v_a;
-                    BDataType v_b;
+                    ComputeTypeA v_a;
+                    ComputeTypeB v_b;
 
-                    arg.a_element_op_(v_a, arg.a_m_k_(m, k));
-                    arg.b_element_op_(v_b, arg.b_k_n_(k, n));
+                    // use PassThrough instead of ConvertBF16RTN for reference calculation
+                    if constexpr(is_same_v<AElementwiseOperation,
+                                           ck::tensor_operation::element_wise::ConvertBF16RTN>)
+                    {
+                        ck::tensor_operation::element_wise::PassThrough{}(v_a, arg.a_m_k_(m, k));
+                    }
+                    else
+                    {
+                        arg.a_element_op_(v_a, arg.a_m_k_(m, k));
+                    }
+                    // same for B matrix
+                    if constexpr(is_same_v<BElementwiseOperation,
+                                           ck::tensor_operation::element_wise::ConvertBF16RTN>)
+                    {
+                        ck::tensor_operation::element_wise::PassThrough{}(v_b, arg.b_k_n_(k, n));
+                    }
+                    else
+                    {
+                        arg.b_element_op_(v_b, arg.b_k_n_(k, n));
+                    }
 
                     v_acc +=
                         ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                 }
 
-                AccDataType v_c;
+                CDataType v_c;
 
                 arg.c_element_op_(v_c, v_acc);
 
-                arg.c_m_n_(m, n) = ck::type_convert<CDataType>(v_c);
+                arg.c_m_n_(m, n) = v_c;
             };
 
             make_ParallelTensorFunctor(

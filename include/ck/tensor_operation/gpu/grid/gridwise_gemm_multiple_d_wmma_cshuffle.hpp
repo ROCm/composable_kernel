@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -36,7 +36,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_conv_fwd_multiple_d_wmma_cshuffle(
+        kernel_grouped_conv_multiple_d_wmma_cshuffle(
             const ADataType* __restrict__ p_a_grid,
             const BDataType* __restrict__ p_b_grid,
             DsPointer p_ds_grid,
@@ -346,8 +346,8 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using GridwiseGemmPipe = remove_cvref_t<decltype(
-        GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
+    using GridwiseGemmPipe = remove_cvref_t<
+        decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_K0PerBlock_MPerBlock_K1()
     {
@@ -452,11 +452,11 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
+    // CheckValidity for kernels without multi D
     template <typename Block2CTileMap>
     __host__ __device__ static constexpr bool
     CheckValidity(const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
                   const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
-                  const DsGridDesc_M_N& ds_grid_desc_m_n,
                   const EGridDesc_M_N& e_grid_desc_m_n,
                   const Block2CTileMap& block_2_ctile_map)
     {
@@ -470,18 +470,6 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
         const auto M  = a_grid_desc_k0_m_k1.GetLength(I1);
         const auto N  = b_grid_desc_k0_n_k1.GetLength(I1);
         const auto K0 = a_grid_desc_k0_m_k1.GetLength(I0);
-
-        bool valid = true;
-
-        static_for<0, NumDTensor, 1>{}([&](auto i) {
-            valid = valid && (M == ds_grid_desc_m_n[i].GetLength(I0) &&
-                              N == ds_grid_desc_m_n[i].GetLength(I1));
-        });
-
-        if(!valid)
-        {
-            return false;
-        }
 
         if(!(M == e_grid_desc_m_n.GetLength(I0) && N == e_grid_desc_m_n.GetLength(I1) &&
              K0 == b_grid_desc_k0_n_k1.GetLength(I0) && K1 == a_grid_desc_k0_m_k1.GetLength(I2) &&
@@ -515,6 +503,31 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
         }
 
         return true;
+    }
+
+    template <typename Block2CTileMap>
+    __host__ __device__ static constexpr bool
+    CheckValidity(const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
+                  const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
+                  const DsGridDesc_M_N& ds_grid_desc_m_n,
+                  const EGridDesc_M_N& e_grid_desc_m_n,
+                  const Block2CTileMap& block_2_ctile_map)
+    {
+        const auto M = a_grid_desc_k0_m_k1.GetLength(I1);
+        const auto N = b_grid_desc_k0_n_k1.GetLength(I1);
+        bool valid   = true;
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            valid = valid && (M == ds_grid_desc_m_n[i].GetLength(I0) &&
+                              N == ds_grid_desc_m_n[i].GetLength(I1));
+        });
+
+        if(!valid)
+        {
+            return false;
+        }
+
+        return CheckValidity(
+            a_grid_desc_k0_m_k1, b_grid_desc_k0_n_k1, e_grid_desc_m_n, block_2_ctile_map);
     }
 
     __host__ __device__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)
@@ -565,10 +578,12 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle
             e_grid_desc_m_n);
     }
 
-    using DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
-        MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}))>;
-    using EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock  = remove_cvref_t<decltype(
-        MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}))>;
+    using DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock =
+        remove_cvref_t<decltype(MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            DsGridDesc_M_N{}))>;
+    using EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock =
+        remove_cvref_t<decltype(MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            EGridDesc_M_N{}))>;
     using DefaultBlock2CTileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(EGridDesc_M_N{}, 1, 1))>;
     using DsGridPointer = decltype(MakeDsGridPointer());

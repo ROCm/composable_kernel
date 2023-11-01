@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -9,7 +9,7 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_layernorm.hpp"
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
-
+#ifdef CK_ENABLE_FP16
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -170,3 +170,4 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#endif

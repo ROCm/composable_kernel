@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -128,11 +128,9 @@ struct ReferenceConvFwd : public device::BaseOperator
                         }
                     }
 
-                    float v_out;
-
-                    arg.out_element_op_(v_out, v_acc);
-
-                    arg.output_(g, n, k, wo) = ck::type_convert<OutDataType>(v_out);
+                    OutDataType v_out;
+                    arg.out_element_op_(v_out, ck::type_convert<OutDataType>(v_acc));
+                    arg.output_(g, n, k, wo) = v_out;
                 };
 
                 make_ParallelTensorFunctor(func,
@@ -184,11 +182,9 @@ struct ReferenceConvFwd : public device::BaseOperator
                         }
                     }
 
-                    float v_out;
-
-                    arg.out_element_op_(v_out, v_acc);
-
-                    arg.output_(g, n, k, ho, wo) = ck::type_convert<OutDataType>(v_out);
+                    OutDataType v_out;
+                    arg.out_element_op_(v_out, ck::type_convert<OutDataType>(v_acc));
+                    arg.output_(g, n, k, ho, wo) = v_out;
                 };
 
                 make_ParallelTensorFunctor(func,
@@ -253,11 +249,9 @@ struct ReferenceConvFwd : public device::BaseOperator
                         }
                     }
 
-                    float v_out;
-
-                    arg.out_element_op_(v_out, v_acc);
-
-                    arg.output_(g, n, k, d_o, ho, wo) = ck::type_convert<OutDataType>(v_out);
+                    OutDataType v_out;
+                    arg.out_element_op_(v_out, ck::type_convert<OutDataType>(v_acc));
+                    arg.output_(g, n, k, d_o, ho, wo) = v_out;
                 };
 
                 make_ParallelTensorFunctor(func,

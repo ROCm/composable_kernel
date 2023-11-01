@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -23,6 +23,7 @@ enum struct GemmDataType
     F16_F16_F16,    // 1
     BF16_BF16_BF16, // 2
     INT8_INT8_INT8, // 3
+    F8_F8_F8,       // 4
 };
 
 #define OP_NAME "gemm"
@@ -31,7 +32,7 @@ enum struct GemmDataType
 static void print_helper_msg()
 {
     std::cout << "arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n"
-              << "arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8)\n"
+              << "arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: fp8)\n"
               << "arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n"
               << "                     1: A[m, k] * B[n, k] = C[m, n];\n"
               << "                     2: A[k, m] * B[k, n] = C[m, n];\n"
@@ -67,11 +68,18 @@ int profile_gemm(int argc, char* argv[])
     const int StrideB = std::stoi(argv[12]);
     const int StrideC = std::stoi(argv[13]);
 
-    using F32   = float;
-    using F16   = ck::half_t;
-    using BF16  = ck::bhalf_t;
+    using F32 = float;
+    using F16 = ck::half_t;
+#ifdef CK_ENABLE_BF16
+    using BF16 = ck::bhalf_t;
+#endif
+#ifdef CK_ENABLE_INT8
     using INT8  = int8_t;
     using INT32 = int32_t;
+#endif
+#ifdef CK_ENABLE_FP8
+    using F8 = ck::f8_t;
+#endif
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -117,7 +125,10 @@ int profile_gemm(int argc, char* argv[])
         return pass ? 0 : 1;
     };
 
-    if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
+    if(false)
+        ;
+#ifdef CK_ENABLE_FP32
+    else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(Row{}, Row{}, Row{}, F32{}, F32{}, F32{}, F32{});
     }
@@ -133,6 +144,8 @@ int profile_gemm(int argc, char* argv[])
     {
         return profile(Col{}, Col{}, Row{}, F32{}, F32{}, F32{}, F32{});
     }
+#endif
+#ifdef CK_ENABLE_FP16
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(Row{}, Row{}, Row{}, F16{}, F16{}, F32{}, F16{});
@@ -149,6 +162,8 @@ int profile_gemm(int argc, char* argv[])
     {
         return profile(Col{}, Col{}, Row{}, F16{}, F16{}, F32{}, F16{});
     }
+#endif
+#ifdef CK_ENABLE_BF16
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(Row{}, Row{}, Row{}, BF16{}, BF16{}, F32{}, BF16{});
@@ -165,6 +180,8 @@ int profile_gemm(int argc, char* argv[])
     {
         return profile(Col{}, Col{}, Row{}, BF16{}, BF16{}, F32{}, BF16{});
     }
+#endif
+#ifdef CK_ENABLE_INT8
     else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(Row{}, Row{}, Row{}, INT8{}, INT8{}, INT32{}, INT8{});
@@ -181,6 +198,25 @@ int profile_gemm(int argc, char* argv[])
     {
         return profile(Col{}, Col{}, Row{}, INT8{}, INT8{}, INT32{}, INT8{});
     }
+#endif
+#ifdef CK_ENABLE_FP8
+    else if(data_type == GemmDataType::F8_F8_F8 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        return profile(Row{}, Row{}, Row{}, F8{}, F8{}, F32{}, F8{});
+    }
+    else if(data_type == GemmDataType::F8_F8_F8 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(Row{}, Col{}, Row{}, F8{}, F8{}, F32{}, F8{});
+    }
+    else if(data_type == GemmDataType::F8_F8_F8 && layout == GemmMatrixLayout::KM_KN_MN)
+    {
+        return profile(Col{}, Row{}, Row{}, F8{}, F8{}, F32{}, F8{});
+    }
+    else if(data_type == GemmDataType::F8_F8_F8 && layout == GemmMatrixLayout::KM_NK_MN)
+    {
+        return profile(Col{}, Col{}, Row{}, F8{}, F8{}, F32{}, F8{});
+    }
+#endif
     else
     {
         std::cout << "this data_type & layout is not implemented" << std::endl;

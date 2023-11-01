@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -49,6 +49,13 @@ inline std::string get_device_name()
     if(match != device_name_map.end())
         return match->second;
     return name;
+}
+
+inline bool is_xdl_supported()
+{
+    return ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
+           ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
+           ck::get_device_name() == "gfx942";
 }
 
 } // namespace ck

@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
 constexpr int Rank         = 5;
 constexpr int NumReduceDim = 3;
 
-using XDataType       = ck::half_t;
-using GammaDataType   = ck::half_t;
-using BetaDataType    = ck::half_t;
-using YDataType       = ck::half_t;
-using ComputeDataType = float;
-using YElementOp      = ck::tensor_operation::element_wise::Swish;
+using XDataType              = ck::half_t;
+using GammaDataType          = ck::half_t;
+using BetaDataType           = ck::half_t;
+using YDataType              = ck::half_t;
+using SaveMeanInvStdDataType = float;
+using ComputeDataType        = float;
+using YElementOp             = ck::tensor_operation::element_wise::Swish;
+
+#define SAVE_MEAN_INV_STD
 
 using DeviceInstance =
     ck::tensor_operation::device::DeviceNormalizationImpl<XDataType,
@@ -19,6 +22,7 @@ using DeviceInstance =
                                                           BetaDataType,
                                                           ComputeDataType,
                                                           YDataType,
+                                                          SaveMeanInvStdDataType,
                                                           YElementOp,
                                                           Rank,
                                                           NumReduceDim,
@@ -33,7 +37,8 @@ using DeviceInstance =
                                                           2,    // GammaScalarPerVector
                                                           1,    // BetaVecDim (0=M, 1=K)
                                                           2,    // BetaScalarPerVector
-                                                          2>;   // OutScalarPerVector
+                                                          2,    // YScalarPerVector
+                                                          1>;   // SaveMeanInvStdScalarPerVector
 
 #include "run_groupnorm_example.inc"
 

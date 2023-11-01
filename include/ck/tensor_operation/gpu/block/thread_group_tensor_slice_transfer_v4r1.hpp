@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -91,6 +91,21 @@ struct ThreadGroupTensorSliceTransfer_v4r1
                                                    src_block_slice_origin + thread_data_idx_begin);
             threadwise_transfer_.SetDstSliceOrigin(dst_desc,
                                                    dst_block_slice_origin + thread_data_idx_begin);
+        }
+    }
+
+    __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_block_slice_origin)
+    {
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+           ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
+        {
+            const auto thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
+                make_multi_index(ThreadGroup::GetThreadId()));
+
+            const auto thread_data_idx_begin = thread_cluster_idx * thread_slice_lengths;
+
+            threadwise_transfer_.SetSrcSliceOrigin(src_desc,
+                                                   src_block_slice_origin + thread_data_idx_begin);
         }
     }
 

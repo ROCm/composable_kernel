@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -20,12 +20,15 @@ __global__ void set_buffer_value(T* p, T x, uint64_t buffer_element_size)
  */
 struct DeviceMem
 {
-    DeviceMem() = delete;
+    DeviceMem() : mpDeviceBuf(nullptr), mMemSize(0) {}
     DeviceMem(std::size_t mem_size);
+    void Realloc(std::size_t mem_size);
     void* GetDeviceBuffer() const;
     std::size_t GetBufferSize() const;
     void ToDevice(const void* p) const;
+    void ToDevice(const void* p, const std::size_t cpySize) const;
     void FromDevice(void* p) const;
+    void FromDevice(void* p, const std::size_t cpySize) const;
     void SetZero() const;
     template <typename T>
     void SetValue(T x) const;

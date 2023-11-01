@@ -94,7 +94,8 @@ template <ck::index_t NumDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout,
-          ck::index_t NumNonSpatialDim = 3>
+          ck::index_t NumNonSpatialDim = 3,
+          typename ComputeType         = InDataType>
 bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> in_lengths,
                           std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> wei_lengths,
                           std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> out_lengths)
@@ -141,14 +142,10 @@ bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + NumNonSpatialD
                 std::next(rbegin(in_strides)),
                 std::next(rbegin(in_strides), NumDimSpatial + 1));
 
-    std::rotate(
-        std::next(rbegin(wei_lengths)), std::next(rbegin(wei_lengths), 2), rend(wei_lengths));
     std::rotate(rbegin(wei_lengths),
                 std::next(rbegin(wei_lengths)),
                 std::next(rbegin(wei_lengths), NumDimSpatial + 1));
 
-    std::rotate(
-        std::next(rbegin(wei_strides)), std::next(rbegin(wei_strides), 2), rend(wei_strides));
     std::rotate(rbegin(wei_strides),
                 std::next(rbegin(wei_strides)),
                 std::next(rbegin(wei_strides), NumDimSpatial + 1));
@@ -188,7 +185,8 @@ bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + NumNonSpatialD
                                                                                  OutDataType,
                                                                                  PassThrough,
                                                                                  PassThrough,
-                                                                                 PassThrough>;
+                                                                                 PassThrough,
+                                                                                 ComputeType>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
