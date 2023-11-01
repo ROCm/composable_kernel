@@ -11,7 +11,7 @@ using F16 = ck::half_t;
 using F32 = float;
 
 template <typename Tuple>
-class TestTranspose : public ck::test::TestTranspose<Tuple>
+class TestTranspose : public ::testing::Test
 {
 };
 

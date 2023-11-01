@@ -43,13 +43,19 @@ bool profile_transpose_impl(int do_verification,
                             int init_method,
                             bool do_log,
                             bool time_kernel,
-                            ck::index_t N,
-                            ck::index_t C,
-                            ck::index_t D,
-                            ck::index_t H,
-                            ck::index_t W)
+                            index_t N,
+                            index_t C,
+                            index_t D,
+                            index_t H,
+                            index_t W)
 {
     bool pass = true;
+
+    /**index_t N = lengths[0];
+    index_t C = lengths[1];
+    index_t D = lengths[2];
+    index_t H = lengths[3];
+    index_t W = lengths[4];**/
 
     std::vector<ck::index_t> ncdhw = {N, C, D, H, W};
     std::vector<ck::index_t> ndhwc = {N, D, H, W, C};
