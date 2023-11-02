@@ -37,28 +37,28 @@ struct YElementOp
 };
 
 using DeviceInstance =
-    ck::tensor_operation::device::DeviceNormalizationImpl<XDataType,
-                                                          GammaDataType,
-                                                          BetaDataType,
-                                                          ComputeDataType,
-                                                          YDataType,
-                                                          SaveMeanInvStdDataType,
-                                                          YElementOp,
-                                                          Rank,
-                                                          NumReduceDim,
-                                                          1024, // BlockSize
-                                                          1,    // ClusterM
-                                                          1024, // ClusterK
-                                                          1,    // SliceM
-                                                          32,   // SliceK
-                                                          1,    // SrcVecDim (0=M, 1=K)
-                                                          2,    // SrcScalarPerVector
-                                                          1,    // GammaVecDim (0=M, 1=K)
-                                                          2,    // GammaScalarPerVector
-                                                          1,    // BetaVecDim (0=M, 1=K)
-                                                          2,    // BetaScalarPerVector
-                                                          2,    // YScalarPerVector
-                                                          1>;   // SaveMeanInvStdScalarPerVector
+    ck::tensor_operation::device::DeviceNormalizationFwdImpl<XDataType,
+                                                             GammaDataType,
+                                                             BetaDataType,
+                                                             ComputeDataType,
+                                                             YDataType,
+                                                             SaveMeanInvStdDataType,
+                                                             YElementOp,
+                                                             Rank,
+                                                             NumReduceDim,
+                                                             1024, // BlockSize
+                                                             1,    // ClusterM
+                                                             1024, // ClusterK
+                                                             1,    // SliceM
+                                                             32,   // SliceK
+                                                             1,    // SrcVecDim (0=M, 1=K)
+                                                             2,    // SrcScalarPerVector
+                                                             1,    // GammaVecDim (0=M, 1=K)
+                                                             2,    // GammaScalarPerVector
+                                                             1,    // BetaVecDim (0=M, 1=K)
+                                                             2,    // BetaScalarPerVector
+                                                             2,    // YScalarPerVector
+                                                             1>;   // SaveMeanInvStdScalarPerVector
 
 #include "run_groupnorm_fwd_example.inc"
 

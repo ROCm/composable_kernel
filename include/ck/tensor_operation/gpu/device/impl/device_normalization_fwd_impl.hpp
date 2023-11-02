@@ -7,7 +7,7 @@
 #include <sstream>
 
 #include "ck/utility/reduction_operator.hpp"
-#include "ck/tensor_operation/gpu/device/device_normalization.hpp"
+#include "ck/tensor_operation/gpu/device/device_normalization_fwd.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
 #include "ck/tensor_operation/gpu/grid/normalization/gridwise_normalization_selector.hpp"
@@ -46,14 +46,14 @@ template <typename XDataType,
           index_t YDstVectorSize,
           index_t SaveMeanInvStdDstVectorSize,
           bool UseWelford = true>
-struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
-                                                            GammaDataType,
-                                                            BetaDataType,
-                                                            YDataType,
-                                                            SaveMeanInvStdDataType,
-                                                            YElementwiseOperation,
-                                                            Rank,
-                                                            NumReduceDim>
+struct DeviceNormalizationFwdImpl : public DeviceNormalizationFwd<XDataType,
+                                                                  GammaDataType,
+                                                                  BetaDataType,
+                                                                  YDataType,
+                                                                  SaveMeanInvStdDataType,
+                                                                  YElementwiseOperation,
+                                                                  Rank,
+                                                                  NumReduceDim>
 {
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize);
     static_assert(
@@ -461,7 +461,7 @@ struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceNormalizationImpl<" << BlockSize << ",";
+        str << "DeviceNormalizationFwdImpl<" << BlockSize << ",";
         str << "Cluster_MK_" << MThreadClusterSize << "_" << KThreadClusterSize << ",";
         str << "Slice_MK_" << MThreadSliceSize << "_" << KThreadSliceSize << ",";
         str << "XYSrcVectorDim_" << XYSrcVectorDim  << ",";

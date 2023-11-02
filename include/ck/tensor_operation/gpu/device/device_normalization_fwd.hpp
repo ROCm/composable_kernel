@@ -19,7 +19,7 @@ template <typename XDataType,
           typename YElementwiseOperation,
           index_t Rank,
           index_t NumReduceDim>
-struct DeviceNormalization : public BaseOperator
+struct DeviceNormalizationFwd : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const std::vector<index_t> lengths,
@@ -50,14 +50,14 @@ template <typename XDataType,
           typename YElementwiseOperation,
           index_t Rank,
           index_t NumReduceDim>
-using DeviceNormalizationPtr = std::unique_ptr<DeviceNormalization<XDataType,
-                                                                   GammaDataType,
-                                                                   BetaDataType,
-                                                                   YDataType,
-                                                                   SaveMeanInvStdDataType,
-                                                                   YElementwiseOperation,
-                                                                   Rank,
-                                                                   NumReduceDim>>;
+using DeviceNormalizationFwdPtr = std::unique_ptr<DeviceNormalizationFwd<XDataType,
+                                                                         GammaDataType,
+                                                                         BetaDataType,
+                                                                         YDataType,
+                                                                         SaveMeanInvStdDataType,
+                                                                         YElementwiseOperation,
+                                                                         Rank,
+                                                                         NumReduceDim>>;
 
 } // namespace device
 } // namespace tensor_operation

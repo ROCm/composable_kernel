@@ -10,8 +10,8 @@
 #include <getopt.h>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_normalization_impl.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_normalization_splitk_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_normalization_fwd_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_normalization_fwd_splitk_impl.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"

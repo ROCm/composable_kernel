@@ -7,7 +7,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_normalization.hpp"
+#include "ck/tensor_operation/gpu/device/device_normalization_fwd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
@@ -19,15 +19,15 @@ namespace instance {
 
 // FP16
 void add_device_normalization_fwd_rank_5_3_swish_f16_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F16, F32, Swish, 5, 3>>>&);
+    std::vector<std::unique_ptr<DeviceNormalizationFwd<F16, F16, F16, F16, F32, Swish, 5, 3>>>&);
 
 // FP32
 void add_device_normalization_fwd_rank_5_3_swish_f32_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, Swish, 5, 3>>>&);
+    std::vector<std::unique_ptr<DeviceNormalizationFwd<F32, F32, F32, F32, F32, Swish, 5, 3>>>&);
 
 // [x, gamma, beta, y] = [f16, f32, f32, f16]
 void add_device_normalization_fwd_rank_5_3_swish_f16_f32_f32_f16_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F16, F32, F32, F16, F32, Swish, 5, 3>>>&);
+    std::vector<std::unique_ptr<DeviceNormalizationFwd<F16, F32, F32, F16, F32, Swish, 5, 3>>>&);
 
 template <typename XDataType,
           typename GammaDataType,
@@ -37,23 +37,23 @@ template <typename XDataType,
           index_t Rank,
           index_t NumReduceDim>
 struct DeviceOperationInstanceFactory<
-    ck::tensor_operation::device::DeviceNormalization<XDataType,
-                                                      GammaDataType,
-                                                      BetaDataType,
-                                                      YDataType,
-                                                      SaveMeanInvStdDataType,
-                                                      ck::tensor_operation::element_wise::Swish,
-                                                      Rank,
-                                                      NumReduceDim>>
+    ck::tensor_operation::device::DeviceNormalizationFwd<XDataType,
+                                                         GammaDataType,
+                                                         BetaDataType,
+                                                         YDataType,
+                                                         SaveMeanInvStdDataType,
+                                                         ck::tensor_operation::element_wise::Swish,
+                                                         Rank,
+                                                         NumReduceDim>>
 {
-    using DeviceOp = DeviceNormalization<XDataType,
-                                         GammaDataType,
-                                         BetaDataType,
-                                         YDataType,
-                                         SaveMeanInvStdDataType,
-                                         ck::tensor_operation::element_wise::Swish,
-                                         Rank,
-                                         NumReduceDim>;
+    using DeviceOp = DeviceNormalizationFwd<XDataType,
+                                            GammaDataType,
+                                            BetaDataType,
+                                            YDataType,
+                                            SaveMeanInvStdDataType,
+                                            ck::tensor_operation::element_wise::Swish,
+                                            Rank,
+                                            NumReduceDim>;
 
     static auto GetInstances()
     {

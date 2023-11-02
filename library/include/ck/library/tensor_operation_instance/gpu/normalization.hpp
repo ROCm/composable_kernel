@@ -7,7 +7,7 @@
 #include <memory>
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_normalization.hpp"
+#include "ck/tensor_operation/gpu/device/device_normalization_fwd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
@@ -19,24 +19,30 @@ namespace instance {
 #ifdef CK_ENABLE_FP16
 // FP16
 void add_device_normalization_fwd_rank_2_1_f16_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F16, F32, PassThrough, 2, 1>>>&);
+    std::vector<
+        std::unique_ptr<DeviceNormalizationFwd<F16, F16, F16, F16, F32, PassThrough, 2, 1>>>&);
 
 void add_device_normalization_fwd_rank_4_3_f16_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F16, F32, PassThrough, 4, 3>>>&);
+    std::vector<
+        std::unique_ptr<DeviceNormalizationFwd<F16, F16, F16, F16, F32, PassThrough, 4, 3>>>&);
 
 void add_device_normalization_fwd_rank_5_3_f16_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F16, F32, PassThrough, 5, 3>>>&);
+    std::vector<
+        std::unique_ptr<DeviceNormalizationFwd<F16, F16, F16, F16, F32, PassThrough, 5, 3>>>&);
 #endif
 #ifdef CK_ENABLE_FP32
 // FP32
 void add_device_normalization_fwd_rank_2_1_f32_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, PassThrough, 2, 1>>>&);
+    std::vector<
+        std::unique_ptr<DeviceNormalizationFwd<F32, F32, F32, F32, F32, PassThrough, 2, 1>>>&);
 
 void add_device_normalization_fwd_rank_4_3_f32_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, PassThrough, 4, 3>>>&);
+    std::vector<
+        std::unique_ptr<DeviceNormalizationFwd<F32, F32, F32, F32, F32, PassThrough, 4, 3>>>&);
 
 void add_device_normalization_fwd_rank_5_3_f32_instances(
-    std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, PassThrough, 5, 3>>>&);
+    std::vector<
+        std::unique_ptr<DeviceNormalizationFwd<F32, F32, F32, F32, F32, PassThrough, 5, 3>>>&);
 #endif
 template <typename XDataType,
           typename GammaDataType,
@@ -45,7 +51,7 @@ template <typename XDataType,
           typename SaveMeanInvStdDataType,
           index_t Rank,
           index_t NumReduceDim>
-struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceNormalization<
+struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceNormalizationFwd<
     XDataType,
     GammaDataType,
     BetaDataType,
@@ -55,14 +61,14 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceNormal
     Rank,
     NumReduceDim>>
 {
-    using DeviceOp = DeviceNormalization<XDataType,
-                                         GammaDataType,
-                                         BetaDataType,
-                                         YDataType,
-                                         SaveMeanInvStdDataType,
-                                         ck::tensor_operation::element_wise::PassThrough,
-                                         Rank,
-                                         NumReduceDim>;
+    using DeviceOp = DeviceNormalizationFwd<XDataType,
+                                            GammaDataType,
+                                            BetaDataType,
+                                            YDataType,
+                                            SaveMeanInvStdDataType,
+                                            ck::tensor_operation::element_wise::PassThrough,
+                                            Rank,
+                                            NumReduceDim>;
 
     static auto GetInstances()
     {

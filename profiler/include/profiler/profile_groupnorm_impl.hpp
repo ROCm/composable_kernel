@@ -88,14 +88,14 @@ bool profile_groupnorm_impl(int do_verification,
     beta_dev.ToDevice(beta.mData.data());
 
     // add device normalization instances
-    using DeviceOp = ck::tensor_operation::device::DeviceNormalization<XDataType,
-                                                                       GammaDataType,
-                                                                       BetaDataType,
-                                                                       YDataType,
-                                                                       SaveMeanInvStdDataType,
-                                                                       PassThrough,
-                                                                       5,
-                                                                       3>;
+    using DeviceOp = ck::tensor_operation::device::DeviceNormalizationFwd<XDataType,
+                                                                          GammaDataType,
+                                                                          BetaDataType,
+                                                                          YDataType,
+                                                                          SaveMeanInvStdDataType,
+                                                                          PassThrough,
+                                                                          5,
+                                                                          3>;
 
     // get device op instances
     const auto instance_ptrs =

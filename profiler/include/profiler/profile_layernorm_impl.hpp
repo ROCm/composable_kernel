@@ -94,14 +94,14 @@ bool profile_layernorm_impl(int do_verification,
     constexpr int NumReduceDim = Rank - 1;
 
     // add device normalization instances
-    using DeviceOp = ck::tensor_operation::device::DeviceNormalization<XDataType,
-                                                                       GammaDataType,
-                                                                       BetaDataType,
-                                                                       YDataType,
-                                                                       SaveMeanInvStdDataType,
-                                                                       PassThrough,
-                                                                       Rank,
-                                                                       NumReduceDim>;
+    using DeviceOp = ck::tensor_operation::device::DeviceNormalizationFwd<XDataType,
+                                                                          GammaDataType,
+                                                                          BetaDataType,
+                                                                          YDataType,
+                                                                          SaveMeanInvStdDataType,
+                                                                          PassThrough,
+                                                                          Rank,
+                                                                          NumReduceDim>;
 
     // get device op instances
     const auto instance_ptrs =

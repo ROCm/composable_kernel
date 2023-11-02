@@ -16,29 +16,29 @@ using PassThrough            = ck::tensor_operation::element_wise::PassThrough;
 constexpr int Rank         = 4;
 constexpr int NumReduceDim = 3;
 
-using DeviceInstance =
-    ck::tensor_operation::device::DeviceNormalizationSplitKImpl<XDataType,
-                                                                GammaDataType,
-                                                                BetaDataType,
-                                                                ComputeDataType,
-                                                                YDataType,
-                                                                SaveMeanInvStdDataType,
-                                                                PassThrough,
-                                                                Rank,
-                                                                NumReduceDim,
-                                                                256, // BlockSize
-                                                                8,   // ClusterM
-                                                                32,  // ClusterK
-                                                                1,   // SliceM
-                                                                8,   // SliceK
-                                                                1,   // XYVectorDim (0=M, 1=K)
-                                                                8,   // XScalarPerVector
-                                                                1,   // GammaVecDim (0=M, 1=K)
-                                                                8,   // GammaScalarPerVector
-                                                                1,   // BetaVecDim (0=M, 1=K)
-                                                                8,   // BetaScalarPerVector
-                                                                8,   // YScalarPerVector
-                                                                1>; // SaveMeanInvStdScalarPerVector
+using DeviceInstance = ck::tensor_operation::device::DeviceNormalizationFwdSplitKImpl<
+    XDataType,
+    GammaDataType,
+    BetaDataType,
+    ComputeDataType,
+    YDataType,
+    SaveMeanInvStdDataType,
+    PassThrough,
+    Rank,
+    NumReduceDim,
+    256, // BlockSize
+    8,   // ClusterM
+    32,  // ClusterK
+    1,   // SliceM
+    8,   // SliceK
+    1,   // XYVectorDim (0=M, 1=K)
+    8,   // XScalarPerVector
+    1,   // GammaVecDim (0=M, 1=K)
+    8,   // GammaScalarPerVector
+    1,   // BetaVecDim (0=M, 1=K)
+    8,   // BetaScalarPerVector
+    8,   // YScalarPerVector
+    1>;  // SaveMeanInvStdScalarPerVector
 
 #include "run_layernorm4d_fwd_example.inc"
 

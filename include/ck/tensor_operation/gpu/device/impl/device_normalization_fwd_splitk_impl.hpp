@@ -8,7 +8,7 @@
 
 #include "ck/utility/reduction_operator.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-#include "ck/tensor_operation/gpu/device/device_normalization.hpp"
+#include "ck/tensor_operation/gpu/device/device_normalization_fwd.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
 #include "ck/tensor_operation/gpu/grid/normalization/gridwise_normalization_splitk_1st.hpp"
@@ -134,14 +134,14 @@ template <typename XDataType,
           index_t BetaSrcVectorSize,
           index_t YDstVectorSize,
           index_t SaveMeanInvStdDstVectorSize>
-struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
-                                                                  GammaDataType,
-                                                                  BetaDataType,
-                                                                  YDataType,
-                                                                  SaveMeanInvStdDataType,
-                                                                  YElementwiseOperation,
-                                                                  Rank,
-                                                                  NumReduceDim>
+struct DeviceNormalizationFwdSplitKImpl : public DeviceNormalizationFwd<XDataType,
+                                                                        GammaDataType,
+                                                                        BetaDataType,
+                                                                        YDataType,
+                                                                        SaveMeanInvStdDataType,
+                                                                        YElementwiseOperation,
+                                                                        Rank,
+                                                                        NumReduceDim>
 {
     using WorkspaceMeanVarDataType = SaveMeanInvStdDataType;
 
@@ -732,7 +732,7 @@ struct DeviceNormalizationSplitKImpl : public DeviceNormalization<XDataType,
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceNormalizationSplitKImpl<" << BlockSize << ",";
+        str << "DeviceNormalizationFwdSplitKImpl<" << BlockSize << ",";
         str << "Cluster_MK_" << MThreadClusterSize << "_" << KThreadClusterSize << ",";
         str << "Slice_MK_" << MThreadSliceSize << "_" << KThreadSliceSize << ",";
         str << "XYSrcVectorDim_" << XYVectorDim  << ",";

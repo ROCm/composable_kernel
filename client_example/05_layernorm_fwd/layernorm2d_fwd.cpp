@@ -7,7 +7,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_normalization.hpp"
+#include "ck/tensor_operation/gpu/device/device_normalization_fwd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/normalization.hpp"
@@ -57,14 +57,14 @@ int main(int argc, char* argv[])
     SimpleDeviceMem save_inv_std_device_buf(sizeof(SaveMeanInvStdDataType) * M);
 #endif
 
-    using DeviceOp = ck::tensor_operation::device::DeviceNormalization<XDataType,
-                                                                       GammaDataType,
-                                                                       BetaDataType,
-                                                                       YDataType,
-                                                                       SaveMeanInvStdDataType,
-                                                                       PassThrough,
-                                                                       Rank,
-                                                                       NumReduceDim>;
+    using DeviceOp = ck::tensor_operation::device::DeviceNormalizationFwd<XDataType,
+                                                                          GammaDataType,
+                                                                          BetaDataType,
+                                                                          YDataType,
+                                                                          SaveMeanInvStdDataType,
+                                                                          PassThrough,
+                                                                          Rank,
+                                                                          NumReduceDim>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<

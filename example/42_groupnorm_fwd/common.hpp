@@ -11,8 +11,8 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_normalization_impl.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_normalization_splitk_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_normalization_fwd_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_normalization_fwd_splitk_impl.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 
 #include "ck/library/utility/fill.hpp"

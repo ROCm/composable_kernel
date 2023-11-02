@@ -17,28 +17,28 @@ constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
 
 using DeviceInstance =
-    ck::tensor_operation::device::DeviceNormalizationImpl<XDataType,
-                                                          GammaDataType,
-                                                          BetaDataType,
-                                                          ComputeDataType,
-                                                          YDataType,
-                                                          SaveMeanInvStdDataType,
-                                                          PassThrough,
-                                                          Rank,
-                                                          NumReduceDim,
-                                                          256, // BlockSize
-                                                          8,   // ClusterM
-                                                          32,  // ClusterK
-                                                          1,   // SliceM
-                                                          8,   // SliceK
-                                                          1,   // XYVectorDim (0=M, 1=K)
-                                                          8,   // SrcScalarPerVector
-                                                          1,   // GammaVecDim (0=M, 1=K)
-                                                          8,   // GammaScalarPerVector
-                                                          1,   // BetaVecDim (0=M, 1=K)
-                                                          8,   // BetaScalarPerVector
-                                                          8,   // YScalarPerVector
-                                                          1>;  // SaveMeanInvStdScalarPerVector
+    ck::tensor_operation::device::DeviceNormalizationFwdImpl<XDataType,
+                                                             GammaDataType,
+                                                             BetaDataType,
+                                                             ComputeDataType,
+                                                             YDataType,
+                                                             SaveMeanInvStdDataType,
+                                                             PassThrough,
+                                                             Rank,
+                                                             NumReduceDim,
+                                                             256, // BlockSize
+                                                             8,   // ClusterM
+                                                             32,  // ClusterK
+                                                             1,   // SliceM
+                                                             8,   // SliceK
+                                                             1,   // XYVectorDim (0=M, 1=K)
+                                                             8,   // SrcScalarPerVector
+                                                             1,   // GammaVecDim (0=M, 1=K)
+                                                             8,   // GammaScalarPerVector
+                                                             1,   // BetaVecDim (0=M, 1=K)
+                                                             8,   // BetaScalarPerVector
+                                                             8,   // YScalarPerVector
+                                                             1>;  // SaveMeanInvStdScalarPerVector
 #include "run_layernorm_example.inc"
 
 int main() { return run_layernorm2d_fwd_example<DeviceInstance>(); }
