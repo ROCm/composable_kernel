@@ -29,7 +29,7 @@ struct PassThrough
 
     __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::f8x2_t& x) const
     {
-	auto t = type_convert<float2_t>(x);
+        auto t = type_convert<float2_t>(x);
         y      = type_convert<half2_t>(t);
     }
 
