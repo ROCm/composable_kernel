@@ -144,7 +144,7 @@ template <>
 inline __host__ __device__ float2_t type_convert<float2_t, f8x2_t>(f8x2_t x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
-	f8x2_v.template AsType<f8_t>()[Number<0>{}]
+    const auto i16val = bit_cast<uint16_t>(x);
     return __builtin_amdgcn_cvt_pk_f32_fp8(i16val, 0);
 #else
     constexpr bool negative_zero_nan = true;
