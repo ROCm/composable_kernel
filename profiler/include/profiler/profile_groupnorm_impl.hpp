@@ -7,7 +7,7 @@
 
 #include "ck/ck.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/normalization.hpp"
+#include "ck/library/tensor_operation_instance/gpu/normalization_fwd.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"

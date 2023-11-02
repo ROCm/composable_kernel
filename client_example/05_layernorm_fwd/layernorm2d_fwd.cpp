@@ -10,7 +10,7 @@
 #include "ck/tensor_operation/gpu/device/device_normalization_fwd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/normalization.hpp"
+#include "ck/library/tensor_operation_instance/gpu/normalization_fwd.hpp"
 
 using XDataType              = ck::half_t;
 using GammaDataType          = ck::half_t;
