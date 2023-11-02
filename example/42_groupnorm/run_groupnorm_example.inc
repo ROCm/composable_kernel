@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,6 +34,8 @@ int run_groupnorm_example(int argc, char* argv[])
     Tensor<YDataType> y({N, H, W, G, C});
     Tensor<GammaDataType> gamma({G, C});
     Tensor<BetaDataType> beta({G, C});
+    Tensor<SaveMeanInvStdDataType> save_mean({N, G});
+    Tensor<SaveMeanInvStdDataType> save_inv_std({N, G});
 
     ck::utils::FillUniformDistribution<XDataType>{0.f, 1.f}(x);
     ck::utils::FillUniformDistribution<GammaDataType>{0.f, 1.f}(gamma);
@@ -43,6 +45,11 @@ int run_groupnorm_example(int argc, char* argv[])
     DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
     DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpaceSize());
     DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpaceSize());
+#ifdef SAVE_MEAN_INV_STD
+    DeviceMem save_mean_dev(sizeof(SaveMeanInvStdDataType) * save_mean.mDesc.GetElementSpaceSize());
+    DeviceMem save_inv_std_dev(sizeof(SaveMeanInvStdDataType) *
+                               save_inv_std.mDesc.GetElementSpaceSize());
+#endif
 
     x_dev.ToDevice(x.mData.data());
     gamma_dev.ToDevice(gamma.mData.data());
@@ -57,14 +64,23 @@ int run_groupnorm_example(int argc, char* argv[])
         {0, 0, 0, C, 1},
         {0, 0, 0, C, 1},
         std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
+        std::vector<ck::index_t>{save_mean.mDesc.GetStrides().begin(),
+                                 save_mean.mDesc.GetStrides().end()},
+        std::vector<ck::index_t>{save_mean.mDesc.GetStrides().begin(),
+                                 save_mean.mDesc.GetStrides().end()},
         {1, 2, 4}, // reduction dimension: [H, W, C]
         1e-6,
         x_dev.GetDeviceBuffer(),
         gamma_dev.GetDeviceBuffer(),
         beta_dev.GetDeviceBuffer(),
         y_dev.GetDeviceBuffer(),
+#ifdef SAVE_MEAN_INV_STD
+        save_mean_dev.GetDeviceBuffer(),
+        save_inv_std_dev.GetDeviceBuffer(),
+#else
         nullptr,
         nullptr,
+#endif
         y_element_op);
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
@@ -72,6 +88,10 @@ int run_groupnorm_example(int argc, char* argv[])
         std::cout << "The runtime parameters are not supported" << std::endl;
         return 1;
     };
+
+    size_t workspace_sz = device_instance.GetWorkSpaceSize(argument_ptr.get());
+    DeviceMem workspace_dev(workspace_sz);
+    device_instance.SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
 
     auto invoker_ptr = device_instance.MakeInvokerPointer();
     float ave_time   = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true, true});
@@ -88,21 +108,40 @@ int run_groupnorm_example(int argc, char* argv[])
     bool pass = true;
     {
         Tensor<YDataType> host_y({N, H, W, G, C});
-        using ReferenceInstance = ck::tensor_operation::host::ReferenceGroupnorm<XDataType,
-                                                                                 GammaDataType,
-                                                                                 BetaDataType,
-                                                                                 YDataType,
-                                                                                 ComputeDataType,
-                                                                                 YElementOp>;
+        Tensor<SaveMeanInvStdDataType> host_save_mean(HostTensorDescriptor{N, G});
+        Tensor<SaveMeanInvStdDataType> host_save_inv_std(HostTensorDescriptor{N, G});
+        using ReferenceInstance =
+            ck::tensor_operation::host::ReferenceGroupnorm<XDataType,
+                                                           GammaDataType,
+                                                           BetaDataType,
+                                                           YDataType,
+                                                           SaveMeanInvStdDataType,
+                                                           ComputeDataType,
+                                                           YElementOp>;
 
         ReferenceInstance ref;
-        auto ref_argument =
-            ref.MakeArgument(x, gamma, beta, host_y, y_element_op, {N, H, W, G, C}, 1e-6);
-        auto ref_invoker = ref.MakeInvoker();
+        auto ref_argument = ref.MakeArgument(x,
+                                             gamma,
+                                             beta,
+                                             host_y,
+                                             host_save_mean,
+                                             host_save_inv_std,
+                                             y_element_op,
+                                             {N, H, W, G, C},
+                                             1e-6);
+        auto ref_invoker  = ref.MakeInvoker();
         ref_invoker.Run(ref_argument);
 
         y_dev.FromDevice(y.mData.data());
         pass &= ck::utils::check_err(y, host_y, "Error: Incorrect results", 1e-3, 1e-3);
+#ifdef SAVE_MEAN_INV_STD
+        save_mean_dev.FromDevice(save_mean.mData.data());
+        save_inv_std_dev.FromDevice(save_inv_std.mData.data());
+        pass &= ck::utils::check_err(
+            save_mean, host_save_mean, "Error: Incorrect results (mean)", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(
+            save_inv_std, host_save_inv_std, "Error: Incorrect results (inv_std)", 1e-3, 1e-3);
+#endif
     }
 
     return (pass ? 0 : 1);

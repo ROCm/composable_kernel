@@ -67,8 +67,10 @@ else()
             -Wunused
             -Wno-reserved-identifier
             -Werror
+            -Wno-option-ignored
             -Wsign-compare
             -Wno-extra-semi-stmt
+            -Wno-unused-template
         )
         if (CMAKE_${COMPILER}_COMPILER_ID MATCHES "Clang")
             list(APPEND CMAKE_COMPILER_WARNINGS
@@ -92,6 +94,7 @@ else()
                 -Wno-unused-command-line-argument
                 -Wno-weak-vtables
                 -Wno-covered-switch-default
+                -Wno-unsafe-buffer-usage
             )
         else()
             if (CMAKE_${COMPILER}_COMPILER_ID MATCHES "GNU" AND ${COMPILER} MATCHES "CXX")

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <vector>
@@ -82,12 +82,12 @@ int profile_layernorm(int argc, char* argv[])
 
     if(data_type == ck::DataTypeEnum::Half)
     {
-        ck::profiler::profile_layernorm_impl<F16, F16, F16, F32, F16, rank>(
+        ck::profiler::profile_layernorm_impl<F16, F16, F16, F32, F16, F32, false, rank>(
             do_verification, init_method, do_log, time_kernel, length);
     }
     else if(data_type == ck::DataTypeEnum::Float)
     {
-        ck::profiler::profile_layernorm_impl<F32, F32, F32, F32, F32, rank>(
+        ck::profiler::profile_layernorm_impl<F32, F32, F32, F32, F32, F32, false, rank>(
             do_verification, init_method, do_log, time_kernel, length);
     }
     else

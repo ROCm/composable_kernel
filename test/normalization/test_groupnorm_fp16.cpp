@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
 #include "profiler/profile_groupnorm_impl.hpp"
@@ -12,11 +12,12 @@ template <typename Tuple>
 class TestGroupnorm : public ::testing::Test
 {
     protected:
-    using XDataType       = std::tuple_element_t<0, Tuple>;
-    using GammaDataType   = std::tuple_element_t<1, Tuple>;
-    using BetaDataType    = std::tuple_element_t<2, Tuple>;
-    using ComputeDataType = std::tuple_element_t<3, Tuple>;
-    using YDataType       = std::tuple_element_t<4, Tuple>;
+    using XDataType              = std::tuple_element_t<0, Tuple>;
+    using GammaDataType          = std::tuple_element_t<1, Tuple>;
+    using BetaDataType           = std::tuple_element_t<2, Tuple>;
+    using ComputeDataType        = std::tuple_element_t<3, Tuple>;
+    using YDataType              = std::tuple_element_t<4, Tuple>;
+    using SaveMeanInvStdDataType = std::tuple_element_t<5, Tuple>;
 
     void Run()
     {
@@ -37,7 +38,9 @@ class TestGroupnorm : public ::testing::Test
                                                      GammaDataType,
                                                      BetaDataType,
                                                      ComputeDataType,
-                                                     YDataType>(true, 2, false, false, length);
+                                                     YDataType,
+                                                     SaveMeanInvStdDataType,
+                                                     true>(true, 2, false, false, length);
             EXPECT_TRUE(success);
         }
     }
@@ -45,7 +48,7 @@ class TestGroupnorm : public ::testing::Test
 
 using KernelTypes = ::testing::Types<
     // XDataType, GammaDataType, BetaDataType, ComputeDataType, YDataType>
-    std::tuple<F16, F16, F16, F32, F16>>;
+    std::tuple<F16, F16, F16, F32, F16, F32>>;
 
 TYPED_TEST_SUITE(TestGroupnorm, KernelTypes);
 TYPED_TEST(TestGroupnorm, Test_FP16) { this->Run(); }

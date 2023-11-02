@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -19,7 +19,8 @@ namespace ck {
 template <AddressSpaceEnum BufferAddressSpace,
           typename T,
           typename ElementSpaceSize,
-          bool InvalidElementUseNumericalZeroValue>
+          bool InvalidElementUseNumericalZeroValue,
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
 struct DynamicBuffer
 {
     using type = T;
@@ -77,13 +78,16 @@ struct DynamicBuffer
 
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
-                return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>, t_per_x>(
+                return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>,
+                                                                   t_per_x,
+                                                                   coherence>(
                     p_data_, i, is_valid_element, element_space_size_);
             }
             else
             {
                 return amd_buffer_load_invalid_element_return_customized_value<remove_cvref_t<T>,
-                                                                               t_per_x>(
+                                                                               t_per_x,
+                                                                               coherence>(
                     p_data_, i, is_valid_element, element_space_size_, invalid_element_value_);
             }
         }
@@ -136,10 +140,36 @@ struct DynamicBuffer
         }
         else if constexpr(Op == InMemoryDataOperationEnum::Add)
         {
-            auto tmp = this->template Get<X>(i, is_valid_element);
-            this->template Set<X>(i, is_valid_element, x + tmp);
-            // tmp += x;
-            // this->template Set<X>(i, is_valid_element, tmp);
+            auto tmp       = this->template Get<X>(i, is_valid_element);
+            using scalar_t = typename scalar_type<remove_cvref_t<T>>::type;
+            // handle bfloat addition
+            if constexpr(is_same_v<scalar_t, bhalf_t>)
+            {
+                if constexpr(is_scalar_type<X>::value)
+                {
+                    // Scalar type
+                    auto result =
+                        type_convert<X>(type_convert<float>(x) + type_convert<float>(tmp));
+                    this->template Set<X>(i, is_valid_element, result);
+                }
+                else
+                {
+                    // Vector type
+                    constexpr auto vector_size = scalar_type<remove_cvref_t<X>>::vector_size;
+                    const vector_type<scalar_t, vector_size> a_vector{tmp};
+                    const vector_type<scalar_t, vector_size> b_vector{x};
+                    static_for<0, vector_size, 1>{}([&](auto idx) {
+                        auto result = type_convert<scalar_t>(
+                            type_convert<float>(a_vector.template AsType<scalar_t>()[idx]) +
+                            type_convert<float>(b_vector.template AsType<scalar_t>()[idx]));
+                        this->template Set<scalar_t>(i + idx, is_valid_element, result);
+                    });
+                }
+            }
+            else
+            {
+                this->template Set<X>(i, is_valid_element, x + tmp);
+            }
         }
     }
 
@@ -173,7 +203,7 @@ struct DynamicBuffer
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
-            amd_buffer_store<remove_cvref_t<T>, t_per_x>(
+            amd_buffer_store<remove_cvref_t<T>, t_per_x, coherence>(
                 x, p_data_, i, is_valid_element, element_space_size_);
         }
         else if constexpr(GetAddressSpace() == AddressSpaceEnum::Lds &&
@@ -376,14 +406,19 @@ struct DynamicBuffer
     __host__ __device__ static constexpr bool IsDynamicBuffer() { return true; }
 };
 
-template <AddressSpaceEnum BufferAddressSpace, typename T, typename ElementSpaceSize>
+template <AddressSpaceEnum BufferAddressSpace,
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
+          typename T,
+          typename ElementSpaceSize>
 __host__ __device__ constexpr auto make_dynamic_buffer(T* p, ElementSpaceSize element_space_size)
 {
-    return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, true>{p, element_space_size};
+    return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, true, coherence>{
+        p, element_space_size};
 }
 
 template <
     AddressSpaceEnum BufferAddressSpace,
+    AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
     typename T,
     typename ElementSpaceSize,
     typename X,
@@ -391,7 +426,7 @@ template <
 __host__ __device__ constexpr auto
 make_dynamic_buffer(T* p, ElementSpaceSize element_space_size, X invalid_element_value)
 {
-    return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, false>{
+    return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, false, coherence>{
         p, element_space_size, invalid_element_value};
 }
 

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef CK_STATICALLY_INDEXED_ARRAY_MULTI_INDEX_HPP
 #define CK_STATICALLY_INDEXED_ARRAY_MULTI_INDEX_HPP
 
 #include "common_header.hpp"
+#include "ck/utility/math_v2.hpp"
 
 namespace ck {
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -75,8 +75,8 @@ int profile_gemm_impl(int do_verification,
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         break;
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 0.1});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.05, 0.05});
     }
 
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -223,6 +223,12 @@ int profile_gemm_impl(int do_verification,
     {
         std::cout << "Best Perf for datatype = int8";
     }
+#if defined CK_ENABLE_FP8
+    else if constexpr(is_same<CDataType, f8_t>::value)
+    {
+        std::cout << "Best Perf for datatype = fp8";
+    }
+#endif
 
     if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value)
     {
