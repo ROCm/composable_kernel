@@ -27,6 +27,7 @@ enum struct GemmDataType
     F16_F16_F16,    // 1
     BF16_BF16_BF16, // 2
     INT8_INT8_INT8, // 3
+    F16_F8_F16,    // 4
 };
 
 #define OP_NAME "grouped_gemm"
@@ -56,7 +57,7 @@ int profile_grouped_gemm(int argc, char* argv[])
     {
         std::cout
             << "arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n"
-            << "arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8)\n"
+            << "arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: fp16@fp8)\n"
             << "arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n"
             << "                     1: A[m, k] * B[n, k] = C[m, n];\n"
             << "                     2: A[k, m] * B[k, n] = C[m, n];\n"
@@ -157,6 +158,26 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                 float,
                                                 ck::tensor_layout::gemm::ColumnMajor,
                                                 ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(do_verification,
+                                                                                   init_method,
+                                                                                   do_log,
+                                                                                   time_kernel,
+                                                                                   Ms,
+                                                                                   Ns,
+                                                                                   Ks,
+                                                                                   StrideAs,
+                                                                                   StrideBs,
+                                                                                   StrideCs,
+                                                                                   kbatch);
+    }
+    else if(data_type == GemmDataType::F16_F8_F16 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        ck::profiler::profile_grouped_gemm_impl<ck::half_t,
+                                                ck::f8_t,
+                                                ck::half_t,
+                                                float,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor,
                                                 ck::tensor_layout::gemm::RowMajor>(do_verification,
                                                                                    init_method,
                                                                                    do_log,

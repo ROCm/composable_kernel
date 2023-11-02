@@ -40,7 +40,7 @@ set(PROFILER_SOURCES
   #list(APPEND PROFILER_SOURCES profile_gemm_add_add_fastgelu.cpp)
   #list(APPEND PROFILER_SOURCES profile_gemm_add_relu_add_layernorm.cpp)
   #list(APPEND PROFILER_SOURCES profile_batched_gemm_add_relu_gemm_add.cpp)
-  #list(APPEND PROFILER_SOURCES profile_grouped_gemm.cpp)
+  list(APPEND PROFILER_SOURCES profile_grouped_gemm.cpp)
   #list(APPEND PROFILER_SOURCES profile_grouped_gemm_fastgelu.cpp)
 #endif()
 
@@ -107,7 +107,7 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_splitk_instance
   #target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_fastgelu_instance)
   #target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_gemm_instance)
   #target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_add_relu_gemm_add_instance)
-  #target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_gemm_instance)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_gemm_instance)
   #target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_gemm_fastgelu_instance)
 #endif()
 rocm_install(TARGETS ${PROFILER_EXECUTABLE} COMPONENT profiler)
