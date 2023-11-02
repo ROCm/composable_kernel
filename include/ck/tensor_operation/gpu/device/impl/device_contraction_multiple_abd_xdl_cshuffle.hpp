@@ -649,7 +649,8 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                 {
                     if(!(arg.a_mz_stride_[i] == 1 && arg.as_grid_desc_ak0_m_ak1_[i].GetLength(I1) %
                                                              ABlockTransferSrcScalarPerVector ==
-                                                         0))
+                                                         0) &&
+                       ABlockTransferSrcScalarPerVector != 1)
                     {
                         all_valid = false;
                     }
@@ -658,7 +659,8 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                 {
                     if(!(arg.a_kz_stride_[i] == 1 && arg.as_grid_desc_ak0_m_ak1_[i].GetLength(I2) %
                                                              ABlockTransferSrcScalarPerVector ==
-                                                         0))
+                                                         0) &&
+                       ABlockTransferSrcScalarPerVector != 1)
                     {
                         all_valid = false;
                     }
@@ -671,7 +673,8 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                 {
                     if(!(arg.b_nz_stride_[i] == 1 && arg.bs_grid_desc_bk0_n_bk1_[i].GetLength(I1) %
                                                              BBlockTransferSrcScalarPerVector ==
-                                                         0))
+                                                         0) &&
+                       BBlockTransferSrcScalarPerVector != 1)
                     {
                         all_valid = false;
                     }
@@ -680,7 +683,8 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                 {
                     if(!(arg.b_kz_stride_[i] == 1 && arg.bs_grid_desc_bk0_n_bk1_[i].GetLength(I2) %
                                                              BBlockTransferSrcScalarPerVector ==
-                                                         0))
+                                                         0) &&
+                       BBlockTransferSrcScalarPerVector != 1)
                     {
                         all_valid = false;
                     }
@@ -692,7 +696,8 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                 if(!(arg.ds_nz_stride_[i] == 1 &&
                      arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[i].GetLength(I3) %
                              CDEBlockTransferScalarPerVector_NPerBlock ==
-                         0))
+                         0) &&
+                   CDEBlockTransferScalarPerVector_NPerBlock != 1)
                 {
                     all_valid = false;
                 }
@@ -702,7 +707,8 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
             if(!(arg.e_nz_stride_ == 1 &&
                  arg.e_grid_desc_mblock_mperblock_nblock_nperblock_.GetLength(I3) %
                          CDEBlockTransferScalarPerVector_NPerBlock ==
-                     0))
+                     0) &&
+               CDEBlockTransferScalarPerVector_NPerBlock != 1)
             {
                 all_valid = false;
             }
