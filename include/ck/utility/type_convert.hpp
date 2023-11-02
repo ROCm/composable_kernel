@@ -131,8 +131,8 @@ inline __host__ __device__ float type_convert<float, f8_t>(f8_t x)
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     float fval;
     uint32_t i32val = static_cast<uint32_t>(x);
-    fval            = __builtin_amdgcn_cvt_f32_fp8(i32val, 0);
-    // asm volatile("v_cvt_f32_fp8 %0, %1 src0_sel:BYTE_0" : "=v"(fval) : "v"(i32val));
+    // fval            = __builtin_amdgcn_cvt_f32_fp8(i32val, 0);
+    asm volatile("v_cvt_f32_fp8 %0, %1 src0_sel:BYTE_0" : "=v"(fval) : "v"(i32val));
     return fval;
 #else
     constexpr bool negative_zero_nan = true;
