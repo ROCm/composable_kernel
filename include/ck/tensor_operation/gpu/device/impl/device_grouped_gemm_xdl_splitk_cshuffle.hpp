@@ -265,10 +265,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 const index_t stride_b = gemm_descs[i].stride_B_;
                 const index_t stride_c = gemm_descs[i].stride_C_;
 
-                const index_t m_padded = GridwiseGemm::CalculateMPadded(M);
-                const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
-                const index_t k_padded = GridwiseGemm::CalculateKPadded(K, K_BATCH);
-                const index_t k0_padded       = GridwiseGemm::CalculateK0Padded(K, K_BATCH);
+                const index_t m_padded  = GridwiseGemm::CalculateMPadded(M);
+                const index_t n_padded  = GridwiseGemm::CalculateNPadded(N);
+                const index_t k_padded  = GridwiseGemm::CalculateKPadded(K, K_BATCH);
+                const index_t k0_padded = GridwiseGemm::CalculateK0Padded(K, K_BATCH);
 
                 const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(M, N, stride_c);
 
@@ -320,8 +320,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
                 auto& karg = gemm_kernel_args_[i].karg_;
 
-                const index_t k_padded = GridwiseGemm::CalculateKPadded(karg.K, K_BATCH);
-                const index_t k0_padded       = GridwiseGemm::CalculateK0Padded(karg.K, K_BATCH);
+                const index_t k_padded  = GridwiseGemm::CalculateKPadded(karg.K, K_BATCH);
+                const index_t k0_padded = GridwiseGemm::CalculateK0Padded(karg.K, K_BATCH);
 
                 const auto c_grid_desc_m_n =
                     GridwiseGemm::MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
@@ -340,7 +340,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                     GroupedGemmBlock2ETileMap(local_b2c_tile_map, block_start);
 
                 karg.KPadded                            = k_padded;
-                karg.K0Padded                                 = k0_padded;
+                karg.K0Padded                           = k0_padded;
                 karg.k_batch                            = K_BATCH;
                 gemm_kernel_args_[i].block_2_ctile_map_ = grouped_block_2_ctile_map;
                 gemm_kernel_args_[i].block_start_       = block_start;

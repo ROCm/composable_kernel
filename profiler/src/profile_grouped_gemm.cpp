@@ -27,7 +27,7 @@ enum struct GemmDataType
     F16_F16_F16,    // 1
     BF16_BF16_BF16, // 2
     INT8_INT8_INT8, // 3
-    F16_F8_F16,    // 4
+    F16_F8_F16,     // 4
 };
 
 #define OP_NAME "grouped_gemm"
