@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "normalization_instance_common.hpp"
+#include "normalization_fwd_instance_common.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -10,7 +10,7 @@ namespace instance {
 
 using Swish = ck::tensor_operation::element_wise::Swish;
 
-void add_device_normalization_rank_5_3_swish_f16_f32_f32_f16_instances(
+void add_device_normalization_fwd_rank_5_3_swish_f16_f32_f32_f16_instances(
     std::vector<std::unique_ptr<DeviceNormalization<F16, F32, F32, F16, F32, Swish, 5, 3>>>&
         instances)
 {

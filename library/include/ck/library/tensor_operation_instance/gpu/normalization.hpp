@@ -18,24 +18,24 @@ namespace device {
 namespace instance {
 #ifdef CK_ENABLE_FP16
 // FP16
-void add_device_normalization_rank_2_1_f16_instances(
+void add_device_normalization_fwd_rank_2_1_f16_instances(
     std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F16, F32, PassThrough, 2, 1>>>&);
 
-void add_device_normalization_rank_4_3_f16_instances(
+void add_device_normalization_fwd_rank_4_3_f16_instances(
     std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F16, F32, PassThrough, 4, 3>>>&);
 
-void add_device_normalization_rank_5_3_f16_instances(
+void add_device_normalization_fwd_rank_5_3_f16_instances(
     std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F16, F32, PassThrough, 5, 3>>>&);
 #endif
 #ifdef CK_ENABLE_FP32
 // FP32
-void add_device_normalization_rank_2_1_f32_instances(
+void add_device_normalization_fwd_rank_2_1_f32_instances(
     std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, PassThrough, 2, 1>>>&);
 
-void add_device_normalization_rank_4_3_f32_instances(
+void add_device_normalization_fwd_rank_4_3_f32_instances(
     std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, PassThrough, 4, 3>>>&);
 
-void add_device_normalization_rank_5_3_f32_instances(
+void add_device_normalization_fwd_rank_5_3_f32_instances(
     std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, PassThrough, 5, 3>>>&);
 #endif
 template <typename XDataType,
@@ -74,15 +74,15 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceNormal
         {
             if constexpr(Rank == 2 && NumReduceDim == 1)
             {
-                add_device_normalization_rank_2_1_f16_instances(op_ptrs);
+                add_device_normalization_fwd_rank_2_1_f16_instances(op_ptrs);
             }
             else if constexpr(Rank == 4 && NumReduceDim == 3)
             {
-                add_device_normalization_rank_4_3_f16_instances(op_ptrs);
+                add_device_normalization_fwd_rank_4_3_f16_instances(op_ptrs);
             }
             else if constexpr(Rank == 5 && NumReduceDim == 3)
             {
-                add_device_normalization_rank_5_3_f16_instances(op_ptrs);
+                add_device_normalization_fwd_rank_5_3_f16_instances(op_ptrs);
             }
         }
 #endif
@@ -93,15 +93,15 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceNormal
         {
             if constexpr(Rank == 2 && NumReduceDim == 1)
             {
-                add_device_normalization_rank_2_1_f32_instances(op_ptrs);
+                add_device_normalization_fwd_rank_2_1_f32_instances(op_ptrs);
             }
             else if constexpr(Rank == 4 && NumReduceDim == 3)
             {
-                add_device_normalization_rank_4_3_f32_instances(op_ptrs);
+                add_device_normalization_fwd_rank_4_3_f32_instances(op_ptrs);
             }
             else if constexpr(Rank == 5 && NumReduceDim == 3)
             {
-                add_device_normalization_rank_5_3_f32_instances(op_ptrs);
+                add_device_normalization_fwd_rank_5_3_f32_instances(op_ptrs);
             }
         }
 #endif

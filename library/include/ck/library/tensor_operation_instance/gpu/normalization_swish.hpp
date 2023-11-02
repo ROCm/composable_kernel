@@ -18,15 +18,15 @@ namespace device {
 namespace instance {
 
 // FP16
-void add_device_normalization_rank_5_3_swish_f16_instances(
+void add_device_normalization_fwd_rank_5_3_swish_f16_instances(
     std::vector<std::unique_ptr<DeviceNormalization<F16, F16, F16, F16, F32, Swish, 5, 3>>>&);
 
 // FP32
-void add_device_normalization_rank_5_3_swish_f32_instances(
+void add_device_normalization_fwd_rank_5_3_swish_f32_instances(
     std::vector<std::unique_ptr<DeviceNormalization<F32, F32, F32, F32, F32, Swish, 5, 3>>>&);
 
 // [x, gamma, beta, y] = [f16, f32, f32, f16]
-void add_device_normalization_rank_5_3_swish_f16_f32_f32_f16_instances(
+void add_device_normalization_fwd_rank_5_3_swish_f16_f32_f32_f16_instances(
     std::vector<std::unique_ptr<DeviceNormalization<F16, F32, F32, F16, F32, Swish, 5, 3>>>&);
 
 template <typename XDataType,
@@ -65,7 +65,7 @@ struct DeviceOperationInstanceFactory<
         {
             if constexpr(Rank == 5 && NumReduceDim == 3)
             {
-                add_device_normalization_rank_5_3_swish_f16_instances(op_ptrs);
+                add_device_normalization_fwd_rank_5_3_swish_f16_instances(op_ptrs);
             }
         }
         else if constexpr(is_same_v<XDataType, F32> && is_same_v<GammaDataType, F32> &&
@@ -74,7 +74,7 @@ struct DeviceOperationInstanceFactory<
         {
             if constexpr(Rank == 5 && NumReduceDim == 3)
             {
-                add_device_normalization_rank_5_3_swish_f32_instances(op_ptrs);
+                add_device_normalization_fwd_rank_5_3_swish_f32_instances(op_ptrs);
             }
         }
         else if constexpr(is_same_v<XDataType, F16> && is_same_v<GammaDataType, F32> &&
@@ -83,7 +83,7 @@ struct DeviceOperationInstanceFactory<
         {
             if constexpr(Rank == 5 && NumReduceDim == 3)
             {
-                add_device_normalization_rank_5_3_swish_f16_f32_f32_f16_instances(op_ptrs);
+                add_device_normalization_fwd_rank_5_3_swish_f16_f32_f32_f16_instances(op_ptrs);
             }
         }
 
