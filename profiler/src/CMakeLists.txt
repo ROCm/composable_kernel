@@ -75,7 +75,7 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv2d_bwd_w
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_bwd_weight_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_conv2d_fwd_bias_relu_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_conv2d_fwd_bias_relu_add_instance)
-target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_normalization_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_normalization_fwd_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_softmax_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_reduce_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batchnorm_instance)
