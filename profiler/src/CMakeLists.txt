@@ -16,8 +16,8 @@ set(PROFILER_SOURCES
     profile_grouped_conv_fwd.cpp
     profile_grouped_conv_bwd_weight.cpp
     profile_reduce.cpp
-    profile_groupnorm.cpp
-    profile_layernorm.cpp
+    profile_groupnorm_fwd.cpp
+    profile_layernorm_fwd.cpp
     profile_max_pool3d_fwd.cpp
     profile_avg_pool3d_bwd.cpp
     profile_max_pool3d_bwd.cpp

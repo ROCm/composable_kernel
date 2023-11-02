@@ -6,7 +6,7 @@
 #include <unordered_map>
 
 #include "profiler/data_type_enum.hpp"
-#include "profiler/profile_layernorm_impl.hpp"
+#include "profiler/profile_layernorm_fwd_impl.hpp"
 #include "profiler_operation_registry.hpp"
 
 using ck::index_t;

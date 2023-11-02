@@ -2,7 +2,7 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
-#include "profiler/profile_layernorm_impl.hpp"
+#include "profiler/profile_layernorm_fwd_impl.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
