@@ -73,9 +73,9 @@ int main(int argc, char* argv[])
     ck::utils::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f}(k_host);
     ck::utils::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f}(v_host);
 #else
-    ck::utils::FillUniformDistribution<QDataType>{-2.f, 2.f}(q_host);
-    ck::utils::FillUniformDistribution<KDataType>{-2.f, 2.f}(k_host);
-    ck::utils::FillUniformDistribution<VDataType>{-2.f, 2.f}(v_host);
+    ck::utils::FillUniformDistribution<QDataType>{0.f, 1.f}(q_host);
+    ck::utils::FillUniformDistribution<KDataType>{0.f, 1.f}(k_host);
+    ck::utils::FillUniformDistribution<VDataType>{-.5f, .5f}(v_host);
 #endif
 
     // reference
