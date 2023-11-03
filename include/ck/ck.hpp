@@ -134,6 +134,9 @@
 // inner product using V_DOT with DPP8 modifiers
 #define CK_USE_AMD_V_DOT_DPP8_INLINE_ASM 1
 
+// LDS direct loads using inline assembly
+#define CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM 1
+
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
 #define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
 

@@ -26,6 +26,12 @@ __device__ void block_sync_lds_direct_load()
     s_waitcnt lgkmcnt(0) \n \
     s_barrier \
     " ::);
+#if CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM
+    // When direct loads and `waitcnt` instructions are submitted using inline asm, the usage of
+    // `sched_barrier` is necessary to make sure that no instructions that use the loaded memory
+    // are scheduled by the compiler before the `waitcnt` instruction.
+    __builtin_amdgcn_sched_barrier(0);
+#endif
 }
 
 __device__ void s_nop()
