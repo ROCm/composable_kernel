@@ -287,6 +287,90 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
     }
 };
 
+template <typename WarpGemmAttributeMfmaImpl_, index_t kKIter>
+struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
+{
+    using Impl = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
+
+    // swap A and B
+    using ADataType = typename Impl::BDataType;
+    using BDataType = typename Impl::ADataType;
+    using CDataType = typename Impl::CDataType;
+
+    using AVecType = typename vector_type_maker<typename Impl::BVecType, kKIter>::type::type;
+    using BVecType = typename vector_type_maker<typename Impl::AVecType, kKIter>::type::type;
+    using CVecType = typename Impl::CVecType;
+
+    static constexpr index_t kM = Impl::kN;
+    static constexpr index_t kN = Impl::kM;
+    static constexpr index_t kK = Impl::kK * kKIter;
+
+    using AWarpDstrEncoding = StaticTileDistributionEncoding<
+        Sequence<>,
+        Tuple<Sequence<Impl::kBNLane>, Sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+        Tuple<Sequence<2, 1>>,
+        Tuple<Sequence<0, 0>>,
+        Sequence<2>,
+        Sequence<1>>;
+
+    using BWarpDstrEncoding = StaticTileDistributionEncoding<
+        Sequence<>,
+        Tuple<Sequence<Impl::kAMLane / (Impl::kABKPerLane * Impl::kABKLane * 2),
+                       Impl::kABKLane,
+                       2,
+                       Impl::kABKPerLane>,
+              Sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+        Tuple<Sequence<2, 1, 1, 1, 1>>,
+        Tuple<Sequence<0, 0, 2, 1, 3>>,
+        Sequence<2>,
+        Sequence<1>>;
+
+    using CWarpDstrEncoding = StaticTileDistributionEncoding<
+        Sequence<>,
+        Tuple<Sequence<Impl::kCNLane>,
+              Sequence<Impl::kCM0PerLane, Impl::kCMLane, Impl::kCM1PerLane>>,
+        Tuple<Sequence<2, 1>>,
+        Tuple<Sequence<1, 0>>,
+        Sequence<2, 2>,
+        Sequence<0, 2>>;
+
+    // c_vec += a_vec * b_vec
+    __device__ void operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    {
+        const auto a_vector = typename vector_type_maker<AVecType, 1>::type{a_vec};
+
+        const auto b_vector = typename vector_type_maker<BVecType, 1>::type{b_vec};
+
+        // swap A and B, value and type
+        static_for<0, kKIter, 1>{}([&](auto iKIter) {
+            Impl{}(c_vec,
+                   b_vector.template AsType<typename Impl::AVecType>()[iKIter],
+                   a_vector.template AsType<typename Impl::BVecType>()[iKIter]);
+        });
+    }
+
+    // c_vec = a_vec * b_vec
+    __device__ CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
+    {
+        const auto a_vector = typename vector_type_maker<AVecType, 1>::type{a_vec};
+        const auto b_vector = typename vector_type_maker<BVecType, 1>::type{b_vec};
+
+        constexpr auto I0 = Number<0>{};
+
+        // swap A and B, value and type
+        auto c_vec = Impl{}(b_vector.template AsType<typename Impl::AVecType>()[I0],
+                            a_vector.template AsType<typename Impl::BVecType>()[I0]);
+
+        static_for<1, kKIter, 1>{}([&](auto iKIter) {
+            Impl{}(c_vec,
+                   b_vector.template AsType<typename Impl::AVecType>()[iKIter],
+                   a_vector.template AsType<typename Impl::BVecType>()[iKIter]);
+        });
+
+        return c_vec;
+    }
+};
+
 } // namespace warp
 } // namespace tile_program
 } // namespace ck

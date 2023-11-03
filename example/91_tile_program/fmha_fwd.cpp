@@ -1,4 +1,5 @@
 #include <cstring>
+#include <ostream>
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -15,6 +16,8 @@
 
 #include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qkvs.hpp"
 #include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qkvs_default_policy.hpp"
+#include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qr_ks_vs.hpp"
+#include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qr_ks_vs_default_policy.hpp"
 #include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_problem.hpp"
 #include "ck/tile_program/tile/tile_fmha_shape.hpp"
 
@@ -33,10 +36,14 @@ using PDataType           = ck::half_t; // data type for A matrix of second gemm
 using OaccDataType        = float;      // data type for second gemm accumulation
 using ODataType           = ck::half_t;
 
-//                                                 M0   N0  K0   N1  K1
+//                                                 M0   N0  K0   N1  K1  K0L
 // using FmhaShape = ck::tile_program::TileFmhaShape<128,  64, 64, 128, 64>;
 // using FmhaShape = ck::tile_program::TileFmhaShape<128, 256, 32, 128, 32>;
-using FmhaShape = ck::tile_program::TileFmhaShape<128, 128, 32, 128, 32>;
+using FmhaBlockTile  = ck::Sequence<128, 128, 32, 128, 32, 128>;
+using FmhaBlockWarps = ck::Sequence<4, 1, 1>;
+using FmhaWarpTile   = ck::Sequence<32, 32, 16>;
+using FmhaShape      = ck::tile_program::
+    TileFmhaShape<FmhaBlockTile, FmhaBlockWarps, FmhaWarpTile, FmhaBlockWarps, FmhaWarpTile>;
 
 using FmhaTilePartitioner = FmhaFwdTilePartitioner<FmhaShape>;
 using FmhaPipelineProblem = ck::tile_program::block::BlockFmhaPipelineProblem<QDataType,
@@ -49,7 +56,8 @@ using FmhaPipelineProblem = ck::tile_program::block::BlockFmhaPipelineProblem<QD
                                                                               ODataType,
                                                                               256, // BlockSize
                                                                               FmhaShape>;
-using FmhaPipeline        = ck::tile_program::block::BlockFmhaPipelineQKVS<FmhaPipelineProblem>;
+// using FmhaPipeline        = ck::tile_program::block::BlockFmhaPipelineQKVS<FmhaPipelineProblem>;
+using FmhaPipeline = ck::tile_program::block::BlockFmhaPipelineQRKSVS<FmhaPipelineProblem>;
 
 using FmhaEpilogue = FmhaFwdEpilogue<FmhaFwdEpilogueProblem<OaccDataType, ODataType>>;
 using FmhaKernel   = FmhaFwdKernel<FmhaTilePartitioner, FmhaPipeline, FmhaEpilogue>;
@@ -134,7 +142,7 @@ int main(int argc, char* argv[])
               << ", seqlen_k:" << seqlen_k << ", hdim_q:" << hdim_q << ", hdim_v:" << hdim_v
               << ", scale:" << scale << ", i_perm:" << i_perm << ", o_perm:" << o_perm
               << ", grid_size " << kGridSize.x << "x" << kGridSize.y << "x" << kGridSize.z
-              << std::endl;
+              << std::flush << std::endl;
 
     constexpr ck::index_t kWarpPerCu    = 8; // 2 warps per SIMD
     constexpr ck::index_t kWarpPerBlock = kBlockSize.x / warpSize;

@@ -24,9 +24,11 @@ namespace block {
 // A is block window on shared memory
 // B is block window on shared memory
 // C is block distributed tensor
-template <typename Problem, typename Policy = BlockGemmASmemBSmemCRegV1DefaultPolicy>
+template <typename Problem_, typename Policy_ = BlockGemmASmemBSmemCRegV1DefaultPolicy>
 struct BlockGemmASmemBSmemCRegV1
 {
+    using Problem        = remove_cvref_t<Problem_>;
+    using Policy         = remove_cvref_t<Policy_>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;

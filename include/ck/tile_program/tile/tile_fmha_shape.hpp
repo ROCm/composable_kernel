@@ -8,19 +8,27 @@
 namespace ck {
 namespace tile_program {
 
-template <index_t kM0PerTile_, // tile size along q seqlen
-          index_t kN0PerTile_, // tile size along k seqlen
-          index_t kK0PerTile_, // tile size along qk gemm unroll
-          index_t kN1PerTile_, // tile size along v head_dim
-          index_t kK1PerTile_  // tile size along kv gemm unroll
-          >
+template <typename BlockTile_, // Sequence<...
+          typename Gemm0BlockWarps_,
+          typename Gemm0WarpTile_,
+          typename Gemm1BlockWarps_,
+          typename Gemm1WarpTile_>
 struct TileFmhaShape
 {
-    static constexpr index_t kM0 = kM0PerTile_;
-    static constexpr index_t kN0 = kN0PerTile_;
-    static constexpr index_t kK0 = kK0PerTile_;
-    static constexpr index_t kN1 = kN1PerTile_;
-    static constexpr index_t kK1 = kK1PerTile_;
+    using BlockTile       = remove_cvref_t<BlockTile_>;
+    using Gemm0BlockWarps = remove_cvref_t<Gemm0BlockWarps_>;
+    using Gemm0WarpTile   = remove_cvref_t<Gemm0WarpTile_>;
+    using Gemm1BlockWarps = remove_cvref_t<Gemm1BlockWarps_>;
+    using Gemm1WarpTile   = remove_cvref_t<Gemm1WarpTile_>;
+
+    static constexpr index_t kM0 = BlockTile::At(Number<0>{}); // tile size along q seqlen
+    static constexpr index_t kN0 = BlockTile::At(Number<1>{}); // tile size along k seqlen
+    static constexpr index_t kK0 = BlockTile::At(Number<2>{}); // tile size along qk gemm unroll
+    static constexpr index_t kN1 = BlockTile::At(Number<3>{}); // tile size along v head_dim
+    static constexpr index_t kK1 = BlockTile::At(Number<4>{}); // tile size along kv gemm unroll
+    static constexpr index_t kK0BlockLength =
+        BlockTile::At(Number<5>{}); // total length of K0, used for pipeline that need load Q at
+                                    // once (or repeately load Q as a whole tile)
 };
 
 } // namespace tile_program

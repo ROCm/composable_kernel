@@ -11,7 +11,7 @@
 // P[seqlen_q, seqlen_k] = Softmax(S[seqlen_q, seqlen_k])
 // O[seqlen_q, hdim_v] = P[seqlen_q, seqlen_k] * V[hdim_v, seqlen_k]
 
-#define C_LOG2E    1.44269504088896340736   // log2(e)
+#define C_LOG2E 1.44269504088896340736 // log2(e)
 
 template <typename TilePartitioner_, typename FmhaPipeline_, typename EpiloguePipeline_>
 struct FmhaFwdKernel
@@ -148,10 +148,16 @@ struct FmhaFwdKernel
             Number<32>{},
             Number<1>{});
 
-        auto q_dram_window =
-            make_tile_window(q_dram,
-                             make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kK0>{}),
-                             {i_m0, 0});
+        auto q_dram_window = make_tile_window(
+            q_dram,
+            [&]() {
+                if constexpr(FmhaPipeline::kQLoadOnce)
+                    return make_tuple(Number<FmhaPipeline::kM0>{},
+                                      Number<FmhaPipeline::kK0BlockLength>{});
+                else
+                    return make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kK0>{});
+            }(),
+            {i_m0, 0});
 
         auto k_dram_window = make_tile_window(
             k_dram, make_tuple(Number<FmhaPipeline::kN0>{}, Number<FmhaPipeline::kK0>{}), {0, 0});

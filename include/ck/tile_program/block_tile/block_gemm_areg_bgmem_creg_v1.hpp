@@ -26,9 +26,11 @@ namespace block {
 // This will:
 //   1. Load B from global memory into shared memory and then
 //   2. Call BlockGemmARegSGmemCRegV1
-template <typename Problem, typename Policy = BlockGemmARegBGmemCRegV1DefaultPolicy>
+template <typename Problem_, typename Policy_ = BlockGemmARegBGmemCRegV1DefaultPolicy>
 struct BlockGemmARegBGmemCRegV1
 {
+    using Problem        = remove_cvref_t<Problem_>;
+    using Policy         = remove_cvref_t<Policy_>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
@@ -37,13 +39,9 @@ struct BlockGemmARegBGmemCRegV1
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     // use BlockGemmARegBSmemCRegV1 as the underlying block-GEMM implementation
-    using BlockGemmARegBSmemCRegImpl =
-        BlockGemmARegBSmemCRegV1<BlockGemmARegBSmemCRegProblem<ADataType,
-                                                                 BDataType,
-                                                                 CDataType,
-                                                                 kBlockSize,
-                                                                 BlockGemmShape>,
-                                 BlockGemmARegBSmemCRegV1DefaultPolicy>;
+    using BlockGemmARegBSmemCRegImpl = BlockGemmARegBSmemCRegV1<
+        BlockGemmARegBSmemCRegProblem<ADataType, BDataType, CDataType, kBlockSize, BlockGemmShape>,
+        BlockGemmARegBSmemCRegV1DefaultPolicy>;
 
     __host__ __device__ static constexpr ck::index_t GetStaticLdsSize()
     {

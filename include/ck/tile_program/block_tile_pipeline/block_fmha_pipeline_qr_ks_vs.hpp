@@ -15,7 +15,7 @@
 #include "ck/tile_program/tile/tile_gemm_shape.hpp"
 #include "ck/tile_program/tile/slice_tile.hpp"
 #include "ck/tile_program/warp_tile/warp_gemm.hpp"
-#include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qkvs_default_policy.hpp"
+#include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qr_ks_vs_default_policy.hpp"
 #include "ck/tile_program/block_tile/block_reduce.hpp"
 
 namespace ck {
@@ -23,8 +23,8 @@ namespace tile_program {
 namespace block {
 
 // This pipeline is qkv all located in LDS
-template <typename Problem, typename Policy = BlockFmhaPipelineQKVSDefaultPolicy>
-struct BlockFmhaPipelineQKVS
+template <typename Problem, typename Policy = BlockFmhaPipelineQRKSVSDefaultPolicy>
+struct BlockFmhaPipelineQRKSVS
 {
     using QDataType           = remove_cvref_t<typename Problem::QDataType>;
     using KDataType           = remove_cvref_t<typename Problem::KDataType>;
@@ -36,15 +36,16 @@ struct BlockFmhaPipelineQKVS
     using ODataType           = remove_cvref_t<typename Problem::ODataType>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
-    static constexpr bool kQLoadOnce = false; // if q load whole block length (hdim) at once
+    static constexpr bool kQLoadOnce = true; // if q load whole block length (hdim) at once
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr index_t kM0 = BlockFmhaShape::kM0;
-    static constexpr index_t kN0 = BlockFmhaShape::kN0;
-    static constexpr index_t kK0 = BlockFmhaShape::kK0;
-    static constexpr index_t kN1 = BlockFmhaShape::kN1;
-    static constexpr index_t kK1 = BlockFmhaShape::kK1;
+    static constexpr index_t kM0            = BlockFmhaShape::kM0;
+    static constexpr index_t kN0            = BlockFmhaShape::kN0;
+    static constexpr index_t kK0            = BlockFmhaShape::kK0;
+    static constexpr index_t kN1            = BlockFmhaShape::kN1;
+    static constexpr index_t kK1            = BlockFmhaShape::kK1;
+    static constexpr index_t kK0BlockLength = BlockFmhaShape::kK0BlockLength;
 
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
@@ -66,7 +67,7 @@ struct BlockFmhaPipelineQKVS
                const VElementFunction& v_element_func,
                float scale,
                index_t num_total_loop,
-               index_t num_sub_loop_qk,
+               index_t /*num_sub_loop_qk*/, // in this pipeline, the 1st gemm loop must be static
                void* smem_ptr) const
     {
         static_assert(
@@ -76,19 +77,11 @@ struct BlockFmhaPipelineQKVS
             "wrong!");
 
         static_assert(kM0 == QDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
-                          kK0 == QDramBlockWindowTmp{}.GetWindowLengths()[Number<1>{}] &&
                           kN0 == KDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
                           kK0 == KDramBlockWindowTmp{}.GetWindowLengths()[Number<1>{}] &&
                           kN1 == VDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
                           kK1 == VDramBlockWindowTmp{}.GetWindowLengths()[Number<1>{}],
                       "wrong!");
-
-        // Q tile in LDS
-        auto q_lds = make_tensor_view<AddressSpaceEnum::Lds>(
-            reinterpret_cast<QDataType*>(smem_ptr),
-            Policy::template MakeQLdsBlockDescriptor<Problem>());
-        auto q_lds_window =
-            make_tile_window(q_lds, make_tuple(Number<kM0>{}, Number<kK0>{}), {0, 0});
 
         // K tile in LDS
         KDataType* k_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
@@ -109,7 +102,18 @@ struct BlockFmhaPipelineQKVS
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
 
-        auto s_acc = decltype(gemm_0(q_lds_window, k_lds_window)){};
+        auto q_dram_window = make_tile_window(
+            q_dram_block_window_tmp.GetBottomTensorView(),
+            q_dram_block_window_tmp.GetWindowLengths(),
+            q_dram_block_window_tmp.GetWindowOrigin(),
+            Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
+
+        auto q = load_tile(q_dram_window); // persistent q register tile
+
+        auto s_acc = decltype(gemm_0(get_slice_tile(tile_elementwise_in(q_element_func, q),
+                                                    Sequence<0, 0>{},
+                                                    Sequence<kM0, kK0>{}),
+                                     k_lds_window)){};
 
         // reduction function for softmax
         const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
@@ -146,17 +150,11 @@ struct BlockFmhaPipelineQKVS
                              v_dram_block_window_tmp.GetWindowOrigin(),
                              Policy::template MakeVDramTileDistribution<Problem>());
 
+        auto q_tile           = tile_elementwise_in(q_element_func, q);
         index_t i_total_loops = 0;
         do
         {
             // STAGE 1, QK gemm
-            auto q_dram_window = make_tile_window(
-                q_dram_block_window_tmp.GetBottomTensorView(),
-                q_dram_block_window_tmp.GetWindowLengths(),
-                q_dram_block_window_tmp.GetWindowOrigin(),
-                Policy::template MakeQDramTileDistribution<Problem>()); // Q DRAM tile window for
-                                                                        // load
-
             auto k_dram_window = make_tile_window(
                 k_dram_block_window.GetBottomTensorView(),
                 k_dram_block_window.GetWindowLengths(),
@@ -164,56 +162,57 @@ struct BlockFmhaPipelineQKVS
                 Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
                                                                         // load
 
-            auto q_block_tile = load_tile(q_dram_window); // prefetch, global read 0
             auto k_block_tile = load_tile(k_dram_window);
             {
-                move_tile_window(q_dram_window, {0, kK0}); // move to 1
                 move_tile_window(k_dram_window, {0, kK0});
 
                 tile_elementwise_inout([](auto& c) { c = 0; }, s_acc); // Initialize C
 
-                store_tile(q_lds_window,
-                           tile_elementwise_in(q_element_func, q_block_tile)); // LDS write 0
-                q_block_tile = load_tile(q_dram_window);                       // global read 1
                 store_tile(k_lds_window,
                            tile_elementwise_in(k_element_func, k_block_tile)); // LDS write 0
                 k_block_tile = load_tile(k_dram_window);                       // global read 1
             }
 
-            index_t i_k0_loops = num_sub_loop_qk - 2;
-            do
+            // index_t i_k0_loops = num_sub_loop_qk - 2;
+            constexpr index_t k0_loops = kK0BlockLength / kK0;
+
+            if constexpr(k0_loops > 2)
             {
-                block_sync_lds();
-                gemm_0(s_acc, q_lds_window, k_lds_window); // GEMM i
-                block_sync_lds();
+                static_for<0, k0_loops - 2, 1>{}([&](auto i_k0) {
+                    block_sync_lds();
+                    gemm_0(s_acc,
+                           get_slice_tile(q_tile,
+                                          Sequence<0, i_k0 * kK0>{},
+                                          Sequence<kM0, (i_k0 + 1) * kK0>{}),
+                           k_lds_window);
+                    block_sync_lds();
+                    move_tile_window(k_dram_window, {0, kK0});
 
-                move_tile_window(q_dram_window, {0, kK0}); // move to i + 2
-                move_tile_window(k_dram_window, {0, kK0});
-
-                store_tile(q_lds_window,
-                           tile_elementwise_in(q_element_func, q_block_tile)); // LDS write i + 1
-                q_block_tile = load_tile(q_dram_window);                       // global read i + 2
-                store_tile(k_lds_window,
-                           tile_elementwise_in(k_element_func, k_block_tile)); // LDS write i + 1
-                k_block_tile = load_tile(k_dram_window);                       // global read i + 2
-
-                i_k0_loops--;
-            } while(i_k0_loops > 0);
+                    store_tile(
+                        k_lds_window,
+                        tile_elementwise_in(k_element_func, k_block_tile)); // LDS write i + 1
+                    k_block_tile = load_tile(k_dram_window);                // global read i + 2
+                });
+            }
 
             const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
-
-            { // tail
+            {                                                 // tail
                 block_sync_lds();
-                gemm_0(s_acc, q_lds_window, k_lds_window); // GEMM num_loop - 2
+                gemm_0(s_acc,
+                       get_slice_tile(q_tile,
+                                      Sequence<0, (k0_loops - 2) * kK0>{},
+                                      Sequence<kM0, (k0_loops - 1) * kK0>{}),
+                       k_lds_window);
                 block_sync_lds();
 
-                store_tile(
-                    q_lds_window,
-                    tile_elementwise_in(q_element_func, q_block_tile)); // LDS write num_loop - 1
                 store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
                 block_sync_lds();
 
-                gemm_0(s_acc, q_lds_window, k_lds_window); // GEMM num_loop - 1
+                gemm_0(s_acc,
+                       get_slice_tile(q_tile,
+                                      Sequence<0, (k0_loops - 1) * kK0>{},
+                                      Sequence<kM0, k0_loops * kK0>{}),
+                       k_lds_window);
             }
 
             // STAGE 2, scale softmax
