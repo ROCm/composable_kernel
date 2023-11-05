@@ -58,7 +58,7 @@ int profile_grouped_gemm(int argc, char* argv[])
     {
         std::cout
             << "arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n"
-            << "arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: fp16@fp8)\n"
+            << "arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: fp8@fp6; 5: f16@f8)\n"
             << "arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n"
             << "                     1: A[m, k] * B[n, k] = C[m, n];\n"
             << "                     2: A[k, m] * B[k, n] = C[m, n];\n"
