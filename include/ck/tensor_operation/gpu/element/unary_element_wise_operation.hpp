@@ -16,7 +16,7 @@ namespace element_wise {
 extern "C" __device__ float __ocml_native_recip_f32(float);
 #endif
 
-struct PassThrough
+struct PassThroughPack2
 {
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
@@ -64,6 +64,12 @@ struct PassThrough
     }
 
     constexpr const static bool is_pack2_invocable = true;
+};
+
+struct PassThrough
+{
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const;
 
     template <>
     __host__ __device__ void operator()<double, double>(double& y, const double& x) const

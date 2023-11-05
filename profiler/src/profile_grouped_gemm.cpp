@@ -27,7 +27,8 @@ enum struct GemmDataType
     F16_F16_F16,    // 1
     BF16_BF16_BF16, // 2
     INT8_INT8_INT8, // 3
-    F16_F8_F16,     // 4
+    F8_F16_F16,     // 4
+    F16_F8_F16,     // 5
 };
 
 #define OP_NAME "grouped_gemm"
@@ -158,6 +159,26 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                 float,
                                                 ck::tensor_layout::gemm::ColumnMajor,
                                                 ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(do_verification,
+                                                                                   init_method,
+                                                                                   do_log,
+                                                                                   time_kernel,
+                                                                                   Ms,
+                                                                                   Ns,
+                                                                                   Ks,
+                                                                                   StrideAs,
+                                                                                   StrideBs,
+                                                                                   StrideCs,
+                                                                                   kbatch);
+    }
+    else if(data_type == GemmDataType::F8_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        ck::profiler::profile_grouped_gemm_impl<ck::f8_t,
+                                                ck::half_t,
+                                                ck::half_t,
+                                                float,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor,
                                                 ck::tensor_layout::gemm::RowMajor>(do_verification,
                                                                                    init_method,
                                                                                    do_log,
