@@ -19,7 +19,8 @@ enum struct RearrangeOp
 
 enum struct ConvLayout
 {
-    NHWC, // 0
+    GNHWC, // 0
+    NHWGC, // 1
 };
 
 enum struct DataType
@@ -42,7 +43,8 @@ static void print_helper_msg()
         << "                 1: Input fp16, Weight fp16, Output fp16\n"
         << "                 2: Input bf16, Weight bf16, Output bf16\n"
         << "                 3: Input int8, Weight int8, Output int8)\n"
-        << "arg3: tensor layout (0: Input[N, Hi, Wi, C], Output[N * Ho * Wo, Y * X * C])\n"
+        << "arg3: tensor layout (0: Input[G, N, Hi, Wi, C], Output[G * N * Ho * Wo, Y * X * C],\n"
+        << "                     1: Input[N, Hi, Wi, G, C], Output[N * Ho * Wo * G, Y * X * C])\n"
         << "arg4: verification (0: no, 1: yes)\n"
         << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
         << "arg6: print tensor value (0: no; 1: yes)\n"
@@ -114,11 +116,9 @@ int profile_conv_tensor_rearrange(int argc, char* argv[])
         return pass ? 0 : 1;
     };
 
-    // Image To Column
     if(rearrange_op == RearrangeOp::ImageToColumn)
     {
-        // NHWC
-        if(layout == ConvLayout::NHWC)
+        if(layout == ConvLayout::GNHWC)
         {
             if(num_dim_spatial == 1)
             {
@@ -178,11 +178,70 @@ int profile_conv_tensor_rearrange(int argc, char* argv[])
                 }
             }
         }
+        else if(layout == ConvLayout::NHWGC)
+        {
+            if(num_dim_spatial == 1)
+            {
+                if(data_type == DataType::F32_F32)
+                {
+                    return profile(I1, NWGC{}, F32{}, F32{}, ImageToColumn{});
+                }
+                else if(data_type == DataType::F16_F16)
+                {
+                    return profile(I1, NWGC{}, F16{}, F16{}, ImageToColumn{});
+                }
+                else if(data_type == DataType::BF16_BF16)
+                {
+                    return profile(I1, NWGC{}, BF16{}, BF16{}, ImageToColumn{});
+                }
+                else if(data_type == DataType::INT8_INT8)
+                {
+                    return profile(I1, NWGC{}, INT8{}, INT8{}, ImageToColumn{});
+                }
+            }
+            else if(num_dim_spatial == 2)
+            {
+                if(data_type == DataType::F32_F32)
+                {
+                    return profile(I2, NHWGC{}, F32{}, F32{}, ImageToColumn{});
+                }
+                else if(data_type == DataType::F16_F16)
+                {
+                    return profile(I2, NHWGC{}, F16{}, F16{}, ImageToColumn{});
+                }
+                else if(data_type == DataType::BF16_BF16)
+                {
+                    return profile(I2, NHWGC{}, BF16{}, BF16{}, ImageToColumn{});
+                }
+                else if(data_type == DataType::INT8_INT8)
+                {
+                    return profile(I2, NHWGC{}, INT8{}, INT8{}, ImageToColumn{});
+                }
+            }
+            else if(num_dim_spatial == 3)
+            {
+                if(data_type == DataType::F32_F32)
+                {
+                    return profile(I3, NDHWGC{}, F32{}, F32{}, ImageToColumn{});
+                }
+                else if(data_type == DataType::F16_F16)
+                {
+                    return profile(I3, NDHWGC{}, F16{}, F16{}, ImageToColumn{});
+                }
+                else if(data_type == DataType::BF16_BF16)
+                {
+                    return profile(I3, NDHWGC{}, BF16{}, BF16{}, ImageToColumn{});
+                }
+                else if(data_type == DataType::INT8_INT8)
+                {
+                    return profile(I3, NDHWGC{}, INT8{}, INT8{}, ImageToColumn{});
+                }
+            }
+        }
     }
     else if(rearrange_op == RearrangeOp::ColumnToImage)
     {
-        // NHWC
-        if(layout == ConvLayout::NHWC)
+        if(layout == ConvLayout::GNHWC)
         {
             if(num_dim_spatial == 1)
             {
@@ -239,6 +298,66 @@ int profile_conv_tensor_rearrange(int argc, char* argv[])
                 else if(data_type == DataType::INT8_INT8)
                 {
                     return profile(I3, GNDHWC{}, INT8{}, INT8{}, ColumnToImage{});
+                }
+            }
+        }
+        else if(layout == ConvLayout::NHWGC)
+        {
+            if(num_dim_spatial == 1)
+            {
+                if(data_type == DataType::F32_F32)
+                {
+                    return profile(I1, NWGC{}, F32{}, F32{}, ColumnToImage{});
+                }
+                else if(data_type == DataType::F16_F16)
+                {
+                    return profile(I1, NWGC{}, F16{}, F16{}, ColumnToImage{});
+                }
+                else if(data_type == DataType::BF16_BF16)
+                {
+                    return profile(I1, NWGC{}, BF16{}, BF16{}, ColumnToImage{});
+                }
+                else if(data_type == DataType::INT8_INT8)
+                {
+                    return profile(I1, NWGC{}, INT8{}, INT8{}, ColumnToImage{});
+                }
+            }
+            else if(num_dim_spatial == 2)
+            {
+                if(data_type == DataType::F32_F32)
+                {
+                    return profile(I2, NHWGC{}, F32{}, F32{}, ColumnToImage{});
+                }
+                else if(data_type == DataType::F16_F16)
+                {
+                    return profile(I2, NHWGC{}, F16{}, F16{}, ColumnToImage{});
+                }
+                else if(data_type == DataType::BF16_BF16)
+                {
+                    return profile(I2, NHWGC{}, BF16{}, BF16{}, ColumnToImage{});
+                }
+                else if(data_type == DataType::INT8_INT8)
+                {
+                    return profile(I2, NHWGC{}, INT8{}, INT8{}, ColumnToImage{});
+                }
+            }
+            else if(num_dim_spatial == 3)
+            {
+                if(data_type == DataType::F32_F32)
+                {
+                    return profile(I3, NDHWGC{}, F32{}, F32{}, ColumnToImage{});
+                }
+                else if(data_type == DataType::F16_F16)
+                {
+                    return profile(I3, NDHWGC{}, F16{}, F16{}, ColumnToImage{});
+                }
+                else if(data_type == DataType::BF16_BF16)
+                {
+                    return profile(I3, NDHWGC{}, BF16{}, BF16{}, ColumnToImage{});
+                }
+                else if(data_type == DataType::INT8_INT8)
+                {
+                    return profile(I3, NDHWGC{}, INT8{}, INT8{}, ColumnToImage{});
                 }
             }
         }
