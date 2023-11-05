@@ -23,6 +23,7 @@ struct PassThroughPack2
 
     __host__ __device__ constexpr void operator()(ck::f8x2_t& y, const ck::half2_t& x) const
     {
+        // fake conversion
         uint16_t t = ck::bit_cast<uint32_t>(x);
         y          = ck::bit_cast<ck::f8x2_t>(t);
     }
