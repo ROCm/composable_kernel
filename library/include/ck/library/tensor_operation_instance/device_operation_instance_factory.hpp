@@ -25,6 +25,8 @@ using BF8  = ck::bf8_t;
 
 using Empty_Tuple = ck::Tuple<>;
 
+using BF16_Tuple = ck::Tuple<BF16>;
+
 using F16_Tuple     = ck::Tuple<F16>;
 using F16_F16_Tuple = ck::Tuple<F16, F16>;
 
