@@ -130,17 +130,17 @@ void add_device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances(
         DeviceGemmSplitK<Row, Row, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances)
 {
-    // add_device_operation_instances(instances,
-    // device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_generic_instances{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_generic_instances{});
 
-    // add_device_operation_instances(
-    // instances, device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances<GemmDefault>{});
+    add_device_operation_instances(
+        instances, device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances<GemmDefault>{});
 
-    // add_device_operation_instances(
-    // instances, device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances<GemmMNPadding>{});
+    add_device_operation_instances(
+        instances, device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances<GemmMNPadding>{});
 
-    // add_device_operation_instances(
-    // instances, device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances<GemmMNKPadding>{});
+    add_device_operation_instances(
+        instances, device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances<GemmMNKPadding>{});
 
     add_device_operation_instances(
         instances,
