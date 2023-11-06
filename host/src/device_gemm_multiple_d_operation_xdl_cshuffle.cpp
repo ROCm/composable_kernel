@@ -34,94 +34,136 @@ template <class F>
 std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(F f, Layout ALayout, Layout BLayout)
 {
     std::vector<Operation_Xdl_CShuffle> result;
-    // Tile Desc: (block_size, m_per_block, n_per_block, k_per_block, ak1, bk1,
-    // m_per_XDL, n_per_XDL, m_Xdl_per_wave, n_Xdl_per_wave, num_gemmk_prefetch_stage)
+
     std::vector<operation::TileDesc> tile_descriptions = {
-        {256, 256, 128, 32, 8, 8, 32, 32, 4, 2, 1},
-        {256, 128, 256, 32, 8, 8, 32, 32, 2, 4, 1},
-        {128, 128, 128, 32, 8, 8, 32, 32, 4, 2, 1},
-        {256, 128, 128, 32, 8, 8, 32, 32, 2, 2, 1},
-        {128, 128, 64, 32, 8, 8, 32, 32, 2, 2, 1},
-        {128, 64, 128, 32, 8, 8, 32, 32, 2, 2, 1},
-        {64, 64, 64, 32, 8, 8, 32, 32, 2, 2, 1},
-        {256, 128, 64, 32, 8, 8, 32, 32, 2, 1, 1},
-        {256, 64, 128, 32, 8, 8, 32, 32, 1, 2, 1},
-        {128, 128, 32, 32, 8, 8, 32, 32, 2, 1, 1},
-        {128, 32, 128, 32, 8, 8, 32, 32, 1, 2, 1},
-        {64, 64, 32, 32, 8, 8, 32, 32, 2, 1, 1},
-        {64, 32, 64, 32, 8, 8, 32, 32, 1, 2, 1},
+        // clang-format off
+//  Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl| NumGemmK|
+//   Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per| Prefetch|
+//       |      |      |      |    |    |     |     | Wave| Wave|    Stage|
+//       |      |      |      |    |    |     |     |     |     |         |
+  {   256,   256,   128,    32,   8,   2,   32,   32,    4,    2,        1},
+  {   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,        1},
+  {   256,   128,   256,    32,   8,   2,   32,   32,    2,    4,        1},
+  {   256,   128,   256,    32,   8,   8,   32,   32,    2,    4,        1},
+  {   128,   128,   128,    32,   8,   2,   32,   32,    4,    2,        1},
+  {   128,   128,   128,    32,   8,   8,   32,   32,    4,    2,        1},
+  {   256,   128,   128,    32,   8,   2,   32,   32,    2,    2,        1},
+  {   256,   128,   128,    32,   8,   8,   32,   32,    2,    2,        1},
+  {   128,   128,    64,    32,   8,   2,   32,   32,    2,    2,        1},
+  {   128,   128,    64,    32,   8,   8,   32,   32,    2,    2,        1},
+  {   128,    64,   128,    32,   8,   2,   32,   32,    2,    2,        1},
+  {   128,    64,   128,    32,   8,   8,   32,   32,    2,    2,        1},
+  {   256,   128,    64,    32,   8,   2,   32,   32,    2,    1,        1},
+  {   256,   128,    64,    32,   8,   8,   32,   32,    2,    1,        1},
+  {   256,    64,   128,    32,   8,   2,   32,   32,    1,    2,        1},
+  {   256,    64,   128,    32,   8,   8,   32,   32,    1,    2,        1},
+        // clang-format on
     };
 
-    // BlockTransferDesc: (thread_cluster_length, thread_cluster_arrange_order, src_access_order,
-    // src_vec_dim, src_scalar_per_vector, dst_scalar_per_vector_k1, lds_add_extra_dim )
-    auto ABlockTransferSrcVectorDim = ALayout == Layout::Column ? 1 : 2;
-    std::vector<operation::BlockTransferDesc> a_block_descriptions = {
-        {S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, ABlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, ABlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, ABlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, ABlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, ABlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, ABlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, ABlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, ABlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, ABlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, ABlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, ABlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, ABlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, ABlockTransferSrcVectorDim, 8, 8, 1},
+    std::vector<operation::BlockTransferDesc> a_block_descriptions_rowmajor = {
+        // clang-format off
+//  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|
+//   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|
+// Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          |
+//                |               |               |               |               |               |          |
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+        // clang-format on
     };
 
-    auto BBlockTransferSrcVectorDim                                = BLayout == Layout::Row ? 1 : 2;
-    std::vector<operation::BlockTransferDesc> b_block_descriptions = {
-        {S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, BBlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, BBlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, BBlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, BBlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, BBlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, BBlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, BBlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, BBlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, BBlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, BBlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, BBlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, BBlockTransferSrcVectorDim, 8, 8, 1},
-        {S<4, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, BBlockTransferSrcVectorDim, 8, 8, 1},
+    std::vector<operation::BlockTransferDesc> b_block_descriptions_rowmajor = {
+        // clang-format off
+//  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|
+//   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|
+// Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |
+//                |               |               |              |               |               |          |
+  {    S<8, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1},
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              8,         1},
+  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
+  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              8,         1},
+  {    S<8, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1},
+  {    S<8, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
+  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1},
+  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
+  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              8,         1},
+  {    S<16,16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              8,         1},
+  {    S<8, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1},
+        // clang-format on
     };
 
-    // cshuffle_descriptions: (m_Xdl_per_wave_per_shuffle, n_Xdl_per_wave_per_shuffle)
     std::vector<operation::CShuffleDesc> cshuffle_descriptions = {
-        {1, 1},
-        {1, 1},
-        {1, 1},
-        {1, 1},
-        {1, 1},
-        {1, 1},
-        {1, 1},
-        {1, 1},
-        {1, 1},
-        {1, 1},
-        {1, 1},
-        {1, 1},
-        {1, 1},
+        // clang-format off
+//    CShuffle|    CShuffle|
+// MXdlPerWave| NXdlPerWave|
+//  PerShuffle|  PerShuffle|
+//            |            |
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+        // clang-format on
     };
 
-    // CBlockTransferDesc: (cluster_lengths_m_block_m_wave_m_per_Xdl_n_block_n_wave_n_per_Xdl,
-    // scalar_per_vector_n_wave_n_per_Xdl)
     std::vector<operation::CBlockTransferDesc> c_block_descriptions = {
-        {S<1, 32, 1, 8>, 8},
-        {S<1, 32, 1, 8>, 8},
-        {S<1, 16, 1, 8>, 8},
-        {S<1, 32, 1, 8>, 8},
-        {S<1, 32, 1, 4>, 8},
-        {S<1, 16, 1, 8>, 8},
-        {S<1, 16, 1, 4>, 8},
-        {S<1, 32, 1, 8>, 8},
-        {S<1, 32, 1, 8>, 8},
-        {S<1, 32, 1, 4>, 8},
-        {S<1, 16, 1, 8>, 8},
-        {S<1, 16, 1, 4>, 8},
-        {S<1, 16, 1, 4>, 8},
+        // clang-format off
+// CBlockTransferClusterLengths|  CBlockTransfer
+//         _MBlock_MWaveMPerXdl| ScalarPerVector
+//         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl
+//                             |                
+  {              S<1, 32, 1, 8>,               8},
+  {              S<1, 32, 1, 8>,               8},
+  {              S<1, 32, 1, 8>,               8},
+  {              S<1, 32, 1, 8>,               8},
+  {              S<1, 16, 1, 8>,               8},
+  {              S<1, 16, 1, 8>,               8},
+  {              S<1, 32, 1, 8>,               8},
+  {              S<1, 32, 1, 8>,               8},
+  {              S<1, 32, 1, 4>,               8},
+  {              S<1, 32, 1, 4>,               8},
+  {              S<1, 16, 1, 8>,               8},
+  {              S<1, 16, 1, 8>,               8},
+  {              S<1, 32, 1, 8>,               8},
+  {              S<1, 32, 1, 8>,               8},
+  {              S<1, 32, 1, 8>,               8},
+  {              S<1, 32, 1, 8>,               8},
+        // clang-format on
     };
+
+    const auto a_block_descriptions =
+        (ALayout == Layout::Row) ? a_block_descriptions_rowmajor : b_block_descriptions_rowmajor;
+    const auto b_block_descriptions =
+        (BLayout == Layout::Row) ? b_block_descriptions_rowmajor : a_block_descriptions_rowmajor;
 
     assert(tile_descriptions.size() == a_block_descriptions.size());
     assert(tile_descriptions.size() == b_block_descriptions.size());
