@@ -471,7 +471,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;
 
-                const auto kernel = kernel_grouped_conv_fwd_multiple_d_wmma_cshuffle<
+                const auto kernel = kernel_grouped_conv_multiple_d_wmma_cshuffle<
                     GridwiseOp,
                     ADataType,
                     BDataType,

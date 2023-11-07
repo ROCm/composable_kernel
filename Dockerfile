@@ -26,29 +26,42 @@ RUN wget -qO - http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - && \
 RUN sh -c "echo deb http://mirrors.kernel.org/ubuntu focal main universe | tee -a /etc/apt/sources.list"
 RUN amdgpu-install -y --usecase=rocm --no-dkms
 
+## Sccache binary built from source for ROCm
+ARG SCCACHE_REPO_URL=http://compute-artifactory.amd.com/artifactory/rocm-generic-experimental/rocm-sccache
+ENV SCCACHE_INSTALL_LOCATION=/usr/local/.cargo/bin
+RUN mkdir -p ${SCCACHE_INSTALL_LOCATION} && \
+curl ${SCCACHE_REPO_URL}/portable/0.2.16/sccache-0.2.16-alpha.1-rocm --output ${SCCACHE_INSTALL_LOCATION}/sccache && \
+chmod +x ${SCCACHE_INSTALL_LOCATION}/sccache
+ENV PATH=$PATH:${SCCACHE_INSTALL_LOCATION}
+
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     build-essential \
-    ccache \
     cmake \
+    ccache \
     git \
     hip-rocclr \
+    iputils-ping \
     jq \
     libelf-dev \
     libncurses5-dev \
     libnuma-dev \
     libpthread-stubs0-dev \
     llvm-amdgpu \
+    net-tools \
     pkg-config \
     python \
     python3 \
     python3-dev \
     python3-pip \
+    redis \
     sshpass \
+    stunnel \
     software-properties-common \
     vim \
     nano \
     zlib1g-dev \
+    zip \
     openssh-server \
     clang-format-12 \
     kmod && \
@@ -61,7 +74,7 @@ RUN gunzip /usr/local/bin/ninja.gz
 RUN chmod a+x /usr/local/bin/ninja
 RUN git clone https://github.com/nico/ninjatracing.git
 # Update the cmake to the latest version
-RUN pip install --upgrade cmake
+RUN pip install --upgrade cmake==3.27.5
 
 # Setup ubsan environment to printstacktrace
 RUN ln -s /usr/bin/llvm-symbolizer-3.8 /usr/local/bin/llvm-symbolizer
@@ -76,9 +89,9 @@ ARG PREFIX=/opt/rocm
 RUN pip3 install --upgrade pip
 RUN pip3 install sqlalchemy==1.4.46
 RUN pip3 install pymysql
-RUN pip3 install pandas
+RUN pip3 install pandas==2.0.3
 RUN pip3 install setuptools-rust
-RUN pip3 install sshtunnel
+RUN pip3 install sshtunnel==0.4.0
 # Setup ubsan environment to printstacktrace
 ENV UBSAN_OPTIONS=print_stacktrace=1
 
@@ -114,6 +127,8 @@ RUN if [ "$compiler_version" = "amd-stg-open" ] && [ "$compiler_commit" != "" ];
     else echo "using the release compiler"; \
     fi
 
+#clean-up the deb package
+RUN sh -c "rm -rf amdgpu-install*"
 
 #ENV HIP_CLANG_PATH='/llvm-project/build/bin'
 #RUN sh -c "echo HIP_CLANG_PATH = '$HIP_CLANG_PATH'"
