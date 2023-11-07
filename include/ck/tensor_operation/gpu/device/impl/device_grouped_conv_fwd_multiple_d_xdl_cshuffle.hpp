@@ -104,7 +104,7 @@ __global__ void
 
     const long_index_t e_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
-    const auto ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
+    const auto& ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
 
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -121,13 +121,13 @@ __global__ void
         AsPointer p_as_grid_grp;
         BsPointer p_bs_grid_grp;
 
-        const auto as_batch_offset = compute_ptr_offset_of_batch.GetAsPtrOffset(g_idx);
+        const auto& as_batch_offset = compute_ptr_offset_of_batch.GetAsPtrOffset(g_idx);
 
         static constexpr index_t NumATensor = AGridDesc_AK0_M_AK1::Size();
         static_for<0, NumATensor, 1>{}(
             [&](auto i) { p_as_grid_grp(i) = p_as_grid[i] + as_batch_offset[i]; });
 
-        const auto bs_batch_offset = compute_ptr_offset_of_batch.GetBsPtrOffset(g_idx);
+        const auto& bs_batch_offset = compute_ptr_offset_of_batch.GetBsPtrOffset(g_idx);
 
         static constexpr index_t NumBTensor = BGridDesc_BK0_N_BK1::Size();
         static_for<0, NumBTensor, 1>{}(
@@ -988,7 +988,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
     static auto MakeArgument(
         APointers p_as,
         BPointers p_bs,
-        std::array<const void*, NumDTensor>& p_ds,
+        const std::array<const void*, NumDTensor>& p_ds,
         void* p_e,
         const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
         const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,

@@ -20,17 +20,12 @@ struct ComputePtrOffsetOfStridedBatch
                                    index_t BatchStrideB,
                                    Array<ck::index_t, NumDTensor> BatchStrideDs,
                                    index_t BatchStrideE)
-        : BatchStrideA_(),
-          BatchStrideB_(),
+        : BatchStrideA_(BatchStrideA),
+          BatchStrideB_(BatchStrideB),
           BatchStrideDs_(BatchStrideDs),
           BatchStrideE_(BatchStrideE)
     {
-        if constexpr(!isMultiAB)
-        {
-            BatchStrideA_ = BatchStrideA;
-            BatchStrideB_ = BatchStrideB;
-        }
-        else
+        if constexpr(isMultiAB)
         {
             static_assert("Invalid constructor for multiple A or B");
         }
@@ -40,17 +35,12 @@ struct ComputePtrOffsetOfStridedBatch
                                    Array<ck::index_t, NumBTensor> BatchStrideBs,
                                    Array<ck::index_t, NumDTensor> BatchStrideDs,
                                    index_t BatchStrideE)
-        : BatchStrideA_(),
-          BatchStrideB_(),
+        : BatchStrideA_(BatchStrideAs),
+          BatchStrideB_(BatchStrideBs),
           BatchStrideDs_(BatchStrideDs),
           BatchStrideE_(BatchStrideE)
     {
-        if constexpr(isMultiAB)
-        {
-            BatchStrideA_ = BatchStrideAs;
-            BatchStrideB_ = BatchStrideBs;
-        }
-        else
+        if constexpr(!isMultiAB)
         {
             static_assert("Invalid constructor for single A and B");
         }
