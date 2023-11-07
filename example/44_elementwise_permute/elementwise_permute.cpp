@@ -24,11 +24,11 @@ using DeviceElementwisePermuteInstance =
                                                         PassThrough,          // ElementwiseOp
                                                         5,                    // NumDim
                                                         8,                    // MPerThread
-                                                        ck::Sequence<8>,  // InScalarPerVectorSeq
+                                                        ck::Sequence<1>,  // InScalarPerVectorSeq
                                                         ck::Sequence<1>>; // OutScalarPerVectorSeq
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
-void host_elementwise4D(HostTensorB& B_nchwd, const HostTensorA& A_ncdhw, Functor functor)
+void host_elementwise4D(HostTensorB& B_ndhwc, const HostTensorA& A_ncdhw, Functor functor)
 {
     for(std::size_t n = 0; n < A_ncdhw.mDesc.GetLengths()[0]; ++n)
         for(std::size_t c = 0; c < A_ncdhw.mDesc.GetLengths()[1]; ++c)
@@ -37,7 +37,7 @@ void host_elementwise4D(HostTensorB& B_nchwd, const HostTensorA& A_ncdhw, Functo
                     for(std::size_t w = 0; w < A_ncdhw.mDesc.GetLengths()[4]; ++w)
                     {
                         auto a_val = A_ncdhw(n, c, d, h, w);
-                        functor(B_nchwd(n, c, h, w, d), a_val);
+                        functor(B_ndhwc(n, d, h, w, c), a_val);
                     }
 }
 
@@ -47,9 +47,9 @@ int main()
     bool time_kernel     = true;
 
     std::vector<std::size_t> ncdhw = {16, 8, 8, 8, 8};
-    std::vector<std::size_t> nchwd = {16, 8, 8, 8, 8};
+    std::vector<std::size_t> ndhwc = {16, 8, 8, 8, 8};
     Tensor<ADataType> a(ncdhw);
-    Tensor<BDataType> b(nchwd);
+    Tensor<BDataType> b(ndhwc);
 
     a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
 
@@ -62,19 +62,32 @@ int main()
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
 
     std::array<ck::index_t, 5> ab_lengths;
-    std::array<ck::index_t, 5> a_strides = {
+    /**std::array<ck::index_t, 5> a_strides = {
         static_cast<int>(ncdhw[1] * ncdhw[2] * ncdhw[3] * ncdhw[4]),
         static_cast<int>(ncdhw[2] * ncdhw[3] * ncdhw[4]),
         static_cast<int>(ncdhw[3] * ncdhw[4]),
         static_cast<int>(ncdhw[4]),
         1};
     std::array<ck::index_t, 5> b_strides = {
-        static_cast<int>(nchwd[1] * nchwd[2] * nchwd[3] * nchwd[4]),
-        static_cast<int>(nchwd[2] * nchwd[3] * nchwd[4]),
+        static_cast<int>(ndhwc[1] * ndhwc[2] * ndhwc[3] * ndhwc[4]),
+        static_cast<int>(ndhwc[2] * ndhwc[3] * ndhwc[4]),
         1,
-        static_cast<int>(nchwd[3] * nchwd[4]),
-        static_cast<int>(nchwd[4])};
+        static_cast<int>(ndhwc[3] * ndhwc[4]),
+        static_cast<int>(ndhwc[4])};**/
 
+    std::array<ck::index_t, 5> a_strides = {
+        static_cast<int>(ncdhw[1] * ncdhw[2] * ncdhw[3] * ncdhw[4]),
+        static_cast<int>(ncdhw[3] * ncdhw[4]),
+        static_cast<int>(ncdhw[4]),
+        1,
+        static_cast<int>(ncdhw[2] * ncdhw[3] * ncdhw[4])};
+
+    std::array<ck::index_t, 5> b_strides = {
+        static_cast<int>(ndhwc[1] * ndhwc[2] * ndhwc[3] * ndhwc[4]),
+        static_cast<int>(ndhwc[2] * ndhwc[3] * ndhwc[4]),
+        static_cast<int>(ndhwc[3] * ndhwc[4]),
+        static_cast<int>(ndhwc[4]),
+        1};
     ck::ranges::copy(ncdhw, ab_lengths.begin());
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
@@ -88,7 +101,7 @@ int main()
     };
 
     std::cout << "A (ncdhw): " << a.mDesc << std::endl;
-    std::cout << "B (nchwd): " << b.mDesc << std::endl;
+    std::cout << "B (ndhwc): " << b.mDesc << std::endl;
 
     auto broadcastPermute_invoker_ptr = broadcastPermute.MakeInvokerPointer();
     float ave_time =
@@ -111,7 +124,7 @@ int main()
     if(do_verification)
     {
         b_device_buf.FromDevice(b.mData.data());
-        Tensor<BDataType> host_b(nchwd);
+        Tensor<BDataType> host_b(ndhwc);
         host_elementwise4D(host_b, a, PassThrough{});
 
         pass &=
