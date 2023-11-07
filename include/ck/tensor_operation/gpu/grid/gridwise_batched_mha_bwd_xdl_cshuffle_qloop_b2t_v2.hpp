@@ -1370,7 +1370,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
             static constexpr index_t Size0 = 0;
             static constexpr index_t Size  = sizeof(ck::half_t);
         };
+
         static constexpr index_t NThreadClusterLengths = 32;
+        static_assert(NXdlPerWave == 1);
         static_assert(NPerXdl == 32);
         static_assert(D0BlockTransferSrcScalarPerVector * NThreadClusterLengths <= NPerBlock,
                       "D0BlockTransferSrcScalarPerVector * NThreadClusterLengths <= NPerBlock");
