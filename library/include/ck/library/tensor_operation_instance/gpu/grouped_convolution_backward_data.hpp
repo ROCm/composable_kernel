@@ -496,7 +496,8 @@ struct DeviceOperationInstanceFactory<
             {
 #ifdef CK_ENABLE_FP16
                 if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
-                             is_same_v<OutDataType, F16>)
+                             is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
+                             is_same_v<ComputeTypeB, F16>)
                 {
                     add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f16_instances(op_ptrs);
                     add_device_grouped_conv2d_bwd_data_wmma_gnhwk_gkyxc_gnhwc_f16_instances(
@@ -507,14 +508,16 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_FP32
                 else if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
-                                  is_same_v<OutDataType, F32>)
+                                  is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
+                                  is_same_v<ComputeTypeB, F32>)
                 {
                     add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f32_instances(op_ptrs);
                 }
 #endif
 #ifdef CK_ENABLE_BF16
                 else if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
-                                  is_same_v<OutDataType, BF16>)
+                                  is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
+                                  is_same_v<ComputeTypeB, BF16>)
                 {
                     add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_bf16_instances(
                         op_ptrs);
@@ -522,7 +525,9 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_INT8
                 else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                                  is_same_v<OutDataType, int8_t>)
+                                  is_same_v<OutDataType, int8_t> &&
+                                  is_same_v<ComputeTypeA, int8_t> &&
+                                  is_same_v<ComputeTypeB, int8_t>)
                 {
                     add_device_grouped_conv2d_bwd_data_wmma_gnhwk_gkyxc_gnhwc_i8_instances(op_ptrs);
                     add_device_grouped_conv2d_bwd_data_wmma_gnhwk_gkyxc_gnhwc_i8_1x1s1p0_instances(
@@ -535,7 +540,8 @@ struct DeviceOperationInstanceFactory<
             {
 #ifdef CK_ENABLE_FP16
                 if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
-                             is_same_v<OutDataType, F16>)
+                             is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
+                             is_same_v<ComputeTypeB, F16>)
                 {
                     add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_instances(op_ptrs);
                     add_device_grouped_conv2d_bwd_data_wmma_nhwgk_gkyxc_nhwgc_f16_instances(
@@ -546,14 +552,16 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_FP32
                 else if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
-                                  is_same_v<OutDataType, F32>)
+                                  is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
+                                  is_same_v<ComputeTypeB, F32>)
                 {
                     add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_instances(op_ptrs);
                 }
 #endif
 #ifdef CK_ENABLE_BF16
                 else if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
-                                  is_same_v<OutDataType, BF16>)
+                                  is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
+                                  is_same_v<ComputeTypeB, BF16>)
                 {
                     add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_instances(
                         op_ptrs);
@@ -561,7 +569,9 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_INT8
                 else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                                  is_same_v<OutDataType, int8_t>)
+                                  is_same_v<OutDataType, int8_t> &&
+                                  is_same_v<ComputeTypeA, int8_t> &&
+                                  is_same_v<ComputeTypeB, int8_t>)
                 {
                     add_device_grouped_conv2d_bwd_data_wmma_nhwgk_gkyxc_nhwgc_i8_instances(op_ptrs);
                     add_device_grouped_conv2d_bwd_data_wmma_nhwgk_gkyxc_nhwgc_i8_1x1s1p0_instances(
@@ -578,7 +588,8 @@ struct DeviceOperationInstanceFactory<
             {
 #ifdef CK_ENABLE_FP16
                 if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
-                             is_same_v<OutDataType, F16>)
+                             is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
+                             is_same_v<ComputeTypeB, F16>)
                 {
                     add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f16_instances(
                         op_ptrs);
@@ -590,7 +601,8 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_FP32
                 else if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
-                                  is_same_v<OutDataType, F32>)
+                                  is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
+                                  is_same_v<ComputeTypeB, F32>)
                 {
                     add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_f32_instances(
                         op_ptrs);
@@ -598,7 +610,8 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_BF16
                 else if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
-                                  is_same_v<OutDataType, BF16>)
+                                  is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
+                                  is_same_v<ComputeTypeB, BF16>)
                 {
                     add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_bf16_instances(
                         op_ptrs);
@@ -606,7 +619,9 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_INT8
                 else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                                  is_same_v<OutDataType, int8_t>)
+                                  is_same_v<OutDataType, int8_t> &&
+                                  is_same_v<ComputeTypeA, int8_t> &&
+                                  is_same_v<ComputeTypeB, int8_t>)
                 {
                     add_device_grouped_conv3d_bwd_data_wmma_gndhwk_gkzyxc_gndhwc_i8_instances(
                         op_ptrs);
@@ -642,7 +657,8 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_FP32
                 else if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
-                                  is_same_v<OutDataType, F32>)
+                                  is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
+                                  is_same_v<ComputeTypeB, F32>)
                 {
                     add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_instances(
                         op_ptrs);
@@ -650,7 +666,8 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_BF16
                 else if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
-                                  is_same_v<OutDataType, BF16>)
+                                  is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
+                                  is_same_v<ComputeTypeB, BF16>)
                 {
                     add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
                         op_ptrs);
@@ -658,7 +675,9 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_INT8
                 else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                                  is_same_v<OutDataType, int8_t>)
+                                  is_same_v<OutDataType, int8_t> &&
+                                  is_same_v<ComputeTypeA, int8_t> &&
+                                  is_same_v<ComputeTypeB, int8_t>)
                 {
                     add_device_grouped_conv3d_bwd_data_wmma_ndhwgk_gkzyxc_ndhwgc_i8_instances(
                         op_ptrs);
