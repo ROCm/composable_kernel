@@ -28,20 +28,24 @@ class TestTranspose : public testing::Test
     using BDataType = std::tuple_element_t<1, Tuple>;
 
     public:
-    static constexpr bool verify_     = true;
-    static constexpr int init_method_ = 1; // decimal value initialization
-    static constexpr bool log_        = false;
-    static constexpr bool bench_      = false; // measure kernel performance
+    static constexpr bool verify_              = true;
+    static constexpr int init_method_          = 1; // decimal value initialization
+    static constexpr bool log_                 = false;
+    static constexpr bool bench_               = false; // measure kernel performance
+    std::vector<std::vector<index_t>> lengths_ = {{16, 32, 16, 32, 16}, {16, 8, 16, 32, 8}};
 
-    void Run(const int N, const int C, const int D, const int H, const int W)
+    void Run()
     {
-        RunSingle(N, H, C, D, W);
+        for(auto length : this->lengths_)
+        {
+            this->RunSingle(length);
+        }
     }
 
-    void RunSingle(const int N, const int C, const int D, const int H, const int W)
+    void RunSingle()
     {
         bool pass = ck::profiler::profile_transpose_impl<ADataType, BDataType, 5>(
-            verify_, init_method_, log_, bench_, N, C, D, H, W);
+            verify_, init_method_, log_, bench_, lengths_);
         EXPECT_TRUE(pass);
     }
 };
