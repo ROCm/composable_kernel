@@ -34,6 +34,7 @@ using AccDataType      = F32;
 using CShuffleDataType = F32;
 using DDataType        = F16;
 using EDataType        = F16;
+using ComputeDataType  = F16;
 
 static constexpr ck::index_t NumDimM = 2;
 static constexpr ck::index_t NumDimN = 2;
@@ -291,6 +292,7 @@ int main(int argc, char* argv[])
                                                                       BDataType,
                                                                       CShuffleDataType,
                                                                       AccDataType,
+                                                                      ComputeDataType,
                                                                       PassThrough,
                                                                       BElementOp>;
 

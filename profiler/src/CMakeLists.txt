@@ -28,9 +28,11 @@ set(PROFILER_SOURCES
     profile_grouped_conv_bwd_data.cpp
     profile_conv_tensor_rearrange.cpp
 )
+
 if(DL_KERNELS)
   list(APPEND PROFILER_SOURCES profile_batched_gemm_multi_d.cpp)
 endif()
+
 if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
   list(APPEND PROFILER_SOURCES profile_batched_gemm_gemm.cpp)
   list(APPEND PROFILER_SOURCES profile_gemm_fastgelu.cpp)
@@ -110,4 +112,5 @@ if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_gemm_instance)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_gemm_fastgelu_instance)
 endif()
+
 rocm_install(TARGETS ${PROFILER_EXECUTABLE} COMPONENT profiler)
