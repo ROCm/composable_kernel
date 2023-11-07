@@ -2636,6 +2636,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V2
                 {
                     static constexpr auto& sgrad_thread_desc =
                         pgrad_blockwise_gemm.GetCThreadDesc();
+
                     auto d0grad_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                         p_d0grad_grid, d0grad_grid_desc_m0_n0_m1_m2_n1_m3.GetElementSpaceSize());
 
