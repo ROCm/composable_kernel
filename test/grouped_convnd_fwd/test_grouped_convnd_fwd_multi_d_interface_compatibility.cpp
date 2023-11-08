@@ -11,6 +11,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp"
 
 #include <gtest/gtest.h>
 
@@ -19,11 +20,6 @@ using S = ck::Sequence<Is...>;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-template <typename DataType,
-          typename InDataTypes,
-          typename WeiDataTypes,
-          typename InElementOp,
-          typename WeiElementOp>
 class TestGroupedConvndFwdMultiDInterfaceCompatibility : public ::testing::Test
 {
     protected:
@@ -59,5 +55,5 @@ class TestGroupedConvndFwdMultiDInterfaceCompatibility : public ::testing::Test
 
 TEST_F(TestGroupedConvndFwdMultiDInterfaceCompatibility, CompatibilityTest)
 {
-    EXPECT_TRUE(this->template Run());
+    EXPECT_TRUE(this->Run());
 }

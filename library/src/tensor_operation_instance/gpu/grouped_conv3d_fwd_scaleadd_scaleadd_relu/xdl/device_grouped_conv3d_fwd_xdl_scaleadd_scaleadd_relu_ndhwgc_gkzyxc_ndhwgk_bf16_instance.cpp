@@ -10,18 +10,18 @@ namespace device {
 namespace instance {
 
 void add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
-                                                              NDHWGC,
-                                                              GKZYXC,
-                                                              ck::Tuple<NDHWGK, NDHWGK>,
-                                                              NDHWGK,
-                                                              BF16,
-                                                              BF16,
-                                                              ck::Tuple<BF16, BF16>,
-                                                              BF16,
-                                                              PassThrough,
-                                                              PassThrough,
-                                                              ScaleAddScaleAddRelu>>>& instances)
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<NDHWGK, NDHWGK>,
+                                                                NDHWGK,
+                                                                BF16,
+                                                                BF16,
+                                                                ck::Tuple<BF16, BF16>,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                ScaleAddScaleAddRelu>>>& instances)
 {
     add_device_operation_instances(
         instances,
