@@ -421,8 +421,8 @@ struct ReferenceConvFwd : public device::BaseOperator
         InElementwiseOperation in_element_op,
         WeiElementwiseOperation wei_element_op,
         OutElementwiseOperation out_element_op,
-        const std::array<Tensor<OutDataType>, NumAElementwiseTensor>& elementwise_a_tensors = {},
-        const std::array<Tensor<OutDataType>, NumBElementwiseTensor>& elementwise_b_tensors = {},
+        const std::array<Tensor<InDataType>, NumAElementwiseTensor>& elementwise_a_tensors  = {},
+        const std::array<Tensor<WeiDataType>, NumBElementwiseTensor>& elementwise_b_tensors = {},
         const std::array<Tensor<OutDataType>, NumDElementwiseTensor>& elementwise_d_tensors = {})
     {
         return Argument{input,
