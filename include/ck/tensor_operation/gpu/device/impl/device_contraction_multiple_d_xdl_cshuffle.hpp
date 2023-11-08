@@ -595,7 +595,9 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
             return false;
         }
 
-        if(ck::get_device_name() != "gfx90a" && std::is_same<ADataType, double>::value)
+        if(ck::get_device_name() != "gfx90a" && ck::get_device_name() != "gfx940" &&
+           ck::get_device_name() != "gfx941" && ck::get_device_name() != "gfx942" &&
+           std::is_same<ADataType, double>::value)
         {
             return false;
         }
