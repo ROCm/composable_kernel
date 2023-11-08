@@ -17,7 +17,7 @@ template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
           typename UnaryOperation,
-	  typename Scale,
+          typename Scale,
           index_t NumDim>
 struct DeviceElementwise : public BaseOperator
 {
@@ -32,7 +32,7 @@ struct DeviceElementwise : public BaseOperator
                         const std::array<void*, NumOutput> out_dev_buffers,
                         ElementwiseOperation elementwise_op,
                         UnaryOperation unary_op,
-			Scale scale_op) = 0;
+                        Scale scale_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 }; // namespace device
@@ -41,13 +41,13 @@ template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
           typename UnaryOperation,
-	  typename Scale,
+          typename Scale,
           index_t NumDim>
 using DeviceElementwisePtr = std::unique_ptr<DeviceElementwise<InDataTypeTuple,
                                                                OutDataTypeTuple,
                                                                ElementwiseOperation,
                                                                UnaryOperation,
-							       Scale,
+                                                               Scale,
                                                                NumDim>>;
 
 } // namespace device

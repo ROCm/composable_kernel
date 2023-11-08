@@ -8,8 +8,8 @@
 
 #include "ck/utility/math.hpp"
 #include "ck/utility/sequence.hpp"
-#include "ck/tensor_operation/gpu/device/device_elementwise_ht.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_elementwise_1d_ht.hpp"
+#include "ck/tensor_operation/gpu/device/device_elementwise_scale.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_elementwise_1d_scale.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 
 #include "ck/host_utility/kernel_launch.hpp"
@@ -23,7 +23,7 @@ template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
           typename UnaryOperation,
-	  typename Scale,
+          typename Scale,
           index_t NumDim,
           index_t MPerThread,
           typename InScalarPerVectorSeq,
@@ -32,7 +32,7 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
                                                         OutDataTypeTuple,
                                                         ElementwiseOperation,
                                                         UnaryOperation,
-							Scale,
+                                                        Scale,
                                                         NumDim>
 {
     static constexpr int NumInput  = InDataTypeTuple::Size();
@@ -135,7 +135,7 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
                                                        OutDataTypePointerTuple,
                                                        ElementwiseOperation,
                                                        UnaryOperation,
-						       Scale,
+                                                       Scale,
                                                        MPerThread,
                                                        InScalarPerVectorSeq,
                                                        OutScalarPerVectorSeq>;
@@ -149,14 +149,14 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
                  const std::array<void*, NumOutput> out_dev_buffers,
                  ElementwiseOperation elementwise_op,
                  UnaryOperation unary_op,
-		 Scale scale_op)
+                 Scale scale_op)
 
             : lengths_(lengths),
               inStridesArray_(inStridesArray),
               outStridesArray_(outStridesArray),
               elementwise_op_(elementwise_op),
               unary_op_(unary_op),
-	      scale_op_(scale_op),
+              scale_op_(scale_op),
               blockSize_(256)
         {
             in_dev_buffers_ = generate_tuple(
@@ -183,7 +183,7 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
 
         ElementwiseOperation elementwise_op_;
         UnaryOperation unary_op_;
-	Scale scale_op_;
+        Scale scale_op_;
         index_t blockSize_;
     };
 
@@ -214,7 +214,7 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
                                                       OutDataTypePointerTuple,
                                                       ElementwiseOperation,
                                                       UnaryOperation,
-						      Scale>;
+                                                      Scale>;
 
             float elapsed_time = launch_and_time_kernel(stream_config,
                                                         kernel,
@@ -227,7 +227,7 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
                                                         arg.out_dev_buffers_,
                                                         arg.elementwise_op_,
                                                         arg.unary_op_,
-							arg.scale_op_);
+                                                        arg.scale_op_);
             return elapsed_time;
         }
 
@@ -285,7 +285,7 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
                  const std::array<void*, NumOutput> out_dev_buffers,
                  ElementwiseOperation elementwise_op,
                  UnaryOperation unary_op,
-		 Scale scale_op)
+                 Scale scale_op)
     {
         return Argument{lengths,
                         inStridesArray,
@@ -294,7 +294,7 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
                         out_dev_buffers,
                         elementwise_op,
                         unary_op,
-			scale_op};
+                        scale_op};
     }
 
     std::unique_ptr<BaseArgument>
@@ -305,7 +305,7 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
                         const std::array<void*, NumOutput> out_dev_buffers,
                         ElementwiseOperation elementwise_op,
                         UnaryOperation unary_op,
-			Scale scale_op) override
+                        Scale scale_op) override
     {
         return std::make_unique<Argument>(lengths,
                                           inStridesArray,
@@ -314,7 +314,7 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
                                           out_dev_buffers,
                                           elementwise_op,
                                           unary_op,
-					  scale_op);
+                                          scale_op);
     }
 
     static auto MakeInvoker() { return Invoker{}; }

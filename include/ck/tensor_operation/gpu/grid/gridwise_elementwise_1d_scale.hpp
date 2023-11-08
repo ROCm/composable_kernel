@@ -7,11 +7,6 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#define UNUSED(expr)  \
-    do                \
-    {                 \
-        (void)(expr); \
-    } while(0)
 
 namespace ck {
 
@@ -163,7 +158,6 @@ struct GridwiseElementwise_1D
             },
             Number<NumOutput>{});
 
-        // const auto& scalar = ScalarMult;
         index_t num_iter = M / (loop_step);
         do
         {
@@ -211,7 +205,6 @@ struct GridwiseElementwise_1D
                     Number<NumInput>{});
 
                 unpack2(elementwise_op, out_data_refs, in_data_refs);
-                UNUSED(scale_op);
             });
 
             static_for<0, NumOutput, 1>{}([&](auto I) {

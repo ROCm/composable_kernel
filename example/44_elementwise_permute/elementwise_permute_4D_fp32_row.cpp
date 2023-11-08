@@ -3,7 +3,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl_ht.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_scale_impl.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
@@ -14,8 +14,8 @@
 using F16 = ck::half_t;
 using F32 = float;
 
-using ADataType = F16;
-using BDataType = F16;
+using ADataType = F32;
+using BDataType = F32;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using UnaryOp     = ck::tensor_operation::element_wise::UnarySquare;
@@ -28,7 +28,7 @@ using DeviceElementwisePermuteInstance =
                                                         Scale,                // Scalar
                                                         4,                    // NumDim
                                                         8,                    // MPerThread
-                                                        ck::Sequence<1>,  // InScalarPerVectorSeq
+                                                        ck::Sequence<8>,  // InScalarPerVectorSeq
                                                         ck::Sequence<1>>; // OutScalarPerVectorSeq
 
 template <typename HostTensorA, typename HostTensorB, typename FunctorA, typename FunctorB>
@@ -38,22 +38,15 @@ void host_elementwise4D(HostTensorB& B_nhwc,
                         FunctorB functor_b,
                         float scale)
 {
-    std::size_t N = A_nchw.mDesc.GetLengths()[0];
-    std::size_t C = A_nchw.mDesc.GetLengths()[1];
-    std::size_t H = A_nchw.mDesc.GetLengths()[2];
-    std::size_t W = A_nchw.mDesc.GetLengths()[3];
-    for(std::size_t w = 0; w < W; ++w)
-        for(std::size_t h = 0; h < H; ++h)
-            for(std::size_t c = 0; c < C; ++c)
-                for(std::size_t n = 0; n < N; ++n)
+    for(std::size_t n = 0; n < A_nchw.mDesc.GetLengths()[0]; ++n)
+        for(std::size_t c = 0; c < A_nchw.mDesc.GetLengths()[1]; ++c)
+            for(std::size_t h = 0; h < A_nchw.mDesc.GetLengths()[2]; ++h)
+                for(std::size_t w = 0; w < A_nchw.mDesc.GetLengths()[3]; ++w)
                 {
                     ADataType tmp_val;
-                    // auto a_val = A_nchw(n, c, h, w);
-                    auto a_val = A_nchw.mData[(n) + (c * N) + (h * C * N) + (w * H * C * N)];
+                    auto a_val = A_nchw(n, c, h, w);
                     functor_b(tmp_val, a_val);
-                    // functor_a(B_nhwc(n, h, w, c), scale * tmp_val);
-                    functor_a(B_nhwc.mData[(n) + (c * W * H * N) + (h * N) + (w * H * N)],
-                              scale * tmp_val);
+                    functor_a(B_nhwc(n, h, w, c), scale * tmp_val);
                 }
 }
 
@@ -62,21 +55,12 @@ int main()
     bool do_verification = true;
     bool time_kernel     = true;
 
-    std::vector<std::size_t> nchw = {4, 2, 1, 8};
-    std::vector<std::size_t> nhwc = {4, 1, 8, 2};
+    std::vector<std::size_t> nchw = {16, 128, 32, 64};
+    std::vector<std::size_t> nhwc = {16, 32, 64, 128};
     Tensor<ADataType> a(nchw);
     Tensor<BDataType> b(nhwc);
-    float scale = 1.f;
-    auto i      = 0;
-    for(std::size_t w = 0; w < a.mDesc.GetLengths()[3]; ++w)
-        for(std::size_t h = 0; h < a.mDesc.GetLengths()[2]; ++h)
-            for(std::size_t c = 0; c < a.mDesc.GetLengths()[1]; ++c)
-                for(std::size_t n = 0; n < a.mDesc.GetLengths()[0]; ++n)
-                {
-                    a.mData[(n * nchw[1] * nchw[2] * nchw[3]) + (c * nchw[2] * nchw[3]) +
-                            (h * nchw[3]) + w] = i;
-                    i++;
-                }
+    float scale = 2.f;
+    a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
 
     DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
@@ -87,16 +71,15 @@ int main()
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
 
     std::array<ck::index_t, 4> ab_lengths;
+    std::array<ck::index_t, 4> a_strides = {static_cast<int>(nchw[1] * nchw[2] * nchw[3]),
+                                            static_cast<int>(nchw[2] * nchw[3]),
+                                            static_cast<int>(nchw[3]),
+                                            1};
+    std::array<ck::index_t, 4> b_strides = {static_cast<int>(nhwc[1] * nhwc[2] * nhwc[3]),
+                                            1,
+                                            static_cast<int>(nhwc[2] * nhwc[3]),
+                                            static_cast<int>(nhwc[3])};
 
-    std::array<ck::index_t, 4> a_strides = {1,
-                                            static_cast<int>(nchw[0]),
-                                            static_cast<int>(nchw[0] * nchw[1]),
-                                            static_cast<int>(nchw[0] * nchw[1] * nchw[2])};
-
-    std::array<ck::index_t, 4> b_strides = {1,
-                                            static_cast<int>(nhwc[0] * nhwc[1] * nhwc[2]),
-                                            static_cast<int>(nhwc[0]),
-                                            static_cast<int>(nhwc[0] * nhwc[1])};
     ck::ranges::copy(nchw, ab_lengths.begin());
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
