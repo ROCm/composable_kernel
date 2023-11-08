@@ -16,6 +16,57 @@ namespace element_wise {
 extern "C" __device__ float __ocml_native_recip_f32(float);
 #endif
 
+struct PassThroughPack2
+{
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const;
+
+    __host__ __device__ constexpr void operator()(ck::f8x2_t& y, const ck::half2_t& x) const
+    {
+        // fake conversion
+        uint16_t t = ck::bit_cast<uint32_t>(x);
+        y          = ck::bit_cast<ck::f8x2_t>(t);
+    }
+
+    __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::f8x2_t& x) const
+    {
+        auto t = type_convert<float2_t>(x);
+        y      = type_convert<half2_t>(t);
+    }
+
+    __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::half2_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::f8x2_t& y, const ck::f8x2_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::float2_t& y, const ck::float2_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::int8x2_t& y, const ck::int8x2_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::bhalf2_t& y, const ck::bhalf2_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::double2_t& y, const ck::double2_t& x) const
+    {
+        y = x;
+    }
+
+    constexpr const static bool is_pack2_invocable = true;
+};
+
 struct PassThrough
 {
     template <typename Y, typename X>
@@ -31,6 +82,12 @@ struct PassThrough
     __host__ __device__ void operator()<float, double>(float& y, const double& x) const
     {
         y = type_convert<float>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<double, float>(double& y, const float& x) const
+    {
+        y = type_convert<double>(x);
     }
 
     template <>
@@ -67,6 +124,12 @@ struct PassThrough
     __host__ __device__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
     {
         y = type_convert<bhalf_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<float, bhalf_t>(float& y, const bhalf_t& x) const
+    {
+        y = type_convert<float>(x);
     }
 
     template <>
@@ -228,7 +291,15 @@ struct Scale
     template <>
     __host__ __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
     {
-        y = scale_ * x;
+        y = ck::type_convert<half_t>(scale_) * x;
+    };
+
+    template <>
+    __host__ __device__ void operator()<bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x) const
+    {
+        const float x_tmp = ck::type_convert<float>(x);
+        const float y_tmp = scale_ * x_tmp;
+        y                 = ck::type_convert<bhalf_t>(y_tmp);
     };
 
     template <>
