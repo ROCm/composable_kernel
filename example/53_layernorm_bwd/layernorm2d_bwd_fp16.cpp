@@ -62,11 +62,11 @@ using GammaBetaDeviceInstance = ck::tensor_operation::device::DeviceNormalizatio
     32,    // ClusterReduce
     8,     // SliceInvarient
     1,     // SliceReduce
-    false, // IsDYSrcVectorDimReduced
+    false, // IsDYFastestDimReduced
     8,     // DYSrcVectorSize
-    false, // IsXSrcVectorDimReduced
+    false, // IsXFastestDimReduced
     8,     // XSrcVectorSize
-    true,  // IsMeanInvStdSrcVectorDimReduced
+    true,  // IsMeanInvStdFastestDimReduced
     1,     // MeanInvStdSrcVectorSize
     1,     // DGammaDstVectorSize
     1>;    // DBetaDstVectorSize
