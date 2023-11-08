@@ -100,6 +100,8 @@ template <>
 inline __host__ __device__ f8_t type_convert<f8_t, float>(float x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+    float max_fp8 = 240.0f;
+    x             = x > max_fp8 ? max_fp8 : (x < -max_fp8 ? -max_fp8 : x);
     union
     {
         float fval;
@@ -136,6 +138,36 @@ inline __host__ __device__ float type_convert<float, f8_t>(f8_t x)
     constexpr bool negative_zero_nan = true;
     return utils::cast_from_f8<f8_t, float, negative_zero_nan>(x);
 #endif
+}
+
+template <>
+inline __host__ __device__ float2_t type_convert<float2_t, f8x2_t>(f8x2_t x)
+{
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+    const auto i16val = bit_cast<uint16_t>(x);
+    return __builtin_amdgcn_cvt_pk_f32_fp8(i16val, 0);
+#else
+    constexpr bool negative_zero_nan = true;
+    const auto f8x2_v                = vector_type<f8_t, 2>(x);
+    vector_type<float, 2> f32x2_v;
+    f32x2_v.template AsType<float>()(Number<0>{}) =
+        utils::cast_from_f8<f8_t, float, negative_zero_nan>(
+            f8x2_v.template AsType<f8_t>()[Number<0>{}]);
+    f32x2_v.template AsType<float>()(Number<1>{}) =
+        utils::cast_from_f8<f8_t, float, negative_zero_nan>(
+            f8x2_v.template AsType<f8_t>()[Number<1>{}]);
+    return f32x2_v.template AsType<float2_t>()[Number<0>{}];
+#endif
+}
+
+template <>
+inline __host__ __device__ half2_t type_convert<half2_t, float2_t>(float2_t x)
+{
+
+    const vector_type<float, 2> f32x2_v(x);
+    const auto y = __builtin_amdgcn_cvt_pkrtz(f32x2_v.template AsType<float>()[Number<0>{}],
+                                              f32x2_v.template AsType<float>()[Number<1>{}]);
+    return bit_cast<half2_t>(y);
 }
 
 // convert fp16 to fp8

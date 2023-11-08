@@ -16,10 +16,10 @@
 using InDataType  = ck::half_t;
 using OutDataType = ck::half_t;
 
-using ImageLayout = ck::tensor_layout::convolution::GNHWC;
+using ImageLayout = ck::tensor_layout::convolution::NHWGC;
 
 static constexpr ck::index_t NumDimSpatial = 2;
-static constexpr ck::index_t G             = 1;
+static constexpr ck::index_t G             = 2;
 static constexpr ck::index_t N             = 32; // batch size
 static constexpr ck::index_t C             = 32; // input channel (per group)
 static constexpr ck::index_t Y             = 3;  // filter H
@@ -52,18 +52,18 @@ int main()
     std::array<ck::index_t, 2> wei_spatial_lengths{Y, X};
     std::array<ck::index_t, 2> out_spatial_lengths{Ho, Wo};
 
-    // We have NHWGC in memory space (G is dummy)
-    // However, CK's API only accept length and stride with order of GNCHW
-    // Hence, we need to adjust the order of stride
+    // We have NHWGC in memory space
+    // However, CK's API only accepts lengths and strides with order of GNCHW.
+    // Hence, we need to adjust the order of strides.
     std::array<ck::index_t, 5> image_strides{C, Hi * Wi * G * C, 1, Wi * G * C, G * C};
-    std::array<ck::index_t, 2> gemm_strides{Y * X * C, 1};
+    std::array<ck::index_t, 3> gemm_strides{Y * X * C, G * Y * X * C, 1};
 
     std::array<ck::index_t, NumDimSpatial> filter_strides{1, 1};
     std::array<ck::index_t, NumDimSpatial> filter_dilations{1, 1};
     std::array<ck::index_t, NumDimSpatial> input_left_pads{1, 1};
     std::array<ck::index_t, NumDimSpatial> input_right_pads{1, 1};
 
-    SimpleDeviceMem in(sizeof(InDataType) * N * Ho * Wo * Y * X * C);
+    SimpleDeviceMem in(sizeof(InDataType) * G * N * Ho * Wo * Y * X * C);
     SimpleDeviceMem out(sizeof(OutDataType) * N * Hi * Wi * G * C);
 
     using namespace ck::conv_tensor_rearrange_op;
@@ -93,6 +93,7 @@ int main()
         auto& op_ptr        = op_ptrs[i];
         auto argument_ptr   = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
                                                         out.GetDeviceBuffer(),
+                                                        G,
                                                         N,
                                                         C,
                                                         in_spatial_lengths,
@@ -112,7 +113,7 @@ int main()
             float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
             std::size_t num_bytes = sizeof(InDataType) * N * Hi * Wi * G * C +
-                                    sizeof(OutDataType) * N * Ho * Wo * Y * X * C;
+                                    sizeof(OutDataType) * G * N * Ho * Wo * Y * X * C;
 
             float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
@@ -149,6 +150,7 @@ int main()
                   << std::endl;
         auto argument_ptr = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
                                                         out.GetDeviceBuffer(),
+                                                        G,
                                                         N,
                                                         C,
                                                         in_spatial_lengths,
