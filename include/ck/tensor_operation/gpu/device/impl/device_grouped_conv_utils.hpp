@@ -79,7 +79,7 @@ template <index_t NumATensor, index_t NumBTensor, index_t NumDTensor>
 struct ComputePtrOffsetOfStridedBatch<NumATensor,
                                       NumBTensor,
                                       NumDTensor,
-                                      ck::enable_if_t<(NumATensor == 1 || NumBTensor == 1)>>
+                                      ck::enable_if_t<(NumATensor == 1 && NumBTensor == 1)>>
 {
     ComputePtrOffsetOfStridedBatch() = default;
 
