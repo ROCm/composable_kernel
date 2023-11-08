@@ -68,7 +68,7 @@ int execute_conv_fwd_scaleadd_ab()
         K * Z * Y * X * C, Z * Y * X * C, 1, Y * X * C, X * C, C};
     std::array<ck::index_t, 6> out_lengths{G, N, K, Do, Ho, Wo};
     std::array<ck::index_t, 6> out_strides{
-        C, Do * Ho * Wo * G * C, 1, Ho * Wo * G * C, Wo * G * C, G * C};
+        K, Do * Ho * Wo * G * K, 1, Ho * Wo * G * K, Wo * G * K, G * K};
 
     std::array<ck::index_t, NumDimSpatial> filter_strides{1, 1, 1};
     std::array<ck::index_t, NumDimSpatial> filter_dilations{1, 1, 1};
@@ -147,11 +147,11 @@ int execute_conv_fwd_scaleadd_ab()
         {
             float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
-            std::size_t flop = std::size_t(2) * G * N * K * C * Ho * Wo * Y * X +
-                               N * Hi * Wi * G * C + G * K * Y * X * C;
-            std::size_t num_bytes = 2 * sizeof(InDataType) * N * Hi * Wi * G * C +
-                                    2 * sizeof(WeiDataType) * G * K * Y * X * C +
-                                    sizeof(OutDataType) * N * Ho * Wo * G * K;
+            std::size_t flop = std::size_t(2) * G * N * K * C * Do * Ho * Wo * Z * Y * X +
+                               N * Di * Hi * Wi * G * C + G * K * Z * Y * X * C;
+            std::size_t num_bytes = 2 * sizeof(InDataType) * N * Di * Hi * Wi * G * C +
+                                    2 * sizeof(WeiDataType) * G * K * Z * Y * X * C +
+                                    sizeof(OutDataType) * N * Do * Ho * Wo * G * K;
 
             float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
             float gb_per_sec = num_bytes / 1.E6 / avg_time;

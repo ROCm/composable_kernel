@@ -27,11 +27,8 @@ using ScaleAdd    = ck::tensor_operation::element_wise::ScaleAdd;
 
 static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
-
-static constexpr auto ConvFwd1x1P0 = ConvolutionForwardSpecialization::Filter1x1Pad0;
-
+static constexpr auto ConvFwd1x1P0   = ConvolutionForwardSpecialization::Filter1x1Pad0;
 static constexpr auto ConvFwd1x1S1P0 = ConvolutionForwardSpecialization::Filter1x1Stride1Pad0;
-
 static constexpr auto ConvFwdOddC =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC;
 
