@@ -29,6 +29,8 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
+static constexpr auto MNPadding = ck::tensor_operation::device::GemmSpecialization::MNPadding;
+
 static constexpr auto MNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 // Compilation parameters for a[m, k] * b[k, n] = c[m, n]
@@ -106,6 +108,9 @@ void add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(
 {
     add_device_operation_instances(
         instances, device_gemm_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances<GemmDefault>{});
+
+    add_device_operation_instances(
+        instances, device_gemm_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances<MNPadding>{});
 
     add_device_operation_instances(
         instances, device_gemm_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances<MNKPadding>{});
