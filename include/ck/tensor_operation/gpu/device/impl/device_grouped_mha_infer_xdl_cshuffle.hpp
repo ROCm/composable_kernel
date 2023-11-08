@@ -112,7 +112,7 @@ __global__ void
         c_element_op,
         arg_ptr[group_id].a_grid_desc_ak0_m_ak1_,
         arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
-        arg_ptr[group_id].d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
+        arg_ptr[group_id].d0_grid_desc_m0_n0_m1_m2_n1_m3_,
         arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
         arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
         arg_ptr[group_id].block_2_ctile_map_,
@@ -465,8 +465,7 @@ struct DeviceGroupedMultiheadAttentionInfer_Xdl_CShuffle
         // tensor descriptors for block/thread-wise copy
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
-        typename GridwiseGemm::D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
-            d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
+        typename GridwiseGemm::D0GridDescriptor_M0_N0_N1_N2_M1_N3 d0_grid_desc_m0_n0_m1_m2_n1_m3_;
 
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
         typename GridwiseGemm::C1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -576,9 +575,8 @@ struct DeviceGroupedMultiheadAttentionInfer_Xdl_CShuffle
 
                 const D0GridDesc_M_N d0_grid_desc_m_n{DeviceOp::MakeD0GridDescriptor_M_N(
                     tmp_d0_gs_ms_ns_lengths, tmp_d0_gs_ms_ns_strides)};
-                const auto d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
-                    GridwiseGemm::MakeD0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
-                        d0_grid_desc_m_n);
+                const auto d0_grid_desc_m0_n0_m1_m2_n1_m3_ =
+                    GridwiseGemm::MakeD0GridDescriptor_M0_N0_N1_N2_M1_N3(d0_grid_desc_m_n);
 
                 const auto b1_grid_desc_bk0_n_bk1 = MakeB1GridDescriptor_BK0_N_BK1(
                     problem_desc.b1_gs_os_ns_lengths, problem_desc.b1_gs_os_ns_strides);
@@ -628,7 +626,7 @@ struct DeviceGroupedMultiheadAttentionInfer_Xdl_CShuffle
                                               p_c_grid,
                                               a_grid_desc_ak0_m_ak1,
                                               b_grid_desc_bk0_n_bk1,
-                                              d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                              d0_grid_desc_m0_n0_m1_m2_n1_m3_,
                                               b1_grid_desc_bk0_n_bk1,
                                               c_grid_desc_mblock_mperblock_nblock_nperblock,
                                               block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n),
