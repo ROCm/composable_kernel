@@ -12,6 +12,8 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_d_xdl_cshuffle.hpp"
 
+#include "ck/host_utility/device_prop.hpp"
+
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
@@ -194,6 +196,10 @@ class TestGroupedConvndFwdInterface
 
 TEST_F(TestGroupedConvndFwdMultiAInterface, MultiA)
 {
+    if(!ck::is_xdl_supported())
+    {
+        GTEST_SKIP();
+    }
     std::array<const void*, NumAs> as{nullptr, nullptr};
     const void* b = nullptr;
 
@@ -202,6 +208,10 @@ TEST_F(TestGroupedConvndFwdMultiAInterface, MultiA)
 
 TEST_F(TestGroupedConvndFwdMultiBInterface, MultiB)
 {
+    if(!ck::is_xdl_supported())
+    {
+        GTEST_SKIP();
+    }
     const void* a = nullptr;
     std::array<const void*, NumBs> bs{nullptr, nullptr};
 
@@ -210,6 +220,10 @@ TEST_F(TestGroupedConvndFwdMultiBInterface, MultiB)
 
 TEST_F(TestGroupedConvndFwdMultiABInterface, MultiAB)
 {
+    if(!ck::is_xdl_supported())
+    {
+        GTEST_SKIP();
+    }
     std::array<const void*, NumAs> as{nullptr, nullptr};
     std::array<const void*, NumBs> bs{nullptr, nullptr};
 
@@ -218,6 +232,10 @@ TEST_F(TestGroupedConvndFwdMultiABInterface, MultiAB)
 
 TEST_F(TestGroupedConvndFwdInterface, SingleAB)
 {
+    if(!ck::is_xdl_supported())
+    {
+        GTEST_SKIP();
+    }
     const void* a = nullptr;
     const void* b = nullptr;
 
