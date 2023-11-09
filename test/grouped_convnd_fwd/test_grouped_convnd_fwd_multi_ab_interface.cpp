@@ -96,6 +96,14 @@ class TestGroupedConvndFwdMultiABInterfaceBase : public ::testing::Test
     const ck::utils::conv::ConvParam conv_param{
         3, 1, 16, 16, 8, {3, 3, 3}, {17, 17, 17}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}};
 
+    void SetUp() override
+    {
+        if(!ck::is_xdl_supported())
+        {
+            GTEST_SKIP();
+        }
+    }
+
     template <typename ADataType, typename BDataType>
     bool Run(ADataType as, BDataType bs)
     {
@@ -196,10 +204,6 @@ class TestGroupedConvndFwdInterface
 
 TEST_F(TestGroupedConvndFwdMultiAInterface, MultiA)
 {
-    if(!ck::is_xdl_supported())
-    {
-        GTEST_SKIP();
-    }
     std::array<const void*, NumAs> as{nullptr, nullptr};
     const void* b = nullptr;
 
@@ -208,10 +212,6 @@ TEST_F(TestGroupedConvndFwdMultiAInterface, MultiA)
 
 TEST_F(TestGroupedConvndFwdMultiBInterface, MultiB)
 {
-    if(!ck::is_xdl_supported())
-    {
-        GTEST_SKIP();
-    }
     const void* a = nullptr;
     std::array<const void*, NumBs> bs{nullptr, nullptr};
 
@@ -220,10 +220,6 @@ TEST_F(TestGroupedConvndFwdMultiBInterface, MultiB)
 
 TEST_F(TestGroupedConvndFwdMultiABInterface, MultiAB)
 {
-    if(!ck::is_xdl_supported())
-    {
-        GTEST_SKIP();
-    }
     std::array<const void*, NumAs> as{nullptr, nullptr};
     std::array<const void*, NumBs> bs{nullptr, nullptr};
 
@@ -232,10 +228,6 @@ TEST_F(TestGroupedConvndFwdMultiABInterface, MultiAB)
 
 TEST_F(TestGroupedConvndFwdInterface, SingleAB)
 {
-    if(!ck::is_xdl_supported())
-    {
-        GTEST_SKIP();
-    }
     const void* a = nullptr;
     const void* b = nullptr;
 
