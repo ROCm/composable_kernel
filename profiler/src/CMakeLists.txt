@@ -16,8 +16,8 @@ set(PROFILER_SOURCES
     profile_grouped_conv_fwd.cpp
     profile_grouped_conv_bwd_weight.cpp
     profile_reduce.cpp
-    profile_groupnorm.cpp
-    profile_layernorm.cpp
+    profile_groupnorm_fwd.cpp
+    profile_layernorm_fwd.cpp
     profile_max_pool3d_fwd.cpp
     profile_avg_pool3d_bwd.cpp
     profile_max_pool3d_bwd.cpp
@@ -77,7 +77,7 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv2d_bwd_w
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_bwd_weight_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_conv2d_fwd_bias_relu_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_conv2d_fwd_bias_relu_add_instance)
-target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_normalization_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_normalization_fwd_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_softmax_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_reduce_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batchnorm_instance)
