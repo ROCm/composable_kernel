@@ -47,9 +47,9 @@ extern "C" __global__ void f(const ck::half_t* a, const ck::half_t* b, ck::half_
 TEST_CASE(test_problem_kernel)
 {
     ck::host::device_gemm_multiple_d::Problem prob;
-    prob.M = 256;
-    prob.N = 256;
-    prob.K = 256;
+    prob.M = 1024;
+    prob.N = 1024;
+    prob.K = 1024;
     for(auto solution : prob.GetSolutions("gfx90a"))
     {
         auto src  = ck::host::InterpolateString(gemm_compile_check,

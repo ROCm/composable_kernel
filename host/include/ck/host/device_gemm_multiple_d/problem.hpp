@@ -27,7 +27,7 @@ struct Problem
     std::vector<DataType> DsDataType = {};
     std::string AElementOp           = PassThrough;
     std::string BElementOp           = PassThrough;
-    std::string CDEElementOp         = "ck::Tuple<>";
+    std::string CDEElementOp         = PassThrough;
 
     std::string GetIncludeHeader() const;
 

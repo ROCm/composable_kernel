@@ -20,7 +20,7 @@ struct Operation_Xdl_CShuffle
     static std::vector<Operation_Xdl_CShuffle> CreateOperations(const Problem& prob);
     TensorDesc A{};
     TensorDesc B{};
-    DataType acc               = DataType::Half;
+    DataType acc               = DataType::Float;
     DataType cs_type           = DataType::Half;
     std::vector<TensorDesc> Ds = {};
     TensorDesc E{};
