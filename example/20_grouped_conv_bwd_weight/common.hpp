@@ -46,25 +46,21 @@ struct CommonLayoutSetting
     using OutputLayout = OutputLay;
 };
 
-template <ck::index_t NDimSpatial>
-struct CommonLayoutSettingSelector;
-
 namespace ctl = ck::tensor_layout::convolution;
-
-template <>
-struct CommonLayoutSettingSelector<1> final : CommonLayoutSetting<ctl::GNWC, ctl::GKXC, ctl::GNWK>
-{
-};
-
-template <>
-struct CommonLayoutSettingSelector<2> final
-    : CommonLayoutSetting<ctl::GNHWC, ctl::GKYXC, ctl::GNHWK>
-{
-};
-
-template <>
-struct CommonLayoutSettingSelector<3> final
-    : CommonLayoutSetting<ctl::GNDHWC, ctl::GKZYXC, ctl::GNDHWK>
+template <ck::index_t NDimSpatial>
+struct CommonLayoutSettingSelector
+    : CommonLayoutSetting<ck::tuple_element_t<NDimSpatial - 1,
+                                              ck::Tuple<ck::tensor_layout::convolution::GNWC,
+                                                        ck::tensor_layout::convolution::GNHWC,
+                                                        ck::tensor_layout::convolution::GNDHWC>>,
+                          ck::tuple_element_t<NDimSpatial - 1,
+                                              ck::Tuple<ck::tensor_layout::convolution::GKXC,
+                                                        ck::tensor_layout::convolution::GKYXC,
+                                                        ck::tensor_layout::convolution::GKZYXC>>,
+                          ck::tuple_element_t<NDimSpatial - 1,
+                                              ck::Tuple<ck::tensor_layout::convolution::GNWK,
+                                                        ck::tensor_layout::convolution::GNHWK,
+                                                        ck::tensor_layout::convolution::GNDHWK>>>
 {
 };
 
@@ -84,10 +80,10 @@ struct ExecutionConfig final
     bool time_kernel     = false;
 };
 
-#define DefaultConvParam                                                      \
-    ck::utils::conv::ConvParam                                                \
-    {                                                                         \
-        2, 4, 1, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, { 1, 1 } \
+#define DefaultConvParam                                                                         \
+    ck::utils::conv::ConvParam                                                                   \
+    {                                                                                            \
+        3, 4, 1, 128, 256, {3, 3, 3}, {14, 14, 14}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, { 1, 1, 1 } \
     }
 
 inline void print_help_msg()

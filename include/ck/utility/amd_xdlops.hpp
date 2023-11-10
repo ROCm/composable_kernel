@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifndef CK_AMD_XDLOPS_HPP
-#define CK_AMD_XDLOPS_HPP
-
-#include "data_type.hpp"
+#pragma once
 
 namespace ck {
 
@@ -355,7 +352,6 @@ struct intrin_mfma_f64_16x16x4f64<16, 16>
     }
 };
 
-#if defined CK_ENABLE_FP8
 template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_f32_32x32x16f8f8;
 
@@ -418,9 +414,7 @@ struct intrin_mfma_f32_16x16x32f8f8<16, 16>
 #endif
     }
 };
-#endif
 
-#if defined CK_ENABLE_BF8
 template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_f32_32x32x16bf8bf8;
 
@@ -483,9 +477,7 @@ struct intrin_mfma_f32_16x16x32bf8bf8<16, 16>
 #endif
     }
 };
-#endif
 
-#if defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
 template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_f32_32x32x16f8bf8;
 
@@ -548,9 +540,7 @@ struct intrin_mfma_f32_16x16x32f8bf8<16, 16>
 #endif
     }
 };
-#endif
 
-#if defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
 template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_f32_32x32x16bf8f8;
 
@@ -613,6 +603,5 @@ struct intrin_mfma_f32_16x16x32bf8f8<16, 16>
 #endif
     }
 };
-#endif
+
 } // namespace ck
-#endif

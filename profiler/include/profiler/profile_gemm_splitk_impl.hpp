@@ -30,7 +30,8 @@ template <typename ADataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
+          typename CLayout,
+          typename ComputeType = CDataType>
 bool profile_gemm_splitk_impl(int do_verification,
                               int init_method,
                               bool do_log,
@@ -103,7 +104,8 @@ bool profile_gemm_splitk_impl(int do_verification,
                                                                     CDataType,
                                                                     AElementOp,
                                                                     BElementOp,
-                                                                    CElementOp>;
+                                                                    CElementOp,
+                                                                    ComputeType>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -120,7 +122,8 @@ bool profile_gemm_splitk_impl(int do_verification,
                                                                                 AccDataType,
                                                                                 AElementOp,
                                                                                 BElementOp,
-                                                                                CElementOp>;
+                                                                                CElementOp,
+                                                                                ComputeType>;
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -140,8 +143,7 @@ bool profile_gemm_splitk_impl(int do_verification,
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
-        std::vector<int> kbatch_list = {1,  2,  4,  8,  12, 16,  20,  24,  32,  36,  40, 60,
-                                        64, 72, 80, 88, 96, 128, 144, 160, 176, 192, 256};
+        std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 20, 32, 36, 40, 64, 96, 128};
 
         if(KBatch > 0)
         {

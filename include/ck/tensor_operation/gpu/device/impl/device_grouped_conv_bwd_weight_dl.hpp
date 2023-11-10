@@ -12,6 +12,7 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_weight.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_dl_v1r3.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
@@ -21,32 +22,6 @@
 namespace ck {
 namespace tensor_operation {
 namespace device {
-
-namespace {
-
-struct ComputePtrOffsetOfStridedBatch
-{
-    __host__ __device__ constexpr long_index_t GetAPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideA_);
-    }
-
-    __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideB_);
-    }
-
-    __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideC_);
-    }
-
-    index_t BatchStrideA_;
-    index_t BatchStrideB_;
-    index_t BatchStrideC_;
-};
-
-} // namespace
 
 template <typename GridwiseGemm,
           typename FloatAB,
@@ -952,7 +927,7 @@ struct DeviceGroupedConvBwdWeight_Dl : public DeviceGroupedConvBwdWeight<NDimSpa
         Block2CTileMap block_2_ctile_map_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<I0> compute_ptr_offset_of_batch_;
 
         // element-wise op
         OutElementwiseOperation a_element_op_;
@@ -1024,7 +999,7 @@ struct DeviceGroupedConvBwdWeight_Dl : public DeviceGroupedConvBwdWeight<NDimSpa
                     remove_reference_t<DeviceOp::BGridDesc_B_K0_N0_N1_K1>,
                     remove_reference_t<DeviceOp::CGridDesc_M0_M10_M11_N0_N10_N11>,
                     remove_reference_t<DeviceOp::Block2CTileMap>,
-                    ComputePtrOffsetOfStridedBatch,
+                    ComputePtrOffsetOfStridedBatch<I0>,
                     has_main_loop,
                     has_double_loop>;
 
