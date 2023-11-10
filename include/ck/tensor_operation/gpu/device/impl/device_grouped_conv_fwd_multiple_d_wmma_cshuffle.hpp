@@ -428,7 +428,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         typename GridwiseOp::DefaultBlock2CTileMap block_2_etile_map_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch<NumDTensor> compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor> compute_ptr_offset_of_batch_;
 
         // element-wise op
         AElementwiseOperation a_element_op_;
@@ -485,7 +485,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                     typename GridwiseOp::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseOp::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     remove_reference_t<typename GridwiseOp::DefaultBlock2CTileMap>,
-                    ComputePtrOffsetOfStridedBatch<NumDTensor>,
+                    ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
                     has_main_loop>;
 
                 return launch_and_time_kernel(stream_config,
