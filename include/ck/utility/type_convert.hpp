@@ -196,8 +196,10 @@ inline __host__ __device__ half_t type_convert<half_t, f8_t>(f8_t x)
     // use native conversion to float and convert to fp16
     return type_convert<half_t>(type_convert<float>(x));
 #else
-    constexpr bool negative_zero_nan = true;
-    return utils::cast_from_f8<f8_t, half_t, negative_zero_nan>(x);
+    // constexpr bool negative_zero_nan = true;
+    // return utils::cast_from_f8<f8_t, half_t, negative_zero_nan>(x);
+    uint16_t t = bit_cast<uint8_t>(x);
+    return bit_cast<half_t>(t);
 #endif
 }
 

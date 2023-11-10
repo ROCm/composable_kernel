@@ -326,7 +326,7 @@ struct GridwiseGemmPipelineInterwave_v1<1>
 
                 blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
-                // block_sync_lds(); // moved into blockwise_gemm
+                // //block_sync_lds(); // moved into blockwise_gemm
 
                 a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
