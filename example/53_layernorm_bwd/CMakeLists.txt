@@ -1,0 +1,1 @@
+add_example_executable(example_layernorm2d_bwd_fp16 layernorm2d_bwd_fp16.cpp)
