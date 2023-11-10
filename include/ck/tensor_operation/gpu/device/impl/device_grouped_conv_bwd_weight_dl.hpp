@@ -927,7 +927,7 @@ struct DeviceGroupedConvBwdWeight_Dl : public DeviceGroupedConvBwdWeight<NDimSpa
         Block2CTileMap block_2_ctile_map_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch<I0> compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<> compute_ptr_offset_of_batch_;
 
         // element-wise op
         OutElementwiseOperation a_element_op_;
@@ -999,7 +999,7 @@ struct DeviceGroupedConvBwdWeight_Dl : public DeviceGroupedConvBwdWeight<NDimSpa
                     remove_reference_t<DeviceOp::BGridDesc_B_K0_N0_N1_K1>,
                     remove_reference_t<DeviceOp::CGridDesc_M0_M10_M11_N0_N10_N11>,
                     remove_reference_t<DeviceOp::Block2CTileMap>,
-                    ComputePtrOffsetOfStridedBatch<I0>,
+                    ComputePtrOffsetOfStridedBatch<>,
                     has_main_loop,
                     has_double_loop>;
 
