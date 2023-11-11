@@ -48,19 +48,20 @@ template <index_t NDimSpatial,
                                       ADataType>())> // ComputeType is InputType by default (first
                                                      // in tuple for MultiAB), unpack if tuple was
                                                      // passed
-using DeviceGroupedConvFwdMultipleD = DeviceGroupedConvFwdMultipleABD<NDimSpatial,
-                                                                      ALayout,
-                                                                      BLayout,
-                                                                      DsLayout,
-                                                                      ELayout,
-                                                                      ADataType,
-                                                                      BDataType,
-                                                                      DsDataType,
-                                                                      EDataType,
-                                                                      AElementwiseOperation,
-                                                                      BElementwiseOperation,
-                                                                      CDEElementwiseOperation,
-                                                                      ComputeType>;
+using DeviceGroupedConvFwdMultipleD [[deprecated]] =
+    DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                    ALayout,
+                                    BLayout,
+                                    DsLayout,
+                                    ELayout,
+                                    ADataType,
+                                    BDataType,
+                                    DsDataType,
+                                    EDataType,
+                                    AElementwiseOperation,
+                                    BElementwiseOperation,
+                                    CDEElementwiseOperation,
+                                    ComputeType>;
 
 } // namespace device
 } // namespace tensor_operation
