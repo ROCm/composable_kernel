@@ -76,7 +76,7 @@ int profile_gemm_impl(int do_verification,
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 0.1});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.05, 0.05});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.01, 0.01});
     }
 
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
