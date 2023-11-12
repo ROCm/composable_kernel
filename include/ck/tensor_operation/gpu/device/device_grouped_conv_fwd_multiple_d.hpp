@@ -13,8 +13,8 @@ namespace device {
 /**
  * \brief Grouped Convolution Forward
  *
- * \deprecated This structure is deprecated (left for backwards compatibility). Please use
- *             DeviceGroupedConvFwdMultipleABD.
+ * \note This structure is deprecated (left for backwards compatibility). Please use
+ *       DeviceGroupedConvFwdMultipleABD.
  *
  * \tparam NDimSpatial Number of spatial dimensions.
  * \tparam ALayout Input layout (also for a1, a2...).
@@ -48,20 +48,19 @@ template <index_t NDimSpatial,
                                       ADataType>())> // ComputeType is InputType by default (first
                                                      // in tuple for MultiAB), unpack if tuple was
                                                      // passed
-using DeviceGroupedConvFwdMultipleD [[deprecated]] =
-    DeviceGroupedConvFwdMultipleABD<NDimSpatial,
-                                    ALayout,
-                                    BLayout,
-                                    DsLayout,
-                                    ELayout,
-                                    ADataType,
-                                    BDataType,
-                                    DsDataType,
-                                    EDataType,
-                                    AElementwiseOperation,
-                                    BElementwiseOperation,
-                                    CDEElementwiseOperation,
-                                    ComputeType>;
+using DeviceGroupedConvFwdMultipleD = DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                                                      ALayout,
+                                                                      BLayout,
+                                                                      DsLayout,
+                                                                      ELayout,
+                                                                      ADataType,
+                                                                      BDataType,
+                                                                      DsDataType,
+                                                                      EDataType,
+                                                                      AElementwiseOperation,
+                                                                      BElementwiseOperation,
+                                                                      CDEElementwiseOperation,
+                                                                      ComputeType>;
 
 } // namespace device
 } // namespace tensor_operation
