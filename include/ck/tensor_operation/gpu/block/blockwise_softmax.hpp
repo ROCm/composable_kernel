@@ -88,9 +88,8 @@ struct BlockwiseSoftmax
     __host__ __device__ void Run(CThreadBuffer& in_thread_buf, WorkspaceBuffer& reduce_work_buf)
     {
         // find max value
-        static_for<0, MRepeat, 1>{}([&](auto I) {
-            max_value_buf(I) = reduce::Max::template GetIdentityValue<AccDataType>();
-        });
+        static_for<0, MRepeat, 1>{}(
+            [&](auto I) { max_value_buf(I) = ck::NumericLimits<AccDataType>::Lowest(); });
         ThreadwiseMaxReduce::Reduce(in_thread_buf, max_value_buf);
         static_for<0, MRepeat, 1>{}([&](auto I) {
             BlockwiseMaxReduce::Reduce(reduce_work_buf, max_value_buf(I));
@@ -104,6 +103,47 @@ struct BlockwiseSoftmax
                 in_thread_buf(offset) = IgnoreNaN && ck::math::isnan(in_thread_buf[offset])
                                             ? 0
                                             : math::exp(in_thread_buf[offset] - max_value_buf(iM));
+            });
+        });
+
+        // sum data
+        static_for<0, MRepeat, 1>{}([&](auto I) {
+            sum_value_buf(I) = reduce::Add::template GetIdentityValue<AccDataType>();
+        });
+        ThreadwiseSumReduce::Reduce(in_thread_buf, sum_value_buf);
+        static_for<0, MRepeat, 1>{}([&](auto I) {
+            BlockwiseSumReduce::Reduce(reduce_work_buf, sum_value_buf(I));
+            block_sync_lds();
+        });
+    }
+
+    template <typename CThreadBuffer, typename WorkspaceBuffer>
+    __host__ __device__ void CalculateRowMax(CThreadBuffer& in_thread_buf,
+                                             WorkspaceBuffer& reduce_work_buf)
+    {
+        // find max value
+        static_for<0, MRepeat, 1>{}(
+            [&](auto I) { max_value_buf(I) = ck::NumericLimits<AccDataType>::Lowest(); });
+        ThreadwiseMaxReduce::Reduce(in_thread_buf, max_value_buf);
+        static_for<0, MRepeat, 1>{}([&](auto I) {
+            BlockwiseMaxReduce::Reduce(reduce_work_buf, max_value_buf(I));
+            block_sync_lds();
+        });
+    };
+
+    template <typename CThreadBuffer, typename WorkspaceBuffer>
+    __host__ __device__ void CalculateRowExpSum(CThreadBuffer& in_thread_buf,
+                                                WorkspaceBuffer& reduce_work_buf,
+                                                BufferType& max_value_buf_new)
+    {
+        // calculate exp for elements, P=exp(s-max)
+        static_for<0, MRepeat, 1>{}([&](auto iM) {
+            static_for<0, KRepeat, 1>{}([&](auto iK) {
+                auto offset = Number<ThreadSliceDesc_M_K{}.CalculateOffset(make_tuple(iM, iK))>{};
+                in_thread_buf(offset) =
+                    IgnoreNaN && ck::math::isnan(in_thread_buf[offset])
+                        ? 0
+                        : math::exp(in_thread_buf[offset] - max_value_buf_new(iM));
             });
         });
 

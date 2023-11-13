@@ -914,6 +914,21 @@ struct GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle
         auto d0_thread_copy_lds_to_vgpr = typename D0Operator::D0ThreadwiseCopyLdsToVgpr(
             make_tuple(wave_id[I0], wave_m_n_id[I1], 0, 0, wave_m_n_id[I0], 0));
 
+        constexpr auto c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 =
+            gemm1_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
+        constexpr auto cm0 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I0);
+        constexpr auto cn0 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I1);
+        constexpr auto cm1 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I2);
+        constexpr auto cn1 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I3);
+        constexpr auto cm2 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I4);
+        constexpr auto cn2 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I5);
+        constexpr auto cn3 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I6);
+        constexpr auto cn4 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I7);
+        constexpr auto c_thread_slice_desc_m_n = make_naive_tensor_descriptor_packed(
+            make_tuple(cm0 * cm1 * cm2, cn0 * cn1 * cn2 * cn3 * cn4));
+        constexpr auto c_thread_buf_slice_m = c_thread_slice_desc_m_n.GetLength(I0);
+        constexpr auto c_thread_buf_slice_n = c_thread_slice_desc_m_n.GetLength(I1);
+
         index_t gemm1_k_block_outer_index = 0;
         do
         {
@@ -1058,16 +1073,22 @@ struct GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle
                 }
             }
 
-            // softmax
+            // calculate current max
+            blockwise_softmax.CalculateRowMax(acc_thread_buf, workspace_buf);
+
+            // current max
             SoftmaxBuf& max = blockwise_softmax.max_value_buf;
+            // accumulated max
+            running_max_new = mathext::max(max, running_max);
+
+            // calculate current exp_sum
+            blockwise_softmax.CalculateRowExpSum(acc_thread_buf, workspace_buf, running_max_new);
+
+            // current exp_sum
             SoftmaxBuf& sum = blockwise_softmax.sum_value_buf;
 
-            blockwise_softmax.Run(acc_thread_buf, workspace_buf);
-
-            // TODO: may convert to log domain
-            running_max_new = mathext::max(max, running_max);
-            running_sum_new = mathext::exp(running_max - running_max_new) * running_sum +
-                              mathext::exp(max - running_max_new) * sum;
+            // accumulated exp_sum
+            running_sum_new = mathext::exp(running_max - running_max_new) * running_sum + sum;
 
             // gemm1
             {
@@ -1133,31 +1154,14 @@ struct GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle
                 }
             } // end gemm1
 
-            constexpr auto c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 =
-                gemm1_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
-            constexpr auto cm0 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I0);
-            constexpr auto cn0 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I1);
-            constexpr auto cm1 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I2);
-            constexpr auto cn1 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I3);
-            constexpr auto cm2 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I4);
-            constexpr auto cn2 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I5);
-            constexpr auto cn3 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I6);
-            constexpr auto cn4 = c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I7);
-            constexpr auto c_thread_slice_desc_m_n = make_naive_tensor_descriptor_packed(
-                make_tuple(cm0 * cm1 * cm2, cn0 * cn1 * cn2 * cn3 * cn4));
-            constexpr auto c_thread_buf_slice_m = c_thread_slice_desc_m_n.GetLength(I0);
-            constexpr auto c_thread_buf_slice_n = c_thread_slice_desc_m_n.GetLength(I1);
-
             static_for<0, c_thread_buf_slice_m, 1>{}([&](auto iM) {
                 static_for<0, c_thread_buf_slice_n, 1>{}([&](auto iN) {
                     auto I = Number<c_thread_slice_desc_m_n.CalculateOffset(make_tuple(iM, iN))>{};
-                    FloatGemmAcc acc1 = acc1_thread_buf[I]; // P*V
-                    FloatGemmAcc c    = c_thread_buf[I];    // O
-                    FloatGemmAcc c_new =
-                        (running_sum[iM] * math::exp(running_max[iM] - running_max_new[iM]) * c +
-                         math::exp(max[iM] - running_max_new[iM]) * acc1) /
-                        running_sum_new[iM]; // Formula by Dao et al.,
-                                             // https://arxiv.org/pdf/2205.14135v2.pdf section 3.1
+                    FloatGemmAcc acc1  = acc1_thread_buf[I]; // P*V
+                    FloatGemmAcc c     = c_thread_buf[I];    // O
+                    FloatGemmAcc c_new = math::exp(running_max[iM] - running_max_new[iM]) * c +
+                                         acc1; // Formula by Dao et al.,
+                                               // https://arxiv.org/pdf/2205.14135v2.pdf section 3.1
 
                     c_thread_buf(I) = c_new; // O_new
                 });
@@ -1174,6 +1178,13 @@ struct GridwiseMultiHeadFlashAttentionInfer_Xdl_CShuffle
 
             block_sync_lds(); // wait for gemm1 LDS read
         } while(++gemm1_k_block_outer_index < num_gemm1_k_block_outer_loop); // end j loop
+
+        static_for<0, c_thread_buf_slice_m, 1>{}([&](auto iM) {
+            static_for<0, c_thread_buf_slice_n, 1>{}([&](auto iN) {
+                auto I = Number<c_thread_slice_desc_m_n.CalculateOffset(make_tuple(iM, iN))>{};
+                c_thread_buf(I) = c_thread_buf[I] / running_sum[iM];
+            });
+        });
 
         // shuffle C and write out
         {
