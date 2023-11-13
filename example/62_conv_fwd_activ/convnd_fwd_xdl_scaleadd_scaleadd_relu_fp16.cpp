@@ -226,14 +226,17 @@ bool run_grouped_conv_fwd(bool do_verification,
 
     if(do_verification)
     {
-        auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
-                                                                     InDataType,
-                                                                     WeiDataType,
-                                                                     OutDataType,
-                                                                     InElementOp,
-                                                                     WeiElementOp,
-                                                                     OutElementOp,
-                                                                     NumDs>();
+        auto ref_conv =
+            ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
+                                                         InDataType,
+                                                         WeiDataType,
+                                                         OutDataType,
+                                                         InElementOp,
+                                                         WeiElementOp,
+                                                         OutElementOp,
+                                                         0, /*Num A Elementwise Tensors*/
+                                                         0, /*Num B Elementwise Tensors*/
+                                                         NumDs>();
 
         auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(in,
@@ -246,6 +249,8 @@ bool run_grouped_conv_fwd(bool do_verification,
                                                   in_element_op,
                                                   wei_element_op,
                                                   out_element_op,
+                                                  {},
+                                                  {},
                                                   d_tensors);
 
         ref_invoker.Run(ref_argument);

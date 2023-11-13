@@ -278,6 +278,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         // clang-format off
         str << "DeviceGemm_Xdl_CShuffle"
             << "<"
+            << getGemmSpecializationString(GemmSpec) << ", "
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
@@ -296,7 +297,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
             << " LoopScheduler: "
             << LoopSchedToString[LoopSched] << ", "
             << "PipelineVersion: "
-            << PipelineVersionToString[PipelineVer];;
+            << PipelineVersionToString[PipelineVer];
         // clang-format on
 
         return str.str();
