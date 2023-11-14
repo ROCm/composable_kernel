@@ -1090,7 +1090,7 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedConvFwdMultipleD_Xdl_CShuffle"
+        str << "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
