@@ -9,18 +9,18 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 void add_device_grouped_conv3d_fwd_xdl_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_int8_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
-                                                              NDHWGC,
-                                                              GKZYXC,
-                                                              ck::Tuple<>,
-                                                              NDHWGK,
-                                                              ck::Tuple<int8_t, int8_t>,
-                                                              ck::Tuple<int8_t, int8_t>,
-                                                              ck::Tuple<>,
-                                                              int8_t,
-                                                              ScaleAdd,
-                                                              ScaleAdd,
-                                                              PassThrough>>>& instances)
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<>,
+                                                                NDHWGK,
+                                                                ck::Tuple<int8_t, int8_t>,
+                                                                ck::Tuple<int8_t, int8_t>,
+                                                                ck::Tuple<>,
+                                                                int8_t,
+                                                                ScaleAdd,
+                                                                ScaleAdd,
+                                                                PassThrough>>>& instances)
 {
     add_device_operation_instances(
         instances,
