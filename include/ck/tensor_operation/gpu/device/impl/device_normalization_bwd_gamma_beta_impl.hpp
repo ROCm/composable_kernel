@@ -87,7 +87,6 @@ struct DeviceNormalizationBwdGammaBetaImpl
                                              Rank,
                                              NumReduceDim>
 {
-
     static constexpr index_t DYSrcVectorDim         = IsDYFastestDimReduced ? 1 : 0;
     static constexpr index_t XSrcVectorDim          = IsXFastestDimReduced ? 1 : 0;
     static constexpr index_t MeanInvStdSrcVectorDim = IsMeanInvStdFastestDimReduced ? 1 : 0;
@@ -456,6 +455,21 @@ struct DeviceNormalizationBwdGammaBetaImpl
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
         return std::make_unique<Invoker>();
+    }
+
+    std::string GetTypeString() const override
+    {
+        auto str = std::stringstream();
+
+        // clang-format off
+        str << "DeviceNormalizationBwdGammaBetaImpl<" << BlockSize << ",";
+        str << "Cluster_MK_" << MThreadClusterSize << "_" << KThreadClusterSize << ",";
+        str << "Slice_MK_" << MThreadSliceSize << "_" << KThreadSliceSize << ",";
+        str << "VectorSize_DY" << DYSrcVectorSize << "_X" << XSrcVectorSize ;
+        str << "_DGamma" << DGammaDstVectorSize << "_DBeta" << DBetaDstVectorSize << ">";
+        // clang-format on
+
+        return str.str();
     }
 };
 
