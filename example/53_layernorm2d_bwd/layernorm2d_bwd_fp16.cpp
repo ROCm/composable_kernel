@@ -15,6 +15,7 @@
 #include "ck/library/utility/literals.hpp"
 
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_normalization_bwd_x_impl.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_normalization_bwd_gamma_beta_impl.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm_bwd.hpp"
 
@@ -46,8 +47,34 @@ constexpr int NumReduceDim = 1;
 // dbeta = reduce_sum(dy, axis=0)
 
 // [CAUSION]
-// In DeviceNormalizationBwdGammaBetaImpl, M is invarient dimension, K is reduced dimension
-// Hence, M in this example and DeviceNormalizationBwdGammaBetaImpl is different
+// In DeviceNormalizationBwdXImpl & DeviceNormalizationBwdGammaBetaImpl, M is invarient dimension, K
+// is reduced dimension Hence, M in this example and DeviceNormalizationBwdGammaBetaImpl is
+// different
+using XDeviceInstance = ck::tensor_operation::device::DeviceNormalizationBwdXImpl<
+    DYDataType,
+    XDataType,
+    GammaDataType,
+    MeanInvStdDataType,
+    ComputeDataType,
+    DXDataType,
+    Rank,
+    NumReduceDim,
+    256,   // BlockSize
+    8,     // MThreadClusterSize
+    32,    // KThreadClusterSize
+    1,     // MThreadSliceSize
+    8,     // KThreadSliceSize
+    true,  // IsDYFastestDimReduced
+    8,     // DYSrcVectorSize
+    true,  // IsXFastestDimReduced
+    8,     // XSrcVectorSize
+    true,  // IsGammaFastestDimReduced
+    8,     // GammaSrcVectorSize
+    false, // IsMeanInvStdFastestDimReduced
+    1,     // MeanInvStdSrcVectorSize
+    true,  // IsDXFastestDimReduced
+    8>;    // DXDstVectorSize
+
 using GammaBetaDeviceInstance = ck::tensor_operation::device::DeviceNormalizationBwdGammaBetaImpl<
     DYDataType,
     XDataType,
@@ -58,18 +85,18 @@ using GammaBetaDeviceInstance = ck::tensor_operation::device::DeviceNormalizatio
     Rank,
     NumReduceDim,
     256,   // BlockSize
-    8,     // ClusterInvarient
-    32,    // ClusterReduce
-    8,     // SliceInvarient
-    1,     // SliceReduce
+    8,     // MThreadClusterSize
+    32,    // KThreadClusterSize
+    8,     // MThreadSliceSize
+    1,     // KThreadSliceSize
     false, // IsDYFastestDimReduced
     8,     // DYSrcVectorSize
     false, // IsXFastestDimReduced
     8,     // XSrcVectorSize
     true,  // IsMeanInvStdFastestDimReduced
     1,     // MeanInvStdSrcVectorSize
-    1,     // DGammaDstVectorSize
-    1>;    // DBetaDstVectorSize
+    8,     // DGammaDstVectorSize
+    8>;    // DBetaDstVectorSize
 
 int main()
 {
@@ -96,8 +123,10 @@ int main()
 
     DeviceMem dy_dev(sizeof(DYDataType) * dy.mDesc.GetElementSpaceSize());
     DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpaceSize());
+    DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
     DeviceMem mean_dev(sizeof(MeanInvStdDataType) * mean.mDesc.GetElementSpaceSize());
     DeviceMem inv_std_dev(sizeof(MeanInvStdDataType) * inv_std.mDesc.GetElementSpaceSize());
+    DeviceMem dx_dev(sizeof(DXDataType) * dx.mDesc.GetElementSpaceSize());
     DeviceMem dgamma_dev(sizeof(DGammaDataType) * dgamma.mDesc.GetElementSpaceSize());
     DeviceMem dbeta_dev(sizeof(DBetaDataType) * dbeta.mDesc.GetElementSpaceSize());
 
@@ -106,6 +135,34 @@ int main()
     mean_dev.ToDevice(mean.mData.data());
     inv_std_dev.ToDevice(inv_std.mData.data());
 
+    // backward x
+    auto x_device_instance = XDeviceInstance{};
+
+    auto x_argument_ptr = x_device_instance.MakeArgumentPointer({M, N}, // lengths
+                                                                {N, 1}, // dyStrides
+                                                                {N, 1}, // xStrides
+                                                                {0, 1}, // gammaStrides
+                                                                {1, 0}, // meanStrides
+                                                                {1, 0}, // invStdStrides
+                                                                {N, 1}, // dxStrides
+                                                                {1},    // reduceDims
+                                                                dy_dev.GetDeviceBuffer(),
+                                                                x_dev.GetDeviceBuffer(),
+                                                                gamma_dev.GetDeviceBuffer(),
+                                                                mean_dev.GetDeviceBuffer(),
+                                                                inv_std_dev.GetDeviceBuffer(),
+                                                                dx_dev.GetDeviceBuffer());
+
+    if(!x_device_instance.IsSupportedArgument(x_argument_ptr.get()))
+    {
+        std::cout << "The runtime parameters are not supported" << std::endl;
+        return 1;
+    };
+
+    auto x_invoker_ptr = x_device_instance.MakeInvokerPointer();
+    x_invoker_ptr->Run(x_argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+
+    // backward gamma & beta
     auto gamma_beta_device_instance = GammaBetaDeviceInstance{};
     auto gamma_beta_argument_ptr =
         gamma_beta_device_instance.MakeArgumentPointer({M, N}, // inLengths
