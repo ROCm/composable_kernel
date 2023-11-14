@@ -342,8 +342,6 @@ struct DeviceNormalizationFwdImpl : public DeviceNormalizationFwd<XDataType,
             }
             else
             {
-                printf("!!!! %d\n", p_arg_->invariant_lowest_length_);
-
                 if(p_arg_->xStrides_[NumInvariantDim - 1] != 1)
                     return false;
 
