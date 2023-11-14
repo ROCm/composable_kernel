@@ -1481,10 +1481,6 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle_V2
             constexpr index_t NWave = Gemm1NPerBlock / (Gemm1NXdlPerWave * NPerXdl);
 
             // TODO: hacky, fix it!
-            constexpr auto c_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 =
-                gemm1_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
-
-            // TODO: hacky, fix it!
             // c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp is only used to get lengths
             constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp =
                 gemm1_blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
