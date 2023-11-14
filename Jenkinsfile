@@ -139,7 +139,7 @@ def buildDocker(install_prefix){
         else{
             echo "Checking for image: ${image_name}"
             sh "docker manifest inspect --insecure ${image_name}"
-            echo "Image: ${image_name} found!! Skipping building image"
+            echo "Image: ${image_name} found! Skipping building image"
         }
     }
     catch(Exception ex){
@@ -213,8 +213,10 @@ def cmake_build(Map conf=[:]){
     if (setup_args.contains("gfx94")){
         invocation_tag="gfx94"
     }
+    echo "invocation tag: ${invocation_tag}"
+    def redis_pre_setup_cmd = pre_setup_cmd
     if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null" && "${invocation_tag}" != "") {
-        pre_setup_cmd = pre_setup_cmd + """
+        redis_pre_setup_cmd = pre_setup_cmd + """
             #!/bin/bash
             export ROCM_PATH=/opt/rocm
             export SCCACHE_ENABLED=true
@@ -228,18 +230,30 @@ def cmake_build(Map conf=[:]){
             export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
             echo \$SCCACHE_C_CUSTOM_CACHE_BUSTER
             stunnel ../script/redis-cli.conf
-            (
-                set -e
-                ../script/sccache_wrapper.sh --enforce_redis
-            )
-            error_code=\$?
-            if [ \$error_code -ne 0 ]; then
-                echo "could not connect to the redis server. using sccache locally."
-                ../script/sccache_wrapper.sh
-            fi
+            ../script/sccache_wrapper.sh --enforce_redis
         """
-        setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache " + setup_args
+        try {
+            def cmd1 = conf.get("cmd1", """
+                    ${redis_pre_setup_cmd}
+                """)
+            sh cmd1
+            setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache " + setup_args
+        }
+        catch(Exception err){
+            echo "could not connect to redis server: ${err.getMessage()}. will not use sccache."
+            def cmd2 = conf.get("cmd2", """
+                    ${pre_setup_cmd}
+                """)
+            sh cmd2
+        }
     }
+    else{
+        def cmd3 = conf.get("cmd3",  """
+                ${pre_setup_cmd}
+            """)
+        sh cmd3
+    }
+
     def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
     // reduce parallelism when compiling, clang uses too much memory
     def nt = nthreads()
@@ -247,14 +261,16 @@ def cmake_build(Map conf=[:]){
     def execute_cmd = conf.get("execute_cmd", "")
 
     def cmd = conf.get("cmd", """
-            ${pre_setup_cmd}
             ${setup_cmd}
             ${build_cmd}
             ${execute_cmd}
         """)
 
     echo cmd
-    sh cmd
+
+    dir("build"){
+        sh cmd
+    }
 
     // Only archive from master or develop
     if (package_build == true && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "amd-master")) {
@@ -686,8 +702,8 @@ pipeline {
             description: "Use the CK build to verify hipTensor build and tests (default: ON)")
         string(
             name: 'hipTensor_branch',
-            defaultValue: 'mainline',
-            description: 'Specify which branch of hipTensor to use (default: mainline)')
+            defaultValue: 'develop',
+            description: 'Specify which branch of hipTensor to use (default: develop)')
         booleanParam(
             name: "USE_SCCACHE",
             defaultValue: true,
@@ -751,7 +767,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx908 || gfx90a") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" -DCMAKE_EXE_LINKER_FLAGS=" -L ${env.WORKSPACE}/script -T hip_fatbin_insert " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ 
                     }
                     steps{
