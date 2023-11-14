@@ -8,18 +8,18 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 void add_device_conv2d_dl_bias_perlayer_quantization_int8_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                                              NHWGC,
-                                                              GKYXC,
-                                                              GK_Tuple,
-                                                              NHWGK,
-                                                              int8_t,
-                                                              int8_t,
-                                                              I32_Tuple,
-                                                              int8_t,
-                                                              PassThrough,
-                                                              PassThrough,
-                                                              Add_Mul_Clamp>>>& instances)
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                GK_Tuple,
+                                                                NHWGK,
+                                                                int8_t,
+                                                                int8_t,
+                                                                I32_Tuple,
+                                                                int8_t,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                Add_Mul_Clamp>>>& instances)
 {
     add_device_operation_instances(instances,
                                    device_grouped_conv2d_dl_int8_instances<NHWGC,
@@ -51,18 +51,18 @@ void add_device_conv2d_dl_bias_perlayer_quantization_int8_instances(
 }
 
 void add_device_conv2d_dl_bias_relu_perlayer_quantization_int8_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                                              NHWGC,
-                                                              GKYXC,
-                                                              GK_Tuple,
-                                                              NHWGK,
-                                                              int8_t,
-                                                              int8_t,
-                                                              I32_Tuple,
-                                                              int8_t,
-                                                              PassThrough,
-                                                              PassThrough,
-                                                              Add_Relu_Mul_Clamp>>>& instances)
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                GK_Tuple,
+                                                                NHWGK,
+                                                                int8_t,
+                                                                int8_t,
+                                                                I32_Tuple,
+                                                                int8_t,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                Add_Relu_Mul_Clamp>>>& instances)
 {
     add_device_operation_instances(instances,
                                    device_grouped_conv2d_dl_int8_instances<NHWGC,
@@ -96,18 +96,19 @@ void add_device_conv2d_dl_bias_relu_perlayer_quantization_int8_instances(
 }
 
 void add_device_conv2d_dl_bias_tanh_perlayer_quantization_int8_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                                              NHWGC,
-                                                              GKYXC,
-                                                              GK_Tuple,
-                                                              NHWGK,
-                                                              int8_t,
-                                                              int8_t,
-                                                              I32_Tuple,
-                                                              int8_t,
-                                                              PassThrough,
-                                                              PassThrough,
-                                                              Add_Mul_TanH_Mul_Clamp>>>& instances)
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                GK_Tuple,
+                                                                NHWGK,
+                                                                int8_t,
+                                                                int8_t,
+                                                                I32_Tuple,
+                                                                int8_t,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                Add_Mul_TanH_Mul_Clamp>>>&
+        instances)
 {
     add_device_operation_instances(instances,
                                    device_grouped_conv2d_dl_int8_instances<NHWGC,
