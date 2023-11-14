@@ -63,7 +63,7 @@ int execute_conv_fwd_scaleadd_scaleadd_relu()
         K * Z * Y * X * C, Z * Y * X * C, 1, Y * X * C, X * C, C};
     std::array<ck::index_t, 6> out_lengths{G, N, K, Do, Ho, Wo};
     std::array<ck::index_t, 6> out_strides{
-        C, Do * Ho * Wo * G * C, 1, Ho * Wo * G * C, Wo * G * C, G * C};
+        K, Do * Ho * Wo * G * K, 1, Ho * Wo * G * K, Wo * G * K, G * K};
 
     std::array<ck::index_t, NumDimSpatial> filter_strides{1, 1, 1};
     std::array<ck::index_t, NumDimSpatial> filter_dilations{1, 1, 1};
@@ -76,7 +76,7 @@ int execute_conv_fwd_scaleadd_scaleadd_relu()
     SimpleDeviceMem d0(sizeof(std::tuple_element_t<0, DDataTypes>) * N * Do * Ho * Wo * G * K);
     SimpleDeviceMem d1(sizeof(std::tuple_element_t<1, DDataTypes>) * N * Do * Ho * Wo * G * K);
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<
         NumDimSpatial,
         InLayout,
         WeiLayout,
