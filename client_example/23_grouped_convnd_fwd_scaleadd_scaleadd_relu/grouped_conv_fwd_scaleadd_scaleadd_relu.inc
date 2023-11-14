@@ -76,7 +76,7 @@ int execute_conv_fwd_scaleadd_scaleadd_relu()
     SimpleDeviceMem d0(sizeof(std::tuple_element_t<0, DDataTypes>) * N * Do * Ho * Wo * G * K);
     SimpleDeviceMem d1(sizeof(std::tuple_element_t<1, DDataTypes>) * N * Do * Ho * Wo * G * K);
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<
         NumDimSpatial,
         InLayout,
         WeiLayout,

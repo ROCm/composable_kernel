@@ -11,18 +11,18 @@ namespace instance {
 // Compilation parameters for in[g, n, di, hi, wi, c] * wei[g, k, z, y, x, c] = out[g, n, do, ho,
 // wo, k]
 void add_device_grouped_conv3d_fwd_wmma_gndhwc_gkzyxc_gndhwk_i8_1x1p0_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
-                                                              GNDHWC,
-                                                              GKZYXC,
-                                                              Empty_Tuple,
-                                                              GNDHWK,
-                                                              int8_t,
-                                                              int8_t,
-                                                              Empty_Tuple,
-                                                              int8_t,
-                                                              PassThrough,
-                                                              PassThrough,
-                                                              PassThrough>>>& instances)
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                GNDHWC,
+                                                                GKZYXC,
+                                                                Empty_Tuple,
+                                                                GNDHWK,
+                                                                int8_t,
+                                                                int8_t,
+                                                                Empty_Tuple,
+                                                                int8_t,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances)
 {
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_wmma_i8_instances<3,
