@@ -40,7 +40,7 @@ constexpr auto GridwiseGemmPipeline_Selector()
     }
     else if constexpr(PipelineVer == PipelineVersion::v4)
     {
-        return GridwiseGemmPipeline_v4<1>{};
+        return GridwiseGemmPipeline_v4<NumPrefetch>{};
     }
     else
     {
