@@ -65,10 +65,10 @@ def getDockerImageName(){
 }
 
 def check_host() {
-    if ("${env.CK_CCACHE}" != "null"){
-        def CCACHE_SERVER="${env.CK_CCACHE.split(':')[0]}"
-        echo "ccache server: ${CCACHE_SERVER}"
-        sh '''ping -c 1 -p 6379 "${CCACHE_SERVER}" | echo $? > tmp.txt'''
+    if ("${env.CK_SCCACHE}" != "null"){
+        def SCCACHE_SERVER="${env.CK_SCCACHE.split(':')[0]}"
+        echo "sccache server: ${SCCACHE_SERVER}"
+        sh '''ping -c 1 -p 6379 "${SCCACHE_SERVER}" | echo $? > tmp.txt'''
         def output = readFile(file: "tmp.txt")
         echo "tmp.txt contents: \$output"
         return (output != "0")
@@ -96,24 +96,9 @@ def build_compiler(){
 
 def getDockerImage(Map conf=[:]){
     env.DOCKER_BUILDKIT=1
-    def prefixpath = conf.get("prefixpath", "/opt/rocm") // prefix:/opt/rocm
+    def prefixpath = conf.get("prefixpath", "/opt/rocm")
     def no_cache = conf.get("no_cache", false)
     def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-    echo "ccache server: ${env.CK_CCACHE}"
-    if(env.CK_CCACHE)
-    {
-        if(check_host())
-        {
-            echo "FOUND CCACHE SERVER: ${env.CK_CCACHE}"
-        }
-        else 
-        {
-            echo "CCACHE SERVER: ${env.CK_CCACHE} NOT FOUND, got ${check_host} response"
-        }
-        dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CK_CCACHE}' --build-arg COMPILER_LAUNCHER='ccache' "
-        env.CCACHE_DIR = """/tmp/ccache_store"""
-        env.CCACHE_SECONDARY_STORAGE="""redis://${env.CK_CCACHE}"""
-    }
     if(no_cache)
     {
         dockerArgs = dockerArgs + " --no-cache "
@@ -142,21 +127,6 @@ def buildDocker(install_prefix){
     def image_name = getDockerImageName()
     echo "Building Docker for ${image_name}"
     def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${install_prefix} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-    echo "ccache server: ${env.CK_CCACHE}"
-    if(env.CK_CCACHE)
-    {
-        if(check_host())
-        {
-            echo "FOUND CCACHE SERVER: ${env.CK_CCACHE}"
-        }
-        else 
-        {
-            echo "CCACHE SERVER: ${env.CK_CCACHE} NOT FOUND, got ${check_host} response"
-        }
-        dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CK_CCACHE}' --build-arg COMPILER_LAUNCHER='ccache' "
-        env.CCACHE_DIR = """/tmp/ccache_store"""
-        env.CCACHE_SECONDARY_STORAGE="""redis://${env.CK_CCACHE}"""
-    }
 
     echo "Build Args: ${dockerArgs}"
     try{
@@ -169,7 +139,7 @@ def buildDocker(install_prefix){
         else{
             echo "Checking for image: ${image_name}"
             sh "docker manifest inspect --insecure ${image_name}"
-            echo "Image: ${image_name} found!! Skipping building image"
+            echo "Image: ${image_name} found! Skipping building image"
         }
     }
     catch(Exception ex){
@@ -219,13 +189,9 @@ def cmake_build(Map conf=[:]){
     }else{
         setup_args = " -DCMAKE_BUILD_TYPE=release" + setup_args
     }
-    if(env.CK_CCACHE)
-    {
-        setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER='ccache' -DCMAKE_C_COMPILER_LAUNCHER='ccache' " + setup_args
-    }
-    echo "ccache server: ${env.CK_CCACHE}"
 
     def pre_setup_cmd = """
+            #!/bin/bash
             echo \$HSA_ENABLE_SDMA
             ulimit -c unlimited
             rm -rf build
@@ -234,6 +200,60 @@ def cmake_build(Map conf=[:]){
             mkdir install
             cd build
         """
+    def invocation_tag=""
+    if (setup_args.contains("gfx11")){
+        invocation_tag="gfx11"
+    }
+    if (setup_args.contains("gfx10")){
+        invocation_tag="gfx10"
+    }
+    if (setup_args.contains("gfx90")){
+        invocation_tag="gfx90"
+    }
+    if (setup_args.contains("gfx94")){
+        invocation_tag="gfx94"
+    }
+    echo "invocation tag: ${invocation_tag}"
+    def redis_pre_setup_cmd = pre_setup_cmd
+    if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null" && "${invocation_tag}" != "") {
+        redis_pre_setup_cmd = pre_setup_cmd + """
+            #!/bin/bash
+            export ROCM_PATH=/opt/rocm
+            export SCCACHE_ENABLED=true
+            export SCCACHE_LOG_LEVEL=debug
+            export SCCACHE_IDLE_TIMEOUT=14400
+            export COMPILERS_HASH_DIR=/tmp/.sccache
+            export SCCACHE_BIN=/usr/local/.cargo/bin/sccache
+            export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
+            export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
+            echo "connect = ${env.CK_SCCACHE}" >> ../script/redis-cli.conf
+            export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
+            echo \$SCCACHE_C_CUSTOM_CACHE_BUSTER
+            stunnel ../script/redis-cli.conf
+            ../script/sccache_wrapper.sh --enforce_redis
+        """
+        try {
+            def cmd1 = conf.get("cmd1", """
+                    ${redis_pre_setup_cmd}
+                """)
+            sh cmd1
+            setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache " + setup_args
+        }
+        catch(Exception err){
+            echo "could not connect to redis server: ${err.getMessage()}. will not use sccache."
+            def cmd2 = conf.get("cmd2", """
+                    ${pre_setup_cmd}
+                """)
+            sh cmd2
+        }
+    }
+    else{
+        def cmd3 = conf.get("cmd3",  """
+                ${pre_setup_cmd}
+            """)
+        sh cmd3
+    }
+
     def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
     // reduce parallelism when compiling, clang uses too much memory
     def nt = nthreads()
@@ -241,17 +261,19 @@ def cmake_build(Map conf=[:]){
     def execute_cmd = conf.get("execute_cmd", "")
 
     def cmd = conf.get("cmd", """
-            ${pre_setup_cmd}
             ${setup_cmd}
             ${build_cmd}
             ${execute_cmd}
         """)
 
     echo cmd
-    sh cmd
+
+    dir("build"){
+        sh cmd
+    }
 
     // Only archive from master or develop
-    if (package_build == true && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master")) {
+    if (package_build == true && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "amd-master")) {
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
 }
@@ -635,7 +657,7 @@ def process_results(Map conf=[:]){
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=5.7;COMPILER_VERSION=
                                               0 21 * * * % ROCMVERSION=5.7;COMPILER_VERSION=;COMPILER_COMMIT=
-                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=''' : ""
+                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=;USE_SCCACHE=false''' : ""
 
 pipeline {
     agent none
@@ -680,9 +702,12 @@ pipeline {
             description: "Use the CK build to verify hipTensor build and tests (default: ON)")
         string(
             name: 'hipTensor_branch',
-            defaultValue: 'mainline',
-            description: 'Specify which branch of hipTensor to use (default: mainline)')
-
+            defaultValue: 'develop',
+            description: 'Specify which branch of hipTensor to use (default: develop)')
+        booleanParam(
+            name: "USE_SCCACHE",
+            defaultValue: true,
+            description: "Use the sccache for building CK (default: ON)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -742,7 +767,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx908 || gfx90a") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" -DCMAKE_EXE_LINKER_FLAGS=" -L ${env.WORKSPACE}/script -T hip_fatbin_insert " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ 
                     }
                     steps{
@@ -790,8 +815,8 @@ pipeline {
                     }
                     agent{ label rocmnode("navi32") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1101" """
-                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1101" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1101" -DDL_KERNELS=ON """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1101" -DDL_KERNELS=ON -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')

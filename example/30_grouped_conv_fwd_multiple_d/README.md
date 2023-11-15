@@ -4,7 +4,7 @@ arg1: verification (0=no, 1=yes)
 arg2: initialization (0=no init, 1=integer value, 2=decimal value)
 arg3: time kernel (0=no, 1=yes)
 Following arguments (depending on number of spatial dims):
- Number of spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)
+ Number of spatial dimensions (1=Conv1D, 2=Conv2D, 3=Conv3D)
  G, N, K, C,
  <filter spatial dimensions>, (ie Y, X for 2D)
  <input image spatial dimensions>, (ie Hi, Wi for 2D)
@@ -26,5 +26,5 @@ out: dim 5, lengths {1, 128, 256, 36, 36}, strides {256, 331776, 1, 9216, 256}
 launch_and_time_kernel: grid_dim {1296, 1, 1}, block_dim {256, 1, 1}
 Warm up 1 time
 Start running 10 times...
-Perf: 1.55981 ms, 94.0927 TFlops, 213.868 GB/s, DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<256, 128, 256, 16, Default>
+Perf: 1.55981 ms, 94.0927 TFlops, 213.868 GB/s, DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<256, 128, 256, 16, Default>
 ```
