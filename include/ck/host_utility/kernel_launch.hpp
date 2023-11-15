@@ -42,7 +42,10 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
         printf("Warm up 1 time\n");
 #endif
         // warm up
-        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+        for(int i = 0; i < 10; i++)
+        {
+            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+        }
 
         const int nrepeat = 10;
 #if DEBUG_LOG
