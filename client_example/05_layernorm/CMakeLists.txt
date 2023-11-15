@@ -1,4 +1,4 @@
-add_executabladd_executabladd_executabladd_executabladd_executabladd_executabladd_executable(client_layernorm2d_fwd layernorm2d_fwd.cpp)
+add_executable(client_layernorm2d_fwd layernorm2d_fwd.cpp)
 target_link_libraries(client_layernorm2d_fwd PRIVATE composable_kernel::device_other_operations)
 
 add_executable(client_layernorm4d_fwd layernorm4d_fwd.cpp)
