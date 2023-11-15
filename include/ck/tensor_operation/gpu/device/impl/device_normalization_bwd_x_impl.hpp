@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "ck/tensor_operation/gpu/device/device_normalization_bwd_x.hpp"
+#include "ck/tensor_operation/gpu/grid/normalization/gridwise_normalization_bwd_x.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
@@ -17,6 +18,42 @@
 namespace ck {
 namespace tensor_operation {
 namespace device {
+template <typename GridwiseNormalizationBwd,
+          typename DYDataType,
+          typename XDataType,
+          typename GammaDataType,
+          typename MeanInvStdDataType,
+          typename DXDataType,
+          typename GridDesc_M_K>
+__global__ void
+kernel_normalization_bwd_x(const GridDesc_M_K dy_grid_desc_m_k,
+                           const GridDesc_M_K x_grid_desc_m_k,
+                           const GridDesc_M_K gamma_grid_desc_m_k,
+                           const GridDesc_M_K mean_grid_desc_m_k,
+                           const GridDesc_M_K inv_std_grid_desc_m_k,
+                           const GridDesc_M_K dx_grid_desc_m_k,
+                           index_t num_k_block_tile_iteration,
+                           const DYDataType* const __restrict__ p_dy_global,
+                           const XDataType* const __restrict__ p_x_global,
+                           const GammaDataType* const __restrict__ p_gamma_global,
+                           const MeanInvStdDataType* const __restrict__ p_mean_global,
+                           const MeanInvStdDataType* const __restrict__ p_inv_std_global,
+                           DXDataType* const __restrict__ p_dx_global)
+{
+    GridwiseNormalizationBwd::Run(dy_grid_desc_m_k,
+                                  x_grid_desc_m_k,
+                                  gamma_grid_desc_m_k,
+                                  mean_grid_desc_m_k,
+                                  inv_std_grid_desc_m_k,
+                                  dx_grid_desc_m_k,
+                                  num_k_block_tile_iteration,
+                                  p_dy_global,
+                                  p_x_global,
+                                  p_gamma_global,
+                                  p_mean_global,
+                                  p_inv_std_global,
+                                  p_dx_global);
+};
 
 template <typename DYDataType,
           typename XDataType,
@@ -131,6 +168,56 @@ struct DeviceNormalizationBwdXImpl : public DeviceNormalizationBwdX<DYDataType,
 
     using GridDesc_M_K = decltype(Make2dDescriptor({1}, {1}, 1));
 
+    using GridwiseNormalizationBwdXGeneric =
+        GridwiseNormalizationBwdX_mk_to_mk<DYDataType,
+                                           XDataType,
+                                           GammaDataType,
+                                           MeanInvStdDataType,
+                                           ComputeDataType,
+                                           DXDataType,
+                                           GridDesc_M_K,
+                                           BlockSize,
+                                           MThreadClusterSize,
+                                           KThreadClusterSize,
+                                           MThreadSliceSize,
+                                           KThreadSliceSize,
+                                           DYSrcVectorDim,
+                                           DYSrcVectorSize,
+                                           XSrcVectorDim,
+                                           XSrcVectorSize,
+                                           GammaSrcVectorDim,
+                                           GammaSrcVectorSize,
+                                           MeanInvStdSrcVectorDim,
+                                           MeanInvStdSrcVectorSize,
+                                           DXDstVectorDim,
+                                           DXDstVectorSize,
+                                           false>;
+
+    using GridwiseNormalizationBwdXSweepOnce =
+        GridwiseNormalizationBwdX_mk_to_mk<DYDataType,
+                                           XDataType,
+                                           GammaDataType,
+                                           MeanInvStdDataType,
+                                           ComputeDataType,
+                                           DXDataType,
+                                           GridDesc_M_K,
+                                           BlockSize,
+                                           MThreadClusterSize,
+                                           KThreadClusterSize,
+                                           MThreadSliceSize,
+                                           KThreadSliceSize,
+                                           DYSrcVectorDim,
+                                           DYSrcVectorSize,
+                                           XSrcVectorDim,
+                                           XSrcVectorSize,
+                                           GammaSrcVectorDim,
+                                           GammaSrcVectorSize,
+                                           MeanInvStdSrcVectorDim,
+                                           MeanInvStdSrcVectorSize,
+                                           DXDstVectorDim,
+                                           DXDstVectorSize,
+                                           true>;
+
     struct Argument : public BaseArgument
     {
         Argument(const std::vector<index_t> lengths,
@@ -214,12 +301,46 @@ struct DeviceNormalizationBwdXImpl : public DeviceNormalizationBwdX<DYDataType,
 
     struct Invoker : public BaseInvoker
     {
+        auto KernelSelector(bool isSweepOnce)
+        {
+            return isSweepOnce ? kernel_normalization_bwd_x<GridwiseNormalizationBwdXSweepOnce,
+                                                            DYDataType,
+                                                            XDataType,
+                                                            GammaDataType,
+                                                            MeanInvStdDataType,
+                                                            DXDataType,
+                                                            GridDesc_M_K>
+                               : kernel_normalization_bwd_x<GridwiseNormalizationBwdXGeneric,
+                                                            DYDataType,
+                                                            XDataType,
+                                                            GammaDataType,
+                                                            MeanInvStdDataType,
+                                                            DXDataType,
+                                                            GridDesc_M_K>;
+        }
+
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            // TODO
-            ignore = arg;
-            ignore = stream_config;
-            return 0;
+            const auto kernel_main = KernelSelector(arg.isSweeponce_);
+
+            return launch_and_time_kernel(stream_config,
+                                          kernel_main,
+                                          dim3(arg.gridSize_),
+                                          dim3(BlockSize),
+                                          0,
+                                          arg.dy_grid_desc_m_k_,
+                                          arg.x_grid_desc_m_k_,
+                                          arg.gamma_grid_desc_m_k_,
+                                          arg.mean_grid_desc_m_k_,
+                                          arg.inv_std_grid_desc_m_k_,
+                                          arg.dx_grid_desc_m_k_,
+                                          arg.numBlockTileIteration_,
+                                          arg.p_dy_,
+                                          arg.p_x_,
+                                          arg.p_gamma_,
+                                          arg.p_mean_,
+                                          arg.p_invStd_,
+                                          arg.p_dx_);
         }
 
         float Run(const BaseArgument* p_arg,
