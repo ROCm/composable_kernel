@@ -1094,6 +1094,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             << NXdlPerWave << ", "
             << ABlockTransferSrcScalarPerVector << ", "
             << BBlockTransferSrcScalarPerVector << ", "
+            << CDEBlockTransferScalarPerVector_NPerBlock << ", "
             << CShuffleMXdlPerWavePerShuffle << ", "
             << CShuffleNXdlPerWavePerShuffle
             << ">";
