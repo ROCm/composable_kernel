@@ -15,7 +15,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
 #include "ck/tensor_operation/operator_transform/transform_conv_fwd_to_gemm.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_wmma_cshuffle.hpp"
@@ -92,18 +92,18 @@ template <index_t NDimSpatial,
           LoopScheduler LoopSched         = make_default_loop_scheduler(),
           ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
 struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
-    : public DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                           ALayout,
-                                           BLayout,
-                                           DsLayout,
-                                           ELayout,
-                                           ADataType,
-                                           BDataType,
-                                           DsDataType,
-                                           EDataType,
-                                           AElementwiseOperation,
-                                           BElementwiseOperation,
-                                           CDEElementwiseOperation>
+    : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                             ALayout,
+                                             BLayout,
+                                             DsLayout,
+                                             ELayout,
+                                             ADataType,
+                                             BDataType,
+                                             DsDataType,
+                                             EDataType,
+                                             AElementwiseOperation,
+                                             BElementwiseOperation,
+                                             CDEElementwiseOperation>
 {
     using DeviceOp = DeviceGroupedConvFwdMultipleD_Wmma_CShuffle;
 
@@ -428,7 +428,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         typename GridwiseOp::DefaultBlock2CTileMap block_2_etile_map_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch<NumDTensor> compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor> compute_ptr_offset_of_batch_;
 
         // element-wise op
         AElementwiseOperation a_element_op_;
@@ -485,7 +485,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                     typename GridwiseOp::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseOp::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     remove_reference_t<typename GridwiseOp::DefaultBlock2CTileMap>,
-                    ComputePtrOffsetOfStridedBatch<NumDTensor>,
+                    ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
                     has_main_loop>;
 
                 return launch_and_time_kernel(stream_config,

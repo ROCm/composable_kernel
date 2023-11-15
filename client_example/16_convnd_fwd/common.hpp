@@ -11,7 +11,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
@@ -174,19 +174,19 @@ bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + NumNonSpatialD
     std::size_t flop      = GetFlops<NumDimSpatial>(out_lengths, wei_lengths);
     std::size_t num_bytes = in_mem_size + wei_mem_size + out_mem_size;
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<NumDimSpatial,
-                                                                                 InLayout,
-                                                                                 WeiLayout,
-                                                                                 ck::Tuple<>,
-                                                                                 OutLayout,
-                                                                                 InDataType,
-                                                                                 WeiDataType,
-                                                                                 ck::Tuple<>,
-                                                                                 OutDataType,
-                                                                                 PassThrough,
-                                                                                 PassThrough,
-                                                                                 PassThrough,
-                                                                                 ComputeType>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<NumDimSpatial,
+                                                                                   InLayout,
+                                                                                   WeiLayout,
+                                                                                   ck::Tuple<>,
+                                                                                   OutLayout,
+                                                                                   InDataType,
+                                                                                   WeiDataType,
+                                                                                   ck::Tuple<>,
+                                                                                   OutDataType,
+                                                                                   PassThrough,
+                                                                                   PassThrough,
+                                                                                   PassThrough,
+                                                                                   ComputeType>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
