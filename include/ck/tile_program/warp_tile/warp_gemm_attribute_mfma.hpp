@@ -328,7 +328,7 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
     using CWarpDstrEncoding = StaticTileDistributionEncoding<
         Sequence<>,
         Tuple<Sequence<Impl::kCNLane>,
-              Sequence<Impl::kCM0PerLane, Impl::kCMLane, Impl::kCM1PerLane>>,
+              Sequence<Impl::kCM0PerLane / 2, Impl::kCMLane, Impl::kCM1PerLane * 2>>,
         Tuple<Sequence<2, 1>>,
         Tuple<Sequence<1, 0>>,
         Sequence<2, 2>,

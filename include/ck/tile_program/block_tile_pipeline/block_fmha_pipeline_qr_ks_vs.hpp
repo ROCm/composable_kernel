@@ -17,6 +17,7 @@
 #include "ck/tile_program/warp_tile/warp_gemm.hpp"
 #include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qr_ks_vs_default_policy.hpp"
 #include "ck/tile_program/block_tile/block_reduce.hpp"
+#include "ck/tile_program/tile/shuffle_distributed_tensor.hpp"
 
 namespace ck {
 namespace tile_program {
@@ -36,6 +37,7 @@ struct BlockFmhaPipelineQRKSVS
     using ODataType           = remove_cvref_t<typename Problem::ODataType>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
+    using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = true; // if q load whole block length (hdim) at once
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
@@ -263,8 +265,20 @@ struct BlockFmhaPipelineQRKSVS
             });
 
             block_sync_lds();
-            store_tile(v_lds_window,
-                       tile_elementwise_in(v_element_func, v_prefetch)); // store the prefetch
+            if constexpr(ck::is_same_v<VLayout, ck::tensor_layout::gemm::RowMajor>)
+            {
+                auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
+                    Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
+                shuffle_distributed_tensor(v_shuffle_tmp, v_prefetch);
+                store_tile(
+                    v_lds_window,
+                    tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
+            }
+            else
+            {
+                store_tile(v_lds_window,
+                           tile_elementwise_in(v_element_func, v_prefetch)); // store the prefetch
+            }
             move_tile_window(v_dram_window, {0, kK1});
 
             const auto p =
@@ -282,11 +296,26 @@ struct BlockFmhaPipelineQRKSVS
                                p, Sequence<0, i_k1 * kK1>{}, Sequence<kM0, (i_k1 + 1) * kK1>{}),
                            v_lds_window);
                     block_sync_lds();
-                    store_tile(v_lds_window,
-                               tile_elementwise_in(v_element_func, v)); // store next v
+                    if constexpr(ck::is_same_v<VLayout, ck::tensor_layout::gemm::RowMajor>)
+                    {
+                        auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
+                            Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
+                        shuffle_distributed_tensor(v_shuffle_tmp, v);
+                        store_tile(v_lds_window,
+                                   tile_elementwise_in(v_element_func,
+                                                       v_shuffle_tmp)); // store the prefetch
+                    }
+                    else
+                    {
+                        store_tile(v_lds_window,
+                                   tile_elementwise_in(v_element_func, v)); // store next v
+                    }
                     move_tile_window(v_dram_window, {0, kK1});
                 });
             }
+            // move K tile windows
+            move_tile_window(k_dram_block_window, {kN0, 0});
+            i_total_loops++;
             // tail
             {
                 block_sync_lds();
@@ -295,10 +324,6 @@ struct BlockFmhaPipelineQRKSVS
                        v_lds_window);
                 block_sync_lds();
             }
-            // move K tile windows
-            move_tile_window(k_dram_block_window, {kN0, 0});
-
-            i_total_loops++;
         } while(i_total_loops < num_total_loop);
 
         // finally, O

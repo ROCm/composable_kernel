@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
 namespace ck {
 namespace tile_program {
@@ -12,7 +13,8 @@ template <typename BlockTile_, // Sequence<...
           typename Gemm0BlockWarps_,
           typename Gemm0WarpTile_,
           typename Gemm1BlockWarps_,
-          typename Gemm1WarpTile_>
+          typename Gemm1WarpTile_,
+          typename VLayout_ = ck::tensor_layout::gemm::RowMajor>
 struct TileFmhaShape
 {
     using BlockTile       = remove_cvref_t<BlockTile_>;
@@ -29,6 +31,8 @@ struct TileFmhaShape
     static constexpr index_t kK0BlockLength =
         BlockTile::At(Number<5>{}); // total length of K0, used for pipeline that need load Q at
                                     // once (or repeately load Q as a whole tile)
+
+    using VLayout = remove_cvref_t<VLayout_>; // rowmajor : seqlen*hdim, colmajor : hdim*seqlen
 };
 
 } // namespace tile_program

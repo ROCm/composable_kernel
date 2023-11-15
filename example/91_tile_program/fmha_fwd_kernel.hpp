@@ -26,6 +26,8 @@ struct FmhaFwdKernel
     using VDataType = ck::remove_cvref_t<typename FmhaPipeline::VDataType>;
     using ODataType = ck::remove_cvref_t<typename FmhaPipeline::ODataType>;
 
+    using VLayout = ck::remove_cvref_t<typename FmhaPipeline::VLayout>;
+
     struct Kargs
     {
         const void* q_ptr;
@@ -126,7 +128,6 @@ struct FmhaFwdKernel
                            i_nhead * kargs.nhead_stride_o + i_batch * kargs.batch_stride_o;
 
         // Q/K/V DRAM and DRAM window
-        // FIXME: assume layout Q[seqlen_q, hdim_q], K[seqlen_k, hdim_q], V[hdim_v, seqlen_k],
         const auto q_dram = make_naive_tensor_view<AddressSpaceEnum::Global>(
             q_ptr,
             make_tuple(kargs.seqlen_q, kargs.hdim_q),
@@ -141,12 +142,32 @@ struct FmhaFwdKernel
             Number<32>{},
             Number<1>{});
 
-        const auto v_dram = make_naive_tensor_view<AddressSpaceEnum::Global>(
-            v_ptr,
-            make_tuple(kargs.hdim_v, kargs.seqlen_k),
-            make_tuple(kargs.stride_v, 1),
-            Number<32>{},
-            Number<1>{});
+        const auto v_dram = [&]() {
+            if constexpr(ck::is_same_v<VLayout, ck::tensor_layout::gemm::RowMajor>)
+            {
+                const auto v_dram_tmp = make_naive_tensor_view<AddressSpaceEnum::Global>(
+                    v_ptr,
+                    make_tuple(kargs.seqlen_k, kargs.hdim_v),
+                    make_tuple(kargs.stride_v, 1),
+                    Number<32>{},
+                    Number<1>{});
+                return transform_tensor_view(
+                    v_dram_tmp,
+                    make_tuple(make_pass_through_transform(kargs.hdim_v),
+                               make_pass_through_transform(kargs.seqlen_k)),
+                    make_tuple(Sequence<1>{}, Sequence<0>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}));
+            }
+            else
+            {
+                return make_naive_tensor_view<AddressSpaceEnum::Global>(
+                    v_ptr,
+                    make_tuple(kargs.hdim_v, kargs.seqlen_k),
+                    make_tuple(kargs.stride_v, 1),
+                    Number<32>{},
+                    Number<1>{});
+            }
+        }();
 
         auto q_dram_window = make_tile_window(
             q_dram,
