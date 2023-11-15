@@ -85,6 +85,18 @@ __device__ void inner_product<half_t, half_t, float>(const half_t& a, const half
 }
 
 template <>
+__device__ void inner_product<bhalf2_t, bhalf2_t, float>(const bhalf2_t& a, const bhalf2_t& b, float& c)
+{
+    const vector_type<bhalf_t, 2> a_vector{a};
+    const vector_type<bhalf_t, 2> b_vector{b};
+
+    static_for<0, 2, 1>{}([&](auto i) {
+        c += type_convert<float>(a_vector.AsType<bhalf_t>()[i]) *
+             type_convert<float>(b_vector.AsType<bhalf_t>()[i]);
+    });
+}
+
+template <>
 __device__ void inner_product<half2_t, half2_t, float>(const half2_t& a, const half2_t& b, float& c)
 {
 #if defined(CK_USE_AMD_V_DOT2_F32_F16)
@@ -113,6 +125,19 @@ __device__ void inner_product<half2_t, half2_t, float>(const half2_t& a, const h
 }
 
 template <>
+__device__ void inner_product<bhalf4_t, bhalf4_t, float>(const bhalf4_t& a, const bhalf4_t& b, float& c)
+{
+    const vector_type<bhalf_t, 4> a_vector{a};
+    const vector_type<bhalf_t, 4> b_vector{b};
+
+    static_for<0, 2, 1>{}([&](auto i) {
+        inner_product(a_vector.AsType<half2_t>()[i],
+                      b_vector.AsType<half2_t>()[i],
+                      c);
+    });
+}
+
+template <>
 __device__ void inner_product<half4_t, half4_t, float>(const half4_t& a, const half4_t& b, float& c)
 {
     constexpr auto I0 = Number<0>{};
@@ -125,6 +150,19 @@ __device__ void inner_product<half4_t, half4_t, float>(const half4_t& a, const h
     inner_product(vector_type<half_t, 4>{a}.AsType<half2_t>()[I1],
                   vector_type<half_t, 4>{b}.AsType<half2_t>()[I1],
                   c);
+}
+
+template <>
+__device__ void inner_product<bhalf8_t, bhalf8_t, float>(const bhalf8_t& a, const bhalf8_t& b, float& c)
+{
+    const vector_type<bhalf_t, 8> a_vector{a};
+    const vector_type<bhalf_t, 8> b_vector{b};
+
+    static_for<0, 4, 1>{}([&](auto i) {
+        inner_product(a_vector.AsType<half2_t>()[i],
+                      b_vector.AsType<half2_t>()[i],
+                      c);
+    });
 }
 
 template <>
