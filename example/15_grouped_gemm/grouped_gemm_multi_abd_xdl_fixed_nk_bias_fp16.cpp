@@ -201,8 +201,11 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         d0_tensors[i].GenerateTensorValue(GeneratorTensor_3<D0DataType>{-0.5, 0.5});
     }
 
+    constexpr index_t NumATensor = 1;
+    constexpr index_t NumBTensor = 1;
+    constexpr index_t NumDTensor = 0;
     using GroupedGemmKernelArgument =
-        ck::tensor_operation::device::GroupedGemmMultiABDKernelArgument<2, 1, 1>;
+        ck::tensor_operation::device::GroupedGemmMultiABDKernelArgument<NumATensor , NumBTensor, NumDTensor>;
 
     std::vector<GroupedGemmKernelArgument> grouped_gemm_kernel_args_;
     grouped_gemm_kernel_args_.reserve(group_count);
