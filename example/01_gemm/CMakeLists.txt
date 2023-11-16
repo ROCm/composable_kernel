@@ -56,7 +56,7 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8)
 add_example_executable(example_gemm_xdl_fp8_bf8 gemm_xdl_fp8_bf8.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8_bf8)
 
-if(GPU_TARGETS MATCHES "gfx90a")
+if(GPU_TARGETS MATCHES "gfx90a" OR GPU_TARGETS MATCHES "gfx940" OR GPU_TARGETS MATCHES "gfx941" OR GPU_TARGETS MATCHES "gfx942")
   add_example_executable(example_gemm_xdl_lds_direct_load_fp32 gemm_xdl_lds_direct_load_fp32.cpp)
   add_example_dependencies(example_gemm_xdl example_gemm_xdl_lds_direct_load_fp32)
 
