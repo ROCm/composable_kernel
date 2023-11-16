@@ -249,10 +249,10 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                               1});
 
         grouped_gemm_kernel_args_.push_back(
-            {std::array<const void*, 2>{a0_tensors_device[i]->GetDeviceBuffer(),
+            {std::array<const void*, NumATensor>{a0_tensors_device[i]->GetDeviceBuffer(),
                                         a1_tensors_device[i]->GetDeviceBuffer()},
-             std::array<const void*, 1>{b_tensors_device[i]->GetDeviceBuffer()},
-             std::array<const void*, 1>{d0_tensors_device[i]->GetDeviceBuffer()},
+             std::array<const void*, NumBTensor>{b_tensors_device[i]->GetDeviceBuffer()},
+             std::array<const void*, NumDTensor>{d0_tensors_device[i]->GetDeviceBuffer()},
              c_tensors_device[i]->GetDeviceBuffer(),
              problem_size.Ms[i],
              problem_size.Ns[i],
