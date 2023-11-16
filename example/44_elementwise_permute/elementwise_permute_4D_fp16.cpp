@@ -19,13 +19,13 @@ using BDataType = F16;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using DeviceElementwisePermuteInstance =
-    ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ADataType>, // InDataTypeTuple
-                                                        ck::Tuple<BDataType>, // OutDataTypeTuple
-                                                        PassThrough,          // Elementwise op
-                                                        4,                    // NumDim
-                                                        8,                    // MPerThread
-                                                        ck::Sequence<8>,  // InScalarPerVectorSeq
-                                                        ck::Sequence<1>>; // OutScalarPerVectorSeq
+    ck::tensor_operation::device::DeviceElementwiseImpl<ck::Tuple<ADataType>,
+                                                        ck::Tuple<BDataType>,
+                                                        PassThrough,
+                                                        4,
+                                                        8,
+                                                        ck::Sequence<8>,
+                                                        ck::Sequence<1>>;
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
 void host_elementwise4D(HostTensorB& B_nhwc, const HostTensorA& A_nchw, Functor functor)
@@ -99,6 +99,7 @@ int main()
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
+
     bool pass = true;
 
     if(do_verification)
