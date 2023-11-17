@@ -91,8 +91,9 @@ __device__ void inner_product<bhalf2_t, bhalf2_t, float>(const bhalf2_t& a, cons
     const vector_type<bhalf_t, 2> b_vector{b};
 
     static_for<0, 2, 1>{}([&](auto i) {
-        c += type_convert<float>(a_vector.AsType<bhalf_t>()[i]) *
-             type_convert<float>(b_vector.AsType<bhalf_t>()[i]);
+        inner_product(a_vector.AsType<bhalf_t>()[i], 
+                      b_vector.AsType<bhalf_t>()[i],
+                      c);
     });
 }
 
