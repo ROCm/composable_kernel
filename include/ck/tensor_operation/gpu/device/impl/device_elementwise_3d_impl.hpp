@@ -298,6 +298,7 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
         {
             return false;
         }
+
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
         if(pArg == nullptr)

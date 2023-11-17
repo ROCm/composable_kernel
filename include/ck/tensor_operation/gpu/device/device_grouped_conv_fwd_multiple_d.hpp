@@ -3,21 +3,33 @@
 
 #pragma once
 
-#include <array>
-
-#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
-// Convolution Forward:
-//   input : input image A[G, N, C, Hi, Wi],
-//   input : weight B[G, K, C, Y, X],
-//   input : D0[G, N, K, Ho, Wo], D1[G, N, K, Ho, Wo], ...
-//   output : output image E[G, N, K, Ho, Wo]
-//   C = a_op(A) * b_op(B)
-//   E = cde_op(C, D0, D1, ...)
+/**
+ * \brief Grouped Convolution Forward
+ *
+ * \note This structure is deprecated (left for backwards compatibility). Please use
+ *       DeviceGroupedConvFwdMultipleABD.
+ *
+ * \tparam NDimSpatial Number of spatial dimensions.
+ * \tparam ALayout Input layout (also for a1, a2...).
+ * \tparam BLayout Weight layout (also for b1, b2...).
+ * \tparam DsLayout Ds layouts.
+ * \tparam ELayout Output layout.
+ * \tparam ADataType Input data type. Pass tuple if there is multiple A.
+ * \tparam BDataType Weight data type. Pass tuple if there is multiple B.
+ * \tparam DsDataType D data types.
+ * \tparam EDataType Output data type.
+ * \tparam AElementwiseOperation A elementwise operation.
+ * \tparam BElementwiseOperation B elementwise operation.
+ * \tparam CDEElementwiseOperation CDE elementwise operation.
+ * \tparam ComputeType Compute data type (default: ADataType, first if tuple passed).
+ */
 template <index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
@@ -30,36 +42,25 @@ template <index_t NDimSpatial,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
-          typename ComputeType = ADataType>
-struct DeviceGroupedConvFwdMultipleD : public BaseOperator
-{
-    static constexpr index_t NumDTensor = DsDataType::Size();
-
-    static_assert(NumDTensor == DsLayout::Size(), "wrong! Inconsistent NumDTensor");
-
-    virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(
-        const void* p_a, // input image
-        const void* p_b, // weight
-        const std::array<const void*, NumDTensor>& p_ds,
-        void* p_e, // output image
-        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_lengths,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
-        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
-        const std::array<index_t, NDimSpatial>& conv_filter_strides,
-        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-        const std::array<index_t, NDimSpatial>& input_left_pads,
-        const std::array<index_t, NDimSpatial>& input_right_pads,
-        const AElementwiseOperation& a_element_op,
-        const BElementwiseOperation& b_element_op,
-        const CDEElementwiseOperation& cde_element_op) = 0;
-
-    virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
-};
+          typename ComputeType =
+              decltype(UnpackDataType<is_detected<is_tuple, ADataType>::value,
+                                      Number<0>,
+                                      ADataType>())> // ComputeType is InputType by default (first
+                                                     // in tuple for MultiAB), unpack if tuple was
+                                                     // passed
+using DeviceGroupedConvFwdMultipleD = DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                                                      ALayout,
+                                                                      BLayout,
+                                                                      DsLayout,
+                                                                      ELayout,
+                                                                      ADataType,
+                                                                      BDataType,
+                                                                      DsDataType,
+                                                                      EDataType,
+                                                                      AElementwiseOperation,
+                                                                      BElementwiseOperation,
+                                                                      CDEElementwiseOperation,
+                                                                      ComputeType>;
 
 } // namespace device
 } // namespace tensor_operation
