@@ -131,8 +131,8 @@ __device__ void inner_product<bhalf4_t, bhalf4_t, float>(const bhalf4_t& a, cons
     const vector_type<bhalf_t, 4> b_vector{b};
 
     static_for<0, 2, 1>{}([&](auto i) {
-        inner_product(a_vector.AsType<half2_t>()[i],
-                      b_vector.AsType<half2_t>()[i],
+        inner_product(a_vector.AsType<bhalf2_t>()[i],
+                      b_vector.AsType<bhalf2_t>()[i],
                       c);
     });
 }
@@ -159,8 +159,8 @@ __device__ void inner_product<bhalf8_t, bhalf8_t, float>(const bhalf8_t& a, cons
     const vector_type<bhalf_t, 8> b_vector{b};
 
     static_for<0, 4, 1>{}([&](auto i) {
-        inner_product(a_vector.AsType<half2_t>()[i],
-                      b_vector.AsType<half2_t>()[i],
+        inner_product(a_vector.AsType<bhalf2_t>()[i],
+                      b_vector.AsType<bhalf2_t>()[i],
                       c);
     });
 }
