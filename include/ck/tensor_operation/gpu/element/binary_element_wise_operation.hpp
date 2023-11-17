@@ -85,10 +85,13 @@ struct Add
 
 struct ScaleAdd
 {
-    __host__ __device__ ScaleAdd(float scale) : scale_(scale) {}
+    __host__ __device__ ScaleAdd(float scale = 1.f) : scale_(scale) {}
 
     template <typename Y, typename X0, typename X1>
-    __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
+    __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const
+    {
+        y = ck::type_convert<Y>(scale_ * ck::type_convert<float>(x0) + ck::type_convert<float>(x1));
+    }
 
     template <>
     __host__ __device__ void
