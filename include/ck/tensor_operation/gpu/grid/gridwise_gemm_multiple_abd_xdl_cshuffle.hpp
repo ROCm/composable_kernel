@@ -435,7 +435,7 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
 
     template <typename BLayout, GemmSpecialization GemmSpec>
     __host__ __device__ static auto
-    MakeBGridDescriptor_N_K(index_t NRaw, index_t KRaw, index_t StrideB)
+    MakeBGridDescriptor_N_K(const index_t NRaw, const index_t KRaw, const index_t StrideB)
     {
         constexpr auto matrix_padder =
             ck::tensor_operation::device::MatrixPadder<GemmSpec, index_t, index_t, index_t>{
