@@ -129,9 +129,6 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         const Index& dst_block_slice_origin)
 
     {
-        static_assert(NumLdsBuffers == 1,
-                      "Direct load transfer does not support multiple LDS buffers.");
-
         static_assert(ck::is_same_v<SrcData, DstData>,
                       "Direct load transfer does not support datatypes conversion. Source and "
                       "destination data types must be the same.");
