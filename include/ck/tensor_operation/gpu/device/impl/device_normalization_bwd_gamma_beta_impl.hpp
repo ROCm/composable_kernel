@@ -102,15 +102,15 @@ struct DeviceNormalizationBwdGammaBetaImpl
                   "Invalid thread slice sizes and/or x vector sizes configuration, please check!");
 
     static_assert(
-        ((MThreadSliceSize % DGammaDstVectorSize == 0) ||
-         (MThreadSliceSize % DBetaDstVectorSize == 0)),
-        "Invalid thread slice sizes and/or Gamma and beta vector sizes configuration, please "
-        "check!");
-
-    static_assert(
         (MeanInvStdSrcVectorDim == 0 && MThreadSliceSize % MeanInvStdSrcVectorSize == 0) ||
             (MeanInvStdSrcVectorDim == 1 && KThreadSliceSize % MeanInvStdSrcVectorSize == 0),
         "Invalid thread slice sizes and/or mean and inverse std vector sizes configuration, please "
+        "check!");
+
+    static_assert(
+        ((MThreadSliceSize % DGammaDstVectorSize == 0) ||
+         (MThreadSliceSize % DBetaDstVectorSize == 0)),
+        "Invalid thread slice sizes and/or Gamma and beta vector sizes configuration, please "
         "check!");
 
     static constexpr index_t NumInvariantDim = Rank - NumReduceDim;
