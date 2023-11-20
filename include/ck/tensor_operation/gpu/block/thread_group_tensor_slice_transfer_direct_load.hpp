@@ -38,8 +38,6 @@ namespace ck {
  * - threads in a wavefront must write contiguous data to LDS (when wavefront size is 64,
  *   they must write 64 contiguous DWORDs) - `ThreadClusterLengths` must be prepared in such a way
  *   to guarantee that.
- *
- * For now, only single LDS buffer is supported.
  */
 template <typename ThreadGroup,
           typename BlockSliceLengths,
@@ -50,8 +48,7 @@ template <typename ThreadGroup,
           typename DstDesc,
           index_t SrcVectorDim,
           index_t DstVectorDim,
-          index_t ScalarPerVector,
-          index_t NumLdsBuffers = 1>
+          index_t ScalarPerVector>
 struct ThreadGroupTensorSliceTransfer_DirectLoad
 {
     static constexpr index_t nDim = remove_reference_t<SrcDesc>::GetNumOfDimension();
@@ -227,7 +224,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
             const bool is_src_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
 
-            src_buf.template CopyTo<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector>(
+            src_buf.template DirectCopyToLds<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector>(
                 dst_buf, src_offset, dst_offset, is_src_valid);
 
             constexpr auto move_on_dim = [&]() constexpr

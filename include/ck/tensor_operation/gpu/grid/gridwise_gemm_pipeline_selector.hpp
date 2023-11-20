@@ -15,6 +15,7 @@ enum struct PipelineVersion
 {
     v1,
     v2,
+    // v3 is only used in the Stream-K implementation.
     v4,
 };
 

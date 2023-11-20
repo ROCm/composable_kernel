@@ -174,8 +174,10 @@ struct DynamicBuffer
     }
 
     template <typename DstBuffer, index_t NumElemsPerThread>
-    __host__ __device__ void
-    CopyTo(DstBuffer& dst_buf, index_t src_offset, index_t dst_offset, bool is_valid_element) const
+    __host__ __device__ void DirectCopyToLds(DstBuffer& dst_buf,
+                                             index_t src_offset,
+                                             index_t dst_offset,
+                                             bool is_valid_element) const
     {
         // Copy data from global to LDS memory using direct loads.
         static_assert(GetAddressSpace() == AddressSpaceEnum::Global,

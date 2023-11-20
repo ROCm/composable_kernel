@@ -571,8 +571,7 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
                                                       decltype(a_block_desc_ak0_m_ak1),
                                                       ABlockTransferSrcVectorDim,
                                                       2,
-                                                      ABlockTransferScalarPerVector,
-                                                      NumGemmKPrefetchStage>(
+                                                      ABlockTransferScalarPerVector>(
                 a_grid_desc_ak0_m_ak1,
                 make_multi_index(0, m_block_data_idx_on_grid, 0),
                 a_block_desc_ak0_m_ak1,
@@ -588,8 +587,7 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
                                                       decltype(b_block_desc_bk0_n_bk1),
                                                       BBlockTransferSrcVectorDim,
                                                       2,
-                                                      BBlockTransferScalarPerVector,
-                                                      NumGemmKPrefetchStage>(
+                                                      BBlockTransferScalarPerVector>(
                 b_grid_desc_bk0_n_bk1,
                 make_multi_index(0, n_block_data_idx_on_grid, 0),
                 b_block_desc_bk0_n_bk1,
