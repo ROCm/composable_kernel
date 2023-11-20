@@ -51,7 +51,7 @@ template <typename AsLayout,
           typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CElementwiseOperation>
+          typename CDEElementwiseOperation>
 struct DeviceGroupedGemmMultiABD : public BaseOperator
 {
     static constexpr index_t NumATensor = AsDataType::Size();
