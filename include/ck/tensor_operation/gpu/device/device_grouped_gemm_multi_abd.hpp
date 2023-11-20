@@ -83,7 +83,7 @@ struct DeviceGroupedGemmMultiABD : public BaseOperator
                         std::vector<GemmMultiABDDesc>& gemm_desc,
                         AElementwiseOperation a_element_op = AElementwiseOperation{},
                         BElementwiseOperation b_element_op = BElementwiseOperation{},
-                        CElementwiseOperation c_element_op = CElementwiseOperation{}) = 0;
+                        CDEElementwiseOperation c_element_op = CElementwiseOperation{}) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 
