@@ -90,7 +90,7 @@ struct DeviceGroupedGemmMultiABD : public BaseOperator
     virtual void SetElementwiseOps(BaseArgument* p_arg,
                                    AElementwiseOperation a_element_op,
                                    BElementwiseOperation b_element_op,
-                                   CElementwiseOperation cde_element_op) const = 0;
+                                   CDEElementwiseOperation cde_element_op) const = 0;
 };
 
 } // namespace device
