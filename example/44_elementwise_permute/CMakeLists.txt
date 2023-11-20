@@ -5,6 +5,6 @@ add_example_executable(example_elementwise_permute_4D_fp16_row elementwise_permu
 add_example_executable(example_elementwise_permute_4D_fp32_col elementwise_permute_4D_fp32_col.cpp)
 add_example_executable(example_elementwise_permute_4D_fp16_col elementwise_permute_4D_fp16_col.cpp)
 add_example_executable(example_elementwise_permute elementwise_permute.cpp)
-if((GPU_TARGETS NOT MATCHES "gfx940") AND (GPU_TARGETS NOT MATCHES "gfx941") AND (GPU_TARGETS MATCHES "gfx942"))
+if((GPU_TARGETS NOT MATCHES "gfx940") AND (GPU_TARGETS NOT MATCHES "gfx941") AND (GPU_TARGETS NOT MATCHES "gfx942"))
     add_example_executable(example_elementwise_permute_3d elementwise_permute_3d.cpp)
 endif()
