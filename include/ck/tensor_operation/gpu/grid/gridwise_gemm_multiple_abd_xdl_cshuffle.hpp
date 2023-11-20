@@ -570,9 +570,6 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
         {
             return;
         }
-
-        // printf("%d %d\n", block_work_idx[I0], block_work_idx[I1]);
-
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
