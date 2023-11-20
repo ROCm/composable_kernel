@@ -205,7 +205,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
             return false;
         }
 
-        if(!ck::is_direct_load_supported())
+        if(!ck::is_lds_direct_load_supported())
         {
             return false;
         }
