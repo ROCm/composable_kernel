@@ -265,7 +265,9 @@ struct DeviceNormalizationBwdXImpl : public DeviceNormalizationBwdX<DYDataType,
                 Make2dDescriptor(lengths_, invStdStrides_, numBlockTileIteration_);
             dx_grid_desc_m_k_ = Make2dDescriptor(lengths_, dxStrides_, numBlockTileIteration_);
 
-            isSweeponce_ = dy_grid_desc_m_k_.GetLength(Number<1>{}) <= K_BlockTileSize;
+            // TODO - sweep once for small k
+            // isSweeponce_ = dy_grid_desc_m_k_.GetLength(Number<1>{}) <= K_BlockTileSize;
+            isSweeponce_ = false;
         }
 
         const DYDataType* p_dy_;

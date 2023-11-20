@@ -132,6 +132,7 @@ int main()
 
     dy_dev.ToDevice(dy.mData.data());
     x_dev.ToDevice(x.mData.data());
+    gamma_dev.ToDevice(gamma.mData.data());
     mean_dev.ToDevice(mean.mData.data());
     inv_std_dev.ToDevice(inv_std.mData.data());
 
@@ -213,9 +214,11 @@ int main()
 
         dgamma_dev.FromDevice(dgamma.mData.data());
         dbeta_dev.FromDevice(dbeta.mData.data());
+        dx_dev.FromDevice(dx.mData.data());
 
         pass &= ck::utils::check_err(dgamma, host_dgamma, "Error: Incorrect dgamma", 1e-3, 1e-3);
         pass &= ck::utils::check_err(dbeta, host_dbeta, "Error: Incorrect dbeta", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(dx, host_dx, "Error: Incorrect dx", 1e-3, 1e-3);
     }
 
     return (pass ? 0 : 1);
