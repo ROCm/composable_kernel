@@ -23,6 +23,24 @@ struct GemmMultiABDDesc
     ck::index_t stride_C_;
 };
 
+/**
+ * \brief Grouped Gemm Multi ABD
+ *
+ * C = a_op(A, A1...) * b_op(B, B1...)
+ * E = cde_op(C, D0, D1, ...)
+ *
+ * \tparam AsLayout A layouts (tuple).
+ * \tparam BsLayout B layouts (tuple).
+ * \tparam DsLayout Ds layouts (tuple).
+ * \tparam ELayout Output layout.
+ * \tparam AsDataType A data types (tuple).
+ * \tparam BsDataType B data types (tuple).
+ * \tparam DsDataType D data types (tuple).
+ * \tparam EDataType Output data type.
+ * \tparam AElementwiseOperation A elementwise operation.
+ * \tparam BElementwiseOperation B elementwise operation.
+ * \tparam CDEElementwiseOperation C elementwise operation.
+ */
 template <typename AsLayout,
           typename BsLayout,
           typename DsLayout,
