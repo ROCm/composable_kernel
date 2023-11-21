@@ -33,6 +33,21 @@ __host__ __device__ constexpr auto concat_tuple_of_reference(const Tuple<X&...>&
         ty);
 }
 
+template <typename... X, typename... Y>
+__host__ __device__ constexpr auto concat_tuple(const Tuple<X...>& tx, const Tuple<Y...>& ty)
+{
+    return unpack2(
+        [&](auto... zs) { return Tuple<decltype(zs)...>{std::forward<decltype(zs)>(zs)...}; },
+        tx,
+        ty);
+}
+
+template <typename... X, typename... Tuples>
+__host__ __device__ constexpr auto concat_tuple(const Tuple<X...>& tx, const Tuples&... tuples)
+{
+    return concat_tuple(tx, concat_tuple(tuples...));
+}
+
 namespace detail {
 
 template <typename F, typename X, index_t... Is>
@@ -76,6 +91,20 @@ __host__ __device__ constexpr auto transform_tuples(F f, const X& x, const Y& y,
 {
     return detail::transform_tuples_impl(
         f, x, y, z, typename arithmetic_sequence_gen<0, X::Size(), 1>::type{});
+}
+
+template <typename T>
+__host__ __device__ constexpr auto UnrollNestedTuple(const T& element)
+{
+    return make_tuple(element);
+}
+
+__host__ __device__ constexpr auto UnrollNestedTuple(const Tuple<>& element) { return element; }
+
+template <typename... Ts>
+__host__ __device__ constexpr auto UnrollNestedTuple(const Tuple<Ts...>& tuple)
+{
+    return unpack([&](auto&&... ts) { return concat_tuple(UnrollNestedTuple(ts)...); }, tuple);
 }
 
 } // namespace ck
