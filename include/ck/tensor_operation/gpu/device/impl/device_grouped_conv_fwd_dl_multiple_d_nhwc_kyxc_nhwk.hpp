@@ -15,7 +15,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
 #include "ck/tensor_operation/operator_transform/transform_conv_fwd_to_gemm.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_dl_multiple_d.hpp"
@@ -216,18 +216,18 @@ template <index_t NDimSpatial,
           index_t CThreadTransferSrcDstVectorDim,
           index_t CThreadTransferDstScalarPerVector>
 struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
-    : public DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                           ALayout,
-                                           BLayout,
-                                           DsLayout,
-                                           ELayout,
-                                           ADataType,
-                                           BDataType,
-                                           DsDataType,
-                                           EDataType,
-                                           AElementwiseOperation,
-                                           BElementwiseOperation,
-                                           CDEElementwiseOperation>
+    : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                             ALayout,
+                                             BLayout,
+                                             DsLayout,
+                                             ELayout,
+                                             ADataType,
+                                             BDataType,
+                                             DsDataType,
+                                             EDataType,
+                                             AElementwiseOperation,
+                                             BElementwiseOperation,
+                                             CDEElementwiseOperation>
 {
     using DeviceOp = DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK;
 
@@ -537,7 +537,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
         DefaultBlock2CTileMap block_2_ctile_map_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch<NumDTensor> compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor> compute_ptr_offset_of_batch_;
 
         // element-wise op
         AElementwiseOperation a_element_op_;
@@ -601,7 +601,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
                     DeviceOp::DsGridDesc_M0_M10_M11_N0_N10_N11,
                     DeviceOp::CGridDesc_M0_M10_M11_N0_N10_N11,
                     DefaultBlock2CTileMap,
-                    ComputePtrOffsetOfStridedBatch<NumDTensor>,
+                    ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
                     has_main_loop,
                     has_double_loop>;
 
