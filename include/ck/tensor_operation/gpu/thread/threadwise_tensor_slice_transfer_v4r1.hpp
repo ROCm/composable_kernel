@@ -42,8 +42,6 @@ struct ThreadwiseTensorSliceTransfer_v4r1
 
     using SrcCoord = decltype(make_tensor_coordinate(SrcDesc{}, Index{}));
 
-    using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
-
     __device__ constexpr ThreadwiseTensorSliceTransfer_v4r1(const Index& src_ref_idx)
         : src_ref_coord_(make_tensor_coordinate(SrcDesc{}, src_ref_idx))
     {
@@ -122,12 +120,9 @@ struct ThreadwiseTensorSliceTransfer_v4r1
             constexpr auto src_ref_to_data_disp_idx =
                 src_ref_to_origin_disp_idx + data_to_origin_disp_idx;
 
-            constexpr auto src_ref_to_data_disp_coord_step =
-                make_tensor_coordinate_step(src_desc, src_ref_to_data_disp_idx);
-
             auto src_data_coord = src_ref_coord_;
 
-            move_tensor_coordinate(src_desc, src_data_coord, src_ref_to_data_disp_coord_step);
+            move_tensor_coordinate(src_desc, src_data_coord, src_ref_to_data_disp_idx);
 
             vector_type_maker_t<SrcData, src_vector_desc.GetElementSpaceSize()> src_vector;
 
@@ -162,10 +157,7 @@ struct ThreadwiseTensorSliceTransfer_v4r1
     {
         constexpr auto src_desc = SrcDesc{};
 
-        const auto src_slice_move_step_iter =
-            make_tensor_coordinate_step(src_desc, to_multi_index(src_slice_move_step_idx));
-
-        move_tensor_coordinate(SrcDesc{}, src_ref_coord_, src_slice_move_step_iter);
+        move_tensor_coordinate(SrcDesc{}, src_ref_coord_, src_slice_move_step_idx);
     }
 
     private:

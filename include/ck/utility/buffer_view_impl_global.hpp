@@ -239,7 +239,7 @@ struct BufferView<AddressSpaceEnum::Global,
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
-            amd_buffer_atomic_add<remove_cvref_t<T>, t_per_x, Coherence>(
+            amd_buffer_atomic_add<remove_cvref_t<T>, t_per_x>(
                 x, p_data_, i, is_valid_element, buffer_size_);
         }
         else

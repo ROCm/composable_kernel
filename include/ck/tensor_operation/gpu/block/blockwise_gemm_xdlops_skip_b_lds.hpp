@@ -74,7 +74,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
 
         const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_m, xdlops_a_idx[I1], KPerThread * xdlops_a_idx[I0]);
+        return make_multi_index(0, waveId_m, xdlops_a_idx[I1], KPerThread * xdlops_a_idx[I0]);
     }
 
     __device__ static auto CalculateBThreadOriginDataIndex()
@@ -85,7 +85,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
 
         const auto xdlops_b_idx = xdlops_gemm.CalculateBThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_n, xdlops_b_idx[I1], KPerThread * xdlops_b_idx[I0]);
+        return make_multi_index(0, waveId_n, xdlops_b_idx[I1], KPerThread * xdlops_b_idx[I0]);
     }
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
@@ -110,9 +110,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
             make_tuple(Sequence<0, 1, 2>{}));
 
         const index_t c_thread_m = mrepeat_mwave_mperxdl_to_m_adaptor.CalculateBottomIndex(
-            make_tuple(m0, waveId_m, blk_idx[I0]))[I0];
+            make_multi_index(m0, waveId_m, blk_idx[I0]))[I0];
         const index_t c_thread_n = nrepeat_nwave_nperxdl_to_n_adaptor.CalculateBottomIndex(
-            make_tuple(n0, waveId_n, blk_idx[I1]))[I0];
+            make_multi_index(n0, waveId_n, blk_idx[I1]))[I0];
 
         return make_tuple(c_thread_m, c_thread_n);
     }

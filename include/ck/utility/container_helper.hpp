@@ -471,7 +471,7 @@ __host__ __device__ constexpr auto sequence_to_tuple_of_number(Sequence<Is...>)
             constexpr index_t tmp = Seq::At(i);
             return Number<tmp>{};
         },
-        Seq::Size());
+        Number<Seq::Size()>{});
 }
 
 } // namespace ck

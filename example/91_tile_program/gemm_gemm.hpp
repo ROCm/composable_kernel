@@ -54,7 +54,7 @@ struct GemmGemm
 
     // block gemm1
     using BlockGemm1 = ck::tile_program::block::BlockGemmARegBSmemCRegV1<
-        ck::tile_program::block::BlockGemmARegBSmemCRegV1Problem<
+        ck::tile_program::block::BlockGemmARegBSmemCRegProblem<
             C0DataType,
             B1DataType,
             Acc1DataType,

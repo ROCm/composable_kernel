@@ -147,38 +147,26 @@ struct ThreadwiseTensorSliceTransfer_v6r2
             if constexpr(idx_1d.value != num_access - 1)
             {
                 constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
-                move_tensor_coordinate(
-                    src0_desc, src0_coord_, make_tensor_coordinate_step(src0_desc, forward_step));
-                move_tensor_coordinate(
-                    src1_desc, src1_coord_, make_tensor_coordinate_step(src1_desc, forward_step));
-                move_tensor_coordinate(
-                    dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
+                move_tensor_coordinate(src0_desc, src0_coord_, forward_step);
+                move_tensor_coordinate(src1_desc, src1_coord_, forward_step);
+                move_tensor_coordinate(dst_desc, dst_coord_, forward_step);
             }
         });
 
         // move coordinate back to slice origin (or not)
         if constexpr(Src0ResetCoordinateAfterRun)
         {
-            const auto src0_reset_step =
-                make_tensor_coordinate_step(src0_desc, GetCoordinateResetStep());
-
-            move_tensor_coordinate(src0_desc, src0_coord_, src0_reset_step);
+            move_tensor_coordinate(src0_desc, src0_coord_, GetCoordinateResetStep());
         }
 
         if constexpr(Src1ResetCoordinateAfterRun)
         {
-            const auto src1_reset_step =
-                make_tensor_coordinate_step(src1_desc, GetCoordinateResetStep());
-
-            move_tensor_coordinate(src1_desc, src1_coord_, src1_reset_step);
+            move_tensor_coordinate(src1_desc, src1_coord_, GetCoordinateResetStep());
         }
 
         if constexpr(DstResetCoordinateAfterRun)
         {
-            const auto dst_reset_step =
-                make_tensor_coordinate_step(dst_desc, GetCoordinateResetStep());
-
-            move_tensor_coordinate(dst_desc, dst_coord_, dst_reset_step);
+            move_tensor_coordinate(dst_desc, dst_coord_, GetCoordinateResetStep());
         }
     }
 
@@ -210,12 +198,9 @@ struct ThreadwiseTensorSliceTransfer_v6r2
                                         const Index& src0_slice_origin_step_idx)
     {
         // if src coord was not reset by RunRead(), then need to adjust the step here
-        const auto adjusted_step_idx = Src0ResetCoordinateAfterRun
-                                           ? src0_slice_origin_step_idx
-                                           : src0_slice_origin_step_idx + GetCoordinateResetStep();
-
-        // is it OK to construct a new step every time?
-        const auto adjusted_step = make_tensor_coordinate_step(src0_desc, adjusted_step_idx);
+        const auto adjusted_step = Src0ResetCoordinateAfterRun
+                                       ? src0_slice_origin_step_idx
+                                       : src0_slice_origin_step_idx + GetCoordinateResetStep();
 
         move_tensor_coordinate(src0_desc, src0_coord_, adjusted_step);
     }
@@ -225,12 +210,9 @@ struct ThreadwiseTensorSliceTransfer_v6r2
                                         const Index& src1_slice_origin_step_idx)
     {
         // if src coord was not reset by RunRead(), then need to adjust the step here
-        const auto adjusted_step_idx = Src1ResetCoordinateAfterRun
-                                           ? src1_slice_origin_step_idx
-                                           : src1_slice_origin_step_idx + GetCoordinateResetStep();
-
-        // is it OK to construct a new step every time?
-        const auto adjusted_step = make_tensor_coordinate_step(src1_desc, adjusted_step_idx);
+        const auto adjusted_step = Src1ResetCoordinateAfterRun
+                                       ? src1_slice_origin_step_idx
+                                       : src1_slice_origin_step_idx + GetCoordinateResetStep();
 
         move_tensor_coordinate(src1_desc, src1_coord_, adjusted_step);
     }
@@ -240,12 +222,9 @@ struct ThreadwiseTensorSliceTransfer_v6r2
                                        const Index& dst_slice_origin_step_idx)
     {
         // if dst coord was not reset by Run(), then need to adjust the step here
-        const auto adjusted_step_idx = DstResetCoordinateAfterRun
-                                           ? dst_slice_origin_step_idx
-                                           : dst_slice_origin_step_idx + GetCoordinateResetStep();
-
-        // is it OK to construct a new step every time?
-        const auto adjusted_step = make_tensor_coordinate_step(dst_desc, adjusted_step_idx);
+        const auto adjusted_step = DstResetCoordinateAfterRun
+                                       ? dst_slice_origin_step_idx
+                                       : dst_slice_origin_step_idx + GetCoordinateResetStep();
 
         move_tensor_coordinate(dst_desc, dst_coord_, adjusted_step);
     }

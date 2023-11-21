@@ -4,10 +4,11 @@
 #pragma once
 
 #include "ck/ck.hpp"
-#include "integral_constant.hpp"
-#include "number.hpp"
-#include "type.hpp"
-#include "tuple.hpp"
+#include "ck/utility/integral_constant.hpp"
+#include "ck/utility/number.hpp"
+#include "ck/utility/type.hpp"
+#include "ck/utility/tuple.hpp"
+#include "ck/utility/bit_cast.hpp"
 
 namespace ck {
 

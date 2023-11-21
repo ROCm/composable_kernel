@@ -972,7 +972,7 @@ struct GridwiseGemmBiasAddReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                             constexpr auto c_global_step = sfc_c_global.GetForwardStep(access_id);
                             reduce_thread_copy_vgpr_to_global.MoveDstSliceWindow(
                                 reduce_grid_desc_mblock_mperblock,
-                                make_tuple(c_global_step[I0], c_global_step[I1]));
+                                make_multi_index(c_global_step[I0], c_global_step[I1]));
                         }
                     });
                 }

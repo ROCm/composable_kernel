@@ -73,16 +73,11 @@ struct Merge_v4_no_carry
         idx_low(Number<NDimLow - 1>{}) = tmp;
     }
 
-    template <typename LowIdxDiff,
-              typename UpIdxDiff,
-              typename LowIdx,
-              typename UpIdx,
-              index_t Hack>
+    template <typename LowIdxDiff, typename UpIdxDiff, typename LowIdx, typename UpIdx>
     __host__ __device__ void UpdateLowerIndex(LowIdxDiff& idx_diff_low,
                                               const UpIdxDiff& idx_up_diff,
                                               LowIdx& idx_low,
-                                              const UpIdx& idx_up_new,
-                                              Number<Hack>) const
+                                              const UpIdx& idx_up_new) const
     {
         static_assert(LowIdxDiff::Size() == NDimLow && UpIdxDiff::Size() == 1 &&
                           LowIdx::Size() == NDimLow && UpIdx::Size() == 1,

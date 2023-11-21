@@ -7,6 +7,7 @@
 #include <type_traits>
 
 #include "ck/utility/functional2.hpp"
+#include "ck/utility/remove_cvref.hpp"
 
 namespace ck {
 namespace tensor_operation {

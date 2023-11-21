@@ -9,6 +9,7 @@
 
 namespace ck {
 
+using int64_t = long;
 using bhalf_t = ushort;
 using half_t  = _Float16;
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
@@ -119,6 +120,13 @@ template <>
 struct scalar_type<bhalf_t>
 {
     using type                           = bhalf_t;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<int64_t>
+{
+    using type                           = int64_t;
     static constexpr index_t vector_size = 1;
 };
 
@@ -907,8 +915,6 @@ struct vector_type<T, 256>
         }
     }
 };
-
-using int64_t = long;
 
 // fp64
 using double2_t = typename vector_type<double, 2>::type;

@@ -6,6 +6,7 @@
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 #include "ck/tensor_description/tensor_adaptor_coordinate.hpp"
+#include "ck/tensor_description/tensor_space_filling_curve.hpp"
 
 #include "ck/tile_program/tile/tile_distribution.hpp"
 #include "ck/tile_program/tile/static_tile_distribution_helper.hpp"

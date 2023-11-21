@@ -75,4 +75,20 @@ __host__ __device__ constexpr auto operator*(const MultiIndex<NSize>& a, const T
     return r;
 }
 
+// MultiIndex = index_t * MultiIndex
+template <index_t NSize>
+__host__ __device__ constexpr auto operator*(index_t a, const MultiIndex<NSize>& x)
+{
+    MultiIndex<NSize> r;
+    static_for<0, NSize, 1>{}([&](auto i) { r(i) = a * x[i]; });
+    return r;
+}
+
+// MultiIndex = MultiIndex * index_t
+template <index_t NSize>
+__host__ __device__ constexpr auto operator*(const MultiIndex<NSize>& x, index_t a)
+{
+    return a * x;
+}
+
 } // namespace ck

@@ -8,6 +8,8 @@
 #include "ck/utility/sequence_helper.hpp"
 #include "ck/utility/multi_index.hpp"
 #include "ck/utility/tuple_helper.hpp"
+#include "ck/tensor_description/multi_index_transform.hpp"
+#include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 
 namespace ck {

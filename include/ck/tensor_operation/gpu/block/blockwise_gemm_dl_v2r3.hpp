@@ -154,9 +154,9 @@ struct BlockwiseGemmDl_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_
         : c_thread_origin_data_idx_{CalculateCThreadOriginOnBlock_BM0_BM1_BN0_BN1(
               get_thread_local_1d_id())},
           a_thread_copy_{
-              make_tuple(0, c_thread_origin_data_idx_[I0], c_thread_origin_data_idx_[I1], 0)},
+              make_multi_index(0, c_thread_origin_data_idx_[I0], c_thread_origin_data_idx_[I1], 0)},
           b_thread_copy_{
-              make_tuple(0, c_thread_origin_data_idx_[I2], c_thread_origin_data_idx_[I3], 0)}
+              make_multi_index(0, c_thread_origin_data_idx_[I2], c_thread_origin_data_idx_[I3], 0)}
     {
         static_assert(ABlockDesc_BK0_BM_BK1::IsKnownAtCompileTime() &&
                           BBlockDesc_BK0_BN_BK1::IsKnownAtCompileTime(),
