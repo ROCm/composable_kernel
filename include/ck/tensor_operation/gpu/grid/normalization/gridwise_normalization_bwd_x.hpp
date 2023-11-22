@@ -304,11 +304,103 @@ struct GridwiseNormalizationBwdX_mk_to_mk
         });
 
         // Separate sweep once and sweep twice pipeline
+        // Sweep once: for small k, if KThreadClusterSize * KThreadSliceSize > K
+        // we don't need to use loop to read x, dy, gamma twice
         if constexpr(SweepOnce)
         {
-            // TODO
-        } // end of sweep once
-        else
+            threadwise_dy_load.Run(dy_grid_desc_m_k,
+                                   dy_global_val_buf,
+                                   thread_buffer_desc_m_k,
+                                   make_tuple(I0, I0),
+                                   dy_thread_buf);
+
+            threadwise_x_load.Run(x_grid_desc_m_k,
+                                  x_global_val_buf,
+                                  thread_buffer_desc_m_k,
+                                  make_tuple(I0, I0),
+                                  x_thread_buf);
+
+            threadwise_gamma_load.Run(gamma_grid_desc_m_k,
+                                      gamma_global_val_buf,
+                                      thread_buffer_desc_m_k,
+                                      make_tuple(I0, I0),
+                                      gamma_thread_buf);
+
+            threadwise_mean_load.Run(mean_grid_desc_m_k,
+                                     mean_global_val_buf,
+                                     thread_buffer_desc_m_k,
+                                     make_tuple(I0, I0),
+                                     mean_thread_buf);
+
+            threadwise_inv_std_load.Run(inv_std_grid_desc_m_k,
+                                        inv_std_global_val_buf,
+                                        thread_buffer_desc_m_k,
+                                        make_tuple(I0, I0),
+                                        inv_std_thread_buf);
+
+            static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
+                constexpr auto offset_m =
+                    Number<thread_buffer_desc_m.CalculateOffset(make_tuple(iM))>{};
+
+                static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
+                    constexpr auto offset_m_k =
+                        Number<thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK))>{};
+
+                    ds_thread_buf(offset_m) += dy_thread_buf[offset_m_k] *
+                                               gamma_thread_buf[offset_m_k] *
+                                               x_thread_buf[offset_m_k];
+
+                    db_thread_buf(offset_m) +=
+                        dy_thread_buf[offset_m_k] * gamma_thread_buf[offset_m_k];
+                });
+            });
+
+            static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+                if constexpr(I > 0)
+                    block_sync_lds();
+
+                BlockwiseSumReduce::Reduce(reduce_work_buf, ds_thread_buf(I));
+                block_sync_lds();
+                BlockwiseSumReduce::Reduce(reduce_work_buf, db_thread_buf(I));
+            });
+
+            static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
+                constexpr auto offset_m =
+                    Number<thread_buffer_desc_m.CalculateOffset(make_tuple(iM))>{};
+
+                static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
+                    constexpr auto offset_m_k =
+                        Number<thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK))>{};
+
+                    // b  = (db * x_mean - ds) * rstd ** (3) / reduce_size
+                    // c  = -b * x_mean - db * rstd / reduce_size
+                    // dx = rstd * dy * gamma + b * x + c
+
+                    ComputeDataType b = db_thread_buf[offset_m] * mean_thread_buf[offset_m_k] -
+                                        ds_thread_buf[offset_m];
+
+                    b *= inv_std_thread_buf[offset_m_k] * inv_std_thread_buf[offset_m_k] *
+                         inv_std_thread_buf[offset_m_k] / reduce_size;
+
+                    ComputeDataType c = -b * mean_thread_buf(offset_m_k);
+
+                    c -= db_thread_buf[offset_m] * inv_std_thread_buf[offset_m_k] / reduce_size;
+
+                    dx_thread_buf(offset_m_k) = dy_thread_buf[offset_m_k] *
+                                                    gamma_thread_buf[offset_m_k] *
+                                                    inv_std_thread_buf[offset_m_k] +
+                                                b * x_thread_buf[offset_m_k] + c;
+                });
+            });
+
+            threadwise_dx_store.Run(thread_buffer_desc_m_k,
+                                    make_tuple(I0, I0),
+                                    dx_thread_buf,
+                                    dx_grid_desc_m_k,
+                                    dx_global_val_buf);
+
+        }    // end of sweep once
+        else // Sweep Twice pipeline
         {
             constexpr auto thread_copy_fwd_step_m_k = make_multi_index(0, K_BlockTileSize);
 
