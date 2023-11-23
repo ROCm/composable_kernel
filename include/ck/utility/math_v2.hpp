@@ -184,6 +184,7 @@ inline __host__ double expm1<double>(double x)
 {
     return std::expm1(x);
 }
+#endif // __HIPCC_RTC__
 
 // math functions for the HIP kernel,  some are implemented by calling hip builtin functions
 

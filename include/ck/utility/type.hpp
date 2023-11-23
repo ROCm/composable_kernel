@@ -31,11 +31,23 @@ namespace ck {
     }
 
 CK_BUILTIN_TYPE_TRAIT1(is_class);
+CK_BUILTIN_TYPE_TRAIT1(is_const);
 CK_BUILTIN_TYPE_TRAIT1(is_pointer);
 CK_BUILTIN_TYPE_TRAIT1(is_reference);
 CK_BUILTIN_TYPE_TRAIT1(is_trivially_copyable);
 CK_BUILTIN_TYPE_TRAIT1(is_unsigned);
 CK_BUILTIN_TYPE_TRAIT2(is_base_of);
+
+template <class T>
+struct remove_const
+{
+    typedef T type;
+};
+template <class T>
+struct remove_const<const T>
+{
+    typedef T type;
+};
 
 template <class T>
 struct remove_cv
@@ -106,19 +118,71 @@ constexpr T&& forward(typename remove_reference<T>::type&& t_) noexcept
 {
     return static_cast<T&&>(t_);
 }
+template <typename... Ts>
+struct make_void
+{
+    typedef void type;
+};
+
+template <typename... Ts>
+using void_t = typename make_void<Ts...>::type;
+
+// namespace detail {
+// template <class T>
+// struct type_identity
+// {
+//     using type = T;
+// };
+
+// template <class T> // Note that `cv void&` is a substitution failure
+// auto try_add_lvalue_reference(int) -> type_identity<T&>;
+// template <class T> // Handle T = cv void case
+// auto try_add_lvalue_reference(...) -> type_identity<T>;
+
+// template <class T>
+// auto try_add_rvalue_reference(int) -> type_identity<T&&>;
+// template <class T>
+// auto try_add_rvalue_reference(...) -> type_identity<T>;
+// } // namespace detail
+
+// template <class T>
+// struct add_lvalue_reference : decltype(detail::try_add_lvalue_reference<T>(0))
+// {
+// };
+
+// template <class T>
+// struct add_rvalue_reference : decltype(detail::try_add_rvalue_reference<T>(0))
+// {
+// };
+
+// template <class T>
+// typename add_rvalue_reference<T>::type declval();
+
+template <class T, class U = T&&>
+U private_declval(int);
+
+template <class T>
+T private_declval(long);
+
+template <class T>
+auto declval() noexcept -> decltype(private_declval<T>(0));
 #else
 #include <utility>
 #include <type_traits>
+using std::declval;
 using std::forward;
 using std::is_base_of;
 using std::is_class;
+using std::is_const;
 using std::is_pointer;
 using std::is_reference;
 using std::is_trivially_copyable;
 using std::is_unsigned;
+using std::remove_const;
 using std::remove_cv;
 using std::remove_pointer;
 using std::remove_reference;
+using std::void_t;
 #endif
 
 template <typename X, typename Y>
@@ -141,7 +205,13 @@ template <typename X, typename Y>
 inline constexpr bool is_base_of_v = is_base_of<X, Y>::value;
 
 template <typename T>
+inline constexpr bool is_const_v = is_const<T>::value;
+
+template <typename T>
 inline constexpr bool is_unsigned_v = is_unsigned<T>::value;
+
+template <class T>
+using remove_const_t = typename remove_const<T>::type;
 
 template <typename T>
 using remove_reference_t = typename remove_reference<T>::type;

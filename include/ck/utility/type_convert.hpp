@@ -4,6 +4,8 @@
 #pragma once
 
 #include "ck/utility/data_type.hpp"
+#include "ck/utility/type.hpp"
+#include "ck/utility/enable_if.hpp"
 #include "ck/utility/f8_utils.hpp"
 #include "ck/utility/random_gen.hpp"
 
@@ -23,7 +25,7 @@ __host__ __device__ constexpr Y type_convert(X x)
 // Convert X to Y, either X or Y is a const data type.
 template <typename Y,
           typename X,
-          std::enable_if_t<ck::is_const_v<Y> || ck::is_const_v<X>, bool> = false>
+          ck::enable_if_t<ck::is_const_v<Y> || ck::is_const_v<X>, bool> = false>
 __host__ __device__ constexpr Y type_convert(X x)
 {
     static_assert(!ck::is_reference_v<Y> && !ck::is_reference_v<X>);
@@ -341,7 +343,7 @@ template <>
 inline __host__ __device__ f8_t f8_convert_sr<f8_t, float>(float x)
 {
     constexpr int seed = 42;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uint64_t>(&x), x);
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     union
     {
@@ -376,7 +378,7 @@ inline __host__ __device__ f8_t f8_convert_sr<f8_t, half_t>(half_t x)
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 42;
-    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uint64_t>(&x), x);
     return utils::
         cast_to_f8<half_t, f8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
             x, rng);
@@ -388,7 +390,7 @@ template <>
 inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, float>(float x)
 {
     constexpr int seed = 42;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uint64_t>(&x), x);
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     union
     {
@@ -424,7 +426,7 @@ inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, half_t>(half_t x)
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 42;
     // as thread id is not available on host, use 0 for prn generation
-    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uint64_t>(&x), x);
     return utils::
         cast_to_f8<half_t, bf8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
             x, rng);

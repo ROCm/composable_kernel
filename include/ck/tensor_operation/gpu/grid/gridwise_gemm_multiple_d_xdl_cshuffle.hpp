@@ -411,9 +411,9 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 
     template <typename DsLayout, GemmSpecialization GemmSpec>
     __host__ __device__ static auto
-    MakeDsGridDescriptor_M_N(const std::array<index_t, NumDTensor>& MRaws,
-                             const std::array<index_t, NumDTensor>& NRaws,
-                             const std::array<index_t, NumDTensor>& DsStride)
+    MakeDsGridDescriptor_M_N(const ck::Array<index_t, NumDTensor>& MRaws,
+                             const ck::Array<index_t, NumDTensor>& NRaws,
+                             const ck::Array<index_t, NumDTensor>& DsStride)
     {
         return generate_tuple(
             [&](auto i) {
@@ -877,7 +877,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                const index_t K,
                                const index_t StrideA,
                                const index_t StrideB,
-                               const std::array<index_t, NumDTensor> StrideDs,
+                               const ck::Array<index_t, NumDTensor> StrideDs,
                                const index_t StrideE,
                                const Block2ETileMap& block_2_etile_map)
     {
