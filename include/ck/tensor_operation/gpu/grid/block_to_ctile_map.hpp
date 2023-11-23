@@ -594,7 +594,8 @@ struct OffsettedBlockToCTileMap
 {
     using underlying_type = UnderlyingBlockToCTileMap;
 
-    OffsettedBlockToCTileMap(UnderlyingBlockToCTileMap block_to_ctile_map, index_t block_start)
+    __host__ __device__ OffsettedBlockToCTileMap(UnderlyingBlockToCTileMap block_to_ctile_map,
+                                                 index_t block_start)
     {
         block_to_ctile_map_ = block_to_ctile_map;
         block_start_        = block_start;

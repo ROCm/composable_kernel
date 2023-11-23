@@ -145,7 +145,8 @@ template <index_t NumDimM,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched = make_default_loop_scheduler()>
+          typename ComputeDataType = ADataType,
+          LoopScheduler LoopSched  = make_default_loop_scheduler()>
 struct DeviceContractionMultipleD_Xdl_CShuffle
     : public DeviceContractionMultipleD<NumDimM,
                                         NumDimN,
@@ -156,7 +157,8 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                                         EDataType,
                                         AElementwiseOperation,
                                         BElementwiseOperation,
-                                        CDEElementwiseOperation>
+                                        CDEElementwiseOperation,
+                                        ComputeDataType>
 {
     using DeviceOp = DeviceContractionMultipleD_Xdl_CShuffle;
 
@@ -313,6 +315,8 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
+        BDataType,
+        ComputeDataType,
         AccDataType,
         CShuffleDataType,
         DsDataType,
@@ -591,7 +595,9 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
             return false;
         }
 
-        if(ck::get_device_name() != "gfx90a" && std::is_same<ADataType, double>::value)
+        if(ck::get_device_name() != "gfx90a" && ck::get_device_name() != "gfx940" &&
+           ck::get_device_name() != "gfx941" && ck::get_device_name() != "gfx942" &&
+           std::is_same<ADataType, double>::value)
         {
             return false;
         }

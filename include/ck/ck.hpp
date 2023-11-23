@@ -67,6 +67,10 @@
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8
+#elif defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__)
+#define CK_USE_AMD_V_FMAC_F32
+#define CK_USE_AMD_V_DOT2_F32_F16
+#define CK_USE_AMD_V_DOT4_I32_I8_GFX11
 #endif
 
 // MFMA instruction
