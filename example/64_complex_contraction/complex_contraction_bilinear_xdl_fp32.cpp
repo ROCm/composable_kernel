@@ -34,6 +34,7 @@ using CShuffleDataType = F32;
 using DDataType        = F32;
 using DsDataType       = ck::Tuple<DDataType>;
 using EDataType        = F32;
+using ComputeDataType  = F32;
 
 static constexpr ck::index_t NumDimM = 2;
 static constexpr ck::index_t NumDimN = 2;
@@ -51,7 +52,7 @@ using DeviceOpInstanceKKNN = ck::tensor_operation::device::
         //#####################################|        |        |        |  Type|  Type|    Type| DataType|       Type|  Type|  Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
         //#####################################|        |        |        |      |      |        |         |           |      |    Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
         //#####################################|        |        |        |      |      |        |         |           |      |             |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-        DeviceContractionMultipleD_Xdl_CShuffle< NumDimM, NumDimN, NumDimK,   F32,   F32,     F32,      F32, DsDataType,   F32,   AElementOp,  BElementOp, CDEElementOp,       GemmSpec,        1,   256,   256,   128,    16,   4,   4,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,         1,           1,           1,              S<1, 16, 1, 16>,               4>;
+        DeviceContractionMultipleD_Xdl_CShuffle< NumDimM, NumDimN, NumDimK,   F32,   F32,     F32,      F32, DsDataType,   F32,   AElementOp,  BElementOp, CDEElementOp,       GemmSpec,        1,   256,   256,   128,    16,   4,   4,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,         1,           1,           1,              S<1, 16, 1, 16>,               4, ComputeDataType>;
 
 using DeviceOpInstanceKNNN = ck::tensor_operation::device::
         //#####################################| NumDimM| NumDimN| NumDimK| AData| BData| AccData| CShuffle|     DsData| EData|            A|           B|          CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
@@ -77,11 +78,13 @@ using DeviceOpInstanceMNNN = ck::tensor_operation::device::
 
 using DeviceOpInstance = DeviceOpInstanceKKNN;
 
+// using DeviceOpInstance = DeviceOpInstanceMNNN;
+
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = false;
+    bool time_kernel     = true;
 
     // A[M0, M1, K0, K1]
     std::vector<ck::index_t> a_ms_ks_lengths{30, 128, 32, 64};
@@ -173,41 +176,41 @@ int main(int argc, char* argv[])
     Tensor<EDataType> e_ms_ns_host_result_img(e_ms_ns_lengths, e_ms_ns_strides);
     Tensor<EDataType> e_ms_ns_device_result_img(e_ms_ns_lengths, e_ms_ns_strides);
 
-
     // Intermediate E tensor Definition
     Tensor<EDataType> e_ms_ns_device_result_re1(e_ms_ns_lengths, e_ms_ns_strides);
-    // Tensor<EDataType> e_ms_ns_device_result_re2(e_ms_ns_lengths, e_ms_ns_strides);
     Tensor<EDataType> e_ms_ns_device_result_img1(e_ms_ns_lengths, e_ms_ns_strides);
-    // Tensor<EDataType> e_ms_ns_device_result_img2(e_ms_ns_lengths, e_ms_ns_strides);
+    
+    std::cout << "a_ms_ks_re: " << a_ms_ks_re.mDesc << std::endl;
+    std::cout << "b_ns_ks_re: " << b_ns_ks_re.mDesc << std::endl;
+    std::cout << "d_ms_ns_re: " << d_ms_ns_re.mDesc << std::endl;
+    std::cout << "e_ms_ns_re: " << e_ms_ns_host_result_re.mDesc << std::endl;
 
-
-
-    std::cout << "a_ms_ks: " << a_ms_ks_re.mDesc << std::endl;
-    std::cout << "b_ns_ks: " << b_ns_ks_re.mDesc << std::endl;
-    std::cout << "d_ms_ns: " << d_ms_ns_re.mDesc << std::endl;
-    std::cout << "e_ms_ns: " << e_ms_ns_host_result_re.mDesc << std::endl;
+    std::cout << "a_ms_ks_img: " << a_ms_ks_img.mDesc << std::endl;
+    std::cout << "b_ns_ks_img: " << b_ns_ks_img.mDesc << std::endl;
+    std::cout << "d_ms_ns_img: " << d_ms_ns_img.mDesc << std::endl;
+    std::cout << "e_ms_ns_img: " << e_ms_ns_host_result_img.mDesc << std::endl;
 
     switch(init_method)
     {
-    case 0: break;
-    case 1:
-        a_ms_ks_re.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_ns_ks_re.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
-        d_ms_ns_re.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        case 0: break;
+        case 1:
+            a_ms_ks_re.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+            b_ns_ks_re.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+            d_ms_ns_re.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
 
-        a_ms_ks_img.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_ns_ks_img.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
-        d_ms_ns_img.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
-        break;
-    default:
-        a_ms_ks_re.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_ns_ks_re.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
-        d_ms_ns_re.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+            a_ms_ks_img.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+            b_ns_ks_img.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+            d_ms_ns_img.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+            break;
+        default:
+            a_ms_ks_re.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+            b_ns_ks_re.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+            d_ms_ns_re.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
 
-        a_ms_ks_img.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_ns_ks_img.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
-        d_ms_ns_img.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
-        break;
+            a_ms_ks_img.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+            b_ns_ks_img.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+            d_ms_ns_img.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+            break;
     }
 
     DeviceMem a_device_buf_re(sizeof(ADataType) * a_ms_ks_re.mDesc.GetElementSpaceSize());
@@ -241,14 +244,9 @@ int main(int argc, char* argv[])
     e_device_buf_img.SetZero();
 
     // set zero for intermediate values
-    // LookAtHere
     e_device_buf_re1.SetZero();
-    // e_device_buf_re2.SetZero();
     e_device_buf_img1.SetZero();
-    // e_device_buf_img2.SetZero();
-    // LookAtHere
-
-
+ 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{alpha, beta};
@@ -409,12 +407,12 @@ int main(int argc, char* argv[])
     e_device_buf_img.FromDevice(e_ms_ns_device_result_img.mData.data());
 
     auto isRealOk = 0;
+
     if(do_verification)
     {
         // Real Part Verification
         Tensor<CShuffleDataType> c_ms_ns_host_result_re(e_ms_ns_lengths, e_ms_ns_strides);
         Tensor<CShuffleDataType> c_ms_ns_host_result_re1(e_ms_ns_lengths, e_ms_ns_strides);
-
 
         using ReferenceOpInstance =
             ck::tensor_operation::host::ReferenceContraction_M2_N2_K2<NumDimM,
@@ -436,18 +434,7 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument_re);
 
-
-        auto ref_argument_re1 =
-            ref_op.MakeArgument(a_ms_ks_img, b_ns_ks_img, c_ms_ns_host_result_re1, a_element_op, b_element_op);
-
-        ref_invoker.Run(ref_argument_re1);
-
-        // Image Part Verification
-        Tensor<CShuffleDataType> c_ms_ns_host_result_img(e_ms_ns_lengths, e_ms_ns_strides);
-
-        auto ref_argument_img =
-            ref_op.MakeArgument(a_ms_ks_img, b_ns_ks_img, c_ms_ns_host_result_img, a_element_op, b_element_op);
-
+       
         for(size_t m0 = 0; m0 < e_ms_ns_host_result_re.mDesc.GetLengths()[0]; ++m0)
         {
             for(size_t m1 = 0; m1 < e_ms_ns_host_result_re.mDesc.GetLengths()[1]; ++m1)
@@ -469,8 +456,33 @@ int main(int argc, char* argv[])
    
         cde_element_op = CDEElementOp{alpha, beta};
 
+        auto ref_argument_re1 =
+            ref_op.MakeArgument(a_ms_ks_img, b_ns_ks_img, c_ms_ns_host_result_re1, a_element_op, b_element_op);
+
+        ref_invoker.Run(ref_argument_re1);
+
+        for(size_t m0 = 0; m0 < e_ms_ns_host_result_re.mDesc.GetLengths()[0]; ++m0)
+        {
+            for(size_t m1 = 0; m1 < e_ms_ns_host_result_re.mDesc.GetLengths()[1]; ++m1)
+            {
+                for(size_t n0 = 0; n0 < e_ms_ns_host_result_re.mDesc.GetLengths()[2]; ++n0)
+                {
+                    for(size_t n1 = 0; n1 < e_ms_ns_host_result_re.mDesc.GetLengths()[3]; ++n1)
+                    {
+                        cde_element_op(e_ms_ns_host_result_re(m0, m1, n0, n1),
+                                       c_ms_ns_host_result_re(m0, m1, n0, n1),
+                                       c_ms_ns_host_result_re1(m0, m1, n0, n1));
+                    }
+                }
+            }
+        }
+
         isRealOk =  ck::utils::check_err(e_ms_ns_device_result_re, e_ms_ns_host_result_re) ? 0 : 1;
+
+        Tensor<CShuffleDataType> c_ms_ns_host_result_img(e_ms_ns_lengths, e_ms_ns_strides);
+
+        return isRealOk;
     }
 
-    return isRealOk;
+    return 0;
 }
