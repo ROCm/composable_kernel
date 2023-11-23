@@ -224,12 +224,9 @@ int main(int argc, char* argv[])
     DeviceMem e_device_buf_img(sizeof(EDataType) * e_ms_ns_device_result_img.mDesc.GetElementSpaceSize());
 
     // Intermediate Value For E Real and Img
-    // LookAtHere
     DeviceMem e_device_buf_re1(sizeof(EDataType) * e_ms_ns_device_result_re.mDesc.GetElementSpaceSize());
-    // DeviceMem e_device_buf_re2(sizeof(EDataType) * e_ms_ns_device_result.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf_img1(sizeof(EDataType) * e_ms_ns_device_result_img.mDesc.GetElementSpaceSize());
-    // DeviceMem e_device_buf_img2(sizeof(EDataType) * e_ms_ns_device_result.mDesc.GetElementSpaceSize());
-    // LookAtHere
+
 
     a_device_buf_re.ToDevice(a_ms_ks_re.mData.data());
     b_device_buf_re.ToDevice(b_ns_ks_re.mData.data());
@@ -253,6 +250,7 @@ int main(int argc, char* argv[])
 
     // device operation
     // For real Intermediate Value re_1
+
     auto op       = DeviceOpInstance{};
     auto invoker  = op.MakeInvoker();
     auto argument_re1 = op.MakeArgument(a_device_buf_re.GetDeviceBuffer(),
@@ -434,6 +432,11 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument_re);
 
+        alpha = 1.f;
+        beta  = 1.f;
+   
+        cde_element_op = CDEElementOp{alpha, beta};
+
        
         for(size_t m0 = 0; m0 < e_ms_ns_host_result_re.mDesc.GetLengths()[0]; ++m0)
         {
@@ -470,7 +473,7 @@ int main(int argc, char* argv[])
                     for(size_t n1 = 0; n1 < e_ms_ns_host_result_re.mDesc.GetLengths()[3]; ++n1)
                     {
                         cde_element_op(e_ms_ns_host_result_re(m0, m1, n0, n1),
-                                       c_ms_ns_host_result_re(m0, m1, n0, n1),
+                                       e_ms_ns_host_result_re(m0, m1, n0, n1),
                                        c_ms_ns_host_result_re1(m0, m1, n0, n1));
                     }
                 }
