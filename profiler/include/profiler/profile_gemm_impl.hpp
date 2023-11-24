@@ -211,8 +211,6 @@ int profile_gemm_impl(int do_verification,
         instance_id++;
     }
 
-    sleep(2);
-
     // Run the best instance again
     {
         auto& op_ptr = op_ptrs[best_instance_id];
