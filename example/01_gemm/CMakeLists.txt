@@ -44,7 +44,7 @@ if(USE_BITINT_EXTENSION_INT4)
     add_example_dependencies(example_gemm_xdl example_gemm_xdl_int4)
 endif(USE_BITINT_EXTENSION_INT4)
 
-# FIXME: re-enable this exampe as test when SWDEV-335738 is fixed
+# FIXME: re-enable this example as test when SWDEV-335738 is fixed
 add_example_executable_no_testing(example_gemm_xdl_fp64 gemm_xdl_fp64.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp64)
 
@@ -55,6 +55,19 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8)
 
 add_example_executable(example_gemm_xdl_fp8_bf8 gemm_xdl_fp8_bf8.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8_bf8)
+
+list(APPEND gpu_list gfx90a gfx940 gfx941 gfx942)
+set(target 0)
+foreach(gpu IN LISTS GPU_TARGETS)
+    if(gpu IN_LIST gpu_list AND target EQUAL 0)
+        add_example_executable(example_gemm_xdl_lds_direct_load_fp32 gemm_xdl_lds_direct_load_fp32.cpp)
+        add_example_dependencies(example_gemm_xdl example_gemm_xdl_lds_direct_load_fp32)
+
+        add_example_executable(example_gemm_xdl_lds_direct_load_fp16 gemm_xdl_lds_direct_load_fp16.cpp)
+        add_example_dependencies(example_gemm_xdl example_gemm_xdl_lds_direct_load_fp16)
+        set(target 1)
+    endif()
+endforeach()
 
 add_example_executable(example_gemm_xdl_fp16_fp8 gemm_xdl_fp16_fp8.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_fp8)
