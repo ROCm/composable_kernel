@@ -977,7 +977,6 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
     auto const lds_ptr_sgpr =
         __builtin_amdgcn_readfirstlane((reinterpret_cast<uintptr_t>(lds_ptr)));
     asm volatile("s_mov_b32 m0, %0; \n\t"
-                 "s_nop 0;\n\t"
                  "buffer_load_dword %1, %2, 0 offen lds;\n\t" ::"s"(lds_ptr_sgpr),
                  "v"(global_offset_bytes),
                  "s"(src_resource));
