@@ -267,6 +267,15 @@ if(CK_DEVICE_REDUCTION_INSTANCES)
         )
 endif()
 
+add_library(device_operations INTERFACE)
+target_link_libraries(device_operations INTERFACE
+    device_contraction_operations
+    device_conv_operations
+    device_gemm_operations
+    device_other_operations
+    device_reduction_operations
+    utility)
+
 set(DEV_OPS_INC_DIRS
     ${PROJECT_SOURCE_DIR}/include/ck/
     ${PROJECT_SOURCE_DIR}/library/include/ck/
