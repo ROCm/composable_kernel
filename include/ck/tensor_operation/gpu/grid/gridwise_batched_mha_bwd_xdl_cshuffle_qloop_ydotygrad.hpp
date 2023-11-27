@@ -126,6 +126,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
 
         static_assert(ThreadClusterLength_O * ThreadSliceLength_O == BlockSliceLength_O_, "");
         static_assert(ThreadClusterLength_M * ThreadSliceLength_M == BlockSliceLength_M_, "");
+        static_assert(SrcScalarPerVector % YSrcScalarPerVector == 0, "");
 
         using SrcBufType = StaticBuffer<AddressSpaceEnum::Vgpr,
                                         FloatD,
