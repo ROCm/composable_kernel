@@ -7,6 +7,20 @@
 #include "ck/utility/loop_scheduler.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 
+namespace lds_direct_load {
+
+__device__ void sched_barrier()
+{
+#if CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM
+    // When direct loads and `waitcnt` instructions are submitted using inline asm, the usage of
+    // `sched_barrier` is necessary to make sure no instructions that use the loaded memory
+    // are scheduled by the compiler before the `waitcnt` instruction.
+    __builtin_amdgcn_sched_barrier(0);
+#endif
+}
+
+} // namespace lds_direct_load
+
 namespace ck {
 
 template <index_t NumPrefetch>
@@ -77,10 +91,12 @@ struct GridwiseGemmPipeline_v4<1>
             do
             {
                 block_sync_lds_direct_load();
+                lds_direct_load::sched_barrier();
 
                 blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
                 block_sync_lds_direct_load();
+                lds_direct_load::sched_barrier();
 
                 a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
                 b_blockwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_buf);
@@ -95,6 +111,7 @@ struct GridwiseGemmPipeline_v4<1>
         // tail
         {
             block_sync_lds_direct_load();
+            lds_direct_load::sched_barrier();
 
             blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
         }
@@ -172,6 +189,7 @@ struct GridwiseGemmPipeline_v4<2>
             do
             {
                 block_sync_lds_direct_load();
+                lds_direct_load::sched_barrier();
 
                 a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf2);
                 b_blockwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_buf2);
@@ -182,6 +200,7 @@ struct GridwiseGemmPipeline_v4<2>
                 blockwise_gemm.Run(a_block_buf1, b_block_buf1, c_thread_buf);
 
                 block_sync_lds_direct_load();
+                lds_direct_load::sched_barrier();
 
                 a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf1);
                 b_blockwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_buf1);
@@ -198,6 +217,7 @@ struct GridwiseGemmPipeline_v4<2>
         // tail
         {
             block_sync_lds_direct_load();
+            lds_direct_load::sched_barrier();
 
             a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf2);
             b_blockwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_buf2);
@@ -208,6 +228,8 @@ struct GridwiseGemmPipeline_v4<2>
             blockwise_gemm.Run(a_block_buf1, b_block_buf1, c_thread_buf);
 
             block_sync_lds_direct_load();
+            lds_direct_load::sched_barrier();
+
             blockwise_gemm.Run(a_block_buf2, b_block_buf2, c_thread_buf);
         }
     }
