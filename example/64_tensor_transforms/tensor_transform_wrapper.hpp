@@ -317,9 +317,9 @@ struct Layout
         const auto elem = shape_.At(Number<IDim>{});
         if constexpr(is_detected<is_tuple, tuple_element_t<IDim, Shape>>::value)
         {
-            using UnrolledElement = decltype(UnrollNestedTuple(elem));
-            return TupleReduce<I0.value, UnrolledElement::Size()>(
-                [](auto x, auto y) { return x * y; }, UnrolledElement{});
+            const auto unrolled_element = UnrollNestedTuple(elem);
+            return TupleReduce<I0.value, unrolled_element.Size()>(
+                [](auto x, auto y) { return x * y; }, unrolled_element);
         }
         else
         {
@@ -339,9 +339,9 @@ struct Layout
         const auto elem = shape_.At(Number<IDim>{});
         if constexpr(is_detected<is_tuple, tuple_element_t<IDim, Shape>>::value)
         {
-            using UnrolledElement = decltype(UnrollNestedTuple(elem));
-            return TupleReduce<I0.value, UnrolledElement::Size()>(
-                [](auto x, auto y) { return x * y; }, UnrolledElement{});
+            const auto unrolled_element = UnrollNestedTuple(elem);
+            return TupleReduce<I0.value, unrolled_element.Size()>(
+                [](auto x, auto y) { return x * y; }, unrolled_element);
         }
         else
         {
@@ -356,9 +356,9 @@ struct Layout
      */
     __host__ __device__ constexpr index_t GetLength() const
     {
-        using UnrolledShape = decltype(UnrollNestedTuple(shape_));
-        return TupleReduce<I0.value, UnrolledShape::Size()>([](auto x, auto y) { return x * y; },
-                                                            UnrolledShape{});
+        const auto unrolled_shape = UnrollNestedTuple(shape_);
+        return TupleReduce<I0.value, unrolled_shape.Size()>([](auto x, auto y) { return x * y; },
+                                                            unrolled_shape);
     }
 
     /**
@@ -368,9 +368,9 @@ struct Layout
      */
     __host__ __device__ constexpr index_t GetLength()
     {
-        using UnrolledShape = decltype(UnrollNestedTuple(shape_));
-        return TupleReduce<I0.value, UnrolledShape::Size()>([](auto x, auto y) { return x * y; },
-                                                            UnrolledShape{});
+        const auto unrolled_shape = UnrollNestedTuple(shape_);
+        return TupleReduce<I0.value, unrolled_shape.Size()>([](auto x, auto y) { return x * y; },
+                                                            unrolled_shape);
     }
 
     /**

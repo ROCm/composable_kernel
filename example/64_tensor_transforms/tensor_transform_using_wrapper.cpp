@@ -65,9 +65,9 @@ int main()
 {
     // Layout traverse in row-major
     std::cout << "Note: Layout traverse in column-major" << std::endl;
-    // Basic descriptor 0, 1, 2, ... 30, 31 (runtime descriptor)
+    // Basic descriptor 0, 1, 2, ... 30, 31 (compile-time descriptor)
     // (dims:4,8 strides:1,4)
-    const auto shape_4x8       = ck::make_tuple(4, 8);
+    const auto shape_4x8       = ck::make_tuple(ck::Number<4>{}, ck::Number<8>{});
     const auto layout_4x8_s1x4 = ck::tensor_transform_wrapper::make_layout(shape_4x8);
     std::cout << "dims:4,8 strides:1,4" << std::endl;
     Print2d(layout_4x8_s1x4);
@@ -75,12 +75,10 @@ int main()
     constexpr ck::index_t offset_0x0 = layout_4x8_s1x4.template operator()<Cord0x0Type>();
     std::cout << "Constexpr calculated [0, 0] offset:" << offset_0x0 << std::endl;
 
-    // Basic descriptor 0, 1, 8, 9, 16, 17, ... 30, 31 (compile-time descriptor)
+    // Basic descriptor 0, 1, 8, 9, 16, 17, ... 30, 31 (runtime descriptor)
     // dims:4,(2,4) strides:2,(1,8)
-    const auto shape_4x2x4 =
-        ck::make_tuple(ck::Number<4>{}, ck::make_tuple(ck::Number<2>{}, ck::Number<4>{}));
-    const auto strides_s2x1x8 =
-        ck::make_tuple(ck::Number<2>{}, ck::make_tuple(ck::Number<1>{}, ck::Number<8>{}));
+    const auto shape_4x2x4    = ck::make_tuple(4, ck::make_tuple(2, 4));
+    const auto strides_s2x1x8 = ck::make_tuple(2, ck::make_tuple(1, 8));
     const auto layout_4x2x4_s2x1x8 =
         ck::tensor_transform_wrapper::make_layout(shape_4x2x4, strides_s2x1x8);
 
