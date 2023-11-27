@@ -852,14 +852,16 @@ struct DeviceBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
         Deterministic>;
 
     // GridwiseYDotYGrad
-    using GridwiseYDotYGrad = GridwiseBatchedMultiheadAttentionBackward_YDotYGrad<InputDataType,
-                                                                                  DDataType,
-                                                                                  DYGridDesc_M_O,
-                                                                                  DGridDesc_M,
-                                                                                  BlockSize,
-                                                                                  DMPerBlock,
-                                                                                  DKPerBlock,
-                                                                                  Gemm1NPerBlock>;
+    using GridwiseYDotYGrad = GridwiseBatchedMultiheadAttentionBackward_YDotYGrad<
+        InputDataType,
+        DDataType,
+        DYGridDesc_M_O,
+        DGridDesc_M,
+        BlockSize,
+        DMPerBlock,
+        DKPerBlock,
+        Gemm1NPerBlock,
+        CShuffleBlockTransferScalarPerVector_NPerBlock>;
     // Argument
     struct Argument : public BaseArgument
     {

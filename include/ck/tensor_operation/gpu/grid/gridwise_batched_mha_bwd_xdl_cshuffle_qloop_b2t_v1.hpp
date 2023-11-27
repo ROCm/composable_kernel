@@ -1250,6 +1250,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
 
         static_assert(ThreadClusterLength_O * ThreadSliceLength_O == BlockSliceLength_O_, "");
         static_assert(ThreadClusterLength_M * ThreadSliceLength_M == BlockSliceLength_M_, "");
+        static_assert(SrcScalarPerVector % CShuffleBlockTransferScalarPerVector_NPerBlock == 0, "");
 
         using SrcBufType = StaticBuffer<AddressSpaceEnum::Vgpr,
                                         FloatGemmAcc,
@@ -2007,9 +2008,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             decltype(y_thread_desc_m0_m1_o0_o1),
             decltype(y_thread_desc_m0_m1_o0_o1.GetLengths()),
             Sequence<0, 1, 2, 3>,
-            3,                                 // SrcVectorDim
-            YDotYGrad_M_O::SrcScalarPerVector, // SrcScalarPerVector
-            1,                                 // SrcScalarStrideInVector
+            3,                                              // SrcVectorDim
+            CShuffleBlockTransferScalarPerVector_NPerBlock, // SrcScalarPerVector
+            1,                                              // SrcScalarStrideInVector
             true /* ResetCoordAfterRun */>(y_grid_desc_mblock_mperblock_oblock_operblock,
                                            y_thread_data_on_grid_idx);
 
@@ -2021,9 +2022,9 @@ struct GridwiseBatchedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_V1
             decltype(ygrad_thread_desc_m_o),
             decltype(ygrad_thread_desc_m_o.GetLengths()),
             Sequence<0, 1>,
-            1,                                 // SrcVectorDim
-            YDotYGrad_M_O::SrcScalarPerVector, // SrcScalarPerVector
-            1,                                 // SrcScalarStrideInVector
+            1,                                              // SrcVectorDim
+            CShuffleBlockTransferScalarPerVector_NPerBlock, // SrcScalarPerVector
+            1,                                              // SrcScalarStrideInVector
             true /* ResetCoordAfterRun */>(YDotYGrad_M_O::ygrad_block_desc_m_o,
                                            ygrad_thread_data_on_block_idx);
 
