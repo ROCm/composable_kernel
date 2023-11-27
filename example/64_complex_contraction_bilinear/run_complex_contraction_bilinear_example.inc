@@ -343,6 +343,7 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
     e_device_buf_img.FromDevice(e_ms_ns_device_result_img.mData.data());
 
     auto isRealOk = 0;
+    auto isImgOk = 0;
 
     if(do_verification)
     {
@@ -420,9 +421,63 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
 
         isRealOk =  ck::utils::check_err(e_ms_ns_device_result_re, e_ms_ns_host_result_re) ? 0 : 1;
 
-        Tensor<CShuffleDataType> c_ms_ns_host_result_img(e_ms_ns_lengths, e_ms_ns_strides);
+        
 
-        return isRealOk;
+
+        // Img Part Verification
+        Tensor<CShuffleDataType> c_ms_ns_host_result_img(e_ms_ns_lengths, e_ms_ns_strides);
+        Tensor<CShuffleDataType> c_ms_ns_host_result_img1(e_ms_ns_lengths, e_ms_ns_strides);
+
+        auto ref_argument_img =
+            ref_op.MakeArgument(a_ms_ks_re, b_ns_ks_img, c_ms_ns_host_result_img, a_element_op, b_element_op);
+            
+        ref_invoker.Run(ref_argument_img);
+
+        alpha = 1.f;
+        beta  = 1.f;
+   
+        cde_element_op = CDEElementOp{alpha, beta};
+
+        for(size_t m0 = 0; m0 < e_ms_ns_host_result_img.mDesc.GetLengths()[0]; ++m0)
+        {
+            for(size_t m1 = 0; m1 < e_ms_ns_host_result_img.mDesc.GetLengths()[1]; ++m1)
+            {
+                for(size_t n0 = 0; n0 < e_ms_ns_host_result_img.mDesc.GetLengths()[2]; ++n0)
+                {
+                    for(size_t n1 = 0; n1 < e_ms_ns_host_result_img.mDesc.GetLengths()[3]; ++n1)
+                    {
+                        cde_element_op(e_ms_ns_host_result_img(m0, m1, n0, n1),
+                                       c_ms_ns_host_result_img(m0, m1, n0, n1),
+                                       d_ms_ns_img(m0, m1, n0, n1));
+                    }
+                }
+            }
+        }
+
+        auto ref_argument_img1 =
+            ref_op.MakeArgument(a_ms_ks_img, b_ns_ks_re, c_ms_ns_host_result_img1, a_element_op, b_element_op);
+            
+        ref_invoker.Run(ref_argument_img1);
+
+        for(size_t m0 = 0; m0 < e_ms_ns_host_result_img.mDesc.GetLengths()[0]; ++m0)
+        {
+            for(size_t m1 = 0; m1 < e_ms_ns_host_result_img.mDesc.GetLengths()[1]; ++m1)
+            {
+                for(size_t n0 = 0; n0 < e_ms_ns_host_result_img.mDesc.GetLengths()[2]; ++n0)
+                {
+                    for(size_t n1 = 0; n1 < e_ms_ns_host_result_img.mDesc.GetLengths()[3]; ++n1)
+                    {
+                        cde_element_op(e_ms_ns_host_result_img(m0, m1, n0, n1),
+                                       e_ms_ns_host_result_img(m0, m1, n0, n1),
+                                       c_ms_ns_host_result_img1(m0, m1, n0, n1));
+                    }
+                }
+            }
+        }
+
+        isImgOk =  ck::utils::check_err(e_ms_ns_device_result_re, e_ms_ns_host_result_re) ? 0 : 1;
+
+        return (isRealOk && isImgOk);
     }
 
     return 0;
