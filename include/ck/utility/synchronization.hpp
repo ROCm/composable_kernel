@@ -19,6 +19,15 @@ __device__ void block_sync_lds()
 #endif
 }
 
+__device__ void block_sync_lds_direct_load()
+{
+    asm volatile("\
+    s_waitcnt vmcnt(0) \n \
+    s_waitcnt lgkmcnt(0) \n \
+    s_barrier \
+    " ::);
+}
+
 __device__ void s_nop()
 {
 #if 1
