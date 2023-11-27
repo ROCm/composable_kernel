@@ -996,6 +996,17 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext
             }
         }
 
+        if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::KPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
+        {
+            if(!(problem.K0 % K0PerBlock == 0))
+            {
+                return false;
+            }
+        }
+
         if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
             if(problem.K % ABlockTransferSrcScalarPerVector != 0)
