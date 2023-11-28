@@ -24,8 +24,7 @@ using S = ck::Sequence<Is...>;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-static constexpr auto GemmDefault   = ck::tensor_operation::device::GemmSpecialization::Default;
-static constexpr auto GemmMNPadding = ck::tensor_operation::device::GemmSpecialization::MNPadding;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 using device_gemm_xdl_c_shuffle_lds_direct_load_f32_f32_f32_mk_nk_mn_instances = std::tuple<
     // clang-format off
