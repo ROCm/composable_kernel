@@ -821,14 +821,16 @@ struct DeviceGroupedMultiheadAttentionBackward_Qloop_Xdl_CShuffle_Light_V1
     using Block2CTileMap = OffsettedBlockToCTileMap<typename GridwiseGemm::DefaultBlock2CTileMap>;
 
     // GridwiseYDotYGrad
-    using GridwiseYDotYGrad = GridwiseBatchedMultiheadAttentionBackward_YDotYGrad<InputDataType,
-                                                                                  DDataType,
-                                                                                  DYGridDesc_M_O,
-                                                                                  DGridDesc_M,
-                                                                                  BlockSize,
-                                                                                  DMPerBlock,
-                                                                                  DKPerBlock,
-                                                                                  Gemm1NPerBlock>;
+    using GridwiseYDotYGrad = GridwiseBatchedMultiheadAttentionBackward_YDotYGrad<
+        InputDataType,
+        DDataType,
+        DYGridDesc_M_O,
+        DGridDesc_M,
+        BlockSize,
+        DMPerBlock,
+        DKPerBlock,
+        Gemm1NPerBlock,
+        CShuffleBlockTransferScalarPerVector_NPerBlock>;
     using DBlock2CTileMap =
         OffsettedBlockToCTileMap<typename GridwiseYDotYGrad::DefaultBlock2CTileMap>;
 

@@ -27,7 +27,8 @@ template <typename InputDataType,
           index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
-          index_t NPadded>
+          index_t NPadded,
+          index_t YSrcScalarPerVector>
 struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
 {
     static constexpr auto I0 = Number<0>{};
@@ -125,6 +126,7 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
 
         static_assert(ThreadClusterLength_O * ThreadSliceLength_O == BlockSliceLength_O_, "");
         static_assert(ThreadClusterLength_M * ThreadSliceLength_M == BlockSliceLength_M_, "");
+        static_assert(SrcScalarPerVector % YSrcScalarPerVector == 0, "");
 
         using SrcBufType = StaticBuffer<AddressSpaceEnum::Vgpr,
                                         FloatD,
@@ -194,19 +196,19 @@ struct GridwiseBatchedMultiheadAttentionBackward_YDotYGrad
             y_thread_data_on_block_idx;
 
         // performs double duty for both y and ygrad
-        auto yygrad_threadwise_copy = ThreadwiseTensorSliceTransfer_v2<
-            InputDataType,
-            FloatD,
-            YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-            decltype(y_thread_desc_m0_m1_n0_n1),
-            decltype(y_thread_desc_m0_m1_n0_n1.GetLengths()),
-            Sequence<0, 1, 2, 3>,
-            3,                                 // SrcVectorDim
-            YDotYGrad_M_N::SrcScalarPerVector, // SrcScalarPerVector
-            1,                                 // SrcScalarStrideInVector
-            true /* ResetCoordAfterRun */,
-            false /* InvalidElementAsNaN */>(y_grid_desc_mblock_mperblock_nblock_nperblock,
-                                             y_thread_data_on_grid_idx);
+        auto yygrad_threadwise_copy =
+            ThreadwiseTensorSliceTransfer_v2<InputDataType,
+                                             FloatD,
+                                             YGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                                             decltype(y_thread_desc_m0_m1_n0_n1),
+                                             decltype(y_thread_desc_m0_m1_n0_n1.GetLengths()),
+                                             Sequence<0, 1, 2, 3>,
+                                             3,                   // SrcVectorDim
+                                             YSrcScalarPerVector, // SrcScalarPerVector
+                                             1,                   // SrcScalarStrideInVector
+                                             true /* ResetCoordAfterRun */,
+                                             false /* InvalidElementAsNaN */>(
+                y_grid_desc_mblock_mperblock_nblock_nperblock, y_thread_data_on_grid_idx);
 
         auto y_thread_buf                 = typename YDotYGrad_M_N::SrcBufType{};
         auto ygrad_thread_buf             = typename YDotYGrad_M_N::SrcBufType{};
