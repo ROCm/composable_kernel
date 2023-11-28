@@ -65,9 +65,9 @@ int run_groupnorm_fwd_example(int argc, char* argv[])
         {0, 0, 0, C, 1},
         std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{save_mean.mDesc.GetStrides().begin(),
-                                    save_mean.mDesc.GetStrides().end()},
+                                 save_mean.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{save_mean.mDesc.GetStrides().begin(),
-                                    save_mean.mDesc.GetStrides().end()},
+                                 save_mean.mDesc.GetStrides().end()},
         {1, 2, 4}, // reduction dimension: [H, W, C]
         1e-6,
         x_dev.GetDeviceBuffer(),
