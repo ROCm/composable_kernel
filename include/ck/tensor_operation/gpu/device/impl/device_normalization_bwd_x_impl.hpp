@@ -250,7 +250,7 @@ struct DeviceNormalizationBwdXImpl : public DeviceNormalizationBwdX<DYDataType,
             invStdStrides_ =
                 shuffle_tensor_dimensions<Rank, NumReduceDim>(invStdStrides, reduceDims);
 
-            std::tie(MRaw_, KRaw_) = get_2d_lengths<Rank, NumReduceDim>(lengths);
+            std::tie(MRaw_, KRaw_) = get_2d_lengths<Rank, NumReduceDim>(lengths_);
 
             numBlockTileIteration_ = math::integer_divide_ceil(KRaw_, K_BlockTileSize);
 
@@ -265,9 +265,7 @@ struct DeviceNormalizationBwdXImpl : public DeviceNormalizationBwdX<DYDataType,
                 Make2dDescriptor(lengths_, invStdStrides_, numBlockTileIteration_);
             dx_grid_desc_m_k_ = Make2dDescriptor(lengths_, dxStrides_, numBlockTileIteration_);
 
-            // TODO - sweep once for small k
             isSweeponce_ = dy_grid_desc_m_k_.GetLength(Number<1>{}) <= K_BlockTileSize;
-            // isSweeponce_ = false;
         }
 
         const DYDataType* p_dy_;
