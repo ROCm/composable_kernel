@@ -71,9 +71,9 @@ int main()
     const auto layout_4x8_s1x4 = ck::tensor_transform_wrapper::make_layout(shape_4x8);
     std::cout << "dims:4,8 strides:1,4" << std::endl;
     Print2d(layout_4x8_s1x4);
-    using Cord0x0Type                = ck::Tuple<ck::Number<0>, ck::Number<0>>;
-    constexpr ck::index_t offset_0x0 = layout_4x8_s1x4.template operator()<Cord0x0Type>();
-    std::cout << "Constexpr calculated [0, 0] offset:" << offset_0x0 << std::endl;
+    using Cord1x1Type                = ck::Tuple<ck::Number<1>, ck::Number<1>>;
+    constexpr ck::index_t offset_1x1 = layout_4x8_s1x4.template operator()<Cord1x1Type>();
+    std::cout << "Constexpr calculated [1, 1] offset:" << offset_1x1 << std::endl;
 
     // Basic descriptor 0, 1, 8, 9, 16, 17, ... 30, 31 (runtime descriptor)
     // dims:4,(2,4) strides:2,(1,8)

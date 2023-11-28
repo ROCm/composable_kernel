@@ -62,15 +62,18 @@ struct Layout
             Number<Tuple<Ts...>::Size()>{});
     }
 
+    // Generate LowerDims in Compile-time for MergeTrasform using passed Type
+    // If element of Tuple<Ts...> is also tuple, then merge (generate sequence for merge)
+    // If tuple is element, then pass through (sequence with one element)
     template <typename Idx, typename... Ts>
-    __host__ __device__ constexpr static auto GenerateLowerDim(const Tuple<Ts...>& tuple)
+    __host__ __device__ constexpr static auto GenerateLowerDim(const Tuple<Ts...>&)
     {
         if constexpr(Idx::value == 0)
         {
             if constexpr(is_detected<is_tuple, tuple_element_t<Idx::value, Tuple<Ts...>>>::value)
             {
-                constexpr index_t merge_nelems =
-                    decltype(UnrollNestedTuple(tuple.At(Idx{})))::Size();
+                constexpr index_t merge_nelems = decltype(UnrollNestedTuple(
+                    tuple_element_t<Idx::value, Tuple<Ts...>>{}))::Size();
                 using LowerDimsSequence =
                     typename arithmetic_sequence_gen<0, merge_nelems, 1>::type;
                 return LowerDimsSequence::Reverse();
@@ -82,12 +85,12 @@ struct Layout
         }
         else
         {
-            using PreviousSeqT      = decltype(GenerateLowerDim<Number<Idx::value - 1>>(tuple));
+            using PreviousSeqT = decltype(GenerateLowerDim<Number<Idx::value - 1>>(Tuple<Ts...>{}));
             const auto next_seq_val = PreviousSeqT::At(I0) + 1;
             if constexpr(is_detected<is_tuple, tuple_element_t<Idx::value, Tuple<Ts...>>>::value)
             {
-                constexpr index_t merge_nelems =
-                    decltype(UnrollNestedTuple(tuple.At(Idx{})))::Size();
+                constexpr index_t merge_nelems = decltype(UnrollNestedTuple(
+                    tuple_element_t<Idx::value, Tuple<Ts...>>{}))::Size();
                 using LowerDimsSequence =
                     typename arithmetic_sequence_gen<next_seq_val, next_seq_val + merge_nelems, 1>::
                         type;
@@ -100,11 +103,13 @@ struct Layout
         }
     }
 
+    // Iterate over nested tuples in shape
+    // Unroll nested tuples to align Tuple<ShapeDims...> to Tuple<IdxDims...>
     template <typename... ShapeDims, typename... IdxDims>
     __host__ __device__ constexpr static auto UnrollShapeViaIdx(const Tuple<ShapeDims...>& shape,
                                                                 const Tuple<IdxDims...>& idx)
     {
-        if constexpr(!IsTupleNested(Tuple<IdxDims...>{}))
+        if constexpr(!IsNestedTuple(Tuple<IdxDims...>{}))
         {
             // Index unrolled to flatten, return shape
             return shape;
@@ -112,7 +117,7 @@ struct Layout
         else
         {
             // Iterate over shape tuple elements:
-            // 1. If coressponding idx element is tuple then return (will be unrolled)
+            // 1. If corresponding idx element is tuple then return (will be unrolled)
             // 2. If no, pack in tuple. It will be restored during unroll.
             auto unrolled_shape_via_idx = generate_tuple(
                 [&](auto i) {
@@ -139,7 +144,7 @@ struct Layout
                                                           DescriptorToMerge& desc)
     {
         // Reverse each element in tuple
-        using ReversedUnrolledShape = decltype(ReverseTuple(UnrollNestedTuple(shape)));
+        using ReversedUnrolledShape = decltype(TupleReverse(UnrollNestedTuple(shape)));
         const auto merge_elems      = ReversedUnrolledShape{};
 
         // Generate reverted indexes (column major traverse)
@@ -165,7 +170,7 @@ struct Layout
                 {
                     // If shape element is tuple and idx element is Number, then merge
                     // Unroll and reverse tuple to traverse column-major
-                    const auto merge_elems = ReverseTuple(UnrollNestedTuple(shape.At(i)));
+                    const auto merge_elems = TupleReverse(UnrollNestedTuple(shape.At(i)));
                     return make_merge_transform(merge_elems);
                 }
                 else

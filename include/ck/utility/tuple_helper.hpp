@@ -132,7 +132,7 @@ __host__ __device__ constexpr auto UnrollNestedTuple(const Tuple<Ts...>& tuple)
 }
 
 template <typename... Ts>
-__host__ __device__ constexpr auto ReverseTuple(const Tuple<Ts...>& tuple)
+__host__ __device__ constexpr auto TupleReverse(const Tuple<Ts...>& tuple)
 {
     return generate_tuple(
         [&](auto i) {
@@ -161,7 +161,7 @@ template <typename T>
 using is_tuple = decltype(std::declval<T&>().IsTuple());
 
 template <typename... Ts>
-__host__ __device__ constexpr auto IsTupleNested(const Tuple<Ts...>&)
+__host__ __device__ constexpr auto IsNestedTuple(const Tuple<Ts...>&)
 {
     return (is_detected<is_tuple, Ts>::value || ...);
 }
