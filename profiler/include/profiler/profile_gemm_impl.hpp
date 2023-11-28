@@ -166,7 +166,7 @@ int profile_gemm_impl(int do_verification,
             std::string op_name = op_ptr->GetTypeString();
 
             float avg_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, 10, 50});
 
             std::size_t flop = std::size_t(2) * M * N * K;
 
