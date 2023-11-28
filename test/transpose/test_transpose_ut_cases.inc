@@ -14,7 +14,6 @@ TYPED_TEST(TestTranspose, Test1)
     this->Run();
 }
 
-
 TYPED_TEST(TestTranpose, Test2)
 {
     std::vector<int> Ms{127, 255, 312, 799, 1573};
@@ -27,4 +26,3 @@ TYPED_TEST(TestTranpose, Test2)
 
     this->Run();
 }
-
