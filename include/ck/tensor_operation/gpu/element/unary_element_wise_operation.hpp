@@ -16,6 +16,57 @@ namespace element_wise {
 extern "C" __device__ float __ocml_native_recip_f32(float);
 #endif
 
+struct PassThroughPack2
+{
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const;
+
+    __host__ __device__ constexpr void operator()(ck::f8x2_t& y, const ck::half2_t& x) const
+    {
+        // fake conversion
+        uint16_t t = ck::bit_cast<uint32_t>(x);
+        y          = ck::bit_cast<ck::f8x2_t>(t);
+    }
+
+    __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::f8x2_t& x) const
+    {
+        auto t = type_convert<float2_t>(x);
+        y      = type_convert<half2_t>(t);
+    }
+
+    __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::half2_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::f8x2_t& y, const ck::f8x2_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::float2_t& y, const ck::float2_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::int8x2_t& y, const ck::int8x2_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::bhalf2_t& y, const ck::bhalf2_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::double2_t& y, const ck::double2_t& x) const
+    {
+        y = x;
+    }
+
+    constexpr const static bool is_pack2_invocable = true;
+};
+
 struct PassThrough
 {
     template <typename Y, typename X>
@@ -31,6 +82,12 @@ struct PassThrough
     __host__ __device__ void operator()<float, double>(float& y, const double& x) const
     {
         y = type_convert<float>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<double, float>(double& y, const float& x) const
+    {
+        y = type_convert<double>(x);
     }
 
     template <>
@@ -67,6 +124,12 @@ struct PassThrough
     __host__ __device__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
     {
         y = type_convert<bhalf_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<float, bhalf_t>(float& y, const bhalf_t& x) const
+    {
+        y = type_convert<float>(x);
     }
 
     template <>
@@ -218,12 +281,44 @@ struct ConvertF8SR
     }
 };
 
+struct ConvertF8RNE
+{
+    // convert to fp8 using rounding to nearest even
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const
+    {
+        // check Y datatype
+        static_assert(is_same<Y, f8_t>::value || is_same<Y, bf8_t>::value,
+                      "Data type is not supported by this operation!");
+
+        // check X datatype
+        static_assert(is_same<X, float>::value || is_same<X, half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = f8_convert_rne<Y>(x);
+    }
+};
+
 struct Scale
 {
     __host__ __device__ Scale(float scale) : scale_(scale) {}
 
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
+
+    template <>
+    __host__ __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
+    {
+        y = ck::type_convert<half_t>(scale_) * x;
+    };
+
+    template <>
+    __host__ __device__ void operator()<bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x) const
+    {
+        const float x_tmp = ck::type_convert<float>(x);
+        const float y_tmp = scale_ * x_tmp;
+        y                 = ck::type_convert<bhalf_t>(y_tmp);
+    };
 
     template <>
     __host__ __device__ void operator()<float, float>(float& y, const float& x) const
@@ -278,8 +373,8 @@ struct UnarySquare
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
-        static_assert(is_same_v<T, float> || is_same_v<T, double> || is_same_v<T, int32_t> ||
-                          is_same_v<T, int8_t>
+        static_assert(is_same_v<T, float> || is_same_v<T, half_t> || is_same_v<T, double> ||
+                          is_same_v<T, int32_t> || is_same_v<T, int8_t>
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
                           || is_same_v<T, int4_t>
 #endif
