@@ -40,6 +40,7 @@ constexpr int NumReduceDim = 1;
 // inv_std:   [M, 1]
 
 // Output shape
+// dx:     [M, N]
 // dgamma: [1, N]
 // dbeta:  [1, N]
 
@@ -156,7 +157,8 @@ int main()
 
     if(!x_device_instance.IsSupportedArgument(x_argument_ptr.get()))
     {
-        std::cout << "The runtime parameters are not supported" << std::endl;
+        std::cout << "The runtime parameters are not supported." << __FILE__ << ":" << __LINE__
+                  << std::endl;
         return 1;
     };
 
@@ -184,7 +186,8 @@ int main()
 
     if(!gamma_beta_device_instance.IsSupportedArgument(gamma_beta_argument_ptr.get()))
     {
-        std::cout << "The runtime parameters are not supported" << std::endl;
+        std::cout << "The runtime parameters are not supported." << __FILE__ << ":" << __LINE__
+                  << std::endl;
         return 1;
     };
 
