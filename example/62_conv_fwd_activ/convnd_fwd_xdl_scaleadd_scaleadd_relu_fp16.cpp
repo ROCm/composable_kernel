@@ -9,7 +9,7 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
@@ -47,7 +47,7 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 
 template <typename OutElementOp>
 using DeviceGroupedConvNDFwdInstance =
-    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
         NDimSpatial,
         InLayout,
         WeiLayout,
@@ -226,14 +226,17 @@ bool run_grouped_conv_fwd(bool do_verification,
 
     if(do_verification)
     {
-        auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
-                                                                     InDataType,
-                                                                     WeiDataType,
-                                                                     OutDataType,
-                                                                     InElementOp,
-                                                                     WeiElementOp,
-                                                                     OutElementOp,
-                                                                     NumDs>();
+        auto ref_conv =
+            ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
+                                                         InDataType,
+                                                         WeiDataType,
+                                                         OutDataType,
+                                                         InElementOp,
+                                                         WeiElementOp,
+                                                         OutElementOp,
+                                                         0, /*Num A Elementwise Tensors*/
+                                                         0, /*Num B Elementwise Tensors*/
+                                                         NumDs>();
 
         auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(in,
@@ -246,6 +249,8 @@ bool run_grouped_conv_fwd(bool do_verification,
                                                   in_element_op,
                                                   wei_element_op,
                                                   out_element_op,
+                                                  {},
+                                                  {},
                                                   d_tensors);
 
         ref_invoker.Run(ref_argument);

@@ -134,6 +134,9 @@
 // inner product using V_DOT with DPP8 modifiers
 #define CK_USE_AMD_V_DOT_DPP8_INLINE_ASM 1
 
+// set stochastic rounding as default for f8 conversions
+#define CK_USE_SR_F8_CONVERSION 1
+
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
 #define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
 
