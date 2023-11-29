@@ -44,9 +44,10 @@ struct GridwiseNormalizationBwdGammaBeta_mk_to_k
                    (XSrcVectorDim == 1 && KThreadSliceSize == XSrcVectorSize)),
                   "Invalid thread slice sizes and/or x vector sizes configuration, please check!");
 
+    // do not force SliceSize == MeanInvStdSrcVectorSize for groupnorm
     static_assert(
-        ((MeanInvStdSrcVectorDim == 0 && MThreadSliceSize == MeanInvStdSrcVectorSize) ||
-         (MeanInvStdSrcVectorDim == 1 && KThreadSliceSize == MeanInvStdSrcVectorSize)),
+        ((MeanInvStdSrcVectorDim == 0 && MThreadSliceSize % MeanInvStdSrcVectorSize == 0) ||
+         (MeanInvStdSrcVectorDim == 1 && KThreadSliceSize % MeanInvStdSrcVectorSize == 0)),
         "Invalid thread slice sizes and/or mean/inv_std vector sizes configuration, please check!");
 
     static_assert(MThreadSliceSize == DGammaDstVectorSize && MThreadSliceSize == DBetaDstVectorSize,
