@@ -1,0 +1,2 @@
+add_example_executable(example_tensor_transform tensor_transform.cpp)
+add_example_executable(example_tensor_transform_using_wrapper tensor_transform_using_wrapper.cpp)
