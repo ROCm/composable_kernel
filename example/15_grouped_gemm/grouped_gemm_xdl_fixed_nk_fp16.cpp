@@ -299,8 +299,8 @@ int main(int argc, char* argv[])
     for(int i = 0; i < problem_size.group_count; i++)
     {
         problem_size.Ms.push_back(256 + 256 * i);
-        problem_size.Ns.push_back(128 + 128 * i);
-        problem_size.Ks.push_back(128 + 64 * i);
+        problem_size.Ns.push_back(256);
+        problem_size.Ks.push_back(128);
 
         problem_size.stride_As.push_back(problem_size.Ks[i]);
         problem_size.stride_Bs.push_back(problem_size.Ks[i]);
