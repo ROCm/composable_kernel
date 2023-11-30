@@ -1,0 +1,2 @@
+add_gtest_executable(test_layout test_layout.cpp)
+target_link_libraries(test_layout PRIVATE utility)
