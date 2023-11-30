@@ -4,6 +4,7 @@
 #pragma once
 
 #include "common_header.hpp"
+#include "ck/utility/math_v2.hpp"
 
 namespace ck {
 

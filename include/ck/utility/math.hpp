@@ -4,10 +4,10 @@
 #pragma once
 
 #include "ck/ck.hpp"
-#include "integral_constant.hpp"
-#include "number.hpp"
-#include "type.hpp"
-#include "enable_if.hpp"
+#include "ck/utility/integral_constant.hpp"
+#include "ck/utility/number.hpp"
+#include "ck/utility/type.hpp"
+#include "ck/utility/enable_if.hpp"
 
 namespace ck {
 namespace math {
@@ -148,70 +148,6 @@ template <typename T>
 __host__ __device__ constexpr T clamp(const T& x, const T& lowerbound, const T& upperbound)
 {
     return min(max(x, lowerbound), upperbound);
-}
-
-// prevent implicit type casting
-template <typename T>
-__host__ T exp(T x);
-
-template <typename T>
-__device__ T exp(T x);
-
-// TODO: add f16 support using v_exp_f16
-
-template <>
-inline __device__ float exp<float>(float x)
-{
-    return __expf(x);
-}
-
-template <>
-inline __device__ double exp<double>(double x)
-{
-    return exp(x);
-}
-
-template <>
-inline __host__ float exp<float>(float x)
-{
-    return std::expf(x);
-}
-
-template <>
-inline __host__ double exp<double>(double x)
-{
-    return std::exp(x);
-}
-
-// prevent implicit type casting
-template <typename T>
-__host__ T exp2(T x);
-
-template <typename T>
-__device__ T exp2(T x);
-
-template <>
-inline __device__ float exp2<float>(float x)
-{
-    return exp2f(x);
-}
-
-template <>
-inline __device__ double exp2<double>(double x)
-{
-    return exp2(x);
-}
-
-template <>
-inline __host__ float exp2<float>(float x)
-{
-    return std::exp2f(x);
-}
-
-template <>
-inline __host__ double exp2<double>(double x)
-{
-    return std::exp2l(x); // TODO: std does not have exp2 for double till c++23
 }
 
 // greatest common divisor, aka highest common factor

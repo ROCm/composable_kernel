@@ -237,6 +237,8 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
 
         printf("]}");
     }
+
+    __host__ __device__ static constexpr bool IsTuple() { return true; }
 };
 
 template <>

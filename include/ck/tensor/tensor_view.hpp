@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ck/utility/buffer_view.hpp"
 #include "ck/tensor_description/tensor_coordinate.hpp"
 
 namespace ck {

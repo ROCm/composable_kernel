@@ -163,15 +163,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid)};
 
             // copy data from src_vector_container into src_thread_scratch_
-#if 1 // debug
             src_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<src_vector_t>(
                     src_data_idx, src_vector_container.template AsType<src_vector_t>()[I0]);
-#else
-            src_thread_scratch_tuple_(thread_scratch_id)
-                .template Set<src_vector_t>(
-                    src_data_idx, src_vector_container.template AsType<src_vector_t>()[I0]);
-#endif
 
             // move src coordinate
             if constexpr(iAccess.value != num_access - 1)
@@ -491,15 +485,11 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     static constexpr auto src_thread_scratch_desc_ = decltype(GetSrcThreadScratchDescriptor()){};
     static constexpr auto dst_thread_scratch_desc_ = decltype(GetDstThreadScratchDescriptor()){};
 
-#if 1 // debug
     using SrcThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
                                                              SrcData,
                                                              SrcScalarPerVector,
                                                              decltype(src_thread_scratch_desc_),
                                                              true>;
-#else
-    using SrcThreadScratch = ThreadPrivateTensor<SrcData, decltype(src_thread_scratch_desc_)>;
-#endif
 
     using DstThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
                                                              DstData,

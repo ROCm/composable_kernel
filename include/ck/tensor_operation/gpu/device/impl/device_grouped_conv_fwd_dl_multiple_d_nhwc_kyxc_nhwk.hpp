@@ -15,10 +15,11 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
 #include "ck/tensor_operation/operator_transform/transform_conv_fwd_to_gemm.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_dl_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
@@ -28,51 +29,6 @@ namespace tensor_operation {
 namespace device {
 
 namespace {
-
-template <index_t NumDTensor>
-struct ComputePtrOffsetOfStridedBatch
-{
-    ComputePtrOffsetOfStridedBatch() = default;
-
-    ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
-                                   index_t BatchStrideB,
-                                   Array<ck::index_t, NumDTensor> BatchStrideDs,
-                                   index_t BatchStrideE)
-        : BatchStrideA_(BatchStrideA),
-          BatchStrideB_(BatchStrideB),
-          BatchStrideDs_(BatchStrideDs),
-          BatchStrideE_(BatchStrideE)
-    {
-    }
-
-    __host__ __device__ constexpr long_index_t GetAPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideA_);
-    }
-
-    __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideB_);
-    }
-
-    __host__ __device__ constexpr auto GetDsPtrOffset(index_t g_idx) const
-    {
-        Array<long_index_t, NumDTensor> ds_offset;
-        static_for<0, NumDTensor, 1>{}(
-            [&](auto i) { ds_offset(i) = g_idx * static_cast<long_index_t>(BatchStrideDs_[i]); });
-        return ds_offset;
-    }
-
-    __host__ __device__ constexpr long_index_t GetEPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideE_);
-    }
-
-    index_t BatchStrideA_;
-    index_t BatchStrideB_;
-    Array<ck::index_t, NumDTensor> BatchStrideDs_;
-    index_t BatchStrideE_;
-};
 
 /*
  * \brief Wrapper function of GridwiseGemm::Run to realize BatchedGEMM.
@@ -260,18 +216,18 @@ template <index_t NDimSpatial,
           index_t CThreadTransferSrcDstVectorDim,
           index_t CThreadTransferDstScalarPerVector>
 struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
-    : public DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                           ALayout,
-                                           BLayout,
-                                           DsLayout,
-                                           ELayout,
-                                           ADataType,
-                                           BDataType,
-                                           DsDataType,
-                                           EDataType,
-                                           AElementwiseOperation,
-                                           BElementwiseOperation,
-                                           CDEElementwiseOperation>
+    : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                             ALayout,
+                                             BLayout,
+                                             DsLayout,
+                                             ELayout,
+                                             ADataType,
+                                             BDataType,
+                                             DsDataType,
+                                             EDataType,
+                                             AElementwiseOperation,
+                                             BElementwiseOperation,
+                                             CDEElementwiseOperation>
 {
     using DeviceOp = DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK;
 
@@ -581,7 +537,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
         DefaultBlock2CTileMap block_2_ctile_map_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch<NumDTensor> compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor> compute_ptr_offset_of_batch_;
 
         // element-wise op
         AElementwiseOperation a_element_op_;
@@ -645,7 +601,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
                     DeviceOp::DsGridDesc_M0_M10_M11_N0_N10_N11,
                     DeviceOp::CGridDesc_M0_M10_M11_N0_N10_N11,
                     DefaultBlock2CTileMap,
-                    ComputePtrOffsetOfStridedBatch<NumDTensor>,
+                    ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
                     has_main_loop,
                     has_double_loop>;
 

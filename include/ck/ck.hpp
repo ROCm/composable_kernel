@@ -66,6 +66,10 @@
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8
+#elif defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__)
+#define CK_USE_AMD_V_FMAC_F32
+#define CK_USE_AMD_V_DOT2_F32_F16
+#define CK_USE_AMD_V_DOT4_I32_I8_GFX11
 #endif
 
 // MFMA instruction
@@ -129,6 +133,9 @@
 
 // inner product using V_DOT with DPP8 modifiers
 #define CK_USE_AMD_V_DOT_DPP8_INLINE_ASM 1
+
+// set stochastic rounding as default for f8 conversions
+#define CK_USE_SR_F8_CONVERSION 1
 
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
 #define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1

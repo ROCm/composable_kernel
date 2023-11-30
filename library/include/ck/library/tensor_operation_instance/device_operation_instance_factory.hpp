@@ -17,12 +17,15 @@ namespace instance {
 using F64  = double;
 using F32  = float;
 using F16  = ck::half_t;
-using F8   = ck::f8_t;
 using BF16 = ck::bhalf_t;
 using I8   = int8_t;
 using I32  = int32_t;
+using F8   = ck::f8_t;
+using BF8  = ck::bf8_t;
 
 using Empty_Tuple = ck::Tuple<>;
+
+using BF16_Tuple = ck::Tuple<BF16>;
 
 using F16_Tuple     = ck::Tuple<F16>;
 using F16_F16_Tuple = ck::Tuple<F16, F16>;
@@ -31,6 +34,7 @@ using F64_Tuple     = ck::Tuple<F64>;
 using F32_Tuple     = ck::Tuple<F32>;
 using I32_Tuple     = ck::Tuple<I32>;
 using I32_F32_Tuple = ck::Tuple<I32, F32>;
+using I8_Tuple      = ck::Tuple<I8>;
 
 using F32_F32_Tuple = ck::Tuple<F32, F32>;
 

@@ -17,7 +17,9 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+// xdl
 // conv1d backward weight
+#ifdef CK_ENABLE_BF16
 void add_device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_bf16_f32_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<1,
                                                            GNWC,
@@ -29,7 +31,8 @@ void add_device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_bf16_f32_bf16_insta
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
-
+#endif
+#ifdef CK_ENABLE_FP16
 void add_device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<1,
                                                            GNWC,
@@ -41,7 +44,8 @@ void add_device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f16_instances(
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
-
+#endif
+#ifdef CK_ENABLE_FP32
 void add_device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<1,
                                                            GNWC,
@@ -53,8 +57,9 @@ void add_device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f32_instances(
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
-
+#endif
 // conv2d backward weight
+#ifdef CK_ENABLE_BF16
 void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            GNHWC,
@@ -66,7 +71,8 @@ void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_in
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
-
+#endif
+#ifdef CK_ENABLE_FP16
 void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            GNHWC,
@@ -78,7 +84,8 @@ void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f16_instances(
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
-
+#endif
+#ifdef CK_ENABLE_FP32
 void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            GNHWC,
@@ -90,7 +97,8 @@ void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f32_instances(
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
-
+#endif
+#ifdef CK_ENABLE_BF16
 void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_bf16_f32_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NHWGC,
@@ -102,7 +110,8 @@ void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_bf16_f32_bf16_in
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
-
+#endif
+#ifdef CK_ENABLE_FP16
 void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NHWGC,
@@ -114,7 +123,8 @@ void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
-
+#endif
+#ifdef CK_ENABLE_FP32
 void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NHWGC,
@@ -126,8 +136,9 @@ void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_instances(
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
-
+#endif
 // conv3d backward weight
+#ifdef CK_ENABLE_BF16
 void add_device_grouped_conv3d_bwd_weight_xdl_gndhwc_gkzyxc_gndhwk_bf16_f32_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            GNDHWC,
@@ -139,7 +150,8 @@ void add_device_grouped_conv3d_bwd_weight_xdl_gndhwc_gkzyxc_gndhwk_bf16_f32_bf16
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
-
+#endif
+#ifdef CK_ENABLE_FP16
 void add_device_grouped_conv3d_bwd_weight_xdl_gndhwc_gkzyxc_gndhwk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            GNDHWC,
@@ -152,6 +164,31 @@ void add_device_grouped_conv3d_bwd_weight_xdl_gndhwc_gkzyxc_gndhwk_f16_instances
                                                            PassThrough,
                                                            PassThrough>>>& instances);
 
+void add_device_grouped_conv3d_bwd_weight_wmma_gndhwc_gkzyxc_gndhwk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           GNDHWC,
+                                                           GKZYXC,
+                                                           GNDHWK,
+                                                           F16,
+                                                           F16,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_weight_wmma_gndhwc_gkzyxc_gndhwk_f16_1x1s1p0_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           GNDHWC,
+                                                           GKZYXC,
+                                                           GNDHWK,
+                                                           F16,
+                                                           F16,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP32
 void add_device_grouped_conv3d_bwd_weight_xdl_gndhwc_gkzyxc_gndhwk_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            GNDHWC,
@@ -163,7 +200,33 @@ void add_device_grouped_conv3d_bwd_weight_xdl_gndhwc_gkzyxc_gndhwk_f32_instances
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_INT8
+void add_device_grouped_conv3d_bwd_weight_wmma_gndhwc_gkzyxc_gndhwk_i8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           GNDHWC,
+                                                           GKZYXC,
+                                                           GNDHWK,
+                                                           int8_t,
+                                                           int8_t,
+                                                           int8_t,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
 
+void add_device_grouped_conv3d_bwd_weight_wmma_gndhwc_gkzyxc_gndhwk_i8_1x1s1p0_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           GNDHWC,
+                                                           GKZYXC,
+                                                           GNDHWK,
+                                                           int8_t,
+                                                           int8_t,
+                                                           int8_t,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_BF16
 void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            NDHWGC,
@@ -175,7 +238,8 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
-
+#endif
+#ifdef CK_ENABLE_FP16
 void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            NDHWGC,
@@ -188,6 +252,31 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances
                                                            PassThrough,
                                                            PassThrough>>>& instances);
 
+void add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           F16,
+                                                           F16,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_f16_1x1s1p0_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           F16,
+                                                           F16,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP32
 void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            NDHWGC,
@@ -199,6 +288,288 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
+#endif
+#if defined CK_ENABLE_FP16 && defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
+void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_f8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           F16,
+                                                           F16,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           BF8,
+                                                           F8>>>& instances);
+#endif
+#ifdef CK_ENABLE_INT8
+void add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_i8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           int8_t,
+                                                           int8_t,
+                                                           int8_t,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_i8_1x1s1p0_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           int8_t,
+                                                           int8_t,
+                                                           int8_t,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+
+#ifdef DL_KERNELS
+// dl
+// conv1d backward weight
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv1d_bwd_weight_dl_gnwc_gkxc_gnwk_bf16_f32_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<1,
+                                                           GNWC,
+                                                           GKXC,
+                                                           GNWK,
+                                                           BF16,
+                                                           F32,
+                                                           BF16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv1d_bwd_weight_dl_gnwc_gkxc_gnwk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<1,
+                                                           GNWC,
+                                                           GKXC,
+                                                           GNWK,
+                                                           F16,
+                                                           F16,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP32
+void add_device_grouped_conv1d_bwd_weight_dl_gnwc_gkxc_gnwk_f32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<1,
+                                                           GNWC,
+                                                           GKXC,
+                                                           GNWK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv1d_bwd_weight_dl_nwgc_gkxc_nwgk_bf16_f32_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<1,
+                                                           NWGC,
+                                                           GKXC,
+                                                           NWGK,
+                                                           BF16,
+                                                           F32,
+                                                           BF16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv1d_bwd_weight_dl_nwgc_gkxc_nwgk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<1,
+                                                           NWGC,
+                                                           GKXC,
+                                                           NWGK,
+                                                           F16,
+                                                           F16,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP32
+void add_device_grouped_conv1d_bwd_weight_dl_nwgc_gkxc_nwgk_f32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<1,
+                                                           NWGC,
+                                                           GKXC,
+                                                           NWGK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+// conv2d backward weight
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv2d_bwd_weight_dl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
+                                                           GNHWC,
+                                                           GKYXC,
+                                                           GNHWK,
+                                                           BF16,
+                                                           F32,
+                                                           BF16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv2d_bwd_weight_dl_gnhwc_gkyxc_gnhwk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
+                                                           GNHWC,
+                                                           GKYXC,
+                                                           GNHWK,
+                                                           F16,
+                                                           F16,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP32
+void add_device_grouped_conv2d_bwd_weight_dl_gnhwc_gkyxc_gnhwk_f32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
+                                                           GNHWC,
+                                                           GKYXC,
+                                                           GNHWK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv2d_bwd_weight_dl_nhwgc_gkyxc_nhwgk_bf16_f32_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
+                                                           NHWGC,
+                                                           GKYXC,
+                                                           NHWGK,
+                                                           BF16,
+                                                           F32,
+                                                           BF16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv2d_bwd_weight_dl_nhwgc_gkyxc_nhwgk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
+                                                           NHWGC,
+                                                           GKYXC,
+                                                           NHWGK,
+                                                           F16,
+                                                           F16,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP32
+void add_device_grouped_conv2d_bwd_weight_dl_nhwgc_gkyxc_nhwgk_f32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
+                                                           NHWGC,
+                                                           GKYXC,
+                                                           NHWGK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+// conv3d backward weight
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv3d_bwd_weight_dl_gndhwc_gkzyxc_gndhwk_bf16_f32_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           GNDHWC,
+                                                           GKZYXC,
+                                                           GNDHWK,
+                                                           BF16,
+                                                           F32,
+                                                           BF16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv3d_bwd_weight_dl_gndhwc_gkzyxc_gndhwk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           GNDHWC,
+                                                           GKZYXC,
+                                                           GNDHWK,
+                                                           F16,
+                                                           F16,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP32
+void add_device_grouped_conv3d_bwd_weight_dl_gndhwc_gkzyxc_gndhwk_f32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           GNDHWC,
+                                                           GKZYXC,
+                                                           GNDHWK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv3d_bwd_weight_dl_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           BF16,
+                                                           F32,
+                                                           BF16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv3d_bwd_weight_dl_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           F16,
+                                                           F16,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_ENABLE_FP32
+void add_device_grouped_conv3d_bwd_weight_dl_ndhwgc_gkzyxc_ndhwgk_f32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+#endif
+#endif
 
 template <ck::index_t NumDimSpatial,
           typename InLayout,
@@ -206,7 +577,9 @@ template <ck::index_t NumDimSpatial,
           typename OutLayout,
           typename InDataType,
           typename WeiDataType,
-          typename OutDataType>
+          typename OutDataType,
+          typename ComputeTypeA,
+          typename ComputeTypeB>
 struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupedConvBwdWeight<
     NumDimSpatial,
     InLayout,
@@ -217,7 +590,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
     OutDataType,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough>>
+    ck::tensor_operation::element_wise::PassThrough,
+    ComputeTypeA,
+    ComputeTypeB>>
 {
     using DeviceOp = DeviceGroupedConvBwdWeight<NumDimSpatial,
                                                 InLayout,
@@ -228,7 +603,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                                                 OutDataType,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::PassThrough>;
+                                                ck::tensor_operation::element_wise::PassThrough,
+                                                ComputeTypeA,
+                                                ComputeTypeB>;
 
     static auto GetInstances()
     {
@@ -239,121 +616,297 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InLayout, GNWC> && is_same_v<WeiLayout, GKXC> &&
                          is_same_v<OutLayout, GNWK>)
             {
+#ifdef CK_ENABLE_FP32
                 if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
-                             is_same_v<OutDataType, float>)
+                             is_same_v<OutDataType, float> && is_same_v<ComputeTypeA, float> &&
+                             is_same_v<ComputeTypeB, float>)
                 {
+#ifdef DL_KERNELS
+                    add_device_grouped_conv1d_bwd_weight_dl_gnwc_gkxc_gnwk_f32_instances(op_ptrs);
+#endif
                     add_device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f32_instances(op_ptrs);
                 }
-                else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                                  is_same_v<OutDataType, half_t>)
+#endif
+#ifdef CK_ENABLE_FP16
+                if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                             is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, half_t> &&
+                             is_same_v<ComputeTypeB, half_t>)
                 {
+#ifdef DL_KERNELS
+                    add_device_grouped_conv1d_bwd_weight_dl_gnwc_gkxc_gnwk_f16_instances(op_ptrs);
+#endif
                     add_device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_f16_instances(op_ptrs);
                 }
-                else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
-                                  is_same_v<WeiDataType, float> &&
-                                  is_same_v<OutDataType, ck::bhalf_t>)
+#endif
+#ifdef CK_ENABLE_BF16
+                if constexpr(is_same_v<InDataType, ck::bhalf_t> && is_same_v<WeiDataType, float> &&
+                             is_same_v<OutDataType, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeA, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeB, ck::bhalf_t>)
                 {
+#ifdef DL_KERNELS
+                    add_device_grouped_conv1d_bwd_weight_dl_gnwc_gkxc_gnwk_bf16_f32_bf16_instances(
+                        op_ptrs);
+#endif
                     add_device_grouped_conv1d_bwd_weight_xdl_gnwc_gkxc_gnwk_bf16_f32_bf16_instances(
                         op_ptrs);
                 }
+#endif
+            }
+            if constexpr(is_same_v<InLayout, NWGC> && is_same_v<WeiLayout, GKXC> &&
+                         is_same_v<OutLayout, NWGK>)
+            {
+#ifdef DL_KERNELS
+#ifdef CK_ENABLE_FP32
+                if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
+                             is_same_v<OutDataType, float> && is_same_v<ComputeTypeA, float> &&
+                             is_same_v<ComputeTypeB, float>)
+                {
+                    add_device_grouped_conv1d_bwd_weight_dl_nwgc_gkxc_nwgk_f32_instances(op_ptrs);
+                }
+#endif
+#ifdef CK_ENABLE_FP16
+                if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                             is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, half_t> &&
+                             is_same_v<ComputeTypeB, half_t>)
+                {
+                    add_device_grouped_conv1d_bwd_weight_dl_nwgc_gkxc_nwgk_f16_instances(op_ptrs);
+                }
+#endif
+#ifdef CK_ENABLE_BF16
+                if constexpr(is_same_v<InDataType, ck::bhalf_t> && is_same_v<WeiDataType, float> &&
+                             is_same_v<OutDataType, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeA, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeB, ck::bhalf_t>)
+                {
+                    add_device_grouped_conv1d_bwd_weight_dl_nwgc_gkxc_nwgk_bf16_f32_bf16_instances(
+                        op_ptrs);
+                }
+#endif
+#endif
             }
         }
-        else if constexpr(NumDimSpatial == 2)
+        if constexpr(NumDimSpatial == 2)
         {
             if constexpr(is_same_v<InLayout, GNHWC> && is_same_v<WeiLayout, GKYXC> &&
                          is_same_v<OutLayout, GNHWK>)
             {
+#ifdef CK_ENABLE_FP32
                 if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
-                             is_same_v<OutDataType, float>)
+                             is_same_v<OutDataType, float> && is_same_v<ComputeTypeA, float> &&
+                             is_same_v<ComputeTypeB, float>)
                 {
+#ifdef DL_KERNELS
+                    add_device_grouped_conv2d_bwd_weight_dl_gnhwc_gkyxc_gnhwk_f32_instances(
+                        op_ptrs);
+#endif
                     add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f32_instances(
                         op_ptrs);
                 }
-                else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                                  is_same_v<OutDataType, half_t>)
+#endif
+#ifdef CK_ENABLE_FP16
+                if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                             is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, half_t> &&
+                             is_same_v<ComputeTypeB, half_t>)
                 {
+#ifdef DL_KERNELS
+                    add_device_grouped_conv2d_bwd_weight_dl_gnhwc_gkyxc_gnhwk_f16_instances(
+                        op_ptrs);
+#endif
                     add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f16_instances(
                         op_ptrs);
                 }
-                else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
-                                  is_same_v<WeiDataType, float> &&
-                                  is_same_v<OutDataType, ck::bhalf_t>)
+#endif
+#ifdef CK_ENABLE_BF16
+                if constexpr(is_same_v<InDataType, ck::bhalf_t> && is_same_v<WeiDataType, float> &&
+                             is_same_v<OutDataType, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeA, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeB, ck::bhalf_t>)
                 {
+#ifdef DL_KERNELS
+                    add_device_grouped_conv2d_bwd_weight_dl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_instances(
+                        op_ptrs);
+#endif
                     add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_instances(
                         op_ptrs);
                 }
+#endif
             }
-            else if constexpr(is_same_v<InLayout, NHWGC> && is_same_v<WeiLayout, GKYXC> &&
-                              is_same_v<OutLayout, NHWGK>)
+            if constexpr(is_same_v<InLayout, NHWGC> && is_same_v<WeiLayout, GKYXC> &&
+                         is_same_v<OutLayout, NHWGK>)
             {
+#ifdef CK_ENABLE_FP32
                 if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
-                             is_same_v<OutDataType, float>)
+                             is_same_v<OutDataType, float> && is_same_v<ComputeTypeA, float> &&
+                             is_same_v<ComputeTypeB, float>)
                 {
+#ifdef DL_KERNELS
+                    add_device_grouped_conv2d_bwd_weight_dl_nhwgc_gkyxc_nhwgk_f32_instances(
+                        op_ptrs);
+#endif
                     add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_instances(
                         op_ptrs);
                 }
-                else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                                  is_same_v<OutDataType, half_t>)
+#endif
+#ifdef CK_ENABLE_FP16
+                if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                             is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, half_t> &&
+                             is_same_v<ComputeTypeB, half_t>)
                 {
+#ifdef DL_KERNELS
+                    add_device_grouped_conv2d_bwd_weight_dl_nhwgc_gkyxc_nhwgk_f16_instances(
+                        op_ptrs);
+#endif
                     add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
                         op_ptrs);
                 }
-                else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
-                                  is_same_v<WeiDataType, float> &&
-                                  is_same_v<OutDataType, ck::bhalf_t>)
+#endif
+#ifdef CK_ENABLE_BF16
+                if constexpr(is_same_v<InDataType, ck::bhalf_t> && is_same_v<WeiDataType, float> &&
+                             is_same_v<OutDataType, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeA, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeB, ck::bhalf_t>)
                 {
+#ifdef DL_KERNELS
+                    add_device_grouped_conv2d_bwd_weight_dl_nhwgc_gkyxc_nhwgk_bf16_f32_bf16_instances(
+                        op_ptrs);
+#endif
                     add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_bf16_f32_bf16_instances(
                         op_ptrs);
                 }
+#endif
             }
         }
-        else if constexpr(NumDimSpatial == 3)
+        if constexpr(NumDimSpatial == 3)
         {
             if constexpr(is_same_v<InLayout, GNDHWC> && is_same_v<WeiLayout, GKZYXC> &&
                          is_same_v<OutLayout, GNDHWK>)
             {
+#ifdef CK_ENABLE_FP32
                 if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
-                             is_same_v<OutDataType, float>)
+                             is_same_v<OutDataType, float> && is_same_v<ComputeTypeA, float> &&
+                             is_same_v<ComputeTypeB, float>)
                 {
+#ifdef DL_KERNELS
+                    add_device_grouped_conv3d_bwd_weight_dl_gndhwc_gkzyxc_gndhwk_f32_instances(
+                        op_ptrs);
+#endif
                     add_device_grouped_conv3d_bwd_weight_xdl_gndhwc_gkzyxc_gndhwk_f32_instances(
                         op_ptrs);
                 }
-                else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                                  is_same_v<OutDataType, half_t>)
+#endif
+#ifdef CK_ENABLE_FP16
+                if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                             is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, half_t> &&
+                             is_same_v<ComputeTypeB, half_t>)
                 {
+#ifdef DL_KERNELS
+                    add_device_grouped_conv3d_bwd_weight_dl_gndhwc_gkzyxc_gndhwk_f16_instances(
+                        op_ptrs);
+#endif
                     add_device_grouped_conv3d_bwd_weight_xdl_gndhwc_gkzyxc_gndhwk_f16_instances(
                         op_ptrs);
+                    add_device_grouped_conv3d_bwd_weight_wmma_gndhwc_gkzyxc_gndhwk_f16_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_weight_wmma_gndhwc_gkzyxc_gndhwk_f16_1x1s1p0_instances(
+                        op_ptrs);
                 }
-                else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
-                                  is_same_v<WeiDataType, float> &&
-                                  is_same_v<OutDataType, ck::bhalf_t>)
+#endif
+#ifdef CK_ENABLE_BF16
+                if constexpr(is_same_v<InDataType, ck::bhalf_t> && is_same_v<WeiDataType, float> &&
+                             is_same_v<OutDataType, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeA, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeB, ck::bhalf_t>)
                 {
+#ifdef DL_KERNELS
+                    add_device_grouped_conv3d_bwd_weight_dl_gndhwc_gkzyxc_gndhwk_bf16_f32_bf16_instances(
+                        op_ptrs);
+#endif
                     add_device_grouped_conv3d_bwd_weight_xdl_gndhwc_gkzyxc_gndhwk_bf16_f32_bf16_instances(
                         op_ptrs);
                 }
-            }
-            else if constexpr(is_same_v<InLayout, NDHWGC> && is_same_v<WeiLayout, GKZYXC> &&
-                              is_same_v<OutLayout, NDHWGK>)
-            {
-                if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
-                             is_same_v<OutDataType, float>)
+#endif
+#ifdef CK_ENABLE_INT8
+                else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
+                                  is_same_v<OutDataType, int8_t> &&
+                                  is_same_v<ComputeTypeA, int8_t> &&
+                                  is_same_v<ComputeTypeB, int8_t>)
                 {
+                    add_device_grouped_conv3d_bwd_weight_wmma_gndhwc_gkzyxc_gndhwk_i8_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_weight_wmma_gndhwc_gkzyxc_gndhwk_i8_1x1s1p0_instances(
+                        op_ptrs);
+                }
+#endif
+            }
+            if constexpr(is_same_v<InLayout, NDHWGC> && is_same_v<WeiLayout, GKZYXC> &&
+                         is_same_v<OutLayout, NDHWGK>)
+            {
+#ifdef CK_ENABLE_FP32
+                if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
+                             is_same_v<OutDataType, float> && is_same_v<ComputeTypeA, float> &&
+                             is_same_v<ComputeTypeB, float>)
+                {
+#ifdef DL_KERNELS
+                    add_device_grouped_conv3d_bwd_weight_dl_ndhwgc_gkzyxc_ndhwgk_f32_instances(
+                        op_ptrs);
+#endif
                     add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instances(
                         op_ptrs);
                 }
-                else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                                  is_same_v<OutDataType, half_t>)
+#endif
+#ifdef CK_ENABLE_FP16
+                if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                             is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, half_t> &&
+                             is_same_v<ComputeTypeB, half_t>)
                 {
+#ifdef DL_KERNELS
+                    add_device_grouped_conv3d_bwd_weight_dl_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+                        op_ptrs);
+#endif
                     add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances(
                         op_ptrs);
+                    add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_f16_1x1s1p0_instances(
+                        op_ptrs);
                 }
-                else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
-                                  is_same_v<WeiDataType, float> &&
-                                  is_same_v<OutDataType, ck::bhalf_t>)
+#endif
+#ifdef CK_ENABLE_BF16
+                if constexpr(is_same_v<InDataType, ck::bhalf_t> && is_same_v<WeiDataType, float> &&
+                             is_same_v<OutDataType, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeA, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeB, ck::bhalf_t>)
                 {
+#ifdef DL_KERNELS
+                    add_device_grouped_conv3d_bwd_weight_dl_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
+                        op_ptrs);
+#endif
                     add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
                         op_ptrs);
                 }
+#endif
+#ifdef CK_ENABLE_INT8
+                else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
+                                  is_same_v<OutDataType, int8_t> &&
+                                  is_same_v<ComputeTypeA, int8_t> &&
+                                  is_same_v<ComputeTypeB, int8_t>)
+                {
+                    add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_i8_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_i8_1x1s1p0_instances(
+                        op_ptrs);
+                }
+#endif
+#if defined CK_ENABLE_FP16 && defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
+                if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                             is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, bf8_t> &&
+                             is_same_v<ComputeTypeB, f8_t>)
+                {
+                    add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_f8_instances(
+                        op_ptrs);
+                }
+#endif
             }
         }
 
