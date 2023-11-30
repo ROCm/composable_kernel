@@ -226,7 +226,9 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
         }
     }
 
-    void SetWorkSpacePointer(BaseArgument* pArg, void* p_workspace) const override
+    void SetWorkSpacePointer(BaseArgument* pArg,
+                             void* p_workspace,
+                             const StreamConfig& = StreamConfig{}) const override
     {
         Argument* pArg_ = dynamic_cast<Argument*>(pArg);
 
