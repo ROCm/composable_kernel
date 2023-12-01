@@ -657,7 +657,8 @@ def process_results(Map conf=[:]){
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=5.7;COMPILER_VERSION=
                                               0 21 * * * % ROCMVERSION=5.7;COMPILER_VERSION=;COMPILER_COMMIT=
-                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=;USE_SCCACHE=false''' : ""
+                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=;USE_SCCACHE=false
+                                              0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;COMPILER_COMMIT=;USE_SCCACHE=false''' : ""
 
 pipeline {
     agent none
@@ -679,11 +680,11 @@ pipeline {
         string(
             name: 'COMPILER_VERSION', 
             defaultValue: '', 
-            description: 'Specify which version of compiler to use: release, amd-stg-open, or leave blank (default).')
+            description: 'Specify which version of compiler to use: release, amd-stg-open, amd-mainline-open, or leave blank (default).')
         string(
             name: 'COMPILER_COMMIT', 
             defaultValue: '', 
-            description: 'Specify which commit of compiler branch to use: leave blank to use the latest commit, or use 5541927df00eabd6a110180170eca7785d436ee3 (default) commit of amd-stg-open branch.')
+            description: 'Specify which commit of compiler branch to use: leave blank to use:wq the latest commit, or use 5541927df00eabd6a110180170eca7785d436ee3 (default) commit of amd-stg-open branch.')
         string(
             name: 'BUILD_COMPILER', 
             defaultValue: 'hipcc', 
