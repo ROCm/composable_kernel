@@ -18,11 +18,20 @@ namespace device {
 namespace instance {
 
 void add_device_permute_scale_f16_instances(
-    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>, ck::Tuple<F16>, PassThrough, element_wise::UnarySquare, Scale, 4>>>&);
+    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>,
+                                                  ck::Tuple<F16>,
+                                                  PassThrough,
+                                                  element_wise::UnarySquare,
+                                                  Scale,
+                                                  4>>>&);
 
 void add_device_permute_scale_f32_instances(
-    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>, ck::Tuple<F32>, PassThrough, element_wise::UnarySquare, Scale, 4>>>&);
-
+    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
+                                                  ck::Tuple<F32>,
+                                                  PassThrough,
+                                                  element_wise::UnarySquare,
+                                                  Scale,
+                                                  4>>>&);
 
 template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
@@ -31,11 +40,19 @@ template <typename InDataTypeTuple,
           typename Scale,
           index_t NumDim>
 struct DeviceOperationInstanceFactory<
-    ck::tensor_operation::device::
-        DeviceElementwise<InDataTypeTuple, OutDataTypeTuple, ElementwiseOperation, UnaryOperation, Scale, NumDim>>
+    ck::tensor_operation::device::DeviceElementwise<InDataTypeTuple,
+                                                    OutDataTypeTuple,
+                                                    ElementwiseOperation,
+                                                    UnaryOperation,
+                                                    Scale,
+                                                    NumDim>>
 {
-    using DeviceOp =
-        DeviceElementwise<InDataTypeTuple, OutDataTypeTuple, ElementwiseOperation, UnaryOperation, Scale, NumDim>;
+    using DeviceOp = DeviceElementwise<InDataTypeTuple,
+                                       OutDataTypeTuple,
+                                       ElementwiseOperation,
+                                       UnaryOperation,
+                                       Scale,
+                                       NumDim>;
 
     static auto GetInstances()
     {
@@ -53,7 +70,6 @@ struct DeviceOperationInstanceFactory<
         return op_ptrs;
     }
 };
-
 
 } // namespace instance
 } // namespace device

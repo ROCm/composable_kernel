@@ -17,7 +17,8 @@ class TestPermute : public ::testing::Test
 
     void Run()
     {
-        std::vector<std::vector<ck::index_t>> lengths = {{4, 2, 1, 8}, {4, 2, 8, 8}};
+        std::vector<std::vector<ck::index_t>> lengths = {
+            {4, 2, 1, 8}, {1, 1, 1, 1}, {16, 8, 32, 8}};
 
         for(auto length : lengths)
         {
@@ -28,7 +29,8 @@ class TestPermute : public ::testing::Test
     }
 };
 
-using KernelTypes = ::testing::Types<std::tuple<F16, F16>>;
+using KernelTypes = ::testing::Types<std::tuple<F16, F16>, std::tuple<F32, F32>>;
 
 TYPED_TEST_SUITE(TestPermute, KernelTypes);
 TYPED_TEST(TestPermute, Test_FP16) { this->Run(); }
+TYPED_TEST(TestPermute, Test_FP32) { this->Run(); }
