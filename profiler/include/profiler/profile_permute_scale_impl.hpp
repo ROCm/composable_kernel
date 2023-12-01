@@ -4,6 +4,7 @@
 #pragma once
 
 #include <iomanip>
+#include <random>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -18,7 +19,6 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
 namespace ck {
 namespace profiler {
@@ -94,6 +94,8 @@ bool profile_permute_scale_impl(int do_verification,
     case 0: break;
     case 1: a.GenerateTensorValue(GeneratorTensor_2<ADataType>{-1, 2}); break;
     default: // a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0}
+        std::mt19937 gen(11939);
+        std::uniform_int_distribution<int> dis(0, 1);
         auto i = 0;
         for(std::size_t w = 0; w < a.mDesc.GetLengths()[3]; ++w)
             for(std::size_t h = 0; h < a.mDesc.GetLengths()[2]; ++h)
@@ -102,7 +104,7 @@ bool profile_permute_scale_impl(int do_verification,
                     {
                         a.mData[(n * nchw[1] * nchw[2] * nchw[3]) + (c * nchw[2] * nchw[3]) +
                                 (h * nchw[3]) + w] = i;
-                        i++;
+                        i                          = dis(gen);
                     }
     }
 
@@ -135,8 +137,6 @@ bool profile_permute_scale_impl(int do_verification,
     {
         host_elementwise4D(host_b, a, ElementOp{}, UnaryOp{}, scale);
     }
-
-    int num_kernel = 0;
 
     for(auto& op_ptr : op_ptrs)
     {
@@ -207,14 +207,8 @@ bool profile_permute_scale_impl(int do_verification,
     if(time_kernel)
     {
         LogRange(std::cout << "length = ", lengths, ",") << ", ";
-        std::cout << "num_kernel = " << num_kernel << ", best perf = " << best_ave_time << " ms, "
-                  << best_gb_per_sec << " GB/s, " << best_instance_name << std::endl;
-    }
-
-    if(num_kernel == 1)
-    {
-        std::cout << "Error: No kernel is tested" << std::endl;
-        return false;
+        std::cout << "best perf = " << best_ave_time << " ms, " << best_gb_per_sec << " GB/s, "
+                  << best_instance_name << std::endl;
     }
 
     return true;

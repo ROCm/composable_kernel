@@ -18,12 +18,12 @@ class TestPermute : public ::testing::Test
     void Run()
     {
         std::vector<std::vector<ck::index_t>> lengths = {
-            {4, 2, 1, 8}, {1, 1, 1, 1}, {16, 8, 32, 8}};
+            {4, 2, 1, 8}, {1, 1, 1, 1}, {16, 8, 32, 64}, {32, 64, 128, 128}};
 
         for(auto length : lengths)
         {
             bool success = ck::profiler::profile_permute_scale_impl<ADataType, BDataType, 4>(
-                true, 2, false, false, length);
+                true, 2, false, true, length);
             EXPECT_TRUE(success);
         }
     }

@@ -24,14 +24,14 @@ using device_permute_scale_f16_instances =
     std::tuple <
         DeviceElementwiseImpl<ck::Tuple<F16>, ck::Tuple<F16>, Pass, UnaryOp, Scale, 4, 1, ck::Sequence<1>, ck::Sequence<1>>,
         DeviceElementwiseImpl<ck::Tuple<F16>, ck::Tuple<F16>, Pass, UnaryOp, Scale, 4, 8, ck::Sequence<1>, ck::Sequence<1>>,
-        DeviceElementwiseImpl<ck::Tuple<F16>, ck::Tuple<F16>, Pass, UnaryOp, Scale, 4, 8, ck::Sequence<8>, ck::Sequence<1>>,
-        DeviceElementwiseImpl<ck::Tuple<F16>, ck::Tuple<F16>, Pass, UnaryOp, Scale, 4, 8, ck::Sequence<1>, ck::Sequence<8>>,
+        DeviceElementwiseImpl<ck::Tuple<F16>, ck::Tuple<F16>, Pass, UnaryOp, Scale, 4, 4, ck::Sequence<1>, ck::Sequence<1>>,
         DeviceElementwiseImpl<ck::Tuple<F16>, ck::Tuple<F16>, Pass, UnaryOp, Scale, 4, 2, ck::Sequence<1>, ck::Sequence<1>>
     >;
 
 using device_permute_scale_f32_instances = std::tuple<
          DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F32>, Pass, UnaryOp, Scale, 4, 1, ck::Sequence<1>, ck::Sequence<1>>,
          DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F32>, Pass, UnaryOp, Scale, 4, 8, ck::Sequence<1>, ck::Sequence<1>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F32>, Pass, UnaryOp, Scale, 4, 4, ck::Sequence<1>, ck::Sequence<1>>,
          DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F32>, Pass, UnaryOp, Scale, 4, 2, ck::Sequence<1>, ck::Sequence<1>>
     >;
 // clang-format on
