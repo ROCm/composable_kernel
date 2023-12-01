@@ -178,7 +178,7 @@ struct vector_type<T, 1>
         StaticallyIndexedArray<T, 1> d1x1_;
     } data_;
 
-    __host__ __device__ constexpr vector_type() : data_{} {}
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
@@ -214,7 +214,7 @@ struct vector_type<T, 2>
         StaticallyIndexedArray<d2_t, 1> d2x1_;
     } data_;
 
-    __host__ __device__ constexpr vector_type() : data_{} {}
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
@@ -266,7 +266,7 @@ struct vector_type<T, 4>
         StaticallyIndexedArray<d4_t, 1> d4x1_;
     } data_;
 
-    __host__ __device__ constexpr vector_type() : data_{} {}
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
@@ -330,7 +330,7 @@ struct vector_type<T, 8>
         StaticallyIndexedArray<d8_t, 1> d8x1_;
     } data_;
 
-    __host__ __device__ constexpr vector_type() : data_{} {}
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
@@ -406,7 +406,7 @@ struct vector_type<T, 16>
         StaticallyIndexedArray<d16_t, 1> d16x1_;
     } data_;
 
-    __host__ __device__ constexpr vector_type() : data_{} {}
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
@@ -494,7 +494,7 @@ struct vector_type<T, 32>
         StaticallyIndexedArray<d32_t, 1> d32x1_;
     } data_;
 
-    __host__ __device__ constexpr vector_type() : data_{} {}
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
@@ -592,7 +592,7 @@ struct vector_type<T, 64>
         StaticallyIndexedArray<d64_t, 1> d64x1_;
     } data_;
 
-    __host__ __device__ constexpr vector_type() : data_{} {}
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
@@ -702,7 +702,7 @@ struct vector_type<T, 128>
         StaticallyIndexedArray<d128_t, 1> d128x1_;
     } data_;
 
-    __host__ __device__ constexpr vector_type() : data_{} {}
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
@@ -822,7 +822,7 @@ struct vector_type<T, 256>
         StaticallyIndexedArray<d256_t, 1> d256x1_;
     } data_;
 
-    __host__ __device__ constexpr vector_type() : data_{} {}
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 

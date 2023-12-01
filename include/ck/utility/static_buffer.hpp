@@ -73,28 +73,6 @@ struct StaticBuffer : public StaticallyIndexedArray<remove_cvref_t<S_>, N>
         return vx.template AsType<X>().template At<0>();
     }
 
-    // Get a vector (type X)
-    // "is" is offset of S, not X.
-    // "is" should be aligned to X
-    template <typename X_,
-              index_t Is,
-              typename enable_if<has_same_scalar_type<S, X_>::value, bool>::type = false>
-    __host__ __device__ constexpr remove_reference_t<X_>& GetAsTypeRaw(Number<Is> is)
-    {
-        using X = remove_cvref_t<X_>;
-
-        constexpr index_t kSPerX = scalar_type<X>::vector_size;
-        static_assert(Is % kSPerX == 0, "wrong! \"Is\" should be aligned to X");
-
-        using new_type =
-            StaticBuffer<AddressSpace, X, N / kSPerX, InvalidElementUseNumericalZeroValue>;
-        static_assert(sizeof(new_type) == sizeof(*this));
-
-        // auto & new_this = __builtin_bit_cast(new_type, *this);
-
-        return __builtin_bit_cast(new_type, *this).operator()(Number<is / kSPerX>{});
-    }
-
     // Set a vector (type X)
     // "is" is offset of S, not X.
     // "is" should be aligned to X

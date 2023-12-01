@@ -261,11 +261,6 @@ struct TileWindowWithStaticDistribution
                           get_container_subset(window_adaptor_ps_ys_vector_strides, y_dims));
     }
 
-    __device__ auto MakeLoadBuffer() const
-    {
-        return make_static_distributed_tensor<DataType>(TileDstr{});
-    }
-
     __device__ constexpr auto GetNumAccess() const { return LoadStoreTraits::NumAccess; }
 
     template <bool use_inline_asm = false>
