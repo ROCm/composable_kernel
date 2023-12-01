@@ -46,15 +46,11 @@ struct StaticDistributedTensor
         return StaticTileDistribution::GetDistributedSpans();
     }
 
-    __host__ __device__ void Initialize(const DataType& x) { thread_buf_.arr.Initialize(x); }
+    __host__ __device__ void Initialize(const DataType& x) { thread_buf_.Initialize(x); }
 
-    __host__ __device__ constexpr const auto& GetThreadBuffer() const { return thread_buf_.arr; }
+    __host__ __device__ constexpr const auto& GetThreadBuffer() const { return thread_buf_; }
 
-    __host__ __device__ constexpr auto& GetThreadBuffer() { return thread_buf_.arr; }
-
-    __host__ __device__ constexpr const auto& GetThreadBufferRaw() const { return thread_buf_.vec; }
-
-    __host__ __device__ constexpr auto& GetThreadBufferRaw() { return thread_buf_.vec; }
+    __host__ __device__ constexpr auto& GetThreadBuffer() { return thread_buf_; }
 
     __host__ __device__ static constexpr index_t GetThreadBufferSize()
     {
@@ -82,7 +78,7 @@ struct StaticDistributedTensor
             constexpr auto idx_ys = idx + Sequence<YSliceOrigins...>{};
 
             sliced_thread_data(Number<sliced_thread_tensor_desc.CalculateOffset(idx)>{}) =
-                thread_buf_.arr[Number<ThreadTensorDesc{}.CalculateOffset(idx_ys)>{}];
+                thread_buf_[Number<ThreadTensorDesc{}.CalculateOffset(idx_ys)>{}];
         });
 
         return sliced_thread_data;
@@ -104,7 +100,7 @@ struct StaticDistributedTensor
         static_ford<Sequence<YSliceLengths...>>{}([&](auto idx) {
             constexpr auto idx_ys = idx + Sequence<YSliceOrigins...>{};
 
-            thread_buf_.arr(Number<ThreadTensorDesc{}.CalculateOffset(idx_ys)>{}) =
+            thread_buf_(Number<ThreadTensorDesc{}.CalculateOffset(idx_ys)>{}) =
                 sliced_thread_data[Number<sliced_thread_tensor_desc.CalculateOffset(idx)>{}];
         });
     }
@@ -118,7 +114,7 @@ struct StaticDistributedTensor
         constexpr auto y_idx =
             GetTileDistribution().GetYIndicesFromDistributedIndices(TileDistributedIndices{});
 
-        return thread_buf_.arr[Number<ThreadTensorDesc{}.CalculateOffset(y_idx)>{}];
+        return thread_buf_[Number<ThreadTensorDesc{}.CalculateOffset(y_idx)>{}];
     }
 
     template <typename TileDistributedIndices>
@@ -130,20 +126,20 @@ struct StaticDistributedTensor
         constexpr auto y_idx =
             GetTileDistribution().GetYIndicesFromDistributedIndices(TileDistributedIndices{});
 
-        return thread_buf_.arr(Number<ThreadTensorDesc{}.CalculateOffset(y_idx)>{});
+        return thread_buf_(Number<ThreadTensorDesc{}.CalculateOffset(y_idx)>{});
     }
 
 #if 0
     template <index_t... Ys>
     __host__ __device__ auto GetElementFromYsIndex(Sequence<Ys...> idx_ys) const
     {
-        return thread_buf_.arr[Number<ThreadTensorDesc{}.CalculateOffset(idx_ys)>{}];
+        return thread_buf_[Number<ThreadTensorDesc{}.CalculateOffset(idx_ys)>{}];
     }
 
     template <index_t... Ys>
     __host__ __device__ void SetElementFromYsIndex(Sequence<Ys...> idx_ys, const DataType& v)
     {
-        thread_buf_.arr(Number<ThreadTensorDesc{}.CalculateOffset(idx_ys)>{}) = v;
+        thread_buf_(Number<ThreadTensorDesc{}.CalculateOffset(idx_ys)>{}) = v;
     }
     template <typename TileDistributedIndices>
     __host__ __device__ auto GetElementFromTileDistributedIndices(TileDistributedIndices) const
@@ -170,12 +166,7 @@ struct StaticDistributedTensor
 #endif
 
     //
-    union _U
-    {
-        StaticBuffer<AddressSpaceEnum::Vgpr, DataType, kThreadElementSpaceSize, true> arr;
-        vector_type<DataType, kThreadElementSpaceSize> vec{};
-    } thread_buf_;
-    static_assert(sizeof(thread_buf_) == sizeof(DataType) * kThreadElementSpaceSize);
+    StaticBuffer<AddressSpaceEnum::Vgpr, DataType, kThreadElementSpaceSize, true> thread_buf_;
 };
 
 template <typename DataType, typename StaticTileDistribution>

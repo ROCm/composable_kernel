@@ -19,30 +19,26 @@ namespace tile_program {
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
-          index_t NumCoord,
-          bool use_inline_asm = false>
-__device__ auto load_tile(const TileWindowWithStaticDistribution<BottomTensorView_,
-                                                                 WindowLengths_,
-                                                                 TileDistribution_,
-                                                                 NumCoord>& tile_window,
-                          bool_constant<use_inline_asm> = {})
-{
-    return tile_window.Load(bool_constant<use_inline_asm>{});
-}
-
-template <typename DstDataType_,
-          typename DstTileDistribution_,
-          typename BottomTensorView_,
-          typename WindowLengths_,
-          typename TileDistribution_,
           index_t NumCoord>
-__device__ void load_tile(StaticDistributedTensor<DstDataType_, DstTileDistribution_>& dst_tensor,
-                          const TileWindowWithStaticDistribution<BottomTensorView_,
+__device__ auto load_tile(const TileWindowWithStaticDistribution<BottomTensorView_,
                                                                  WindowLengths_,
                                                                  TileDistribution_,
                                                                  NumCoord>& tile_window)
 {
-    tile_window.LoadRaw(dst_tensor);
+    return tile_window.Load();
+}
+
+// This version use inline asm to do loading.
+template <typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          index_t NumCoord>
+__device__ auto load_tile_raw(const TileWindowWithStaticDistribution<BottomTensorView_,
+                                                                     WindowLengths_,
+                                                                     TileDistribution_,
+                                                                     NumCoord>& tile_window)
+{
+    return tile_window.Load(bool_constant<true>{});
 }
 
 template <typename LdsTileWindow_,

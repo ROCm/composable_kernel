@@ -137,8 +137,7 @@ struct BlockFmhaPipelineQRKSVS
             q_dram_block_window_tmp.GetWindowOrigin(),
             Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
 
-        auto q =
-            load_tile(q_dram_window, integral_constant<bool, true>{}); // persistent q register tile
+        auto q = load_tile_raw(q_dram_window); // persistent q register tile
 
         __builtin_amdgcn_sched_barrier(0);
 

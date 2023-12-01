@@ -148,23 +148,6 @@ struct buffer_load<1>
     }
 };
 
-template <typename T>
-__device__ void buffer_load_fence(T& target, index_t cnt = 0)
-{
-    asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
-    auto& buf                  = target.GetThreadBuffer();
-    constexpr index_t buf_size = buf.Size();
-    static_for<0, buf_size, 1>{}([&buf](auto i) { asm volatile("" : "+v"(buf(i)) : : "memory"); });
-    // using type = typename remove_cvref_t<decltype(target.GetThreadBufferRaw())>::type;
-    // asm volatile("" : "+X"(target.GetThreadBufferRaw().template AsType<type>()(Number<0>{})) : :
-    // "memory");
-
-    // asm volatile("s_waitcnt vmcnt(%1)" : "+X"(target) : "n"(cnt) : "memory");
-
-    // asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
-    // asm volatile("" : "=X"(target));
-}
-
 __device__ void buffer_load_fence(index_t cnt = 0)
 {
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
@@ -407,12 +390,12 @@ llvm_amdgcn_raw_buffer_atomic_max_fp64(double vdata,
                                        int soffset,    // dst_wave_addr_offset
                                        int glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fmax.f64");
 
-__device__ void async_buffer_load_fp32(void* smem,
-                                       int32x4_t rsrc,
-                                       index_t voffset,
-                                       index_t soffset,
-                                       index_t ioffset /*max 0xFFF*/,
-                                       index_t /*flag*/ = 0)
+__device__ void async_buffer_load_dword(void* smem,
+                                        int32x4_t rsrc,
+                                        index_t voffset,
+                                        index_t soffset,
+                                        index_t ioffset /*max 0xFFF*/,
+                                        index_t /*flag*/ = 0)
 {
     asm volatile("buffer_load_dword %1, %2, %3 offen offset:%4 lds"
                  : "=r"(smem) /*dummy dependency for smem*/
@@ -736,11 +719,11 @@ __device__ void amd_async_buffer_load_impl(T* smem,
         "wrong! not implemented");
     if constexpr(sizeof(T) * N == 4)
     {
-        async_buffer_load_fp32(smem,
-                               src_wave_buffer_resource,
-                               src_thread_addr_offset,
-                               src_wave_addr_offset,
-                               src_immediate_addr_offset);
+        async_buffer_load_dword(smem,
+                                src_wave_buffer_resource,
+                                src_thread_addr_offset,
+                                src_wave_addr_offset,
+                                src_immediate_addr_offset);
     }
 }
 
