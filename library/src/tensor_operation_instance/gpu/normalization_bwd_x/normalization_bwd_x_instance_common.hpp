@@ -52,6 +52,21 @@ using device_layernorm_bwd_x_f32_generic_instance = std::tuple<
     // clang-format on
     >;
 
+using device_groupnorm_bwd_x_f32_instances =
+    // clang-format off
+    std::tuple <
+        // DYDataType, XDataType, GammaDataType, MeanInvStdDataType, ComputeDataType, DXDataType, Rank, NumReduceDim, BlockSize, MThreadClusterSize, KThreadClusterSize, MThreadSliceSize, KThreadSliceSize, IsDYFastestDimReduced, DYSrcVectorSize, IsXFastestDimReduced, XSrcVectorSize, IsGammaFastestDimReduced, GammaSrcVectorSize, IsMeanInvStdFastestDimReduced, MeanInvStdSrcVectorSize, IsDXFastestDimReduced, DXDstVectorSize>
+        DeviceNormalizationBwdXImpl<F32, F32, F32, F32, F32, F32, 5, 3, 256, 1, 256, 1, 2, true, 2, true, 2, true, 2, false, 1, true, 2>,
+        DeviceNormalizationBwdXImpl<F32, F32, F32, F32, F32, F32, 5, 3, 256, 1, 256, 1, 4, true, 4, true, 4, true, 4, false, 1, true, 4>
+        // clang-format on
+        >;
+
+using device_groupnorm_bwd_x_f32_generic_instance = std::tuple<
+    // clang-format off
+        DeviceNormalizationBwdXImpl<F32, F32, F32, F32, F32, F32, 5, 3, 64, 1, 64, 1, 1, true, 1, true, 1, true, 1, false, 1, true, 1>
+    // clang-format on
+    >;
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
