@@ -109,7 +109,8 @@ float invoker_fmha_kernel(const void* q_ptr,
                           ck::index_t hdim_v,
                           float scale,
                           bool i_perm,
-                          bool o_perm)
+                          bool o_perm,
+                          StreamConfig stream_config)
 {
     dim3 kGridSize            = FmhaKernel::GridSize(batch, nhead, seqlen_q, hdim_v);
     constexpr dim3 kBlockSize = FmhaKernel::BlockSize();
@@ -153,13 +154,22 @@ float invoker_fmha_kernel(const void* q_ptr,
         nhead * hdim_v * seqlen_k,           // batch_stride_v
         nhead * seqlen_q * hdim_v);          // batch_stride_o
 
-    float ave_time = launch_kernel<kBlockSize.x, kBlockPerCu>(StreamConfig{nullptr, true},
+    float ave_time = launch_kernel<kBlockSize.x, kBlockPerCu>(stream_config,
                                                               FmhaKernel{},
                                                               kGridSize,
                                                               kBlockSize,
                                                               0,
                                                               kargs); // BatchStrideO
     return ave_time;
+}
+
+static inline int env_get_int(const char* var_name, int default_int)
+{
+    char* v = getenv(var_name);
+    int r   = default_int;
+    if(v)
+        r = atoi(v);
+    return r;
 }
 
 int main(int argc, char* argv[])
@@ -198,6 +208,11 @@ int main(int argc, char* argv[])
 
     if(scale == .0f)
         scale = 1.0 / ck::math::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
+
+    int stream_warmup = env_get_int("CK_WARMUP", 5);
+    int stream_repeat = env_get_int("CK_REPEAT", 20);
+
+    StreamConfig stream_config {nullptr, true, 0, stream_warmup, stream_repeat};
 
     auto get_lengths = [&](bool permute,
                            ck::index_t b /*batch*/,
@@ -258,7 +273,8 @@ int main(int argc, char* argv[])
                                                          hdim_v,
                                                          scale,
                                                          i_perm,
-                                                         o_perm);
+                                                         o_perm,
+                                                         stream_config);
     else if(hdim_q == hdim_v && hdim_q == 128)
         ave_time = invoker_fmha_kernel<FmhaKernelHDim128>(q_buf.GetDeviceBuffer(),
                                                           k_buf.GetDeviceBuffer(),
@@ -272,7 +288,8 @@ int main(int argc, char* argv[])
                                                           hdim_v,
                                                           scale,
                                                           i_perm,
-                                                          o_perm);
+                                                          o_perm,
+                                                          stream_config);
     else
     {
         std::cout << "not support hdim, will not run" << std::endl;
