@@ -16,10 +16,11 @@
 template <typename TilePartitioner_, typename FmhaPipeline_, typename EpiloguePipeline_>
 struct FmhaFwdKernel
 {
-    using TilePartitioner                   = ck::remove_cvref_t<TilePartitioner_>;
-    using FmhaPipeline                      = ck::remove_cvref_t<FmhaPipeline_>;
-    using EpiloguePipeline                  = ck::remove_cvref_t<EpiloguePipeline_>;
-    static constexpr ck::index_t kBlockSize = FmhaPipeline::kBlockSize;
+    using TilePartitioner                    = ck::remove_cvref_t<TilePartitioner_>;
+    using FmhaPipeline                       = ck::remove_cvref_t<FmhaPipeline_>;
+    using EpiloguePipeline                   = ck::remove_cvref_t<EpiloguePipeline_>;
+    static constexpr ck::index_t kBlockSize  = FmhaPipeline::kBlockSize;
+    static constexpr ck::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
 
     using QDataType = ck::remove_cvref_t<typename FmhaPipeline::QDataType>;
     using KDataType = ck::remove_cvref_t<typename FmhaPipeline::KDataType>;
@@ -79,11 +80,18 @@ struct FmhaFwdKernel
                                               ck::index_t batch_stride_v,
                                               ck::index_t batch_stride_o)
     {
-        return Kargs{q_ptr,          k_ptr,          v_ptr,          o_ptr,          seqlen_q,
-                     seqlen_k,       hdim_q,         hdim_v,         scale,          stride_q,
-                     stride_k,       stride_v,       stride_o,       nhead_stride_q, nhead_stride_k,
-                     nhead_stride_v, nhead_stride_o, batch_stride_q, batch_stride_k, batch_stride_v,
-                     batch_stride_o};
+        return Kargs
+        {
+            q_ptr, k_ptr, v_ptr, o_ptr, seqlen_q, seqlen_k, hdim_q, hdim_v,
+#if CK_FMHA_FWD_FAST_EXP2
+                static_cast<float>(scale * C_LOG2E),
+#else
+                scale,
+#endif
+                stride_q, stride_k, stride_v, stride_o, nhead_stride_q, nhead_stride_k,
+                nhead_stride_v, nhead_stride_o, batch_stride_q, batch_stride_k, batch_stride_v,
+                batch_stride_o
+        };
     }
 
     __host__ static constexpr auto GridSize(ck::index_t batch_size_,

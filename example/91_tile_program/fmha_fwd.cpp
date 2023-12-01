@@ -51,12 +51,14 @@ using FmhaShapeHDim64      = ck::tile_program::TileFmhaShape<FmhaBlockTileHdim64
                                                         FmhaWarpTile,
                                                         FmhaBlockWarps,
                                                         FmhaWarpTile,
+                                                        3, // occupancy
                                                         VLayout>;
 using FmhaShapeHDim128     = ck::tile_program::TileFmhaShape<FmhaBlockTileHdim128,
                                                          FmhaBlockWarps,
                                                          FmhaWarpTile,
                                                          FmhaBlockWarps,
                                                          FmhaWarpTile,
+                                                         2, // occupancy
                                                          VLayout>;
 
 using FmhaTilePartitionerHDim64  = FmhaFwdTilePartitioner<FmhaShapeHDim64>;
@@ -112,9 +114,7 @@ float invoker_fmha_kernel(const void* q_ptr,
     dim3 kGridSize            = FmhaKernel::GridSize(batch, nhead, seqlen_q, hdim_v);
     constexpr dim3 kBlockSize = FmhaKernel::BlockSize();
 
-    constexpr ck::index_t kWarpPerCu    = 8; // 2 warps per SIMD
-    constexpr ck::index_t kWarpPerBlock = kBlockSize.x / warpSize;
-    constexpr ck::index_t kBlockPerCu   = kWarpPerCu / kWarpPerBlock;
+    constexpr ck::index_t kBlockPerCu = FmhaKernel::kBlockPerCu;
 
     constexpr bool is_v_rowmajor =
         ck::is_same_v<typename FmhaKernel::VLayout, ck::tensor_layout::gemm::RowMajor>;

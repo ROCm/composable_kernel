@@ -63,10 +63,12 @@ struct BufferView<AddressSpaceEnum::Global,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
+              bool use_inline_asm            = false,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
                                  bool>::type = false>
-    __device__ constexpr auto Get(index_t i, bool is_valid_element) const
+    __device__ constexpr auto
+    Get(index_t i, bool is_valid_element, bool_constant<use_inline_asm> = {}) const
     {
         // X contains multiple T
         constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
@@ -90,14 +92,16 @@ struct BufferView<AddressSpaceEnum::Global,
             {
                 return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>,
                                                                    t_per_x,
-                                                                   Coherence>(
+                                                                   Coherence,
+                                                                   use_inline_asm>(
                     p_data_, i, is_valid_element, buffer_size_);
             }
             else
             {
                 return amd_buffer_load_invalid_element_return_customized_value<remove_cvref_t<T>,
                                                                                t_per_x,
-                                                                               Coherence>(
+                                                                               Coherence,
+                                                                               use_inline_asm>(
                     p_data_, i, is_valid_element, buffer_size_, invalid_element_value_);
             }
         }
@@ -127,6 +131,46 @@ struct BufferView<AddressSpaceEnum::Global,
                 }
             }
         }
+    }
+
+    // i is offset of T, not X. i should be aligned to X
+    template <typename X,
+              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                 bool>::type = false>
+    __device__ constexpr auto GetRaw(remove_cvref_t<X>& dst, index_t i) const
+    {
+        constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
+
+        constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
+
+        static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
+                      "wrong! X should contain multiple T");
+
+        constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+
+        amd_buffer_load_raw<remove_cvref_t<T>, t_per_x, Coherence>(dst, p_data_, i, buffer_size_);
+    }
+
+    // i is offset of T, not X. i should be aligned to X
+    template <typename X,
+              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                 bool>::type = false>
+    __device__ constexpr auto
+    AsyncGet(remove_cvref_t<T>* smem, index_t i, bool /*is_valid_element*/) const
+    {
+        // X is vector of T
+        constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
+        constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
+
+        static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
+                      "wrong! X should contain multiple T");
+
+        constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+
+        amd_async_buffer_load_with_oob<remove_cvref_t<T>, t_per_x, Coherence>(
+            smem, p_data_, i, buffer_size_);
     }
 
     // i is offset of T, not X. i should be aligned to X

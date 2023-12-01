@@ -367,5 +367,17 @@ __device__ void amd_assembly_wmma_f32_16x16x16_f16_w32(half16_t a, half16_t b, f
 #endif
 }
 
+// TODO: we have "memory" clobber here because this inline asm is used for async copy
+__device__ void m0_set_with_memory(index_t v)
+{
+    asm volatile("s_mov_b32 m0, %0" : : "s"(v) : "memory");
+}
+
+// NOTE: this is an immediate value
+__device__ void m0_inc_with_memory(index_t v)
+{
+    asm volatile("s_add_u32 m0, %0, m0" : : "n"(v) : "memory");
+}
+
 } // namespace ck
 #endif

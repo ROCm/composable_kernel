@@ -119,4 +119,11 @@ __host__ __device__ constexpr auto make_xor_transform(const LowLengths& low_leng
     return Xor<LowLengths, RightShift>{low_lengths, right_shift};
 }
 
+template <typename LowLength, typename OffsetLength>
+__host__ __device__ constexpr auto make_offset_transform(const LowLength& low_length,
+                                                         const OffsetLength& offset_length)
+{
+    return Offset<LowLength, OffsetLength>{low_length, offset_length};
+}
+
 } // namespace ck

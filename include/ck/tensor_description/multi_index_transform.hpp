@@ -18,6 +18,7 @@ enum struct IndexTransformEnum
     UnMerge,
     Replicate,
     Xor,
+    Offset,
 };
 
 template <index_t NDimLow, index_t NDimUp>
@@ -1396,6 +1397,90 @@ struct Xor : public BaseTransform<2, 2>
         //
         printf("right_shift_: ");
         print(right_shift_);
+
+        printf("}");
+    }
+};
+
+template <typename LowLength, typename OffsetLength>
+struct Offset : public BaseTransform<1, 1>
+{
+    using LowerIndex = MultiIndex<1>;
+    using UpperIndex = MultiIndex<1>;
+
+    using UpLengths = decltype(make_tuple(LowLength{}));
+
+    UpLengths up_lengths_;
+    OffsetLength offset_length_;
+
+    __host__ __device__ constexpr Offset() = default;
+
+    __host__ __device__ constexpr Offset(const LowLength& low_length,
+                                         const OffsetLength& offset_length)
+        : up_lengths_{make_tuple(low_length)}, offset_length_{offset_length}
+    {
+    }
+
+    __host__ __device__ static constexpr auto GetTypeEnum() { return IndexTransformEnum::Offset; }
+
+    __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
+
+    template <typename LowIdx, typename UpIdx>
+    __host__ __device__ constexpr void CalculateLowerIndex(LowIdx& idx_low,
+                                                           const UpIdx& idx_up) const
+    {
+        static_assert(LowIdx::Size() == 1 && UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        idx_low(Number<0>{}) = idx_up[Number<0>{}] + offset_length_;
+    }
+
+    template <typename LowIdxDiff, typename UpIdxDiff, typename LowIdx, typename UpIdx>
+    __host__ __device__ static void UpdateLowerIndex(LowIdxDiff& idx_diff_low,
+                                                     const UpIdxDiff& idx_diff_up,
+                                                     LowIdx& idx_low,
+                                                     const UpIdx&)
+    {
+        static_assert(LowIdxDiff::Size() == 1 && UpIdxDiff::Size() == 1 && LowIdx::Size() == 1 &&
+                          UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        constexpr auto I0 = Number<0>{};
+
+        idx_diff_low(I0) = idx_diff_up[I0];
+
+        idx_low += idx_diff_low;
+    }
+
+    __host__ __device__ static constexpr bool IsValidUpperIndexAlwaysMappedToValidLowerIndex()
+    {
+        return true;
+    }
+
+    template <typename UpIdx>
+    __host__ __device__ constexpr bool IsValidUpperIndexMappedToValidLowerIndex(const UpIdx&) const
+    {
+        return true;
+    }
+
+    __host__ __device__ static constexpr bool IsKnownAtCompileTime()
+    {
+        return is_known_at_compile_time<UpLengths>::value &&
+               is_known_at_compile_time<OffsetLength>::value;
+    }
+
+    __host__ __device__ void Print() const
+    {
+        printf("Offset{");
+
+        //
+        printf("up_lengths_: ");
+        print(up_lengths_);
+        printf(", ");
+
+        //
+        printf("offset_length_: ");
+        print(offset_length_);
 
         printf("}");
     }

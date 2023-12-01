@@ -60,10 +60,12 @@ struct BufferView<AddressSpaceEnum::Vgpr,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
+              bool use_inline_asm            = false,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
                                  bool>::type = false>
-    __device__ constexpr auto Get(index_t i, bool is_valid_element) const
+    __device__ constexpr auto
+    Get(index_t i, bool is_valid_element, bool_constant<use_inline_asm> = {}) const
     {
         // X contains multiple T
         constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
