@@ -7,7 +7,7 @@
 #include <memory>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -24,66 +24,66 @@ using ScaleAdd    = ck::tensor_operation::element_wise::ScaleAdd;
 #ifdef CK_ENABLE_BF16
 // grouped conv3d forward multi AB scaleadd, NDHWGC/GKZYXC/NDHWGK
 void add_device_grouped_conv3d_fwd_xdl_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
-                                                              NDHWGC,
-                                                              GKZYXC,
-                                                              ck::Tuple<>,
-                                                              NDHWGK,
-                                                              ck::Tuple<BF16, BF16>,
-                                                              ck::Tuple<BF16, BF16>,
-                                                              ck::Tuple<>,
-                                                              BF16,
-                                                              ScaleAdd,
-                                                              ScaleAdd,
-                                                              PassThrough>>>& instances);
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<>,
+                                                                NDHWGK,
+                                                                ck::Tuple<BF16, BF16>,
+                                                                ck::Tuple<BF16, BF16>,
+                                                                ck::Tuple<>,
+                                                                BF16,
+                                                                ScaleAdd,
+                                                                ScaleAdd,
+                                                                PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_FP16
 void add_device_grouped_conv3d_fwd_xdl_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
-                                                              NDHWGC,
-                                                              GKZYXC,
-                                                              ck::Tuple<>,
-                                                              NDHWGK,
-                                                              ck::Tuple<F16, F16>,
-                                                              ck::Tuple<F16, F16>,
-                                                              ck::Tuple<>,
-                                                              F16,
-                                                              ScaleAdd,
-                                                              ScaleAdd,
-                                                              PassThrough>>>& instances);
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<>,
+                                                                NDHWGK,
+                                                                ck::Tuple<F16, F16>,
+                                                                ck::Tuple<F16, F16>,
+                                                                ck::Tuple<>,
+                                                                F16,
+                                                                ScaleAdd,
+                                                                ScaleAdd,
+                                                                PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_FP32
 void add_device_grouped_conv3d_fwd_xdl_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f32_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
-                                                              NDHWGC,
-                                                              GKZYXC,
-                                                              ck::Tuple<>,
-                                                              NDHWGK,
-                                                              ck::Tuple<F32, F32>,
-                                                              ck::Tuple<F32, F32>,
-                                                              ck::Tuple<>,
-                                                              F32,
-                                                              ScaleAdd,
-                                                              ScaleAdd,
-                                                              PassThrough>>>& instances);
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<>,
+                                                                NDHWGK,
+                                                                ck::Tuple<F32, F32>,
+                                                                ck::Tuple<F32, F32>,
+                                                                ck::Tuple<>,
+                                                                F32,
+                                                                ScaleAdd,
+                                                                ScaleAdd,
+                                                                PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_INT8
 void add_device_grouped_conv3d_fwd_xdl_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_int8_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
-                                                              NDHWGC,
-                                                              GKZYXC,
-                                                              ck::Tuple<>,
-                                                              NDHWGK,
-                                                              ck::Tuple<int8_t, int8_t>,
-                                                              ck::Tuple<int8_t, int8_t>,
-                                                              ck::Tuple<>,
-                                                              int8_t,
-                                                              ScaleAdd,
-                                                              ScaleAdd,
-                                                              PassThrough>>>& instances);
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<>,
+                                                                NDHWGK,
+                                                                ck::Tuple<int8_t, int8_t>,
+                                                                ck::Tuple<int8_t, int8_t>,
+                                                                ck::Tuple<>,
+                                                                int8_t,
+                                                                ScaleAdd,
+                                                                ScaleAdd,
+                                                                PassThrough>>>& instances);
 #endif
 
 template <ck::index_t NumDimSpatial,
@@ -96,7 +96,7 @@ template <ck::index_t NumDimSpatial,
           typename DDataTypes,
           typename OutDataType,
           typename ComputeType>
-struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<
+struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<
     NumDimSpatial,
     InLayout,
     WeiLayout,
@@ -111,19 +111,20 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
     ck::tensor_operation::element_wise::PassThrough,
     ComputeType>>
 {
-    using DeviceOp = DeviceGroupedConvFwdMultipleD<NumDimSpatial,
-                                                   InLayout,
-                                                   WeiLayout,
-                                                   DLayouts,
-                                                   OutLayout,
-                                                   InDataType,
-                                                   WeiDataType,
-                                                   DDataTypes,
-                                                   OutDataType,
-                                                   ck::tensor_operation::element_wise::ScaleAdd,
-                                                   ck::tensor_operation::element_wise::ScaleAdd,
-                                                   ck::tensor_operation::element_wise::PassThrough,
-                                                   ComputeType>;
+    using DeviceOp =
+        DeviceGroupedConvFwdMultipleABD<NumDimSpatial,
+                                        InLayout,
+                                        WeiLayout,
+                                        DLayouts,
+                                        OutLayout,
+                                        InDataType,
+                                        WeiDataType,
+                                        DDataTypes,
+                                        OutDataType,
+                                        ck::tensor_operation::element_wise::ScaleAdd,
+                                        ck::tensor_operation::element_wise::ScaleAdd,
+                                        ck::tensor_operation::element_wise::PassThrough,
+                                        ComputeType>;
 
     static auto GetInstances()
     {
