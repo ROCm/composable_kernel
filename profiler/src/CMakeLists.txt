@@ -55,6 +55,8 @@ set(PROFILER_EXECUTABLE ckProfiler)
 
 add_executable(${PROFILER_EXECUTABLE} ${PROFILER_SOURCES})
 target_compile_options(${PROFILER_EXECUTABLE} PRIVATE -Wno-global-constructors)
+#add flags to reduce the size of binary
+target_compile_options(${PROFILER_EXECUTABLE} PRIVATE -Oz -flto=thin)
 
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE utility)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_instance)

@@ -375,8 +375,6 @@ SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
 if(BUILD_DEV)
     add_compile_options(-Werror -Weverything)
 endif()
-#add flags to reduce the size of binaries
-#add_compile_options(-Oz -flto=thin)
 message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
