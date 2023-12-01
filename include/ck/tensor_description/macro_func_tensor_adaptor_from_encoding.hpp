@@ -41,7 +41,8 @@
                                       name == IndexTransformEnum::Pad ||                          \
                                       name == IndexTransformEnum::Embed ||                        \
                                       name == IndexTransformEnum::Merge ||                        \
-                                      name == IndexTransformEnum::UnMerge,                        \
+                                      name == IndexTransformEnum::UnMerge ||                      \
+                                      name == IndexTransformEnum::Replicate,                      \
                                   "");                                                            \
                                                                                                   \
                     if constexpr(name == IndexTransformEnum::PassThrough)                         \
@@ -164,7 +165,8 @@
                                       name == IndexTransformEnum::Pad ||                           \
                                       name == IndexTransformEnum::Embed ||                         \
                                       name == IndexTransformEnum::Merge ||                         \
-                                      name == IndexTransformEnum::UnMerge,                         \
+                                      name == IndexTransformEnum::UnMerge ||                       \
+                                      name == IndexTransformEnum::Replicate,                       \
                                   "");                                                             \
                                                                                                    \
                     if constexpr(name == IndexTransformEnum::PassThrough)                          \

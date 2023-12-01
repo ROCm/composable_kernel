@@ -100,7 +100,7 @@ struct Map
         const auto it = Find(key);
 
         // FIXME
-        assert(pos < Size());
+        assert(it.pos_ < Size());
 
         return impl_[it.pos_].template At<1>();
     }
