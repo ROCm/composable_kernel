@@ -16,7 +16,7 @@ using XDataType              = ck::half_t;
 using GammaDataType          = ck::half_t;
 using BetaDataType           = ck::half_t;
 using YDataType              = ck::half_t;
-using SaveMeanInvStdDataType = float;
+using SaveMeanInvStdDataType = ck::half_t;
 using PassThrough            = ck::tensor_operation::element_wise::PassThrough;
 
 #define SAVE_MEAN_INV_STD

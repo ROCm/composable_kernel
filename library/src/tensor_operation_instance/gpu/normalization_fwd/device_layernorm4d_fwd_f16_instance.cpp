@@ -11,7 +11,7 @@ namespace instance {
 using Pass = ck::tensor_operation::element_wise::PassThrough;
 
 void add_device_normalization_fwd_rank_4_3_f16_instances(
-    std::vector<std::unique_ptr<DeviceNormalizationFwd<F16, F16, F16, F16, F32, Pass, 4, 3>>>&
+    std::vector<std::unique_ptr<DeviceNormalizationFwd<F16, F16, F16, F16, F16, Pass, 4, 3>>>&
         instances)
 {
     add_device_operation_instances(instances,
