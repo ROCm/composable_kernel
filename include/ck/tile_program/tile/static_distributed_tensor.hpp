@@ -59,7 +59,7 @@ struct StaticDistributedTensor
 
     template <index_t... YSliceOrigins, index_t... YSliceLengths>
     __host__ __device__ auto GetYSlicedThreadData(Sequence<YSliceOrigins...>,
-                                                 Sequence<YSliceLengths...>) const
+                                                  Sequence<YSliceLengths...>) const
     {
         static_assert(sizeof...(YSliceOrigins) == StaticTileDistribution::NDimY &&
                           sizeof...(YSliceLengths) == StaticTileDistribution::NDimY,
