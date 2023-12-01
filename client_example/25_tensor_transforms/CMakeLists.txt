@@ -1,2 +1,4 @@
 add_executable(client_tensor_transform tensor_transform.cpp)
+target_include_directories(client_tensor_transform INTERFACE composable_kernel::wrapper)
 add_executable(client_tensor_transform_using_wrapper tensor_transform_using_wrapper.cpp)
+target_include_directories(client_tensor_transform_using_wrapper INTERFACE composable_kernel::wrapper)
