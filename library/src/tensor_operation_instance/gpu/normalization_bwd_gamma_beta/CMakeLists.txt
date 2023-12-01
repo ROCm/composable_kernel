@@ -1,6 +1,7 @@
 set(DEVICE_NORMALIZATION_BWD_GAMMA_BETA_INSTANCES)
 
 list(APPEND DEVICE_NORMALIZATION_BWD_GAMMA_BETA_INSTANCES
+    device_groupnorm_bwd_gamma_beta_f32_instance.cpp
     device_layernorm2d_bwd_gamma_beta_f16_instance.cpp
     device_layernorm2d_bwd_gamma_beta_f32_instance.cpp)
 

@@ -52,6 +52,21 @@ using device_layernorm_bwd_gamma_beta_f32_generic_instance = std::tuple<
     // clang-format on
     >;
 
+using device_groupnorm_bwd_gamma_beta_f32_instances =
+    // clang-format off
+    std::tuple <
+        // DYDataType, XDataType, MeanInvStdDataType, ComputeDataType, DGammaDataType, DBetaDataType, Rank, NumReduceDim, BlockSize, MThreadClusterSize, KThreadClusterSize, MThreadSliceSize, KThreadSliceSize, IsDYFastestDimReduced, DYSrcVectorSize, IsXFastestDimReduced, XSrcVectorSize, IsMeanInvStdFastestDimReduced, MeanInvStdSrcVectorSize, DGammaDstVectorSize, DBetaDstVectorSize>
+        DeviceNormalizationBwdGammaBetaImpl<F32, F32, F32, F32, F32, F32, 5, 3, 256, 1, 256, 2, 1, false, 2, false, 2, false, 1, 2, 2>,
+        DeviceNormalizationBwdGammaBetaImpl<F32, F32, F32, F32, F32, F32, 5, 3, 256, 1, 256, 4, 1, false, 4, false, 4, false, 1, 4, 4>
+        // clang-format on
+        >;
+
+using device_groupnorm_bwd_gamma_beta_f32_generic_instance = std::tuple<
+    // clang-format off
+        DeviceNormalizationBwdGammaBetaImpl<F32, F32, F32, F32, F32, F32, 5, 3, 64, 1, 64, 1, 1, false, 1, false, 1, false, 1, 1, 1>
+    // clang-format on
+    >;
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
