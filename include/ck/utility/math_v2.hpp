@@ -312,11 +312,13 @@ inline __device__ float exp<float>(float x)
     return __expf(x);
 }
 
+/*
 template <>
 inline __device__ half_t exp<half_t>(half_t x)
 {
     return hexp(x);
 };
+*/
 
 template <>
 inline __device__ double exp<double>(double x)
@@ -346,11 +348,13 @@ inline __device__ T log(T x)
     return ck::type_convert<T>(__logf(ck::type_convert<float>(x)));
 };
 
+/*
 template <>
 inline __device__ half_t log<half_t>(half_t x)
 {
     return hlog(x);
 };
+*/
 
 template <>
 inline __device__ float log<float>(float x)
