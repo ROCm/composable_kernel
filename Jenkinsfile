@@ -684,11 +684,11 @@ pipeline {
         string(
             name: 'COMPILER_COMMIT', 
             defaultValue: '', 
-            description: 'Specify which commit of compiler branch to use: leave blank to use:wq the latest commit, or use 5541927df00eabd6a110180170eca7785d436ee3 (default) commit of amd-stg-open branch.')
+            description: 'Specify which commit of compiler branch to use: leave blank to use the latest commit (default), or use some specific commit of llvm-project branch.')
         string(
             name: 'BUILD_COMPILER', 
-            defaultValue: 'hipcc', 
-            description: 'Specify whether to build CK with hipcc (default) or with clang.')
+            defaultValue: 'clang', 
+            description: 'Specify whether to build CK with hipcc or with clang (default).')
         booleanParam(
             name: "RUN_FULL_QA",
             defaultValue: false,
