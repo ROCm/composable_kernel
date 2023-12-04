@@ -40,6 +40,9 @@ struct FmhaFwdKernel
         ck::index_t hdim_q;
         ck::index_t hdim_v;
 
+        // for MQA/GQA, nhead could be different. This parameter is nhead_q / nhead_k
+        // if this param is larger than 1, indicate MQA/GQA case
+        ck::index_t nhead_radio_qk;
         float scale;
 
         ck::index_t stride_q;
@@ -66,6 +69,7 @@ struct FmhaFwdKernel
                                               ck::index_t seqlen_k,
                                               ck::index_t hdim_q,
                                               ck::index_t hdim_v,
+                                              ck::index_t nhead_radio_qk,
                                               float scale,
                                               ck::index_t stride_q,
                                               ck::index_t stride_k,
@@ -82,7 +86,7 @@ struct FmhaFwdKernel
     {
         return Kargs
         {
-            q_ptr, k_ptr, v_ptr, o_ptr, seqlen_q, seqlen_k, hdim_q, hdim_v,
+            q_ptr, k_ptr, v_ptr, o_ptr, seqlen_q, seqlen_k, hdim_q, hdim_v, nhead_radio_qk,
 #if CK_FMHA_FWD_FAST_EXP2
                 static_cast<float>(scale * C_LOG2E),
 #else
@@ -129,9 +133,11 @@ struct FmhaFwdKernel
         const QDataType* q_ptr = reinterpret_cast<const QDataType*>(kargs.q_ptr) +
                                  i_nhead * kargs.nhead_stride_q + i_batch * kargs.batch_stride_q;
         const KDataType* k_ptr = reinterpret_cast<const KDataType*>(kargs.k_ptr) +
-                                 i_nhead * kargs.nhead_stride_k + i_batch * kargs.batch_stride_k;
+                                 (i_nhead / kargs.nhead_radio_qk) * kargs.nhead_stride_k +
+                                 i_batch * kargs.batch_stride_k;
         const VDataType* v_ptr = reinterpret_cast<const VDataType*>(kargs.v_ptr) +
-                                 i_nhead * kargs.nhead_stride_v + i_batch * kargs.batch_stride_v;
+                                 (i_nhead / kargs.nhead_radio_qk) * kargs.nhead_stride_v +
+                                 i_batch * kargs.batch_stride_v;
         ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr) +
                            i_nhead * kargs.nhead_stride_o + i_batch * kargs.batch_stride_o;
 

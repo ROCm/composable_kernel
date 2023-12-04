@@ -133,5 +133,46 @@ struct FillConstant
     }
 };
 
+template <typename T, bool UseCos = true, bool UseAbs = false>
+struct FillTrigValue
+{
+    template <typename T_, bool UseCos_ = true, bool UseAbs_ = false>
+    struct LinearTrigGen
+    {
+        int i{0};
+        auto operator()()
+        {
+            float v = 0;
+            if constexpr(UseCos_)
+            {
+                v = cos(i);
+            }
+            else
+            {
+                v = sin(i);
+            }
+            if constexpr(UseAbs_)
+                v = abs(v);
+            i++;
+            return static_cast<T_>(v);
+        }
+    };
+    template <typename ForwardIter>
+    void operator()(ForwardIter first, ForwardIter last) const
+    {
+        LinearTrigGen<T, UseCos, UseAbs> gen;
+        std::generate(first, last, gen);
+    }
+
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range) const -> std::void_t<
+        decltype(std::declval<const FillTrigValue&>()(std::begin(std::forward<ForwardRange>(range)),
+                                                      std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
+    }
+};
+
 } // namespace utils
 } // namespace ck

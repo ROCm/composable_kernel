@@ -26,6 +26,8 @@
 #include "fmha_fwd_kernel.hpp"
 #include "fmha_fwd_tile_partitioner.hpp"
 #include "fmha_fwd_epilogue.hpp"
+#include "arg_parser.hpp"
+#include <tuple>
 
 using QDataType           = ck::half_t;
 using KDataType           = ck::half_t;
@@ -103,6 +105,7 @@ float invoker_fmha_kernel(const void* q_ptr,
                           void* o_ptr,
                           ck::index_t batch,
                           ck::index_t nhead,
+                          ck::index_t nhead_k,
                           ck::index_t seqlen_q,
                           ck::index_t seqlen_k,
                           ck::index_t hdim_q,
@@ -120,6 +123,7 @@ float invoker_fmha_kernel(const void* q_ptr,
     constexpr bool is_v_rowmajor =
         ck::is_same_v<typename FmhaKernel::VLayout, ck::tensor_layout::gemm::RowMajor>;
 
+    assert(nhead % nhead_k == 0);
     // batch * nhead * seqlen * hdim or batch * seqlen * nhead * hdim
     auto kargs = FmhaKernel::MakeKargs(
         q_ptr,
@@ -130,14 +134,15 @@ float invoker_fmha_kernel(const void* q_ptr,
         seqlen_k, // seqlen_k
         hdim_q,   // hdim_q
         hdim_v,   // hdim_v
+        nhead / nhead_k,
         scale,
-        i_perm ? hdim_q : nhead * hdim_q, // stride_q
-        i_perm ? hdim_q : nhead * hdim_q, // stride_k
+        i_perm ? hdim_q : nhead * hdim_q,   // stride_q
+        i_perm ? hdim_q : nhead_k * hdim_q, // stride_k
         [&]() {
             if constexpr(is_v_rowmajor)
-                return i_perm ? hdim_v : nhead * hdim_v;
+                return i_perm ? hdim_v : nhead_k * hdim_v;
             else
-                return i_perm ? seqlen_k : nhead * seqlen_k;
+                return i_perm ? seqlen_k : nhead_k * seqlen_k;
         }(),                                 // stride_v
         o_perm ? hdim_v : nhead * hdim_v,    // stride_o
         i_perm ? seqlen_q * hdim_q : hdim_q, // nhead_stride_q
@@ -150,8 +155,8 @@ float invoker_fmha_kernel(const void* q_ptr,
         }(),                                 // nhead_stride_v
         o_perm ? seqlen_q * hdim_v : hdim_v, // nhead_stride_o
         nhead * seqlen_q * hdim_q,           // batch_stride_q
-        nhead * seqlen_k * hdim_q,           // batch_stride_k
-        nhead * hdim_v * seqlen_k,           // batch_stride_v
+        nhead_k * seqlen_k * hdim_q,         // batch_stride_k
+        nhead_k * hdim_v * seqlen_k,         // batch_stride_v
         nhead * seqlen_q * hdim_v);          // batch_stride_o
 
     float ave_time = launch_kernel<kBlockSize.x, kBlockPerCu>(stream_config,
@@ -172,49 +177,75 @@ static inline int env_get_int(const char* var_name, int default_int)
     return r;
 }
 
+auto create_args(int argc, char* argv[])
+{
+    ArgParser arg_parser;
+    arg_parser.insert("v", "1", "weather do cpu validation or not")
+        .insert("b", "2", "batch size")
+        .insert("h", "8", "num of head, for q")
+        .insert("h_k",
+                "0",
+                "num of head, for k/v, 0 means equal to h\n"
+                "if not equal to h, then this is GQA/MQA case")
+        .insert("s", "3328", "seqlen_q")
+        .insert("s_k", "0", "seqlen_k, 0 means equal to s")
+        .insert("d", "128", "head dim for q, k")
+        .insert("d_v", "0", "head dim for v, 0 means equal to d")
+        .insert("scale", "0", "scale factor. 0 means equal to 1/sqrt(seqlen)")
+        .insert("iperm",
+                "1",
+                "permute input\n"
+                "if true, will be b*h*s*d, else b*s*h*d")
+        .insert("operm", "1", "permute output")
+        .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float");
+
+    bool result = arg_parser.parse(argc, argv);
+    return std::make_tuple(result, arg_parser);
+}
+
 int main(int argc, char* argv[])
 {
-    int do_validation    = 1;
-    ck::index_t batch    = 2;
-    ck::index_t nhead    = 8;
-    ck::index_t seqlen_q = 3328;
-    ck::index_t seqlen_k = 4096;
-    ck::index_t hdim_q   = 128;
-    ck::index_t hdim_v   = 128;
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return -1;
 
-    float scale = .0f;
+    int do_validation   = arg_parser.get_int("v");
+    ck::index_t batch   = arg_parser.get_int("b");
+    ck::index_t nhead   = arg_parser.get_int("h");
+    ck::index_t nhead_k = arg_parser.get_int("h_k");
+    if(nhead_k == 0)
+        nhead_k = nhead;
 
-    bool i_perm = true; // if true, will be batch * nhead * seqlen * hdim
-    bool o_perm = true; // if false, will be batch * seqlen * nhead * hdim
-
-    if(argc >= 2)
-        do_validation = std::stoi(argv[1]);
-
-    if(argc >= 8)
+    if(nhead % nhead_k != 0)
     {
-        batch    = std::stoi(argv[2]);
-        nhead    = std::stoi(argv[3]);
-        seqlen_q = std::stoi(argv[4]);
-        seqlen_k = std::stoi(argv[5]);
-        hdim_q   = std::stoi(argv[6]);
-        hdim_v   = std::stoi(argv[7]);
+        std::cout << "nhead:" << nhead << " must be multiple of nhead_k:" << nhead_k << std::endl;
+        return -1;
     }
-    if(argc >= 9)
-        scale = std::stof(argv[8]);
-    if(argc >= 10)
-        i_perm = static_cast<bool>(std::stoi(argv[9]));
-    if(argc >= 11)
-        o_perm = static_cast<bool>(std::stoi(argv[10]));
 
+    ck::index_t seqlen_q = arg_parser.get_int("s");
+    ck::index_t seqlen_k = arg_parser.get_int("s_k");
+    if(seqlen_k == 0)
+        seqlen_k = seqlen_q;
+    ck::index_t hdim_q = arg_parser.get_int("d");
+    ck::index_t hdim_v = arg_parser.get_int("d_v");
+    if(hdim_v == 0)
+        hdim_v = hdim_q;
+
+    int i_perm = arg_parser.get_int("iperm"); // if true, will be batch * nhead * seqlen * hdim
+    int o_perm = arg_parser.get_int("operm"); // if false, will be batch * seqlen * nhead * hdim
+
+    float scale = arg_parser.get_float("scale");
     if(scale == .0f)
         scale = 1.0 / ck::math::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
+
+    int init_method = arg_parser.get_int("init");
 
     int stream_warmup = env_get_int("CK_WARMUP", 5);
     int stream_repeat = env_get_int("CK_REPEAT", 20);
 
-    StreamConfig stream_config {nullptr, true, 0, stream_warmup, stream_repeat};
+    StreamConfig stream_config{nullptr, true, 0, stream_warmup, stream_repeat};
 
-    auto get_lengths = [&](bool permute,
+    auto get_lengths = [&](int permute,
                            ck::index_t b /*batch*/,
                            ck::index_t h /*nhead*/,
                            ck::index_t s /*seqlen*/,
@@ -230,20 +261,29 @@ int main(int argc, char* argv[])
 
     // host verify
     Tensor<QDataType> q_host(get_lengths(i_perm, batch, nhead, seqlen_q, hdim_q));
-    Tensor<KDataType> k_host(get_lengths(i_perm, batch, nhead, seqlen_k, hdim_q));
-    Tensor<VDataType> v_host(is_v_rowmajor ? get_lengths(i_perm, batch, nhead, seqlen_k, hdim_v)
-                                           : get_lengths(i_perm, batch, nhead, hdim_v, seqlen_k));
+    Tensor<KDataType> k_host(get_lengths(i_perm, batch, nhead_k, seqlen_k, hdim_q));
+    Tensor<VDataType> v_host(is_v_rowmajor ? get_lengths(i_perm, batch, nhead_k, seqlen_k, hdim_v)
+                                           : get_lengths(i_perm, batch, nhead_k, hdim_v, seqlen_k));
     Tensor<ODataType> o_host(get_lengths(o_perm, batch, nhead, seqlen_q, hdim_v));
 
-#if 0
-    ck::utils::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f}(q_host);
-    ck::utils::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f}(k_host);
-    ck::utils::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f}(v_host);
-#else
-    ck::utils::FillUniformDistribution<QDataType>{0.f, 1.f}(q_host);
-    ck::utils::FillUniformDistribution<KDataType>{0.f, 1.f}(k_host);
-    ck::utils::FillUniformDistribution<VDataType>{-.5f, .5f}(v_host);
-#endif
+    if(init_method == 0)
+    {
+        ck::utils::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f}(q_host);
+        ck::utils::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f}(k_host);
+        ck::utils::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f}(v_host);
+    }
+    else if(init_method == 1)
+    {
+        ck::utils::FillUniformDistribution<QDataType>{0.f, 1.f}(q_host);
+        ck::utils::FillUniformDistribution<KDataType>{0.f, 1.f}(k_host);
+        ck::utils::FillUniformDistribution<VDataType>{-.5f, .5f}(v_host);
+    }
+    else if(init_method == 2)
+    {
+        ck::utils::FillTrigValue<QDataType>{}(q_host);
+        ck::utils::FillTrigValue<KDataType>{}(k_host);
+        ck::utils::FillTrigValue<VDataType>{}(v_host);
+    }
 
     DeviceMem q_buf(sizeof(QDataType) * q_host.GetElementSpaceSize());
     DeviceMem k_buf(sizeof(KDataType) * k_host.GetElementSpaceSize());
@@ -254,10 +294,17 @@ int main(int argc, char* argv[])
     k_buf.ToDevice(k_host.mData.data());
     v_buf.ToDevice(v_host.mData.data());
 
-    std::cout << "batch:" << batch << ", nhead:" << nhead << ", seqlen_q:" << seqlen_q
-              << ", seqlen_k:" << seqlen_k << ", hdim_q:" << hdim_q << ", hdim_v:" << hdim_v
-              << ", scale:" << scale << ", i_perm:" << i_perm << ", o_perm:" << o_perm
-              << ", v:" << std::string(FmhaKernelHDim64::VLayout::name) << std::flush << std::endl;
+    // clang-format off
+    auto layout_str = [&](int permute){
+        if (permute) return std::string("bhsd");
+        else return std::string("bshd");
+    };
+    // clang-format on
+
+    std::cout << "b:" << batch << ", h:" << nhead << ", h_k:" << nhead_k << ", s:" << seqlen_q
+              << ", s_k:" << seqlen_k << ", d:" << hdim_q << ", d_v:" << hdim_v
+              << ", scale:" << scale << ", i:" << layout_str(i_perm) << ", o:" << layout_str(o_perm)
+              << ", v:" << std::string(FmhaKernelHDim64::VLayout::name)[0] << std::flush;
 
     float ave_time = 0;
     if(hdim_q == hdim_v && hdim_q == 64)
@@ -267,6 +314,7 @@ int main(int argc, char* argv[])
                                                          o_buf.GetDeviceBuffer(),
                                                          batch,
                                                          nhead,
+                                                         nhead_k,
                                                          seqlen_q,
                                                          seqlen_k,
                                                          hdim_q,
@@ -282,6 +330,7 @@ int main(int argc, char* argv[])
                                                           o_buf.GetDeviceBuffer(),
                                                           batch,
                                                           nhead,
+                                                          nhead_k,
                                                           seqlen_q,
                                                           seqlen_k,
                                                           hdim_q,
@@ -299,6 +348,7 @@ int main(int argc, char* argv[])
     std::size_t flop = std::size_t(2) * batch * nhead * seqlen_q * seqlen_k * hdim_q +
                        std::size_t(2) * batch * nhead * seqlen_q * hdim_v * seqlen_k;
 
+    // TODO: MQA/GQA case nhead is smaller, do we need to change this formular?
     std::size_t num_btype = sizeof(QDataType) * batch * nhead * seqlen_q * hdim_q +
                             sizeof(KDataType) * batch * nhead * seqlen_k * hdim_q +
                             sizeof(VDataType) * batch * nhead * hdim_v * seqlen_k +
@@ -308,13 +358,14 @@ int main(int argc, char* argv[])
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
-              << std::endl;
+    std::cout << ", " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
+              << std::flush << std::endl;
 
     if(do_validation)
     {
         Tensor<QDataType> q_host_ref({batch * nhead, seqlen_q, hdim_q});
-        Tensor<KDataType> k_host_ref({batch * nhead, seqlen_k, hdim_q});
+        Tensor<KDataType> k_host_ref(
+            {batch * nhead, seqlen_k, hdim_q}); // NOTE: expand nhead the same as q
         const auto v_lengths = std::array<ck::index_t, 3>{batch * nhead, hdim_v, seqlen_k};
         const auto v_strides = is_v_rowmajor
                                    ? std::array<ck::index_t, 3>{hdim_v * seqlen_k, 1, hdim_v}
@@ -326,24 +377,28 @@ int main(int argc, char* argv[])
         Tensor<SMPLComputeDataType> s_host_ref({batch * nhead, seqlen_q, seqlen_k});
         Tensor<PDataType> p_host_ref({batch * nhead, seqlen_q, seqlen_k});
 
+        ck::index_t nr = nhead / nhead_k;
+
+#define EACH_R for(ck::index_t r = 0; r < nr; r++)
         // clang-format off
         // permute
-        if(i_perm) q_host.ForEach([&](auto& self, auto idx) { q_host_ref(idx[0] * nhead + idx[1], idx[2], idx[3]) = self(idx); });
-        else       q_host.ForEach([&](auto& self, auto idx) { q_host_ref(idx[0] * nhead + idx[2], idx[1], idx[3]) = self(idx); });
+        if(i_perm) q_host.ForEach([&](auto& self, auto i) { q_host_ref(i[0] * nhead + i[1], i[2], i[3]) = self(i); });
+        else       q_host.ForEach([&](auto& self, auto i) { q_host_ref(i[0] * nhead + i[2], i[1], i[3]) = self(i); });
 
-        if(i_perm) k_host.ForEach([&](auto& self, auto idx) { k_host_ref(idx[0] * nhead + idx[1], idx[2], idx[3]) = self(idx); });
-        else       k_host.ForEach([&](auto& self, auto idx) { k_host_ref(idx[0] * nhead + idx[2], idx[1], idx[3]) = self(idx); });
+        if(i_perm) k_host.ForEach([&](auto& self, auto i) { EACH_R k_host_ref(i[0] * nhead + i[1] * nr + r, i[2], i[3]) = self(i); });
+        else       k_host.ForEach([&](auto& self, auto i) { EACH_R k_host_ref(i[0] * nhead + i[2] * nr + r, i[1], i[3]) = self(i); });
 
         if constexpr (is_v_rowmajor) {
             //                              v_host ：b, h, s, d, v_host_ref : batch*hdim*seq
-            if(i_perm) v_host.ForEach([&](auto& self, auto idx) { v_host_ref(idx[0] * nhead + idx[1], idx[3], idx[2]) = self(idx); });
+            if(i_perm) v_host.ForEach([&](auto& self, auto i) { EACH_R v_host_ref(i[0] * nhead + i[1] * nr + r, i[3], i[2]) = self(i); });
             //                              v_host : b, s, h, d, v_host_ref : batch*hdim*seq
-            else       v_host.ForEach([&](auto& self, auto idx) { v_host_ref(idx[0] * nhead + idx[2], idx[3], idx[1]) = self(idx); });
+            else       v_host.ForEach([&](auto& self, auto i) { EACH_R v_host_ref(i[0] * nhead + i[2] * nr + r, i[3], i[1]) = self(i); });
         }
         else {
-            if(i_perm) v_host.ForEach([&](auto& self, auto idx) { v_host_ref(idx[0] * nhead + idx[1], idx[2], idx[3]) = self(idx); });
-            else       v_host.ForEach([&](auto& self, auto idx) { v_host_ref(idx[0] * nhead + idx[2], idx[1], idx[3]) = self(idx); });
+            if(i_perm) v_host.ForEach([&](auto& self, auto i) { EACH_R v_host_ref(i[0] * nhead + i[1] * nr + r, i[2], i[3]) = self(i); });
+            else       v_host.ForEach([&](auto& self, auto i) { EACH_R v_host_ref(i[0] * nhead + i[2] * nr + r, i[1], i[3]) = self(i); });
         }
+#undef EACH_R
 
         // reference
         reference_batched_gemm<QDataType, KDataType, SaccDataType, SMPLComputeDataType>(
@@ -357,8 +412,8 @@ int main(int argc, char* argv[])
             p_host_ref, v_host_ref, o_host_ref);
 
         // permute
-        if(o_perm) o_host_result_ref.ForEach([&](auto& self, auto idx) { self(idx) = o_host_ref(idx[0] * nhead + idx[1], idx[2], idx[3]); });
-        else       o_host_result_ref.ForEach([&](auto& self, auto idx) { self(idx) = o_host_ref(idx[0] * nhead + idx[2], idx[1], idx[3]); });
+        if(o_perm) o_host_result_ref.ForEach([&](auto& self, auto i) { self(i) = o_host_ref(i[0] * nhead + i[1], i[2], i[3]); });
+        else       o_host_result_ref.ForEach([&](auto& self, auto i) { self(i) = o_host_ref(i[0] * nhead + i[2], i[1], i[3]); });
         // clang-format on
 
         o_buf.FromDevice(o_host.mData.data());
