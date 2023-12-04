@@ -109,7 +109,7 @@ struct Layout
             // Iterate over shape tuple elements:
             // 1. If corresponding idx element is tuple then return (will be unrolled)
             // 2. If no, pack in tuple. It will be restored during unroll.
-            auto unrolled_shape_via_idx = generate_tuple(
+            auto aligned_shape = generate_tuple(
                 [&](auto i) {
                     if constexpr(is_detected<is_tuple,
                                              tuple_element_t<i, Tuple<IdxDims...>>>::value)
@@ -124,7 +124,7 @@ struct Layout
                 Number<Tuple<IdxDims...>::Size()>{});
 
             // Unroll and process next step
-            return AlignShapeToIdx(UnrollNestedTuple<0, 1>(unrolled_shape_via_idx),
+            return AlignShapeToIdx(UnrollNestedTuple<0, 1>(aligned_shape),
                                    UnrollNestedTuple<0, 1>(idx));
         }
     }
@@ -144,7 +144,7 @@ struct Layout
             desc, make_tuple(make_merge_transform(merge_elems)), lower_dims, upper_dims);
     }
 
-    // Merge nested shape dims
+    // Merge nested shape dims. Merge nested shape dims when idx is also nested.
     // Input desc shape: 2,  2,  2, 2,  2,  2
     // Example idx:      1,      1, 1,      1
     // Example shape:    2, (2, 2), 2, (2, 2)
@@ -205,10 +205,9 @@ struct Layout
             static_assert(Tuple<ShapeDims...>::Size() == Tuple<IdxDims...>::Size(),
                           "Idx rank and Shape rank must be the same (except 1d).");
             // Unroll while IdxDims is nested
-            const auto unrolled_shape_via_idx = AlignShapeToIdx(shape, idx);
+            const auto aligned_shape = AlignShapeToIdx(shape, idx);
             // Transform correct form of shape
-            return CreateMergedDescriptor(
-                unrolled_shape_via_idx, UnrollNestedTuple(idx), descriptor_);
+            return CreateMergedDescriptor(aligned_shape, UnrollNestedTuple(idx), descriptor_);
         }
     }
 
@@ -224,7 +223,7 @@ struct Layout
     }
 
     public:
-    // If stride not passed, deduce from GenerateColumnMajorPackedStrides
+    // If the stride is not passed, you can infer it from `GenerateColumnMajorPackedStrides`.
     using DeducedStrides =
         std::conditional_t<is_same_v<Strides, Tuple<>>,
                            remove_cvref_t<decltype(GenerateColumnMajorPackedStrides(Shape{}))>,

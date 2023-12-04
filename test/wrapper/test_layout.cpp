@@ -356,7 +356,7 @@ TEST(TestLayoutHelpers, SizeAndGet)
     EXPECT_EQ(ck::wrapper::size<1>(layout_runtime), d1 * d0);
     EXPECT_EQ(ck::wrapper::size<1>(layout_compiletime), d1 * d0);
 
-    // Acces via new layout (using get on layout)
+    // Access through new layout (using get with layout object)
     EXPECT_EQ(ck::wrapper::size<0>(ck::wrapper::get<0>(layout_runtime)), d4 * d3);
     EXPECT_EQ(ck::wrapper::size<0>(ck::wrapper::get<0>(layout_compiletime)), d4 * d3);
     EXPECT_EQ(ck::wrapper::size<1>(ck::wrapper::get<0>(layout_runtime)), d2);

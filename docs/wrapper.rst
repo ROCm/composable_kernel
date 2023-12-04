@@ -5,8 +5,11 @@ Wrapper
 -------------------------------------
 Description
 -------------------------------------
-Note: Wrapper is currently under development. At the moment, its functionality 
-is limited.
+
+.. note::
+
+    The wrapper is under development and its functionality is limited.
+
 
 CK provides a lightweight wrapper for more complex operations implemented in 
 the library. It allows indexing of nested layouts using a simple interface 
@@ -33,7 +36,6 @@ Example:
 Output::
 
     dims:4,(2,4) strides:2,(1,8)
-    Print2d
     0 1 8 9 16 17 24 25 
     2 3 10 11 18 19 26 27 
     4 5 12 13 20 21 28 29 

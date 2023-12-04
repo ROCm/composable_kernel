@@ -34,7 +34,7 @@ Current CK library are structured into 4 layers:
 * "Templated Tile Operators" layer
 * "Templated Kernel and Invoker" layer
 * "Instantiated Kernel and Invoker" layer
-* "Wrapper for tensor tranforms operations"
+* "Wrapper for tensor transform operations"
 * "Client API" layer
 
 .. image:: data/ck_layer.png
