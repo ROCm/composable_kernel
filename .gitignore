@@ -61,3 +61,7 @@ _doxygen/
 .idea/
 cmake-build*/
 build*/
+
+# Python virtualenv
+.venv/
+

@@ -10,11 +10,13 @@ if(GOOGLETEST_DIR)
 endif()
 
 set(BUILD_GMOCK OFF CACHE INTERNAL "")
+set(INSTALL_GTEST OFF CACHE INTERNAL "")
 
 FetchContent_Declare(
-  googletest
-  GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG        b85864c64758dec007208e56af933fc3f52044ee
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG f8d7d77c06936315286eb55f8de22cd23c188571
+    SYSTEM
 )
 
 if(WIN32)
@@ -30,20 +32,6 @@ FetchContent_MakeAvailable(googletest)
 # Restore the old value of BUILD_SHARED_LIBS
 set(BUILD_SHARED_LIBS ${__build_shared_libs} CACHE BOOL "Type of libraries to build" FORCE)
 
-set(GTEST_CMAKE_CXX_FLAGS
-         -Wno-undef
-         -Wno-reserved-identifier
-         -Wno-global-constructors
-         -Wno-missing-noreturn
-         -Wno-disabled-macro-expansion
-         -Wno-used-but-marked-unused
-         -Wno-switch-enum
-         -Wno-zero-as-null-pointer-constant
-         -Wno-unused-member-function
-         -Wno-comma
-         -Wno-old-style-cast
-         -Wno-deprecated
-         -Wno-unsafe-buffer-usage)
 
 if(WIN32)
     list(APPEND GTEST_CMAKE_CXX_FLAGS
@@ -53,12 +41,6 @@ if(WIN32)
             -Wno-language-extension-token)
 endif()
 
-target_compile_options(gtest PRIVATE ${GTEST_CMAKE_CXX_FLAGS})
-target_compile_options(gtest_main PRIVATE ${GTEST_CMAKE_CXX_FLAGS})
-if(WIN32)
-   target_compile_definitions(gtest PUBLIC GTEST_HAS_SEH=0)
-   target_compile_definitions(gtest_main PUBLIC GTEST_HAS_SEH=0)
-endif()
+target_compile_options(gtest PRIVATE -Wno-undef)
+target_compile_options(gtest_main PRIVATE -Wno-undef)
 
-include(GoogleTest)
-unset(GTEST_CMAKE_CXX_FLAGS)

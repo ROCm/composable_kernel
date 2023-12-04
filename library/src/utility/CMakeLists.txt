@@ -12,7 +12,8 @@ set_target_properties(utility PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_compile_options(utility PRIVATE ${CMAKE_COMPILER_WARNINGS})
 target_include_directories(utility PUBLIC
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck>"
-    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/utility>")
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/utility>"
+)
 if(WIN32)
     target_compile_definitions(utility PUBLIC NOMINMAX)
 endif()

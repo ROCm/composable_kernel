@@ -6,7 +6,7 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/profiler/include
 )
 
-include(GTest)
+include(gtest)
 
 add_custom_target(tests)
 
