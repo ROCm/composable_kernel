@@ -16,7 +16,7 @@ namespace element_wise {
 extern "C" __device__ float __ocml_native_recip_f32(float);
 #endif
 
-struct PassThroughPack2
+struct PassThroughPacked2
 {
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
@@ -67,6 +67,7 @@ struct PassThroughPack2
     constexpr const static bool is_pack2_invocable = true;
 };
 
+#if 1
 struct PassThrough
 {
     template <typename Y, typename X>
@@ -283,6 +284,7 @@ struct PassThrough
         y = ck::type_convert<bf8_t>(x);
     }
 };
+#endif
 
 struct UnaryConvert
 {
