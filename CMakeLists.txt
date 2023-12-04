@@ -420,8 +420,6 @@ IF(IS_DIRECTORY "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu
 ENDIF()
 ENDFOREACH()
 
-add_subdirectory(include/ck)
-
 add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
 add_subdirectory(library)
 
