@@ -24,8 +24,7 @@ using S = ck::Sequence<Is...>;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-static constexpr auto GemmDefault   = ck::tensor_operation::device::GemmSpecialization::Default;
-static constexpr auto GemmMNPadding = ck::tensor_operation::device::GemmSpecialization::MNPadding;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 using device_gemm_xdl_c_shuffle_lds_direct_load_f32_f32_f32_mk_nk_mn_instances = std::tuple<
     // clang-format off
@@ -34,7 +33,7 @@ using device_gemm_xdl_c_shuffle_lds_direct_load_f32_f32_f32_mk_nk_mn_instances =
     // ##################################|        |        |        |      |      |      |        |         |   Operation|   Operation|   Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|               |               |      PerVector|          | Lengths_K0_N_K1|               |              |      PerVector|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
     // ##################################|        |        |        |      |      |      |        |         |            |            |            |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |          |                |               |              |               |          |            |            |                             |                |
     DeviceGemm_Xdl_CShuffle_LdsDirectLoad<     Row,     Col,     Row,   F32,   F32,   F32,     F32,      F32, PassThrough, PassThrough, PassThrough,    GemmDefault,        1,   256,    64,    64,    32,   8,   8,   32,   32,    1,    1,      S<4, 8, 8>,     S<1, 0, 2>,              2,              1,         1,      S<4, 8, 8>,     S<1, 0, 2>,             2,              1,         1,           1,           1,                S<1, 8, 1, 8>,               4>,
-    DeviceGemm_Xdl_CShuffle_LdsDirectLoad<     Row,     Col,     Row,   F32,   F32,   F32,     F32,      F32, PassThrough, PassThrough, PassThrough,  GemmMNPadding,        1,   256,    64,    64,    32,   8,   8,   32,   32,    1,    1,      S<4, 8, 8>,     S<1, 0, 2>,              2,              1,         1,      S<4, 8, 8>,     S<1, 0, 2>,             2,              1,         1,           1,           1,                S<1, 8, 1, 8>,               4>
+    DeviceGemm_Xdl_CShuffle_LdsDirectLoad<     Row,     Col,     Row,   F32,   F32,   F32,     F32,      F32, PassThrough, PassThrough, PassThrough,    GemmDefault,        2,   256,    64,    64,    32,   8,   8,   32,   32,    1,    1,      S<4, 8, 8>,     S<1, 0, 2>,              2,              1,         1,      S<4, 8, 8>,     S<1, 0, 2>,             2,              1,         1,           1,           1,                S<1, 8, 1, 8>,               4>
     // clang-format on
     >;
 
