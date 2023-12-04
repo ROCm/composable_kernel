@@ -23,7 +23,7 @@ class TestPermute : public ::testing::Test
         for(auto length : lengths)
         {
             bool success = ck::profiler::profile_permute_scale_impl<ADataType, BDataType, 4>(
-                true, 2, false, true, length);
+                true, 2, false, false, length);
             EXPECT_TRUE(success);
         }
     }
