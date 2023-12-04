@@ -13,6 +13,7 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 
 #include "ck/host_utility/kernel_launch.hpp"
+#include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/stream_utility.hpp"
 
 namespace ck {
@@ -292,6 +293,12 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
+        if((ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
+            ck::get_device_name() == "gfx942"))
+        {
+            return false;
+        }
+
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
         if(pArg == nullptr)

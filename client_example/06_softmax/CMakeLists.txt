@@ -1,3 +1,3 @@
 add_executable(client_softmax4d softmax4d.cpp)
-target_link_libraries(client_softmax4d PRIVATE composable_kernel::device_operations)
+target_link_libraries(client_softmax4d PRIVATE composable_kernel::device_other_operations composable_kernel::device_reduction_operations)
 target_compile_features(client_softmax4d PRIVATE cxx_std_17)

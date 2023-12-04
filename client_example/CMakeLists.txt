@@ -47,7 +47,7 @@ else()
     endif()
 endif()
 
-find_package(composable_kernel COMPONENTS device_operations)
+find_package(composable_kernel COMPONENTS device_other_operations device_gemm_operations device_conv_operations device_contraction_operations device_reduction_operations)
 find_package(hip REQUIRED PATHS /opt/rocm /opt/rocm/llvm $ENV{HIP_PATH} $ENV{ROCM_PATH})
 message(STATUS "Build with HIP ${hip_VERSION}")
 
