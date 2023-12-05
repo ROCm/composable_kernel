@@ -86,6 +86,7 @@ using NHWGK  = ck::tensor_layout::convolution::NHWGK;
 using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
 
 //
+using G_K         = ck::tensor_layout::convolution::G_K;
 using GK          = ck::tensor_layout::convolution::G_K;
 using GK_Tuple    = ck::Tuple<GK>;
 using GK_GK_Tuple = ck::Tuple<GK, GK>;
