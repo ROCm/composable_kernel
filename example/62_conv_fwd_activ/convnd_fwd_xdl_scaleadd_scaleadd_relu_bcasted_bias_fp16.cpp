@@ -125,16 +125,16 @@ bool run_grouped_conv_fwd(bool do_verification,
     const ck::index_t K         = out_g_n_k_wos_desc.GetLengths()[2];
 
     // Logical broadcast bias (we have to pass bias lengths in the same format as output - GNKDHW)
-    std::array<ck::index_t, NDimSpatial + 3> g_k_lengths;
-    std::array<ck::index_t, NDimSpatial + 3> g_k_strides;
+    std::array<ck::index_t, NDimSpatial + 3> bias_g_k_lengths;
+    std::array<ck::index_t, NDimSpatial + 3> bias_g_k_strides;
     // Fill other lenghts than G,K with 1 and strides with 0
-    g_k_lengths.fill(1);
-    g_k_strides.fill(0);
-    g_k_lengths[0]                   = G;
-    g_k_lengths[2]                   = K;
-    g_k_strides[0]                   = K; // stride to G
-    g_k_strides[2]                   = 1; // stride to K
-    const auto broadcasted_bias_desc = HostTensorDescriptor(g_k_lengths, g_k_strides);
+    bias_g_k_lengths.fill(1);
+    bias_g_k_strides.fill(0);
+    bias_g_k_lengths[0]              = G;
+    bias_g_k_lengths[2]              = K;
+    bias_g_k_strides[0]              = K; // stride to G
+    bias_g_k_strides[2]              = 1; // stride to K
+    const auto broadcasted_bias_desc = HostTensorDescriptor(bias_g_k_lengths, bias_g_k_strides);
 
     //  y = relu ( alpha1 * conv(x) + alpha2 * z + bias )
     Tensor<InDataType> in(in_g_n_c_wis_desc);
@@ -217,9 +217,9 @@ bool run_grouped_conv_fwd(bool do_verification,
                                       b_g_k_c_xs_lengths,
                                       b_g_k_c_xs_strides,
                                       std::array<std::array<ck::index_t, NDimSpatial + 3>, NumDs>{
-                                          e_g_n_k_wos_lengths, g_k_lengths},
+                                          e_g_n_k_wos_lengths, bias_g_k_lengths},
                                       std::array<std::array<ck::index_t, NDimSpatial + 3>, NumDs>{
-                                          e_g_n_k_wos_strides, g_k_strides},
+                                          e_g_n_k_wos_strides, bias_g_k_strides},
                                       e_g_n_k_wos_lengths,
                                       e_g_n_k_wos_strides,
                                       conv_filter_strides,

@@ -357,7 +357,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         return out_gemmm_gemmn_desc;
     }
 
-    // Shape of Ds and E must be algined. Strides can be different.
+    // Shape of Ds and E must be aligned. Strides can be different.
     // Pass e_g_n_k_wos_lengths for logical broadcast.
     static auto MakeDsGridDescriptor_M_N(
         const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
@@ -918,8 +918,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                          is_same_v<DLayout, ctc::G_NDHW_K> || is_same_v<DLayout, ctc::GNWK> ||
                          is_same_v<DLayout, ctc::GNHWK> || is_same_v<DLayout, ctc::GNDHWK> ||
                          is_same_v<DLayout, ctc::NWGK> || is_same_v<DLayout, ctc::NHWGK> ||
-                         is_same_v<DLayout, ctc::NDHWGK> || is_same_v<DLayout, ctc::GK> ||
-                         is_same_v<DLayout, ctc::G_K>)
+                         is_same_v<DLayout, ctc::NDHWGK> || is_same_v<DLayout, ctc::G_K>)
             {
                 const index_t K = arg.ds_g_n_k_wos_lengths_[i][2];
 
@@ -928,7 +927,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                     valid = false;
                 }
 
-                if constexpr(is_same_v<DLayout, ctc::GK> || is_same_v<DLayout, ctc::G_K>)
+                if constexpr(is_same_v<DLayout, ctc::G_K>)
                 {
                     // G and K must be the same
                     if(arg.ds_g_n_k_wos_lengths_[i][0] != arg.e_g_n_k_wos_lengths_[0] ||

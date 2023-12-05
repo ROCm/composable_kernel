@@ -27,8 +27,8 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Relu        = ck::tensor_operation::element_wise::Relu;
 using TanH        = ck::tensor_operation::element_wise::TanH;
 
-using GK_Tuple      = ck::Tuple<GK>;
-using GK_GK_Tuple   = ck::Tuple<GK, GK>;
+using GK_Tuple      = ck::Tuple<G_K>;
+using GK_GK_Tuple   = ck::Tuple<G_K, G_K>;
 using I32_Tuple     = ck::Tuple<int32_t>;
 using F32_Tuple     = ck::Tuple<float>;
 using I32_F32_Tuple = ck::Tuple<int32_t, float>;
