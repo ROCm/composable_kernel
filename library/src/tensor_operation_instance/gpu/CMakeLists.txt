@@ -152,7 +152,6 @@ ENDFOREACH()
 if(CK_DEVICE_OTHER_INSTANCES)
         add_library(device_other_operations STATIC ${CK_DEVICE_OTHER_INSTANCES})
         add_library(composablekernels::device_other_operations ALIAS device_other_operations)
-        target_compile_features(device_other_operations PUBLIC)
         set_target_properties(device_other_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
         target_include_directories(device_other_operations PUBLIC
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck>

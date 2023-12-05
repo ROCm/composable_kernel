@@ -119,7 +119,7 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
                                index_t num_k_block_tile_iteration,
                                AccDataType epsilon,
                                const InDataTypePointerTuple p_in_global_tuple,
-                               XDataType* const __restrict__ p_x_lds,
+                               XDataType* const __restrict__ p_x_lds_,
                                const GammaDataType* const __restrict__ p_gamma_global,
                                const BetaDataType* const __restrict__ p_beta_global,
                                YDataType* const __restrict__ p_y_global,
@@ -149,7 +149,7 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
             p_y_global, y_grid_desc_m_k.GetElementSpaceSize());
 
         auto x_lds_val_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            p_x_lds, x_grid_desc_m_k.GetElementSpaceSize() / grid_size);
+            p_x_lds_, x_grid_desc_m_k.GetElementSpaceSize() / grid_size);
 
         auto in_thread_buf_tuple = generate_tuple(
             [&](auto) {
