@@ -13,6 +13,14 @@ FetchContent_Declare(
     SYSTEM
 )
 
+# Suppress ROCMChecks WARNING on GoogleTests
+set(ROCM_DISABLE_CHECKS FALSE)
+macro(rocm_check_toolchain_var var access value list_file)
+    if(NOT ROCM_DISABLE_CHECKS)
+        _rocm_check_toolchain_var("${var}" "${access}" "${value}" "${list_file}")
+    endif()
+endmacro()
+
 if(WIN32)
     set(gtest_force_shared_crt ON CACHE_INTERNAL "")
 endif()
@@ -24,7 +32,9 @@ set(INSTALL_GTEST OFF CACHE INTERNAL "")
 set(__build_shared_libs ${BUILD_SHARED_LIBS})
 set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
 
+set(ROCM_DISABLE_CHECKS TRUE)
 FetchContent_MakeAvailable(GTest)
+set(ROCM_DISABLE_CHECKS FALSE)
 
 # Restore the old value of BUILD_SHARED_LIBS
 set(BUILD_SHARED_LIBS ${__build_shared_libs} CACHE BOOL "Type of libraries to build" FORCE)
