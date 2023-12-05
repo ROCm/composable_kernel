@@ -77,7 +77,7 @@ if(INSTANCES_ONLY)
     set(CK_ENABLE_INSTANCES_ONLY "ON")
 endif()
 
-include(GetOpt)
+include(getopt)
 
 # CK config file to record supported datatypes, etc.
 configure_file(include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/config.h)
