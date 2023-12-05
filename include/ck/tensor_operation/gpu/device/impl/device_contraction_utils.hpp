@@ -31,7 +31,14 @@ namespace device {
 template <index_t NumDim1, index_t NumDim2>
 auto CalculateMaxRead(const std::vector<index_t>& lengths, const std::vector<index_t>& strides)
 {
-    assert(lengths.size() == NumDim1 + NumDim2 && strides.size() == NumDim1 + NumDim2);
+    if(lengths.size() != NumDim1 + NumDim2)
+    {
+        throw std::runtime_error("Incorrect number of lengths.");
+    }
+    if(strides.size() != NumDim1 + NumDim2)
+    {
+        throw std::runtime_error("Incorrect number of strides.");
+    }
 
     // Determine the beginning and end idx of the group representing the FCD.
     index_t begin_idx, end_idx;
