@@ -9,11 +9,9 @@ namespace device {
 namespace instance {
 
 void add_device_groupnorm_bwd_x_f32_instances(
-    std::vector<std::unique_ptr<DeviceNormalizationBwdX<F32, F32, F32, F32, F32, 5, 3>>>&
-        instances)
+    std::vector<std::unique_ptr<DeviceNormalizationBwdX<F32, F32, F32, F32, F32, 5, 3>>>& instances)
 {
-    add_device_operation_instances(instances,
-                                   device_groupnorm_bwd_x_f32_generic_instance{});
+    add_device_operation_instances(instances, device_groupnorm_bwd_x_f32_generic_instance{});
     add_device_operation_instances(instances, device_groupnorm_bwd_x_f32_instances{});
 }
 

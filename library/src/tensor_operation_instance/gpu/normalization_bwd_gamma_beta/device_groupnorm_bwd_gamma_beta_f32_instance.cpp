@@ -12,8 +12,7 @@ void add_device_groupnorm_bwd_gamma_beta_f32_instances(
     std::vector<std::unique_ptr<DeviceNormalizationBwdGammaBeta<F32, F32, F32, F32, F32, 5, 3>>>&
         instances)
 {
-    add_device_operation_instances(instances,
-                                   device_groupnorm_bwd_gamma_beta_f32_instances{});
+    add_device_operation_instances(instances, device_groupnorm_bwd_gamma_beta_f32_instances{});
     add_device_operation_instances(instances,
                                    device_groupnorm_bwd_gamma_beta_f32_generic_instance{});
 }
