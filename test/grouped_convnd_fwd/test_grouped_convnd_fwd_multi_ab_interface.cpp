@@ -10,7 +10,7 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
 
 #include "ck/host_utility/device_prop.hpp"
 
@@ -46,7 +46,7 @@ class TestGroupedConvndFwdMultiABInterfaceBase : public ::testing::Test
     using OutElementOp             = PassThrough;
 
     using DeviceGroupedConvNDMultiABFwdInstance =
-        ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<
+        ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
             NDimSpatial,
             InLayout,
             WeiLayout,
