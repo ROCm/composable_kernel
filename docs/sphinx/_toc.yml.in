@@ -5,6 +5,6 @@ defaults:
   maxdepth: 6
 root: index
 subtrees:
-  - caption: About
-    entries:
-      - file: license
+- caption: About
+  entries:
+    - file: license
