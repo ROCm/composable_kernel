@@ -439,7 +439,7 @@ if(NOT DEFINED INSTANCES_ONLY)
    )
    add_subdirectory(example)
    if(BUILD_TESTING)
-     add_subdirectory(test)
+      add_subdirectory(test)
    endif()
 
    rocm_package_setup_component(profiler
