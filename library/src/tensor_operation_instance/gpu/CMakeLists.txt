@@ -1,6 +1,3 @@
-# SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
-
 function(add_instance_library INSTANCE_NAME)
     message("adding instance ${INSTANCE_NAME}")
     set(result 1)

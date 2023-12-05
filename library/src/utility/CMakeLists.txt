@@ -1,6 +1,3 @@
-# SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
-
 add_library(utility STATIC
     device_memory.cpp
     host_tensor.cpp

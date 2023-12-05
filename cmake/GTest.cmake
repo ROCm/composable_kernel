@@ -32,15 +32,21 @@ FetchContent_MakeAvailable(googletest)
 # Restore the old value of BUILD_SHARED_LIBS
 set(BUILD_SHARED_LIBS ${__build_shared_libs} CACHE BOOL "Type of libraries to build" FORCE)
 
+set(GTEST_CXX_FLAGS
+    -Wno-undef
+    -Wno-global-constructors
+    -Wno-zero-as-null-pointer-constant
+    -Wno-switch-enum
+    -Wno-float-equal
+    -Wno-unused-member-function)
 
 if(WIN32)
-    list(APPEND GTEST_CMAKE_CXX_FLAGS
+    list(APPEND GTEST_CXX_FLAGS
             -Wno-suggest-destructor-override
             -Wno-suggest-override
             -Wno-nonportable-system-include-path
             -Wno-language-extension-token)
 endif()
 
-target_compile_options(gtest PRIVATE -Wno-undef)
-target_compile_options(gtest_main PRIVATE -Wno-undef)
-
+target_compile_options(gtest PRIVATE ${GTEST_CXX_FLAGS})
+target_compile_options(gtest_main PRIVATE ${GTEST_CXX_FLAGS})
