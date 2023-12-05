@@ -939,7 +939,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 }
                 else
                 {
-                    // E and D must have the same layout
+                    // E and D must have the same shape
                     for(index_t d = 0; d < NDimSpatial + 3; d++)
                     {
                         if(arg.ds_g_n_k_wos_lengths_[i][d] != arg.e_g_n_k_wos_lengths_[d])
