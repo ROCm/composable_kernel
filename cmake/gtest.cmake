@@ -56,6 +56,7 @@ set(GTEST_CXX_FLAGS
      -Wno-old-style-cast
      -Wno-deprecated
      -Wno-unsafe-buffer-usage
+     -Wno-float-equal
 )
 
 if(WIN32)
