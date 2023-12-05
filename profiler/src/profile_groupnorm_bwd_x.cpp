@@ -6,12 +6,12 @@
 #include <unordered_map>
 
 #include "profiler/data_type_enum.hpp"
-#include "profiler/profile_layernorm_bwd_x_impl.hpp"
+#include "profiler/profile_groupnorm_bwd_x_impl.hpp"
 #include "profiler_operation_registry.hpp"
 
 using ck::index_t;
 
-struct layernormBwdXArgParser
+struct groupnormBwdXArgParser
 {
     std::unordered_map<std::string, std::vector<int>> long_opts = {{"length", {}}};
 
@@ -44,27 +44,27 @@ struct layernormBwdXArgParser
     }
 };
 
-void print_help_layernorm_bwd_x()
+void print_help_groupnorm_bwd_x()
 {
-    // eg: ckProfiler layernorm_bwd_x 0 0 2 0 1 --length 1502 4096
+    // eg: ckProfiler groupnorm_bwd_x 1 0 2 0 1 --length 1 16 16 32 40
     std::cout << "arg1: data type (0: fp16; 1: fp32)\n"
               << "arg2: verification (0: no; 1: yes)\n"
               << "arg3: initialization (0: no init; 1: integer value; 2: decimal value)\n"
               << "arg4: print tensor value (0: no; 1: yes)\n"
               << "arg5: time kernel (0=no, 1=yes)\n"
-              << "--length: tensor extents (e.g, --length 1024 1024) \n"
+              << "--length: tensor extents (e.g, --length 1 16 16 32 40) \n"
               << std::endl;
 }
 
-int profile_layernorm_bwd_x(int argc, char* argv[])
+int profile_groupnorm_bwd_x(int argc, char* argv[])
 {
     if(argc <= 2)
     {
-        print_help_layernorm_bwd_x();
+        print_help_groupnorm_bwd_x();
         return 0;
     }
 
-    layernormBwdXArgParser arg_parser;
+    groupnormBwdXArgParser arg_parser;
 
     // short unnamed options
     const ck::DataTypeEnum data_type = static_cast<ck::DataTypeEnum>(std::stoi(argv[2]));
@@ -77,21 +77,13 @@ int profile_layernorm_bwd_x(int argc, char* argv[])
     arg_parser(argc, argv);
     const std::vector<index_t> length = arg_parser.long_opts["length"];
 
-    using F16 = ck::half_t;
     using F32 = float;
 
-    if(length.size() == 2)
+    if(length.size() == 5)
     {
-        constexpr int rank = 2;
-
-        if(data_type == ck::DataTypeEnum::Half)
+        if(data_type == ck::DataTypeEnum::Float)
         {
-            ck::profiler::profile_layernorm_bwd_x_impl<F16, F16, F16, F16, F32, F16, rank>(
-                do_verification, init_method, do_log, time_kernel, length);
-        }
-        else if(data_type == ck::DataTypeEnum::Float)
-        {
-            ck::profiler::profile_layernorm_bwd_x_impl<F32, F32, F32, F32, F32, F32, rank>(
+            ck::profiler::profile_groupnorm_bwd_x_impl<F32, F32, F32, F32, F32, F32>(
                 do_verification, init_method, do_log, time_kernel, length);
         }
         else
@@ -101,10 +93,10 @@ int profile_layernorm_bwd_x(int argc, char* argv[])
     }
     else
     {
-        throw std::runtime_error("not implemented yet");
+        throw std::runtime_error("length should be 5");
     }
 
     return 0;
 }
 
-REGISTER_PROFILER_OPERATION("layernorm_bwd_x", "Layer Normalization", profile_layernorm_bwd_x);
+REGISTER_PROFILER_OPERATION("groupnorm_bwd_x", "Group Normalization", profile_groupnorm_bwd_x);
