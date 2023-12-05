@@ -448,7 +448,11 @@ struct DeviceNormalizationBwdXImpl : public DeviceNormalizationBwdX<DYDataType,
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceNormalizationBwdXImpl<" << ">";
+        str << "DeviceNormalizationBwdXImpl<"  << BlockSize << ",";
+        str << "Cluster_MK_" << MThreadClusterSize << "_" << KThreadClusterSize << ",";
+        str << "Slice_MK_" << MThreadSliceSize << "_" << KThreadSliceSize << ",";
+        str << "DYSrcVectorSize" << DYSrcVectorSize << "_X" << XSrcVectorSize << "_Gamma" << GammaSrcVectorSize << "_MeanRstd" << MeanInvStdSrcVectorSize  << "_Dx" << DXDstVectorSize;
+        str << ">";
         // clang-format on
 
         return str.str();

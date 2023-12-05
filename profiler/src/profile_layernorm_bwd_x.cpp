@@ -6,12 +6,12 @@
 #include <unordered_map>
 
 #include "profiler/data_type_enum.hpp"
-#include "profiler/profile_layernorm_fwd_impl.hpp"
+#include "profiler/profile_layernorm_bwd_x_impl.hpp"
 #include "profiler_operation_registry.hpp"
 
 using ck::index_t;
 
-struct LayernormArgParser
+struct layernormBwdXArgParser
 {
     std::unordered_map<std::string, std::vector<int>> long_opts = {{"length", {}}};
 
@@ -44,7 +44,7 @@ struct LayernormArgParser
     }
 };
 
-void print_help_layernorm()
+void print_help_layernorm_bwd_x()
 {
     std::cout << "arg1: data type (0: fp16; 1: fp32)\n"
               << "arg2: verification (0: no; 1: yes)\n"
@@ -55,15 +55,15 @@ void print_help_layernorm()
               << std::endl;
 }
 
-int profile_layernorm(int argc, char* argv[])
+int profile_layernorm_bwd_x(int argc, char* argv[])
 {
     if(argc <= 2)
     {
-        print_help_layernorm();
+        print_help_layernorm_bwd_x();
         return 0;
     }
 
-    LayernormArgParser arg_parser;
+    layernormBwdXArgParser arg_parser;
 
     // short unnamed options
     const ck::DataTypeEnum data_type = static_cast<ck::DataTypeEnum>(std::stoi(argv[2]));
@@ -85,31 +85,12 @@ int profile_layernorm(int argc, char* argv[])
 
         if(data_type == ck::DataTypeEnum::Half)
         {
-            ck::profiler::profile_layernorm_impl<F16, F16, F16, F32, F16, F32, false, rank>(
+            ck::profiler::profile_layernorm_bwd_x_impl<F16, F16, F16, F16, F32, F16, rank>(
                 do_verification, init_method, do_log, time_kernel, length);
         }
         else if(data_type == ck::DataTypeEnum::Float)
         {
-            ck::profiler::profile_layernorm_impl<F32, F32, F32, F32, F32, F32, false, rank>(
-                do_verification, init_method, do_log, time_kernel, length);
-        }
-        else
-        {
-            throw std::runtime_error("not implemented yet");
-        }
-    }
-    else if(length.size() == 4)
-    {
-        constexpr int rank = 4;
-
-        if(data_type == ck::DataTypeEnum::Half)
-        {
-            ck::profiler::profile_layernorm_impl<F16, F16, F16, F32, F16, F16, false, rank>(
-                do_verification, init_method, do_log, time_kernel, length);
-        }
-        else if(data_type == ck::DataTypeEnum::Float)
-        {
-            ck::profiler::profile_layernorm_impl<F32, F32, F32, F32, F32, F32, false, rank>(
+            ck::profiler::profile_layernorm_bwd_x_impl<F32, F32, F32, F32, F32, F32, rank>(
                 do_verification, init_method, do_log, time_kernel, length);
         }
         else
@@ -125,4 +106,4 @@ int profile_layernorm(int argc, char* argv[])
     return 0;
 }
 
-REGISTER_PROFILER_OPERATION("layernorm_fwd", "Layer Normalization", profile_layernorm);
+REGISTER_PROFILER_OPERATION("layernorm_bwd_x", "Layer Normalization", profile_layernorm_bwd_x);
