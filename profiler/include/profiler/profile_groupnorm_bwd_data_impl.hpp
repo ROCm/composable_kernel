@@ -204,9 +204,9 @@ bool profile_groupnorm_bwd_data_impl(int do_verification,
 
         if(do_verification)
         {
-            dy_dev.FromDevice(dy.mData.data());
+            dx_dev.FromDevice(dx.mData.data());
             bool pass = ck::utils::check_err(
-                dy.mData, host_dx.mData, "Error: Incorrect results", 1e-3, 1e-3);
+                dx.mData, host_dx.mData, "Error: Incorrect results", 1e-3, 1e-3);
 
             if(do_log)
             {
