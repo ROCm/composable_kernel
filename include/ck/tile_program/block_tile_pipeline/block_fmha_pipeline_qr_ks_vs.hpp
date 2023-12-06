@@ -98,7 +98,7 @@ struct BlockFmhaPipelineQRKSVS
                     Policy::template MakeKLdsStoreBlockDescriptor<Problem>(i_buf).GetLengths(),
                     {0, 0, 0});
             },
-            Number<Policy::KLdsBuffers>{});
+            Number<Policy::NumPrefetchK>{});
 
 #if K_LDS_LOAD_USE_OFFSET_TRANSFORM
         auto k_lds_load = generate_tuple(
@@ -109,7 +109,7 @@ struct BlockFmhaPipelineQRKSVS
                     Policy::template MakeKLdsLoadBlockDescriptor<Problem>(i_buf).GetLengths(),
                     {0, 0});
             },
-            Number<Policy::KLdsBuffers>{});
+            Number<Policy::NumPrefetchK>{});
 #else
         auto k_lds_Load_view = make_tensor_view<AddressSpaceEnum::Lds>(
             k_lds_ptr, Policy::template MakeKLdsLoadBlockDescriptor<Problem>());
@@ -137,8 +137,9 @@ struct BlockFmhaPipelineQRKSVS
             q_dram_block_window_tmp.GetWindowOrigin(),
             Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
 
-        auto q = load_tile_raw(q_dram_window); // persistent q register tile
-
+        // TODO: we use async Copy for K, which is inline asm
+        // a side effect is we have to use inline asm for q as well
+        auto q = load_tile_raw(q_dram_window);
         __builtin_amdgcn_sched_barrier(0);
 
         using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
@@ -151,9 +152,6 @@ struct BlockFmhaPipelineQRKSVS
         // infer Sacc, S, P, M, L, Oacc type
         using SBlockTileType =
             decltype(tile_elementwise_in(type_convert<SMPLComputeDataType, SaccDataType>, s_acc));
-
-        // using PBlockTileType =
-        //     decltype(tile_elementwise_in(type_convert<PDataType, SaccDataType>, s_acc));
 
         using MLBlockTileType = decltype(block_tile_reduce<SMPLComputeDataType>(
             SBlockTileType{}, Sequence<1>{}, f_max, SMPLComputeDataType{0}));
@@ -185,7 +183,7 @@ struct BlockFmhaPipelineQRKSVS
             Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
                                                                     // load
         // prefetch K tile
-        async_load_tile(k_lds_store(LdsSeq.At(Number<0>{})), k_dram_window);
+        async_load_tile_raw(k_lds_store(LdsSeq.At(Number<0>{})), k_dram_window);
         move_tile_window(k_dram_window, {0, kK0});
         __builtin_amdgcn_sched_barrier(0);
 
@@ -202,8 +200,8 @@ struct BlockFmhaPipelineQRKSVS
             if constexpr(k0_loops > 1)
             {
                 static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
-                    async_load_tile(k_lds_store(Number<LdsSeq.At(Number<i_k0 + 1>{})>{}),
-                                    k_dram_window);
+                    async_load_tile_raw(k_lds_store(Number<LdsSeq.At(Number<i_k0 + 1>{})>{}),
+                                        k_dram_window);
                     if constexpr(i_k0 < k0_loops - 1)
                         move_tile_window(k_dram_window, {0, kK0});
 
@@ -401,7 +399,7 @@ struct BlockFmhaPipelineQRKSVS
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.At(Number<0>{}) == LdsSeq.At(Number<k0_loops + k1_loops - 2>{}))
                     __builtin_amdgcn_s_barrier();
-                async_load_tile(k_lds_store(LdsSeq.At(Number<0>{})), k_dram_window);
+                async_load_tile_raw(k_lds_store(LdsSeq.At(Number<0>{})), k_dram_window);
                 move_tile_window(k_dram_window, {0, kK0});
             }
             // tail

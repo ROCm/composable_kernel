@@ -46,11 +46,11 @@ template <typename LdsTileWindow_,
           typename WindowLengths_,
           typename TileDistribution_,
           index_t NumCoord>
-__device__ auto async_load_tile(LdsTileWindow_&& lds_tile,
-                                const TileWindowWithStaticDistribution<BottomTensorView_,
-                                                                       WindowLengths_,
-                                                                       TileDistribution_,
-                                                                       NumCoord>& tile_window)
+__device__ auto async_load_tile_raw(LdsTileWindow_&& lds_tile,
+                                    const TileWindowWithStaticDistribution<BottomTensorView_,
+                                                                           WindowLengths_,
+                                                                           TileDistribution_,
+                                                                           NumCoord>& tile_window)
 {
     return tile_window.AsyncLoad(lds_tile);
 }

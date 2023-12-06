@@ -327,8 +327,9 @@ struct TileWindowWithStaticDistribution
         return dst_tensor;
     }
 
-    template <typename LdsTileWindow_>
-    __device__ auto AsyncLoad(LdsTileWindow_&& lds_tile) const
+    // TODO: currently async load only implemented in inline asm
+    template <typename LdsTileWindow_, bool use_inline_asm = true>
+    __device__ auto AsyncLoad(LdsTileWindow_&& lds_tile, bool_constant<use_inline_asm> = {}) const
     {
         using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
         // using LdsTensorView = typename LdsTileWindow::BottomTensorView;
