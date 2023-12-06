@@ -30,7 +30,7 @@ cryptography==41.0.6
     # via pyjwt
 deprecated==1.2.13
     # via pygithub
-docutils==0.19
+docutils==0.16
     # via
     #   breathe
     #   myst-parser
