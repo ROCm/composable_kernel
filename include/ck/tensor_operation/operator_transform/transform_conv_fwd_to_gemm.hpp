@@ -522,8 +522,7 @@ struct TransformConvFwdToGemm
 
     // for output bias
     template <typename CLayout,
-              typename std::enable_if<is_same_v<CLayout, tensor_layout::convolution::GK> ||
-                                          is_same_v<CLayout, tensor_layout::convolution::G_K>,
+              typename std::enable_if<is_same_v<CLayout, tensor_layout::convolution::G_K>,
                                       bool>::type = false>
     static auto MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
                                     const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_strides)
