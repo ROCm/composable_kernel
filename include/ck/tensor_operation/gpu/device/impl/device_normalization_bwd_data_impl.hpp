@@ -6,8 +6,8 @@
 #include <iostream>
 #include <vector>
 
-#include "ck/tensor_operation/gpu/device/device_normalization_bwd_x.hpp"
-#include "ck/tensor_operation/gpu/grid/normalization/gridwise_normalization_bwd_x.hpp"
+#include "ck/tensor_operation/gpu/device/device_normalization_bwd_data.hpp"
+#include "ck/tensor_operation/gpu/grid/normalization/gridwise_normalization_bwd_data.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
@@ -26,19 +26,19 @@ template <typename GridwiseNormalizationBwd,
           typename DXDataType,
           typename GridDesc_M_K>
 __global__ void
-kernel_normalization_bwd_x(const GridDesc_M_K dy_grid_desc_m_k,
-                           const GridDesc_M_K x_grid_desc_m_k,
-                           const GridDesc_M_K gamma_grid_desc_m_k,
-                           const GridDesc_M_K mean_grid_desc_m_k,
-                           const GridDesc_M_K inv_std_grid_desc_m_k,
-                           const GridDesc_M_K dx_grid_desc_m_k,
-                           index_t num_k_block_tile_iteration,
-                           const DYDataType* const __restrict__ p_dy_global,
-                           const XDataType* const __restrict__ p_x_global,
-                           const GammaDataType* const __restrict__ p_gamma_global,
-                           const MeanInvStdDataType* const __restrict__ p_mean_global,
-                           const MeanInvStdDataType* const __restrict__ p_inv_std_global,
-                           DXDataType* const __restrict__ p_dx_global)
+kernel_normalization_bwd_data(const GridDesc_M_K dy_grid_desc_m_k,
+                              const GridDesc_M_K x_grid_desc_m_k,
+                              const GridDesc_M_K gamma_grid_desc_m_k,
+                              const GridDesc_M_K mean_grid_desc_m_k,
+                              const GridDesc_M_K inv_std_grid_desc_m_k,
+                              const GridDesc_M_K dx_grid_desc_m_k,
+                              index_t num_k_block_tile_iteration,
+                              const DYDataType* const __restrict__ p_dy_global,
+                              const XDataType* const __restrict__ p_x_global,
+                              const GammaDataType* const __restrict__ p_gamma_global,
+                              const MeanInvStdDataType* const __restrict__ p_mean_global,
+                              const MeanInvStdDataType* const __restrict__ p_inv_std_global,
+                              DXDataType* const __restrict__ p_dx_global)
 {
     GridwiseNormalizationBwd::Run(dy_grid_desc_m_k,
                                   x_grid_desc_m_k,
@@ -78,13 +78,13 @@ template <typename DYDataType,
           index_t MeanInvStdSrcVectorSize,
           bool IsDxFastestDimReduced,
           index_t DXDstVectorSize>
-struct DeviceNormalizationBwdXImpl : public DeviceNormalizationBwdX<DYDataType,
-                                                                    XDataType,
-                                                                    GammaDataType,
-                                                                    MeanInvStdDataType,
-                                                                    DXDataType,
-                                                                    Rank,
-                                                                    NumReduceDim>
+struct DeviceNormalizationBwdDataImpl : public DeviceNormalizationBwdData<DYDataType,
+                                                                          XDataType,
+                                                                          GammaDataType,
+                                                                          MeanInvStdDataType,
+                                                                          DXDataType,
+                                                                          Rank,
+                                                                          NumReduceDim>
 {
     static constexpr index_t DYSrcVectorDim         = IsDYFastestDimReduced ? 1 : 0;
     static constexpr index_t XSrcVectorDim          = IsXFastestDimReduced ? 1 : 0;
@@ -168,55 +168,55 @@ struct DeviceNormalizationBwdXImpl : public DeviceNormalizationBwdX<DYDataType,
 
     using GridDesc_M_K = decltype(Make2dDescriptor({1}, {1}, 1));
 
-    using GridwiseNormalizationBwdXGeneric =
-        GridwiseNormalizationBwdX_mk_to_mk<DYDataType,
-                                           XDataType,
-                                           GammaDataType,
-                                           MeanInvStdDataType,
-                                           ComputeDataType,
-                                           DXDataType,
-                                           GridDesc_M_K,
-                                           BlockSize,
-                                           MThreadClusterSize,
-                                           KThreadClusterSize,
-                                           MThreadSliceSize,
-                                           KThreadSliceSize,
-                                           DYSrcVectorDim,
-                                           DYSrcVectorSize,
-                                           XSrcVectorDim,
-                                           XSrcVectorSize,
-                                           GammaSrcVectorDim,
-                                           GammaSrcVectorSize,
-                                           MeanInvStdSrcVectorDim,
-                                           MeanInvStdSrcVectorSize,
-                                           DXDstVectorDim,
-                                           DXDstVectorSize,
-                                           false>;
+    using GridwiseNormalizationBwdDataGeneric =
+        GridwiseNormalizationBwdData_mk_to_mk<DYDataType,
+                                              XDataType,
+                                              GammaDataType,
+                                              MeanInvStdDataType,
+                                              ComputeDataType,
+                                              DXDataType,
+                                              GridDesc_M_K,
+                                              BlockSize,
+                                              MThreadClusterSize,
+                                              KThreadClusterSize,
+                                              MThreadSliceSize,
+                                              KThreadSliceSize,
+                                              DYSrcVectorDim,
+                                              DYSrcVectorSize,
+                                              XSrcVectorDim,
+                                              XSrcVectorSize,
+                                              GammaSrcVectorDim,
+                                              GammaSrcVectorSize,
+                                              MeanInvStdSrcVectorDim,
+                                              MeanInvStdSrcVectorSize,
+                                              DXDstVectorDim,
+                                              DXDstVectorSize,
+                                              false>;
 
-    using GridwiseNormalizationBwdXSweepOnce =
-        GridwiseNormalizationBwdX_mk_to_mk<DYDataType,
-                                           XDataType,
-                                           GammaDataType,
-                                           MeanInvStdDataType,
-                                           ComputeDataType,
-                                           DXDataType,
-                                           GridDesc_M_K,
-                                           BlockSize,
-                                           MThreadClusterSize,
-                                           KThreadClusterSize,
-                                           MThreadSliceSize,
-                                           KThreadSliceSize,
-                                           DYSrcVectorDim,
-                                           DYSrcVectorSize,
-                                           XSrcVectorDim,
-                                           XSrcVectorSize,
-                                           GammaSrcVectorDim,
-                                           GammaSrcVectorSize,
-                                           MeanInvStdSrcVectorDim,
-                                           MeanInvStdSrcVectorSize,
-                                           DXDstVectorDim,
-                                           DXDstVectorSize,
-                                           true>;
+    using GridwiseNormalizationBwdDataSweepOnce =
+        GridwiseNormalizationBwdData_mk_to_mk<DYDataType,
+                                              XDataType,
+                                              GammaDataType,
+                                              MeanInvStdDataType,
+                                              ComputeDataType,
+                                              DXDataType,
+                                              GridDesc_M_K,
+                                              BlockSize,
+                                              MThreadClusterSize,
+                                              KThreadClusterSize,
+                                              MThreadSliceSize,
+                                              KThreadSliceSize,
+                                              DYSrcVectorDim,
+                                              DYSrcVectorSize,
+                                              XSrcVectorDim,
+                                              XSrcVectorSize,
+                                              GammaSrcVectorDim,
+                                              GammaSrcVectorSize,
+                                              MeanInvStdSrcVectorDim,
+                                              MeanInvStdSrcVectorSize,
+                                              DXDstVectorDim,
+                                              DXDstVectorSize,
+                                              true>;
 
     struct Argument : public BaseArgument
     {
@@ -303,20 +303,21 @@ struct DeviceNormalizationBwdXImpl : public DeviceNormalizationBwdX<DYDataType,
     {
         auto KernelSelector(bool isSweepOnce)
         {
-            return isSweepOnce ? kernel_normalization_bwd_x<GridwiseNormalizationBwdXSweepOnce,
-                                                            DYDataType,
-                                                            XDataType,
-                                                            GammaDataType,
-                                                            MeanInvStdDataType,
-                                                            DXDataType,
-                                                            GridDesc_M_K>
-                               : kernel_normalization_bwd_x<GridwiseNormalizationBwdXGeneric,
-                                                            DYDataType,
-                                                            XDataType,
-                                                            GammaDataType,
-                                                            MeanInvStdDataType,
-                                                            DXDataType,
-                                                            GridDesc_M_K>;
+            return isSweepOnce
+                       ? kernel_normalization_bwd_data<GridwiseNormalizationBwdDataSweepOnce,
+                                                       DYDataType,
+                                                       XDataType,
+                                                       GammaDataType,
+                                                       MeanInvStdDataType,
+                                                       DXDataType,
+                                                       GridDesc_M_K>
+                       : kernel_normalization_bwd_data<GridwiseNormalizationBwdDataGeneric,
+                                                       DYDataType,
+                                                       XDataType,
+                                                       GammaDataType,
+                                                       MeanInvStdDataType,
+                                                       DXDataType,
+                                                       GridDesc_M_K>;
         }
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
@@ -448,7 +449,7 @@ struct DeviceNormalizationBwdXImpl : public DeviceNormalizationBwdX<DYDataType,
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceNormalizationBwdXImpl<"  << BlockSize << ",";
+        str << "DeviceNormalizationBwdDataImpl<"  << BlockSize << ",";
         str << "Cluster_MK_" << MThreadClusterSize << "_" << KThreadClusterSize << ",";
         str << "Slice_MK_" << MThreadSliceSize << "_" << KThreadSliceSize << ",";
         str << "DYSrcVectorSize" << DYSrcVectorSize << "_X" << XSrcVectorSize << "_Gamma" << GammaSrcVectorSize << "_MeanRstd" << MeanInvStdSrcVectorSize  << "_Dx" << DXDstVectorSize;

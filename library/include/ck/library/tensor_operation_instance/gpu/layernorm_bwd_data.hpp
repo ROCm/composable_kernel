@@ -7,7 +7,7 @@
 #include <memory>
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_normalization_bwd_x.hpp"
+#include "ck/tensor_operation/gpu/device/device_normalization_bwd_data.hpp"
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 
@@ -17,13 +17,13 @@ namespace device {
 namespace instance {
 #ifdef CK_ENABLE_FP16
 // FP16
-void add_device_layernorm2d_bwd_x_f16_instances(
-    std::vector<std::unique_ptr<DeviceNormalizationBwdX<F16, F16, F16, F16, F16, 2, 1>>>&);
+void add_device_layernorm2d_bwd_data_f16_instances(
+    std::vector<std::unique_ptr<DeviceNormalizationBwdData<F16, F16, F16, F16, F16, 2, 1>>>&);
 #endif
 #ifdef CK_ENABLE_FP32
 // FP32
-void add_device_layernorm2d_bwd_x_f32_instances(
-    std::vector<std::unique_ptr<DeviceNormalizationBwdX<F32, F32, F32, F32, F32, 2, 1>>>&);
+void add_device_layernorm2d_bwd_data_f32_instances(
+    std::vector<std::unique_ptr<DeviceNormalizationBwdData<F32, F32, F32, F32, F32, 2, 1>>>&);
 #endif
 template <typename DYDataType,
           typename XDataType,
@@ -33,21 +33,21 @@ template <typename DYDataType,
           index_t Rank,
           index_t NumReduceDim>
 struct DeviceOperationInstanceFactory<
-    ck::tensor_operation::device::DeviceNormalizationBwdX<DYDataType,
-                                                          XDataType,
-                                                          GammaDataType,
-                                                          MeanInvStdDataType,
-                                                          DXDataType,
-                                                          Rank,
-                                                          NumReduceDim>>
+    ck::tensor_operation::device::DeviceNormalizationBwdData<DYDataType,
+                                                             XDataType,
+                                                             GammaDataType,
+                                                             MeanInvStdDataType,
+                                                             DXDataType,
+                                                             Rank,
+                                                             NumReduceDim>>
 {
-    using DeviceOp = DeviceNormalizationBwdX<DYDataType,
-                                             XDataType,
-                                             GammaDataType,
-                                             MeanInvStdDataType,
-                                             DXDataType,
-                                             Rank,
-                                             NumReduceDim>;
+    using DeviceOp = DeviceNormalizationBwdData<DYDataType,
+                                                XDataType,
+                                                GammaDataType,
+                                                MeanInvStdDataType,
+                                                DXDataType,
+                                                Rank,
+                                                NumReduceDim>;
 
     static auto GetInstances()
     {
@@ -59,7 +59,7 @@ struct DeviceOperationInstanceFactory<
         {
             if constexpr(Rank == 2 && NumReduceDim == 1)
             {
-                add_device_layernorm2d_bwd_x_f16_instances(op_ptrs);
+                add_device_layernorm2d_bwd_data_f16_instances(op_ptrs);
             }
         }
 #endif
@@ -70,7 +70,7 @@ struct DeviceOperationInstanceFactory<
         {
             if constexpr(Rank == 2 && NumReduceDim == 1)
             {
-                add_device_layernorm2d_bwd_x_f32_instances(op_ptrs);
+                add_device_layernorm2d_bwd_data_f32_instances(op_ptrs);
             }
         }
 #endif

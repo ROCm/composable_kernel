@@ -15,7 +15,7 @@
 #include "ck/library/utility/literals.hpp"
 
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_normalization_bwd_x_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_normalization_bwd_data_impl.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_normalization_bwd_gamma_beta_impl.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_groupnorm_bwd.hpp"
 
@@ -41,7 +41,7 @@ constexpr int NumReduceDim = 3;
 
 // dx:     N, H, W, G, C -> N * G, H * W * C
 
-using XDeviceInstance = ck::tensor_operation::device::DeviceNormalizationBwdXImpl<
+using XDeviceInstance = ck::tensor_operation::device::DeviceNormalizationBwdDataImpl<
     DYDataType,
     XDataType,
     GammaDataType,

@@ -6,12 +6,12 @@
 #include <unordered_map>
 
 #include "profiler/data_type_enum.hpp"
-#include "profiler/profile_groupnorm_bwd_x_impl.hpp"
+#include "profiler/profile_groupnorm_bwd_data_impl.hpp"
 #include "profiler_operation_registry.hpp"
 
 using ck::index_t;
 
-struct groupnormBwdXArgParser
+struct groupnormBwdDataArgParser
 {
     std::unordered_map<std::string, std::vector<int>> long_opts = {{"length", {}}};
 
@@ -44,9 +44,9 @@ struct groupnormBwdXArgParser
     }
 };
 
-void print_help_groupnorm_bwd_x()
+void print_help_groupnorm_bwd_data()
 {
-    // eg: ckProfiler groupnorm_bwd_x 1 0 2 0 1 --length 1 16 16 32 40
+    // eg: ckProfiler groupnorm_bwd_data 1 0 2 0 1 --length 1 16 16 32 40
     std::cout << "arg1: data type (0: fp16; 1: fp32)\n"
               << "arg2: verification (0: no; 1: yes)\n"
               << "arg3: initialization (0: no init; 1: integer value; 2: decimal value)\n"
@@ -56,15 +56,15 @@ void print_help_groupnorm_bwd_x()
               << std::endl;
 }
 
-int profile_groupnorm_bwd_x(int argc, char* argv[])
+int profile_groupnorm_bwd_data(int argc, char* argv[])
 {
     if(argc <= 2)
     {
-        print_help_groupnorm_bwd_x();
+        print_help_groupnorm_bwd_data();
         return 0;
     }
 
-    groupnormBwdXArgParser arg_parser;
+    groupnormBwdDataArgParser arg_parser;
 
     // short unnamed options
     const ck::DataTypeEnum data_type = static_cast<ck::DataTypeEnum>(std::stoi(argv[2]));
@@ -83,7 +83,7 @@ int profile_groupnorm_bwd_x(int argc, char* argv[])
     {
         if(data_type == ck::DataTypeEnum::Float)
         {
-            ck::profiler::profile_groupnorm_bwd_x_impl<F32, F32, F32, F32, F32, F32>(
+            ck::profiler::profile_groupnorm_bwd_data_impl<F32, F32, F32, F32, F32, F32>(
                 do_verification, init_method, do_log, time_kernel, length);
         }
         else
@@ -99,4 +99,6 @@ int profile_groupnorm_bwd_x(int argc, char* argv[])
     return 0;
 }
 
-REGISTER_PROFILER_OPERATION("groupnorm_bwd_x", "Group Normalization", profile_groupnorm_bwd_x);
+REGISTER_PROFILER_OPERATION("groupnorm_bwd_data",
+                            "Group Normalization",
+                            profile_groupnorm_bwd_data);

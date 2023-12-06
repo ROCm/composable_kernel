@@ -18,7 +18,7 @@ template <typename DYDataType,
           typename DXDataType,
           index_t Rank,
           index_t NumReduceDim>
-struct DeviceNormalizationBwdX : public BaseOperator
+struct DeviceNormalizationBwdData : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const std::vector<index_t> lengths,
@@ -46,13 +46,13 @@ template <typename DYDataType,
           typename DXDataType,
           index_t Rank,
           index_t NumReduceDim>
-using DeviceNormalizationBwdXPtr = std::unique_ptr<DeviceNormalizationBwdX<DYDataType,
-                                                                           XDataType,
-                                                                           GammaDataType,
-                                                                           MeanInvStdDataType,
-                                                                           DXDataType,
-                                                                           Rank,
-                                                                           NumReduceDim>>;
+using DeviceNormalizationBwdDataPtr = std::unique_ptr<DeviceNormalizationBwdData<DYDataType,
+                                                                                 XDataType,
+                                                                                 GammaDataType,
+                                                                                 MeanInvStdDataType,
+                                                                                 DXDataType,
+                                                                                 Rank,
+                                                                                 NumReduceDim>>;
 
 } // namespace device
 } // namespace tensor_operation

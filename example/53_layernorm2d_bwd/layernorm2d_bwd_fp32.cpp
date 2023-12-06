@@ -15,7 +15,7 @@
 #include "ck/library/utility/literals.hpp"
 
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_normalization_bwd_x_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_normalization_bwd_data_impl.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_normalization_bwd_gamma_beta_impl.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm_bwd.hpp"
 
@@ -48,10 +48,10 @@ constexpr int NumReduceDim = 1;
 // dbeta = reduce_sum(dy, axis=0)
 
 // [CAUSION]
-// In DeviceNormalizationBwdXImpl & DeviceNormalizationBwdGammaBetaImpl, M is invarient dimension, K
-// is reduced dimension Hence, M in this example and DeviceNormalizationBwdGammaBetaImpl is
-// different
-using XDeviceInstance = ck::tensor_operation::device::DeviceNormalizationBwdXImpl<
+// In DeviceNormalizationBwdDataImpl & DeviceNormalizationBwdGammaBetaImpl, M is invarient
+// dimension, K is reduced dimension Hence, M in this example and
+// DeviceNormalizationBwdGammaBetaImpl is different
+using XDeviceInstance = ck::tensor_operation::device::DeviceNormalizationBwdDataImpl<
     DYDataType,
     XDataType,
     GammaDataType,

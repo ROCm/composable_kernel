@@ -6,7 +6,7 @@
 #include <iomanip>
 
 #include "ck/ck.hpp"
-#include "ck/library/tensor_operation_instance/gpu/groupnorm_bwd_x.hpp"
+#include "ck/library/tensor_operation_instance/gpu/groupnorm_bwd_data.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -22,11 +22,11 @@ template <typename DYDataType,
           typename MeanInvStdDataType,
           typename ComputeDataType,
           typename DXDataType>
-bool profile_groupnorm_bwd_x_impl(int do_verification,
-                                  int init_method,
-                                  bool do_log,
-                                  bool time_kernel,
-                                  std::vector<index_t> length)
+bool profile_groupnorm_bwd_data_impl(int do_verification,
+                                     int init_method,
+                                     bool do_log,
+                                     bool time_kernel,
+                                     std::vector<index_t> length)
 {
     // we don't need DGamma and DBeta here, just for reference class
     using DGammaDataType = DXDataType;
@@ -102,13 +102,13 @@ bool profile_groupnorm_bwd_x_impl(int do_verification,
     inv_std_dev.ToDevice(inv_std.mData.data());
 
     // add device normalization instances
-    using DeviceOp = ck::tensor_operation::device::DeviceNormalizationBwdX<DYDataType,
-                                                                           XDataType,
-                                                                           GammaDataType,
-                                                                           MeanInvStdDataType,
-                                                                           DXDataType,
-                                                                           5,
-                                                                           3>;
+    using DeviceOp = ck::tensor_operation::device::DeviceNormalizationBwdData<DYDataType,
+                                                                              XDataType,
+                                                                              GammaDataType,
+                                                                              MeanInvStdDataType,
+                                                                              DXDataType,
+                                                                              5,
+                                                                              3>;
 
     // get device op instances
     const auto instance_ptrs =

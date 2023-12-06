@@ -45,7 +45,7 @@ template <typename DYDataType,
           index_t DXDstVectorDim,
           index_t DXDstVectorSize,
           bool SweepOnce>
-struct GridwiseNormalizationBwdX_mk_to_mk
+struct GridwiseNormalizationBwdData_mk_to_mk
 {
     // if we just check ThreadSliceSize % VectorSize == 0, the performance may be poor (coalesce)
     static_assert(((DYSrcVectorDim == 0 && MThreadSliceSize == DYSrcVectorSize) ||
