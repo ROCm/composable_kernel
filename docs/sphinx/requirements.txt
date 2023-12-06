@@ -16,7 +16,7 @@ beautifulsoup4==4.11.2
     # via pydata-sphinx-theme
 breathe==4.34.0
     # via rocm-docs-core
-certifi==2022.12.7
+certifi==2023.7.22
     # via requests
 cffi==1.15.1
     # via
@@ -26,23 +26,23 @@ charset-normalizer==3.1.0
     # via requests
 click==8.1.3
     # via sphinx-external-toc
-cryptography==40.0.2
+cryptography==41.0.6
     # via pyjwt
 deprecated==1.2.13
     # via pygithub
-docutils==0.16
+docutils==0.19
     # via
     #   breathe
     #   myst-parser
-    #   pybtex-docutils
+#   pybtex-docutils
     #   pydata-sphinx-theme
     #   sphinx
-    #   sphinxcontrib-bibtex
+#   sphinxcontrib-bibtex
 fastjsonschema==2.18.0
     # via rocm-docs-core
 gitdb==4.0.10
     # via gitpython
-gitpython==3.1.35
+gitpython==3.1.37
     # via rocm-docs-core
 idna==3.4
     # via requests
@@ -51,7 +51,7 @@ imagesize==1.4.1
 importlib-metadata==6.8.0
     # via
     #   sphinx
-    #   sphinxcontrib-bibtex
+#   sphinxcontrib-bibtex
 importlib-resources==6.1.0
     # via rocm-docs-core
 jinja2==3.1.2
@@ -88,9 +88,9 @@ pydata-sphinx-theme==0.13.3
     # via
     #   rocm-docs-core
     #   sphinx-book-theme
-pygithub==1.58.2
+pygithub==1.58.1
     # via rocm-docs-core
-pygments==2.14.0
+pygments==2.15.0
     # via
     #   accessible-pygments
     #   pydata-sphinx-theme
@@ -104,14 +104,14 @@ pytz==2023.3.post1
 pyyaml==6.0
     # via
     #   myst-parser
-    #   pybtex
+#   pybtex
     #   rocm-docs-core
     #   sphinx-external-toc
-requests==2.28.2
+requests==2.31.0
     # via
     #   pygithub
     #   sphinx
-rocm-docs-core==0.29.0
+rocm-docs-core==0.30.0
     # via -r requirements.in
 six==1.16.0
     # via
@@ -134,12 +134,12 @@ sphinx==5.3.0
     #   sphinx-design
     #   sphinx-external-toc
     #   sphinx-notfound-page
-    #   sphinxcontrib-bibtex
+#   sphinxcontrib-bibtex
 sphinx-book-theme==1.0.1
     # via rocm-docs-core
 sphinx-copybutton==0.5.1
     # via rocm-docs-core
-sphinx-design==0.3.0
+sphinx-design==0.4.1
     # via rocm-docs-core
 sphinx-external-toc==0.3.1
     # via rocm-docs-core
@@ -161,7 +161,7 @@ sphinxcontrib-serializinghtml==1.1.5
     # via sphinx
 typing-extensions==4.5.0
     # via pydata-sphinx-theme
-urllib3==1.26.15
+urllib3==1.26.18
     # via requests
 wrapt==1.15.0
     # via deprecated
