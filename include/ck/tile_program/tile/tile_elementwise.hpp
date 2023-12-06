@@ -52,5 +52,28 @@ __device__ auto tile_elementwise_in(const InElementFunc& in_element_func,
     return out_dstr_tensor;
 }
 
+template <typename DstrTensors, typename T>
+__device__ void set_tile(DstrTensors& dstr_tensor, const T& value)
+{
+    tile_elementwise_inout(
+        [&value](auto& x) {
+            x = type_convert<typename DstrTensors::DataType, remove_cvref_t<T>>(value);
+        },
+        dstr_tensor);
+}
+
+template <typename DstrTensors>
+__device__ void clear_tile(DstrTensors& dstr_tensor)
+{
+    set_tile(dstr_tensor, 0);
+}
+
+template <typename DstType, typename SrcDstrTensors>
+__device__ auto cast_tile(const SrcDstrTensors& src_tensor)
+{
+    return tile_elementwise_in(type_convert<DstType, typename SrcDstrTensors::DataType>,
+                               src_tensor);
+}
+
 } // namespace tile_program
 } // namespace ck

@@ -16,6 +16,7 @@
 
 #include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qkvs.hpp"
 #include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qkvs_default_policy.hpp"
+#include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qr_ks_vs_async.hpp"
 #include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qr_ks_vs.hpp"
 #include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qr_ks_vs_default_policy.hpp"
 #include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_problem.hpp"
@@ -87,11 +88,16 @@ using FmhaPipelineProblemHDim128 =
                                                       ODataType,
                                                       256, // BlockSize
                                                       FmhaShapeHDim128>;
-// using FmhaPipeline        = ck::tile_program::block::BlockFmhaPipelineQKVS<FmhaPipelineProblem>;
+
 using FmhaPipelineHDim64 =
-    ck::tile_program::block::BlockFmhaPipelineQRKSVS<FmhaPipelineProblemHDim64>;
+    ck::tile_program::block::BlockFmhaPipelineQRKSVSAsync<FmhaPipelineProblemHDim64>;
 using FmhaPipelineHDim128 =
-    ck::tile_program::block::BlockFmhaPipelineQRKSVS<FmhaPipelineProblemHDim128>;
+    ck::tile_program::block::BlockFmhaPipelineQRKSVSAsync<FmhaPipelineProblemHDim128>;
+
+// using FmhaPipelineHDim64 =
+//     ck::tile_program::block::BlockFmhaPipelineQRKSVS<FmhaPipelineProblemHDim64>;
+// using FmhaPipelineHDim128 =
+//     ck::tile_program::block::BlockFmhaPipelineQRKSVS<FmhaPipelineProblemHDim128>;
 
 using FmhaEpilogue     = FmhaFwdEpilogue<FmhaFwdEpilogueProblem<OaccDataType, ODataType>>;
 using FmhaKernelHDim64 = FmhaFwdKernel<FmhaTilePartitionerHDim64, FmhaPipelineHDim64, FmhaEpilogue>;

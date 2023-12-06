@@ -10,8 +10,8 @@ namespace tile_program {
 namespace block {
 
 // This pipeline is qkv all located in LDS
-using BlockFmhaPipelineQRKSVSDefaultPolicy =
-    BlockFmhaPipelineQRKSVSCustomPolicy<false, false, 1, 1>;
+using BlockFmhaPipelineQRKSVSAsyncDefaultPolicy =
+    BlockFmhaPipelineQRKSVSCustomPolicy<true, false, 3, 3>;
 
 } // namespace block
 } // namespace tile_program
