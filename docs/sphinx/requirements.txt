@@ -34,10 +34,10 @@ docutils==0.19
     # via
     #   breathe
     #   myst-parser
-#   pybtex-docutils
+    #   pybtex-docutils
     #   pydata-sphinx-theme
     #   sphinx
-#   sphinxcontrib-bibtex
+    #   sphinxcontrib-bibtex
 fastjsonschema==2.18.0
     # via rocm-docs-core
 gitdb==4.0.10
@@ -51,7 +51,7 @@ imagesize==1.4.1
 importlib-metadata==6.8.0
     # via
     #   sphinx
-#   sphinxcontrib-bibtex
+    #   sphinxcontrib-bibtex
 importlib-resources==6.1.0
     # via rocm-docs-core
 jinja2==3.1.2
@@ -104,7 +104,7 @@ pytz==2023.3.post1
 pyyaml==6.0
     # via
     #   myst-parser
-#   pybtex
+    #   pybtex
     #   rocm-docs-core
     #   sphinx-external-toc
 requests==2.31.0
@@ -134,7 +134,7 @@ sphinx==5.3.0
     #   sphinx-design
     #   sphinx-external-toc
     #   sphinx-notfound-page
-#   sphinxcontrib-bibtex
+    #   sphinxcontrib-bibtex
 sphinx-book-theme==1.0.1
     # via rocm-docs-core
 sphinx-copybutton==0.5.1
