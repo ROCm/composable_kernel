@@ -754,6 +754,8 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
                                             a_grid_desc_kbatch_ak0_m_ak1.GetLength(I3)) /
                                            KPerBlock);
 
+        bool clear_c_thread_buf = false;
+
         gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_kbatch_ak0_m_ak1,
                                                                a_block_desc_kbatch_ak0_m_ak1,
                                                                a_blockwise_copy,
@@ -768,7 +770,8 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
                                                                b_block_slice_copy_step,
                                                                blockwise_gemm_,
                                                                c_thread_buf,
-                                                               num_k_block_main_loop);
+                                                               num_k_block_main_loop,
+                                                               clear_c_thread_buf);
     }
 
     template <bool HasMainKBlockLoop, typename Block2ETileMap>

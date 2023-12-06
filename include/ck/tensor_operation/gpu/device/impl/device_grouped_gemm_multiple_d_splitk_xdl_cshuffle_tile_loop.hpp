@@ -89,7 +89,9 @@ __global__ void
 
     // early exit if no work.
     if(work_scheduler.tile_id_ >= tile_count)
+    {
         return;
+    }
 
     index_t group_id = 0;
     index_t offset   = 0;
@@ -101,6 +103,7 @@ __global__ void
 
     index_t gemm_tile_id_start = 0;
     index_t gemm_tile_id_end   = grid_size_grp;
+    auto gridwise_gemm         = GridwiseGemm();
 
     do
     {
@@ -127,11 +130,13 @@ __global__ void
         const auto StrideA = gemm_desc_ptr[group_id].StrideA;
         const auto StrideB = gemm_desc_ptr[group_id].StrideB;
 
-        auto gridwise_gemm = GridwiseGemm();
+        auto& results_buffer = gridwise_gemm.GetCThreadBuffer();
         b2c_tile_map.CalculateBottomIndex(work_scheduler.tile_id_ - offset);
+        results_buffer.Clear();
 
         // Iterate over K dimension for this [M,N] tile
         // still in the same GEMM && the same [M,N] tile
+        // TODO: change desc so that few K-tiles will be done in single GEMM.
         do
         {
             // just accumulate results in registers!
@@ -211,7 +216,6 @@ __global__ void
         }
         else if(work_scheduler.HasTile())
         {
-            // TODO: double buffering in order to not wait for this.
             work_scheduler.WaitForReduction(k_batch, output_tile_idx, output_tile_idx_offset);
         }
     } while(work_scheduler.HasTile());
@@ -747,8 +751,16 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
             // configuration the first is smaller than the latter. Launching too many workgroups
             // mean some of them will have to iterate through all gemm problem descriptors just to
             // find out they have nothing to do which is of course waste of GPU cycles.
-            const index_t grid_size       = ck::math::min(arg.tile_count_, max_occupancy_grid_size);
+            index_t grid_size             = ck::math::min(arg.tile_count_, max_occupancy_grid_size);
             const index_t tiles_per_block = (arg.tile_count_ + grid_size - 1) / grid_size;
+
+            // Make a correction to grid size in order to get rid of workgroups which does not have
+            // anything to work.
+            if(arg.tile_count_ > max_occupancy_grid_size &&
+               grid_size * tiles_per_block > arg.tile_count_)
+            {
+                grid_size = (arg.tile_count_ + tiles_per_block - 1) / tiles_per_block;
+            }
 
             std::size_t acc_workspace_size_bytes = Block2ETileMapKSplit::GetAccWorkspaceSize(
                 sizeof(typename GridwiseGemm::AccType), grid_size);
@@ -774,11 +786,10 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
             };
 
             return launch_and_time_kernel_with_preprocess(
-                // return launch_and_time_kernel(
                 stream_config,
                 preprocess,
                 kernel,
-                dim3(ck::math::min(arg.tile_count_, max_occupancy_grid_size)),
+                dim3(grid_size),
                 dim3(BlockSize),
                 0,
                 cast_pointer_to_constant_address_space(dev_gemm_args),

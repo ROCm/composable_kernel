@@ -93,7 +93,6 @@ class StridedReductionTileLoop
     FlagFinished(index_t k_tiles, index_t output_tile_idx, index_t output_tile_idx_offset)
     {
         const auto fidx = GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset);
-
         finished_block_flags_.inc(fidx);
     }
 
