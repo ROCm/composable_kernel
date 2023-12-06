@@ -166,4 +166,16 @@ __host__ __device__ constexpr auto IsNestedTuple(const Tuple<Ts...>&)
     return (is_detected<is_tuple, Ts>::value || ...);
 }
 
+template <index_t depth = 0, typename T>
+__host__ __device__ constexpr auto TupleDepth(const T&)
+{
+    return depth;
+}
+
+template <index_t depth = 0, typename... Ts>
+__host__ __device__ constexpr auto TupleDepth(const Tuple<Ts...>&)
+{
+    return math::max(TupleDepth<depth + 1>(Ts{})...);
+}
+
 } // namespace ck
