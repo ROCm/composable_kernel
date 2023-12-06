@@ -22,7 +22,7 @@ namespace wrapper {
 // Disable from doxygen docs generation
 /// @cond
 // forward declaration
-template <typename Shape, typename Strides = Tuple<>>
+template <typename Shape, typename Strides>
 struct Layout;
 
 template <typename T>
@@ -52,9 +52,9 @@ __host__ __device__ constexpr Layout<Shape, Strides> make_layout(const Shape& sh
  * \return Constructed layout.
  */
 template <typename Shape>
-__host__ __device__ constexpr Layout<Shape> make_layout(const Shape& shape)
+__host__ __device__ constexpr Layout<Shape, Tuple<>> make_layout(const Shape& shape)
 {
-    return Layout<Shape>(shape);
+    return Layout<Shape, Tuple<>>(shape);
 }
 
 // Layout helpers

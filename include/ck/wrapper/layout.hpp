@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "ck/wrapper/layout_utils.hpp"
+#include "ck/wrapper/utils/layout_utils.hpp"
 
 namespace ck {
 namespace wrapper {
@@ -231,6 +231,8 @@ struct Layout
                            Strides>;
     using NaiveDescriptorType =
         remove_cvref_t<decltype(MakeNaiveDescriptor(Shape{}, DeducedStrides{}))>;
+
+    constexpr auto GetElementSpaceSize() const { return descriptor_.GetElementSpaceSize(); }
 
     /**
      * \brief Layout constructor.
