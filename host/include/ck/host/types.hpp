@@ -4,6 +4,7 @@
 #pragma once
 
 #include <string>
+#include <sstream>
 #include <utility>
 #include <unordered_map>
 #include <vector>
@@ -17,7 +18,15 @@ struct Solution
     Solution() = default;
     Solution(std::string str, std::unordered_map<std::string, std::string> values);
     std::string ToTemplateString() const;
-    std::string ToTemplateParameter(const std::string& name) const;
+    std::string GetTemplateParameter(const std::string& name) const;
+    template <class T>
+    T GetTemplateParameter(const std::string& name) const
+    {
+        T result;
+        std::stringstream ss(GetTemplateParameter(name));
+        ss >> result;
+        return result;
+    }
 
     private:
     std::string template_str;
