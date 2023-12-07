@@ -1,5 +1,5 @@
 def rocmnode(name) {
-    return 'rocmtest && miopen && ' + name
+    return '(rocmtest || miopen) && ' + name
 }
 
 def show_node_info() {
@@ -84,7 +84,7 @@ def build_compiler(){
         compiler = '/opt/rocm/bin/hipcc'
     }
     else{
-        if (params.COMPILER_VERSION == "amd-stg-open" || params.COMPILER_COMMIT != ""){
+        if (params.COMPILER_VERSION != "" || params.COMPILER_COMMIT != ""){
             compiler = "/llvm-project/build/bin/clang++"
         }
         else{
@@ -293,7 +293,7 @@ def buildHipClangJob(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-        if (params.COMPILER_VERSION == "amd-stg-open" || params.COMPILER_COMMIT != ""){
+        if (params.COMPILER_VERSION != "" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
 
@@ -348,7 +348,7 @@ def runCKProfiler(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-        if (params.COMPILER_VERSION == "amd-stg-open" || params.COMPILER_COMMIT != ""){
+        if (params.COMPILER_VERSION != "" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
 
@@ -479,7 +479,7 @@ def Build_CK(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-        if (params.COMPILER_VERSION == "amd-stg-open" || params.COMPILER_COMMIT != ""){
+        if (params.COMPILER_VERSION != "" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
 
@@ -657,7 +657,8 @@ def process_results(Map conf=[:]){
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=5.7;COMPILER_VERSION=
                                               0 21 * * * % ROCMVERSION=5.7;COMPILER_VERSION=;COMPILER_COMMIT=
-                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=;USE_SCCACHE=false''' : ""
+                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=;USE_SCCACHE=false
+                                              0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;COMPILER_COMMIT=;USE_SCCACHE=false''' : ""
 
 pipeline {
     agent none
@@ -679,15 +680,15 @@ pipeline {
         string(
             name: 'COMPILER_VERSION', 
             defaultValue: '', 
-            description: 'Specify which version of compiler to use: release, amd-stg-open, or leave blank (default).')
+            description: 'Specify which version of compiler to use: release, amd-stg-open, amd-mainline-open, or leave blank (default).')
         string(
             name: 'COMPILER_COMMIT', 
             defaultValue: '', 
-            description: 'Specify which commit of compiler branch to use: leave blank to use the latest commit, or use 5541927df00eabd6a110180170eca7785d436ee3 (default) commit of amd-stg-open branch.')
+            description: 'Specify which commit of compiler branch to use: leave blank to use the latest commit (default), or use some specific commit of llvm-project branch.')
         string(
             name: 'BUILD_COMPILER', 
-            defaultValue: 'hipcc', 
-            description: 'Specify whether to build CK with hipcc (default) or with clang.')
+            defaultValue: 'clang', 
+            description: 'Specify whether to build CK with hipcc or with clang (default).')
         booleanParam(
             name: "RUN_FULL_QA",
             defaultValue: false,
@@ -767,8 +768,15 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx908 || gfx90a") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" -DCMAKE_EXE_LINKER_FLAGS=" -L ${env.WORKSPACE}/script -T hip_fatbin_insert " """
-                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ 
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install \
+                                         -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" \
+                                         -DCMAKE_EXE_LINKER_FLAGS=" -L ${env.WORKSPACE}/script -T hip_fatbin_insert " \
+                                         -DCMAKE_CXX_FLAGS=" -O3 " """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
+                                           cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+                                           -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" \
+                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """ 
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
@@ -783,8 +791,12 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx908 || gfx90a") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a" """
-                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908;gfx90a" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ 
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
+                                           cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+                                           -DGPU_TARGETS="gfx908;gfx90a" \
+                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """ 
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
@@ -799,8 +811,12 @@ pipeline {
                     }
                     agent{ label rocmnode("navi21") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1030" -DDL_KERNELS=ON """ 
-                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1030" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1030" -DDL_KERNELS=ON -DCMAKE_CXX_FLAGS=" -O3 " """ 
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
+                                           cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+                                           -DGPU_TARGETS="gfx1030" \
+                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
@@ -815,8 +831,12 @@ pipeline {
                     }
                     agent{ label rocmnode("navi32") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1101" -DDL_KERNELS=ON """
-                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx1101" -DDL_KERNELS=ON -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1101" -DDL_KERNELS=ON -DCMAKE_CXX_FLAGS=" -O3 " """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
+                                           cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+                                           -DGPU_TARGETS="gfx1101" \
+                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')

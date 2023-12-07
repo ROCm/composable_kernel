@@ -236,9 +236,10 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
-        return math::max(a_block_space_size_aligned * sizeof(AComputeDataType) +
-                             b_block_space_size_aligned * sizeof(BComputeDataType),
-                         c_block_size * sizeof(CShuffleDataType));
+        return math::max(
+            NumGemmKPrefetchStage * a_block_space_size_aligned * sizeof(AComputeDataType) +
+                NumGemmKPrefetchStage * b_block_space_size_aligned * sizeof(BComputeDataType),
+            c_block_size * sizeof(CShuffleDataType));
     }
 
     __host__ __device__ static auto
@@ -491,6 +492,22 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
 
     __device__ __host__ static constexpr auto GetMPerBlock() { return MPerBlock; }
 
+    template <typename DataType>
+    __device__ static auto AllocateBlockBuffers(void* p_shared,
+                                                int32_t num_elems,
+                                                int32_t offset_elems,
+                                                int32_t max_lds_align)
+    {
+        const int32_t single_buffer_offset = math::integer_least_multiple(num_elems, max_lds_align);
+        return generate_tuple(
+            [&](auto i) {
+                const int32_t local_offset = i * single_buffer_offset;
+                return make_dynamic_buffer<AddressSpaceEnum::Lds>(
+                    static_cast<DataType*>(p_shared) + local_offset + offset_elems, num_elems);
+            },
+            Number<NumGemmKPrefetchStage>{});
+    }
+
     template <bool HasMainKBlockLoop,
               typename AGridDesc_AK0_M_AK1,
               typename BGridDesc_BK0_N_BK1,
@@ -624,12 +641,14 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<AComputeDataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
-
-        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BComputeDataType*>(p_shared) + a_block_space_size_aligned,
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+        auto a_block_buffers = AllocateBlockBuffers<AComputeDataType>(
+            p_shared, a_block_desc_ak0_m_ak1.GetElementSpaceSize(), 0, max_lds_align);
+        const auto b_buffers_offset = a_block_space_size_aligned * NumGemmKPrefetchStage;
+        auto b_block_buffers =
+            AllocateBlockBuffers<BComputeDataType>(p_shared,
+                                                   b_block_desc_bk0_n_bk1.GetElementSpaceSize(),
+                                                   b_buffers_offset,
+                                                   max_lds_align);
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1, 0, 0);
@@ -645,13 +664,13 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
                                                                a_block_desc_ak0_m_ak1,
                                                                a_blockwise_copy,
                                                                a_grid_buf,
-                                                               a_block_buf,
+                                                               a_block_buffers,
                                                                a_block_slice_copy_step,
                                                                b_grid_desc_bk0_n_bk1,
                                                                b_block_desc_bk0_n_bk1,
                                                                b_blockwise_copy,
                                                                b_grid_buf,
-                                                               b_block_buf,
+                                                               b_block_buffers,
                                                                b_block_slice_copy_step,
                                                                blockwise_gemm,
                                                                c_thread_buf,
