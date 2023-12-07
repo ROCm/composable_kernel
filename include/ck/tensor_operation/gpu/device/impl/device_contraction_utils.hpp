@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cassert>
+#include <sstream>
 #include <vector>
 
 #include "ck/ck.hpp"
@@ -33,11 +34,17 @@ auto CalculateMaxRead(const std::vector<index_t>& lengths, const std::vector<ind
 {
     if(lengths.size() != NumDim1 + NumDim2)
     {
-        throw std::runtime_error("Incorrect number of lengths.");
+        std::ostringstream err;
+        err << "Incorrect number of lengths in " << __FILE__ << ":" << __LINE__
+            << ", in function: " << __func__;
+        throw std::runtime_error(err.str());
     }
     if(strides.size() != NumDim1 + NumDim2)
     {
-        throw std::runtime_error("Incorrect number of strides.");
+        std::ostringstream err;
+        err << "Incorrect number of strides in " << __FILE__ << ":" << __LINE__
+            << ", in function: " << __func__;
+        throw std::runtime_error(err.str());
     }
 
     // Determine the beginning and end idx of the group representing the FCD.
