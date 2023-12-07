@@ -25,8 +25,6 @@ using S = ck::Sequence<Is...>;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-static constexpr auto MNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
-
 // Compilation parameters for a[m, k] * b[k, n] = c[m, n]
 template <ck::tensor_operation::device::GemmSpecialization GemmSpec>
 using device_gemm_xdl_c_shuffle_f8_f8_f8_mk_kn_mn_instances = std::tuple<
@@ -96,14 +94,6 @@ using device_gemm_xdl_c_shuffle_f8_f8_f8_mk_kn_mn_instances = std::tuple<
 #endif
     // clang-format on
     >;
-
-void add_device_gemm_xdl_c_shuffle_f8_f8_f8_mk_kn_mn_instances(
-    std::vector<std::unique_ptr<
-        DeviceGemm<Row, Row, Row, F8, F8, F8, PassThrough, PassThrough, PassThrough>>>& instances)
-{
-    add_device_operation_instances(
-        instances, device_gemm_xdl_c_shuffle_f8_f8_f8_mk_kn_mn_instances<MNKPadding>{});
-}
 
 } // namespace instance
 } // namespace device
