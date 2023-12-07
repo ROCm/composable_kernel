@@ -26,7 +26,7 @@ inline std::string get_device_name()
     }
     const std::string raw_name(props.gcnArchName);
 
-    // https://github.com/ROCmSoftwarePlatform/MIOpen/blob/8498875aef84878e04c1eabefdf6571514891086/src/target_properties.cpp#L40
+    // https://github.com/ROCm/MIOpen/blob/8498875aef84878e04c1eabefdf6571514891086/src/target_properties.cpp#L40
     static std::map<std::string, std::string> device_name_map = {
         {"Ellesmere", "gfx803"},
         {"Baffin", "gfx803"},
