@@ -94,7 +94,6 @@ int main(int argc, char* argv[])
 
     SimpleDeviceMem in_device_buf(sizeof(InDataType) * in_tensor_size);
     SimpleDeviceMem out_device_buf(sizeof(OutDataType) * out_tensor_size);
-    SimpleDeviceMem out_indices_device_buf(sizeof(IndexDataType) * out_tensor_size);
 
     using DeviceOp = ck::tensor_operation::device::DevicePoolFwd<InOutRank,
                                                                  WindowRank,
@@ -127,7 +126,7 @@ int main(int argc, char* argv[])
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
             static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            static_cast<IndexDataType*>(out_indices_device_buf.GetDeviceBuffer()),
+            nullptr,
             in_length,
             window_spatial_lengths,
             out_length,
@@ -187,7 +186,7 @@ int main(int argc, char* argv[])
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
             static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            static_cast<IndexDataType*>(out_indices_device_buf.GetDeviceBuffer()),
+            nullptr,
             in_length,
             window_spatial_lengths,
             out_length,
