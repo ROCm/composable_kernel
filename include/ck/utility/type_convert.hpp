@@ -33,6 +33,22 @@ __host__ __device__ constexpr Y type_convert(X x)
     return static_cast<Y>(type_convert<NonConstY, NonConstX>(x));
 }
 
+template <>
+inline __host__ __device__ constexpr half2_t type_convert<half2_t, f8x2_t>(f8x2_t x)
+{
+
+	uint32_t t = bit_cast<uint16_t>(x);
+	return bit_cast<half2_t>(t);
+}
+
+template <>
+inline __host__ __device__ constexpr f8x2_t type_convert<f8x2_t, half2_t>(half2_t x)
+{
+
+	uint16_t t = bit_cast<uint32_t>(x);
+	return bit_cast<f8x2_t>(t);
+}
+
 // convert bfp16 to fp32
 template <>
 inline __host__ __device__ constexpr float type_convert<float, bhalf_t>(bhalf_t x)
@@ -129,10 +145,11 @@ template <>
 inline __host__ __device__ float type_convert<float, f8_t>(f8_t x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
-    float fval;
-    uint32_t i32val = static_cast<uint32_t>(x);
-    fval            = __builtin_amdgcn_cvt_f32_fp8(i32val, 0);
+    //float fval;
+    //uint32_t i32val = static_cast<uint32_t>(x);
+    //fval            = __builtin_amdgcn_cvt_f32_fp8(i32val, 0);
     // asm volatile("v_cvt_f32_fp8 %0, %1 src0_sel:BYTE_0" : "=v"(fval) : "v"(i32val));
+    float fval = bit_cast<uint8_t>(x);
     return fval;
 #else
     constexpr bool negative_zero_nan = true;
@@ -194,12 +211,14 @@ inline __host__ __device__ half_t type_convert<half_t, f8_t>(f8_t x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // use native conversion to float and convert to fp16
-    return type_convert<half_t>(type_convert<float>(x));
+    // return type_convert<half_t>(type_convert<float>(x));
+    uint32_t tmp = bit_cast<uint8_t>(x);
+    return static_cast<half_t>(tmp);;
 #else
     // constexpr bool negative_zero_nan = true;
     // return utils::cast_from_f8<f8_t, half_t, negative_zero_nan>(x);
     uint16_t t = bit_cast<uint8_t>(x);
-    return bit_cast<half_t>(t);
+    return static_cast<half_t>(t);
 #endif
 }
 

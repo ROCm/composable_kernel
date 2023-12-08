@@ -228,6 +228,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
             {
                 if(kbatch == 1)
                 {
+#if 1
                     const auto kernel =
                         kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
                                                              true,
@@ -238,6 +239,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                                              CElementwiseOperation>;
 
                     Run(kernel);
+#endif
                 }
                 else
                 {
@@ -253,6 +255,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                     Run(kernel);
                 }
             }
+#if 1
             else
             {
                 if(kbatch == 1)
@@ -282,6 +285,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                     Run(kernel);
                 }
             }
+#endif
 
             return ave_time;
         }
