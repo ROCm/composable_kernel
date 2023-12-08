@@ -102,7 +102,7 @@ body:
         - AMD Common Language Runtime
         - AMD MIGraphX
         - AMD System Management Interface
-        -  amdgpu KCL/autoconf
+        - amdgpu KCL/autoconf
         - amdgpu Kernel-mode GPU Driver
         - amdgpu-install
         - AOMP
