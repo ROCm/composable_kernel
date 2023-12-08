@@ -522,22 +522,21 @@ struct TransformConvFwdToGemm
 
     // for output bias
     template <typename CLayout,
-              typename std::enable_if<is_same_v<CLayout, tensor_layout::convolution::GK> ||
-                                          is_same_v<CLayout, tensor_layout::convolution::G_K>,
+              typename std::enable_if<is_same_v<CLayout, tensor_layout::convolution::G_K>,
                                       bool>::type = false>
-    static auto
-    MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& /* c_g_n_k_wos_strides */)
+    static auto MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
+                                    const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_strides)
     {
-        const index_t N = c_g_n_k_wos_lengths[1];
-        const index_t K = c_g_n_k_wos_lengths[2];
+        const index_t N       = c_g_n_k_wos_lengths[1];
+        const index_t K       = c_g_n_k_wos_lengths[2];
+        const index_t KStride = c_g_n_k_wos_strides[2];
 
         const index_t NHoWo =
             N * ck::accumulate_n<index_t>(
                     c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>());
 
         const auto out_gemmm_gemmn_desc =
-            make_naive_tensor_descriptor(make_tuple(NHoWo, K), make_tuple(I0, I1));
+            make_naive_tensor_descriptor(make_tuple(NHoWo, K), make_tuple(I0, KStride));
 
         return out_gemmm_gemmn_desc;
     }
