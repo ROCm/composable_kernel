@@ -21,6 +21,7 @@ template <typename AType,
 struct WarpGemmMfmaDispatcher;
 
 // clang-format off
+// fp16
 template<> struct WarpGemmMfmaDispatcher<ck::half_t, ck::half_t, float, 32, 32,  8, false> { using Type = WarpGemmMfmaF16F16F32M32N32K8; };
 template<> struct WarpGemmMfmaDispatcher<ck::half_t, ck::half_t, float, 32, 32,  8, true> { using Type = WarpGemmMfmaF16F16F32M32N32K8TransposedCDistribution; };
 template<> struct WarpGemmMfmaDispatcher<ck::half_t, ck::half_t, float, 32, 32, 16, false> { using Type = WarpGemmMfmaF16F16F32M32N32K16; };
@@ -29,6 +30,16 @@ template<> struct WarpGemmMfmaDispatcher<ck::half_t, ck::half_t, float, 16, 16, 
 template<> struct WarpGemmMfmaDispatcher<ck::half_t, ck::half_t, float, 16, 16, 16, true> { using Type = WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution; };
 template<> struct WarpGemmMfmaDispatcher<ck::half_t, ck::half_t, float, 16, 16, 32, false> { using Type = WarpGemmMfmaF16F16F32M16N16K32; };
 template<> struct WarpGemmMfmaDispatcher<ck::half_t, ck::half_t, float, 16, 16, 32, true> { using Type = WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution; };
+
+// bf16
+template<> struct WarpGemmMfmaDispatcher<ck::bhalf_t, ck::bhalf_t, float, 32, 32,  8, false> { using Type = WarpGemmMfmaBf16Bf16F32M32N32K8; };
+template<> struct WarpGemmMfmaDispatcher<ck::bhalf_t, ck::bhalf_t, float, 32, 32,  8, true> { using Type = WarpGemmMfmaBf16Bf16F32M32N32K8TransposedCDistribution; };
+template<> struct WarpGemmMfmaDispatcher<ck::bhalf_t, ck::bhalf_t, float, 32, 32, 16, false> { using Type = WarpGemmMfmaBf16Bf16F32M32N32K16; };
+template<> struct WarpGemmMfmaDispatcher<ck::bhalf_t, ck::bhalf_t, float, 32, 32, 16, true> { using Type = WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution; };
+template<> struct WarpGemmMfmaDispatcher<ck::bhalf_t, ck::bhalf_t, float, 16, 16, 16, false> { using Type = WarpGemmMfmaBf16Bf16F32M16N16K16; };
+template<> struct WarpGemmMfmaDispatcher<ck::bhalf_t, ck::bhalf_t, float, 16, 16, 16, true> { using Type = WarpGemmMfmaBf16Bf16F32M16N16K16TransposedCDistribution; };
+template<> struct WarpGemmMfmaDispatcher<ck::bhalf_t, ck::bhalf_t, float, 16, 16, 32, false> { using Type = WarpGemmMfmaBf16Bf16F32M16N16K32; };
+template<> struct WarpGemmMfmaDispatcher<ck::bhalf_t, ck::bhalf_t, float, 16, 16, 32, true> { using Type = WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution; };
 // clang-format on
 } // namespace impl
 

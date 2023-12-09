@@ -26,29 +26,40 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
     {
         using namespace ck::tile_program::warp;
 
+        if constexpr(is_same_v<typename Problem::ADataType, half_t> &&
+                     is_same_v<typename Problem::BDataType, half_t> &&
+                     is_same_v<typename Problem::CDataType, float>)
+        {
 #if 0
-        constexpr index_t kBlockSize = Problem::kBlockSize;
+            constexpr index_t kBlockSize = Problem::kBlockSize;
 
-        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
-        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+            constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
+            constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
+            constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
-        static_assert(kBlockSize % get_warp_size() == 0, "wrong!");
+            static_assert(kBlockSize % get_warp_size() == 0, "wrong!");
 
-        constexpr index_t NumWarp = kBlockSize / get_warp_size();
+            constexpr index_t NumWarp = kBlockSize / get_warp_size();
 
-        if constexpr(NumWarp == 4 && kMPerBlock % 128 == 0 &&
-                     kNPerBlock % 128 == 0 % kKPerBlock % 16 == 0)
-        {
-            return make_tuple(WarpGemmMfmaF16F16F32M32N32K16{}, 2, 2);
-        }
-        else
-        {
-            return make_tuple(WarpGemmMfmaF16F16F32M32N32K16{}, 2, 2);
-        }
+            if constexpr(NumWarp == 4 && kMPerBlock % 128 == 0 &&
+                         kNPerBlock % 128 == 0 % kKPerBlock % 16 == 0)
+            {
+                return make_tuple(WarpGemmMfmaF16F16F32M32N32K16{}, 2, 2);
+            }
+            else
+            {
+                return make_tuple(WarpGemmMfmaF16F16F32M32N32K16{}, 2, 2);
+            }
 #else
-        return make_tuple(WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution{}, 4, 1);
+            return make_tuple(WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution{}, 4, 1);
 #endif
+        }
+        else if constexpr(is_same_v<typename Problem::ADataType, bhalf_t> &&
+                          is_same_v<typename Problem::BDataType, bhalf_t> &&
+                          is_same_v<typename Problem::CDataType, float>)
+        {
+            return make_tuple(WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution{}, 4, 1);
+        }
     }
 };
 

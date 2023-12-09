@@ -18,6 +18,7 @@
 
 int main(int argc, char* argv[])
 {
+#if 1
     using A0DataType   = ck::half_t;
     using B0DataType   = ck::half_t;
     using B1DataType   = ck::half_t;
@@ -25,6 +26,15 @@ int main(int argc, char* argv[])
     using C0DataType   = ck::half_t;
     using Acc1DataType = float;
     using C1DataType   = ck::half_t;
+#else
+    using A0DataType   = ck::bhalf_t;
+    using B0DataType   = ck::bhalf_t;
+    using B1DataType   = ck::bhalf_t;
+    using Acc0DataType = float;
+    using C0DataType   = ck::bhalf_t;
+    using Acc1DataType = float;
+    using C1DataType   = ck::bhalf_t;
+#endif
 
     ck::index_t M0 = 13312;
     ck::index_t N0 = 4096;

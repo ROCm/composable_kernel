@@ -6,28 +6,28 @@
 #include "ck/utility/common_header.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 
-template <typename ADataType, typename AccDataType, typename BDataType>
+template <typename ADataType, typename CompDataType, typename BDataType>
 void reference_batched_softmax(const Tensor<ADataType>& a_b_m_n, Tensor<BDataType>& b_b_m_n)
 {
     const int N = a_b_m_n.mDesc.GetLengths()[2];
 
     auto f = [&](auto batch, auto m) {
-        AccDataType v_max = ck::NumericLimits<ADataType>::Lowest();
+        CompDataType v_max = ck::NumericLimits<CompDataType>::Lowest();
 
         // max
         for(int n = 0; n < N; ++n)
         {
-            const ADataType v_a = a_b_m_n(batch, m, n);
+            const CompDataType v_a = ck::type_convert<CompDataType>(a_b_m_n(batch, m, n));
 
             v_max = v_max < v_a ? v_a : v_max;
         }
 
-        AccDataType v_exp_sum = 0;
+        CompDataType v_exp_sum = 0;
 
         // sum
         for(int n = 0; n < N; ++n)
         {
-            const ADataType v_a = a_b_m_n(batch, m, n);
+            const CompDataType v_a = ck::type_convert<CompDataType>(a_b_m_n(batch, m, n));
 
             v_exp_sum += ck::math::exp(v_a - v_max);
         }
@@ -35,9 +35,10 @@ void reference_batched_softmax(const Tensor<ADataType>& a_b_m_n, Tensor<BDataTyp
         // elementwise
         for(int n = 0; n < N; ++n)
         {
-            const ADataType v_a = a_b_m_n(batch, m, n);
+            const CompDataType v_a = ck::type_convert<CompDataType>(a_b_m_n(batch, m, n));
 
-            b_b_m_n(batch, m, n) = ck::math::exp(v_a - v_max) / v_exp_sum;
+            b_b_m_n(batch, m, n) =
+                ck::type_convert<BDataType>(ck::math::exp(v_a - v_max) / v_exp_sum);
         }
     };
 
