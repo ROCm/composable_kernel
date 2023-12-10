@@ -19,6 +19,7 @@
 
 int main(int argc, char* argv[])
 {
+#if 1
     using QDataType           = ck::half_t;
     using KDataType           = ck::half_t;
     using VDataType           = ck::half_t;
@@ -27,6 +28,16 @@ int main(int argc, char* argv[])
     using PDataType           = ck::half_t;
     using OaccDataType        = float;
     using ODataType           = ck::half_t;
+#else
+    using QDataType           = ck::bhalf_t;
+    using KDataType           = ck::bhalf_t;
+    using VDataType           = ck::bhalf_t;
+    using SaccDataType        = float;
+    using SMPLComputeDataType = float;
+    using PDataType           = ck::bhalf_t;
+    using OaccDataType        = float;
+    using ODataType           = ck::bhalf_t;
+#endif
 
     ck::index_t Batch = 16;
     ck::index_t M0    = 3328;

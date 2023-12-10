@@ -99,15 +99,6 @@ __device__ void shuffle_distributed_tensor_impl_in_thread(OutTensor& out_tensor,
     StaticallyIndexedArray<InVec, num_vec_in> in_vectors;
     StaticallyIndexedArray<OutVec, num_vec_out> out_vectors;
 
-#if 0
-    print(y_dim_out_to_in);
-    printf("\n");
-    printf("y_dim_vec_in %d\n", y_dim_vec_in);
-    printf("y_dim_vec_out %d\n", y_dim_vec_out);
-    printf("num_vec_in %d\n", num_vec_in);
-    printf("num_vec_out %d\n", num_vec_out);
-#endif
-
     // loop over SFC and do transpose
     static_for<0, num_access, 1>{}([&](auto iAccess) {
         // data index [y0, y1, ...] in the order of input tensor

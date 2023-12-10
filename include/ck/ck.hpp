@@ -134,6 +134,9 @@
 // inner product using V_DOT with DPP8 modifiers
 #define CK_USE_AMD_V_DOT_DPP8_INLINE_ASM 1
 
+// LDS direct loads using inline assembly
+#define CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM 1
+
 // set stochastic rounding as default for f8 conversions
 #define CK_USE_SR_F8_CONVERSION 1
 

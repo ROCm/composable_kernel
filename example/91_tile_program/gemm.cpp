@@ -46,10 +46,17 @@ struct CElementFunction
 
 int main(int argc, char* argv[])
 {
+#if 1
     using ADataType   = ck::half_t;
     using BDataType   = ck::half_t;
     using AccDataType = float;
     using CDataType   = ck::half_t;
+#else
+    using ADataType   = ck::bhalf_t;
+    using BDataType   = ck::bhalf_t;
+    using AccDataType = float;
+    using CDataType   = ck::bhalf_t;
+#endif
 
     using ALayout = ck::tensor_layout::gemm::RowMajor;
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;

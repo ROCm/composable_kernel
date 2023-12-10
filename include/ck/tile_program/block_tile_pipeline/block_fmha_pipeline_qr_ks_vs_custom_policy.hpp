@@ -686,18 +686,28 @@ struct BlockFmhaPipelineQRKSVSCustomPolicy
                                      TileGemmShape<Problem::BlockFmhaShape::kM0,
                                                    Problem::BlockFmhaShape::kN0,
                                                    Problem::BlockFmhaShape::kK0>>;
-
-        using WarpGemm = warp::WarpGemmImpl<
-            warp::WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
-                warp::WarpGemmAttributeMfmaImplF16F16F32M32N32K8,
-                2>>;
+        
+        constexpr auto warp_gemm = []() {
+            if constexpr(is_same_v<typename Problem::QDataType, half_t> &&
+                         is_same_v<typename Problem::KDataType, half_t> &&
+                         is_same_v<typename Problem::SaccDataType, float>)
+            {
+                return warp::WarpGemmMfmaF16F16F32M16N16K32SwizzleBTransposedCDistribution{};
+            }
+            else if constexpr(is_same_v<typename Problem::QDataType, bhalf_t> &&
+                              is_same_v<typename Problem::KDataType, bhalf_t> &&
+                              is_same_v<typename Problem::SaccDataType, float>)
+            {
+                return warp::WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
+            }
+        }();
 
         using BlockGemmPolicy =
             BlockGemmARegBSmemCRegV2CustomPolicy<typename Problem::QDataType,
                                                  typename Problem::KDataType,
                                                  typename Problem::SaccDataType,
                                                  typename Problem::BlockFmhaShape::Gemm0BlockWarps,
-                                                 WarpGemm>;
+                                                 decltype(warp_gemm)>;
 
         return BlockGemmARegBSmemCRegV2<BlockGemmProblem, BlockGemmPolicy>{};
     }

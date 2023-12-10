@@ -233,8 +233,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 using src_vector_t = vector_type_maker_t<SrcData, SrcScalarPerVector>;
                 using dst_vector_t = vector_type_maker_t<DstData, DstScalarPerVector>;
 
-                // get DstScalarPerVector # of read-only references to src vectors from
-                // src_thread_scratch_
+#if 0
+      // get DstScalarPerVector # of read-only references to src vectors from
+      // src_thread_scratch_
                 const auto src_vector_refs = generate_tie(
                     [&](auto i) -> const src_vector_t& {
                         // i increment corresponds to movement in DstVectorDim
@@ -255,15 +256,37 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 // do data transpose
                 transpose_vectors<SrcData, DstScalarPerVector, SrcScalarPerVector>{}(
                     src_vector_refs, dst_vector_refs);
+#else
+                StaticallyIndexedArray<src_vector_t, num_src_vector> src_vectors;
+                StaticallyIndexedArray<dst_vector_t, num_dst_vector> dst_vectors;
+
+                // read DstScalarPerVector # of src vectors from src_thread_scratch_
+                static_for<0, num_src_vector, 1>{}([&](auto i) {
+                    // i increment corresponds to movement in DstVectorDim
+                    src_vectors(i) =
+                        src_thread_scratch_tuple_[thread_scratch_id].GetVectorTypeReference(
+                            data_idx_seq + i * dst_scalar_step_in_vector);
+                });
+
+                // do data transpose
+                transpose_vectors<SrcData, DstScalarPerVector, SrcScalarPerVector>{}(src_vectors,
+                                                                                     dst_vectors);
+
+                // write SrcScalarPerVector # dst vectors into dst_thread_scratch_
+                static_for<0, num_dst_vector, 1>{}([&](auto i) {
+                    // i increment corresponds to movement in SrcVectorDim
+                    dst_thread_scratch_.GetVectorTypeReference(
+                        data_idx_seq + i * src_scalar_step_in_vector) = dst_vectors[i];
+                });
+#endif
             });
         }
-
-        static_ford<SliceLengths>{}([&](auto idx) {
-            // apply the src elementwise op and convert to DstData under the hood if needed
-            DstData dst_v;
-            src_element_op_(dst_v, src_thread_scratch_tuple_[thread_scratch_id][idx]);
-            dst_thread_scratch_(idx) = dst_v;
-        });
+        else
+        {
+            static_ford<SliceLengths>{}([&](auto idx) {
+                dst_thread_scratch_(idx) = src_thread_scratch_tuple_[thread_scratch_id][idx];
+            });
+        }
     }
 
     template <typename DstBuffer, index_t ThreadScratchId = 0>
