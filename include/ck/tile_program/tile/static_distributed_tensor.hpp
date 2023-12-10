@@ -176,5 +176,34 @@ __host__ __device__ constexpr auto make_static_distributed_tensor(const StaticTi
                                    remove_cvref_t<StaticTileDistribution>>{};
 }
 
+template <typename DataType, typename StaticTileDistribution, typename XIndicesPredicate>
+__host__ __device__ void
+set_tile_if(StaticDistributedTensor<DataType, StaticTileDistribution>& out_tensor,
+            DataType value,
+            XIndicesPredicate predicate)
+{
+
+    StaticTileDistribution tile_distribution;
+    const auto partition_index = detail::get_partition_index(tile_distribution);
+
+    constexpr auto out_spans =
+        StaticDistributedTensor<DataType, StaticTileDistribution>::GetDistributedSpans();
+    sweep_tile_span(out_spans[Number<0>{}], [&](auto idx0) {
+        sweep_tile_span(out_spans[Number<1>{}], [&](auto idx1) {
+            constexpr auto i_j_idx = make_tuple(idx0, idx1);
+            constexpr auto y_idx   = tile_distribution.GetYIndicesFromDistributedIndices(i_j_idx);
+
+            const auto coord = make_tensor_adaptor_coordinate(
+                tile_distribution.GetPsYs2XsAdaptor(),
+                container_concat(partition_index, to_array<ck::index_t, y_idx.Size()>(y_idx)));
+
+            if(predicate(coord.GetBottomIndex()))
+            {
+                out_tensor(i_j_idx) = value;
+            }
+        });
+    });
+}
+
 } // namespace tile_program
 } // namespace ck

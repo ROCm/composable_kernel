@@ -54,11 +54,11 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
 #endif
         hipEvent_t start, stop;
 
-        hip_check_error(hipEventCreate(&start));
-        hip_check_error(hipEventCreate(&stop));
+        HIP_CHECK_ERROR(hipEventCreate(&start));
+        HIP_CHECK_ERROR(hipEventCreate(&stop));
 
-        hip_check_error(hipDeviceSynchronize());
-        hip_check_error(hipEventRecord(start, stream_config.stream_id_));
+        HIP_CHECK_ERROR(hipDeviceSynchronize());
+        HIP_CHECK_ERROR(hipEventRecord(start, stream_config.stream_id_));
 
         for(int i = 0; i < nrepeat; ++i)
         {
@@ -66,12 +66,12 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
             hip_check_error(hipGetLastError());
         }
 
-        hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
-        hip_check_error(hipEventSynchronize(stop));
+        HIP_CHECK_ERROR(hipEventRecord(stop, stream_config.stream_id_));
+        HIP_CHECK_ERROR(hipEventSynchronize(stop));
 
         float total_time = 0;
 
-        hip_check_error(hipEventElapsedTime(&total_time, start, stop));
+        HIP_CHECK_ERROR(hipEventElapsedTime(&total_time, start, stop));
 
         return total_time / nrepeat;
     }
@@ -125,11 +125,11 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
 #endif
         hipEvent_t start, stop;
 
-        hip_check_error(hipEventCreate(&start));
-        hip_check_error(hipEventCreate(&stop));
+        HIP_CHECK_ERROR(hipEventCreate(&start));
+        HIP_CHECK_ERROR(hipEventCreate(&stop));
 
-        hip_check_error(hipDeviceSynchronize());
-        hip_check_error(hipEventRecord(start, stream_config.stream_id_));
+        HIP_CHECK_ERROR(hipDeviceSynchronize());
+        HIP_CHECK_ERROR(hipEventRecord(start, stream_config.stream_id_));
 
         for(int i = 0; i < nrepeat; ++i)
         {
@@ -138,12 +138,12 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
             hip_check_error(hipGetLastError());
         }
 
-        hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
-        hip_check_error(hipEventSynchronize(stop));
+        HIP_CHECK_ERROR(hipEventRecord(stop, stream_config.stream_id_));
+        HIP_CHECK_ERROR(hipEventSynchronize(stop));
 
         float total_time = 0;
 
-        hip_check_error(hipEventElapsedTime(&total_time, start, stop));
+        HIP_CHECK_ERROR(hipEventElapsedTime(&total_time, start, stop));
 
         return total_time / nrepeat;
     }

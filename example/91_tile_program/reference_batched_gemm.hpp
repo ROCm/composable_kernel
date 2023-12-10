@@ -10,15 +10,15 @@ template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CDataType,
-          typename AElementOp,
-          typename BElementOp,
-          typename ACCElementOp>
+          typename AElementOp   = ck::identity,
+          typename BElementOp   = ck::identity,
+          typename ACCElementOp = ck::identity>
 void reference_batched_gemm(const Tensor<ADataType>& a_b_m_k,
                             const Tensor<BDataType>& b_b_n_k,
                             Tensor<CDataType>& c_b_m_n,
-                            const AElementOp& a_element_op,
-                            const BElementOp& b_element_op,
-                            const ACCElementOp& acc_element_op)
+                            const AElementOp& a_element_op     = {},
+                            const BElementOp& b_element_op     = {},
+                            const ACCElementOp& acc_element_op = {})
 {
     const int N = b_b_n_k.mDesc.GetLengths()[1];
     const int K = b_b_n_k.mDesc.GetLengths()[2];
@@ -42,18 +42,4 @@ void reference_batched_gemm(const Tensor<ADataType>& a_b_m_k,
 
     make_ParallelTensorFunctor(f, c_b_m_n.mDesc.GetLengths()[0], c_b_m_n.mDesc.GetLengths()[1])(
         std::thread::hardware_concurrency());
-}
-
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
-void reference_batched_gemm(const Tensor<ADataType>& a_b_m_k,
-                            const Tensor<BDataType>& b_b_n_k,
-                            Tensor<CDataType>& c_b_m_n)
-{
-    reference_batched_gemm<ADataType, BDataType, AccDataType, CDataType>(
-        a_b_m_k,
-        b_b_n_k,
-        c_b_m_n,
-        [](const ADataType& x) { return x; },
-        [](const BDataType& x) { return x; },
-        [](const AccDataType& x) { return x; });
 }

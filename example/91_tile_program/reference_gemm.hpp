@@ -6,10 +6,19 @@
 #include "ck/utility/common_header.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename AElementOp   = ck::identity,
+          typename BElementOp   = ck::identity,
+          typename ACCElementOp = ck::identity>
 void reference_gemm(const Tensor<ADataType>& a_m_k,
                     const Tensor<BDataType>& b_n_k,
-                    Tensor<CDataType>& c_m_n)
+                    Tensor<CDataType>& c_m_n,
+                    const AElementOp& a_element_op     = {},
+                    const BElementOp& b_element_op     = {},
+                    const ACCElementOp& acc_element_op = {})
 {
     const int N = b_n_k.mDesc.GetLengths()[0];
     const int K = b_n_k.mDesc.GetLengths()[1];
@@ -21,13 +30,13 @@ void reference_gemm(const Tensor<ADataType>& a_m_k,
 
             for(int k = 0; k < K; ++k)
             {
-                ADataType v_a = a_m_k(m, k);
-                BDataType v_b = b_n_k(n, k);
+                ADataType v_a = a_element_op(a_m_k(m, k));
+                BDataType v_b = b_element_op(b_n_k(n, k));
 
                 v_acc += ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
             }
 
-            c_m_n(m, n) = ck::type_convert<CDataType>(v_acc);
+            c_m_n(m, n) = ck::type_convert<CDataType>(acc_element_op(v_acc));
         }
     };
 

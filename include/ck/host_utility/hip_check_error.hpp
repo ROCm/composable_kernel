@@ -4,6 +4,8 @@
 #pragma once
 
 #include <sstream>
+#include <stdexcept>
+
 #include <hip/hip_runtime.h>
 
 // To be removed, which really does not tell the location of failed HIP functional call

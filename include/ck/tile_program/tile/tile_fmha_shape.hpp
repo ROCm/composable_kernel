@@ -16,8 +16,7 @@ template <typename BlockTile_, // Sequence<...
           typename Gemm0WarpTile_,
           typename Gemm1BlockWarps_,
           typename Gemm1WarpTile_,
-          index_t kBlockPerCu_ = 2, // hint to occupancy
-          typename VLayout_    = ck::tensor_layout::gemm::RowMajor>
+          typename VLayout_ = ck::tensor_layout::gemm::RowMajor>
 struct TileFmhaShape
 {
     using BlockTile       = remove_cvref_t<BlockTile_>;
@@ -41,7 +40,6 @@ struct TileFmhaShape
         BlockTile::At(Number<5>{}); // total length of K0, used for pipeline that need load Q at
                                     // once (or repeately load Q as a whole tile)
 
-    static constexpr index_t kBlockPerCu = kBlockPerCu_;
     using VLayout = remove_cvref_t<VLayout_>; // rowmajor : seqlen*hdim, colmajor : hdim*seqlen
 };
 

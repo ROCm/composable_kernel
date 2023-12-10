@@ -11,6 +11,7 @@
 
 #include "ck/tile_program/tile/tile_distribution.hpp"
 #include "ck/tile_program/tile/tile_window.hpp"
+#include "ck/tile_program/tile/null_tensor.hpp"
 #include "ck/tile_program/tile/static_distributed_tensor.hpp"
 
 namespace ck {
@@ -58,6 +59,12 @@ __device__ auto async_load_tile_raw(LdsTileWindow_&& lds_tile,
 __device__ auto async_load_fence(index_t cnt = 0)
 {
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
+}
+
+template <typename WindowLengths>
+__device__ auto load_tile(const NullTileWindow<WindowLengths>&)
+{
+    return NullTensor{};
 }
 
 } // namespace tile_program
