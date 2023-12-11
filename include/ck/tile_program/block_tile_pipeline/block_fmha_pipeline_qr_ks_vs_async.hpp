@@ -207,25 +207,58 @@ struct BlockFmhaPipelineQRKSVSAsync
             bias_dram_block_window_tmp.GetWindowOrigin(),
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
 
+        const auto q_origin = q_dram_window.GetWindowOrigin();
+        auto k_origin       = k_dram_block_window.GetWindowOrigin();
+        bool skip_tile      = causal_mask.IsTileSkippable(
+            q_origin.At(Number<0>{}), k_origin.At(Number<0>{}), kM0, kN0);
+
         // prefetch K tile
-        async_load_tile_raw(k_lds_store(LdsSeq.At(Number<0>{})), k_dram_window);
-        move_tile_window(k_dram_window, {0, kK0});
+        if(!skip_tile)
+        {
+            async_load_tile_raw(k_lds_store(LdsSeq.At(Number<0>{})), k_dram_window);
+            move_tile_window(k_dram_window, {0, kK0});
+        }
         __builtin_amdgcn_sched_barrier(0);
 
-        const auto q_origin = q_dram_window.GetWindowOrigin();
-        buffer_load_fence(k_dram_window.GetNumAccess());
+        if constexpr(std::is_same<typename CausalMask::MaskOutPredicate,
+                                  ck::tile_program::block::MaskDisabledPredicate>::value)
+            buffer_load_fence(k_dram_window.GetNumAccess());
+        else
+            buffer_load_fence(0); // unconditionally wait for q if this is a mask kernel
         auto q_tile = tile_elementwise_in(q_element_func, q);
         __builtin_amdgcn_sched_barrier(0);
 
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kK0BlockLength / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
+        auto prefetch_k            = [&]() {
+            move_tile_window(k_dram_block_window, {kN0, 0});
+            k_dram_window = make_tile_window(k_dram_block_window.GetBottomTensorView(),
+                                             k_dram_block_window.GetWindowLengths(),
+                                             k_dram_block_window.GetWindowOrigin(),
+                                             Policy::template MakeKDramTileDistribution<Problem>());
+
+            k_origin  = k_dram_block_window.GetWindowOrigin();
+            skip_tile = causal_mask.IsTileSkippable(
+                q_origin.At(Number<0>{}), k_origin.At(Number<0>{}), kM0, kN0);
+            if(!skip_tile)
+            {
+                if constexpr(k1_loops >= 2 &&
+                             LdsSeq.At(Number<0>{}) == LdsSeq.At(Number<k0_loops + k1_loops - 2>{}))
+                    __builtin_amdgcn_s_barrier();
+                async_load_tile_raw(k_lds_store(LdsSeq.At(Number<0>{})), k_dram_window);
+                move_tile_window(k_dram_window, {0, kK0});
+            }
+        };
+
+        // main loop
         do
         {
-            const auto k_origin = k_dram_block_window.GetWindowOrigin();
-            if(causal_mask.IsTileSkippable(
-                   q_origin.At(Number<0>{}), k_origin.At(Number<0>{}), kM0, kN0))
+            if(skip_tile)
             {
+                i_total_loops++;
+                if(i_total_loops < num_total_loop)
+                    prefetch_k();
                 continue;
             }
 
@@ -467,18 +500,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             if(i_total_loops < num_total_loop)
             {
                 // move K tile windows
-                move_tile_window(k_dram_block_window, {kN0, 0});
-                k_dram_window =
-                    make_tile_window(k_dram_block_window.GetBottomTensorView(),
-                                     k_dram_block_window.GetWindowLengths(),
-                                     k_dram_block_window.GetWindowOrigin(),
-                                     Policy::template MakeKDramTileDistribution<Problem>());
-
-                if constexpr(k1_loops >= 2 &&
-                             LdsSeq.At(Number<0>{}) == LdsSeq.At(Number<k0_loops + k1_loops - 2>{}))
-                    __builtin_amdgcn_s_barrier();
-                async_load_tile_raw(k_lds_store(LdsSeq.At(Number<0>{})), k_dram_window);
-                move_tile_window(k_dram_window, {0, kK0});
+                prefetch_k();
             }
             // tail
             {
