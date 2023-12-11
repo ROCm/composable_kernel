@@ -360,8 +360,9 @@ int main(int argc, char* argv[])
 
     StreamConfig stream_config{nullptr, true, 0, stream_warmup, stream_repeat};
 
-    const std::vector<int32_t> seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q);
-    const std::vector<int32_t> seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k);
+    const auto [seqlens_q, seqstart_q_host] = generate_seqlens_seqstarts_q(mode, batch, seqlen_q);
+    const std::vector<int32_t> seqstart_k_host =
+        generate_seqstarts_k(mode, batch, seqlen_k, seqlens_q, seqlen_q);
 
     // accumulation numbers for performance evaluation
     std::size_t flop = 0, num_byte = 0;
