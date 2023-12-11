@@ -34,6 +34,7 @@ Current CK library are structured into 4 layers:
 * "Templated Tile Operators" layer
 * "Templated Kernel and Invoker" layer
 * "Instantiated Kernel and Invoker" layer
+* "Wrapper for tensor transform operations"
 * "Client API" layer
 
 .. image:: data/ck_layer.png
@@ -50,6 +51,7 @@ The following is a list of CK documents in the suggested reading order:
 
    tutorial_hello_world
    dockerhub
+   wrapper
    Supported_Primitives_Guide
    API_Reference_Guide
    Contributors_Guide

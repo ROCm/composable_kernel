@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <functional>
+
 #include "ck/utility/integral_constant.hpp"
 #include "ck/utility/type.hpp"
 
@@ -127,5 +129,14 @@ constexpr auto conditional_expr(X&& x, Y&& y)
         return std::forward<Y>(y);
     }
 }
+
+struct identity
+{
+    template <typename T>
+    __host__ __device__ constexpr T&& operator()(T&& arg) const noexcept
+    {
+        return std::forward<T>(arg);
+    }
+};
 
 } // namespace ck

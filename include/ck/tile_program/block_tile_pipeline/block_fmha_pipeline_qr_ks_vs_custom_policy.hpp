@@ -596,6 +596,38 @@ struct BlockFmhaPipelineQRKSVSCustomPolicy
         }
     }
 
+    template <typename Problem, typename BlockGemm>
+    __host__ __device__ static constexpr auto MakeBiasDramTileDistribution()
+    {
+        constexpr index_t MPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t NPerBlock = Problem::BlockFmhaShape::kN0;
+
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template At<0>())>;
+
+        constexpr index_t MWarp = config.template At<1>();
+        constexpr index_t NWarp = config.template At<2>();
+
+        constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
+        constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WG::kN);
+
+        // Construct C-Block-Tensor
+        constexpr auto c_block_outer_dstr_encoding = StaticTileDistributionEncoding<
+            Sequence<>,
+            Tuple<Sequence<MIterPerWarp, MWarp>, Sequence<NIterPerWarp, NWarp>>,
+            Tuple<Sequence<1, 2>>,
+            Tuple<Sequence<1, 1>>,
+            Sequence<1, 2>,
+            Sequence<0, 0>>{};
+
+        constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
+
+        constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
+
+        return c_block_dstr;
+    }
+
     template <typename Problem>
     __host__ __device__ static constexpr auto MakeShuffledVRegBlockDescriptor()
     {
@@ -654,18 +686,28 @@ struct BlockFmhaPipelineQRKSVSCustomPolicy
                                      TileGemmShape<Problem::BlockFmhaShape::kM0,
                                                    Problem::BlockFmhaShape::kN0,
                                                    Problem::BlockFmhaShape::kK0>>;
-
-        using WarpGemm = warp::WarpGemmImpl<
-            warp::WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
-                warp::WarpGemmAttributeMfmaImplF16F16F32M32N32K8,
-                2>>;
+        
+        constexpr auto warp_gemm = []() {
+            if constexpr(is_same_v<typename Problem::QDataType, half_t> &&
+                         is_same_v<typename Problem::KDataType, half_t> &&
+                         is_same_v<typename Problem::SaccDataType, float>)
+            {
+                return warp::WarpGemmMfmaF16F16F32M16N16K32SwizzleBTransposedCDistribution{};
+            }
+            else if constexpr(is_same_v<typename Problem::QDataType, bhalf_t> &&
+                              is_same_v<typename Problem::KDataType, bhalf_t> &&
+                              is_same_v<typename Problem::SaccDataType, float>)
+            {
+                return warp::WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
+            }
+        }();
 
         using BlockGemmPolicy =
             BlockGemmARegBSmemCRegV2CustomPolicy<typename Problem::QDataType,
                                                  typename Problem::KDataType,
                                                  typename Problem::SaccDataType,
                                                  typename Problem::BlockFmhaShape::Gemm0BlockWarps,
-                                                 WarpGemm>;
+                                                 decltype(warp_gemm)>;
 
         return BlockGemmARegBSmemCRegV2<BlockGemmProblem, BlockGemmPolicy>{};
     }

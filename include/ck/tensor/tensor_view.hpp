@@ -122,6 +122,11 @@ struct TensorView
     TensorDesc desc_;
 };
 
+// placeholder type if we want to opt-out a tile view parameter
+struct NullTensorView
+{
+};
+
 template <AddressSpaceEnum BufferAddressSpace = AddressSpaceEnum::Generic,
           typename DataType,
           typename... Ts>
@@ -190,6 +195,49 @@ __host__ __device__ constexpr auto transform_tensor_view(const OldTensorView& ol
 
     return TensorView<typename OldTensorView::BufferView, remove_cvref_t<decltype(new_desc)>>{
         old_tensor_view.buf_, new_desc};
+}
+
+template <typename TensorView,
+          typename TileLengths, // Tuple<...>
+          typename DoPads>      // Sequence<bool, bool, ...>
+__host__ __device__ constexpr auto
+pad_tensor_view(const TensorView& tensor_view, const TileLengths& tile_lengths, DoPads)
+{
+    constexpr index_t num_dim = DoPads::Size();
+
+    static_assert(num_dim == TileLengths::Size() && num_dim == TensorView::GetNumOfDimension(),
+                  "wrong! inconsistent # of dimensions");
+
+    // transforms
+    const auto transforms = generate_tuple(
+        [&](auto idim) {
+            const auto old_length = tensor_view.GetTensorDescriptor().GetLength(idim);
+
+            const auto tile_length = tile_lengths[idim];
+
+            const auto new_length =
+                math::integer_divide_ceil(old_length, tile_length) * tile_length;
+
+            const auto pad_length = new_length - old_length;
+
+            constexpr bool DoPad = DoPads::At(idim);
+
+            const auto transform =
+                conditional_expr<DoPad>(make_right_pad_transform(old_length, pad_length),
+                                        make_pass_through_transform(old_length));
+
+            return transform;
+        },
+        Number<num_dim>{});
+
+    // lower dimension Id
+    const auto lower_dimss =
+        generate_tuple([&](auto idim) { return Sequence<idim.value>{}; }, Number<num_dim>{});
+
+    // upper dimension Id
+    const auto upper_dimss = lower_dimss;
+
+    return transform_tensor_view(tensor_view, transforms, lower_dimss, upper_dimss);
 }
 
 } // namespace ck

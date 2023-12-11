@@ -5,6 +5,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/static_assert.hpp"
+#include "ck/utility/static_switch.hpp"
 #include "ck/utility/remove_cvref.hpp"
 #include "ck/utility/is_static.hpp"
 #include "ck/utility/bit_cast.hpp"

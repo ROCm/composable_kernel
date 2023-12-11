@@ -9,13 +9,17 @@
 #include "ck/tensor_description/tensor_adaptor.hpp"
 
 #include "ck/tile_program/tile/tile_distribution.hpp"
+#include "ck/tile_program/tile/null_tensor.hpp"
 #include "ck/tile_program/tile/static_distributed_tensor.hpp"
 
 namespace ck {
 namespace tile_program {
 
 // TODO: support tensors with different distribution
-template <typename InOutElementFunc, typename... InOutDstrTensors>
+template <typename InOutElementFunc,
+          typename... InOutDstrTensors,
+          typename = std::enable_if_t<std::conjunction_v<
+              std::negation<std::is_same<std::remove_const_t<InOutDstrTensors>, NullTensor>>...>>>
 __device__ void tile_elementwise_inout(const InOutElementFunc& inout_element_func,
                                        InOutDstrTensors&... inout_dstr_tensors)
 {
@@ -29,7 +33,10 @@ __device__ void tile_elementwise_inout(const InOutElementFunc& inout_element_fun
         [&](auto i) { inout_element_func(inout_dstr_tensors.GetThreadBuffer().At(i)...); });
 }
 
-template <typename InElementFunc, typename... InDstrTensors>
+template <typename InElementFunc,
+          typename... InDstrTensors,
+          typename = std::enable_if_t<
+              std::conjunction_v<std::negation<std::is_same<InDstrTensors, NullTensor>>...>>>
 __device__ auto tile_elementwise_in(const InElementFunc& in_element_func,
                                     const InDstrTensors&... in_dstr_tensors)
 {
@@ -73,6 +80,25 @@ __device__ auto cast_tile(const SrcDstrTensors& src_tensor)
 {
     return tile_elementwise_in(type_convert<DstType, typename SrcDstrTensors::DataType>,
                                src_tensor);
+}
+
+// no-op function for NullTensor arguments
+template <typename InOutElementFunc,
+          typename... MaybeNullTensor,
+          typename = std::enable_if_t<
+              std::disjunction_v<std::is_same<remove_cvref_t<MaybeNullTensor>, NullTensor>...>>>
+__device__ void tile_elementwise_inout(const InOutElementFunc&, MaybeNullTensor&&...)
+{
+}
+
+// no-op function for NullTensor arguments
+template <typename InElementFunc,
+          typename... MaybeNullTensor,
+          typename = std::enable_if_t<
+              std::disjunction_v<std::is_same<remove_cvref_t<MaybeNullTensor>, NullTensor>...>>>
+__device__ auto tile_elementwise_in(const InElementFunc&, MaybeNullTensor&&...)
+{
+    return NullTensor{};
 }
 
 } // namespace tile_program

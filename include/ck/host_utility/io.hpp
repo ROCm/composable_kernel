@@ -13,15 +13,33 @@
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
 {
-    std::copy(std::begin(v), std::end(v), std::ostream_iterator<T>(os, " "));
-    return os;
+    using size_type = typename std::vector<T>::size_type;
+
+    os << "[";
+    for(size_type idx = 0; idx < v.size(); ++idx)
+    {
+        if(0 < idx)
+        {
+            os << ", ";
+        }
+        os << v[idx];
+    }
+    return os << "]";
 }
 
 template <typename T, std::size_t N>
 std::ostream& operator<<(std::ostream& os, const std::array<T, N>& v)
 {
-    std::copy(std::begin(v), std::end(v), std::ostream_iterator<T>(os, " "));
-    return os;
+    os << "[";
+    for(std::size_t idx = 0; idx < v.size(); ++idx)
+    {
+        if(0 < idx)
+        {
+            os << ", ";
+        }
+        os << v[idx];
+    }
+    return os << "]";
 }
 
 template <typename... Ts>
