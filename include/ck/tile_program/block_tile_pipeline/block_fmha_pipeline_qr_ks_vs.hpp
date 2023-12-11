@@ -315,7 +315,6 @@ struct BlockFmhaPipelineQRKSVS
             }
             // move K tile windows
             move_tile_window(k_dram_block_window, {kN0, 0});
-            i_total_loops++;
             // tail
             {
                 block_sync_lds();
@@ -324,7 +323,7 @@ struct BlockFmhaPipelineQRKSVS
                        v_lds_window);
                 block_sync_lds();
             }
-        } while(i_total_loops < num_total_loop);
+        } while(++i_total_loops < num_total_loop);
 
         // finally, O
         constexpr auto o_spans = decltype(o_acc)::GetDistributedSpans();
