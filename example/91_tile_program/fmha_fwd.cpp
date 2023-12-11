@@ -55,6 +55,7 @@ using ODataType           = ck::half_t;
 using QDataType           = ck::bhalf_t;
 using KDataType           = ck::bhalf_t;
 using VDataType           = ck::bhalf_t;
+using BiasDataType        = ck::bhalf_t;
 using SaccDataType        = float;       // data type for first gemm accumulation
 using SMPLComputeDataType = float;       // data type for reduction, softmax
 using PDataType           = ck::bhalf_t; // data type for A matrix of second gemm
