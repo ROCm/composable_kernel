@@ -6,6 +6,7 @@
 #include <optional>
 #include <ostream>
 #include <random>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -78,7 +79,7 @@ inline std::tuple<std::vector<int32_t>, std::vector<int32_t>> generate_seqlens_s
     Mode mode, unsigned count, int32_t seqlens_q_sum, std::optional<unsigned> seed = std::nullopt)
 {
     const std::vector<int32_t> seqlens_q = generate_seqlens_q(mode, count, seqlens_q_sum, seed);
-    return std::tuple(seqlens_q, to_seqstarts(seqlens_q));
+    return std::make_tuple(seqlens_q, to_seqstarts(seqlens_q));
 }
 
 inline std::vector<int32_t> generate_seqlens_k(Mode mode,
