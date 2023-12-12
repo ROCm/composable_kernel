@@ -156,22 +156,42 @@ template <>
 __device__ void
 inner_product<bhalf2_t, bhalf2_t, float>(const bhalf2_t& a, const bhalf2_t& b, float& c)
 {
-    const vector_type<bhalf_t, 2> a_vector{a};
-    const vector_type<bhalf_t, 2> b_vector{b};
-    ck::static_for<0, 2, 1>{}([&](auto i) {
-        inner_product(a_vector.AsType<bhalf_t>()[i], b_vector.AsType<bhalf_t>()[i], c);
-    });
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+
+    inner_product(vector_type<bhalf_t, 2>{a}.AsType<bhalf_t>()[I0],
+                  vector_type<bhalf_t, 2>{b}.AsType<bhalf_t>()[I0],
+                  c);
+
+    inner_product(vector_type<bhalf_t, 2>{a}.AsType<bhalf_t>()[I1],
+                  vector_type<bhalf_t, 2>{b}.AsType<bhalf_t>()[I1],
+                  c);
 }
 
 template <>
 __device__ void
 inner_product<bhalf4_t, bhalf4_t, float>(const bhalf4_t& a, const bhalf4_t& b, float& c)
 {
-    const vector_type<bhalf_t, 4> a_vector{a};
-    const vector_type<bhalf_t, 4> b_vector{b};
-    ck::static_for<0, 4, 1>{}([&](auto i) {
-        inner_product(a_vector.AsType<bhalf_t>()[i], b_vector.AsType<bhalf_t>()[i], c);
-    });
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+    constexpr auto I2 = Number<2>{};
+    constexpr auto I3 = Number<3>{};
+
+    inner_product(vector_type<bhalf_t, 4>{a}.AsType<bhalf_t>()[I0],
+                  vector_type<bhalf_t, 4>{b}.AsType<bhalf_t>()[I0],
+                  c);
+
+    inner_product(vector_type<bhalf_t, 4>{a}.AsType<bhalf_t>()[I1],
+                  vector_type<bhalf_t, 4>{b}.AsType<bhalf_t>()[I1],
+                  c);
+
+    inner_product(vector_type<bhalf_t, 4>{a}.AsType<bhalf_t>()[I2],
+                  vector_type<bhalf_t, 4>{b}.AsType<bhalf_t>()[I2],
+                  c);
+
+    inner_product(vector_type<bhalf_t, 4>{a}.AsType<bhalf_t>()[I3],
+                  vector_type<bhalf_t, 4>{b}.AsType<bhalf_t>()[I3],
+                  c);
 }
 
 template <>
