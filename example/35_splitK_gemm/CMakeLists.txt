@@ -10,6 +10,9 @@ foreach(gpu IN LISTS GPU_TARGETS)
    add_example_executable(example_splitK_gemm_xdl_fp16 splitK_gemm_xdl_fp16.cpp)
    add_example_dependencies(example_splitK_gemm_xdl example_splitK_gemm_xdl_fp16)
 
+   add_example_executable(example_splitK_gemm_xdl_fp16_fp8 splitK_gemm_xdl_fp16_fp8.cpp)
+   add_example_dependencies(example_splitK_gemm_xdl example_splitK_gemm_xdl_fp16_fp8)
+
    add_example_executable(example_splitK_gemm_xdl_bf16 splitK_gemm_xdl_bf16.cpp)
    add_example_dependencies(example_splitK_gemm_xdl example_splitK_gemm_xdl_bf16)
 

@@ -8,6 +8,8 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
 namespace ck {
 
 // Do following things to avoid "alloca" in LLVM-IR, which would cause scratch memory
@@ -1156,7 +1158,6 @@ struct ThreadwiseTensorSliceTransfer_v4
                         src_ref_to_origin_disp_idx + data_to_origin_disp_idx +
                         i * src_scalar_step_in_vector);
 
-                    // apply type convert
                     src_tmp_vector.template AsType<SrcData>()(i) = src_buf[Number<src_offset>{}];
                 });
             }
@@ -1164,10 +1165,16 @@ struct ThreadwiseTensorSliceTransfer_v4
             // DstData)
             vector_type_maker_t<DstData, SrcScalarPerVector> dst_tmp_vector;
 
+            constexpr index_t pack_size = 4;
+
+            using dst_v_t = typename vector_type_maker_t<DstData, pack_size>::type;
+            using src_v_t = typename vector_type_maker_t<SrcData, pack_size>::type;
+
             // TODO: if SrcData and DstData are vetor type, then static_cast may not compile
-            static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
-                dst_tmp_vector.template AsType<DstData>()(i) =
-                    type_convert<DstData>(src_tmp_vector.template AsType<SrcData>()[i]);
+            static_for<0, SrcScalarPerVector / pack_size, 1>{}([&](auto i) {
+                ck::tensor_operation::element_wise::PassThrough{}(
+                    dst_tmp_vector.template AsType<dst_v_t>()(i),
+                    src_tmp_vector.template AsType<src_v_t>()[i]);
             });
 
             // copy data from dst_tmp_vector into dst_buf

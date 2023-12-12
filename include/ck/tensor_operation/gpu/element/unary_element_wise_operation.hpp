@@ -72,6 +72,114 @@ struct PassThrough
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
 
+    __host__ __device__ void operator()(ck::half4_t& y, const ck::f8x4_t& x) const
+    {
+#if 0
+    uint32_t v = reinterpret_cast<const uint32_t&>(x);
+    y = reinterpret_cast<const half4_t&>(v);
+#else
+        constexpr const uint32_t mask           = 0x7fff7fff;
+        constexpr const uint32_t sign_mask      = 0x80008000;
+        constexpr const uint32_t exp_compensate = 0x20002000;
+        const float scale                       = 1.0f;
+
+        uint32_t xs_u32  = bit_cast<uint32_t>(x);
+        uint32_t x_u32_0 = __byte_perm(xs_u32, 0, 0x1504);
+        uint32_t x_u32_1 = __byte_perm(xs_u32, 0, 0x3726);
+        uint32_t exp_0   = (x_u32_0 & mask) >> 1;
+        uint32_t exp_1   = (x_u32_1 & mask) >> 1;
+        uint32_t v_0     = (x_u32_0 & sign_mask) | (exp_0 + exp_compensate);
+        uint32_t v_1     = (x_u32_1 & sign_mask) | (exp_1 + exp_compensate);
+        uint64_t v       = v_0 | uint64_t(v_1) << 32;
+        y                = scale * bit_cast<half4_t>(v);
+#endif
+    }
+
+    __host__ __device__ void operator()(ck::f8x4_t& y, const ck::half4_t& x) const
+    {
+        uint32_t v = bit_cast<uint64_t>(x);
+        y          = bit_cast<f8x4_t>(v);
+    }
+
+    __host__ __device__ constexpr void operator()(ck::half4_t& y, const ck::half4_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::f8x4_t& y, const ck::f8x4_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::float4_t& y, const ck::float4_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::int8x4_t& y, const ck::int8x4_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::bhalf4_t& y, const ck::bhalf4_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::double4_t& y, const ck::double4_t& x) const
+    {
+        y = x;
+    }
+
+    constexpr const static bool is_pack4_invocable = true;
+
+    __host__ __device__ constexpr void operator()(ck::f8x2_t& y, const ck::half2_t& x) const
+    {
+        // fake conversion
+        uint16_t t = ck::bit_cast<uint32_t>(x);
+        y          = ck::bit_cast<ck::f8x2_t>(t);
+    }
+
+    __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::f8x2_t& x) const
+    {
+        // auto t = type_convert<float2_t>(x);
+        // y      = type_convert<half2_t>(t);
+        uint32_t t = bit_cast<uint16_t>(x);
+        y          = bit_cast<half2_t>(t);
+    }
+
+    __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::half2_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::f8x2_t& y, const ck::f8x2_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::float2_t& y, const ck::float2_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::int8x2_t& y, const ck::int8x2_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::bhalf2_t& y, const ck::bhalf2_t& x) const
+    {
+        y = x;
+    }
+
+    __host__ __device__ constexpr void operator()(ck::double2_t& y, const ck::double2_t& x) const
+    {
+        y = x;
+    }
+
+    constexpr const static bool is_pack2_invocable = true;
+
     template <>
     __host__ __device__ void operator()<double, double>(double& y, const double& x) const
     {
@@ -464,7 +572,7 @@ struct FastGelu
 #if !CK_WORKAROUND_SWDEV_383542
         const float cdf = 0.5f + 0.5f * (2.f * __frcp_rn(1.f + emu) - 1.f);
 #else
-        const float cdf = 0.5f + 0.5f * (2.f * __ocml_native_recip_f32(1.f + emu) - 1.f);
+        const float cdf  = 0.5f + 0.5f * (2.f * __ocml_native_recip_f32(1.f + emu) - 1.f);
 #endif
 
         y = x * cdf;
