@@ -31,7 +31,7 @@ struct Layout
     {
         return generate_tuple(
             [&](auto) {
-                if constexpr(!NaiveDescriptorType::IsKnownAtCompileTime())
+                if constexpr(!FlattenDescriptorType::IsKnownAtCompileTime())
                 {
                     // runtime layout
                     return index_t(0);
@@ -208,8 +208,8 @@ struct Layout
     }
 
     template <typename LayoutShape, typename LayoutStrides>
-    __host__ __device__ static auto MakeNaiveDescriptor(const LayoutShape& shape,
-                                                        const LayoutStrides& strides)
+    __host__ __device__ static auto MakeFlattenDescriptor(const LayoutShape& shape,
+                                                          const LayoutStrides& strides)
     {
         const auto unrolled_shape   = UnrollNestedTuple(shape);
         const auto unrolled_strides = UnrollNestedTuple(strides);
@@ -223,16 +223,17 @@ struct Layout
         std::conditional_t<is_same_v<Strides, Tuple<>>,
                            remove_cvref_t<decltype(GenerateColumnMajorPackedStrides(Shape{}))>,
                            Strides>;
-    using NaiveDescriptorType =
-        remove_cvref_t<decltype(MakeNaiveDescriptor(Shape{}, DeducedStrides{}))>;
-    using Descriptor1dType = remove_cvref_t<decltype(MakeMerge1d(Shape{}, NaiveDescriptorType{}))>;
+    using FlattenDescriptorType =
+        remove_cvref_t<decltype(MakeFlattenDescriptor(Shape{}, DeducedStrides{}))>;
+    using Descriptor1dType =
+        remove_cvref_t<decltype(MakeMerge1d(Shape{}, FlattenDescriptorType{}))>;
     using DefaultIdxsTupleType = remove_cvref_t<decltype(GenerateDefaultIdxsTuple(Shape{}))>;
 
     template <typename... ShapeDims, typename... IdxDims>
     __host__ __device__ constexpr static auto
     TransformDesc(const Tuple<ShapeDims...>& shape,
                   const Tuple<IdxDims...>& idx,
-                  const NaiveDescriptorType& naive_descriptor)
+                  const FlattenDescriptorType& naive_descriptor)
     {
         if constexpr(Tuple<IdxDims...>::Size() == I1)
         {
@@ -255,12 +256,12 @@ struct Layout
     }
 
     using MergedNestsDescriptorType = remove_cvref_t<decltype(TransformDesc(
-        Shape{}, DefaultIdxsTupleType{}, NaiveDescriptorType{}))>;
+        Shape{}, DefaultIdxsTupleType{}, FlattenDescriptorType{}))>;
 
     public:
     __host__ __device__ constexpr auto GetElementSpaceSize() const
     {
-        return descriptor_.GetElementSpaceSize();
+        return flatten_descriptor_.GetElementSpaceSize();
     }
 
     __host__ __device__ Layout() = delete;
@@ -271,14 +272,15 @@ struct Layout
      * \param strides Strides for layout (optional if tensor is packed).
      */
     __host__ __device__ constexpr Layout(const Shape& shape, const Strides& strides)
-        : descriptor_{}, shape_(shape), strides_(strides)
+        : flatten_descriptor_{}, shape_(shape), strides_(strides)
     {
         // Construct if runtime mode
-        if constexpr(!NaiveDescriptorType::IsKnownAtCompileTime())
+        if constexpr(!FlattenDescriptorType::IsKnownAtCompileTime())
         {
-            descriptor_              = MakeNaiveDescriptor(shape_, strides_);
-            descriptor_1d_           = MakeMerge1d(shape_, descriptor_);
-            merged_nests_descriptor_ = TransformDesc(shape_, DefaultIdxsTupleType{}, descriptor_);
+            flatten_descriptor_ = MakeFlattenDescriptor(shape_, strides_);
+            descriptor_1d_      = MakeMerge1d(shape_, flatten_descriptor_);
+            merged_nests_descriptor_ =
+                TransformDesc(shape_, DefaultIdxsTupleType{}, flatten_descriptor_);
         }
     }
 
@@ -288,13 +290,14 @@ struct Layout
      * \param shape Shape for layout.
      */
     __host__ __device__ constexpr Layout(const Shape& shape)
-        : descriptor_{}, shape_(shape), strides_(GenerateColumnMajorPackedStrides(shape_))
+        : flatten_descriptor_{}, shape_(shape), strides_(GenerateColumnMajorPackedStrides(shape_))
     {
-        if constexpr(!NaiveDescriptorType::IsKnownAtCompileTime())
+        if constexpr(!FlattenDescriptorType::IsKnownAtCompileTime())
         {
-            descriptor_              = MakeNaiveDescriptor(shape_, strides_);
-            descriptor_1d_           = MakeMerge1d(shape_, descriptor_);
-            merged_nests_descriptor_ = TransformDesc(shape_, DefaultIdxsTupleType{}, descriptor_);
+            flatten_descriptor_ = MakeFlattenDescriptor(shape_, strides_);
+            descriptor_1d_      = MakeMerge1d(shape_, flatten_descriptor_);
+            merged_nests_descriptor_ =
+                TransformDesc(shape_, DefaultIdxsTupleType{}, flatten_descriptor_);
         }
     }
 
@@ -307,9 +310,9 @@ struct Layout
     template <typename Idxs>
     __host__ __device__ constexpr index_t operator()() const
     {
-        static_assert(NaiveDescriptorType::IsKnownAtCompileTime(),
+        static_assert(FlattenDescriptorType::IsKnownAtCompileTime(),
                       "Compiletime operator used on runtime layout.");
-        using TransformedDesc = decltype(TransformDesc(Shape{}, Idxs{}, NaiveDescriptorType{}));
+        using TransformedDesc = decltype(TransformDesc(Shape{}, Idxs{}, FlattenDescriptorType{}));
         using UnrolledIdx     = decltype(UnrollNestedTuple(Idxs{}));
         return TransformedDesc{}.CalculateOffset(UnrolledIdx{});
     }
@@ -336,7 +339,7 @@ struct Layout
         else
         {
             // Custom index, need to transform descriptor
-            const auto transformed_desc = TransformDesc(shape_, Idx, descriptor_);
+            const auto transformed_desc = TransformDesc(shape_, Idx, flatten_descriptor_);
             return transformed_desc.CalculateOffset(UnrollNestedTuple(Idx));
         }
     }
@@ -420,7 +423,7 @@ struct Layout
     }
 
     private:
-    NaiveDescriptorType descriptor_;
+    FlattenDescriptorType flatten_descriptor_;
     Descriptor1dType descriptor_1d_;
     MergedNestsDescriptorType merged_nests_descriptor_;
     const Shape shape_;
