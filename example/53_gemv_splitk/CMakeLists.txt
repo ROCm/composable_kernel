@@ -6,7 +6,6 @@ foreach(gpu IN LISTS GPU_TARGETS)
    add_example_executable(example_gemv_splitk_fp16 gemv_splitk_fp16.cpp)
    add_dependencies(example_gemv_splitk
                 example_gemv_splitk_fp16)
-   set_source_files_properties(gemv_splitk_fp16.cpp PROPERTIES COMPILE_OPTIONS "-DKERNARG_PRELOAD;-Wno-gnu-line-marker;-gline-tables-only;-mllvm;--amdgpu-kernarg-preload-count=16")
    set(target 1)
   endif()
 endforeach()

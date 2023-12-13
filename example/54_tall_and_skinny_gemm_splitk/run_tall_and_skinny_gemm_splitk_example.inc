@@ -3,7 +3,7 @@
 
 #pragma once
 
-bool run_gemv(const ProblemSize& problem_size, const ExecutionConfig& config)
+bool run_tall_and_skinny_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 {
 #if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
     static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
@@ -72,9 +72,9 @@ bool run_gemv(const ProblemSize& problem_size, const ExecutionConfig& config)
     auto c_element_op = CElementOp{};
 
     // do GEMM
-    auto gemv     = DeviceGemvInstance{};
-    auto invoker  = gemv.MakeInvoker();
-    auto argument = gemv.MakeArgument(
+    auto tsmm     = DeviceTSMMInstance{};
+    auto invoker  = tsmm.MakeInvoker();
+    auto argument = tsmm.MakeArgument(
 #ifdef BUILD_INT4_EXAMPLE
         static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
         static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
@@ -96,24 +96,22 @@ bool run_gemv(const ProblemSize& problem_size, const ExecutionConfig& config)
         k_batch); // //
 
     // //
-    if(!gemv.IsSupportedArgument(argument))
+    if(!tsmm.IsSupportedArgument(argument))
     {
-        std::cerr << gemv.GetTypeString() << " does not support this problem" << std::endl;
+        std::cerr << tsmm.GetTypeString() << " does not support this problem" << std::endl;
 
         return true;
     }
 
     c_m_n_device_buf.SetZero();
 
-    invoker.Run(argument, StreamConfig{nullptr, false}); // Run prior to verification
-
     if(config.do_verification)
     {
+        invoker.Run(argument, StreamConfig{nullptr, false}); // Run prior to verification
+        auto ref_tsmm    = ReferenceGemmInstance{};
+        auto ref_invoker = ref_tsmm.MakeInvoker();
 
-        auto ref_gemv    = ReferenceGemmInstance{};
-        auto ref_invoker = ref_gemv.MakeInvoker();
-
-        auto ref_argument = ref_gemv.MakeArgument(
+        auto ref_argument = ref_tsmm.MakeArgument(
             a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
 
         ref_invoker.Run(ref_argument);
@@ -143,7 +141,7 @@ bool run_gemv(const ProblemSize& problem_size, const ExecutionConfig& config)
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << gemv.GetTypeString() << std::endl;
+              << tsmm.GetTypeString() << std::endl;
 
 #ifdef BUILD_INT4_EXAMPLE
     return ck::utils::check_err(c_m_n_device_result_converted, c_m_n_host_result);
@@ -152,7 +150,7 @@ bool run_gemv(const ProblemSize& problem_size, const ExecutionConfig& config)
 #endif
 }
 
-bool run_gemv_example(int argc, char* argv[])
+bool run_tall_and_skinny_gemm_example(int argc, char* argv[])
 {
     ProblemSize problem_size;
     ExecutionConfig config;
@@ -192,5 +190,5 @@ bool run_gemv_example(int argc, char* argv[])
         exit(0);
     }
 
-    return run_gemv(problem_size, config);
+    return run_tall_and_skinny_gemm(problem_size, config);
 }

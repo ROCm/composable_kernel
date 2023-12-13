@@ -21,70 +21,23 @@ namespace ck {
 template <typename GridwiseTsmm,
           typename FloatAB,
           typename FloatC,
-          typename BLayout,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           bool HasMainKBlockLoop,
           bool HasDoubleTailKBlockLoop,
           typename Block2CTileMap>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-    kernel_tsmm_dl_v1r3(
-        const FloatAB* p_a_grid,
-        const FloatAB* p_b_grid,
-        FloatC* p_c_grid,
-        index_t M,
-        index_t N,
-        index_t K,
-        index_t K0,
-        index_t k_batch,
-        index_t MPadded,
-        index_t NPadded,
-        const Block2CTileMap block_2_ctile_map) //: in __global__ functions, struct is
-                                                // better for reduced load overhead
+        kernel_tsmm_dl_v1r3(
+            typename GridwiseTsmm::Argument karg) //: in __global__ functions, struct is
+                                                  // better for reduced load overhead
 {
-    // strides depend on B's layout
-    if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
-    {
-        GridwiseTsmm::template Run<HasMainKBlockLoop,
-                                   HasDoubleTailKBlockLoop,
-                                   GridwiseTsmm,
-                                   CGlobalMemoryDataOperation>(p_a_grid,
-                                                               p_b_grid,
-                                                               p_c_grid,
-                                                               M,
-                                                               N,
-                                                               K,
-                                                               K0,
-                                                               k_batch,
-                                                               K,
-                                                               N,
-                                                               N,
-                                                               MPadded,
-                                                               NPadded,
-                                                               block_2_ctile_map);
-    }
-    else
-    {
-        GridwiseTsmm::template Run<HasMainKBlockLoop,
-                                   HasDoubleTailKBlockLoop,
-                                   GridwiseTsmm,
-                                   CGlobalMemoryDataOperation>(p_a_grid,
-                                                               p_b_grid,
-                                                               p_c_grid,
-                                                               M,
-                                                               N,
-                                                               K,
-                                                               K0,
-                                                               k_batch,
-                                                               K,
-                                                               K,
-                                                               N,
-                                                               MPadded,
-                                                               NPadded,
-                                                               block_2_ctile_map);
-    }
+
+    GridwiseTsmm::template Run<HasMainKBlockLoop,
+                               HasDoubleTailKBlockLoop,
+                               GridwiseTsmm,
+                               CGlobalMemoryDataOperation>(karg);
 }
 
 template <index_t BlockSize,
@@ -137,8 +90,8 @@ struct GridwiseTsmmDl_km_kn_mn
                  index_t StrideA_,
                  index_t StrideB_,
                  index_t StrideC_,
-                 index_t MPadded_,
-                 index_t NPadded_,
+                 //  index_t MPadded_,
+                 //  index_t NPadded_,
                  // index_t KPadded_,
                  index_t K0_,
                  index_t k_batch_)
@@ -151,8 +104,8 @@ struct GridwiseTsmmDl_km_kn_mn
               StrideA{StrideA_},
               StrideB{StrideB_},
               StrideC{StrideC_},
-              MPadded(MPadded_),
-              NPadded(NPadded_),
+              // MPadded(MPadded_),
+              // NPadded(NPadded_),
               // KPadded(KPadded_),
               K0(K0_),
               k_batch(k_batch_)
@@ -167,8 +120,8 @@ struct GridwiseTsmmDl_km_kn_mn
         index_t M, N, K;
         index_t StrideA, StrideB, StrideC;
         //:
-        index_t MPadded;
-        index_t NPadded;
+        // index_t MPadded;
+        // index_t NPadded;
         // index_t KPadded;
         index_t K0;
         index_t k_batch;
@@ -367,12 +320,12 @@ struct GridwiseTsmmDl_km_kn_mn
     __host__ __device__ static constexpr bool CheckValidity(const Argument& karg)
     {
 
-        // const auto MPadded = CalculateMPadded(karg.M);
-        // const auto NPadded = CalculateNPadded(karg.N);
+        const auto MPadded                    = CalculateMPadded(karg.M);
+        const auto NPadded                    = CalculateNPadded(karg.N);
         const auto a_grid_desc_kbatch_k0_m_k1 = MakeAGridDescriptor_KBatch_K0_M_K1(
-            karg.M, karg.MPadded, karg.K, karg.StrideA, karg.k_batch, karg.K0);
+            karg.M, MPadded, karg.K, karg.StrideA, karg.k_batch, karg.K0);
         const auto b_grid_desc_kbatch_k0_n_k1 = MakeBGridDescriptor_KBatch_K0_N_K1(
-            karg.K, karg.NPadded, karg.N, karg.StrideB, karg.k_batch, karg.K0);
+            karg.K, NPadded, karg.N, karg.StrideB, karg.k_batch, karg.K0);
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
 
         const auto KBatch_a = a_grid_desc_kbatch_k0_m_k1.GetLength(I0);
@@ -480,32 +433,27 @@ struct GridwiseTsmmDl_km_kn_mn
               bool HasDoubleTailKBlockLoop,
               typename GridwiseTsmm,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation>
-    __device__ static void Run(const FloatAB* p_a_grid,
-                               const FloatAB* p_b_grid,
-                               FloatC* p_c_grid,
-                               index_t M,
-                               index_t N,
-                               index_t K,
-                               index_t K0,
-                               index_t k_batch,
-                               index_t StrideA,
-                               index_t StrideB,
-                               index_t StrideC,
-                               index_t MPadded,
-                               index_t NPadded,
-                               const Block2CTileMap& block_2_ctile_map)
+    __device__ static void Run(const Argument& karg)
     {
-
         constexpr index_t shared_block_size =
             GridwiseTsmm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
 
         __shared__ FloatAB p_shared_block[shared_block_size];
 
+        const Block2CTileMap& block_2_ctile_map = Block2CTileMap{};
+
+        const auto MPadded = CalculateMPadded(karg.M);
+        const auto NPadded = CalculateNPadded(karg.N);
+
+        const FloatAB* p_a_grid               = karg.p_a_grid;
+        const FloatAB* p_b_grid               = karg.p_b_grid;
+        FloatC* p_c_grid                      = karg.p_c_grid;
         const auto a_grid_desc_kbatch_k0_m_k1 = GridwiseTsmm::MakeAGridDescriptor_KBatch_K0_M_K1(
-            M, MPadded, K, StrideA, k_batch, K0); //
+            karg.M, MPadded, karg.K, karg.StrideA, karg.k_batch, karg.K0); //
         const auto b_grid_desc_kbatch_k0_n_k1 = GridwiseTsmm::MakeBGridDescriptor_KBatch_K0_N_K1(
-            K, NPadded, N, StrideB, k_batch, K0); //
-        const auto c_grid_desc_m_n = GridwiseTsmm::MakeCGridDescriptor_M_N(M, N, StrideC);
+            karg.K, NPadded, karg.N, karg.StrideB, karg.k_batch, karg.K0); //
+        const auto c_grid_desc_m_n =
+            GridwiseTsmm::MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
 
         const auto a_grid_desc_kbatch_k0_m0_m1_k1 =
             GridwiseTsmm::MakeAGridDescriptor_Kbatch_K0_M0_M1_K1(a_grid_desc_kbatch_k0_m_k1); //
@@ -522,8 +470,8 @@ struct GridwiseTsmmDl_km_kn_mn
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_m0_m10_m11_n0_n10_n11.GetElementSpaceSize());
 
-        const auto c_m0_n0_block_cluster_idx =
-            block_2_ctile_map.convert_1D_block_idx_to_3D_tuple(get_block_1d_id(), N, k_batch);
+        const auto c_m0_n0_block_cluster_idx = block_2_ctile_map.convert_1D_block_idx_to_3D_tuple(
+            get_block_1d_id(), karg.N, karg.k_batch);
 
         // HACK: this force index data into SGPR
         const index_t im0       = __builtin_amdgcn_readfirstlane(c_m0_n0_block_cluster_idx[I0]);
@@ -559,8 +507,8 @@ struct GridwiseTsmmDl_km_kn_mn
             decltype(a_block_desc_copy_kbatch_k0_m0_m1_k1),               // block tensor desc
             ABlockTransferSrcAccessOrder,                                 // 5-dim
             Sequence<0, 1, 2, 3, 4>,
-            ABlockTransferSrcVectorTensorLengths_KBatch_K0_M0_M1_K1,      // SrcVectorTensorLengths
-            ABlockTransferDstVectorTensorLengths_KBatch_K0_M0_M1_K1,      // DstVectorTensorLengths
+            ABlockTransferSrcVectorTensorLengths_KBatch_K0_M0_M1_K1, // SrcVectorTensorLengths
+            ABlockTransferDstVectorTensorLengths_KBatch_K0_M0_M1_K1, // DstVectorTensorLengths
             ABlockTransferSrcVectorTensorContiguousDimOrder, // SrcVectorTensorContiguousDimOrder
             Sequence<0, 1, 2, 3, 4>,                         // DstVectorTensorContiguousDimOrder
             false,
@@ -661,7 +609,7 @@ struct GridwiseTsmmDl_km_kn_mn
         // LDS double buffer: preload data into LDS
         {
             a_blockwise_copy.RunRead(a_grid_desc_kbatch_k0_m0_m1_k1,
-                                     a_global_buf);      // a_global_buf -> reg_tmp_buf
+                                     a_global_buf); // a_global_buf -> reg_tmp_buf
             a_blockwise_copy.RunWrite(a_block_desc_copy_kbatch_k0_m0_m1_k1,
                                       a_block_even_buf); // reg_tmp_buf->a_block_even_buf
 
@@ -674,7 +622,7 @@ struct GridwiseTsmmDl_km_kn_mn
 
         if constexpr(HasMainKBlockLoop)
         {
-            // const auto K0 = a_grid_desc_kbatch_k0_m0_m1_k1.GetLength(I1);
+            const auto K0 = a_grid_desc_kbatch_k0_m0_m1_k1.GetLength(I1);
 
             index_t k_block_data_begin = 0;
 
