@@ -33,9 +33,7 @@ rtc::buffer<T> generate_buffer(std::size_t n, std::size_t seed = 0)
     rtc::buffer<T> result(n);
     std::mt19937 gen(seed);
     std::uniform_real_distribution<double> dis(-1.0);
-    std::generate(result.begin(), result.end(), [&] {
-        return dis(gen);
-    });
+    std::generate(result.begin(), result.end(), [&] { return dis(gen); });
     return result;
 }
 
@@ -60,25 +58,26 @@ std::string classify(double x)
     }
 }
 
-template<class Buffer>
+template <class Buffer>
 void print_classification(const Buffer& x)
 {
     std::unordered_set<std::string> result;
     for(const auto& i : x)
         result.insert(classify(i));
-    for(const auto& c:result)
+    for(const auto& c : result)
         std::cout << c << ", ";
     std::cout << std::endl;
 }
 
-template<class Buffer>
+template <class Buffer>
 void print_statistics(const Buffer& x)
 {
     std::cout << "Min value: " << *std::min_element(x.begin(), x.end()) << ", ";
     std::cout << "Max value: " << *std::max_element(x.begin(), x.end()) << ", ";
     double num_elements = x.size();
-    auto mean           = std::accumulate(x.begin(), x.end(), double{0.0}, std::plus<double>{}) / num_elements;
-    auto stddev         = std::sqrt(
+    auto mean =
+        std::accumulate(x.begin(), x.end(), double{0.0}, std::plus<double>{}) / num_elements;
+    auto stddev = std::sqrt(
         std::accumulate(x.begin(),
                         x.end(),
                         double{0.0},
@@ -88,10 +87,10 @@ void print_statistics(const Buffer& x)
     std::cout << "StdDev: " << stddev << "\n";
 }
 
-template<class Buffer>
+template <class Buffer>
 void print_preview(const Buffer& x)
 {
-    if (x.size() <= 10)
+    if(x.size() <= 10)
     {
         std::for_each(x.begin(), x.end(), [&](double i) { std::cout << i << ", "; });
     }
@@ -115,18 +114,15 @@ struct check_all
             data = x;
             return true;
         }
-        // print_preview(data);
-        // print_preview(x);
         return allclose(data, x);
     }
 };
 
-template<class Solution>
+template <class Solution>
 auto report(const Solution& solution, bool pass)
 {
-    return test::make_predicate(solution.ToTemplateString(), [=]{ return pass; });
+    return test::make_predicate(solution.ToTemplateString(), [=] { return pass; });
 }
-
 
 const std::string gemm_compile_check = R"__ck__(
 #include <${include}>
