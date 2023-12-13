@@ -50,7 +50,9 @@ __global__ void
     ignore = p_in_global;
     ignore = out_grid_desc;
     ignore = p_out_global;
+    ignore = batch_count;
     ignore = block_2_tile_map;
+    ignore = compute_ptr_offset_of_batch;
 #endif
 }
 
