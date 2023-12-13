@@ -11,7 +11,7 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
@@ -47,7 +47,7 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 
 template <typename OutElementOp>
 using DeviceGroupedConvNDFwdInstance =
-    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
         NDimSpatial,
         InLayout,
         WeiLayout,
@@ -190,9 +190,8 @@ bool run_grouped_conv_fwd(bool do_verification,
 
     if(!conv.IsSupportedArgument(argument))
     {
-        throw std::runtime_error(
-            "wrong! device_conv with the specified compilation parameters does "
-            "not support this Conv problem");
+        throw std::runtime_error("The device op with the specified compilation parameters does "
+                                 "not support this convolution problem.");
     }
 
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});

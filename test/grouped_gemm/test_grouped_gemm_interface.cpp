@@ -108,6 +108,10 @@ TEST_F(TestGGemmSplitKInterface_MKNKMN, KLoops)
 
     // kloops % 2
     Ks = std::vector<int>{256, 512, 320, 768};
+    EXPECT_FALSE(
+        DefaultGGemmInstance{}.IsSupported(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, kbatch));
+
+    Ks = std::vector<int>{256, 512, 384, 768};
     EXPECT_TRUE(
         DefaultGGemmInstance{}.IsSupported(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, kbatch));
 

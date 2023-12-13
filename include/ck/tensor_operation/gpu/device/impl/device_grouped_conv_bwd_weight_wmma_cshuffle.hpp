@@ -565,7 +565,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
         Block2CTileMap block_2_ctile_map_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch<I0> compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<> compute_ptr_offset_of_batch_;
 
         OutElementwiseOperation a_element_op_;
         InElementwiseOperation b_element_op_;
@@ -647,7 +647,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
                     DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
-                    ComputePtrOffsetOfStridedBatch<I0>,
+                    ComputePtrOffsetOfStridedBatch<>,
                     has_main_loop>;
 
                 using EmptyTuple = Tuple<>;
