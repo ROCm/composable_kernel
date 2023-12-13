@@ -117,7 +117,7 @@ struct deviceTsmmDl : public DeviceTsmm<ALayout,
         {
 
             const index_t grid_size = GridwiseTsmm::CalculateGridSize(karg.M, karg.N, karg.k_batch);
-            // const auto b2c_map      = DefaultBlock2CTileMap{};
+            const auto b2c_map      = DefaultBlock2CTileMap{};
 
             const auto K0 = karg.K0;
 
@@ -138,24 +138,54 @@ struct deviceTsmmDl : public DeviceTsmm<ALayout,
                     const auto kernel = kernel_tsmm_dl_v1r3<GridwiseTsmm,
                                                             ADataType,
                                                             CDataType,
+                                                            BLayout,
                                                             InMemoryDataOperationEnum::Set,
                                                             true,
                                                             true,
                                                             DefaultBlock2CTileMap>; // //
-                    ave_time          = launch_and_time_kernel(
-                        stream_config, kernel, dim3(grid_size), dim3(BlockSize), 0, karg);
+                    ave_time          = launch_and_time_kernel(stream_config,
+                                                      kernel,
+                                                      dim3(grid_size),
+                                                      dim3(BlockSize),
+                                                      0,
+                                                      karg.p_a_grid,
+                                                      karg.p_b_grid,
+                                                      karg.p_c_grid,
+                                                      (karg.M),
+                                                      (karg.N),
+                                                      (karg.K),
+                                                      (karg.K0),
+                                                      (karg.k_batch),
+                                                      karg.MPadded,
+                                                      karg.NPadded,
+                                                      b2c_map);
                 }
                 else
                 {
                     const auto kernel = kernel_tsmm_dl_v1r3<GridwiseTsmm,
                                                             ADataType,
                                                             CDataType,
+                                                            BLayout,
                                                             InMemoryDataOperationEnum::AtomicAdd,
                                                             true,
                                                             true,
                                                             DefaultBlock2CTileMap>; // //
-                    ave_time          = launch_and_time_kernel(
-                        stream_config, kernel, dim3(grid_size), dim3(BlockSize), 0, karg);
+                    ave_time          = launch_and_time_kernel(stream_config,
+                                                      kernel,
+                                                      dim3(grid_size),
+                                                      dim3(BlockSize),
+                                                      0,
+                                                      karg.p_a_grid,
+                                                      karg.p_b_grid,
+                                                      karg.p_c_grid,
+                                                      (karg.M),
+                                                      (karg.N),
+                                                      (karg.K),
+                                                      (karg.K0),
+                                                      (karg.k_batch),
+                                                      karg.MPadded,
+                                                      karg.NPadded,
+                                                      b2c_map);
                 }
             }
             else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
@@ -166,24 +196,54 @@ struct deviceTsmmDl : public DeviceTsmm<ALayout,
                     const auto kernel = kernel_tsmm_dl_v1r3<GridwiseTsmm,
                                                             ADataType,
                                                             CDataType,
+                                                            BLayout,
                                                             InMemoryDataOperationEnum::Set,
                                                             true,
                                                             false,
                                                             DefaultBlock2CTileMap>; // //
-                    ave_time          = launch_and_time_kernel(
-                        stream_config, kernel, dim3(grid_size), dim3(BlockSize), 0, karg);
+                    ave_time          = launch_and_time_kernel(stream_config,
+                                                      kernel,
+                                                      dim3(grid_size),
+                                                      dim3(BlockSize),
+                                                      0,
+                                                      karg.p_a_grid,
+                                                      karg.p_b_grid,
+                                                      karg.p_c_grid,
+                                                      (karg.M),
+                                                      (karg.N),
+                                                      (karg.K),
+                                                      (karg.K0),
+                                                      (karg.k_batch),
+                                                      karg.MPadded,
+                                                      karg.NPadded,
+                                                      b2c_map);
                 }
                 else
                 {
                     const auto kernel = kernel_tsmm_dl_v1r3<GridwiseTsmm,
                                                             ADataType,
                                                             CDataType,
+                                                            BLayout,
                                                             InMemoryDataOperationEnum::AtomicAdd,
                                                             true,
                                                             false,
                                                             DefaultBlock2CTileMap>; // //
-                    ave_time          = launch_and_time_kernel(
-                        stream_config, kernel, dim3(grid_size), dim3(BlockSize), 0, karg);
+                    ave_time          = launch_and_time_kernel(stream_config,
+                                                      kernel,
+                                                      dim3(grid_size),
+                                                      dim3(BlockSize),
+                                                      0,
+                                                      karg.p_a_grid,
+                                                      karg.p_b_grid,
+                                                      karg.p_c_grid,
+                                                      (karg.M),
+                                                      (karg.N),
+                                                      (karg.K),
+                                                      (karg.K0),
+                                                      (karg.k_batch),
+                                                      karg.MPadded,
+                                                      karg.NPadded,
+                                                      b2c_map);
                 }
             }
             else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
@@ -193,24 +253,54 @@ struct deviceTsmmDl : public DeviceTsmm<ALayout,
                     const auto kernel = kernel_tsmm_dl_v1r3<GridwiseTsmm,
                                                             ADataType,
                                                             CDataType,
+                                                            BLayout,
                                                             InMemoryDataOperationEnum::Set,
                                                             false,
                                                             true,
                                                             DefaultBlock2CTileMap>; // //
-                    ave_time          = launch_and_time_kernel(
-                        stream_config, kernel, dim3(grid_size), dim3(BlockSize), 0, karg);
+                    ave_time          = launch_and_time_kernel(stream_config,
+                                                      kernel,
+                                                      dim3(grid_size),
+                                                      dim3(BlockSize),
+                                                      0,
+                                                      karg.p_a_grid,
+                                                      karg.p_b_grid,
+                                                      karg.p_c_grid,
+                                                      (karg.M),
+                                                      (karg.N),
+                                                      (karg.K),
+                                                      (karg.K0),
+                                                      (karg.k_batch),
+                                                      karg.MPadded,
+                                                      karg.NPadded,
+                                                      b2c_map);
                 }
                 else
                 {
                     const auto kernel = kernel_tsmm_dl_v1r3<GridwiseTsmm,
                                                             ADataType,
                                                             CDataType,
+                                                            BLayout,
                                                             InMemoryDataOperationEnum::AtomicAdd,
                                                             false,
                                                             true,
                                                             DefaultBlock2CTileMap>; // //
-                    ave_time          = launch_and_time_kernel(
-                        stream_config, kernel, dim3(grid_size), dim3(BlockSize), 0, karg);
+                    ave_time          = launch_and_time_kernel(stream_config,
+                                                      kernel,
+                                                      dim3(grid_size),
+                                                      dim3(BlockSize),
+                                                      0,
+                                                      karg.p_a_grid,
+                                                      karg.p_b_grid,
+                                                      karg.p_c_grid,
+                                                      (karg.M),
+                                                      (karg.N),
+                                                      (karg.K),
+                                                      (karg.K0),
+                                                      (karg.k_batch),
+                                                      karg.MPadded,
+                                                      karg.NPadded,
+                                                      b2c_map);
                 }
             }
             else
@@ -220,30 +310,59 @@ struct deviceTsmmDl : public DeviceTsmm<ALayout,
                     const auto kernel = kernel_tsmm_dl_v1r3<GridwiseTsmm,
                                                             ADataType,
                                                             CDataType,
+                                                            BLayout,
                                                             InMemoryDataOperationEnum::Set,
                                                             false,
                                                             false,
                                                             DefaultBlock2CTileMap>; // //
-                    ave_time          = launch_and_time_kernel(
-                        stream_config, kernel, dim3(grid_size), dim3(BlockSize), 0, karg);
+                    ave_time          = launch_and_time_kernel(stream_config,
+                                                      kernel,
+                                                      dim3(grid_size),
+                                                      dim3(BlockSize),
+                                                      0,
+                                                      karg.p_a_grid,
+                                                      karg.p_b_grid,
+                                                      karg.p_c_grid,
+                                                      (karg.M),
+                                                      (karg.N),
+                                                      (karg.K),
+                                                      (karg.K0),
+                                                      (karg.k_batch),
+                                                      karg.MPadded,
+                                                      karg.NPadded,
+                                                      b2c_map);
                 }
                 else
                 {
                     const auto kernel = kernel_tsmm_dl_v1r3<GridwiseTsmm,
                                                             ADataType,
                                                             CDataType,
+                                                            BLayout,
                                                             InMemoryDataOperationEnum::AtomicAdd,
                                                             false,
                                                             false,
                                                             DefaultBlock2CTileMap>; // //
-                    ave_time          = launch_and_time_kernel(
-                        stream_config, kernel, dim3(grid_size), dim3(BlockSize), 0, karg);
+                    ave_time          = launch_and_time_kernel(stream_config,
+                                                      kernel,
+                                                      dim3(grid_size),
+                                                      dim3(BlockSize),
+                                                      0,
+                                                      karg.p_a_grid,
+                                                      karg.p_b_grid,
+                                                      karg.p_c_grid,
+                                                      (karg.M),
+                                                      (karg.N),
+                                                      (karg.K),
+                                                      (karg.K0),
+                                                      (karg.k_batch),
+                                                      karg.MPadded,
+                                                      karg.NPadded,
+                                                      b2c_map);
                 }
             }
 
             return ave_time;
         }
-
         // polymorphic
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -263,7 +382,8 @@ struct deviceTsmmDl : public DeviceTsmm<ALayout,
         if(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030" ||
            ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
            ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
-           ck::get_device_name() == "gfx1102")
+           ck::get_device_name() == "gfx1102" || ck::get_device_name() == "gfx940" ||
+           ck::get_device_name() == "gfx941" || ck::get_device_name() == "gfx942")
         {
             return GridwiseTsmm::CheckValidity(arg);
         }
@@ -302,8 +422,8 @@ struct deviceTsmmDl : public DeviceTsmm<ALayout,
                         StrideA,
                         StrideB,
                         StrideC,
-                        // GridwiseTsmm::CalculateMPadded(M),
-                        // GridwiseTsmm::CalculateNPadded(N),
+                        GridwiseTsmm::CalculateMPadded(M),
+                        GridwiseTsmm::CalculateNPadded(N),
                         // GridwiseTsmm::CalculateKPadded(K, KBatch),
                         GridwiseTsmm::CalculateK0(K, KBatch),
                         KBatch}; // //
@@ -336,8 +456,8 @@ struct deviceTsmmDl : public DeviceTsmm<ALayout,
                                           StrideA,
                                           StrideB,
                                           StrideC,
-                                          //   GridwiseTsmm::CalculateMPadded(M),
-                                          //   GridwiseTsmm::CalculateNPadded(N),
+                                          GridwiseTsmm::CalculateMPadded(M),
+                                          GridwiseTsmm::CalculateNPadded(N),
                                           //   GridwiseTsmm::CalculateKPadded(K, KBatch),
                                           GridwiseTsmm::CalculateK0(K, KBatch),
                                           KBatch); // //

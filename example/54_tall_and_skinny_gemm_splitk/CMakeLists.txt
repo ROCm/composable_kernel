@@ -6,6 +6,7 @@ foreach(gpu IN LISTS GPU_TARGETS)
     add_example_executable(example_tall_and_skinny_gemm_splitk_fp16 tall_and_skinny_gemm_splitk_fp16.cpp)
     add_dependencies(example_tall_and_skinny_gemm_splitk
                 example_tall_and_skinny_gemm_splitk_fp16)
+                set_source_files_properties(tall_and_skinny_gemm_splitk_fp16.cpp PROPERTIES COMPILE_OPTIONS "-DKERNARG_PRELOAD;-Wno-gnu-line-marker;-gline-tables-only;-mllvm;--amdgpu-kernarg-preload-count=16")            
     set(target 1)
  endif()
  endforeach()
