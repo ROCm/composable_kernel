@@ -182,7 +182,7 @@ inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, half_t>(half_t x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // convert to float and use native converion
-    return f8_convert_sr<f8_t>(type_convert<float>(x));
+    return f8_convert_sr<bf8_t>(type_convert<float>(x));
 #else
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
@@ -295,7 +295,7 @@ inline __host__ __device__ bf8_t f8_convert_rne<bf8_t, half_t>(half_t x)
 template <>
 inline __host__ __device__ f8_t type_convert<f8_t, float>(float x)
 {
-#if defined CK_USE_SR_F8_CONVERSION
+#if CK_USE_SR_F8_CONVERSION
     return f8_convert_sr<f8_t>(x);
 #else
     return f8_convert_rne<f8_t>(x);
@@ -352,10 +352,10 @@ inline __host__ __device__ half2_t type_convert<half2_t, float2_t>(float2_t x)
 template <>
 inline __host__ __device__ f8_t type_convert<f8_t, half_t>(half_t x)
 {
-#if defined CK_USE_SR_F8_CONVERSION
+#if CK_USE_SR_F8_CONVERSION
     return f8_convert_sr<f8_t>(x);
 #else
-    return f8_convert_nre<f8_t>(x);
+    return f8_convert_rne<f8_t>(x);
 #endif
 }
 
@@ -376,7 +376,7 @@ inline __host__ __device__ half_t type_convert<half_t, f8_t>(f8_t x)
 template <>
 inline __host__ __device__ bf8_t type_convert<bf8_t, float>(float x)
 {
-#if defined CK_USE_SR_F8_CONVERSION
+#if CK_USE_SR_F8_CONVERSION
     return f8_convert_sr<bf8_t>(x);
 #else
     return f8_convert_rne<bf8_t>(x);
@@ -403,7 +403,7 @@ inline __host__ __device__ float type_convert<float, bf8_t>(bf8_t x)
 template <>
 inline __host__ __device__ bf8_t type_convert<bf8_t, half_t>(half_t x)
 {
-#if defined CK_USE_SR_F8_CONVERSION
+#if CK_USE_SR_F8_CONVERSION
     return f8_convert_sr<bf8_t>(x);
 #else
     return f8_convert_rne<bf8_t>(x);
