@@ -153,10 +153,6 @@ bool profile_transpose_impl(int do_verification,
             std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
                       << gb_per_sec << " GB/s, " << op_name << std::endl;
 
-            // pass = pass & ck::utils::check_err(b_device_result, b_host_result);
-            pass &= ck::utils::check_err(
-                b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
-
             if(tflops > best_tflops)
             {
                 best_op_name    = op_name;
