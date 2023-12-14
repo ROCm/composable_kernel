@@ -130,7 +130,7 @@ const std::string gemm_compile_check = R"__ck__(
 extern "C" __global__ void f(const ck::half_t* a, const ck::half_t* b, ck::half_t* c) {
     using G = ${template};
     constexpr auto desc = ${template}::make_descriptor(ck::make_naive_tensor_descriptor_packed(ck::make_tuple(${m}, ${k})),
-                                             ck::make_naive_tensor_descriptor_packed(ck::make_tuple(${n}, ${k})),
+                                             ck::make_naive_tensor_descriptor(ck::make_tuple(${n}, ${k}), ck::make_tuple(1, ${n})),
                                              ck::make_tuple(),
                                              ck::make_naive_tensor_descriptor_packed(ck::make_tuple(${m}, ${n})));
 
