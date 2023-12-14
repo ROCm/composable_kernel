@@ -12,14 +12,14 @@ namespace wrapper {
 /**
  * \brief Tensor wrapper that performs static and dynamic buffer logic.
  *
- * \tparam BufferAddressSpace Memory type (Generic, Global, Lds, Vgpr, Sgpr).
+ * \tparam BufferAddressSpace Memory type (Generic, Global, LDS, VGPR, SGPR).
  * \tparam ElementType Element data type.
  * \tparam Shape Tensor shape (layout component).
  * \tparam Strides Tensor strides (layout component).
- * \tparam NumVectors Number of vectors (only for Vgpr, Sgpr).
- * \tparam ScalarPerVector Scalars per vector (only for Vgpr, Sgpr).
+ * \tparam NumVectors Number of vectors (only for VGPR, SGPR).
+ * \tparam ScalarPerVector Scalars per vector (only for VGPR, SGPR).
  */
-template <AddressSpaceEnum BufferAddressSpace,
+template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
           typename Strides,
@@ -29,7 +29,7 @@ template <AddressSpaceEnum BufferAddressSpace,
 struct Tensor
 {
     private:
-    // Check if Tuple containt Slice object
+    // Check if Tuple contains Slice object
     template <typename T>
     constexpr static bool IsSlicing(T&&)
     {
@@ -42,9 +42,9 @@ struct Tensor
     }
 
     // Calculate first index of new tensor after slice
-    // It is need to calculate offset for new tensor
+    // It is needed to calculate offset for new tensor
     template <typename... Ts>
-    constexpr auto GetStartIdxForSlicedTensor(const Tuple<Ts...>& idx)
+    constexpr auto GetStartIdxForSlicedTensor(const Tuple<Ts...>& idx) const
     {
         const auto start_idx_for_sliced_tensor = generate_tuple(
             [&](auto i) {
@@ -57,7 +57,7 @@ struct Tensor
                 else if constexpr(is_detected<is_slice,
                                               tuple_element_t<i.value, Tuple<Ts...>>>::value)
                 {
-                    // if slice, return begging of the interval
+                    // if slice, return the beginning of the interval
                     return idx.At(num_i).from_;
                 }
                 else
@@ -73,7 +73,8 @@ struct Tensor
 
     // Calculate new tensor shape after slice
     template <typename... Ts, typename ShapeTmpType>
-    constexpr auto GetShapeFromSlicedTensor(const Tuple<Ts...>& idx, const ShapeTmpType& shape)
+    constexpr auto GetShapeFromSlicedTensor(const Tuple<Ts...>& idx,
+                                            const ShapeTmpType& shape) const
     {
         // Pack each value in tuple to remove empty tuples after generation
         auto new_shape = generate_tuple(
@@ -83,7 +84,7 @@ struct Tensor
                 {
                     if constexpr(!IsSlicing(tuple_element_t<i.value, Tuple<Ts...>>{}))
                     {
-                        // if tuple does not have then we can remove dimension
+                        // if tuple does not have any slice then we can remove dimension
                         return Tuple<>{};
                     }
                     else
@@ -113,7 +114,7 @@ struct Tensor
 
     template <typename... Ts, typename StridesTmpType>
     constexpr auto GetStridesFromSlicedTensor(const Tuple<Ts...>& idx,
-                                              const StridesTmpType& strides)
+                                              const StridesTmpType& strides) const
     {
         // Pack each value in tuple to remove empty tuples after generation
         auto new_strides = generate_tuple(
@@ -123,7 +124,7 @@ struct Tensor
                 {
                     if constexpr(!IsSlicing(tuple_element_t<i.value, Tuple<Ts...>>{}))
                     {
-                        // if tuple does not have then we can remove dimension
+                        // if tuple does not have any slice then we can remove dimension
                         return Tuple<>{};
                     }
                     else
@@ -155,9 +156,9 @@ struct Tensor
         Shape{}, Strides{}}.GetElementSpaceSize()); // SpaceSize type for buffer
     using TensorElementType = ElementType;           // DataType
 
-    static constexpr AddressSpaceEnum TensorBufferAddressSpace = BufferAddressSpace;
-    static constexpr bool IsDynamicBuffer = !(BufferAddressSpace == AddressSpaceEnum::Sgpr ||
-                                              BufferAddressSpace == AddressSpaceEnum::Vgpr);
+    static constexpr MemoryTypeEnum TensorBufferAddressSpace = BufferAddressSpace;
+    static constexpr bool IsDynamicBuffer = !(BufferAddressSpace == MemoryTypeEnum ::Sgpr ||
+                                              BufferAddressSpace == MemoryTypeEnum ::Vgpr);
 
     __host__ __device__ Tensor() = delete;
     __host__ __device__ Tensor(ElementType* pointer, const Layout<Shape, Strides>& layout)
@@ -171,11 +172,14 @@ struct Tensor
         static_assert(!IsDynamicBuffer, "Wrong BufferAddressSpace for register.");
     }
 
-    __host__ __device__ constexpr auto& GetLayout() const { return layout_; }
+    __host__ __device__ constexpr const Layout<Shape, Strides>& GetLayout() const
+    {
+        return layout_;
+    }
 
     // Getter for new sliced tensor
     template <typename... Ts, enable_if_t<IsSlicing(Tuple<Ts...>{}), bool> = false>
-    __host__ __device__ auto operator[](const Tuple<Ts...>& idx)
+    __host__ __device__ auto operator[](const Tuple<Ts...>& idx) const
     {
         static_assert(IsDynamicBuffer, "Register slice is not supported");
         // Calculate offset based on first idx for new tensor
@@ -195,16 +199,52 @@ struct Tensor
         }
     }
 
-    // Getter for new sliced tensor, call operator[]
     template <typename... Ts, enable_if_t<IsSlicing(Tuple<Ts...>{}), bool> = false>
-    __host__ __device__ auto operator()(const Tuple<Ts...>& idx)
+    __host__ __device__ auto operator()(const Tuple<Ts...>& idx) const
     {
         return this->operator[](idx);
     }
 
-    // Getter for new sliced tensor, call operator[]
     template <typename... Idxs, enable_if_t<IsSlicing(Tuple<Idxs...>{}), bool> = false>
-    __host__ __device__ auto operator()(Idxs... idxs)
+    __host__ __device__ auto operator()(Idxs... idxs) const
+    {
+        return this->operator[](make_tuple(idxs...));
+    }
+
+    // Getter for the const value
+    template <typename... Ts, enable_if_t<!IsSlicing(Tuple<Ts...>{}), bool> = false>
+    __host__ __device__ const ElementType& operator[](const Tuple<Ts...>& idx) const
+    {
+        if constexpr(IsDynamicBuffer)
+        {
+            const index_t offset = layout_(idx);
+            return buffer_[offset];
+        }
+        else
+        {
+            if constexpr(is_same_v<Strides, Tuple<>>)
+            {
+                constexpr index_t offset =
+                    Layout<Shape, Strides>{Shape{}}.template operator()<Tuple<Ts...>>();
+                return buffer_[Number<offset>{}];
+            }
+            else
+            {
+                constexpr index_t offset =
+                    Layout<Shape, Strides>{Shape{}, Strides{}}.template operator()<Tuple<Ts...>>();
+                return buffer_[Number<offset>{}];
+            }
+        }
+    }
+
+    template <typename... Ts, enable_if_t<!IsSlicing(Tuple<Ts...>{}), bool> = false>
+    __host__ __device__ const ElementType& operator()(const Tuple<Ts...>& idx) const
+    {
+        return this->operator[](idx);
+    }
+
+    template <typename... Idxs, enable_if_t<!IsSlicing(Tuple<Idxs...>{}), bool> = false>
+    __host__ __device__ const ElementType& operator()(Idxs... idxs) const
     {
         return this->operator[](make_tuple(idxs...));
     }
@@ -235,14 +275,12 @@ struct Tensor
         }
     }
 
-    // Getter for the value reference, call operator[]
     template <typename... Ts, enable_if_t<!IsSlicing(Tuple<Ts...>{}), bool> = false>
     __host__ __device__ ElementType& operator()(const Tuple<Ts...>& idx)
     {
         return this->operator[](idx);
     }
 
-    // Getter for the value reference, call operator[]
     template <typename... Idxs, enable_if_t<!IsSlicing(Tuple<Idxs...>{}), bool> = false>
     __host__ __device__ ElementType& operator()(Idxs... idxs)
     {
@@ -265,7 +303,7 @@ struct Tensor
                                   NumVectors,
                                   ScalarPerVector,
                                   true /*InvalidElementUseNumericalZeroValue*/>;
-    // If not regsiter, use dynamic buffer, if no static buffer
+    // If register use static buffer, else use dynamic buffer
     using Buffer = std::conditional_t<IsDynamicBuffer, DynamicBufferType, StaticBufferType>;
 
     const Layout<Shape, Strides> layout_;

@@ -383,14 +383,14 @@ struct Layout
      *
      * \return Shape.
      */
-    __host__ __device__ constexpr auto& GetShape() const { return shape_; }
+    __host__ __device__ constexpr const Shape& GetShape() const { return shape_; }
 
     /**
      * \brief Strides getter.
      *
      * \return Strides.
      */
-    __host__ __device__ constexpr auto& GetStrides() const { return strides_; }
+    __host__ __device__ constexpr const DeducedStrides& GetStrides() const { return strides_; }
 
     /**
      * \brief Get default lengths (tuple filled with Shape length elements).
@@ -403,7 +403,7 @@ struct Layout
     }
 
     /**
-     * \brief Get default start idx (tuple filled 0 with the same size as Shape).
+     * \brief Get default start idx (tuple filled with 0s of the same size as Shape).
      *
      * \return Default start idx.
      */

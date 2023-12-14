@@ -139,7 +139,7 @@ __host__ __device__ T constexpr size(const T& dim)
  * \brief Length get (product if tuple).
  *
  * \tparam idx Index to lookup.
- * \param layout Layout to get Shape.
+ * \param layout Layout to get Shape of.
  * \return Requsted length.
  */
 template <index_t idx, typename Shape, typename Strides>
@@ -310,11 +310,11 @@ __host__ __device__ constexpr auto depth(const T& elem)
 /**
  * \brief Get Layout strides.
  *
- * \param layout Layout to get strides.
+ * \param layout Layout to get strides from.
  * \return Requsted strides.
  */
 template <typename Shape, typename Strides>
-__host__ __device__ constexpr auto& stride(const Layout<Shape, Strides>& layout)
+__host__ __device__ constexpr const auto& stride(const Layout<Shape, Strides>& layout)
 {
     return layout.GetStrides();
 }
@@ -322,11 +322,11 @@ __host__ __device__ constexpr auto& stride(const Layout<Shape, Strides>& layout)
 /**
  * \brief Get Layout shape.
  *
- * \param layout Layout to get shape.
+ * \param layout Layout to get shape from.
  * \return Requsted shape.
  */
 template <typename Shape, typename Strides>
-__host__ __device__ constexpr auto& shape(const Layout<Shape, Strides>& layout)
+__host__ __device__ constexpr const auto& shape(const Layout<Shape, Strides>& layout)
 {
     return layout.GetShape();
 }

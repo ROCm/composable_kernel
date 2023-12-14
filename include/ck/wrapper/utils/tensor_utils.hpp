@@ -14,12 +14,22 @@
 namespace ck {
 namespace wrapper {
 
+/**
+ * \brief Memory type, allowed members:
+ * - Generic,
+ * - Global,
+ * - LDS,
+ * - SGPR,
+ * - VGPR,
+ */
+using MemoryTypeEnum = AddressSpaceEnum;
+
 // Disable from doxygen docs generation
 /// @cond
 // forward declarations
 template <typename Shape, typename Strides>
 struct Layout;
-template <AddressSpaceEnum BufferAddressSpace,
+template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
           typename Strides,
@@ -48,7 +58,7 @@ struct Slice
             }
             else
             {
-                // workaround if one of end of interval is index_t and secound one Number<>
+                // workaround if one end of the interval is index_t and the second one is Number
                 return static_cast<index_t>(to_) - static_cast<index_t>(from_);
             }
         }
@@ -81,16 +91,6 @@ using is_tuple = decltype(std::declval<T&>().IsTuple());
 /// @endcond
 
 /**
- * \brief Memory type, allowed members:
- * - Generic,
- * - Global,
- * - Lds,
- * - Sgpr,
- * - Vgpr,
- */
-using MemoryTypeEnum = AddressSpaceEnum;
-
-/**
  * \brief Make tensor function.
  *
  * \tparam MemoryType Type of memory.
@@ -106,7 +106,7 @@ constexpr auto make_tensor(ElementType* pointer, const Layout<Shape, Strides>& l
 }
 
 /**
- * \brief Make sgpr or vpgr tensor function.
+ * \brief Make SGPR or VGPR tensor function.
  *
  * \tparam MemoryType Type of memory.
  * \tparam NumVectors Number of vectors.
@@ -130,16 +130,16 @@ constexpr auto make_register_tensor(const Layout<Shape, Strides>& layout)
 /**
  * \brief Get Tensor Layout.
  *
- * \param tensor Tensor to get layout.
+ * \param tensor Tensor to get layout of.
  * \return Requsted layout.
  */
-template <AddressSpaceEnum BufferAddressSpace,
+template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
           typename Strides,
           index_t NumVectors,
           index_t ScalarPerVector>
-__host__ __device__ constexpr auto&
+__host__ __device__ constexpr const auto&
 layout(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
            tensor)
 {
@@ -150,11 +150,11 @@ layout(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors,
  * \brief Product of tensor shape dims.
  *
  * \tparam Idxs Indexes to access specific shape dim (optional).
- * \param tensor Tensor to get Shape.
+ * \param tensor Tensor to get Shape of.
  * \return Requsted size.
  */
 template <index_t... Idxs,
-          AddressSpaceEnum BufferAddressSpace,
+          MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
           typename Strides,
@@ -171,11 +171,11 @@ size(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, S
  * \brief Rank of Shape tuple.
  *
  * \tparam Idxs Indexes to access specific shape dim (optional).
- * \param tensor Tensor to get rank.
+ * \param tensor Tensor to get rank of.
  * \return Requsted rank.
  */
 template <index_t... Idxs,
-          AddressSpaceEnum BufferAddressSpace,
+          MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
           typename Strides,
@@ -192,11 +192,11 @@ rank(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, S
  * \brief Depth of Shape tuple.
  *
  * \tparam Idxs Indexes to access specific shape dim (optional).
- * \param tensor Tensor to get depth.
+ * \param tensor Tensor to get depth of.
  * \return Requsted depth.
  */
 template <index_t... Idxs,
-          AddressSpaceEnum BufferAddressSpace,
+          MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
           typename Strides,
@@ -212,16 +212,16 @@ depth(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, 
 /**
  * \brief Get Tensor strides.
  *
- * \param tensor Tensor to get strides.
+ * \param tensor Tensor to get strides from.
  * \return Requsted strides.
  */
-template <AddressSpaceEnum BufferAddressSpace,
+template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
           typename Strides,
           index_t NumVectors,
           index_t ScalarPerVector>
-__host__ __device__ constexpr auto&
+__host__ __device__ constexpr const auto&
 stride(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
            tensor)
 {
@@ -231,16 +231,16 @@ stride(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors,
 /**
  * \brief Get Tensor shape.
  *
- * \param tensor Tensor to get shape.
+ * \param tensor Tensor to get shape from.
  * \return Requsted shape.
  */
-template <AddressSpaceEnum BufferAddressSpace,
+template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
           typename Strides,
           index_t NumVectors,
           index_t ScalarPerVector>
-__host__ __device__ constexpr auto&
+__host__ __device__ constexpr const auto&
 shape(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
           tensor)
 {
