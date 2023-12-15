@@ -122,22 +122,22 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < op_ptrs.size(); ++i)
     {
-        auto& op_ptr      = op_ptrs[i];
-        auto argument_ptr = op_ptr->MakeArgumentPointer(
-            static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-            static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            nullptr,
-            in_length,
-            window_spatial_lengths,
-            out_length,
-            in_tensor_stride,
-            out_tensor_stride,
-            out_tensor_stride,
-            window_strides,
-            window_dilations,
-            input_left_pads,
-            input_right_pads,
-            {2, 3, 4});
+        auto& op_ptr = op_ptrs[i];
+        auto argument_ptr =
+            op_ptr->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+                                        static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+                                        nullptr,
+                                        in_length,
+                                        window_spatial_lengths,
+                                        out_length,
+                                        in_tensor_stride,
+                                        out_tensor_stride,
+                                        out_tensor_stride,
+                                        window_strides,
+                                        window_dilations,
+                                        input_left_pads,
+                                        input_right_pads,
+                                        {2, 3, 4});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -183,21 +183,21 @@ int main(int argc, char* argv[])
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
                   << std::endl;
 
-        auto argument_ptr = op_ptr->MakeArgumentPointer(
-            static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-            static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            nullptr,
-            in_length,
-            window_spatial_lengths,
-            out_length,
-            in_tensor_stride,
-            out_tensor_stride,
-            out_tensor_stride,
-            window_strides,
-            window_dilations,
-            input_left_pads,
-            input_right_pads,
-            {2, 3, 4});
+        auto argument_ptr =
+            op_ptr->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+                                        static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+                                        nullptr,
+                                        in_length,
+                                        window_spatial_lengths,
+                                        out_length,
+                                        in_tensor_stride,
+                                        out_tensor_stride,
+                                        out_tensor_stride,
+                                        window_strides,
+                                        window_dilations,
+                                        input_left_pads,
+                                        input_right_pads,
+                                        {2, 3, 4});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
