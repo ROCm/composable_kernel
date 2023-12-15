@@ -1,2 +1,4 @@
 add_gtest_executable(test_layout test_layout.cpp)
 target_link_libraries(test_layout PRIVATE utility)
+add_gtest_executable(test_tensor test_tensor.cpp)
+target_link_libraries(test_tensor PRIVATE utility)
