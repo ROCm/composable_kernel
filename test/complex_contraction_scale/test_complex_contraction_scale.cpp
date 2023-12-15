@@ -12,14 +12,13 @@
 #include "profiler/profile_contraction_impl.hpp"
 #include "profiler/profile_contraction_utils.hpp"
 
-using F32  = float;
-using F64  = double;
+using F32 = float;
+using F64 = double;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-
-using Scale    = ck::tensor_operation::element_wise::Scale;
+using Scale = ck::tensor_operation::element_wise::Scale;
 
 struct Dimensions
 {
@@ -96,23 +95,16 @@ class TestContractionScale : public TestContraction<Tuple>
 {
 };
 
-
-
 #define ALL_LAYOUT_COMBINATIONS(dt, tuple_dt, compute_dt, op)    \
     std::tuple<Row, Row, Row, dt, tuple_dt, compute_dt, op>,     \
         std::tuple<Row, Col, Row, dt, tuple_dt, compute_dt, op>, \
         std::tuple<Col, Row, Row, dt, tuple_dt, compute_dt, op>, \
         std::tuple<Col, Col, Row, dt, tuple_dt, compute_dt, op>
 
-
-
 using ScaleKernelTypes = ::testing::Types<ALL_LAYOUT_COMBINATIONS(F32, ck::Tuple<>, F32, Scale),
                                           ALL_LAYOUT_COMBINATIONS(F64, ck::Tuple<>, F64, Scale)>;
 
-
 TYPED_TEST_SUITE(TestContractionScale, ScaleKernelTypes);
-
-
 
 TYPED_TEST(TestContractionScale, scale)
 {
@@ -121,7 +113,3 @@ TYPED_TEST(TestContractionScale, scale)
     this->p_cd_element_op = std::make_unique<Scale>(0.5f);
     this->Run();
 }
-
-
-
-
