@@ -15,9 +15,8 @@
 
 #include "ck/library/utility/device_memory.hpp"
 
-using Pass     = ck::tensor_operation::element_wise::PassThrough;
-using Scale    = ck::tensor_operation::element_wise::Scale;
-
+using Pass  = ck::tensor_operation::element_wise::PassThrough;
+using Scale = ck::tensor_operation::element_wise::Scale;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -56,7 +55,7 @@ class ContractionInstanceWrapper
         auto argument = contraction.MakeArgument(nullptr,
                                                  nullptr,
                                                  std::array<const void*, 1>{nullptr},
-                                                //  std::array<const void*, 0>{},
+                                                 //  std::array<const void*, 0>{},
                                                  nullptr,
                                                  ADims,
                                                  AStrides,
@@ -64,8 +63,8 @@ class ContractionInstanceWrapper
                                                  BStrides,
                                                  std::array<std::vector<ck::index_t>, 1>{DDims},
                                                  std::array<std::vector<ck::index_t>, 1>{DStrides},
-                                                // std::array<std::vector<ck::index_t>, 0>{},
-                                                // std::array<std::vector<ck::index_t>, 0>{},
+                                                 // std::array<std::vector<ck::index_t>, 0>{},
+                                                 // std::array<std::vector<ck::index_t>, 0>{},
                                                  EDims,
                                                  EStrides,
                                                  Pass{},
@@ -101,7 +100,8 @@ class ContractionDeviceOpWrapper
     {
 
         bool supported     = false;
-        const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<DeviceOp>::GetInstances();
+        const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+            DeviceOp>::GetInstances();
 
         for(auto& op_ptr : op_ptrs)
         {
@@ -192,7 +192,7 @@ TEST(TestContractionSupportedArgs, DEMemoryAccess)
     EXPECT_FALSE(
         wrapper.isSupported(Dims, Dims, Dims, Dims, Strides, Strides, InvalidStrides, Strides));
     EXPECT_TRUE(wrapper.isSupported(Dims, Dims, Dims, Dims, Strides, Strides, Strides, Strides));
-    
+
     // Memory access to E
     EXPECT_FALSE(
         wrapper.isSupported(Dims, Dims, Dims, Dims, Strides, Strides, Strides, InvalidStrides));

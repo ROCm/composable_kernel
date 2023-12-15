@@ -12,10 +12,8 @@
 #include "profiler/profile_contraction_impl.hpp"
 #include "profiler/profile_contraction_utils.hpp"
 
-
-
-using F32  = float;
-using F64  = double;
+using F32 = float;
+using F64 = double;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -93,7 +91,6 @@ class TestContraction : public ::testing::Test
     }
 };
 
-
 template <typename Tuple>
 class TestContractionBilinear : public TestContraction<Tuple>
 {
@@ -109,9 +106,7 @@ using BilinearKernelTypes =
     ::testing::Types<ALL_LAYOUT_COMBINATIONS(F32, ck::Tuple<F32>, F32, Bilinear),
                      ALL_LAYOUT_COMBINATIONS(F64, ck::Tuple<F64>, F64, Bilinear)>;
 
-
 TYPED_TEST_SUITE(TestContractionBilinear, BilinearKernelTypes);
-
 
 TYPED_TEST(TestContractionBilinear, bilinear)
 {
@@ -120,5 +115,3 @@ TYPED_TEST(TestContractionBilinear, bilinear)
     this->p_cd_element_op = std::make_unique<Bilinear>(-0.5f, 0.5f);
     this->Run();
 }
-
-
