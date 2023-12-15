@@ -45,6 +45,9 @@ body:
     description: What GPU(s) did you encounter the issue on (you can select multiple GPUs from the list)
     multiple: true
     options:
+        - AMD Instinct MI300X
+        - AMD Instinct MI300A
+        - AMD Instinct MI300
         - AMD Instinct MI250X
         - AMD Instinct MI250
         - AMD Instinct MI210
@@ -85,8 +88,10 @@ body:
     description: What version(s) of ROCm did you encounter the issue on?
     multiple: true
     options:
+        - ROCm 6.0.0
         - ROCm 5.7.1
         - ROCm 5.7.0
+        - ROCm 5.6.1
         - ROCm 5.6.0
         - ROCm 5.5.1
         - ROCm 5.5.0
