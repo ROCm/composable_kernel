@@ -3,6 +3,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
 #include "common_instances.hpp"
 
