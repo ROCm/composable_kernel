@@ -22,7 +22,7 @@ namespace wrapper {
 // Disable from doxygen docs generation
 /// @cond
 // forward declaration
-template <typename Shape, typename Strides = Tuple<>>
+template <typename Shape, typename Strides>
 struct Layout;
 
 template <typename T>
@@ -52,13 +52,23 @@ __host__ __device__ constexpr Layout<Shape, Strides> make_layout(const Shape& sh
  * \return Constructed layout.
  */
 template <typename Shape>
-__host__ __device__ constexpr Layout<Shape> make_layout(const Shape& shape)
+__host__ __device__ constexpr Layout<Shape, Tuple<>> make_layout(const Shape& shape)
 {
-    return Layout<Shape>(shape);
+    return Layout<Shape, Tuple<>>(shape);
 }
 
 // Layout helpers
 // get
+// Get dim (could be returned from get with empty Idxs)
+/**
+ * \private
+ */
+template <typename T>
+__host__ __device__ T constexpr get(const T& dim)
+{
+    return dim;
+}
+
 /**
  * \brief Get element from tuple (Shape/Strides/Idxs).
  *
@@ -82,7 +92,8 @@ __host__ __device__ constexpr auto get(const Tuple<Dims...>& tuple)
 template <index_t idx, typename Shape, typename Strides>
 __host__ __device__ constexpr auto get(const Layout<Shape, Strides>& layout)
 {
-    const auto new_shape = get<idx>(layout.GetShape());
+    const auto& shape     = layout.GetShape();
+    const auto& new_shape = get<idx>(shape);
     static_assert(is_detected<is_tuple, decltype(new_shape)>::value,
                   "Shape of sub layout must be tuple");
     if constexpr(is_same_v<Strides, Tuple<>>)
@@ -92,7 +103,8 @@ __host__ __device__ constexpr auto get(const Layout<Shape, Strides>& layout)
     }
     else
     {
-        const auto new_strides = get<idx>(layout.GetStrides());
+        const auto& strides     = layout.GetStrides();
+        const auto& new_strides = get<idx>(strides);
         static_assert(is_detected<is_tuple, decltype(new_strides)>::value,
                       "Strides of sub layout must be tuple");
         return make_layout(new_shape, new_strides);
@@ -113,11 +125,21 @@ __host__ __device__ constexpr auto get(const T& elem)
 }
 
 // size
+// Get dim size (could be returned from get function)
+/**
+ * \private
+ */
+template <typename T>
+__host__ __device__ T constexpr size(const T& dim)
+{
+    return dim;
+}
+
 /**
  * \brief Length get (product if tuple).
  *
  * \tparam idx Index to lookup.
- * \param layout Layout to get Shape.
+ * \param layout Layout to get Shape of.
  * \return Requsted length.
  */
 template <index_t idx, typename Shape, typename Strides>
@@ -138,16 +160,6 @@ __host__ __device__ constexpr index_t size(const Tuple<ShapeDims...>& shape)
     const auto unrolled_shape = UnrollNestedTuple(shape);
     return TupleReduce<0, unrolled_shape.Size()>([](auto x, auto y) { return x * y; },
                                                  unrolled_shape);
-}
-
-// Get dim size (could be returned from get function)
-/**
- * \private
- */
-template <typename T>
-__host__ __device__ T constexpr size(const T& dim)
-{
-    return dim;
 }
 
 /**
@@ -178,14 +190,15 @@ __host__ __device__ constexpr index_t size(const Tuple<Ts...>& tuple)
 /**
  * \brief Hierarchical size.
  *
- * \tparam Idxs Indexes to lookup.
+ * \tparam Idx First index to lookup (to avoid empty Idxs).
+ * \tparam Idxs Next indexes to lookup.
  * \param elem Element to lookup.
  * \return Requsted element.
  */
-template <index_t... Idxs, typename T>
+template <index_t Idx, index_t... Idxs, typename T>
 __host__ __device__ constexpr auto size(const T& elem)
 {
-    return size(get<Idxs...>(elem));
+    return size(get<Idx, Idxs...>(elem));
 }
 
 // rank
@@ -251,7 +264,8 @@ __host__ __device__ constexpr auto rank(const T& elem)
 template <typename Shape, typename Strides>
 __host__ __device__ constexpr auto depth(const Layout<Shape, Strides>& layout)
 {
-    return TupleDepth(layout.GetShape());
+    const auto& shape = layout.GetShape();
+    return TupleDepth(shape);
 }
 
 /**
@@ -296,11 +310,11 @@ __host__ __device__ constexpr auto depth(const T& elem)
 /**
  * \brief Get Layout strides.
  *
- * \param layout Layout to get strides.
+ * \param layout Layout to get strides from.
  * \return Requsted strides.
  */
 template <typename Shape, typename Strides>
-__host__ __device__ constexpr auto stride(const Layout<Shape, Strides>& layout)
+__host__ __device__ constexpr const auto& stride(const Layout<Shape, Strides>& layout)
 {
     return layout.GetStrides();
 }
@@ -308,11 +322,11 @@ __host__ __device__ constexpr auto stride(const Layout<Shape, Strides>& layout)
 /**
  * \brief Get Layout shape.
  *
- * \param layout Layout to get shape.
+ * \param layout Layout to get shape from.
  * \return Requsted shape.
  */
 template <typename Shape, typename Strides>
-__host__ __device__ constexpr auto shape(const Layout<Shape, Strides>& layout)
+__host__ __device__ constexpr const auto& shape(const Layout<Shape, Strides>& layout)
 {
     return layout.GetShape();
 }
