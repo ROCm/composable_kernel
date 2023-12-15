@@ -19,7 +19,7 @@ None
 - Support for NHWGC (2D and 3D) grouped convolution backward weight (#769 #804)
 - Support for bf16/f32/f16 and NHWGC (2D and 3D) grouped convolution backward data (#757 #799)
 - Support for Batched Gemm DL (#732)
-- Introduce wrapper sublibrary (limited functionality) (#1071)
+- Introduce wrapper sublibrary (limited functionality). (#1071, #1098)
 
 ### Changes
  - Changed the grouped convolution API to maintain consistency with other convolution kernels (#817)
