@@ -87,9 +87,9 @@ using GammaBetaDeviceInstance = ck::tensor_operation::device::DeviceNormalizatio
     Rank,
     NumReduceDim,
     256,   // BlockSize
-    8,     // ClusterInvarient
+    8,     // ClusterInvariant
     32,    // ClusterReduce
-    4,     // SliceInvarient
+    4,     // SliceInvariant
     1,     // SliceReduce
     false, // IsDYFastestDimReduced
     4,     // DYSrcVectorSize

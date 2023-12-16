@@ -14,7 +14,7 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
-// M is invarient dimension, K is reduced dimension
+// M is Invariant dimension, K is reduced dimension
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -295,7 +295,7 @@ struct DeviceNormalizationBwdDataImpl : public DeviceNormalizationBwdData<DYData
         GridDesc_M_K dx_grid_desc_m_k_;
 
         bool isSweeponce_;
-        index_t MRaw_; // invarient length
+        index_t MRaw_; // Invariant length
         index_t KRaw_; // reduce length
     };
 

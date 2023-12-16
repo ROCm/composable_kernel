@@ -48,7 +48,7 @@ constexpr int NumReduceDim = 1;
 // dbeta = reduce_sum(dy, axis=0)
 
 // [CAUSION]
-// In DeviceNormalizationBwdDataImpl & DeviceNormalizationBwdGammaBetaImpl, M is invarient
+// In DeviceNormalizationBwdDataImpl & DeviceNormalizationBwdGammaBetaImpl, M is Invariant
 // dimension, K is reduced dimension Hence, M in this example and
 // DeviceNormalizationBwdGammaBetaImpl is different
 using XDeviceInstance = ck::tensor_operation::device::DeviceNormalizationBwdDataImpl<
