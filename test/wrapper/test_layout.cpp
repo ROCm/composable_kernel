@@ -433,17 +433,17 @@ TEST(TestLayoutHelpers, ShapeAndStrides)
         ck::wrapper::make_layout(shape_compiletime, strides_compiletime);
 
     constexpr bool check_compiletime_shape =
-        std::is_same_v<std::remove_const<decltype(shape_compiletime)>::type,
-                       decltype(shape(layout_compiletime))>;
+        std::is_same_v<decltype(shape_compiletime),
+                       std::remove_reference_t<decltype(shape(layout_compiletime))>>;
     constexpr bool check_compiletime_strides =
-        std::is_same_v<std::remove_const<decltype(strides_compiletime)>::type,
-                       decltype(stride(layout_compiletime))>;
+        std::is_same_v<decltype(strides_compiletime),
+                       std::remove_reference_t<decltype(stride(layout_compiletime))>>;
     constexpr bool check_runtime_shape =
-        std::is_same_v<std::remove_const<decltype(shape_runtime)>::type,
-                       decltype(shape(layout_runtime))>;
+        std::is_same_v<decltype(shape_runtime),
+                       std::remove_reference_t<decltype(shape(layout_runtime))>>;
     constexpr bool check_runtime_strides =
-        std::is_same_v<std::remove_const<decltype(strides_runtime)>::type,
-                       decltype(stride(layout_runtime))>;
+        std::is_same_v<decltype(strides_runtime),
+                       std::remove_reference_t<decltype(stride(layout_runtime))>>;
     EXPECT_TRUE(check_compiletime_shape);
     EXPECT_TRUE(check_compiletime_strides);
     EXPECT_TRUE(check_runtime_shape);
