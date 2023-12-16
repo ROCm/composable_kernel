@@ -33,7 +33,7 @@ def runShell(String command){
 
 def getDockerImageName(){
     def img
-    if (params.ROCMVERSION != "6.0"){
+    if (params.ROCMVERSION != "6.1"){
        if (params.COMPILER_VERSION == "") {
            img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
        }
