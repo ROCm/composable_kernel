@@ -3,7 +3,6 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
 #include "common_instances.hpp"
 
@@ -11,7 +10,9 @@ using ADataType        = F32;
 using BDataType        = F32;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
-using DsDataType       = ck::Tuple<>;
+using DDataType        = F32;
+using DsDataType       = ck::Tuple<DDataType>;
+using DsDataType_s       = ck::Tuple<>;
 using EDataType        = F32;
 using ComputeDataType  = F32;
 
@@ -45,7 +46,7 @@ using DeviceOpInstanceKKN_Scale = DeviceOpInstanceKK_Generic<NumDimM,
                                                              BDataType,
                                                              AccDataType,
                                                              CShuffleDataType,
-                                                             DsDataType,
+                                                             DsDataType_s,
                                                              EDataType,
                                                              ComputeDataType,
                                                              AElementOp,
