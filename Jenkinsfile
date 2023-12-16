@@ -703,8 +703,8 @@ pipeline {
             description: "Use the CK build to verify hipTensor build and tests (default: ON)")
         string(
             name: 'hipTensor_branch',
-            defaultValue: 'develop',
-            description: 'Specify which branch of hipTensor to use (default: develop)')
+            defaultValue: 'mainline',
+            description: 'Specify which branch of hipTensor to use (default: mainline)')
         booleanParam(
             name: "USE_SCCACHE",
             defaultValue: true,
