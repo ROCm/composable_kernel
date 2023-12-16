@@ -140,6 +140,7 @@ int main(int argc, char* argv[])
               << best_op_name << std::endl;
 
     // run the best intance
+    if(found)
     {
         auto& op_ptr = op_ptrs[best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
