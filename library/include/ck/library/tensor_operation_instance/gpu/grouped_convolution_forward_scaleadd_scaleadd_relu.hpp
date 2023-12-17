@@ -27,7 +27,7 @@ void add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhw
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
-                                                                ck::Tuple<NDHWGK, NDHWGK>,
+                                                                ck::Tuple<NDHWGK, G_K>,
                                                                 NDHWGK,
                                                                 BF16,
                                                                 BF16,
@@ -43,7 +43,7 @@ void add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhw
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
-                                                                ck::Tuple<NDHWGK, NDHWGK>,
+                                                                ck::Tuple<NDHWGK, G_K>,
                                                                 NDHWGK,
                                                                 F16,
                                                                 F16,
@@ -59,7 +59,7 @@ void add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhw
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
-                                                                ck::Tuple<NDHWGK, NDHWGK>,
+                                                                ck::Tuple<NDHWGK, G_K>,
                                                                 NDHWGK,
                                                                 F32,
                                                                 F32,
@@ -75,7 +75,7 @@ void add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhw
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
-                                                                ck::Tuple<NDHWGK, NDHWGK>,
+                                                                ck::Tuple<NDHWGK, G_K>,
                                                                 NDHWGK,
                                                                 int8_t,
                                                                 int8_t,
@@ -130,7 +130,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
         if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NDHWGC> &&
-                     is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, NDHWGK>)
+                     is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, NDHWGK> &&
+                     DLayouts::Size() == 2 && is_same_v<tuple_element_t<0, DLayouts>, NDHWGK> &&
+                     is_same_v<tuple_element_t<1, DLayouts>, G_K>)
         {
 #ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
