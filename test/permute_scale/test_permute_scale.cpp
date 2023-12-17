@@ -2,7 +2,7 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
-#include "profiler/profile_permute_scale_impl.hpp"
+#include "test_permute_scale_impl.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -22,8 +22,8 @@ class TestPermute : public ::testing::Test
 
         for(auto length : lengths)
         {
-            bool success = ck::profiler::profile_permute_scale_impl<ADataType, BDataType, 4>(
-                true, 2, false, false, length);
+            bool success =
+                ck::test_permute_scale_impl<ADataType, BDataType, 4>(true, 2, false, false, length);
             EXPECT_TRUE(success);
         }
     }

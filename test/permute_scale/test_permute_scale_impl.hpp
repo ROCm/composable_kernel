@@ -21,8 +21,6 @@
 #include "ck/library/utility/literals.hpp"
 
 namespace ck {
-namespace profiler {
-
 template <typename HostTensorA, typename HostTensorB, typename FunctorA, typename FunctorB>
 void host_elementwise4D(HostTensorB& B_nhwc,
                         const HostTensorA& A_nchw,
@@ -49,11 +47,11 @@ void host_elementwise4D(HostTensorB& B_nhwc,
 }
 
 template <typename ADataType, typename BDataType, index_t NumDim>
-bool profile_permute_scale_impl(int do_verification,
-                                int init_method,
-                                bool do_log,
-                                bool time_kernel,
-                                std::vector<index_t> lengths)
+bool test_permute_scale_impl(int do_verification,
+                             int init_method,
+                             bool do_log,
+                             bool time_kernel,
+                             std::vector<index_t> lengths)
 {
     bool pass = true;
 
@@ -188,9 +186,6 @@ bool profile_permute_scale_impl(int do_verification,
             std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
                       << gb_per_sec << " GB/s, " << op_name << std::endl;
 
-            // pass &= ck::utils::check_err(
-            //  b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
-
             if(tflops > best_tflops)
             {
                 best_instance_name = op_name;
@@ -214,5 +209,4 @@ bool profile_permute_scale_impl(int do_verification,
     return true;
 }
 
-} // namespace profiler
 } // namespace ck
