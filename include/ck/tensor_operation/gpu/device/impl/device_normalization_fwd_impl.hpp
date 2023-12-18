@@ -19,7 +19,7 @@ namespace tensor_operation {
 namespace device {
 
 // Y = Normalization(X, Beta, Gamma)
-// M: Invarient length
+// M: Invariant length
 // K: Reduce length (Calculate mean and variance along K dimension)
 // eg. Length = [N, C, H, W], reduce dim = [C, H, W]
 // Then, M = N, K = C * H * W
@@ -263,7 +263,7 @@ struct DeviceNormalizationFwdImpl : public DeviceNormalizationFwd<XDataType,
         GridDesc_M save_inv_std_grid_desc_m_;
         bool isSweeponce_;
 
-        index_t MRaw_; // invarient length
+        index_t MRaw_; // Invariant length
         index_t KRaw_; // reduce length
 
         index_t invariant_lowest_length_;
@@ -342,8 +342,6 @@ struct DeviceNormalizationFwdImpl : public DeviceNormalizationFwd<XDataType,
             }
             else
             {
-                printf("!!!! %d\n", p_arg_->invariant_lowest_length_);
-
                 if(p_arg_->xStrides_[NumInvariantDim - 1] != 1)
                     return false;
 
