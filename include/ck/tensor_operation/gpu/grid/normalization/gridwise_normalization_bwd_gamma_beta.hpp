@@ -35,7 +35,7 @@ template <typename DYDataType,
           index_t DBetaDstVectorSize>
 struct GridwiseNormalizationBwdGammaBeta_mk_to_k
 {
-    // if we just check ThreadSliceSize  & VectorSize == 0, the performance may be poor
+    // if we just check ThreadSliceSize % VectorSize == 0, the performance may be poor (coalesce)
     static_assert(((DYSrcVectorDim == 0 && MThreadSliceSize == DYSrcVectorSize) ||
                    (DYSrcVectorDim == 1 && KThreadSliceSize == DYSrcVectorSize)),
                   "Invalid thread slice sizes and/or dy vector sizes configuration, please check!");
@@ -43,6 +43,15 @@ struct GridwiseNormalizationBwdGammaBeta_mk_to_k
     static_assert(((XSrcVectorDim == 0 && MThreadSliceSize == XSrcVectorSize) ||
                    (XSrcVectorDim == 1 && KThreadSliceSize == XSrcVectorSize)),
                   "Invalid thread slice sizes and/or x vector sizes configuration, please check!");
+
+    // do not force SliceSize == MeanInvStdSrcVectorSize for groupnorm
+    static_assert(
+        ((MeanInvStdSrcVectorDim == 0 && MThreadSliceSize % MeanInvStdSrcVectorSize == 0) ||
+         (MeanInvStdSrcVectorDim == 1 && KThreadSliceSize % MeanInvStdSrcVectorSize == 0)),
+        "Invalid thread slice sizes and/or mean/inv_std vector sizes configuration, please check!");
+
+    static_assert(MThreadSliceSize == DGammaDstVectorSize && MThreadSliceSize == DBetaDstVectorSize,
+                  "Invalid thread slice sizes and/or dx vector sizes configuration, please check!");
 
     using ThreadClusterLengths_M_K = Sequence<MThreadClusterSize, KThreadClusterSize>;
 

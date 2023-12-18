@@ -16,7 +16,7 @@ using XDataType              = ck::half_t;
 using GammaDataType          = ck::half_t;
 using BetaDataType           = ck::half_t;
 using YDataType              = ck::half_t;
-using SaveMeanInvStdDataType = float;
+using SaveMeanInvStdDataType = ck::half_t;
 using PassThrough            = ck::tensor_operation::element_wise::PassThrough;
 
 #define SAVE_MEAN_INV_STD
@@ -155,6 +155,7 @@ int main(int argc, char* argv[])
               << best_op_name << std::endl;
 
     // run the best intance
+    if(found)
     {
         auto& op_ptr = op_ptrs[best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
