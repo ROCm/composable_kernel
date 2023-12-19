@@ -59,9 +59,9 @@ authors:
     family-names: Zhou
   - given-names: Jianfeng
     family-names: Yan
-repository-code: 'https://github.com/ROCmSoftwarePlatform/composable_kernel'
+repository-code: 'https://github.com/ROCm/composable_kernel'
 abstract: Composable Kernel (CK) library aims to provide a programming model for writing performance critical kernels for Machine Learning workloads across multiple architectures including GPUs, CPUs, etc, through general purpose kernel progarmming languages, like HIP C++.
 keywords:
   - 'CK, Composable Kernel, Tensor Coordinate Transformation'
 license: MIT
-license-url: https://github.com/ROCmSoftwarePlatform/composable_kernel/blob/7fc3ed761aa35709d87c8fbbe41dd368648b3541/LICENSE
+license-url: https://github.com/ROCm/composable_kernel/blob/7fc3ed761aa35709d87c8fbbe41dd368648b3541/LICENSE

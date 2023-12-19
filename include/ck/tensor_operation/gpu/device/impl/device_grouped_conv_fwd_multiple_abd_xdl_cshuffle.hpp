@@ -357,15 +357,17 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         return out_gemmm_gemmn_desc;
     }
 
+    // Shape of Ds and E must be aligned. Strides can be different.
+    // Pass e_g_n_k_wos_lengths for logical broadcast.
     static auto MakeDsGridDescriptor_M_N(
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_lengths,
+        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
         const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides)
     {
         return generate_tuple(
             [&](auto i) {
                 using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
 
-                return DeviceOp::MakeEGridDescriptor_M_N<DLayout>(ds_g_n_k_wos_lengths[i],
+                return DeviceOp::MakeEGridDescriptor_M_N<DLayout>(e_g_n_k_wos_lengths,
                                                                   ds_g_n_k_wos_strides[i]);
             },
             Number<NumDTensor>{});
@@ -569,7 +571,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
                 // D desc
                 ds_grid_desc_m_n_(i) = DeviceOp::MakeEGridDescriptor_M_N<DLayout>(
-                    ds_g_n_k_wos_lengths[i], ds_g_n_k_wos_strides[i]);
+                    e_g_n_k_wos_lengths, ds_g_n_k_wos_strides[i]);
             });
             compute_ptr_offset_of_batch_.BatchStrideE_ = e_g_n_k_wos_strides[0];
 
@@ -836,7 +838,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             // check if it's 1x1, stride=1 conv
             for(index_t i = 0; i < NDimSpatial; ++i)
             {
-                const index_t X          = arg.b_g_k_c_xs_lengths_[i + 2];
+                const index_t X          = arg.b_g_k_c_xs_lengths_[i + 3];
                 const index_t ConvStride = arg.conv_filter_strides_[i];
                 const index_t LeftPad    = arg.input_left_pads_[i];
                 const index_t RightPad   = arg.input_right_pads_[i];
@@ -853,7 +855,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             // check if it's 1x1 conv
             for(index_t i = 0; i < NDimSpatial; ++i)
             {
-                const index_t X        = arg.b_g_k_c_xs_lengths_[i + 2];
+                const index_t X        = arg.b_g_k_c_xs_lengths_[i + 3];
                 const index_t LeftPad  = arg.input_left_pads_[i];
                 const index_t RightPad = arg.input_right_pads_[i];
 
@@ -916,14 +918,34 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                          is_same_v<DLayout, ctc::G_NDHW_K> || is_same_v<DLayout, ctc::GNWK> ||
                          is_same_v<DLayout, ctc::GNHWK> || is_same_v<DLayout, ctc::GNDHWK> ||
                          is_same_v<DLayout, ctc::NWGK> || is_same_v<DLayout, ctc::NHWGK> ||
-                         is_same_v<DLayout, ctc::NDHWGK> || is_same_v<DLayout, ctc::GK> ||
-                         is_same_v<DLayout, ctc::G_K>)
+                         is_same_v<DLayout, ctc::NDHWGK> || is_same_v<DLayout, ctc::G_K>)
             {
                 const index_t K = arg.ds_g_n_k_wos_lengths_[i][2];
 
                 if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
                 {
                     valid = false;
+                }
+
+                if constexpr(is_same_v<DLayout, ctc::G_K>)
+                {
+                    // G and K must be the same
+                    if(arg.ds_g_n_k_wos_lengths_[i][0] != arg.e_g_n_k_wos_lengths_[0] ||
+                       arg.ds_g_n_k_wos_lengths_[i][2] != arg.e_g_n_k_wos_lengths_[2])
+                    {
+                        valid = false;
+                    }
+                }
+                else
+                {
+                    // E and D must have the same shape
+                    for(index_t d = 0; d < NDimSpatial + 3; d++)
+                    {
+                        if(arg.ds_g_n_k_wos_lengths_[i][d] != arg.e_g_n_k_wos_lengths_[d])
+                        {
+                            valid = false;
+                        }
+                    }
                 }
             }
             else
@@ -1094,6 +1116,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             << NXdlPerWave << ", "
             << ABlockTransferSrcScalarPerVector << ", "
             << BBlockTransferSrcScalarPerVector << ", "
+            << CDEBlockTransferScalarPerVector_NPerBlock << ", "
             << CShuffleMXdlPerWavePerShuffle << ", "
             << CShuffleNXdlPerWavePerShuffle
             << ">";

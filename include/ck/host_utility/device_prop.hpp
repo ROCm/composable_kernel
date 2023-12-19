@@ -26,7 +26,7 @@ inline std::string get_device_name()
     }
     const std::string raw_name(props.gcnArchName);
 
-    // https://github.com/ROCmSoftwarePlatform/MIOpen/blob/8498875aef84878e04c1eabefdf6571514891086/src/target_properties.cpp#L40
+    // https://github.com/ROCm/MIOpen/blob/8498875aef84878e04c1eabefdf6571514891086/src/target_properties.cpp#L40
     static std::map<std::string, std::string> device_name_map = {
         {"Ellesmere", "gfx803"},
         {"Baffin", "gfx803"},
@@ -56,6 +56,13 @@ inline bool is_xdl_supported()
     return ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
            ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
            ck::get_device_name() == "gfx942";
+}
+
+inline bool is_lds_direct_load_supported()
+{
+    // Check if direct loads from global memory to LDS are supported.
+    return ck::get_device_name() == "gfx90a" || ck::get_device_name() == "gfx940" ||
+           ck::get_device_name() == "gfx941" || ck::get_device_name() == "gfx942";
 }
 
 } // namespace ck
