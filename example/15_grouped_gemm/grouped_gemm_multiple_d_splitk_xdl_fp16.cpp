@@ -319,6 +319,7 @@ int main(int argc, char* argv[])
     if(argc < 11)
     {
         std::vector<ck::index_t> Ms{64, 127, 255, 129, 260, 190, 77};
+        problem_size.group_count = Ms.size();
 
         for(int i = 0; i < problem_size.group_count; i++)
         {

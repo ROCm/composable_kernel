@@ -162,11 +162,7 @@ __global__ void
         // if (changed group_id || next [M,N] tile)
         if(!b2c_tile_map.IsFirstKSplitBlock())
         {
-            void* __restrict__ p_block_workspace = reinterpret_cast<void* __restrict__>(
-                reinterpret_cast<char*>(p_workspace) + blockIdx.x * GridwiseGemm::GetMPerBlock() *
-                                                           GridwiseGemm::GetNPerBlock() *
-                                                           sizeof(typename GridwiseGemm::AccType));
-            gridwise_gemm.StorePartials(p_block_workspace);
+            gridwise_gemm.StorePartials(p_workspace);
         }
 
         work_scheduler.FlagFinished(k_batch, output_tile_idx, output_tile_idx_offset);
