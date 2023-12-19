@@ -243,7 +243,11 @@ if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
 endif()
 message(STATUS "Build with HIP ${HIP_VERSION}")
 link_libraries(hip::device)
-add_compile_definitions(__HIP_PLATFORM_AMD__=1)
+if(CK_hip_VERSION VERSION_GREATER_EQUAL 6.0.23494)
+    add_compile_definitions(__HIP_PLATFORM_AMD__=1)
+else()
+    add_compile_definitions(__HIP_PLATFORM_HCC__=1)
+endif()
 
 ## tidy
 include(EnableCompilerWarnings)
