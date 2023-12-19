@@ -19,22 +19,14 @@ void add_device_transpose_f16_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>, ck::Tuple<F16>, PassThrough, 5>>>&
         instances)
 {
-#ifdef CK_ENABLE_FP16
     add_device_operation_instances(instances, device_transpose_f16_instances{});
-#else
-    ignore = instances;
-#endif
 }
 
 void add_device_transpose_f32_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>, ck::Tuple<F32>, PassThrough, 5>>>&
         instances)
 {
-#ifdef CK_ENABLE_FP32
     add_device_operation_instances(instances, device_transpose_f32_instances{});
-#else
-    ignore = instances;
-#endif
 }
 
 } // namespace instance
