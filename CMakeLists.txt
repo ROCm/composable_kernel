@@ -66,6 +66,7 @@ endif()
 
 #for f8/bf8_t type
 add_compile_options(-Wno-bit-int-extension)
+add_compile_options(-Wno-pass-failed)
 
 if(DL_KERNELS)
     add_definitions(-DDL_KERNELS)
@@ -151,6 +152,33 @@ if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500723302)
    add_compile_options(-fno-offload-uniform-block)
 endif()
 
+#
+# Seperate linking jobs from compiling
+# Too many concurrent linking jobs can break the build
+# Copied from LLVM
+set(CK_PARALLEL_LINK_JOBS "" CACHE STRING
+  "Define the maximum number of concurrent link jobs (Ninja only).")
+if(CMAKE_GENERATOR MATCHES "Ninja")
+  if(CK_PARALLEL_LINK_JOBS)
+    set_property(GLOBAL APPEND PROPERTY JOB_POOLS link_job_pool=${CK_PARALLEL_LINK_JOBS})
+    set(CMAKE_JOB_POOL_LINK link_job_pool)
+  endif()
+elseif(CK_PARALLEL_LINK_JOBS)
+  message(WARNING "Job pooling is only available with Ninja generators.")
+endif()
+# Similar for compiling
+set(CK_PARALLEL_COMPILE_JOBS "" CACHE STRING
+  "Define the maximum number of concurrent compile jobs (Ninja only).")
+if(CMAKE_GENERATOR MATCHES "Ninja")
+  if(CK_PARALLEL_COMPILE_JOBS)
+    set_property(GLOBAL APPEND PROPERTY JOB_POOLS compile_job_pool=${CK_PARALLEL_COMPILE_JOBS})
+    set(CMAKE_JOB_POOL_COMPILE compile_job_pool)
+  endif()
+elseif(CK_PARALLEL_COMPILE_JOBS)
+  message(WARNING "Job pooling is only available with Ninja generators.")
+endif()
+
+
 option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
 option(USE_OPT_NAVI3X, "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
 
@@ -220,7 +248,11 @@ if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
 endif()
 message(STATUS "Build with HIP ${HIP_VERSION}")
 link_libraries(hip::device)
-add_compile_definitions(__HIP_PLATFORM_HCC__=1)
+if(CK_hip_VERSION VERSION_GREATER_EQUAL 6.0.23494)
+    add_compile_definitions(__HIP_PLATFORM_AMD__=1)
+else()
+    add_compile_definitions(__HIP_PLATFORM_HCC__=1)
+endif()
 
 ## tidy
 include(EnableCompilerWarnings)
