@@ -48,22 +48,24 @@ struct Layout
     // Generate packed (column-major) strides if not passed
     template <typename... Ts>
     __host__ __device__ constexpr static auto
-    GenerateColumnMajorPackedStrides(const Tuple<Ts...>& shape)
+    GenerateColumnMajorPackedStrides(const Tuple<Ts...>& shape, index_t& stride)
     {
-        const auto unrolled_shape = UnrollNestedTuple(shape);
         return generate_tuple(
             [&](auto i) {
-                if constexpr(i.value == 0)
+                const auto num_i = Number<i>{};
+                if constexpr(is_detected<is_tuple, tuple_element_t<i, Tuple<Ts...>>>::value)
                 {
-                    return I1;
+                    return GenerateColumnMajorPackedStrides(shape.At(num_i), stride);
                 }
                 else
                 {
-                    return TupleReduce<I0.value, i.value>([](auto x, auto y) { return x * y; },
-                                                          unrolled_shape);
+                    const index_t dim_stride = stride;
+                    // update stride
+                    stride *= shape.At(num_i);
+                    return dim_stride;
                 }
             },
-            Number<decltype(unrolled_shape)::Size()>{});
+            Number<Tuple<Ts...>::Size()>{});
     }
 
     // Generate LowerDims in Compile-time for MergeTrasform using passed Type
@@ -211,20 +213,28 @@ struct Layout
     __host__ __device__ static auto MakeFlattenDescriptor(const LayoutShape& shape,
                                                           const LayoutStrides& strides)
     {
-        const auto unrolled_shape   = UnrollNestedTuple(shape);
-        const auto unrolled_strides = UnrollNestedTuple(strides);
-        static_assert(unrolled_shape.Size() == unrolled_strides.Size(),
-                      "Size of strides and shape are not consistent.");
-        return make_naive_tensor_descriptor(unrolled_shape, unrolled_strides);
+        const auto unrolled_shape = UnrollNestedTuple(shape);
+        if constexpr(is_same_v<LayoutStrides, Tuple<>>)
+        {
+            index_t start_stride = 1;
+            // if not passed, then generate
+            const auto unrolled_strides =
+                GenerateColumnMajorPackedStrides(unrolled_shape, start_stride);
+            static_assert(unrolled_shape.Size() == unrolled_strides.Size(),
+                          "Size of strides and shape are not consistent.");
+            return make_naive_tensor_descriptor(unrolled_shape, unrolled_strides);
+        }
+        else
+        {
+            const auto unrolled_strides = UnrollNestedTuple(strides);
+            static_assert(unrolled_shape.Size() == unrolled_strides.Size(),
+                          "Size of strides and shape are not consistent.");
+            return make_naive_tensor_descriptor(unrolled_shape, unrolled_strides);
+        }
     }
 
-    // If the stride is not passed, you can infer it from `GenerateColumnMajorPackedStrides`.
-    using DeducedStrides =
-        std::conditional_t<is_same_v<Strides, Tuple<>>,
-                           remove_cvref_t<decltype(GenerateColumnMajorPackedStrides(Shape{}))>,
-                           Strides>;
     using FlattenDescriptorType =
-        remove_cvref_t<decltype(MakeFlattenDescriptor(Shape{}, DeducedStrides{}))>;
+        remove_cvref_t<decltype(MakeFlattenDescriptor(Shape{}, Strides{}))>;
     using Descriptor1dType =
         remove_cvref_t<decltype(MakeMerge1d(Shape{}, FlattenDescriptorType{}))>;
     using DefaultIdxsTupleType = remove_cvref_t<decltype(GenerateDefaultIdxsTuple(Shape{}))>;
@@ -290,7 +300,7 @@ struct Layout
      * \param shape Shape for layout.
      */
     __host__ __device__ constexpr Layout(const Shape& shape)
-        : flatten_descriptor_{}, shape_(shape), strides_(GenerateColumnMajorPackedStrides(shape_))
+        : flatten_descriptor_{}, shape_(shape), strides_()
     {
         if constexpr(!FlattenDescriptorType::IsKnownAtCompileTime())
         {
@@ -298,6 +308,10 @@ struct Layout
             descriptor_1d_      = MakeMerge1d(shape_, flatten_descriptor_);
             merged_nests_descriptor_ =
                 TransformDesc(shape_, DefaultIdxsTupleType{}, flatten_descriptor_);
+        }
+        else
+        {
+            static_assert(true, "Compiletime Layout require strides parameter.");
         }
     }
 
@@ -351,7 +365,7 @@ struct Layout
      * \return Calculated size.
      */
     template <index_t IDim>
-    __host__ __device__ constexpr index_t GetLength() const
+    __host__ __device__ constexpr auto GetLength() const
     {
         const auto elem = shape_.At(Number<IDim>{});
         if constexpr(is_detected<is_tuple, tuple_element_t<IDim, Shape>>::value)
@@ -371,7 +385,7 @@ struct Layout
      *
      * \return Calculated size.
      */
-    __host__ __device__ constexpr index_t GetLengths() const
+    __host__ __device__ constexpr auto GetLengths() const
     {
         const auto unrolled_shape = UnrollNestedTuple(shape_);
         return TupleReduce<I0.value, unrolled_shape.Size()>([](auto x, auto y) { return x * y; },
@@ -390,7 +404,18 @@ struct Layout
      *
      * \return Strides.
      */
-    __host__ __device__ constexpr const DeducedStrides& GetStrides() const { return strides_; }
+    __host__ __device__ constexpr auto GetStrides() const
+    {
+        if constexpr(is_same_v<Strides, Tuple<>>)
+        {
+            index_t start_stride = 1;
+            return GenerateColumnMajorPackedStrides(shape_, start_stride);
+        }
+        else
+        {
+            return strides_;
+        }
+    }
 
     /**
      * \brief Get default lengths (tuple filled with Shape length elements).
@@ -427,7 +452,7 @@ struct Layout
     Descriptor1dType descriptor_1d_;
     MergedNestsDescriptorType merged_nests_descriptor_;
     const Shape shape_;
-    const DeducedStrides strides_;
+    const Strides strides_;
 };
 
 } // namespace wrapper

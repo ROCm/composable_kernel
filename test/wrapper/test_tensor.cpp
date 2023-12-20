@@ -108,7 +108,6 @@ __global__ void TestTensorReadWriteDevice(void* data, void* success)
     bool* casted_success_ptr     = static_cast<bool*>(success);
 
     const auto layout = ck::wrapper::make_layout(ck::make_tuple(ck::make_tuple(2, 2), 2));
-    constexpr auto register_layout = ck::wrapper::make_layout(ck::make_tuple(ck::Number<8>{}));
 
     auto tensor_global =
         ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Global>(casted_data_ptr, layout);
@@ -116,11 +115,11 @@ __global__ void TestTensorReadWriteDevice(void* data, void* success)
     auto tensor_vgpr = ck::wrapper::make_register_tensor<ck::wrapper::MemoryTypeEnum::Vgpr,
                                                          nelems,
                                                          scalar_per_vector,
-                                                         ck::index_t>(register_layout);
+                                                         ck::index_t>();
     auto tensor_sgpr = ck::wrapper::make_register_tensor<ck::wrapper::MemoryTypeEnum::Sgpr,
                                                          nelems,
                                                          scalar_per_vector,
-                                                         ck::index_t>(register_layout);
+                                                         ck::index_t>();
 
     InitTensor(tensor_global);
     InitTensor(tensor_lds);
@@ -151,7 +150,7 @@ TEST(TestTensor, ReadWriteGlobalLdsRegistersMemory)
                            TestTensorReadWriteDevice,
                            dim3(1),
                            dim3(1),
-                           nelems * sizeof(ck::index_t),
+                           0,
                            data_buf.GetDeviceBuffer(),
                            success_buf.GetDeviceBuffer());
 

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "utils/tensor_utils.hpp"
+#include "utils/tensor_partition.hpp"
 #include "utils/layout_utils.hpp"
 
 namespace ck {
@@ -291,6 +292,8 @@ struct Tensor
     {
         return layout_.GetDefaultDescriptor();
     }
+
+    __host__ __device__ ElementType* GetPointer() const { return buffer_.p_data_; }
 
     private:
     using DynamicBufferType = DynamicBuffer<BufferAddressSpace,

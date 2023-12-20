@@ -112,19 +112,21 @@ constexpr auto make_tensor(ElementType* pointer, const Layout<Shape, Strides>& l
  * \tparam NumVectors Number of vectors.
  * \tparam ScalarPerVector Scalars per vector.
  * \tparam ElementType Memory data type.
- * \param layout Tensor layout.
  * \return Constructed tensor.
  */
 template <MemoryTypeEnum MemoryType,
           index_t NumVectors,
           index_t ScalarPerVector,
-          typename ElementType,
-          typename Shape,
-          typename Strides>
-constexpr auto make_register_tensor(const Layout<Shape, Strides>& layout)
+          typename ElementType>
+constexpr auto make_register_tensor()
 {
-    static_assert(!IsNestedTuple(Shape{}), "Register tensor with nested layout is not supported");
-    return Tensor<MemoryType, ElementType, Shape, Strides, NumVectors, ScalarPerVector>(layout);
+    const auto layout = make_layout(make_tuple(Number<NumVectors>{}), make_tuple(Number<1>{}));
+    return Tensor<MemoryType,
+                  ElementType,
+                  Tuple<Number<NumVectors>>,
+                  Tuple<Number<1>>,
+                  NumVectors,
+                  ScalarPerVector>(layout);
 }
 
 /**
@@ -160,7 +162,7 @@ template <index_t... Idxs,
           typename Strides,
           index_t NumVectors,
           index_t ScalarPerVector>
-__host__ __device__ constexpr index_t
+__host__ __device__ constexpr auto
 size(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
          tensor)
 {
@@ -181,7 +183,7 @@ template <index_t... Idxs,
           typename Strides,
           index_t NumVectors,
           index_t ScalarPerVector>
-__host__ __device__ constexpr index_t
+__host__ __device__ constexpr auto
 rank(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
          tensor)
 {
@@ -202,7 +204,7 @@ template <index_t... Idxs,
           typename Strides,
           index_t NumVectors,
           index_t ScalarPerVector>
-__host__ __device__ constexpr index_t
+__host__ __device__ constexpr auto
 depth(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
           tensor)
 {
@@ -221,7 +223,7 @@ template <MemoryTypeEnum BufferAddressSpace,
           typename Strides,
           index_t NumVectors,
           index_t ScalarPerVector>
-__host__ __device__ constexpr const auto&
+__host__ __device__ constexpr auto
 stride(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
            tensor)
 {

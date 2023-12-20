@@ -143,7 +143,7 @@ __host__ __device__ T constexpr size(const T& dim)
  * \return Requsted length.
  */
 template <index_t idx, typename Shape, typename Strides>
-__host__ __device__ constexpr index_t size(const Layout<Shape, Strides>& layout)
+__host__ __device__ constexpr auto size(const Layout<Shape, Strides>& layout)
 {
     return layout.template GetLength<idx>();
 }
@@ -155,7 +155,7 @@ __host__ __device__ constexpr index_t size(const Layout<Shape, Strides>& layout)
  * \return Requsted size.
  */
 template <typename... ShapeDims>
-__host__ __device__ constexpr index_t size(const Tuple<ShapeDims...>& shape)
+__host__ __device__ constexpr auto size(const Tuple<ShapeDims...>& shape)
 {
     const auto unrolled_shape = UnrollNestedTuple(shape);
     return TupleReduce<0, unrolled_shape.Size()>([](auto x, auto y) { return x * y; },
@@ -169,7 +169,7 @@ __host__ __device__ constexpr index_t size(const Tuple<ShapeDims...>& shape)
  * \return Requsted size.
  */
 template <typename Shape, typename Strides>
-__host__ __device__ constexpr index_t size(const Layout<Shape, Strides>& layout)
+__host__ __device__ constexpr auto size(const Layout<Shape, Strides>& layout)
 {
     return layout.GetLengths();
 }
@@ -182,7 +182,7 @@ __host__ __device__ constexpr index_t size(const Layout<Shape, Strides>& layout)
  * \return Requsted length.
  */
 template <index_t idx, typename... Ts>
-__host__ __device__ constexpr index_t size(const Tuple<Ts...>& tuple)
+__host__ __device__ constexpr auto size(const Tuple<Ts...>& tuple)
 {
     return size(tuple.At(Number<idx>{}));
 }
@@ -314,7 +314,7 @@ __host__ __device__ constexpr auto depth(const T& elem)
  * \return Requsted strides.
  */
 template <typename Shape, typename Strides>
-__host__ __device__ constexpr const auto& stride(const Layout<Shape, Strides>& layout)
+__host__ __device__ constexpr auto stride(const Layout<Shape, Strides>& layout)
 {
     return layout.GetStrides();
 }
