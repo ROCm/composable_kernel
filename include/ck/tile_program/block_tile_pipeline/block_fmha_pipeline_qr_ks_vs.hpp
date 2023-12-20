@@ -198,9 +198,17 @@ struct BlockFmhaPipelineQRKSVS
                 k_block_tile = load_tile(k_dram_window);
             }
 
-            __builtin_amdgcn_sched_barrier(0);
+            if constexpr(!is_null_tile_window(bias_dram_window))
+            {
+                __builtin_amdgcn_sched_barrier(
+                    0); // prevent from messing up the order of global loads
+            }
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile
-            __builtin_amdgcn_sched_barrier(0);
+            if constexpr(!is_null_tile_window(bias_dram_window))
+            {
+                __builtin_amdgcn_sched_barrier(
+                    0); // prevent from messing up the order of global loads
+            }
 
             if constexpr(k0_loops > 2)
             {
@@ -250,8 +258,6 @@ struct BlockFmhaPipelineQRKSVS
             }
             else
             {
-                __builtin_amdgcn_sched_barrier(0);
-
                 tile_elementwise_inout(
                     [&](auto& x, const auto& y) {
 #if !CK_FMHA_FWD_FAST_EXP2
