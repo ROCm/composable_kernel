@@ -328,7 +328,7 @@ struct WmmaSelector
     }
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     template <>
-    static constexpr auto GetWmma<int4_t, int, 16, 16>()
+    static constexpr auto GetWmma<int4_t, int4_t, int, 16, 16>()
     {
         return WmmaInstr::wmma_i32_16x16x16_iu4;
     }

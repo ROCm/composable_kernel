@@ -174,6 +174,11 @@ struct PassThrough
     {
         y = x;
     }
+    template <>
+    __host__ __device__ void operator()<int4_t, int>(int4_t& y, const int& x) const
+    {
+        y = type_convert<int4_t>(x);
+    }
 #endif
 
     template <>
