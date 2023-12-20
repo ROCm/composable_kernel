@@ -561,6 +561,37 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
             }
         }
 
+        if constexpr(is_same<tensor_layout::gemm::RowMajor, ELayout>::value)
+        {
+            if(N % CDEShuffleBlockTransferScalarPerVector_NPerBlock != 0)
+            {
+#if DEBUG_LOG
+                std::cout << "Arg N (" << N
+                          << ") value is not a multiple of "
+                             "CDEShuffleBlockTransferScalarPerVector_NPerBlock ("
+                          << CDEShuffleBlockTransferScalarPerVector_NPerBlock << " )! " << __FILE__
+                          << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+
+#endif // DEBUG_LOG
+                return false;
+            }
+        }
+        else
+        {
+            if(M % CDEShuffleBlockTransferScalarPerVector_NPerBlock != 0)
+            {
+#if DEBUG_LOG
+                std::cout << "Arg M (" << M
+                          << ") value is not a multiple of "
+                             "CDEShuffleBlockTransferScalarPerVector_NPerBlock ("
+                          << CDEShuffleBlockTransferScalarPerVector_NPerBlock << " )! " << __FILE__
+                          << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+
+#endif // DEBUG_LOG
+                return false;
+            }
+        }
+
         // check gridwise gemm pipeline
         const auto num_k_loop = (a_grid_desc_kbatch_ak0_m_ak1.GetLength(I1) *
                                  a_grid_desc_kbatch_ak0_m_ak1.GetLength(I3)) /

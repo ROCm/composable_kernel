@@ -76,7 +76,7 @@ struct ExecutionConfig final
 {
     bool do_verification = true;
     int init_method      = 1;
-    int k_batch          = 1;
+    int k_batch          = 128;
     bool time_kernel     = false;
 };
 
@@ -159,10 +159,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             b_tensors[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
             break;
         default:
-            // a_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<0>{});
-            // b_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<1>{});
-            ck::utils::FillConstant<ADataType>{1.f}(a_tensors[i]);
-            ck::utils::FillConstant<BDataType>{1.f}(b_tensors[i]);
+            a_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<0>{});
+            b_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<1>{});
         }
     }
 
@@ -285,7 +283,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                                                       c_element_op);
 
             ref_invoker.Run(ref_argument);
-
             pass &= ck::utils::check_err(c_device_tensors[i], c_host_tensors[i]);
         }
 
@@ -324,18 +321,13 @@ int main(int argc, char* argv[])
         for(int i = 0; i < problem_size.group_count; i++)
         {
             problem_size.Ms.push_back(Ms[i]);
-            problem_size.Ns.push_back(250);
+            problem_size.Ns.push_back(252);
             problem_size.Ks.push_back(4608);
 
             problem_size.stride_As.push_back(problem_size.Ks[i]);
             problem_size.stride_Bs.push_back(problem_size.Ks[i]);
             problem_size.stride_Cs.push_back(problem_size.Ns[i]);
         }
-
-        config.do_verification = 1;
-        config.init_method     = 3;
-        config.time_kernel     = 0;
-        config.k_batch         = 64;
 
         std::cout
             << "Usage:\n"

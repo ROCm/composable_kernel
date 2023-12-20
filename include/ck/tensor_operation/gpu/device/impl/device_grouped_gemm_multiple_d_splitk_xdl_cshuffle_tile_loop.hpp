@@ -652,17 +652,6 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
                     GridwiseGemm::MakeAGridDescriptor_KBatch_AK0_M_AK1(
                         gemm_arg.M, gemm_arg.K, gemm_arg.StrideA, arg.K_BATCH);
 
-                const auto b_grid_desc_kbatch_bk0_n_bk1 =
-                    GridwiseGemm::MakeBGridDescriptor_KBatch_BK0_N_BK1(
-                        gemm_arg.K, gemm_arg.N, gemm_arg.StrideB, arg.K_BATCH);
-
-                std::cout << "group id: " << i
-                          << ", kbatch: " << a_grid_desc_kbatch_ak0_m_ak1.GetLength(I0)
-                          << ", AK0: " << a_grid_desc_kbatch_ak0_m_ak1.GetLength(I1)
-                          << ", AK1: " << a_grid_desc_kbatch_ak0_m_ak1.GetLength(I3)
-                          << ", BK0: " << b_grid_desc_kbatch_bk0_n_bk1.GetLength(I1)
-                          << ", BK1: " << b_grid_desc_kbatch_bk0_n_bk1.GetLength(I3) << std::endl;
-
                 bool not_all_have_main_k_block_loop_same =
                     all_have_main_k_block_loop xor GridwiseGemm::CalculateHasMainKBlockLoop(
                                                        a_grid_desc_kbatch_ak0_m_ak1.GetLength(I1) *
@@ -1005,7 +994,10 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
         return size_bytes;
     }
 
-    void SetWorkSpacePointer(BaseArgument* p_arg, void* p_workspace) const override
+    void SetWorkSpacePointer(
+        BaseArgument* p_arg,
+        void* p_workspace,
+        [[maybe_unused]] const StreamConfig& stream_config = StreamConfig{}) const override
     {
         auto p_arg_          = dynamic_cast<Argument*>(p_arg);
         p_arg_->p_workspace_ = p_workspace;
