@@ -20,10 +20,6 @@
 #include "ck/tile_program/block_tile/block_reduce.hpp"
 #include "ck/tile_program/tile/shuffle_distributed_tensor.hpp"
 
-#ifndef C_LOG2E
-#define C_LOG2E 1.44269504088896340736 // log2(e)
-#endif
-
 namespace ck {
 namespace tile_program {
 namespace block {
@@ -201,6 +197,11 @@ struct BlockFmhaPipelineQRKSVS
                 store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
                 k_block_tile = load_tile(k_dram_window);
             }
+
+            __builtin_amdgcn_sched_barrier(0);
+            const auto bias_tile = load_tile(bias_dram_window); // load bias tile
+            __builtin_amdgcn_sched_barrier(0);
+
             if constexpr(k0_loops > 2)
             {
                 static_for<0, k0_loops - 2, 1>{}([&](auto i_k0) {
@@ -220,9 +221,8 @@ struct BlockFmhaPipelineQRKSVS
                 });
             }
 
-            const auto bias_tile  = load_tile(bias_dram_window); // load bias tile
-            const auto v_prefetch = load_tile(v_dram_window);    // prefetch load v tile
-            {                                                    // tail
+            const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
+            {                                                 // tail
                 block_sync_lds();
                 gemm_0(s_acc,
                        get_slice_tile(q_tile,
@@ -250,13 +250,15 @@ struct BlockFmhaPipelineQRKSVS
             }
             else
             {
+                __builtin_amdgcn_sched_barrier(0);
+
                 tile_elementwise_inout(
                     [&](auto& x, const auto& y) {
 #if !CK_FMHA_FWD_FAST_EXP2
-                        x = scale * x + type_convert<SMPLComputeDataType>(bias_element_func(y));
+                        x = scale * x + type_convert<SaccDataType>(bias_element_func(y));
 #else
-                        x = scale * x +
-                            C_LOG2E * type_convert<SMPLComputeDataType>(bias_element_func(y));
+                        x = scale * x + math::log2e_v<SaccDataType> *
+                                            type_convert<SaccDataType>(bias_element_func(y));
 #endif
                     },
                     s_acc,

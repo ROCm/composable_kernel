@@ -20,10 +20,6 @@
 #include "ck/tile_program/block_tile/block_reduce.hpp"
 #include "ck/tile_program/tile/shuffle_distributed_tensor.hpp"
 
-#ifndef C_LOG2E
-#define C_LOG2E 1.44269504088896340736 // log2(e)
-#endif
-
 namespace ck {
 namespace tile_program {
 namespace block {
@@ -330,10 +326,10 @@ struct BlockFmhaPipelineQRKSVSAsync
                 tile_elementwise_inout(
                     [&](auto& x, const auto& y) {
 #if !CK_FMHA_FWD_FAST_EXP2
-                        x = scale * x + type_convert<SMPLComputeDataType>(bias_element_func(y));
+                        x = scale * x + type_convert<SaccDataType>(bias_element_func(y));
 #else
                         x = scale * x +
-                            C_LOG2E * type_convert<SMPLComputeDataType>(bias_element_func(y));
+                            math::log2e_v<SaccDataType> * type_convert<SaccDataType>(bias_element_func(y));
 #endif
                     },
                     s_acc,
