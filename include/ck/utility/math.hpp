@@ -251,5 +251,25 @@ __host__ __device__ constexpr bool is_power_of_two_integer(int32_t x)
     return x == (1 << integer_log2_floor(x));
 }
 
+#ifndef C_LOG2E
+#define C_LOG2E 1.44269504088896340736 // log2(e)
+#endif
+
+template <typename T>
+struct log2e;
+
+template <>
+struct log2e<double> {
+  static constexpr double value = C_LOG2E;
+};
+
+template <>
+struct log2e<float> {
+  static constexpr float value = C_LOG2E;
+};
+
+template <typename T = double>
+inline constexpr T log2e_v = log2e<T>::value;
+
 } // namespace math
 } // namespace ck
