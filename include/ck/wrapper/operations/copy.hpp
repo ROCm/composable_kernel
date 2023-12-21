@@ -18,16 +18,15 @@ namespace wrapper {
 template <typename SrcTensorType, typename DstTensorType>
 __host__ __device__ void copy(const SrcTensorType& src_tensor, DstTensorType& dst_tensor)
 {
-    assert(size(src_tensor) == size(dst_tensor));
-    using SrcSizeTensor = decltype(size(src_tensor));
-    using DstSizeTensor = decltype(size(dst_tensor));
-    if constexpr(is_known_at_compile_time<SrcSizeTensor>::value)
+    if constexpr(!SrcTensorType::IsDynamicBuffer)
     {
-        static_for<0, SrcSizeTensor{}, 1>{}([&](auto i) { dst_tensor(i) = src_tensor(i); });
+        using SizeType = decltype(size(src_tensor));
+        static_for<0, SizeType{}, 1>{}([&](auto i) { dst_tensor(i) = src_tensor(i); });
     }
-    else if constexpr(is_known_at_compile_time<DstSizeTensor>::value)
+    else if constexpr(!DstTensorType::IsDynamicBuffer)
     {
-        static_for<0, DstSizeTensor{}, 1>{}([&](auto i) { dst_tensor(i) = src_tensor(i); });
+        using SizeType = decltype(size(dst_tensor));
+        static_for<0, SizeType{}, 1>{}([&](auto i) { dst_tensor(i) = src_tensor(i); });
     }
     else
     {

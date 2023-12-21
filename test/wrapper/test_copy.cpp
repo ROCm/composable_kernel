@@ -19,7 +19,7 @@
 #include "ck/wrapper/tensor.hpp"
 #include "ck/wrapper/operations/copy.hpp"
 
-// Test copy from Global to Global through LDS and SGPR
+// Test copy from Global to Global through LDS and VGPR
 template <typename InputTensor,
           typename OutputTensor,
           typename BlockShape,
@@ -28,43 +28,43 @@ template <typename InputTensor,
           typename LocalPartitionSteps>
 __global__ void TestCopyDevice(const InputTensor input_tensor,
                                OutputTensor output_tensor,
-                               const BlockShape block_shape,
+                               const BlockShape tile_shape,
                                const ThreadLayoutShape thread_layout,
                                const LocalTileSteps block_steps,
                                const LocalPartitionSteps thread_steps)
 {
-    __shared__ ck::index_t p_shared[ck::wrapper::size(block_shape)];
+    __shared__ ck::index_t p_shared[ck::wrapper::size(tile_shape)];
     auto tensor_lds = ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Lds>(
-        p_shared, ck::wrapper::make_layout(block_shape));
+        p_shared, ck::wrapper::make_layout(tile_shape));
 
     const auto block_idxs = ck::make_tuple(ck::make_tuple(0, 0), blockIdx.x);
 
     // Get local tiles for global memory
-    const auto input_make_local_tile =
-        ck::wrapper::make_local_tile(input_tensor, block_shape, block_idxs, block_steps);
-    const auto output_make_local_tile =
-        ck::wrapper::make_local_tile(output_tensor, block_shape, block_idxs, block_steps);
+    const auto input_local_tile =
+        ck::wrapper::make_local_tile(input_tensor, tile_shape, block_idxs, block_steps);
+    const auto output_local_tile =
+        ck::wrapper::make_local_tile(output_tensor, tile_shape, block_idxs, block_steps);
 
     // Get partition per thread
-    const auto input_make_local_partition = ck::wrapper::make_local_partition(
-        input_make_local_tile, thread_layout, threadIdx.x, thread_steps);
-    auto lds_make_local_partition =
+    const auto input_local_partition = ck::wrapper::make_local_partition(
+        input_local_tile, thread_layout, threadIdx.x, thread_steps);
+    auto lds_local_partition =
         ck::wrapper::make_local_partition(tensor_lds, thread_layout, threadIdx.x, thread_steps);
-    auto output_make_local_partition = ck::wrapper::make_local_partition(
-        output_make_local_tile, thread_layout, threadIdx.x, thread_steps);
+    auto output_local_partition = ck::wrapper::make_local_partition(
+        output_local_tile, thread_layout, threadIdx.x, thread_steps);
 
-    // Allocate sgpr
+    // Allocate VGPR
     constexpr ck::index_t scalar_per_vector = 1;
-    constexpr ck::index_t sgpr_size         = ck::wrapper::size(lds_make_local_partition);
-    auto tensor_sgpr = ck::wrapper::make_register_tensor<ck::wrapper::MemoryTypeEnum::Sgpr,
-                                                         sgpr_size,
+    constexpr ck::index_t vgpr_size         = ck::wrapper::size(lds_local_partition);
+    auto tensor_vgpr = ck::wrapper::make_register_tensor<ck::wrapper::MemoryTypeEnum::Vgpr,
+                                                         vgpr_size,
                                                          scalar_per_vector,
                                                          ck::index_t>();
 
     // Perform copy
-    ck::wrapper::copy(input_make_local_partition, lds_make_local_partition);
-    ck::wrapper::copy(lds_make_local_partition, tensor_sgpr);
-    ck::wrapper::copy(tensor_sgpr, output_make_local_partition);
+    ck::wrapper::copy(input_local_partition, lds_local_partition);
+    ck::wrapper::copy(lds_local_partition, tensor_vgpr);
+    ck::wrapper::copy(tensor_vgpr, output_local_partition);
 }
 
 void PerformCopyGlobalToGlobalViaLDS()
@@ -94,7 +94,7 @@ void PerformCopyGlobalToGlobalViaLDS()
 
     const auto thread_layout =
         ck::make_tuple(ck::make_tuple(ck::Number<1>{}, ck::Number<1>{}), ck::Number<32>{});
-    const auto block_shape =
+    const auto tile_shape =
         ck::make_tuple(ck::make_tuple(ck::Number<2>{}, ck::Number<2>{}), ck::Number<64>{});
 
     const auto thread_steps =
@@ -103,11 +103,11 @@ void PerformCopyGlobalToGlobalViaLDS()
         ck::make_tuple(ck::make_tuple(ck::Number<1>{}, ck::Number<1>{}), ck::Number<64>{});
 
     const ck::index_t grid_size = ck::math::integer_divide_ceil(
-        ck::wrapper::size(input_tensor_global), ck::wrapper::size(block_shape));
+        ck::wrapper::size(input_tensor_global), ck::wrapper::size(tile_shape));
 
     const auto kernel = TestCopyDevice<decltype(input_tensor_global),
                                        decltype(output_tensor_global),
-                                       decltype(block_shape),
+                                       decltype(tile_shape),
                                        decltype(thread_layout),
                                        decltype(block_steps),
                                        decltype(thread_steps)>;
@@ -118,7 +118,7 @@ void PerformCopyGlobalToGlobalViaLDS()
                            0,
                            input_tensor_global,
                            output_tensor_global,
-                           block_shape,
+                           tile_shape,
                            thread_layout,
                            block_steps,
                            thread_steps);

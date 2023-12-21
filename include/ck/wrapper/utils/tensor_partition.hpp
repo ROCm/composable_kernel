@@ -184,7 +184,7 @@ __host__ __device__ constexpr auto CalculateLayoutOffsetIdx(const Tuple<Steps...
 // block layout based on shape.
 template <typename... Ts, typename... BlockDims>
 __host__ __device__ constexpr auto CalculateBlockLengths(const Tuple<Ts...>& shape,
-                                                         const Tuple<BlockDims...>& block_shape)
+                                                         const Tuple<BlockDims...>& tile_shape)
 {
     return generate_tuple(
         [&](auto i) {
@@ -192,11 +192,11 @@ __host__ __device__ constexpr auto CalculateBlockLengths(const Tuple<Ts...>& sha
             if constexpr(is_detected<is_tuple, tuple_element_t<i.value, Tuple<Ts...>>>::value)
             {
                 // if tuple then recurrence
-                return CalculateBlockLengths(shape.At(num_i), block_shape.At(num_i));
+                return CalculateBlockLengths(shape.At(num_i), tile_shape.At(num_i));
             }
             else
             {
-                return shape.At(num_i) / block_shape.At(num_i);
+                return shape.At(num_i) / tile_shape.At(num_i);
             }
         },
         Number<Tuple<Ts...>::Size()>{});
@@ -235,7 +235,7 @@ __host__ __device__ constexpr auto make_local_partition(const TensorType& tensor
  * \brief Create local tile for thread block.
  *
  * \param tensor Tensor for partition.
- * \param block_shape Shapes of requested tile.
+ * \param tile_shape Shapes of requested tile.
  * \param block_idx Block index represented as tuple.
  * \param steps Block step (default=1, raked partition)
  * \return Tile tensor.
@@ -245,14 +245,14 @@ template <typename TensorType,
           typename BlockIdxTuple,
           typename StepsTuple = Tuple<>>
 __host__ __device__ constexpr auto make_local_tile(const TensorType& tensor,
-                                                   const BlockShapeTuple& block_shape,
+                                                   const BlockShapeTuple& tile_shape,
                                                    const BlockIdxTuple& block_idx,
                                                    const StepsTuple steps = StepsTuple{})
 {
     // Create block lengths, strides and layout for new tile tensor
-    const auto block_lengths = CalculateBlockLengths(shape(tensor), block_shape);
+    const auto block_lengths = CalculateBlockLengths(shape(tensor), tile_shape);
     const auto block_strides = CalculateLocalPartitionStrides(stride(tensor), block_lengths, steps);
-    const auto tile_layout   = make_layout(block_shape, block_strides);
+    const auto tile_layout   = make_layout(tile_shape, block_strides);
     // Calculate offset for new partition tensor
     const auto offset_idx       = CalculateLayoutOffsetIdx(steps, block_idx);
     const auto partition_offset = layout(tensor)(offset_idx);
