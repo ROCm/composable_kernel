@@ -25,7 +25,7 @@ namespace ck {
 namespace profiler {
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
-void host_elementwise4D(HostTensorB& B_nchwd, const HostTensorA& A_ncdhw, Functor functor)
+void host_elementwise4D(HostTensorB& B_ndhwc, const HostTensorA& A_ncdhw, Functor functor)
 {
     for(std::size_t n = 0; n < A_ncdhw.mDesc.GetLengths()[0]; ++n)
         for(std::size_t c = 0; c < A_ncdhw.mDesc.GetLengths()[1]; ++c)
@@ -34,7 +34,7 @@ void host_elementwise4D(HostTensorB& B_nchwd, const HostTensorA& A_ncdhw, Functo
                     for(std::size_t w = 0; w < A_ncdhw.mDesc.GetLengths()[4]; ++w)
                     {
                         auto a_val = A_ncdhw(n, c, d, h, w);
-                        functor(B_nchwd(n, c, h, w, d), a_val);
+                        functor(B_ndhwc(n, d, h, w, c), a_val);
                     }
 }
 
