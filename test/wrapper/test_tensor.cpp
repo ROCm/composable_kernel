@@ -127,7 +127,7 @@ __global__ void TestTensorReadWriteDevice(void* data, void* success)
     StaticInitTensor<nelems>(tensor_vgpr);
     StaticInitTensor<nelems>(tensor_sgpr);
 
-    *casted_success_ptr &= TestTensorCheck1d(tensor_global);
+    *casted_success_ptr = TestTensorCheck1d(tensor_global);
     *casted_success_ptr &= TestTensorCheck3d(tensor_global);
 
     *casted_success_ptr &= TestTensorCheck1d(tensor_lds);
