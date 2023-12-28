@@ -3,27 +3,13 @@
 
 #pragma once
 
-#include "ck/ck.hpp"
-
-#include "ck/utility/number.hpp"
-#include "ck/utility/tuple.hpp"
-#include "ck/utility/tuple_helper.hpp"
-#include "ck/utility/sequence.hpp"
-#include "ck/utility/sequence_helper.hpp"
-#include "ck/utility/is_detected.hpp"
-
-#include "ck/tensor_description/tensor_descriptor.hpp"
-#include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_description/multi_index_transform_helper.hpp"
+#include "ck/wrapper/utils/layout_utils.hpp"
 
 namespace ck {
-namespace tensor_transform_wrapper {
+namespace wrapper {
 
 /**
- * \brief Layout wrapper
- *
- * \details
- * Layout wrapper that performs the tensor descriptor logic.
+ * \brief Layout wrapper that performs the tensor descriptor logic.
  *
  * \tparam Shape Tuple of Number<> (for compile-time layout) or index_t
  *         (dynamic layout). It is possible to pass nested shapes
@@ -32,21 +18,39 @@ namespace tensor_transform_wrapper {
  *         (dynamic layout). Stride tuple should be nested if shape tuple is
  *         nested.
  */
-template <typename Shape, typename Strides = Tuple<>>
+template <typename Shape, typename Strides>
 struct Layout
 {
     private:
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
 
-    template <typename T>
-    using is_tuple = decltype(std::declval<T&>().IsTuple());
+    // Generate default idxs tuple (idx with all merged nested shapes)
+    template <typename... Ts>
+    __host__ __device__ constexpr static auto GenerateDefaultIdxsTuple(const Tuple<Ts...>&)
+    {
+        return generate_tuple(
+            [&](auto) {
+                if constexpr(!FlattenDescriptorType::IsKnownAtCompileTime())
+                {
+                    // runtime layout
+                    return index_t(0);
+                }
+                else
+                {
+                    // compiletime layout
+                    return I0;
+                }
+            },
+            Number<Tuple<Ts...>::Size()>{});
+    }
 
     // Generate packed (column-major) strides if not passed
     template <typename... Ts>
     __host__ __device__ constexpr static auto
-    GenerateColumnMajorPackedStrides(const Tuple<Ts...>& tuple)
+    GenerateColumnMajorPackedStrides(const Tuple<Ts...>& shape)
     {
+        const auto unrolled_shape = UnrollNestedTuple(shape);
         return generate_tuple(
             [&](auto i) {
                 if constexpr(i.value == 0)
@@ -56,10 +60,10 @@ struct Layout
                 else
                 {
                     return TupleReduce<I0.value, i.value>([](auto x, auto y) { return x * y; },
-                                                          tuple);
+                                                          unrolled_shape);
                 }
             },
-            Number<Tuple<Ts...>::Size()>{});
+            Number<decltype(unrolled_shape)::Size()>{});
     }
 
     // Generate LowerDims in Compile-time for MergeTrasform using passed Type
@@ -112,8 +116,8 @@ struct Layout
     // Example shape:   (2, (2, 2)), 2, (2, 2)
     // Unrolled shape:  2,  (2, 2),  2, (2, 2)
     template <typename... ShapeDims, typename... IdxDims>
-    __host__ __device__ constexpr static auto UnrollShapeViaIdx(const Tuple<ShapeDims...>& shape,
-                                                                const Tuple<IdxDims...>& idx)
+    __host__ __device__ constexpr static auto AlignShapeToIdx(const Tuple<ShapeDims...>& shape,
+                                                              const Tuple<IdxDims...>& idx)
     {
         if constexpr(!IsNestedTuple(Tuple<IdxDims...>{}))
         {
@@ -125,7 +129,7 @@ struct Layout
             // Iterate over shape tuple elements:
             // 1. If corresponding idx element is tuple then return (will be unrolled)
             // 2. If no, pack in tuple. It will be restored during unroll.
-            auto unrolled_shape_via_idx = generate_tuple(
+            auto aligned_shape = generate_tuple(
                 [&](auto i) {
                     if constexpr(is_detected<is_tuple,
                                              tuple_element_t<i, Tuple<IdxDims...>>>::value)
@@ -140,37 +144,34 @@ struct Layout
                 Number<Tuple<IdxDims...>::Size()>{});
 
             // Unroll and process next step
-            return UnrollShapeViaIdx(UnrollNestedTuple<0, 1>(unrolled_shape_via_idx),
-                                     UnrollNestedTuple<0, 1>(idx));
+            return AlignShapeToIdx(UnrollNestedTuple<0, 1>(aligned_shape),
+                                   UnrollNestedTuple<0, 1>(idx));
         }
     }
 
     template <typename... ShapeDims, typename DescriptorToMerge>
     __host__ __device__ constexpr static auto MakeMerge1d(const Tuple<ShapeDims...>& shape,
-                                                          DescriptorToMerge& desc)
+                                                          const DescriptorToMerge& desc)
     {
         // Reverse each element in tuple
-        using ReversedUnrolledShape = decltype(TupleReverse(UnrollNestedTuple(shape)));
-        const auto merge_elems      = ReversedUnrolledShape{};
-
+        const auto merge_elems = TupleReverse(UnrollNestedTuple(shape));
         // Generate reverted indexes (column major traverse)
-        using MergeElemsSequence =
-            typename arithmetic_sequence_gen<0, ReversedUnrolledShape::Size(), 1>::type;
-        const auto lower_dims = make_tuple(MergeElemsSequence::Reverse());
-        const auto upper_dims = make_tuple(Sequence<0>{});
+        using MergeElemsSequence = typename arithmetic_sequence_gen<0, merge_elems.Size(), 1>::type;
+        const auto lower_dims    = make_tuple(MergeElemsSequence::Reverse());
+        const auto upper_dims    = make_tuple(Sequence<0>{});
         // Merge to 1d
         return transform_tensor_descriptor(
             desc, make_tuple(make_merge_transform(merge_elems)), lower_dims, upper_dims);
     }
 
-    // Merge nested shape dims
+    // Merge nested shape dims when corresponding index is also nested.
     // Input desc shape: 2,  2,  2, 2,  2,  2
     // Example idx:      1,      1, 1,      1
     // Example shape:    2, (2, 2), 2, (2, 2)
     // Merged shape:     2,      4, 2,      4
     template <typename... ShapeDims, typename... IdxDims, typename DescriptorToMerge>
-    __host__ __device__ constexpr static auto
-    MakeMerges(const Tuple<ShapeDims...>& shape, const Tuple<IdxDims...>&, DescriptorToMerge& desc)
+    __host__ __device__ constexpr static auto CreateMergedDescriptor(
+        const Tuple<ShapeDims...>& shape, const Tuple<IdxDims...>&, DescriptorToMerge& desc)
     {
         const auto transforms = generate_tuple(
             [&](auto i) {
@@ -206,14 +207,38 @@ struct Layout
         return transform_tensor_descriptor(desc, transforms, lower_dims, upper_dims);
     }
 
+    template <typename LayoutShape, typename LayoutStrides>
+    __host__ __device__ static auto MakeFlattenDescriptor(const LayoutShape& shape,
+                                                          const LayoutStrides& strides)
+    {
+        const auto unrolled_shape   = UnrollNestedTuple(shape);
+        const auto unrolled_strides = UnrollNestedTuple(strides);
+        static_assert(unrolled_shape.Size() == unrolled_strides.Size(),
+                      "Size of strides and shape are not consistent.");
+        return make_naive_tensor_descriptor(unrolled_shape, unrolled_strides);
+    }
+
+    // If the stride is not passed, you can infer it from `GenerateColumnMajorPackedStrides`.
+    using DeducedStrides =
+        std::conditional_t<is_same_v<Strides, Tuple<>>,
+                           remove_cvref_t<decltype(GenerateColumnMajorPackedStrides(Shape{}))>,
+                           Strides>;
+    using FlattenDescriptorType =
+        remove_cvref_t<decltype(MakeFlattenDescriptor(Shape{}, DeducedStrides{}))>;
+    using Descriptor1dType =
+        remove_cvref_t<decltype(MakeMerge1d(Shape{}, FlattenDescriptorType{}))>;
+    using DefaultIdxsTupleType = remove_cvref_t<decltype(GenerateDefaultIdxsTuple(Shape{}))>;
+
     template <typename... ShapeDims, typename... IdxDims>
-    __host__ __device__ constexpr auto TransformDesc(const Tuple<ShapeDims...>& shape,
-                                                     const Tuple<IdxDims...>& idx) const
+    __host__ __device__ constexpr static auto
+    TransformDesc(const Tuple<ShapeDims...>& shape,
+                  const Tuple<IdxDims...>& idx,
+                  const FlattenDescriptorType& naive_descriptor)
     {
         if constexpr(Tuple<IdxDims...>::Size() == I1)
         {
             // 1d idx path
-            return MakeMerge1d(shape, descriptor_);
+            return MakeMerge1d(shape, naive_descriptor);
         }
         else
         {
@@ -224,62 +249,55 @@ struct Layout
             static_assert(Tuple<ShapeDims...>::Size() == Tuple<IdxDims...>::Size(),
                           "Idx rank and Shape rank must be the same (except 1d).");
             // Unroll while IdxDims is nested
-            const auto unrolled_shape_via_idx = UnrollShapeViaIdx(shape, idx);
+            const auto aligned_shape = AlignShapeToIdx(shape, idx);
             // Transform correct form of shape
-            return MakeMerges(unrolled_shape_via_idx, UnrollNestedTuple(idx), descriptor_);
+            return CreateMergedDescriptor(aligned_shape, UnrollNestedTuple(idx), naive_descriptor);
         }
     }
 
-    template <typename LayoutShape, typename LayoutStrides>
-    __host__ __device__ static auto MakeNaiveDescriptor(const LayoutShape& shape,
-                                                        const LayoutStrides& strides)
-    {
-        const auto unrolled_shape = UnrollNestedTuple(shape);
-
-        if constexpr(ck::is_same_v<LayoutStrides, Tuple<>>)
-        {
-            // If shape is packed
-            const auto column_major_packed_strides =
-                GenerateColumnMajorPackedStrides(unrolled_shape);
-            return make_naive_tensor_descriptor(unrolled_shape, column_major_packed_strides);
-        }
-        else
-        {
-            const auto unrolled_strides = UnrollNestedTuple(strides);
-            static_assert(unrolled_shape.Size() == unrolled_strides.Size(),
-                          "Size of strides and shape are not consistent.");
-            return make_naive_tensor_descriptor(unrolled_shape, unrolled_strides);
-        }
-    }
+    using MergedNestsDescriptorType = remove_cvref_t<decltype(TransformDesc(
+        Shape{}, DefaultIdxsTupleType{}, FlattenDescriptorType{}))>;
 
     public:
-    using NaiveDescriptorType = remove_cvref_t<decltype(MakeNaiveDescriptor(Shape{}, Strides{}))>;
+    __host__ __device__ constexpr auto GetElementSpaceSize() const
+    {
+        return flatten_descriptor_.GetElementSpaceSize();
+    }
 
+    __host__ __device__ Layout() = delete;
     /**
      * \brief Layout constructor.
      *
      * \param shape Shape for layout.
      * \param strides Strides for layout (optional if tensor is packed).
-     * \return Layout object.
      */
-    __host__ __device__ Layout() = delete;
-    __host__ __device__ Layout(const Shape& shape, const Strides& strides) : descriptor_{}
+    __host__ __device__ constexpr Layout(const Shape& shape, const Strides& strides)
+        : flatten_descriptor_{}, shape_(shape), strides_(strides)
     {
         // Construct if runtime mode
-        if constexpr(!NaiveDescriptorType::IsKnownAtCompileTime())
+        if constexpr(!FlattenDescriptorType::IsKnownAtCompileTime())
         {
-            // Keep only shape, strides are not need for transforms
-            shape_      = shape;
-            descriptor_ = MakeNaiveDescriptor(shape, strides);
+            flatten_descriptor_ = MakeFlattenDescriptor(shape_, strides_);
+            descriptor_1d_      = MakeMerge1d(shape_, flatten_descriptor_);
+            merged_nests_descriptor_ =
+                TransformDesc(shape_, DefaultIdxsTupleType{}, flatten_descriptor_);
         }
     }
 
-    __host__ __device__ Layout(const Shape& shape) : descriptor_{}
+    /**
+     * \brief Layout constructor (with default packed column-major strides).
+     *
+     * \param shape Shape for layout.
+     */
+    __host__ __device__ constexpr Layout(const Shape& shape)
+        : flatten_descriptor_{}, shape_(shape), strides_(GenerateColumnMajorPackedStrides(shape_))
     {
-        if constexpr(!NaiveDescriptorType::IsKnownAtCompileTime())
+        if constexpr(!FlattenDescriptorType::IsKnownAtCompileTime())
         {
-            shape_      = shape;
-            descriptor_ = MakeNaiveDescriptor(shape, Strides{});
+            flatten_descriptor_ = MakeFlattenDescriptor(shape_, strides_);
+            descriptor_1d_      = MakeMerge1d(shape_, flatten_descriptor_);
+            merged_nests_descriptor_ =
+                TransformDesc(shape_, DefaultIdxsTupleType{}, flatten_descriptor_);
         }
     }
 
@@ -292,7 +310,9 @@ struct Layout
     template <typename Idxs>
     __host__ __device__ constexpr index_t operator()() const
     {
-        using TransformedDesc = decltype(TransformDesc(Shape{}, Idxs{}));
+        static_assert(FlattenDescriptorType::IsKnownAtCompileTime(),
+                      "Compiletime operator used on runtime layout.");
+        using TransformedDesc = decltype(TransformDesc(Shape{}, Idxs{}, FlattenDescriptorType{}));
         using UnrolledIdx     = decltype(UnrollNestedTuple(Idxs{}));
         return TransformedDesc{}.CalculateOffset(UnrolledIdx{});
     }
@@ -306,9 +326,22 @@ struct Layout
     template <typename... Ts>
     __host__ __device__ index_t operator()(const Tuple<Ts...>& Idx) const
     {
-        // Static to construct transformed_desc only once
-        static const auto transformed_desc = TransformDesc(shape_, Idx);
-        return transformed_desc.CalculateOffset(UnrollNestedTuple(Idx));
+        if constexpr(!IsNestedTuple(Tuple<Ts...>{}) && Tuple<Ts...>::Size() == 1)
+        {
+            // if 1d access
+            return descriptor_1d_.CalculateOffset(Idx);
+        }
+        else if constexpr(!IsNestedTuple(Tuple<Ts...>{}) && Tuple<Ts...>::Size() == Shape::Size())
+        {
+            // if Shape::Size() access (merged nested shapes)
+            return merged_nests_descriptor_.CalculateOffset(UnrollNestedTuple(Idx));
+        }
+        else
+        {
+            // Custom index, need to transform descriptor
+            const auto transformed_desc = TransformDesc(shape_, Idx, flatten_descriptor_);
+            return transformed_desc.CalculateOffset(UnrollNestedTuple(Idx));
+        }
     }
 
     /**
@@ -338,7 +371,7 @@ struct Layout
      *
      * \return Calculated size.
      */
-    __host__ __device__ constexpr index_t GetLength() const
+    __host__ __device__ constexpr index_t GetLengths() const
     {
         const auto unrolled_shape = UnrollNestedTuple(shape_);
         return TupleReduce<I0.value, unrolled_shape.Size()>([](auto x, auto y) { return x * y; },
@@ -346,80 +379,56 @@ struct Layout
     }
 
     /**
-     * \brief Dimension getter.
+     * \brief Shape getter.
      *
-     * \tparam IDim Dimension idx.
-     * \return Calculated size.
+     * \return Shape.
      */
-    template <index_t IDim>
-    __host__ __device__ constexpr auto Get() const
+    __host__ __device__ constexpr const Shape& GetShape() const { return shape_; }
+
+    /**
+     * \brief Strides getter.
+     *
+     * \return Strides.
+     */
+    __host__ __device__ constexpr const DeducedStrides& GetStrides() const { return strides_; }
+
+    /**
+     * \brief Get default lengths (tuple filled with Shape length elements).
+     *
+     * \return Default lengths.
+     */
+    __host__ __device__ constexpr auto GetDefaultLengthsTuple() const
     {
-        const auto elem = shape_.At(Number<IDim>{});
-        return elem;
+        return generate_tuple([&](auto i) { return GetLength<i>(); }, Number<Shape::Size()>{});
+    }
+
+    /**
+     * \brief Get default start idx (tuple filled with 0s of the same size as Shape).
+     *
+     * \return Default start idx.
+     */
+    __host__ __device__ constexpr auto GetDefaultStartIdxs() const
+    {
+        return GenerateDefaultIdxsTuple(shape_);
+    }
+
+    /**
+     * \brief Get default descriptor (with the same size as Shape)
+     *
+     * \return Default descriptor.
+     */
+    __host__ __device__ constexpr MergedNestsDescriptorType GetDefaultDescriptor()
+    {
+        return merged_nests_descriptor_;
     }
 
     private:
-    NaiveDescriptorType descriptor_;
-    Shape shape_;
+    FlattenDescriptorType flatten_descriptor_;
+    Descriptor1dType descriptor_1d_;
+    MergedNestsDescriptorType merged_nests_descriptor_;
+    const Shape shape_;
+    const DeducedStrides strides_;
 };
 
-// Layout helpers
-// Length getter (product if tuple)
-template <index_t idx, typename Shape, typename Strides>
-__host__ __device__ constexpr index_t size(const Layout<Shape, Strides>& layout)
-{
-    return layout.template GetLength<idx>();
-}
-
-// Get shape size (product of dims if tuple)
-template <typename... ShapeDims>
-__host__ __device__ constexpr index_t size(const Tuple<ShapeDims...>& shape)
-{
-    using UnrolledShape = decltype(UnrollNestedTuple(shape));
-    return TupleReduce<0, UnrolledShape::Size()>([](auto x, auto y) { return x * y; },
-                                                 UnrolledShape{});
-}
-
-// Get dim size (could be returned from get function)
-template <typename T>
-__host__ __device__ T constexpr size(const T& dim)
-{
-    return dim;
-}
-
-// Get layout size (product of shapes)
-template <typename Shape, typename Strides>
-__host__ __device__ constexpr index_t size(const Layout<Shape, Strides>& layout)
-{
-    return layout.GetLength();
-}
-
-// Get shape element size
-template <index_t idx, typename... ShapeDims>
-__host__ __device__ constexpr index_t size(const Tuple<ShapeDims...>& shape)
-{
-    return size(shape.At(Number<idx>{}));
-}
-
-// Dim getter (tuple if tuple)
-template <index_t idx, typename Shape, typename Strides>
-__host__ __device__ constexpr auto get(const Layout<Shape, Strides>& layout)
-{
-    return layout.template Get<idx>();
-}
-
-template <typename Shape, typename Strides>
-__host__ __device__ constexpr Layout<Shape, Strides> make_layout(const Shape& shape,
-                                                                 const Strides& strides)
-{
-    return Layout<Shape, Strides>(shape, strides);
-}
-
-template <typename Shape>
-__host__ __device__ constexpr Layout<Shape> make_layout(const Shape& shape)
-{
-    return Layout<Shape>(shape);
-}
-
-} // namespace tensor_transform_wrapper
+} // namespace wrapper
 } // namespace ck
