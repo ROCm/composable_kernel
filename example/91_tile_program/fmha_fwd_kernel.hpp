@@ -15,10 +15,6 @@
 // P[seqlen_q, seqlen_k] = Softmax(S[seqlen_q, seqlen_k])
 // O[seqlen_q, hdim_v] = P[seqlen_q, seqlen_k] * V[hdim_v, seqlen_k]
 
-#ifndef C_LOG2E
-#define C_LOG2E 1.44269504088896340736 // log2(e)
-#endif
-
 template <typename TilePartitioner_, typename FmhaPipeline_, typename EpiloguePipeline_>
 struct FmhaFwdKernel
 {
@@ -40,60 +36,23 @@ struct FmhaFwdKernel
     static constexpr bool kM0NeedPadding   = FmhaPipeline::kM0NeedPadding;
     static constexpr bool kN0K1NeedPadding = FmhaPipeline::kN0K1NeedPadding;
     static constexpr bool kHasBias         = FmhaPipeline::kHasBias;
+    using FmhaMask                         = ck::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
+    static constexpr bool kHasMask         = FmhaMask::IsMasking;
 
-    using C0MatrixMask = ck::tile_program::block::C0MatrixMask_impl<
-        ck::remove_cvref_t<typename FmhaPipeline::BlockFmhaMask>>;
+    // using C0MatrixMask = ck::tile_program::block::C0MatrixMask_impl<
+    //     ck::remove_cvref_t<typename FmhaPipeline::FmhaMask>>;
 
     private:
+    template <ck::index_t I> // to avoid duplicated base class prblem, introduce an template arg
     struct EmptyKargs
     {
     };
 
+    // kargs use aggregate initializer, so no constructor will provided
+    // use inheritance to minimize karg size
+    // user need to use MakeKargs() function to create kargs.
     struct CommonKargs
     {
-        __host__ constexpr CommonKargs(const void* q_ptr_,
-                                       const void* k_ptr_,
-                                       const void* v_ptr_,
-                                       void* o_ptr_,
-                                       ck::index_t seqlen_q_,
-                                       ck::index_t seqlen_k_,
-                                       ck::index_t hdim_q_,
-                                       ck::index_t hdim_v_,
-                                       ck::index_t nhead_ratio_qk_,
-                                       float scale_,
-                                       ck::index_t stride_q_,
-                                       ck::index_t stride_k_,
-                                       ck::index_t stride_v_,
-                                       ck::index_t stride_o_,
-                                       ck::index_t nhead_stride_q_,
-                                       ck::index_t nhead_stride_k_,
-                                       ck::index_t nhead_stride_v_,
-                                       ck::index_t nhead_stride_o_)
-            : q_ptr{reinterpret_cast<const QDataType*>(q_ptr_)},
-              k_ptr{reinterpret_cast<const KDataType*>(k_ptr_)},
-              v_ptr{reinterpret_cast<const VDataType*>(v_ptr_)},
-              o_ptr{reinterpret_cast<ODataType*>(o_ptr_)},
-              seqlen_q{seqlen_q_},
-              seqlen_k{seqlen_k_},
-              hdim_q{hdim_q_},
-              hdim_v{hdim_v_},
-              nhead_ratio_qk{nhead_ratio_qk_},
-#if CK_FMHA_FWD_FAST_EXP2
-              scale{static_cast<float>(scale_ * C_LOG2E)},
-#else
-              scale{scale_},
-#endif
-              stride_q{stride_q_},
-              stride_k{stride_k_},
-              stride_v{stride_v_},
-              stride_o{stride_o_},
-              nhead_stride_q{nhead_stride_q_},
-              nhead_stride_k{nhead_stride_k_},
-              nhead_stride_v{nhead_stride_v_},
-              nhead_stride_o{nhead_stride_o_}
-        {
-        }
-
         const QDataType* q_ptr;
         const KDataType* k_ptr;
         const VDataType* v_ptr;
@@ -132,107 +91,25 @@ struct FmhaFwdKernel
         ck::index_t batch_stride_bias = 0;
     };
 
-    struct BatchModeKargs : CommonKargs,
-                            std::conditional_t<kHasBias, BatchModeBiasKargs, EmptyKargs>
+    struct MaskKargs
     {
-        __host__ constexpr BatchModeKargs(const void* q_ptr_,
-                                          const void* k_ptr_,
-                                          const void* v_ptr_,
-                                          void* o_ptr_,
-                                          ck::index_t seqlen_q_,
-                                          ck::index_t seqlen_k_,
-                                          ck::index_t hdim_q_,
-                                          ck::index_t hdim_v_,
-                                          ck::index_t nhead_ratio_qk_,
-                                          float scale_,
-                                          ck::index_t stride_q_,
-                                          ck::index_t stride_k_,
-                                          ck::index_t stride_v_,
-                                          ck::index_t stride_o_,
-                                          ck::index_t nhead_stride_q_,
-                                          ck::index_t nhead_stride_k_,
-                                          ck::index_t nhead_stride_v_,
-                                          ck::index_t nhead_stride_o_,
-                                          ck::index_t batch_stride_q_,
-                                          ck::index_t batch_stride_k_,
-                                          ck::index_t batch_stride_v_,
-                                          ck::index_t batch_stride_o_)
-            : CommonKargs{q_ptr_,
-                          k_ptr_,
-                          v_ptr_,
-                          o_ptr_,
-                          seqlen_q_,
-                          seqlen_k_,
-                          hdim_q_,
-                          hdim_v_,
-                          nhead_ratio_qk_,
-                          scale_,
-                          stride_q_,
-                          stride_k_,
-                          stride_v_,
-                          stride_o_,
-                          nhead_stride_q_,
-                          nhead_stride_k_,
-                          nhead_stride_v_,
-                          nhead_stride_o_},
-              batch_stride_q{batch_stride_q_},
-              batch_stride_k{batch_stride_k_},
-              batch_stride_v{batch_stride_v_},
-              batch_stride_o{batch_stride_o_}
-        {
-        }
+        ck::index_t mask_y, mask_x;
+    };
 
+    struct BatchModeKargs : CommonKargs,
+                            std::conditional_t<kHasBias, BatchModeBiasKargs, EmptyKargs<0>>,
+                            std::conditional_t<kHasMask, MaskKargs, EmptyKargs<1>>
+    {
         ck::index_t batch_stride_q;
         ck::index_t batch_stride_k;
         ck::index_t batch_stride_v;
         ck::index_t batch_stride_o;
     };
 
-    struct GroupModeKargs : CommonKargs, std::conditional_t<kHasBias, CommonBiasKargs, EmptyKargs>
+    struct GroupModeKargs : CommonKargs,
+                            std::conditional_t<kHasBias, CommonBiasKargs, EmptyKargs<0>>,
+                            std::conditional_t<kHasMask, MaskKargs, EmptyKargs<1>>
     {
-        __host__ constexpr GroupModeKargs(const void* q_ptr_,
-                                          const void* k_ptr_,
-                                          const void* v_ptr_,
-                                          void* o_ptr_,
-                                          const void* seqstart_q_ptr_,
-                                          const void* seqstart_k_ptr_,
-                                          const void* seqlen_k_ptr_,
-                                          ck::index_t hdim_q_,
-                                          ck::index_t hdim_v_,
-                                          ck::index_t nhead_ratio_qk_,
-                                          float scale_,
-                                          ck::index_t stride_q_,
-                                          ck::index_t stride_k_,
-                                          ck::index_t stride_v_,
-                                          ck::index_t stride_o_,
-                                          ck::index_t nhead_stride_q_,
-                                          ck::index_t nhead_stride_k_,
-                                          ck::index_t nhead_stride_v_,
-                                          ck::index_t nhead_stride_o_)
-            : CommonKargs{q_ptr_,
-                          k_ptr_,
-                          v_ptr_,
-                          o_ptr_,
-                          -1 /* will be updated inside the kernel */,
-                          -1 /* will be updated inside the kernel */,
-                          hdim_q_,
-                          hdim_v_,
-                          nhead_ratio_qk_,
-                          scale_,
-                          stride_q_,
-                          stride_k_,
-                          stride_v_,
-                          stride_o_,
-                          nhead_stride_q_,
-                          nhead_stride_k_,
-                          nhead_stride_v_,
-                          nhead_stride_o_},
-              seqstart_q_ptr{reinterpret_cast<const int32_t*>(seqstart_q_ptr_)},
-              seqstart_k_ptr{reinterpret_cast<const int32_t*>(seqstart_k_ptr_)},
-              seqlen_k_ptr{reinterpret_cast<const int32_t*>(seqlen_k_ptr_)}
-        {
-        }
-
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
         const int32_t* seqlen_k_ptr;
@@ -267,13 +144,38 @@ struct FmhaFwdKernel
                                                                       ck::index_t batch_stride_k,
                                                                       ck::index_t batch_stride_v,
                                                                       ck::index_t batch_stride_bias,
-                                                                      ck::index_t batch_stride_o)
+                                                                      ck::index_t batch_stride_o,
+                                                                      ck::index_t mask_y,
+                                                                      ck::index_t mask_x)
     {
-        Kargs kargs{q_ptr,          k_ptr,          v_ptr,          o_ptr,          seqlen_q,
-                    seqlen_k,       hdim_q,         hdim_v,         nhead_ratio_qk, scale,
-                    stride_q,       stride_k,       stride_v,       stride_o,       nhead_stride_q,
-                    nhead_stride_k, nhead_stride_v, nhead_stride_o, batch_stride_q, batch_stride_k,
-                    batch_stride_v, batch_stride_o};
+        Kargs kargs{{reinterpret_cast<const QDataType*>(q_ptr),
+                     reinterpret_cast<const KDataType*>(k_ptr),
+                     reinterpret_cast<const VDataType*>(v_ptr),
+                     reinterpret_cast<ODataType*>(o_ptr),
+                     seqlen_q,
+                     seqlen_k,
+                     hdim_q,
+                     hdim_v,
+                     nhead_ratio_qk,
+#if CK_FMHA_FWD_FAST_EXP2
+                     static_cast<float>(scale * ck::math::log2e_v<>),
+#else
+                     scale,
+#endif
+                     stride_q,
+                     stride_k,
+                     stride_v,
+                     stride_o,
+                     nhead_stride_q,
+                     nhead_stride_k,
+                     nhead_stride_v,
+                     nhead_stride_o}, // args for common karg
+                    {},               // placeholder for bias
+                    {},               // placeholder for mask
+                    batch_stride_q,
+                    batch_stride_k,
+                    batch_stride_v,
+                    batch_stride_o};
 
         if constexpr(kHasBias)
         {
@@ -281,6 +183,12 @@ struct FmhaFwdKernel
             kargs.stride_bias       = stride_bias;
             kargs.nhead_stride_bias = nhead_stride_bias;
             kargs.batch_stride_bias = batch_stride_bias;
+        }
+
+        if constexpr(kHasMask)
+        {
+            kargs.mask_y = mask_y;
+            kargs.mask_x = mask_x;
         }
 
         return kargs;
@@ -308,33 +216,48 @@ struct FmhaFwdKernel
                                                                       ck::index_t nhead_stride_k,
                                                                       ck::index_t nhead_stride_v,
                                                                       ck::index_t nhead_stride_bias,
-                                                                      ck::index_t nhead_stride_o)
+                                                                      ck::index_t nhead_stride_o,
+                                                                      ck::index_t mask_y,
+                                                                      ck::index_t mask_x)
     {
-        Kargs kargs{q_ptr,
-                    k_ptr,
-                    v_ptr,
-                    o_ptr,
-                    seqstart_q_ptr,
-                    seqstart_k_ptr,
-                    seqlen_k_ptr,
-                    hdim_q,
-                    hdim_v,
-                    nhead_ratio_qk,
-                    scale,
-                    stride_q,
-                    stride_k,
-                    stride_v,
-                    stride_o,
-                    nhead_stride_q,
-                    nhead_stride_k,
-                    nhead_stride_v,
-                    nhead_stride_o};
+        Kargs kargs{{reinterpret_cast<const QDataType*>(q_ptr),
+                     reinterpret_cast<const KDataType*>(k_ptr),
+                     reinterpret_cast<const VDataType*>(v_ptr),
+                     reinterpret_cast<ODataType*>(o_ptr),
+                     -1, // seqlen will be updated by another pointer
+                     -1, //
+                     hdim_q,
+                     hdim_v,
+                     nhead_ratio_qk,
+#if CK_FMHA_FWD_FAST_EXP2
+                     static_cast<float>(scale * ck::math::log2e_v<>),
+#else
+                     scale,
+#endif
+                     stride_q,
+                     stride_k,
+                     stride_v,
+                     stride_o,
+                     nhead_stride_q,
+                     nhead_stride_k,
+                     nhead_stride_v,
+                     nhead_stride_o}, // args for common karg
+                    {},               // placeholder for bias
+                    {},               // placeholder for mask
+                    reinterpret_cast<const int32_t*>(seqstart_q_ptr),
+                    reinterpret_cast<const int32_t*>(seqstart_k_ptr),
+                    reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
 
         if constexpr(kHasBias)
         {
             kargs.bias_ptr          = reinterpret_cast<const BiasDataType*>(bias_ptr);
             kargs.stride_bias       = stride_bias;
             kargs.nhead_stride_bias = nhead_stride_bias;
+        }
+        if constexpr(kHasMask)
+        {
+            kargs.mask_y = mask_y;
+            kargs.mask_x = mask_x;
         }
 
         return kargs;
@@ -582,17 +505,22 @@ struct FmhaFwdKernel
             }
         }();
 
-        C0MatrixMask casual_mask{kargs.seqlen_q, kargs.seqlen_k};
+        FmhaMask mask = [&]() {
+            if constexpr(kHasMask)
+                return FmhaMask{kargs.mask_y, kargs.mask_x, kargs.seqlen_q, kargs.seqlen_k};
+            else
+                return FmhaMask{0, 0, kargs.seqlen_q, kargs.seqlen_k};
+        }();
 
         auto o_acc_tile =
             FmhaPipeline{}(q_dram_window,
                            k_dram_window,
                            v_dram_window,
                            bias_dram_window,
-                           casual_mask,
+                           mask,
                            kargs.scale,
-                           ck::math::integer_divide_ceil(kargs.seqlen_k, FmhaPipeline::kN0),
-                           ck::math::integer_divide_ceil(kargs.hdim_q, FmhaPipeline::kK0),
+                           // ck::math::integer_divide_ceil(kargs.seqlen_k, FmhaPipeline::kN0),
+                           // ck::math::integer_divide_ceil(kargs.hdim_q, FmhaPipeline::kK0),
                            smem_ptr);
 
         // O DRAM and O DRAM window

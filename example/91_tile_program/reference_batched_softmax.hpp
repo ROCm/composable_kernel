@@ -32,13 +32,16 @@ void reference_batched_softmax(const Tensor<ADataType>& a_b_m_n, Tensor<BDataTyp
             v_exp_sum += ck::math::exp(v_a - v_max);
         }
 
+        // if sum is zero(masked), or nan/inf(other computation error), don't do divide
+        CompDataType inv_sum = (v_exp_sum == 0.f || v_exp_sum != v_exp_sum) ? 1.f : 1.f / v_exp_sum;
+
         // elementwise
         for(int n = 0; n < N; ++n)
         {
             const CompDataType v_a = ck::type_convert<CompDataType>(a_b_m_n(batch, m, n));
 
             b_b_m_n(batch, m, n) =
-                ck::type_convert<BDataType>(ck::math::exp(v_a - v_max) / v_exp_sum);
+                ck::type_convert<BDataType>(ck::math::exp(v_a - v_max) * inv_sum);
         }
     };
 

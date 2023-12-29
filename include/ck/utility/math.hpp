@@ -259,13 +259,15 @@ template <typename T>
 struct log2e;
 
 template <>
-struct log2e<double> {
-  static constexpr double value = C_LOG2E;
+struct log2e<double>
+{
+    static constexpr double value = C_LOG2E;
 };
 
 template <>
-struct log2e<float> {
-  static constexpr float value = C_LOG2E;
+struct log2e<float>
+{
+    static constexpr float value = C_LOG2E;
 };
 
 template <typename T = double>

@@ -3,7 +3,7 @@
 
 #pragma once
 
-#define BOOL_SWITCH_1(COND1, CONST_NAME1, ...)  \
+#define BOOL_SWITCH(COND1, CONST_NAME1, ...)    \
     [&] {                                       \
         if(COND1)                               \
         {                                       \
@@ -22,12 +22,12 @@
         if(COND1)                                                  \
         {                                                          \
             constexpr bool CONST_NAME1 = true;                     \
-            BOOL_SWITCH_1(COND2, CONST_NAME2, ##__VA_ARGS__);      \
+            BOOL_SWITCH(COND2, CONST_NAME2, ##__VA_ARGS__);        \
         }                                                          \
         else                                                       \
         {                                                          \
             constexpr bool CONST_NAME1 = false;                    \
-            BOOL_SWITCH_1(COND2, CONST_NAME2, ##__VA_ARGS__);      \
+            BOOL_SWITCH(COND2, CONST_NAME2, ##__VA_ARGS__);        \
         }                                                          \
     }()
 

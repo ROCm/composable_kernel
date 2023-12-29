@@ -16,7 +16,6 @@
 #include "ck/tile_program/tile/slice_tile.hpp"
 #include "ck/tile_program/warp_tile/warp_gemm.hpp"
 #include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qr_ks_vs_async_default_policy.hpp"
-#include "ck/tile_program/block_tile/block_masking_specialization.hpp"
 #include "ck/tile_program/block_tile/block_reduce.hpp"
 #include "ck/tile_program/tile/shuffle_distributed_tensor.hpp"
 
@@ -37,7 +36,7 @@ struct BlockFmhaPipelineQRKSVSAsync
     using PDataType           = remove_cvref_t<typename Problem::PDataType>;
     using OaccDataType        = remove_cvref_t<typename Problem::OaccDataType>;
     using ODataType           = remove_cvref_t<typename Problem::ODataType>;
-    using BlockFmhaMask       = remove_cvref_t<typename Problem::BlockFmhaMask>;
+    using FmhaMask            = remove_cvref_t<typename Problem::FmhaMask>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
@@ -70,8 +69,7 @@ struct BlockFmhaPipelineQRKSVSAsync
               typename QElementFunction,
               typename KElementFunction,
               typename VElementFunction,
-              typename BiasElementFunction,
-              typename CausalMask>
+              typename BiasElementFunction>
     __host__ __device__ auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
@@ -81,10 +79,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                const VElementFunction& v_element_func,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                const BiasElementFunction& bias_element_func,
-               CausalMask causal_mask,
+               FmhaMask mask,
                float scale,
-               index_t num_total_loop,
-               index_t /*num_sub_loop_qk*/, // in this pipeline, the 1st gemm loop must be static
                void* smem_ptr) const
     {
         static_assert(
@@ -182,82 +178,64 @@ struct BlockFmhaPipelineQRKSVSAsync
         set_tile(m, NumericLimits<SMPLComputeDataType>::Lowest());
         clear_tile(l);
 
-        auto k_dram_block_window = k_dram_block_window_tmp;
-        auto v_dram_window =
-            make_tile_window(v_dram_block_window_tmp.GetBottomTensorView(),
-                             v_dram_block_window_tmp.GetWindowLengths(),
-                             v_dram_block_window_tmp.GetWindowOrigin(),
-                             Policy::template MakeVDramTileDistribution<Problem>());
-
         __builtin_amdgcn_sched_barrier(0);
+        const auto q_origin = q_dram_window.GetWindowOrigin();
+        const auto [seqlen_k_start, seqlen_k_end] =
+            mask.GetTileRangeAlongX(q_origin.At(Number<0>{}), Number<kM0>{}, Number<kN0>{});
+
+        const auto num_total_loop = math::integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
+
+        // check early exit if masked and no work to do.
+        if constexpr(FmhaMask::IsMasking)
+        {
+            if(num_total_loop <= 0)
+            {
+                // Note: here occ are all cleard, return it
+                // Note: q loaded but no fence, ignore it.
+                return o_acc;
+            }
+        }
+
+        auto k_dram_block_window = make_tile_window(k_dram_block_window_tmp.GetBottomTensorView(),
+                                                    k_dram_block_window_tmp.GetWindowLengths(),
+                                                    {seqlen_k_start, 0});
+
         auto k_dram_window = make_tile_window(
             k_dram_block_window.GetBottomTensorView(),
             k_dram_block_window.GetWindowLengths(),
             k_dram_block_window.GetWindowOrigin(),
             Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
                                                                     // load
-
-        auto bias_dram_window = make_tile_window(
+        const auto bias_origin = bias_dram_block_window_tmp.GetWindowOrigin();
+        auto bias_dram_window  = make_tile_window(
             bias_dram_block_window_tmp.GetBottomTensorView(),
             bias_dram_block_window_tmp.GetWindowLengths(),
-            bias_dram_block_window_tmp.GetWindowOrigin(),
+            {bias_origin.At(Number<0>{}), seqlen_k_start}, // M/N
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
 
-        const auto q_origin = q_dram_window.GetWindowOrigin();
-        auto k_origin       = k_dram_block_window.GetWindowOrigin();
-        bool skip_tile      = causal_mask.IsTileSkippable(
-            q_origin.At(Number<0>{}), k_origin.At(Number<0>{}), kM0, kN0);
+        auto v_dram_window =
+            make_tile_window(v_dram_block_window_tmp.GetBottomTensorView(),
+                             v_dram_block_window_tmp.GetWindowLengths(),
+                             {0, seqlen_k_start}, // TODO: hdim split?
+                             Policy::template MakeVDramTileDistribution<Problem>());
 
         // prefetch K tile
-        if(!skip_tile)
-        {
-            async_load_tile_raw(k_lds_store(LdsSeq.At(Number<0>{})), k_dram_window);
-            move_tile_window(k_dram_window, {0, kK0});
-        }
+        async_load_tile_raw(k_lds_store(LdsSeq.At(Number<0>{})), k_dram_window);
+        move_tile_window(k_dram_window, {0, kK0});
         __builtin_amdgcn_sched_barrier(0);
 
-        if constexpr(std::is_same<typename CausalMask::MaskOutPredicate,
-                                  ck::tile_program::block::MaskDisabledPredicate>::value)
-            buffer_load_fence(k_dram_window.GetNumAccess());
-        else
-            buffer_load_fence(0); // unconditionally wait for q if this is a mask kernel
+        buffer_load_fence(k_dram_window.GetNumAccess());
+
         auto q_tile = tile_elementwise_in(q_element_func, q);
         __builtin_amdgcn_sched_barrier(0);
 
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kK0BlockLength / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
-        auto prefetch_k            = [&]() {
-            move_tile_window(k_dram_block_window, {kN0, 0});
-            k_dram_window = make_tile_window(k_dram_block_window.GetBottomTensorView(),
-                                             k_dram_block_window.GetWindowLengths(),
-                                             k_dram_block_window.GetWindowOrigin(),
-                                             Policy::template MakeKDramTileDistribution<Problem>());
-
-            k_origin  = k_dram_block_window.GetWindowOrigin();
-            skip_tile = causal_mask.IsTileSkippable(
-                q_origin.At(Number<0>{}), k_origin.At(Number<0>{}), kM0, kN0);
-            if(!skip_tile)
-            {
-                if constexpr(k1_loops >= 2 &&
-                             LdsSeq.At(Number<0>{}) == LdsSeq.At(Number<k0_loops + k1_loops - 2>{}))
-                    __builtin_amdgcn_s_barrier();
-                async_load_tile_raw(k_lds_store(LdsSeq.At(Number<0>{})), k_dram_window);
-                move_tile_window(k_dram_window, {0, kK0});
-            }
-        };
 
         // main loop
         do
         {
-            if(skip_tile)
-            {
-                i_total_loops++;
-                if(i_total_loops < num_total_loop)
-                    prefetch_k();
-                continue;
-            }
-
             // STAGE 1, QK gemm
             clear_tile(s_acc); // Initialize C
             if constexpr(k0_loops > 1)
@@ -328,24 +306,30 @@ struct BlockFmhaPipelineQRKSVSAsync
 #if !CK_FMHA_FWD_FAST_EXP2
                         x = scale * x + type_convert<SaccDataType>(bias_element_func(y));
 #else
-                        x = scale * x +
-                            math::log2e_v<SaccDataType> * type_convert<SaccDataType>(bias_element_func(y));
+                        x = scale * x + math::log2e_v<SaccDataType> *
+                                            type_convert<SaccDataType>(bias_element_func(y));
 #endif
                     },
                     s_acc,
                     bias_tile);
             }
             move_tile_window(bias_dram_window, {0, kN0});
-            if constexpr(kN0K1NeedPadding ||
-                         !is_same_v<typename CausalMask::MaskOutPredicate, MaskDisabledPredicate>)
+            if constexpr(kN0K1NeedPadding || FmhaMask::IsMasking)
             {
-                set_tile_if(
-                    s_acc, -NumericLimits<SMPLComputeDataType>::Infinity(), [&](auto tile_idx) {
-                        const auto row = q_origin.At(Number<0>{}) + tile_idx.At(Number<0>{});
-                        const auto col = k_origin.At(Number<0>{}) + tile_idx.At(Number<1>{});
-
-                        return causal_mask.IsMaskedElement(row, col);
-                    });
+                const auto k_origin      = k_dram_block_window.GetWindowOrigin();
+                bool need_perpixel_check = mask.IsEdgeTile(q_origin.At(Number<0>{}),
+                                                           k_origin.At(Number<0>{}),
+                                                           Number<kM0>{},
+                                                           Number<kN0>{});
+                if(need_perpixel_check)
+                {
+                    set_tile_if(
+                        s_acc, -NumericLimits<SMPLComputeDataType>::Infinity(), [&](auto tile_idx) {
+                            const auto row = q_origin.At(Number<0>{}) + tile_idx.At(Number<0>{});
+                            const auto col = k_origin.At(Number<0>{}) + tile_idx.At(Number<1>{});
+                            return mask.IsOutOfBound(row, col);
+                        });
+                }
             }
 
             const auto s = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
@@ -496,7 +480,18 @@ struct BlockFmhaPipelineQRKSVSAsync
             if(i_total_loops < num_total_loop)
             {
                 // move K tile windows
-                prefetch_k();
+                move_tile_window(k_dram_block_window, {kN0, 0});
+                k_dram_window =
+                    make_tile_window(k_dram_block_window.GetBottomTensorView(),
+                                     k_dram_block_window.GetWindowLengths(),
+                                     k_dram_block_window.GetWindowOrigin(),
+                                     Policy::template MakeKDramTileDistribution<Problem>());
+
+                if constexpr(k1_loops >= 2 &&
+                             LdsSeq.At(Number<0>{}) == LdsSeq.At(Number<k0_loops + k1_loops - 2>{}))
+                    __builtin_amdgcn_s_barrier();
+                async_load_tile_raw(k_lds_store(LdsSeq.At(Number<0>{})), k_dram_window);
+                move_tile_window(k_dram_window, {0, kK0});
             }
             // tail
             {
@@ -516,7 +511,14 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         sweep_tile_span(o_spans[Number<0>{}], [&](auto idx0) {
             constexpr auto i_idx = make_tuple(idx0);
-            const auto tmp       = 1 / l[i_idx];
+            const auto tmp       = [&]() {
+                if constexpr(FmhaMask::IsMasking)
+                {
+                    return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
+                }
+                else
+                    return 1 / l[i_idx];
+            }();
             sweep_tile_span(o_spans[Number<1>{}], [&](auto idx1) {
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
                 o_acc(i_j_idx) *= tmp;
@@ -529,17 +531,14 @@ struct BlockFmhaPipelineQRKSVSAsync
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
-              typename BiasDramBlockWindowTmp,
-              typename CausalMask>
+              typename BiasDramBlockWindowTmp>
     __host__ __device__ auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
-               CausalMask causal_mask,
+               FmhaMask mask,
                float scale,
-               index_t num_total_loop,
-               index_t num_sub_loop_qk,
                void* smem_ptr) const
     {
         return operator()(q_dram_block_window_tmp,
@@ -550,10 +549,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                           identity{},
                           bias_dram_block_window_tmp,
                           identity{},
-                          causal_mask,
+                          mask,
                           scale,
-                          num_total_loop,
-                          num_sub_loop_qk,
                           smem_ptr);
     }
 };

@@ -64,8 +64,10 @@ __device__ constexpr auto make_null_tile_window(const WindowLengths& window_leng
 }
 
 template <typename WindowLengths, typename... Ts>
-__device__ constexpr auto
-make_tile_window(NullTensorView, const WindowLengths& window_lengths, Ts&&...)
+__device__ constexpr auto make_tile_window(NullTensorView,
+                                           const WindowLengths& window_lengths,
+                                           const MultiIndex<WindowLengths::Size()>& /*origin*/,
+                                           Ts&&...)
 {
     static_assert(is_known_at_compile_time<WindowLengths>::value,
                   "wrong! lengths should be static");
