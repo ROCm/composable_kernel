@@ -126,7 +126,7 @@ __global__ void TestTensorReadWriteDevice(void* data, void* success)
     StaticInitTensor<nelems>(tensor_vgpr);
     StaticInitTensor<nelems>(tensor_sgpr);
 
-    *casted_success_ptr &= TestTensorCheck1d(tensor_global);
+    *casted_success_ptr = TestTensorCheck1d(tensor_global);
     *casted_success_ptr &= TestTensorCheck3d(tensor_global);
 
     *casted_success_ptr &= TestTensorCheck1d(tensor_lds);
@@ -172,33 +172,38 @@ TEST(TestTensor, Slicing)
 
     auto tensor2x2x2 =
         tensor(ck::make_tuple(ck::wrapper::slice(2), ck::wrapper::slice(2)), ck::wrapper::slice(2));
+    EXPECT_EQ(tensor2x2x2(0), layout(ck::make_tuple(ck::make_tuple(0, 0), 0)));
     EXPECT_EQ(ck::wrapper::rank(tensor2x2x2), 2);
     EXPECT_EQ(ck::wrapper::depth(tensor2x2x2), 2);
     EXPECT_EQ(ck::wrapper::size(tensor2x2x2), 8);
     EXPECT_TRUE(TestTensorCheck1d(tensor2x2x2));
 
     auto tensor2x2 = tensor(ck::make_tuple(1, ck::wrapper::slice(2)), ck::wrapper::slice(2));
+    EXPECT_EQ(tensor2x2(0), layout(ck::make_tuple(ck::make_tuple(1, 0), 0)));
     EXPECT_EQ(ck::wrapper::rank(tensor2x2), 2);
     EXPECT_EQ(ck::wrapper::depth(tensor2x2), 2);
     EXPECT_EQ(ck::wrapper::size(tensor2x2), 4);
-    EXPECT_TRUE(TestTensorCheck1d(tensor2x2, layout(ck::make_tuple(ck::make_tuple(1, 0), 0))));
+    EXPECT_TRUE(TestTensorCheck1d(tensor2x2));
 
     auto tensor1x1 = tensor(ck::make_tuple(1, ck::wrapper::slice(1, 2)), ck::wrapper::slice(1, 2));
+    EXPECT_EQ(tensor1x1(0), layout(ck::make_tuple(ck::make_tuple(1, 1), 1)));
     EXPECT_EQ(rank(tensor1x1), 2);
     EXPECT_EQ(depth(tensor1x1), 2);
     EXPECT_EQ(size(tensor1x1), 1);
-    EXPECT_TRUE(TestTensorCheck1d(tensor1x1, layout(ck::make_tuple(ck::make_tuple(1, 1), 1))));
+    EXPECT_TRUE(TestTensorCheck1d(tensor1x1));
 
     auto tensor2 = tensor(ck::make_tuple(1, 1), ck::wrapper::slice(0, 2));
+    EXPECT_EQ(tensor2(0), layout(ck::make_tuple(ck::make_tuple(1, 1), 0)));
     EXPECT_EQ(ck::wrapper::rank(tensor2), 1);
     EXPECT_EQ(ck::wrapper::depth(tensor2), 1);
     EXPECT_EQ(ck::wrapper::size(tensor2), 2);
-    EXPECT_TRUE(TestTensorCheck1d(tensor2, layout(ck::make_tuple(ck::make_tuple(1, 1), 0))));
+    EXPECT_TRUE(TestTensorCheck1d(tensor2));
 
     // negative indexing
     auto tensor1x2 = tensor(ck::make_tuple(1, ck::wrapper::slice(0, -2)), ck::wrapper::slice());
+    EXPECT_EQ(tensor1x2(0), layout(ck::make_tuple(ck::make_tuple(1, 0), 0)));
     EXPECT_EQ(rank(tensor1x2), 2);
     EXPECT_EQ(depth(tensor1x2), 2);
     EXPECT_EQ(size(tensor1x2), 2);
-    EXPECT_TRUE(TestTensorCheck1d(tensor1x2, layout(ck::make_tuple(ck::make_tuple(1, 0), 0))));
+    EXPECT_TRUE(TestTensorCheck1d(tensor1x2));
 }

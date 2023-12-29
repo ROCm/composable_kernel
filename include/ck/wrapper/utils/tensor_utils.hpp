@@ -27,12 +27,12 @@ using MemoryTypeEnum = AddressSpaceEnum;
 // Disable from doxygen docs generation
 /// @cond
 // forward declarations
-template <typename Shape, typename Strides>
+template <typename Shape, typename FlattenDescriptorType>
 struct Layout;
 template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename Strides,
+          typename FlattenDescriptorType,
           index_t NumVectors,     // params for Register memory
           index_t ScalarPerVector // param for Register memory
           >
@@ -98,11 +98,18 @@ using is_tuple = decltype(std::declval<T&>().IsTuple());
  * \param layout Tensor layout.
  * \return Constructed tensor.
  */
-template <MemoryTypeEnum MemoryType, typename ElementType, typename Shape, typename Strides>
-constexpr auto make_tensor(ElementType* pointer, const Layout<Shape, Strides>& layout)
+template <MemoryTypeEnum MemoryType,
+          typename ElementType,
+          typename Shape,
+          typename FlattenDescriptorType>
+constexpr auto make_tensor(ElementType* pointer, const Layout<Shape, FlattenDescriptorType>& layout)
 {
-    return Tensor<MemoryType, ElementType, Shape, Strides, 0 /*NumVectors*/, 0 /*ScalarPerVector*/>(
-        pointer, layout);
+    return Tensor<MemoryType,
+                  ElementType,
+                  Shape,
+                  FlattenDescriptorType,
+                  0 /*NumVectors*/,
+                  0 /*ScalarPerVector*/>(pointer, layout);
 }
 
 /**
@@ -124,7 +131,7 @@ constexpr auto make_register_tensor()
     return Tensor<MemoryType,
                   ElementType,
                   Tuple<Number<NumVectors>>,
-                  Tuple<Number<1>>,
+                  std::remove_const_t<remove_reference_t<decltype(layout.GetFlattenDescriptor())>>,
                   NumVectors,
                   ScalarPerVector>(layout);
 }
@@ -138,12 +145,15 @@ constexpr auto make_register_tensor()
 template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename Strides,
+          typename FlattenDescriptorType,
           index_t NumVectors,
           index_t ScalarPerVector>
-__host__ __device__ constexpr const auto&
-layout(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
-           tensor)
+__host__ __device__ constexpr const auto& layout(const Tensor<BufferAddressSpace,
+                                                              ElementType,
+                                                              Shape,
+                                                              FlattenDescriptorType,
+                                                              NumVectors,
+                                                              ScalarPerVector>& tensor)
 {
     return tensor.GetLayout();
 }
@@ -159,12 +169,15 @@ template <index_t... Idxs,
           MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename Strides,
+          typename FlattenDescriptorType,
           index_t NumVectors,
           index_t ScalarPerVector>
-__host__ __device__ constexpr auto
-size(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
-         tensor)
+__host__ __device__ constexpr auto size(const Tensor<BufferAddressSpace,
+                                                     ElementType,
+                                                     Shape,
+                                                     FlattenDescriptorType,
+                                                     NumVectors,
+                                                     ScalarPerVector>& tensor)
 {
     return size<Idxs...>(tensor.GetLayout());
 }
@@ -180,12 +193,15 @@ template <index_t... Idxs,
           MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename Strides,
+          typename FlattenDescriptorType,
           index_t NumVectors,
           index_t ScalarPerVector>
-__host__ __device__ constexpr auto
-rank(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
-         tensor)
+__host__ __device__ constexpr auto rank(const Tensor<BufferAddressSpace,
+                                                     ElementType,
+                                                     Shape,
+                                                     FlattenDescriptorType,
+                                                     NumVectors,
+                                                     ScalarPerVector>& tensor)
 {
     return rank<Idxs...>(tensor.GetLayout());
 }
@@ -201,33 +217,17 @@ template <index_t... Idxs,
           MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename Strides,
+          typename FlattenDescriptorType,
           index_t NumVectors,
           index_t ScalarPerVector>
-__host__ __device__ constexpr auto
-depth(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
-          tensor)
+__host__ __device__ constexpr auto depth(const Tensor<BufferAddressSpace,
+                                                      ElementType,
+                                                      Shape,
+                                                      FlattenDescriptorType,
+                                                      NumVectors,
+                                                      ScalarPerVector>& tensor)
 {
     return depth<Idxs...>(tensor.GetLayout());
-}
-
-/**
- * \brief Get Tensor strides.
- *
- * \param tensor Tensor to get strides from.
- * \return Requsted strides.
- */
-template <MemoryTypeEnum BufferAddressSpace,
-          typename ElementType,
-          typename Shape,
-          typename Strides,
-          index_t NumVectors,
-          index_t ScalarPerVector>
-__host__ __device__ constexpr auto
-stride(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
-           tensor)
-{
-    return stride(tensor.GetLayout());
 }
 
 /**
@@ -239,12 +239,15 @@ stride(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors,
 template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename Strides,
+          typename FlattenDescriptorType,
           index_t NumVectors,
           index_t ScalarPerVector>
-__host__ __device__ constexpr const auto&
-shape(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
-          tensor)
+__host__ __device__ constexpr const auto& shape(const Tensor<BufferAddressSpace,
+                                                             ElementType,
+                                                             Shape,
+                                                             FlattenDescriptorType,
+                                                             NumVectors,
+                                                             ScalarPerVector>& tensor)
 {
     return shape(tensor.GetLayout());
 }

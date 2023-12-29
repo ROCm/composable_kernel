@@ -436,26 +436,11 @@ TEST(TestLayoutHelpers, ShapeAndStrides)
     constexpr bool check_compiletime_shape =
         std::is_same_v<decltype(shape_compiletime),
                        std::remove_reference_t<decltype(shape(layout_compiletime))>>;
-    constexpr bool check_compiletime_strides =
-        std::is_same_v<std::remove_const_t<decltype(strides_compiletime)>,
-                       std::remove_reference_t<decltype(stride(layout_compiletime))>>;
     constexpr bool check_runtime_shape =
         std::is_same_v<decltype(shape_runtime),
                        std::remove_reference_t<decltype(shape(layout_runtime))>>;
-    constexpr bool check_runtime_strides =
-        std::is_same_v<std::remove_const_t<decltype(strides_runtime)>,
-                       std::remove_reference_t<decltype(stride(layout_runtime))>>;
     EXPECT_TRUE(check_compiletime_shape);
-    EXPECT_TRUE(check_compiletime_strides);
     EXPECT_TRUE(check_runtime_shape);
-    EXPECT_TRUE(check_runtime_strides);
-
-    // Check packed strides generation
-    const auto packed_layout = ck::wrapper::make_layout(shape_runtime);
-    constexpr bool check_packed_layout_strides =
-        std::is_same_v<std::remove_const_t<decltype(strides_runtime)>,
-                       std::remove_reference_t<decltype(stride(packed_layout))>>;
-    EXPECT_TRUE(check_packed_layout_strides);
 }
 
 TEST(TestLayoutHelpers, Hierarchical)

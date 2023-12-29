@@ -16,14 +16,14 @@ namespace wrapper {
  * \tparam BufferAddressSpace Memory type (Generic, Global, LDS, VGPR, SGPR).
  * \tparam ElementType Element data type.
  * \tparam Shape Tensor shape (layout component).
- * \tparam Strides Tensor strides (layout component).
+ * \tparam FlattenDescriptorType Flatten descriptor (layout component).
  * \tparam NumVectors Number of vectors (only for VGPR, SGPR).
  * \tparam ScalarPerVector Scalars per vector (only for VGPR, SGPR).
  */
 template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename Strides,
+          typename FlattenDescriptorType,
           index_t NumVectors,     // param for Register memory
           index_t ScalarPerVector // param for Register memory
           >
@@ -32,50 +32,20 @@ struct Tensor
     private:
     // Check if Tuple contains Slice object
     template <typename T>
-    constexpr static bool IsSlicing(T&&)
+    __host__ __device__ constexpr static bool IsSlicing(T&&)
     {
         return is_detected<is_slice, T>::value;
     }
     template <typename... Ts>
-    constexpr static bool IsSlicing(Tuple<Ts...>&&)
+    __host__ __device__ constexpr static bool IsSlicing(Tuple<Ts...>&&)
     {
         return (IsSlicing(Ts{}) || ...);
     }
 
-    // Calculate first index of new tensor after slice
-    // It is needed to calculate offset for new tensor
-    template <typename... Ts>
-    constexpr auto GetStartIdxForSlicedTensor(const Tuple<Ts...>& idx) const
-    {
-        const auto start_idx_for_sliced_tensor = generate_tuple(
-            [&](auto i) {
-                constexpr auto num_i = Number<i>{};
-                if constexpr(is_detected<is_tuple, tuple_element_t<i.value, Tuple<Ts...>>>::value)
-                {
-                    // if tuple then recurrence
-                    return GetStartIdxForSlicedTensor(idx.At(num_i));
-                }
-                else if constexpr(is_detected<is_slice,
-                                              tuple_element_t<i.value, Tuple<Ts...>>>::value)
-                {
-                    // if slice, return the beginning of the interval
-                    return idx.At(num_i).from_;
-                }
-                else
-                {
-                    // if one dim selected
-                    return idx.At(num_i);
-                }
-            },
-            Number<Tuple<Ts...>::Size()>{});
-
-        return start_idx_for_sliced_tensor;
-    }
-
     // Calculate new tensor shape after slice
     template <typename... Ts, typename ShapeTmpType>
-    constexpr auto GetShapeFromSlicedTensor(const Tuple<Ts...>& idx,
-                                            const ShapeTmpType& shape) const
+    __host__ __device__ constexpr auto GetShapeFromSlicedTensor(const Tuple<Ts...>& idx,
+                                                                const ShapeTmpType& shape) const
     {
         // Pack each value in tuple to remove empty tuples after generation
         auto new_shape = generate_tuple(
@@ -113,67 +83,133 @@ struct Tensor
         return UnrollNestedTuple<0, 1>(new_shape);
     }
 
-    template <typename... Ts, typename StridesTmpType>
-    constexpr auto GetStridesFromSlicedTensor(const Tuple<Ts...>& idx,
-                                              const StridesTmpType& strides) const
+    // Generate Freeze for each of nested shape
+    template <typename T, typename ShapeTmpType>
+    __host__ __device__ constexpr auto GenerateMultipleFreeze(const T& idx,
+                                                              const ShapeTmpType& shape) const
+    {
+        const auto unrolled_shape = UnrollNestedTuple(shape);
+        return generate_tuple(
+            [&](auto) {
+                // dimension offset from idx
+                return make_freeze_transform(idx);
+            },
+            Number<decltype(unrolled_shape)::Size()>{});
+    }
+
+    template <typename... Ts, typename ShapeTmpType>
+    __host__ __device__ constexpr auto
+    GetTransformsFromSlicedTensor(const Tuple<Ts...>& idx, const ShapeTmpType& shape) const
     {
         // Pack each value in tuple to remove empty tuples after generation
-        auto new_strides = generate_tuple(
+        auto transforms = generate_tuple(
             [&](auto i) {
                 constexpr auto num_i = Number<i>{};
                 if constexpr(is_detected<is_tuple, tuple_element_t<i.value, Tuple<Ts...>>>::value)
                 {
-                    if constexpr(!IsSlicing(tuple_element_t<i.value, Tuple<Ts...>>{}))
-                    {
-                        // if tuple does not have any slice then we can remove dimension
-                        return Tuple<>{};
-                    }
-                    else
-                    {
-                        // if tuple then recurrence
-                        return make_tuple(
-                            GetStridesFromSlicedTensor(idx.At(num_i), strides.At(num_i)));
-                    }
+                    return GetTransformsFromSlicedTensor(idx.At(num_i), shape.At(num_i));
                 }
                 else if constexpr(is_detected<is_slice,
                                               tuple_element_t<i.value, Tuple<Ts...>>>::value)
                 {
-                    // Stride will be the same
-                    return make_tuple(strides.At(num_i));
+
+                    const auto from  = idx.At(num_i).from_;
+                    const auto dim   = shape.At(num_i);
+                    const auto range = idx.At(num_i).range(dim);
+                    return make_slice_transform(dim, from, from + range);
                 }
                 else
                 {
                     // remove dimension for just value
-                    return Tuple<>{};
+                    return GenerateMultipleFreeze(idx.At(num_i), shape.At(num_i));
                 }
             },
             Number<Tuple<Ts...>::Size()>{});
         // Remove empty tuples (deleted elements) and return
-        return UnrollNestedTuple<0, 1>(new_strides);
+        return UnrollNestedTuple(transforms);
+    }
+
+    // There is no output for Freeze transform
+    template <index_t i, typename LowerIndex>
+    __host__ __device__ constexpr auto GetSequenceVal(const ck::Freeze<LowerIndex>&) const
+    {
+        return Sequence<>{};
+    }
+
+    template <index_t i, typename LowLength, typename SliceBegin, typename SliceEnd>
+    __host__ __device__ constexpr auto
+    GetSequenceVal(const ck::Slice<LowLength, SliceBegin, SliceEnd>&) const
+    {
+        return Sequence<i>{};
+    }
+
+    template <index_t i>
+    __host__ __device__ constexpr auto GenerateUpperDims(const Tuple<>&) const
+    {
+        return Tuple<>{};
+    }
+
+    template <index_t i, typename... Transforms>
+    __host__ __device__ constexpr auto
+    GenerateUpperDims(const Tuple<Transforms...>& transforms) const
+    {
+        constexpr auto num_transforms = Tuple<Transforms...>::Size();
+        // Deduce Sequence element for specific transform
+        const auto currect_elem = GetSequenceVal<i>(transforms.At(Number<0>{}));
+        if constexpr(is_same_v<decltype(currect_elem), const Sequence<>>)
+        {
+            const auto next_tuple = GenerateUpperDims<i>(TupleSlice<1, num_transforms>(transforms));
+            return concat_tuple(make_tuple(currect_elem), next_tuple);
+        }
+        else
+        {
+            // Increase i if current_elem is Slice transform
+            const auto next_tuple =
+                GenerateUpperDims<i + 1>(TupleSlice<1, num_transforms>(transforms));
+            return concat_tuple(make_tuple(currect_elem), next_tuple);
+        }
+    }
+
+    template <typename... Ts, typename ShapeTmpType, typename FlattenDescriptor>
+    __host__ __device__ constexpr auto
+    GetDescriptorFromSlicedTensor(const Tuple<Ts...>& idx,
+                                  const ShapeTmpType& shape,
+                                  const FlattenDescriptor& flatten_desc) const
+    {
+        constexpr auto old_shape_dims = decltype(UnrollNestedTuple(shape))::Size();
+
+        const auto transforms     = GetTransformsFromSlicedTensor(idx, shape);
+        using TransformsTupleType = decltype(transforms);
+
+        const auto lower_dims =
+            generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<old_shape_dims>{});
+        const auto upper_dims = decltype(GenerateUpperDims<0>(TransformsTupleType{})){};
+        return transform_tensor_descriptor(flatten_desc, transforms, lower_dims, upper_dims);
     }
 
     public:
-    using ElementSpaceSize  = decltype(Layout<Shape, Strides>{
-        Shape{}, Strides{}}.GetElementSpaceSize()); // SpaceSize type for buffer
-    using TensorElementType = ElementType;           // DataType
+    using ElementSpaceSize  = decltype(Layout<Shape, FlattenDescriptorType>{
+        Shape{}, FlattenDescriptorType{}}.GetElementSpaceSize()); // SpaceSize type for buffer
+    using TensorElementType = ElementType;                         // DataType
 
     static constexpr MemoryTypeEnum TensorBufferAddressSpace = BufferAddressSpace;
     static constexpr bool IsDynamicBuffer = !(BufferAddressSpace == MemoryTypeEnum ::Sgpr ||
                                               BufferAddressSpace == MemoryTypeEnum ::Vgpr);
 
     __host__ __device__ Tensor() = delete;
-    __host__ __device__ Tensor(ElementType* pointer, const Layout<Shape, Strides>& layout)
+    __host__ __device__ Tensor(ElementType* pointer,
+                               const Layout<Shape, FlattenDescriptorType>& layout)
         : layout_(layout),
           buffer_(make_dynamic_buffer<BufferAddressSpace>(pointer, layout.GetElementSpaceSize()))
     {
     }
 
-    __host__ __device__ Tensor(const Layout<Shape, Strides>& layout) : layout_(layout)
+    __host__ __device__ Tensor(const Layout<Shape, FlattenDescriptorType>& layout) : layout_(layout)
     {
         static_assert(!IsDynamicBuffer, "Wrong BufferAddressSpace for register.");
     }
 
-    __host__ __device__ constexpr const Layout<Shape, Strides>& GetLayout() const
+    __host__ __device__ constexpr const Layout<Shape, FlattenDescriptorType>& GetLayout() const
     {
         return layout_;
     }
@@ -183,21 +219,14 @@ struct Tensor
     __host__ __device__ auto operator[](const Tuple<Ts...>& idx) const
     {
         static_assert(IsDynamicBuffer, "Register slice is not supported");
-        // Calculate offset based on first idx for new tensor
-        const index_t offset = layout_(GetStartIdxForSlicedTensor(idx));
+        const auto& shape = layout_.GetShape();
+        auto new_shape    = GetShapeFromSlicedTensor(idx, shape);
 
-        auto new_shape = GetShapeFromSlicedTensor(idx, layout_.GetShape());
-        if constexpr(is_same_v<Strides, Tuple<>>)
-        {
-            auto new_layout = make_layout(new_shape);
-            return make_tensor<BufferAddressSpace>(buffer_.p_data_ + offset, new_layout);
-        }
-        else
-        {
-            auto new_strides = GetStridesFromSlicedTensor(idx, layout_.GetStrides());
-            auto new_layout  = make_layout(new_shape, new_strides);
-            return make_tensor<BufferAddressSpace>(buffer_.p_data_ + offset, new_layout);
-        }
+        const auto& flatten_desc = layout_.GetFlattenDescriptor();
+        auto new_desc            = GetDescriptorFromSlicedTensor(idx, shape, flatten_desc);
+        const auto new_layout =
+            Layout<decltype(new_shape), decltype(new_desc)>(new_shape, new_desc);
+        return make_tensor<BufferAddressSpace>(buffer_.p_data_, new_layout);
     }
 
     template <typename... Ts, enable_if_t<IsSlicing(Tuple<Ts...>{}), bool> = false>
@@ -223,18 +252,10 @@ struct Tensor
         }
         else
         {
-            if constexpr(is_same_v<Strides, Tuple<>>)
-            {
-                constexpr index_t offset =
-                    Layout<Shape, Strides>{Shape{}}.template operator()<Tuple<Ts...>>();
-                return buffer_[Number<offset>{}];
-            }
-            else
-            {
-                constexpr index_t offset =
-                    Layout<Shape, Strides>{Shape{}, Strides{}}.template operator()<Tuple<Ts...>>();
-                return buffer_[Number<offset>{}];
-            }
+            constexpr index_t offset = Layout<Shape, FlattenDescriptorType>{
+                Shape{},
+                FlattenDescriptorType{}}.template operator()<Tuple<Ts...>>();
+            return buffer_[Number<offset>{}];
         }
     }
 
@@ -261,18 +282,10 @@ struct Tensor
         }
         else
         {
-            if constexpr(is_same_v<Strides, Tuple<>>)
-            {
-                constexpr index_t offset =
-                    Layout<Shape, Strides>{Shape{}}.template operator()<Tuple<Ts...>>();
-                return buffer_(Number<offset>{});
-            }
-            else
-            {
-                constexpr index_t offset =
-                    Layout<Shape, Strides>{Shape{}, Strides{}}.template operator()<Tuple<Ts...>>();
-                return buffer_(Number<offset>{});
-            }
+            constexpr index_t offset = Layout<Shape, FlattenDescriptorType>{
+                Shape{},
+                FlattenDescriptorType{}}.template operator()<Tuple<Ts...>>();
+            return buffer_(Number<offset>{});
         }
     }
 
@@ -309,7 +322,7 @@ struct Tensor
     // If register use static buffer, else use dynamic buffer
     using Buffer = std::conditional_t<IsDynamicBuffer, DynamicBufferType, StaticBufferType>;
 
-    const Layout<Shape, Strides> layout_;
+    const Layout<Shape, FlattenDescriptorType> layout_;
     Buffer buffer_;
 };
 

@@ -14,11 +14,9 @@ namespace wrapper {
  * \tparam Shape Tuple of Number<> (for compile-time layout) or index_t
  *         (dynamic layout). It is possible to pass nested shapes
  *         (e.g. ((4, 2), 2)), nested dimensions are merged.
- * \tparam Strides Tuple of Number<> (for compile-time layout) or index_t
- *         (dynamic layout). Stride tuple should be nested if shape tuple is
- *         nested.
+ * \tparam FlattenDescriptorType Tensor descriptor for flatten shape dims.
  */
-template <typename Shape, typename Strides>
+template <typename Shape, typename FlattenDescriptorType>
 struct Layout
 {
     private:
@@ -40,29 +38,6 @@ struct Layout
                 {
                     // compiletime layout
                     return I0;
-                }
-            },
-            Number<Tuple<Ts...>::Size()>{});
-    }
-
-    // Generate packed (column-major) strides if not passed
-    template <typename... Ts>
-    __host__ __device__ constexpr static auto
-    GenerateColumnMajorPackedStrides(const Tuple<Ts...>& shape, index_t& stride)
-    {
-        return generate_tuple(
-            [&](auto i) {
-                const auto num_i = Number<i>{};
-                if constexpr(is_detected<is_tuple, tuple_element_t<i, Tuple<Ts...>>>::value)
-                {
-                    return GenerateColumnMajorPackedStrides(shape.At(num_i), stride);
-                }
-                else
-                {
-                    const index_t dim_stride = stride;
-                    // update stride
-                    stride *= shape.At(num_i);
-                    return dim_stride;
                 }
             },
             Number<Tuple<Ts...>::Size()>{});
@@ -209,32 +184,6 @@ struct Layout
         return transform_tensor_descriptor(desc, transforms, lower_dims, upper_dims);
     }
 
-    template <typename LayoutShape, typename LayoutStrides>
-    __host__ __device__ static auto MakeFlattenDescriptor(const LayoutShape& shape,
-                                                          const LayoutStrides& strides)
-    {
-        const auto unrolled_shape = UnrollNestedTuple(shape);
-        if constexpr(is_same_v<LayoutStrides, Tuple<>>)
-        {
-            index_t start_stride = 1;
-            // if not passed, then generate
-            const auto unrolled_strides =
-                GenerateColumnMajorPackedStrides(unrolled_shape, start_stride);
-            static_assert(unrolled_shape.Size() == unrolled_strides.Size(),
-                          "Size of strides and shape are not consistent.");
-            return make_naive_tensor_descriptor(unrolled_shape, unrolled_strides);
-        }
-        else
-        {
-            const auto unrolled_strides = UnrollNestedTuple(strides);
-            static_assert(unrolled_shape.Size() == unrolled_strides.Size(),
-                          "Size of strides and shape are not consistent.");
-            return make_naive_tensor_descriptor(unrolled_shape, unrolled_strides);
-        }
-    }
-
-    using FlattenDescriptorType =
-        remove_cvref_t<decltype(MakeFlattenDescriptor(Shape{}, Strides{}))>;
     using Descriptor1dType =
         remove_cvref_t<decltype(MakeMerge1d(Shape{}, FlattenDescriptorType{}))>;
     using DefaultIdxsTupleType = remove_cvref_t<decltype(GenerateDefaultIdxsTuple(Shape{}))>;
@@ -275,43 +224,24 @@ struct Layout
     }
 
     __host__ __device__ Layout() = delete;
+
     /**
      * \brief Layout constructor.
      *
      * \param shape Shape for layout.
-     * \param strides Strides for layout (optional if tensor is packed).
+     * \param flatten_descriptor Descriptor
      */
-    __host__ __device__ constexpr Layout(const Shape& shape, const Strides& strides)
-        : flatten_descriptor_{}, shape_(shape), strides_(strides)
+    __host__ __device__ constexpr Layout(const Shape& shape,
+                                         const FlattenDescriptorType& flatten_descriptor)
+        : shape_(shape)
     {
         // Construct if runtime mode
         if constexpr(!FlattenDescriptorType::IsKnownAtCompileTime())
         {
-            flatten_descriptor_ = MakeFlattenDescriptor(shape_, strides_);
+            flatten_descriptor_ = flatten_descriptor;
             descriptor_1d_      = MakeMerge1d(shape_, flatten_descriptor_);
             merged_nests_descriptor_ =
                 TransformDesc(shape_, DefaultIdxsTupleType{}, flatten_descriptor_);
-        }
-    }
-
-    /**
-     * \brief Layout constructor (with default packed column-major strides).
-     *
-     * \param shape Shape for layout.
-     */
-    __host__ __device__ constexpr Layout(const Shape& shape)
-        : flatten_descriptor_{}, shape_(shape), strides_()
-    {
-        if constexpr(!FlattenDescriptorType::IsKnownAtCompileTime())
-        {
-            flatten_descriptor_ = MakeFlattenDescriptor(shape_, strides_);
-            descriptor_1d_      = MakeMerge1d(shape_, flatten_descriptor_);
-            merged_nests_descriptor_ =
-                TransformDesc(shape_, DefaultIdxsTupleType{}, flatten_descriptor_);
-        }
-        else
-        {
-            static_assert(true, "Compiletime Layout require strides parameter.");
         }
     }
 
@@ -400,24 +330,6 @@ struct Layout
     __host__ __device__ constexpr const Shape& GetShape() const { return shape_; }
 
     /**
-     * \brief Strides getter.
-     *
-     * \return Strides.
-     */
-    __host__ __device__ constexpr auto GetStrides() const
-    {
-        if constexpr(is_same_v<Strides, Tuple<>>)
-        {
-            index_t start_stride = 1;
-            return GenerateColumnMajorPackedStrides(shape_, start_stride);
-        }
-        else
-        {
-            return strides_;
-        }
-    }
-
-    /**
      * \brief Get default lengths (tuple filled with Shape length elements).
      *
      * \return Default lengths.
@@ -442,9 +354,19 @@ struct Layout
      *
      * \return Default descriptor.
      */
-    __host__ __device__ constexpr MergedNestsDescriptorType GetDefaultDescriptor()
+    __host__ __device__ constexpr const MergedNestsDescriptorType& GetDefaultDescriptor() const
     {
         return merged_nests_descriptor_;
+    }
+
+    /**
+     * \brief Get flatten descriptor (with unrolled dims)
+     *
+     * \return Flatten descriptor.
+     */
+    __host__ __device__ constexpr const FlattenDescriptorType& GetFlattenDescriptor() const
+    {
+        return flatten_descriptor_;
     }
 
     private:
@@ -452,7 +374,6 @@ struct Layout
     Descriptor1dType descriptor_1d_;
     MergedNestsDescriptorType merged_nests_descriptor_;
     const Shape shape_;
-    const Strides strides_;
 };
 
 } // namespace wrapper

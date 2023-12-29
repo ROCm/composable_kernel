@@ -46,21 +46,6 @@ TEST(TestPartition, LocalPartition)
             ck::wrapper::size(tensor) / ck::wrapper::size(thread_layout);
         EXPECT_EQ(ck::wrapper::size(raked_partition), expected_partition_size);
         EXPECT_EQ(raked_partition(0), thread_id);
-
-        const auto expected_partition_stride_00 =
-            ck::wrapper::size<0, 0>(strides) * ck::wrapper::size<0, 0>(thread_layout);
-        const auto expected_partition_stride_01 =
-            ck::wrapper::size<0, 1>(strides) * ck::wrapper::size<0, 1>(thread_layout);
-        const auto expected_partition_stride_1 =
-            ck::wrapper::size<1>(strides) * ck::wrapper::size<1>(thread_layout);
-        const auto partition_stride_00 =
-            ck::wrapper::size<0, 0>(ck::wrapper::stride(raked_partition));
-        const auto partition_stride_01 =
-            ck::wrapper::size<0, 1>(ck::wrapper::stride(raked_partition));
-        const auto partition_stride_1 = ck::wrapper::size<1>(ck::wrapper::stride(raked_partition));
-        EXPECT_EQ(partition_stride_00, expected_partition_stride_00);
-        EXPECT_EQ(partition_stride_01, expected_partition_stride_01);
-        EXPECT_EQ(partition_stride_1, expected_partition_stride_1);
     }
 
     for(ck::index_t thread_id = 0; thread_id < ck::wrapper::size(thread_layout); thread_id++)
@@ -73,18 +58,6 @@ TEST(TestPartition, LocalPartition)
         const auto expected_partition_first_val = thread_id * ck::wrapper::size<0, 0>(thread_steps);
         EXPECT_EQ(ck::wrapper::size(packed_partition), expected_partition_size);
         EXPECT_EQ(packed_partition(0), expected_partition_first_val);
-
-        const auto expected_partition_stride_00 = ck::wrapper::size<0, 0>(strides);
-        const auto expected_partition_stride_01 = ck::wrapper::size<0, 1>(strides);
-        const auto expected_partition_stride_1  = ck::wrapper::size<1>(strides);
-        const auto partition_stride_00 =
-            ck::wrapper::size<0, 0>(ck::wrapper::stride(packed_partition));
-        const auto partition_stride_01 =
-            ck::wrapper::size<0, 1>(ck::wrapper::stride(packed_partition));
-        const auto partition_stride_1 = ck::wrapper::size<1>(ck::wrapper::stride(packed_partition));
-        EXPECT_EQ(partition_stride_00, expected_partition_stride_00);
-        EXPECT_EQ(partition_stride_01, expected_partition_stride_01);
-        EXPECT_EQ(partition_stride_1, expected_partition_stride_1);
     }
 }
 
@@ -128,19 +101,6 @@ TEST(TestPartition, LocalTile)
         const auto expected_tile_size = ck::wrapper::size(block_shape);
         EXPECT_EQ(ck::wrapper::size(raked_tile), expected_tile_size);
         EXPECT_EQ(raked_tile(0), layout(block_idx));
-
-        const auto expected_tile_stride_00 =
-            ck::wrapper::size<0, 0>(strides) * ck::wrapper::size<0, 0>(block_layout);
-        const auto expected_tile_stride_01 =
-            ck::wrapper::size<0, 1>(strides) * ck::wrapper::size<0, 1>(block_layout);
-        const auto expected_tile_stride_1 =
-            ck::wrapper::size<1>(strides) * ck::wrapper::size<1>(block_layout);
-        const auto tile_stride_00 = ck::wrapper::size<0, 0>(ck::wrapper::stride(raked_tile));
-        const auto tile_stride_01 = ck::wrapper::size<0, 1>(ck::wrapper::stride(raked_tile));
-        const auto tile_stride_1  = ck::wrapper::size<1>(ck::wrapper::stride(raked_tile));
-        EXPECT_EQ(tile_stride_00, expected_tile_stride_00);
-        EXPECT_EQ(tile_stride_01, expected_tile_stride_01);
-        EXPECT_EQ(tile_stride_1, expected_tile_stride_1);
     }
 
     for(const auto& block_idx : block_idxs)
@@ -158,15 +118,5 @@ TEST(TestPartition, LocalTile)
                 ck::wrapper::size<1>(strides);
         EXPECT_EQ(ck::wrapper::size(packed_tile), expected_tile_size);
         EXPECT_EQ(packed_tile(0), expected_tile_first_val);
-
-        const auto expected_tile_stride_00 = ck::wrapper::size<0, 0>(strides);
-        const auto expected_tile_stride_01 = ck::wrapper::size<0, 1>(strides);
-        const auto expected_tile_stride_1  = ck::wrapper::size<1>(strides);
-        const auto tile_stride_00 = ck::wrapper::size<0, 0>(ck::wrapper::stride(packed_tile));
-        const auto tile_stride_01 = ck::wrapper::size<0, 1>(ck::wrapper::stride(packed_tile));
-        const auto tile_stride_1  = ck::wrapper::size<1>(ck::wrapper::stride(packed_tile));
-        EXPECT_EQ(tile_stride_00, expected_tile_stride_00);
-        EXPECT_EQ(tile_stride_01, expected_tile_stride_01);
-        EXPECT_EQ(tile_stride_1, expected_tile_stride_1);
     }
 }

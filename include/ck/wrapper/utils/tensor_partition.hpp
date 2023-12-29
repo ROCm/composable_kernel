@@ -16,7 +16,6 @@ template <typename... Ts, typename... Ls>
 __host__ __device__ constexpr auto CalculateLocalPartitionShape(const Tuple<Ts...>& shape,
                                                                 const Tuple<Ls...>& thread_lengths)
 {
-
     static_assert(Tuple<Ts...>::Size() == Tuple<Ls...>::Size(), "Wrong thread_lengths shape.");
     return generate_tuple(
         [&](auto i) {
@@ -28,7 +27,7 @@ __host__ __device__ constexpr auto CalculateLocalPartitionShape(const Tuple<Ts..
             }
             else
             {
-                const auto slice_len = shape.At(num_i) / thread_lengths.At(i);
+                const auto slice_len = shape.At(num_i) / thread_lengths.At(num_i);
                 return slice_len;
             }
         },
@@ -37,70 +36,75 @@ __host__ __device__ constexpr auto CalculateLocalPartitionShape(const Tuple<Ts..
 
 // Calculate shape for partition based on number of threads per each dim,
 // previous strides and steps
-template <typename... Ts, typename... Ls, typename... Steps>
-__host__ __device__ constexpr auto CalculateLocalPartitionStrides(
-    const Tuple<Ts...>& strides, const Tuple<Ls...>& thread_lengths, const Tuple<Steps...>& steps)
+template <typename... Ts, typename... Ls, typename... Steps, typename FlattenDescType>
+__host__ __device__ constexpr auto
+CalculateLocalPartitionDescriptor(const Tuple<Ts...>& shape,
+                                  const Tuple<Ls...>& thread_lengths,
+                                  const Tuple<Steps...>& steps,
+                                  const FlattenDescType& flatten_desc)
 {
 
     static_assert(Tuple<Ts...>::Size() == Tuple<Ls...>::Size(), "Wrong thread_lengths shape.");
-    return generate_tuple(
+    const auto unrolled_thread_lengths = UnrollNestedTuple(thread_lengths);
+    const auto unrolled_shape          = UnrollNestedTuple(shape);
+    constexpr auto dims                = decltype(unrolled_thread_lengths)::Size();
+
+    using UnrolledStepsType = decltype(UnrollNestedTuple(steps));
+
+    using I1 = Number<1>;
+
+    const auto transforms = generate_tuple(
         [&](auto i) {
             constexpr auto num_i = Number<i>{};
-            if constexpr(is_detected<is_tuple, tuple_element_t<i.value, Tuple<Ts...>>>::value)
+            if constexpr(is_same_v<Tuple<Steps...>, Tuple<>>)
             {
-                // if tuple then recurrence
-                if constexpr(is_same_v<Tuple<Steps...>, Tuple<>>)
+                // By default raked partition
+                const auto partition_stride = unrolled_thread_lengths.At(num_i);
+                return make_embed_transform(make_tuple(unrolled_shape.At(num_i)),
+                                            make_tuple(partition_stride));
+            }
+            else if constexpr(!is_same_v<tuple_element_t<i.value, UnrolledStepsType>, index_t>)
+            {
+                // Compiletime partition
+                if constexpr(is_same_v<tuple_element_t<i.value, UnrolledStepsType>, I1>)
                 {
-                    return CalculateLocalPartitionStrides(
-                        strides.At(num_i), thread_lengths.At(num_i), Tuple<>{});
+                    // raked
+                    const auto partition_stride = unrolled_thread_lengths.At(num_i);
+                    return make_embed_transform(make_tuple(unrolled_shape.At(num_i)),
+                                                make_tuple(partition_stride));
                 }
                 else
                 {
-                    return CalculateLocalPartitionStrides(
-                        strides.At(num_i), thread_lengths.At(num_i), steps.At(num_i));
+                    // packed
+                    return make_embed_transform(make_tuple(unrolled_shape.At(num_i)),
+                                                make_tuple(I1{}));
                 }
             }
             else
             {
-                if constexpr(is_same_v<Tuple<Steps...>, Tuple<>>)
+                // Runtime partition
+                if(steps.At(num_i) == 1)
                 {
-                    // By default raked partition
-                    const auto partition_stride = thread_lengths.At(i);
-                    return partition_stride * strides.At(i);
-                }
-                else if constexpr(!is_same_v<tuple_element_t<i.value, Tuple<Steps...>>, index_t>)
-                {
-                    // Compiletime partition
-                    if constexpr(is_same_v<tuple_element_t<i.value, Tuple<Steps...>>, Number<1>>)
-                    {
-                        // raked
-                        const auto partition_stride = thread_lengths.At(i);
-                        return partition_stride * strides.At(i);
-                    }
-                    else
-                    {
-                        // packed
-                        return strides.At(i);
-                    }
+                    // raked
+                    const auto partition_stride = unrolled_thread_lengths.At(num_i);
+                    return make_embed_transform(make_tuple(unrolled_shape.At(num_i)),
+                                                make_tuple(partition_stride));
                 }
                 else
                 {
-                    // Runtime partition
-                    if(steps.At(i) == 1)
-                    {
-                        // raked
-                        const auto partition_stride = thread_lengths.At(i);
-                        return partition_stride * strides.At(i);
-                    }
-                    else
-                    {
-                        // packed
-                        return strides.At(i);
-                    }
+                    // packed
+                    return make_embed_transform(make_tuple(unrolled_shape.At(num_i)),
+                                                make_tuple(I1{}));
                 }
             }
         },
-        Number<Tuple<Ts...>::Size()>{});
+        Number<dims>{});
+
+    const auto lower_dims =
+        generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<dims>{});
+    const auto upper_dims =
+        generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<dims>{});
+    return transform_tensor_descriptor(flatten_desc, transforms, lower_dims, upper_dims);
 }
 
 // Convert interger thread_idx to tuple index with applied steps
@@ -128,8 +132,8 @@ __host__ __device__ constexpr auto CalculateLayoutOffsetIdx(const Tuple<Ls...>& 
             else
             {
                 // Update thread_id after each dim
-                const auto dim_thread_id = thread_id % thread_lengths.At(i);
-                thread_id /= thread_lengths.At(i);
+                const auto dim_thread_id = thread_id % thread_lengths.At(num_i);
+                thread_id /= thread_lengths.At(num_i);
                 if constexpr(is_same_v<Tuple<Steps...>, Tuple<>>)
                 {
                     return dim_thread_id;
@@ -220,9 +224,12 @@ __host__ __device__ constexpr auto make_local_partition(const TensorType& tensor
 {
     // Create shape, strides and layout for new partition tensor
     const auto partition_shape = CalculateLocalPartitionShape(shape(tensor), thread_lengths);
-    const auto partition_strides =
-        CalculateLocalPartitionStrides(stride(tensor), thread_lengths, steps);
-    const auto partition_layout = make_layout(partition_shape, partition_strides);
+    // Create new descriptor and layout
+    const auto& flatten_desc = layout(tensor).GetFlattenDescriptor();
+    auto partition_desc =
+        CalculateLocalPartitionDescriptor(shape(tensor), thread_lengths, steps, flatten_desc);
+    const auto partition_layout = Layout<decltype(partition_shape), decltype(partition_desc)>(
+        partition_shape, partition_desc);
     // Calculate offset for new partition tensor
     index_t thread_id_copy      = thread_id;
     const auto offset_idx       = CalculateLayoutOffsetIdx(thread_lengths, steps, thread_id_copy);
@@ -251,12 +258,16 @@ __host__ __device__ constexpr auto make_local_tile(const TensorType& tensor,
 {
     // Create block lengths, strides and layout for new tile tensor
     const auto block_lengths = CalculateBlockLengths(shape(tensor), tile_shape);
-    const auto block_strides = CalculateLocalPartitionStrides(stride(tensor), block_lengths, steps);
-    const auto tile_layout   = make_layout(tile_shape, block_strides);
+    // Create new descriptor and layout
+    const auto& flatten_desc = layout(tensor).GetFlattenDescriptor();
+    auto tile_desc =
+        CalculateLocalPartitionDescriptor(tile_shape, block_lengths, steps, flatten_desc);
+    const auto tile_layout = Layout<remove_reference_t<decltype(tile_shape)>, decltype(tile_desc)>(
+        tile_shape, tile_desc);
     // Calculate offset for new partition tensor
-    const auto offset_idx       = CalculateLayoutOffsetIdx(steps, block_idx);
-    const auto partition_offset = layout(tensor)(offset_idx);
-    return make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer() + partition_offset,
+    const auto offset_idx  = CalculateLayoutOffsetIdx(steps, block_idx);
+    const auto tile_offset = layout(tensor)(offset_idx);
+    return make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer() + tile_offset,
                                                              tile_layout);
 }
 
