@@ -199,6 +199,13 @@ TEST(TestTensor, Slicing)
     EXPECT_EQ(ck::wrapper::size(tensor2), 2);
     EXPECT_TRUE(TestTensorCheck1d(tensor2));
 
+    auto tensor2_v2 = tensor(2, ck::wrapper::slice(0, 2));
+    EXPECT_EQ(tensor2_v2(0), layout(ck::make_tuple(2, 0)));
+    EXPECT_EQ(ck::wrapper::rank(tensor2_v2), 1);
+    EXPECT_EQ(ck::wrapper::depth(tensor2_v2), 1);
+    EXPECT_EQ(ck::wrapper::size(tensor2_v2), 2);
+    EXPECT_TRUE(TestTensorCheck1d(tensor2_v2));
+
     // negative indexing
     auto tensor1x2 = tensor(ck::make_tuple(1, ck::wrapper::slice(0, -2)), ck::wrapper::slice());
     EXPECT_EQ(tensor1x2(0), layout(ck::make_tuple(ck::make_tuple(1, 0), 0)));

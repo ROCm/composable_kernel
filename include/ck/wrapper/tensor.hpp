@@ -16,14 +16,14 @@ namespace wrapper {
  * \tparam BufferAddressSpace Memory type (Generic, Global, LDS, VGPR, SGPR).
  * \tparam ElementType Element data type.
  * \tparam Shape Tensor shape (layout component).
- * \tparam FlattenDescriptorType Flatten descriptor (layout component).
+ * \tparam UnnestedDescriptorType Flatten descriptor (layout component).
  * \tparam NumVectors Number of vectors (only for VGPR, SGPR).
  * \tparam ScalarPerVector Scalars per vector (only for VGPR, SGPR).
  */
 template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename FlattenDescriptorType,
+          typename UnnestedDescriptorType,
           index_t NumVectors,     // param for Register memory
           index_t ScalarPerVector // param for Register memory
           >
@@ -85,14 +85,17 @@ struct Tensor
 
     // Generate Freeze for each of nested shape
     template <typename T, typename ShapeTmpType>
-    __host__ __device__ constexpr auto GenerateMultipleFreeze(const T& idx,
+    __host__ __device__ constexpr auto GenerateMultipleFreeze(T idx,
                                                               const ShapeTmpType& shape) const
     {
         const auto unrolled_shape = UnrollNestedTuple(shape);
         return generate_tuple(
-            [&](auto) {
+            [&](auto i) {
                 // dimension offset from idx
-                return make_freeze_transform(idx);
+                const auto dim     = unrolled_shape.At(Number<i>{});
+                const auto dim_idx = idx % dim;
+                idx /= dim;
+                return make_freeze_transform(dim_idx);
             },
             Number<decltype(unrolled_shape)::Size()>{});
     }
@@ -116,7 +119,7 @@ struct Tensor
                     const auto from  = idx.At(num_i).from_;
                     const auto dim   = shape.At(num_i);
                     const auto range = idx.At(num_i).range(dim);
-                    return make_slice_transform(dim, from, from + range);
+                    return make_slice_transform(range, from, from + range);
                 }
                 else
                 {
@@ -188,9 +191,9 @@ struct Tensor
     }
 
     public:
-    using ElementSpaceSize  = decltype(Layout<Shape, FlattenDescriptorType>{
-        Shape{}, FlattenDescriptorType{}}.GetElementSpaceSize()); // SpaceSize type for buffer
-    using TensorElementType = ElementType;                         // DataType
+    using ElementSpaceSize  = decltype(Layout<Shape, UnnestedDescriptorType>{
+        Shape{}, UnnestedDescriptorType{}}.GetElementSpaceSize()); // SpaceSize type for buffer
+    using TensorElementType = ElementType;                          // DataType
 
     static constexpr MemoryTypeEnum TensorBufferAddressSpace = BufferAddressSpace;
     static constexpr bool IsDynamicBuffer = !(BufferAddressSpace == MemoryTypeEnum ::Sgpr ||
@@ -198,18 +201,19 @@ struct Tensor
 
     __host__ __device__ Tensor() = delete;
     __host__ __device__ Tensor(ElementType* pointer,
-                               const Layout<Shape, FlattenDescriptorType>& layout)
+                               const Layout<Shape, UnnestedDescriptorType>& layout)
         : layout_(layout),
           buffer_(make_dynamic_buffer<BufferAddressSpace>(pointer, layout.GetElementSpaceSize()))
     {
     }
 
-    __host__ __device__ Tensor(const Layout<Shape, FlattenDescriptorType>& layout) : layout_(layout)
+    __host__ __device__ Tensor(const Layout<Shape, UnnestedDescriptorType>& layout)
+        : layout_(layout)
     {
         static_assert(!IsDynamicBuffer, "Wrong BufferAddressSpace for register.");
     }
 
-    __host__ __device__ constexpr const Layout<Shape, FlattenDescriptorType>& GetLayout() const
+    __host__ __device__ constexpr const Layout<Shape, UnnestedDescriptorType>& GetLayout() const
     {
         return layout_;
     }
@@ -222,7 +226,7 @@ struct Tensor
         const auto& shape = layout_.GetShape();
         auto new_shape    = GetShapeFromSlicedTensor(idx, shape);
 
-        const auto& flatten_desc = layout_.GetFlattenDescriptor();
+        const auto& flatten_desc = layout_.GetUnnestedDescriptor();
         auto new_desc            = GetDescriptorFromSlicedTensor(idx, shape, flatten_desc);
         const auto new_layout =
             Layout<decltype(new_shape), decltype(new_desc)>(new_shape, new_desc);
@@ -252,9 +256,9 @@ struct Tensor
         }
         else
         {
-            constexpr index_t offset = Layout<Shape, FlattenDescriptorType>{
+            constexpr index_t offset = Layout<Shape, UnnestedDescriptorType>{
                 Shape{},
-                FlattenDescriptorType{}}.template operator()<Tuple<Ts...>>();
+                UnnestedDescriptorType{}}.template operator()<Tuple<Ts...>>();
             return buffer_[Number<offset>{}];
         }
     }
@@ -282,9 +286,9 @@ struct Tensor
         }
         else
         {
-            constexpr index_t offset = Layout<Shape, FlattenDescriptorType>{
+            constexpr index_t offset = Layout<Shape, UnnestedDescriptorType>{
                 Shape{},
-                FlattenDescriptorType{}}.template operator()<Tuple<Ts...>>();
+                UnnestedDescriptorType{}}.template operator()<Tuple<Ts...>>();
             return buffer_(Number<offset>{});
         }
     }
@@ -322,7 +326,7 @@ struct Tensor
     // If register use static buffer, else use dynamic buffer
     using Buffer = std::conditional_t<IsDynamicBuffer, DynamicBufferType, StaticBufferType>;
 
-    const Layout<Shape, FlattenDescriptorType> layout_;
+    const Layout<Shape, UnnestedDescriptorType> layout_;
     Buffer buffer_;
 };
 

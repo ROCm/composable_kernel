@@ -14,9 +14,9 @@ namespace wrapper {
  * \tparam Shape Tuple of Number<> (for compile-time layout) or index_t
  *         (dynamic layout). It is possible to pass nested shapes
  *         (e.g. ((4, 2), 2)), nested dimensions are merged.
- * \tparam FlattenDescriptorType Tensor descriptor for flatten shape dims.
+ * \tparam UnnestedDescriptorType Tensor descriptor for unnested shape dims.
  */
-template <typename Shape, typename FlattenDescriptorType>
+template <typename Shape, typename UnnestedDescriptorType>
 struct Layout
 {
     private:
@@ -29,7 +29,7 @@ struct Layout
     {
         return generate_tuple(
             [&](auto) {
-                if constexpr(!FlattenDescriptorType::IsKnownAtCompileTime())
+                if constexpr(!UnnestedDescriptorType::IsKnownAtCompileTime())
                 {
                     // runtime layout
                     return index_t(0);
@@ -185,14 +185,14 @@ struct Layout
     }
 
     using Descriptor1dType =
-        remove_cvref_t<decltype(MakeMerge1d(Shape{}, FlattenDescriptorType{}))>;
+        remove_cvref_t<decltype(MakeMerge1d(Shape{}, UnnestedDescriptorType{}))>;
     using DefaultIdxsTupleType = remove_cvref_t<decltype(GenerateDefaultIdxsTuple(Shape{}))>;
 
     template <typename... ShapeDims, typename... IdxDims>
     __host__ __device__ constexpr static auto
     TransformDesc(const Tuple<ShapeDims...>& shape,
                   const Tuple<IdxDims...>& idx,
-                  const FlattenDescriptorType& naive_descriptor)
+                  const UnnestedDescriptorType& naive_descriptor)
     {
         if constexpr(Tuple<IdxDims...>::Size() == I1)
         {
@@ -215,12 +215,12 @@ struct Layout
     }
 
     using MergedNestsDescriptorType = remove_cvref_t<decltype(TransformDesc(
-        Shape{}, DefaultIdxsTupleType{}, FlattenDescriptorType{}))>;
+        Shape{}, DefaultIdxsTupleType{}, UnnestedDescriptorType{}))>;
 
     public:
     __host__ __device__ constexpr auto GetElementSpaceSize() const
     {
-        return flatten_descriptor_.GetElementSpaceSize();
+        return unnested_descriptor_.GetElementSpaceSize();
     }
 
     __host__ __device__ Layout() = delete;
@@ -229,19 +229,19 @@ struct Layout
      * \brief Layout constructor.
      *
      * \param shape Shape for layout.
-     * \param flatten_descriptor Descriptor
+     * \param unnested_descriptor Descriptor
      */
     __host__ __device__ constexpr Layout(const Shape& shape,
-                                         const FlattenDescriptorType& flatten_descriptor)
+                                         const UnnestedDescriptorType& unnested_descriptor)
         : shape_(shape)
     {
         // Construct if runtime mode
-        if constexpr(!FlattenDescriptorType::IsKnownAtCompileTime())
+        if constexpr(!UnnestedDescriptorType::IsKnownAtCompileTime())
         {
-            flatten_descriptor_ = flatten_descriptor;
-            descriptor_1d_      = MakeMerge1d(shape_, flatten_descriptor_);
+            unnested_descriptor_ = unnested_descriptor;
+            descriptor_1d_       = MakeMerge1d(shape_, unnested_descriptor_);
             merged_nests_descriptor_ =
-                TransformDesc(shape_, DefaultIdxsTupleType{}, flatten_descriptor_);
+                TransformDesc(shape_, DefaultIdxsTupleType{}, unnested_descriptor_);
         }
     }
 
@@ -254,9 +254,9 @@ struct Layout
     template <typename Idxs>
     __host__ __device__ constexpr index_t operator()() const
     {
-        static_assert(FlattenDescriptorType::IsKnownAtCompileTime(),
+        static_assert(UnnestedDescriptorType::IsKnownAtCompileTime(),
                       "Compiletime operator used on runtime layout.");
-        using TransformedDesc = decltype(TransformDesc(Shape{}, Idxs{}, FlattenDescriptorType{}));
+        using TransformedDesc = decltype(TransformDesc(Shape{}, Idxs{}, UnnestedDescriptorType{}));
         using UnrolledIdx     = decltype(UnrollNestedTuple(Idxs{}));
         return TransformedDesc{}.CalculateOffset(UnrolledIdx{});
     }
@@ -283,7 +283,7 @@ struct Layout
         else
         {
             // Custom index, need to transform descriptor
-            const auto transformed_desc = TransformDesc(shape_, Idx, flatten_descriptor_);
+            const auto transformed_desc = TransformDesc(shape_, Idx, unnested_descriptor_);
             return transformed_desc.CalculateOffset(UnrollNestedTuple(Idx));
         }
     }
@@ -360,17 +360,17 @@ struct Layout
     }
 
     /**
-     * \brief Get flatten descriptor (with unrolled dims)
+     * \brief Get unnested descriptor (with unrolled dims)
      *
      * \return Flatten descriptor.
      */
-    __host__ __device__ constexpr const FlattenDescriptorType& GetFlattenDescriptor() const
+    __host__ __device__ constexpr const UnnestedDescriptorType& GetUnnestedDescriptor() const
     {
-        return flatten_descriptor_;
+        return unnested_descriptor_;
     }
 
     private:
-    FlattenDescriptorType flatten_descriptor_;
+    UnnestedDescriptorType unnested_descriptor_;
     Descriptor1dType descriptor_1d_;
     MergedNestsDescriptorType merged_nests_descriptor_;
     const Shape shape_;

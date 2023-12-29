@@ -22,7 +22,7 @@ namespace wrapper {
 // Disable from doxygen docs generation
 /// @cond
 // forward declaration
-template <typename Shape, typename FlattenDescriptorType>
+template <typename Shape, typename UnnestedDescriptorType>
 struct Layout;
 
 template <typename T>
@@ -90,8 +90,8 @@ __host__ __device__ constexpr auto MakeFlattenDescriptor(const LayoutShape& shap
 template <typename Shape, typename Strides>
 __host__ __device__ constexpr auto make_layout(const Shape& shape, const Strides& strides)
 {
-    using FlattenDescriptorType = decltype(MakeFlattenDescriptor(Shape{}, Strides{}));
-    return Layout<Shape, FlattenDescriptorType>(shape, MakeFlattenDescriptor(shape, strides));
+    using UnnestedDescriptorType = decltype(MakeFlattenDescriptor(Shape{}, Strides{}));
+    return Layout<Shape, UnnestedDescriptorType>(shape, MakeFlattenDescriptor(shape, strides));
 }
 
 /**
@@ -104,8 +104,8 @@ __host__ __device__ constexpr auto make_layout(const Shape& shape, const Strides
 template <typename Shape>
 __host__ __device__ constexpr auto make_layout(const Shape& shape)
 {
-    using FlattenDescriptorType = decltype(MakeFlattenDescriptor(Shape{}, Tuple<>{}));
-    return Layout<Shape, FlattenDescriptorType>(shape, MakeFlattenDescriptor(shape, Tuple<>{}));
+    using UnnestedDescriptorType = decltype(MakeFlattenDescriptor(Shape{}, Tuple<>{}));
+    return Layout<Shape, UnnestedDescriptorType>(shape, MakeFlattenDescriptor(shape, Tuple<>{}));
 }
 
 // Layout helpers
@@ -182,7 +182,7 @@ __host__ __device__ constexpr auto get(const Layout<Shape, FlattenDesc>& layout)
         },
         Number<old_shape_dims>{});
 
-    const auto& flatten_desc = layout.GetFlattenDescriptor();
+    const auto& flatten_desc = layout.GetUnnestedDescriptor();
     auto new_desc = transform_tensor_descriptor(flatten_desc, transforms, lower_dims, upper_dims);
     return Layout<decltype(new_shape), decltype(new_desc)>(new_shape, new_desc);
 }
@@ -218,8 +218,8 @@ __host__ __device__ T constexpr size(const T& dim)
  * \param layout Layout to get Shape of.
  * \return Requsted length.
  */
-template <index_t idx, typename Shape, typename FlattenDescriptorType>
-__host__ __device__ constexpr auto size(const Layout<Shape, FlattenDescriptorType>& layout)
+template <index_t idx, typename Shape, typename UnnestedDescriptorType>
+__host__ __device__ constexpr auto size(const Layout<Shape, UnnestedDescriptorType>& layout)
 {
     return layout.template GetLength<idx>();
 }
@@ -244,8 +244,8 @@ __host__ __device__ constexpr auto size(const Tuple<ShapeDims...>& shape)
  * \param layout Layout to calculate shape size.
  * \return Requsted size.
  */
-template <typename Shape, typename FlattenDescriptorType>
-__host__ __device__ constexpr auto size(const Layout<Shape, FlattenDescriptorType>& layout)
+template <typename Shape, typename UnnestedDescriptorType>
+__host__ __device__ constexpr auto size(const Layout<Shape, UnnestedDescriptorType>& layout)
 {
     return layout.GetLengths();
 }
@@ -284,9 +284,9 @@ __host__ __device__ constexpr auto size(const T& elem)
  * \param layout Layout to calculate rank.
  * \return Requsted rank.
  */
-template <typename Shape, typename FlattenDescriptorType>
+template <typename Shape, typename UnnestedDescriptorType>
 __host__ __device__ constexpr auto
-rank([[maybe_unused]] const Layout<Shape, FlattenDescriptorType>& layout)
+rank([[maybe_unused]] const Layout<Shape, UnnestedDescriptorType>& layout)
 {
     return Shape::Size();
 }
@@ -338,8 +338,8 @@ __host__ __device__ constexpr auto rank(const T& elem)
  * \param layout Layout to calculate depth.
  * \return Requsted depth.
  */
-template <typename Shape, typename FlattenDescriptorType>
-__host__ __device__ constexpr auto depth(const Layout<Shape, FlattenDescriptorType>& layout)
+template <typename Shape, typename UnnestedDescriptorType>
+__host__ __device__ constexpr auto depth(const Layout<Shape, UnnestedDescriptorType>& layout)
 {
     const auto& shape = layout.GetShape();
     return TupleDepth(shape);
