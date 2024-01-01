@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -32,24 +32,22 @@ namespace {
 // Generate packed (column-major) strides if not passed
 template <typename... Ts>
 __host__ __device__ constexpr static auto
-GenerateColumnMajorPackedStrides(const Tuple<Ts...>& shape, index_t& stride)
+GenerateColumnMajorPackedStrides(const Tuple<Ts...>& shape)
 {
+    const auto unrolled_shape = UnrollNestedTuple(shape);
     return generate_tuple(
         [&](auto i) {
-            const auto num_i = Number<i>{};
-            if constexpr(is_detected<is_tuple, tuple_element_t<i, Tuple<Ts...>>>::value)
+            if constexpr(i.value == 0)
             {
-                return GenerateColumnMajorPackedStrides(shape.At(num_i), stride);
+                return Number<1>{};
             }
             else
             {
-                const index_t dim_stride = stride;
-                // update stride
-                stride *= shape.At(num_i);
-                return dim_stride;
+                return TupleReduce<Number<0>{}.value, i.value>([](auto x, auto y) { return x * y; },
+                                                               unrolled_shape);
             }
         },
-        Number<Tuple<Ts...>::Size()>{});
+        Number<decltype(unrolled_shape)::Size()>{});
 }
 
 template <typename LayoutShape, typename LayoutStrides>
@@ -59,10 +57,8 @@ __host__ __device__ constexpr auto MakeFlattenDescriptor(const LayoutShape& shap
     const auto unrolled_shape = UnrollNestedTuple(shape);
     if constexpr(is_same_v<LayoutStrides, Tuple<>>)
     {
-        index_t start_stride = 1;
         // if not passed, then generate
-        const auto unrolled_strides =
-            GenerateColumnMajorPackedStrides(unrolled_shape, start_stride);
+        const auto unrolled_strides = GenerateColumnMajorPackedStrides(unrolled_shape);
         static_assert(unrolled_shape.Size() == unrolled_strides.Size(),
                       "Size of strides and shape are not consistent.");
         return make_naive_tensor_descriptor(unrolled_shape, unrolled_strides);
