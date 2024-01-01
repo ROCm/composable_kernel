@@ -1,2 +1,2 @@
-rocm-docs-core==0.30.1
+rocm-docs-core==0.30.3
 sphinxcontrib-bibtex==2.6.1
