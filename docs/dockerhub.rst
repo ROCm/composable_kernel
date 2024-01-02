@@ -13,7 +13,7 @@ Why do I need this?
 -------------------------------------
 
 To make things simpler, and bring Composable Kernel and its dependencies together, 
-docker images can be found on `Docker Hub <https://hub.docker.com/r/rocm/composable_kernel>`_. Docker images provide a complete image of the OS, the composable kernel library, and its dependencies in a single downloadable file. 
+docker images can be found on `Docker Hub <https://hub.docker.com/r/rocm/composable_kernel>`_. Docker images provide a complete image of the OS, the Composable Kernel library, and its dependencies in a single downloadable file. 
 
 Refer to `Docker Overview <https://docs.docker.com/get-started/overview/>`_ for more information on Docker images and containers.
 
