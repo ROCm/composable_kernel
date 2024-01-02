@@ -5,7 +5,7 @@
 .. _contributing-to:
 
 ********************************************************************
-Contributor's Guide
+Contributor's guide
 ********************************************************************
 
 This chapter explains the rules for contributing to the Composable Kernel project, and how to contribute.
@@ -25,7 +25,7 @@ Getting started
 #. **General information:** For broader information about AMD products, consider exploring the
    `AMD Developer Central portal <https://www.amd.com/en/developer.html>`_.
 
-How do I contribute
+How to contribute
 ===================
 
 You can make an impact by reporting issues or proposing code enhancements through pull requests.

@@ -5,16 +5,16 @@ subtrees:
 - entries:
   - file: what-is-ck.rst
     title: What is Composable Kernel?
-  - file: tutorial_hello_world.rst
-    title: Hello World Tutorial
   - file: dockerhub.rst
     title: Docker Hub
-  - file: wrapper.rst
-    title: Wrapper
+  - file: tutorial_hello_world.rst
+    title: Hello World Tutorial
   - file: Supported_Primitives_Guide.rst
     title: Supported Primitives
   - file: API_Reference_Guide.rst
     title: API Reference
+  - file: wrapper.rst
+    title: Wrapper
   - file: Contributors_Guide.rst
     title: Contributing to CK
   - file: license.md

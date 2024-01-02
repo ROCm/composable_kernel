@@ -12,19 +12,25 @@ The Composable Kernel (CK) library provides a programming model for writing perf
 
 The CK documentation is structured as follows:
 
-.. card:: :ref:`Working with Composable Kernel Library`
+.. card:: Conceptual
 
   * :ref:`what-is-ck`
-  * :ref:`hello-world`
-  * :ref:`docker-hub`
-  * :ref:`wrapper`
 
-.. card:: :ref:`API Reference`
+.. card:: Installation
+
+  * :ref:`docker-hub`
+
+.. card:: Tutorial
+
+  * :ref:`hello-world`
+
+.. card:: API reference
 
   * :ref:`supported-primitives`
   * :ref:`api-reference`
+  * :ref:`wrapper`
 
-.. card:: :ref:`Contributing To`
+.. card:: Contributing to CK
 
   * :ref:`contributing-to`
 
