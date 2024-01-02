@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -148,7 +148,7 @@ __host__ __device__ constexpr auto CalculateLayoutOffsetIdxImpl(const Tuple<Ls..
         Number<Tuple<Ls...>::Size()>{});
 }
 
-// Convert interger thread_idx to tuple index with applied steps
+// Convert integer thread_idx to tuple index with steps applied
 template <typename... Ls, typename... Steps>
 __host__ __device__ constexpr auto CalculateLayoutOffsetIdx(const Tuple<Ls...>& thread_lengths,
                                                             const Tuple<Steps...>& steps,
@@ -159,7 +159,7 @@ __host__ __device__ constexpr auto CalculateLayoutOffsetIdx(const Tuple<Ls...>& 
     return CalculateLayoutOffsetIdxImpl(thread_lengths, steps, thread_id_copy);
 }
 
-// Aply steps to index represented as tuple
+// Apply steps to index represented as tuple
 template <typename... Steps, typename... Idxs>
 __host__ __device__ constexpr auto CalculateLayoutOffsetIdx(const Tuple<Steps...>& steps,
                                                             const Tuple<Idxs...>& block_idxs)
@@ -195,8 +195,8 @@ __host__ __device__ constexpr auto CalculateLayoutOffsetIdx(const Tuple<Steps...
         Number<Tuple<Idxs...>::Size()>{});
 }
 
-// For make_local_tile user pass only shape per block. This function calculates
-// block layout based on shape.
+// User passes only shape per block to the make_local_tile function. This function calculates
+// block layout based on the shape.
 template <typename... Ts, typename... BlockDims>
 __host__ __device__ constexpr auto CalculateBlockLengths(const Tuple<Ts...>& shape,
                                                          const Tuple<BlockDims...>& tile_shape)

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <numeric>
 #include <cstdlib>
@@ -8,13 +8,10 @@
 #include <vector>
 #include <gtest/gtest.h>
 
+#include "ck/host_utility/kernel_launch.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/check_err.hpp"
-
-#include "ck/host_utility/kernel_launch.hpp"
-
 #include "ck/utility/common_header.hpp"
-
 #include "ck/wrapper/layout.hpp"
 #include "ck/wrapper/tensor.hpp"
 

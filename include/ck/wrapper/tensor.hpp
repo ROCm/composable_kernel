@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,7 +16,7 @@ namespace wrapper {
  * \tparam BufferAddressSpace Memory type (Generic, Global, LDS, VGPR, SGPR).
  * \tparam ElementType Element data type.
  * \tparam Shape Tensor shape (layout component).
- * \tparam UnnestedDescriptorType Flatten descriptor (layout component).
+ * \tparam UnnestedDescriptorType Unnested descriptor (layout component).
  * \tparam NumVectors Number of vectors (only for VGPR, SGPR).
  * \tparam ScalarPerVector Scalars per vector (only for VGPR, SGPR).
  */

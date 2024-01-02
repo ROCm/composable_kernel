@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <numeric>
 #include <cstdlib>
@@ -8,13 +8,10 @@
 #include <vector>
 #include <gtest/gtest.h>
 
+#include "ck/host_utility/kernel_launch.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/check_err.hpp"
-
-#include "ck/host_utility/kernel_launch.hpp"
-
 #include "ck/utility/common_header.hpp"
-
 #include "ck/wrapper/layout.hpp"
 #include "ck/wrapper/tensor.hpp"
 #include "ck/wrapper/operations/copy.hpp"
@@ -75,7 +72,7 @@ void PerformCopyGlobalToGlobalViaLDS()
         ck::make_tuple(ck::make_tuple(ck::Number<1>{}, ck::Number<2>{}), ck::Number<4>{});
     const auto layout = ck::wrapper::make_layout(shape, strides);
 
-    // 0,1,2...size(shape) - 1
+    // 0, 1, 2, ..., size(shape) - 1
     std::vector<ck::index_t> input_data(ck::wrapper::size(shape));
     std::iota(input_data.begin(), input_data.end(), 0);
 
