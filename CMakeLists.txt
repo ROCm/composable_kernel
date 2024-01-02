@@ -67,6 +67,7 @@ endif()
 #for f8/bf8_t type
 add_compile_options(-Wno-bit-int-extension)
 add_compile_options(-Wno-pass-failed)
+add_compile_options(-Wno-switch-default)
 
 if(DL_KERNELS)
     add_definitions(-DDL_KERNELS)
