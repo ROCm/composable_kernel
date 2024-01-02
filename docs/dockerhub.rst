@@ -1,19 +1,27 @@
-===================
+.. meta::
+  :description: Composable Kernel documentation and API reference library
+  :keywords: composable kernel, CK, ROCm, API, documentation
+
+.. _docker-hub:
+
+********************************************************************
 CK Docker Hub
-===================
+********************************************************************
 
 -------------------------------------
 Why do I need this?
 -------------------------------------
 
-To make our lives easier and bring Composable Kernel dependencies together, we recommend using
-docker images that can be found on `Docker Hub <https://hub.docker.com/r/rocm/composable_kernel>`_.
+To make things simpler, and bring Composable Kernel and its dependencies together, 
+docker images can be found on `Docker Hub <https://hub.docker.com/r/rocm/composable_kernel>`_. Docker images provide a complete image of the OS, the composable kernel library, and its dependencies in a single downloadable file. 
+
+Refer to `Docker Overview <https://docs.docker.com/get-started/overview/>`_ for more information on Docker images and containers.
 
 -------------------------------------
 So what is Composable Kernel?
 -------------------------------------
 
-Composable Kernel (CK) library aims to provide a programming model for writing performance critical
+Composable Kernel (CK) library provides a programming model for writing performance critical
 kernels for machine learning workloads across multiple architectures including GPUs, CPUs, etc,
 through general purpose kernel languages, like HIP C++.
 
@@ -30,19 +38,20 @@ run a docker container::
     --group-add sudo                                                      \
     -w /root/workspace                                                    \
     -v ${PATH_TO_LOCAL_WORKSPACE}:/root/workspace                         \
-    rocm/composable_kernel:ck_ub20.04_rocm5.6                             \
+    rocm/composable_kernel:ck_ub20.04_rocm6.0                             \
     /bin/bash
 
 and build the CK::
 
     mkdir build && cd build
+
     # Need to specify target ID, example below is for gfx908 and gfx90a
     cmake                                                                                             \
-    -D CMAKE_PREFIX_PATH=/opt/rocm                                                                    \
-    -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                         \
-    -D CMAKE_CXX_FLAGS="-O3"                                                                          \
-    -D CMAKE_BUILD_TYPE=Release                                                                       \
-    -D GPU_TARGETS="gfx908;gfx90a"                                                                    \
+    -D CMAKE_PREFIX_PATH=/opt/rocm                                        \
+    -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                             \
+    -D CMAKE_CXX_FLAGS="-O3"                                              \
+    -D CMAKE_BUILD_TYPE=Release                                           \
+    -D GPU_TARGETS="gfx908;gfx90a"                                        \
     ..
 
 and::
@@ -53,7 +62,7 @@ To run all the test cases including tests and examples run::
 
     make test
 
-We can also run specific examples or tests like::
+You can also run specific examples or tests like::
 
     ./bin/example_gemm_xdl_fp16
     ./bin/test_gemm_fp16
@@ -76,13 +85,13 @@ The docker images have everything you need for running CK including:
 Which image is right for me?
 -------------------------------------
 
-Let's take a look at the image naming, for example ``ck_ub20.04_rocm5.6``. The image specs are:
+Take a look at the image naming, for example ``ck_ub20.04_rocm6.0``. The image specs are:
 
 * ``ck`` - made for running Composable Kernel;
 * ``ub20.04`` - based on Ubuntu 20.04;
-* ``rocm5.6`` - ROCm platform version 5.6.
+* ``rocm6.0`` - ROCm platform version 6.0.
 
-So just pick the right image for your project dependencies and you're all set.
+So just pick the right image for the release you are interested in, and your system OS.
 
 -------------------------------------
 DIY starts here
