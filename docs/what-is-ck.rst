@@ -32,8 +32,9 @@ The CK library is structured into 4 layers:
 * "Templated Tile Operators" layer
 * "Templated Kernel and Invoker" layer
 * "Instantiated Kernel and Invoker" layer
-* "Wrapper for tensor transform operations"
 * "Client API" layer
+
+It also includes a simple wrapper component used to perform tensor transform operations more easily and with fewer lines of code.
 
 .. image:: data/ck_layer.png
    :alt: CK Layers
