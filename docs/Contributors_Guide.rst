@@ -19,7 +19,7 @@ Getting started
    build the library. You can also find some of this information in the
    `README file <https://github.com/ROCmSoftwarePlatform/composable_kernel/blob/develop/README.md>`_
    on the project's GitHub page.
-#. **Additional reading:** you should also read the `blog post
+#. **Additional reading:** The blog post `AMD Composable Kernel library: efficient fused kernels for AI apps with just a few lines of code <https://community.amd.com/t5/instinct-accelerators/amd-composable-kernel-library-efficient-fused-kernels-for-ai/ba-p/553224>`_ provides a deeper understanding of the CK library and showcases its performance capabilities.
    <https://community.amd.com/t5/instinct-accelerators/amd-composable-kernel-library-efficient-fused-kernels-for-ai/ba-p/553224>`_
    from the AMD Community portal. It offers a deeper understanding of the library's objectives and showcases its performance capabilities.
 #. **General information:** For broader information about AMD products, consider exploring the
