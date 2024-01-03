@@ -173,7 +173,7 @@ struct GenericAttentionMask
 // can convert from the FA style left/right to our generic coordinate
 // if left_size < 0 && right_size = 0, it is normal causal mask
 // local is left_size >=0 or right_size >=0
-__host__ constexpr auto
+__host__ __device__ constexpr auto
 make_generic_attention_mask_coordinates_from_lr_window(index_t left_size,
                                                        index_t right_size,
                                                        index_t y_total,
