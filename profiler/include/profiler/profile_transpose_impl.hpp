@@ -77,8 +77,6 @@ bool profile_transpose_impl(int do_verification,
 
     using ElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-    // const auto element_op = ElementOp{};
-
     DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
 
@@ -118,6 +116,7 @@ bool profile_transpose_impl(int do_verification,
             // re-init C to zero before profiling next kernel
             b_device_buf.SetZero();
 
+            // run for verification
             invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
 
             if(do_verification)
@@ -136,6 +135,7 @@ bool profile_transpose_impl(int do_verification,
 
             std::string op_name = op_ptr->GetTypeString();
 
+            // run for timing purposes
             float ave_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
