@@ -178,4 +178,15 @@ __host__ __device__ constexpr auto TupleDepth(const Tuple<Ts...>&)
     return math::max(TupleDepth<depth + 1>(Ts{})...);
 }
 
+template <index_t from, index_t to, typename... Ts>
+__host__ __device__ constexpr auto TupleSlice(const Tuple<Ts...>& tuple)
+{
+    return generate_tuple(
+        [&](auto i) {
+            using Idx = Number<from + i>;
+            return tuple.At(Idx{});
+        },
+        Number<to - from>{});
+}
+
 } // namespace ck
