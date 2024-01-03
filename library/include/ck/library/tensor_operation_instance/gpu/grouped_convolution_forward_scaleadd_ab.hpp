@@ -23,20 +23,19 @@ using ScaleAdd    = ck::tensor_operation::element_wise::ScaleAdd;
 
 #ifdef CK_ENABLE_BF16
 // grouped conv3d forward multi AB scaleadd, NDHWGC/GKZYXC/NDHWGK
-// TODO: Workaround for https://ontrack-internal.amd.com/browse/SWDEV-435347
-// void add_device_grouped_conv3d_fwd_xdl_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
-//     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-//                                                                 NDHWGC,
-//                                                                 GKZYXC,
-//                                                                 ck::Tuple<>,
-//                                                                 NDHWGK,
-//                                                                 ck::Tuple<BF16, BF16>,
-//                                                                 ck::Tuple<BF16, BF16>,
-//                                                                 ck::Tuple<>,
-//                                                                 BF16,
-//                                                                 ScaleAdd,
-//                                                                 ScaleAdd,
-//                                                                 PassThrough>>>& instances);
+void add_device_grouped_conv3d_fwd_xdl_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<>,
+                                                                NDHWGK,
+                                                                ck::Tuple<BF16, BF16>,
+                                                                ck::Tuple<BF16, BF16>,
+                                                                ck::Tuple<>,
+                                                                BF16,
+                                                                ScaleAdd,
+                                                                ScaleAdd,
+                                                                PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_FP16
@@ -152,15 +151,13 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             }
 #endif
 #ifdef CK_ENABLE_BF16
-            // TODO: Workaround for https://ontrack-internal.amd.com/browse/SWDEV-435347
-            // if constexpr(is_same_v<InDataType, ck::Tuple<ck::bhalf_t, ck::bhalf_t>> &&
-            //              is_same_v<WeiDataType, ck::Tuple<ck::bhalf_t, ck::bhalf_t>> &&
-            //              is_same_v<OutDataType, ck::bhalf_t> && is_same_v<ComputeType,
-            //              ck::bhalf_t>)
-            // {
-            //     add_device_grouped_conv3d_fwd_xdl_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
-            //         op_ptrs);
-            // }
+            if constexpr(is_same_v<InDataType, ck::Tuple<ck::bhalf_t, ck::bhalf_t>> &&
+                         is_same_v<WeiDataType, ck::Tuple<ck::bhalf_t, ck::bhalf_t>> &&
+                         is_same_v<OutDataType, ck::bhalf_t> && is_same_v<ComputeType, ck::bhalf_t>)
+            {
+                add_device_grouped_conv3d_fwd_xdl_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+                    op_ptrs);
+            }
 #endif
 #ifdef CK_ENABLE_INT8
             if constexpr(is_same_v<InDataType, ck::Tuple<int8_t, int8_t>> &&
