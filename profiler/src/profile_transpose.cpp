@@ -22,11 +22,11 @@ struct TransposeArgParser
 {
     std::unordered_map<std::string, std::vector<int>> long_opts = {{"lengths", {}}};
 
-    bool parse_opt(int argc, char* argv[], const std::string& key, int i)
+    bool parse_opt(const int argc, char* argv[], const std::string& key, int i)
     {
         if(std::string("--") + key == argv[i])
         {
-            int pos = i;
+            const int pos = i;
             while(++i < argc && argv[i][0] != '-') {}
             int end = i;
             for(int j = pos + 1; j < end; j++)
