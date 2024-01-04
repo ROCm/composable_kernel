@@ -25,7 +25,7 @@ namespace ck {
 namespace profiler {
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
-void host_elementwise4D(HostTensorB& B_nchwd, const HostTensorA& A_ncdhw, Functor functor)
+void host_elementwise4D(HostTensorB& B_ndhwc, const HostTensorA& A_ncdhw, Functor functor)
 {
     for(std::size_t n = 0; n < A_ncdhw.mDesc.GetLengths()[0]; ++n)
         for(std::size_t c = 0; c < A_ncdhw.mDesc.GetLengths()[1]; ++c)
@@ -34,7 +34,7 @@ void host_elementwise4D(HostTensorB& B_nchwd, const HostTensorA& A_ncdhw, Functo
                     for(std::size_t w = 0; w < A_ncdhw.mDesc.GetLengths()[4]; ++w)
                     {
                         auto a_val = A_ncdhw(n, c, d, h, w);
-                        functor(B_nchwd(n, c, h, w, d), a_val);
+                        functor(B_ndhwc(n, d, h, w, c), a_val);
                     }
 }
 
@@ -77,8 +77,6 @@ bool profile_transpose_impl(int do_verification,
 
     using ElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-    // const auto element_op = ElementOp{};
-
     DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
 
@@ -118,6 +116,7 @@ bool profile_transpose_impl(int do_verification,
             // re-init C to zero before profiling next kernel
             b_device_buf.SetZero();
 
+            // run for verification
             invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
 
             if(do_verification)
@@ -136,6 +135,7 @@ bool profile_transpose_impl(int do_verification,
 
             std::string op_name = op_ptr->GetTypeString();
 
+            // run for timing purposes
             float ave_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
@@ -152,10 +152,6 @@ bool profile_transpose_impl(int do_verification,
 
             std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
                       << gb_per_sec << " GB/s, " << op_name << std::endl;
-
-            // pass = pass & ck::utils::check_err(b_device_result, b_host_result);
-            pass &= ck::utils::check_err(
-                b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
 
             if(tflops > best_tflops)
             {
