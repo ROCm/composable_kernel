@@ -58,9 +58,28 @@ This tutorial is based on the use of docker images as explained in :ref:`docker-
 
 .. note::
 
-   You can also `install ROCm <https://rocm.docs.amd.com/projects/install-on-linux/en/latest/>`_ on your system, clone the `Composable Kernel repository <https://github.com/ROCmSoftwarePlatform/composable_kernel.git>`_ on GitHub, and use that to build and run the examples using the commands described below.
+To make our lives easier we prepared
+`docker images <https://hub.docker.com/r/rocm/composable_kernel>`_ with all the necessary
+dependencies. Pick the right image and create a container. In this tutorial we use
+``rocm/composable_kernel:ck_ub20.04_rocm6.0`` image, it is based on Ubuntu 20.04 and
+ROCm v6.0.
 
-Both the docker container and GitHub repository include the Composable Kernel library. Navigate to the library::
+If your current folder is ``${HOME}``, start the docker container with::
+
+    docker run  \
+    -it  \
+    --privileged  \
+    --group-add sudo  \
+    -w /root/workspace  \
+    -v ${HOME}:/root/workspace  \
+    rocm/composable_kernel:ck_ub20.04_rocm6.0  \
+    /bin/bash
+
+If your current folder is different from ``${HOME}``, adjust the line ``-v ${HOME}:/root/workspace``
+to fit your folder structure.
+
+Inside the docker container current folder is ``~/workspace``, library path is
+``~/workspace/composable_kernel``, navigate to the library::
 
     cd composable_kernel/
 
