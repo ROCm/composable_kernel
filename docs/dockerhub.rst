@@ -83,16 +83,16 @@ Where:
 
     You can use the ``docker container ls`` command to list the active containers on the system.
 
-Use the ``docker stop`` command to stop the container and restore the image to its initial state::
-
-    docker stop <container_name>
-
 To start a container from the image, use the ``docker start`` command::
 
     docker start <container_name>
 
 Then use the docker exec command as shown above to start the bash shell. 
 
+Use the ``docker stop`` command to stop the container and restore the image to its initial state::
+
+    docker stop <container_name>
+    
 Editing the docker image
 =======================
 
