@@ -17,7 +17,7 @@
 #include "ck/tile_program/block_tile/block_gemm_areg_bsmem_creg_v1.hpp"
 #include "ck/tile_program/block_tile/block_reduce.hpp"
 
-#include "gemm_softmax_gemm_impl.hpp"
+#include "gemm_softmax_gemm/gemm_softmax_gemm_impl.hpp"
 
 // S[M0, N0] = Q[M0, K0] * K[N0, K0]
 // P[M0, N0] = Softmax(S[M0, N0])

@@ -5,9 +5,11 @@
 #pragma once
 
 #include "ck/ck.hpp"
+#include "ck/utility/amd_address_space.hpp"
+#include "ck/utility/amd_buffer_addressing.hpp"
+#include "ck/utility/c_style_pointer_cast.hpp"
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/enable_if.hpp"
-#include "ck/utility/c_style_pointer_cast.hpp"
 
 namespace ck {
 

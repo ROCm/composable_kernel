@@ -1,0 +1,1 @@
+add_example_executable(example_gemm_gemm gemm_gemm.cpp)

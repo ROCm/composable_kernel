@@ -13,8 +13,8 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 
-#include "reference_batched_gemm.hpp"
-#include "reference_batched_softmax.hpp"
+#include "reference/reference_batched_gemm.hpp"
+#include "reference/reference_batched_softmax.hpp"
 #include "batched_gemm_softmax_gemm.hpp"
 
 int main(int argc, char* argv[])

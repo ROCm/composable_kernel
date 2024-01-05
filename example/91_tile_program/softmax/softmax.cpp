@@ -13,28 +13,8 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 
-#include "reduce.hpp"
-
-template <typename ADataType, typename AccDataType, typename BDataType>
-void reference_reduce(const Tensor<ADataType>& a_m_n, Tensor<BDataType>& b_m)
-{
-    auto f = [&](auto m) {
-        const int N = a_m_n.mDesc.GetLengths()[1];
-
-        AccDataType v_acc = 0;
-
-        for(int n = 0; n < N; ++n)
-        {
-            const ADataType v_a = a_m_n(m, n);
-
-            v_acc += v_a;
-        }
-
-        b_m(m) = ck::type_convert<BDataType>(v_acc);
-    };
-
-    make_ParallelTensorFunctor(f, b_m.mDesc.GetLengths()[0])(std::thread::hardware_concurrency());
-}
+#include "reference/reference_softmax.hpp"
+#include "softmax.hpp"
 
 int main(int argc, char* argv[])
 {
@@ -42,7 +22,7 @@ int main(int argc, char* argv[])
     using AccDataType = float;
     using BDataType   = ck::half_t;
 
-    ck::index_t M = 3328;
+    ck::index_t M = 13312;
     ck::index_t N = 4096;
 
     if(argc == 3)
@@ -54,8 +34,8 @@ int main(int argc, char* argv[])
     std::array<ck::index_t, 2> a_lengths{M, N};
     std::array<ck::index_t, 2> a_strides{N, 1};
 
-    std::array<ck::index_t, 1> b_lengths{M};
-    std::array<ck::index_t, 1> b_strides{1};
+    std::array<ck::index_t, 2> b_lengths{M, N};
+    std::array<ck::index_t, 2> b_strides{N, 1};
 
     // host verify
     Tensor<ADataType> a_host(a_lengths, a_strides);
@@ -65,7 +45,7 @@ int main(int argc, char* argv[])
     ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_host);
 
     // reference
-    reference_reduce<ADataType, AccDataType, BDataType>(a_host, b_host_ref);
+    reference_softmax<ADataType, AccDataType, BDataType>(a_host, b_host_ref);
 
     DeviceMem a_buf(sizeof(ADataType) * a_host.GetElementSpaceSize());
     DeviceMem b_buf(sizeof(BDataType) * b_host_ref.GetElementSpaceSize());
@@ -81,7 +61,7 @@ int main(int argc, char* argv[])
     std::cout << "grid size " << kGridSize << std::endl;
 
     const auto kernel =
-        Reduce<ADataType, AccDataType, BDataType, kBlockSize, kMPerBlock, kNPerBlock>{};
+        Softmax<ADataType, AccDataType, BDataType, kBlockSize, kMPerBlock, kNPerBlock>{};
 
     float ave_time = launch_kernel(StreamConfig{nullptr, true},
                                    kernel,
@@ -95,7 +75,7 @@ int main(int argc, char* argv[])
 
     b_buf.FromDevice(b_host_dev.mData.data());
 
-    std::size_t num_btype = sizeof(ADataType) * M * N + sizeof(BDataType) * M;
+    std::size_t num_btype = sizeof(ADataType) * M * N + sizeof(BDataType) * M * N;
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 

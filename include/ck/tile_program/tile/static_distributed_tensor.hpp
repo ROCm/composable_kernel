@@ -8,6 +8,7 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 
+#include "ck/tile_program/tile/static_tile_distribution_helper.hpp"
 #include "ck/tile_program/tile/tile_distribution.hpp"
 
 namespace ck {

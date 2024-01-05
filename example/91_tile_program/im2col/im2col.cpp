@@ -24,55 +24,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 
-template <typename T>
-void reference_im2col(Tensor<T>& in_mtx_host_ref,
-                      const Tensor<T>& in_host,
-                      int /*N*/,
-                      int /*K*/,
-                      int C,
-                      int /*Y*/,
-                      int X,
-                      int Hi,
-                      int Wi,
-                      int Ho,
-                      int Wo,
-                      int ConvStrideH,
-                      int ConvStrideW,
-                      int ConvDilationH,
-                      int ConvDilationW,
-                      int InLeftPadH,
-                      int InLeftPadW,
-                      int /*InRightPadH*/,
-                      int /*InRightPadW*/)
-{
-    int GemmM = in_mtx_host_ref.GetLengths()[0];
-    int GemmK = in_mtx_host_ref.GetLengths()[1];
-
-    for(int gemm_m = 0; gemm_m < GemmM; ++gemm_m)
-    {
-        int mtmp = gemm_m;
-        int n    = mtmp / (Ho * Wo);
-        mtmp -= n * Ho * Wo;
-        int ho = mtmp / Wo;
-        int wo = mtmp - ho * Wo;
-
-        for(int gemm_k = 0; gemm_k < GemmK; ++gemm_k)
-        {
-            int ktmp = gemm_k;
-            int y    = ktmp / (X * C);
-            ktmp -= y * X * C;
-            int x = ktmp / C;
-            int c = ktmp - x * C;
-
-            int hi = y * ConvDilationH + ho * ConvStrideH - InLeftPadH;
-            int wi = x * ConvDilationW + wo * ConvStrideW - InLeftPadW;
-
-            bool inbound = (hi >= 0 && hi < Hi && wi >= 0 && wi < Wi);
-
-            in_mtx_host_ref(gemm_m, gemm_k) = inbound ? in_host(n, hi, wi, c) : 0;
-        }
-    }
-}
+#include "reference/reference_im2col.hpp"
 
 template <ck::index_t NDimSpatial,
           typename T,

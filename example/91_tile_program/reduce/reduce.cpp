@@ -13,8 +13,8 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 
-#include "reference_softmax.hpp"
-#include "softmax.hpp"
+#include "reference/reference_reduce.hpp"
+#include "reduce.hpp"
 
 int main(int argc, char* argv[])
 {
@@ -22,7 +22,7 @@ int main(int argc, char* argv[])
     using AccDataType = float;
     using BDataType   = ck::half_t;
 
-    ck::index_t M = 13312;
+    ck::index_t M = 3328;
     ck::index_t N = 4096;
 
     if(argc == 3)
@@ -34,8 +34,8 @@ int main(int argc, char* argv[])
     std::array<ck::index_t, 2> a_lengths{M, N};
     std::array<ck::index_t, 2> a_strides{N, 1};
 
-    std::array<ck::index_t, 2> b_lengths{M, N};
-    std::array<ck::index_t, 2> b_strides{N, 1};
+    std::array<ck::index_t, 1> b_lengths{M};
+    std::array<ck::index_t, 1> b_strides{1};
 
     // host verify
     Tensor<ADataType> a_host(a_lengths, a_strides);
@@ -45,7 +45,7 @@ int main(int argc, char* argv[])
     ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_host);
 
     // reference
-    reference_softmax<ADataType, AccDataType, BDataType>(a_host, b_host_ref);
+    reference_reduce<ADataType, AccDataType, BDataType>(a_host, b_host_ref);
 
     DeviceMem a_buf(sizeof(ADataType) * a_host.GetElementSpaceSize());
     DeviceMem b_buf(sizeof(BDataType) * b_host_ref.GetElementSpaceSize());
@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
     std::cout << "grid size " << kGridSize << std::endl;
 
     const auto kernel =
-        Softmax<ADataType, AccDataType, BDataType, kBlockSize, kMPerBlock, kNPerBlock>{};
+        Reduce<ADataType, AccDataType, BDataType, kBlockSize, kMPerBlock, kNPerBlock>{};
 
     float ave_time = launch_kernel(StreamConfig{nullptr, true},
                                    kernel,
@@ -75,7 +75,7 @@ int main(int argc, char* argv[])
 
     b_buf.FromDevice(b_host_dev.mData.data());
 
-    std::size_t num_btype = sizeof(ADataType) * M * N + sizeof(BDataType) * M * N;
+    std::size_t num_btype = sizeof(ADataType) * M * N + sizeof(BDataType) * M;
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 

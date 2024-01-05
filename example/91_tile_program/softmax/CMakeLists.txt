@@ -1,0 +1,1 @@
+add_example_executable(example_softmax softmax.cpp)

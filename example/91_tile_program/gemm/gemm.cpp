@@ -13,7 +13,7 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 
-#include "reference_gemm.hpp"
+#include "reference/reference_gemm.hpp"
 #include "gemm.hpp"
 
 // elementwise lambda

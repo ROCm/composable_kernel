@@ -1,0 +1,1 @@
+add_example_executable(example_batched_gemm_softmax_gemm batched_gemm_softmax_gemm.cpp)

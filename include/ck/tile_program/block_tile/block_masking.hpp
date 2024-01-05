@@ -3,6 +3,10 @@
 
 #pragma once
 
+#include "ck/ck.hpp"
+#include "ck/utility/number.hpp"
+#include "ck/utility/tuple.hpp"
+
 namespace ck {
 namespace tile_program {
 namespace block {
