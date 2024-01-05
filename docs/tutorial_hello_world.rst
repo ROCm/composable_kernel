@@ -12,9 +12,8 @@ This tutorial is for engineers dealing with artificial intelligence and machine 
 would like to optimize pipelines and improve performance using the Composable
 Kernel (CK) library. This tutorial provides an introduction to the CK library. You will build the library and run some examples using a "Hello World" example. 
 
--------------------------------------
 Description
--------------------------------------
+===========
 
 Modern AI technology solves more and more problems in a variety of fields, but crafting fast and
 efficient workflows is still challenging. CK can make the AI workflow fast
@@ -35,9 +34,8 @@ If you need more technical details and benchmarking results read the following
 
 To download the library visit the `composable_kernel repository <https://github.com/ROCmSoftwarePlatform/composable_kernel>`_.
 
--------------------------------------
 Hardware targets
--------------------------------------
+================
 
 CK library fully supports `gfx908` and `gfx90a` GPU architectures, while only some operators are
 supported for `gfx1030` devices. Check your hardware to determine the target GPU architecture.
@@ -53,38 +51,16 @@ gfx1030        Radeon PRO V620, W6800, W6800X, W6800X Duo, W6900X, RX 6800, RX 6
 There are also `cloud options <https://aws.amazon.com/ec2/instance-types/g4/>`_ you can find if
 you don't have an AMD GPU at hand.
 
--------------------------------------
 Build the library
--------------------------------------
+=================
 
-First clone the library and rebase to the tested version::
-
-    git clone https://github.com/ROCmSoftwarePlatform/composable_kernel.git
-    cd composable_kernel/
-    git checkout tutorial_hello_world
-
-To make things simpler there are prepared 
-`ROCm CK docker images <https://hub.docker.com/r/rocm/composable_kernel>`_ with all the necessary
-dependencies. Pick the right image and create a container. This tutorial uses the 
-``rocm/composable_kernel:ck_ub20.04_rocm6.0`` image, it is based on Ubuntu 20.04 and
-ROCm v6.0.
-
-If your current folder is ``${HOME}``, start the docker container with::
-
-    docker run  \
-    -it  \
-    --privileged  \
-    --group-add sudo  \
-    -w /root/workspace  \
-    -v ${HOME}:/root/workspace  \
-    rocm/composable_kernel:ck_ub20.04_rocm6.0  \
-    /bin/bash
+This tutorial is based on the use of docker images as explained in :ref:`docker-hub`. Download a docker image suitable for your OS and ROCm release, run or start the docker container, and then resume the tutorial from this point. 
 
 .. note::
 
-   If your current folder is different from ``${HOME}``, adjust the line ``-v ${HOME}:/root/workspace`` to fit your folder structure.
+   You can also `install ROCm <https://rocm.docs.amd.com/projects/install-on-linux/en/latest/>`_ on your system, clone the `Composable Kernel repository <https://github.com/ROCmSoftwarePlatform/composable_kernel.git>`_ on GitHub, and use that to build and run the examples using the commands described below.
 
-The docker container current includes a workspace folder with the composable kernel library contained within at ``~/workspace/composable_kernel``. Navigate to the library::
+Both the docker container and GitHub repository include the Composable Kernel library. Navigate to the library::
 
     cd composable_kernel/
 
@@ -117,9 +93,8 @@ When complete you should see::
     Scanning dependencies of target tests
     [100%] Built target tests
 
----------------------------
 Run examples and tests
----------------------------
+======================
 
 Examples are listed as test cases as well, so you can run all examples and tests with::
 
@@ -138,12 +113,9 @@ The arguments ``1 1 1`` mean that you want to run this example in the mode: veri
 If you have a device based on `gfx908` or `gfx90a` architecture, and if the example runs as expected, you should see something like::
 
     a_m_k: dim 2, lengths {3840, 4096}, strides {4096, 1}
-    b_k_n: dim 2, lengths {4096, 4096}, strides {1, 4096}
+    b_k_n: dim 2, lengths {4096, 4096}, strides {4096, 1}
     c_m_n: dim 2, lengths {3840, 4096}, strides {4096, 1}
-    launch_and_time_kernel: grid_dim {480, 1, 1}, block_dim {256, 1, 1}
-    Warm up 1 time
-    Start running 10 times...
-    Perf: 1.10017 ms, 117.117 TFlops, 87.6854 GB/s, DeviceGemmXdl<256, 256, 128, 4, 8, 32, 32, 4, 2> NumPrefetch: 1, LoopScheduler: Default, PipelineVersion: v1
+    Perf: 1.08153 ms, 119.136 TFlops, 89.1972 GB/s, DeviceGemm_Xdl_CShuffle<Default, 256, 256, 128, 32, 8, 2, 32, 32, 4, 2, 8, 4, 1, 2> LoopScheduler: Interwave, PipelineVersion: v1
 
 However, running it on a `gfx1030` device should result in the following::
 
@@ -185,9 +157,8 @@ If everything goes well you should see something like::
 
     100% tests passed, 0 tests failed out of 1
 
------------
 Summary
------------
+=======
 
 In this tutorial you took the first look at the Composable Kernel library, built it on your system and ran some examples and tests. In the next tutorial you will run kernels with different configurations to find out the best one for your hardware and task.
 
