@@ -1,10 +1,21 @@
-# Anywhere {branch} is used, the branch name will be substituted.
-# These comments will also be removed.
 defaults:
   numbered: False
-  maxdepth: 6
 root: index
 subtrees:
-- caption: About
-  entries:
-    - file: license
+- entries:
+  - file: what-is-ck.rst
+    title: What is Composable Kernel?
+  - file: dockerhub.rst
+    title: Docker Hub
+  - file: tutorial_hello_world.rst
+    title: Hello World Tutorial
+  - file: Supported_Primitives_Guide.rst
+    title: Supported Primitives
+  - file: API_Reference_Guide.rst
+    title: API Reference
+  - file: wrapper.rst
+    title: Wrapper
+  - file: Contributors_Guide.rst
+    title: Contributing to CK
+  - file: license.md
+    title: License
