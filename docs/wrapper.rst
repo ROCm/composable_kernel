@@ -77,4 +77,11 @@ Tensor helpers
 -------------------------------------
 
 .. doxygenfile:: tensor_utils.hpp
-    
+
+.. doxygenfile:: tensor_partition.hpp
+
+-------------------------------------
+Operations
+-------------------------------------
+
+.. doxygenfile:: copy.hpp
