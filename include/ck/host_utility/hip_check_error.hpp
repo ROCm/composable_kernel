@@ -12,7 +12,7 @@ inline void hip_check_error(hipError_t x)
     if(x != hipSuccess)
     {
         std::ostringstream ss;
-        ss << "HIP runtime error: " << hipGetErrorString(x) << ". " << __FILE__ << ": " << __LINE__
+        ss << "HIP runtime error: " << hipGetErrorString(x) << ". " << __FILE_NAME__ << ": " << __LINE__
            << "in function: " << __func__;
         throw std::runtime_error(ss.str());
     }
@@ -25,7 +25,7 @@ inline void hip_check_error(hipError_t x)
         if(_tmpVal != hipSuccess)                                                  \
         {                                                                          \
             std::ostringstream ostr;                                               \
-            ostr << "HIP Function Failed (" << __FILE__ << "," << __LINE__ << ") " \
+            ostr << "HIP Function Failed (" << __FILE_NAME__ << "," << __LINE__ << ") " \
                  << hipGetErrorString(_tmpVal);                                    \
             throw std::runtime_error(ostr.str());                                  \
         }                                                                          \
