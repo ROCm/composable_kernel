@@ -119,13 +119,13 @@ struct GenericAttentionMask
     {
         if constexpr(!IsMasking)
         {
-            return false;
+            return i_x >= x_total;
         }
         else
         {
             // no need to do min/max here, since i_x will never be < 0 or >= x_total
             index_t x_start = -y + i_y + 1;
-            index_t x_end   = i_y + x;
+            index_t x_end   = math::min(i_y + x, x_total);
 
             if constexpr(IsLocal)
             {
@@ -156,7 +156,7 @@ struct GenericAttentionMask
         else
         {
             // only need to check top-right corner > x
-            bool top_right_edge = (i_x + XTile) > (x + i_y);
+            bool top_right_edge = (i_x + XTile) > math::min(x + i_y, x_total);
             return top_right_edge;
         }
     }
