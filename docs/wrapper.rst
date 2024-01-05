@@ -18,7 +18,8 @@ Description
 
 
 The CK library provides a lightweight wrapper for more complex operations implemented in 
-the library.
+the library. It allows indexing of nested layouts using a simple interface 
+(avoiding complex descriptor transformations) and memory access (using Tensor).
 
 Example:
 

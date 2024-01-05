@@ -85,11 +85,9 @@ Where:
 
 To start a container from the image, use the ``docker start`` command::
 
-Let's take a look at the image naming, for example ``ck_ub20.04_rocm6.0``. The image specs are:
+    docker start <container_name>
 
-* ``ck`` - made for running Composable Kernel;
-* ``ub20.04`` - based on Ubuntu 20.04;
-* ``rocm6.0`` - ROCm platform version 6.0.
+Then use the docker exec command as shown above to start the bash shell. 
 
 Use the ``docker stop`` command to stop the container and restore the image to its initial state::
 
