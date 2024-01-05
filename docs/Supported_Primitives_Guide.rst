@@ -1,16 +1,20 @@
-==========================
-Supported Primitives Guide
-==========================
+.. meta::
+  :description: Composable Kernel documentation and API reference library
+  :keywords: composable kernel, CK, ROCm, API, documentation
 
-This document contains details of supported primitives in Composable Kernel (CK). In contrast to the
-API Reference Guide, the Supported Primitives Guide is an introduction to the math which underpins
-the algorithms implemented in CK.
+.. _supported-primitives:
+
+********************************************************************
+Supported Primitives Guide
+********************************************************************
+
+This document contains details of supported primitives in Composable Kernel (CK). In contrast to the API Reference Guide, the Supported Primitives Guide is an introduction to the math which underpins the algorithms implemented in CK.
 
 ------------
 Softmax
 ------------
 
-For vectors :math:`x^{(1)}, x^{(2)}, \ldots, x^{(T)}` of size :math:`B` we can decompose the
+For vectors :math:`x^{(1)}, x^{(2)}, \ldots, x^{(T)}` of size :math:`B` you can decompose the
 softmax of concatenated :math:`x = [ x^{(1)}\ | \ \ldots \ | \ x^{(T)} ]` as,
 
 .. math::
@@ -27,7 +31,7 @@ where :math:`f(x^{(j)}) = \exp( x^{(j)} - m(x^{(j)}) )` is of size :math:`B` and
 :math:`z(x^{(j)}) = f(x_1^{(j)})+ \ldots+ f(x_B^{(j)})` is a scalar.
 
 For a matrix :math:`X` composed of :math:`T_r \times T_c` tiles, :math:`X_{ij}`, of size
-:math:`B_r \times B_c` we can compute the row-wise softmax as follows.
+:math:`B_r \times B_c` you can compute the row-wise softmax as follows.
 
 For :math:`j` from :math:`1` to :math:`T_c`, and :math:`i` from :math:`1` to :math:`T_r` calculate,
 
