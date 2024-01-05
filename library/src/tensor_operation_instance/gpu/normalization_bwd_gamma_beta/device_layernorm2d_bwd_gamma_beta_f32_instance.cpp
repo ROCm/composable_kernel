@@ -8,7 +8,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_layernorm2d_bwd_gamma_beta_rank_2_1_f32_instances(
+void add_device_layernorm2d_bwd_gamma_beta_f32_instances(
     std::vector<std::unique_ptr<DeviceNormalizationBwdGammaBeta<F32, F32, F32, F32, F32, 2, 1>>>&
         instances)
 {
