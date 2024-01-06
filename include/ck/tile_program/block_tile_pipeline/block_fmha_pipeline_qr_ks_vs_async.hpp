@@ -338,7 +338,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                 Sequence<1>{},
                 f_max,
                 NumericLimits<SMPLComputeDataType>::Lowest()); // m_local = rowmax(S{j})
-            block_tile_reduce_sync(m_local, f_max);
+            block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
 
             const auto m_old = m; // m{j-1}
             tile_elementwise_inout(
@@ -405,7 +405,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             auto rowsum_p = block_tile_reduce<SMPLComputeDataType>(
                 p_compute, Sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
 
-            block_tile_reduce_sync(rowsum_p, f_sum);
+            block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
             // l{j}, Oacc{j}
             constexpr auto o_spans = decltype(o_acc)::GetDistributedSpans();
             sweep_tile_span(o_spans[Number<0>{}], [&](auto idx0) {

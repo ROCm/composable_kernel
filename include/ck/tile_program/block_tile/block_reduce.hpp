@@ -14,9 +14,10 @@ namespace tile_program {
 namespace block {
 
 // synchronize reduce result (cross lane reduction and broadcast on replicated dimension)
-template <typename AccDistributedTensor_, typename ReduceFunc>
+template <typename AccDistributedTensor_, typename ReduceFunc, bool WithBroadcast = true>
 __device__ void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
-                                       const ReduceFunc& reduce_func)
+                                       const ReduceFunc& reduce_func,
+                                       bool_constant<WithBroadcast> = {})
 {
     using Dstr             = typename AccDistributedTensor_::StaticTileDistribution;
     using DstrEncode       = typename Dstr::DstrEncode;
@@ -67,40 +68,43 @@ __device__ void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
             }
         });
 
-        // cross-lane broadcast for replication
-        // only broadcast on R dimension correspond to lane
-        // (lane id maps to this R dimension)
-        static_for<0, NDimR, 1>{}([&](auto idim_r) {
-            // FIXME: nasty to use does_p_own_r_
-            if constexpr(DstrEncodeDetail::does_p_own_r_[idim_p_lane][idim_r])
-            {
-                const index_t r_id = rs_idx[idim_r];
+        if constexpr(WithBroadcast)
+        {
+            // cross-lane broadcast for replication
+            // only broadcast on R dimension correspond to lane
+            // (lane id maps to this R dimension)
+            static_for<0, NDimR, 1>{}([&](auto idim_r) {
+                // FIXME: nasty to use does_p_own_r_
+                if constexpr(DstrEncodeDetail::does_p_own_r_[idim_p_lane][idim_r])
+                {
+                    const index_t r_id = rs_idx[idim_r];
 
-                constexpr index_t r_length = DstrEncode::rs_lengths_[idim_r];
+                    constexpr index_t r_length = DstrEncode::rs_lengths_[idim_r];
 
-                constexpr index_t lid_over_rid_derivative =
-                    DstrEncodeDetail::ps_over_rs_derivative_[NDimP - 1][idim_r];
+                    constexpr index_t lid_over_rid_derivative =
+                        DstrEncodeDetail::ps_over_rs_derivative_[NDimP - 1][idim_r];
 
-                static_assert(math::is_power_of_two_integer(r_length),
-                              "wrong! only support power of 2 reduction");
+                    static_assert(math::is_power_of_two_integer(r_length),
+                                  "wrong! only support power of 2 reduction");
 
-                constexpr index_t nstage = math::integer_log2_floor(r_length);
+                    constexpr index_t nstage = math::integer_log2_floor(r_length);
 
-                // broadcast sweep backward
-                static_for<0, nstage, 1>{}([&](auto istage) {
-                    // do I hold reduced data?
-                    const bool do_i_hold_reduced_data = r_id < (1 << istage);
+                    // broadcast sweep backward
+                    static_for<0, nstage, 1>{}([&](auto istage) {
+                        // do I hold reduced data?
+                        const bool do_i_hold_reduced_data = r_id < (1 << istage);
 
-                    constexpr index_t lid_delta = lid_over_rid_derivative * (1 << istage);
+                        constexpr index_t lid_delta = lid_over_rid_derivative * (1 << istage);
 
-                    // pull data from remote lane
-                    const auto v_remote = warp_shuffle_up(v_local, lid_delta);
+                        // pull data from remote lane
+                        const auto v_remote = warp_shuffle_up(v_local, lid_delta);
 
-                    // decide whether to update local data with remote data
-                    v_local = do_i_hold_reduced_data ? v_local : v_remote;
-                });
-            }
-        });
+                        // decide whether to update local data with remote data
+                        v_local = do_i_hold_reduced_data ? v_local : v_remote;
+                    });
+                }
+            });
+        }
 
         acc_tensor.GetThreadBuffer()(i) = v_local;
     });
