@@ -436,13 +436,13 @@ bool run(const ArgParser& arg_parser)
         }
 
         if(mask.type == mask_enum::no_mask) {
-            reference_batched_masking<SaccDataType>(s_host_ref, FmhaMasks::NoMask{});
+            reference_batched_masking<SaccDataType>(s_host_ref, FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k});
         } else if(mask.type == mask_enum::window_generic) {
             reference_batched_masking<SaccDataType>(s_host_ref,
-                FmhaMasks::GenericMask{mask.y, mask.x, seqlen_q, seqlen_k});
+                FmhaMasks::GenericMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
         } else {
             reference_batched_masking<SaccDataType>(s_host_ref,
-                FmhaMasks::CausalMask{mask.y, mask.x, seqlen_q, seqlen_k});
+                FmhaMasks::CausalMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
         }
         reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(s_host_ref, p_host_ref);
         reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(p_host_ref, v_host_ref, o_host_ref);

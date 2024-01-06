@@ -65,7 +65,10 @@ struct GenericAttentionMask
     static constexpr bool IsLocal   = IsLocal_;   // if true, upper/lower area could have mask,
                                                   // else only upper-right could have mask
 
-    __host__ __device__ GenericAttentionMask() : y(0), x(0), y_total(0), x_total(0) {}
+    __host__ __device__ GenericAttentionMask(index_t y_total_, index_t x_total_)
+        : GenericAttentionMask(0, 0, y_total_, x_total_)
+    {
+    }
 
     __host__ __device__
     GenericAttentionMask(index_t y_, index_t x_, index_t y_total_, index_t x_total_)

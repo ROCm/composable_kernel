@@ -508,7 +508,7 @@ struct FmhaFwdKernel
             if constexpr(kHasMask)
                 return FmhaMask{kargs.mask_y, kargs.mask_x, kargs.seqlen_q, kargs.seqlen_k};
             else
-                return FmhaMask{0, 0, kargs.seqlen_q, kargs.seqlen_k};
+                return FmhaMask{kargs.seqlen_q, kargs.seqlen_k};
         }();
 
         auto o_acc_tile =
