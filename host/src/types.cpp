@@ -12,7 +12,7 @@ Solution::Solution(std::string str, std::unordered_map<std::string, std::string>
 }
 
 std::string Solution::ToTemplateString() const { return this->template_str; }
-std::string Solution::ToTemplateParameter(const std::string& name) const
+std::string Solution::GetTemplateParameter(const std::string& name) const
 {
     return this->template_values.at(name);
 }

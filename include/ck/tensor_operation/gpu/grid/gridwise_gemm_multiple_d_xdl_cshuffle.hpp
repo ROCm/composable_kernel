@@ -263,7 +263,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                             const BGridDesc_N_K& b_grid_desc_n_k,
                                                             const DsGridDesc_M_N& ds_grid_desc_m_n,
                                                             const EGridDesc_M_N& e_grid_desc_m_n,
-                                                            const Block2ETileMap& block_2_etile_map)
+                                                            const Block2ETileMap&)
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
