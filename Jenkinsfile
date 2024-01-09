@@ -747,7 +747,7 @@ pipeline {
                                 -o -iname \'*.cl\' \
                                 | grep -v 'build/' \
                                 | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-12 -style=file {} | diff - {}\' && \
-                                cppcheck * --force --enable=all --output-file=ck_cppcheck.log"
+                                cppcheck ../* --force --enable=all --output-file=ck_cppcheck.log"
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
