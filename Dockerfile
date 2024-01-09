@@ -45,6 +45,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     build-essential \
     cmake \
     ccache \
+    cppcheck \
     git \
     hip-rocclr \
     iputils-ping \
