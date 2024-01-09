@@ -42,9 +42,9 @@ bool profile_grouped_gemm_impl(int do_verification,
                                const std::vector<int>& StrideAs,
                                const std::vector<int>& StrideBs,
                                const std::vector<int>& StrideCs,
-                               int kbatch = 1,
-                               int n_warmup,
-                               int n_iter)
+                               int kbatch   = 1,
+                               int n_warmup = 1,
+                               int n_iter   = 10)
 {
     bool pass = true;
 

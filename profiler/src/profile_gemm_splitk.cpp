@@ -74,8 +74,8 @@ int profile_gemm_splitk(int argc, char* argv[])
     int n_iter   = 10;
     if(argc == 17)
     {
-        n_warmup = std::stoi(argv[14]);
-        n_iter   = std::stoi(argv[15]);
+        n_warmup = std::stoi(argv[15]);
+        n_iter   = std::stoi(argv[16]);
     }
 
     using F32 = float;
