@@ -6,6 +6,9 @@
 #include <vector>
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
 #include "ck/host/stringutils.hpp"
+#include <iomanip>
+#include <fstream>
+#include <nlohmann/json.hpp>
 
 struct Emitters
 {
@@ -16,10 +19,35 @@ struct Emitters
     {
         m[name] = [] {
             auto ops = T::CreateOperations();
-
             return ck::host::Transform(
                 ops, [](const auto& op) { return op.ToSolution().ToTemplateString(); });
         };
+
+        std::ofstream out("./op_inst.json");
+        // populate json
+        nlohmann::json data;
+
+        // include section
+        data["include"] = "#include <string>";
+
+        // prologue and epilogue
+        data["fusion"] = {{"prologue", "using Prologue = BaseOp;"},
+                          {"epilogue", "using Epilogue = BaseOp;"}};
+
+        // add instances
+        // TODO: separate problem and tuning parameters to nest further
+        data["instances"] = nlohmann::json::object();
+        for(int x = 0; x < m[name]().size(); x++)
+        {
+            std::string tmp        = std::to_string(x);
+            data["instances"][tmp] = m[name]()[x];
+        }
+
+        // the run function
+
+        // traits (other information)
+
+        out << std::setw(4) << data;
     }
 
     std::string Emit(const std::string& name)

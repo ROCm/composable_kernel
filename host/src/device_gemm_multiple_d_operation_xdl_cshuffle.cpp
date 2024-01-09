@@ -5,6 +5,10 @@
 #include "ck/host/stringutils.hpp"
 #include "ck/host/utils.hpp"
 #include <cassert>
+#include <iostream>
+#include <iomanip>
+#include <fstream>
+#include <nlohmann/json.hpp>
 
 namespace ck {
 namespace host {
