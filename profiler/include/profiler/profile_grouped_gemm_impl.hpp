@@ -42,7 +42,9 @@ bool profile_grouped_gemm_impl(int do_verification,
                                const std::vector<int>& StrideAs,
                                const std::vector<int>& StrideBs,
                                const std::vector<int>& StrideCs,
-                               int kbatch = 1)
+                               int kbatch   = 1,
+                               int n_warmup = 1,
+                               int n_iter   = 10)
 {
     bool pass = true;
 
@@ -261,7 +263,8 @@ bool profile_grouped_gemm_impl(int do_verification,
                 for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     c_device_buf[i]->SetZero();
 
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
+                invoker_ptr->Run(argument_ptr.get(),
+                                 StreamConfig{nullptr, false, 0, n_warmup, n_iter});
 
                 if(do_verification)
                 {
@@ -307,8 +310,8 @@ bool profile_grouped_gemm_impl(int do_verification,
                     pass = pass && instance_pass;
                 }
 
-                float ave_time =
-                    invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+                float ave_time = invoker_ptr->Run(
+                    argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
 
                 if(time_kernel)
                 {
