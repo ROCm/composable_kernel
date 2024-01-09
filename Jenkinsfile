@@ -751,7 +751,7 @@ pipeline {
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
-                        archiveArtifacts "ck_cppcheck.log"
+                        archiveArtifacts "build/ck_cppcheck.log"
                         cleanWs()
                     }
                 }
