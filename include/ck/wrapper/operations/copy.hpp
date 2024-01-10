@@ -53,8 +53,8 @@ __device__ void copy(const SrcTensorType& src_tensor, DstTensorType& dst_tensor)
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
 
-    const auto in_grid_desc  = layout(src_tensor).GetDefaultDescriptor();
-    const auto out_grid_desc = layout(dst_tensor).GetDefaultDescriptor();
+    const auto& in_grid_desc  = layout(src_tensor).GetUnnestedDescriptor();
+    const auto& out_grid_desc = layout(dst_tensor).GetUnnestedDescriptor();
 
     using SrcShapeType         = remove_cvref_t<decltype(shape(src_tensor))>;
     constexpr index_t num_dims = SrcShapeType::Size();

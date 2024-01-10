@@ -6,6 +6,9 @@
 #include "tensor_utils.hpp"
 #include "layout_utils.hpp"
 
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
+#include "ck/tensor_description/cluster_descriptor.hpp"
+
 namespace ck {
 namespace wrapper {
 
@@ -77,12 +80,10 @@ make_local_partition(TensorType& tensor,
     const auto offset_idxs =
         CalculateNewOffsetIdxs(thread_idxs, partition_lengths_seq, tensor.GetMultiIdxOffsets());
     // Create new layout and tensor
-    using FlattenDescType =
-        std::remove_const_t<remove_reference_t<decltype(layout(tensor).GetUnnestedDescriptor())>>;
-    FlattenDescType flatten_desc = layout(tensor).GetUnnestedDescriptor();
+    auto& flatten_desc = layout(tensor).GetUnnestedDescriptor();
     const auto partition_layout =
         Layout<remove_reference_t<decltype(partition_shape)>, decltype(flatten_desc)>(
-            partition_shape, flatten_desc);
+            partition_shape, flatten_desc, false);
     auto partition_tensor =
         make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer(), partition_layout);
     // Apply offsets
@@ -92,35 +93,74 @@ make_local_partition(TensorType& tensor,
 
 /**
  * \brief Create local tile for thread block. (At now only packed tile
- * is supported)
+ * is supported).
+ *
+ * \note Temporary to gain the best performance use 2d
+ * tile_shape.
+ *
  *
  * \param tensor Tensor for partition.
  * \param tile_shape Shapes of requested tile.
- * \param block_idxs Block index represented as tuple (could not be nested).
+ * \param block_id Block index represented as integer.
 
  * \return Tile tensor.
  */
-template <typename TensorType, typename BlockShapeTuple, typename BlockIdxTuple>
-__host__ __device__ constexpr auto make_local_tile(const TensorType& tensor,
-                                                   const BlockShapeTuple& tile_shape,
-                                                   const BlockIdxTuple& block_idxs)
+template <typename TensorType, typename BlockShapeTuple>
+__host__ __device__ constexpr auto
+make_local_tile(const TensorType& tensor, const BlockShapeTuple& tile_shape, const index_t block_id)
 {
-    static_assert(!IsNestedTuple(BlockIdxTuple{}));
-    // Calculate offsets
-    constexpr auto block_lengths_seq = generate_sequence_v2(
-        [](auto I) { return size(BlockShapeTuple{}.At(I)); }, Number<BlockShapeTuple::Size()>{});
-    const auto offset_idxs =
-        CalculateNewOffsetIdxs(block_idxs, block_lengths_seq, tensor.GetMultiIdxOffsets());
-    // Create new layout and tensor
-    auto aligned_desc = layout(tensor).GetDefaultDescriptor();
-    const auto tile_layout =
-        Layout<remove_reference_t<decltype(tile_shape)>, decltype(aligned_desc)>(tile_shape,
-                                                                                 aligned_desc);
-    auto tile_tensor =
-        make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer(), tile_layout);
-    // Apply offsets
-    tile_tensor.ApplyMultiIdxOffsets(to_multi_index(offset_idxs));
-    return tile_tensor;
+    static_assert(!IsNestedTuple(BlockShapeTuple{}));
+
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+    constexpr auto I2 = Number<2>{};
+
+    auto& aligned_desc = layout(tensor).GetDefaultDescriptor();
+
+    if constexpr(BlockShapeTuple::Size() == I2)
+    {
+        // Optimized version for 2d tile shape [MxK]
+        const auto block_2_tile_map =
+            BlockToCTileMap_M00_N0_M01Adapt<BlockShapeTuple{}.At(I0),
+                                            BlockShapeTuple{}.At(I1),
+                                            remove_cvref_t<decltype(aligned_desc)>>(aligned_desc);
+        const auto block_work_idx =
+            block_2_tile_map.CalculateBottomIndex(make_multi_index(block_id));
+        const index_t m_block_data_idx_on_grid =
+            __builtin_amdgcn_readfirstlane(block_work_idx[I0] * size<0>(tile_shape));
+
+        const index_t k_block_data_idx_on_grid =
+            __builtin_amdgcn_readfirstlane(block_work_idx[I1] * size<1>(tile_shape));
+
+        const auto offset_idxs = make_tuple(m_block_data_idx_on_grid, k_block_data_idx_on_grid);
+        // Create new layout and tensor
+        const auto tile_layout =
+            Layout<remove_reference_t<decltype(tile_shape)>, decltype(aligned_desc)>(
+                tile_shape, aligned_desc, false);
+        auto tile_tensor =
+            make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer(), tile_layout);
+        // Apply offsets
+        tile_tensor.ApplyMultiIdxOffsets(to_multi_index(offset_idxs));
+        return tile_tensor;
+    }
+    else
+    {
+        // Calculate offsets
+        constexpr auto block_lengths_seq =
+            generate_sequence_v2([](auto I) { return size(BlockShapeTuple{}.At(I)); },
+                                 Number<BlockShapeTuple::Size()>{});
+        const auto offset_idxs =
+            CalculateNewOffsetIdxs(block_idxs, block_lengths_seq, tensor.GetMultiIdxOffsets());
+        // Create new layout and tensor
+        const auto tile_layout =
+            Layout<remove_reference_t<decltype(tile_shape)>, decltype(aligned_desc)>(
+                tile_shape, aligned_desc, false);
+        auto tile_tensor =
+            make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer(), tile_layout);
+        // Apply offsets
+        tile_tensor.ApplyMultiIdxOffsets(to_multi_index(offset_idxs));
+        return tile_tensor;
+    }
 }
 
 } // namespace wrapper

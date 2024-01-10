@@ -12,8 +12,6 @@
 #include "ck/utility/amd_address_space.hpp"
 #include "ck/utility/multi_index.hpp"
 
-#include "ck/tensor_description/cluster_descriptor.hpp"
-
 namespace ck {
 namespace wrapper {
 

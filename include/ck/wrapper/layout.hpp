@@ -29,7 +29,7 @@ struct Layout
     {
         return generate_tuple(
             [&](auto) {
-                if constexpr(!UnnestedDescriptorType::IsKnownAtCompileTime())
+                if constexpr(!remove_cvref_t<UnnestedDescriptorType>::IsKnownAtCompileTime())
                 {
                     // runtime layout
                     return index_t(0);
@@ -137,7 +137,7 @@ struct Layout
         const auto lower_dims    = make_tuple(MergeElemsSequence::Reverse());
         const auto upper_dims    = make_tuple(Sequence<0>{});
         // Merge to 1d
-        if constexpr(!UnnestedDescriptorType::IsKnownAtCompileTime())
+        if constexpr(!remove_cvref_t<UnnestedDescriptorType>::IsKnownAtCompileTime())
         {
             return transform_tensor_descriptor(
                 desc, make_tuple(make_merge_transform(merge_elems)), lower_dims, upper_dims);
@@ -174,7 +174,7 @@ struct Layout
                     // If shape element is tuple and idx element is Number, then merge
                     // Unroll and reverse tuple to traverse column-major
                     const auto merge_elems = TupleReverse(UnrollNestedTuple(shape.At(i)));
-                    if constexpr(!UnnestedDescriptorType::IsKnownAtCompileTime())
+                    if constexpr(!remove_cvref_t<UnnestedDescriptorType>::IsKnownAtCompileTime())
                     {
                         return make_merge_transform(merge_elems);
                     }
@@ -256,16 +256,19 @@ struct Layout
      * \param unnested_descriptor Descriptor
      */
     __host__ __device__ constexpr Layout(const Shape& shape,
-                                         const UnnestedDescriptorType& unnested_descriptor)
-        : shape_(shape)
+                                         const UnnestedDescriptorType& unnested_descriptor,
+                                         bool init_descriptors = true)
+        : unnested_descriptor_(unnested_descriptor), shape_(shape)
     {
         // Construct if runtime mode
-        if constexpr(!UnnestedDescriptorType::IsKnownAtCompileTime())
+        if constexpr(!remove_cvref_t<UnnestedDescriptorType>::IsKnownAtCompileTime())
         {
-            unnested_descriptor_ = unnested_descriptor;
-            descriptor_1d_       = MakeMerge1d(shape_, unnested_descriptor_);
-            merged_nests_descriptor_ =
-                TransformDesc(shape_, DefaultIdxsTupleType{}, unnested_descriptor_);
+            if(init_descriptors)
+            {
+                descriptor_1d_ = MakeMerge1d(shape_, unnested_descriptor_);
+                merged_nests_descriptor_ =
+                    TransformDesc(shape_, DefaultIdxsTupleType{}, unnested_descriptor_);
+            }
         }
     }
 
@@ -278,7 +281,7 @@ struct Layout
     template <typename Idxs>
     __host__ __device__ constexpr index_t operator()() const
     {
-        static_assert(UnnestedDescriptorType::IsKnownAtCompileTime(),
+        static_assert(remove_cvref_t<UnnestedDescriptorType>::IsKnownAtCompileTime(),
                       "Compiletime operator used on runtime layout.");
         using TransformedDesc = decltype(TransformDesc(Shape{}, Idxs{}, UnnestedDescriptorType{}));
         using UnrolledIdx     = decltype(UnrollNestedTuple(Idxs{}));

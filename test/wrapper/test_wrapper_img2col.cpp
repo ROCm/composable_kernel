@@ -81,18 +81,16 @@ template <typename InputTensor,
           typename OutputTensor,
           typename BlockShape,
           typename ThreadLayoutShape>
-__global__ void DeviceImageToColumnPad0(const InputTensor input_tensor,
+__global__ void DeviceImageToColumnPad0(InputTensor input_tensor,
                                         OutputTensor output_tensor,
                                         const BlockShape tile_shape,
                                         const ThreadLayoutShape thread_layout)
 {
-    const auto block_idxs = ck::make_tuple(static_cast<ck::index_t>(blockIdx.x),
-                                           static_cast<ck::index_t>(blockIdx.y),
-                                           static_cast<ck::index_t>(blockIdx.z));
+    const ck::index_t block_idx = static_cast<ck::index_t>(blockIdx.x);
 
     // Get local tiles for global memory
-    auto input_local_tile  = ck::wrapper::make_local_tile(input_tensor, tile_shape, block_idxs);
-    auto output_local_tile = ck::wrapper::make_local_tile(output_tensor, tile_shape, block_idxs);
+    auto input_local_tile  = ck::wrapper::make_local_tile(input_tensor, tile_shape, block_idx);
+    auto output_local_tile = ck::wrapper::make_local_tile(output_tensor, tile_shape, block_idx);
 
     // Get partition per thread
     const auto input_local_partition =
@@ -101,8 +99,8 @@ __global__ void DeviceImageToColumnPad0(const InputTensor input_tensor,
         ck::wrapper::make_local_partition(output_local_tile, thread_layout, threadIdx.x);
 
     // Perform copy
-    using DimAccessOrder             = ck::Tuple<ck::Number<0>, ck::Number<1>, ck::Number<2>>;
-    constexpr ck::index_t vector_dim = 2;
+    using DimAccessOrder                    = ck::Tuple<ck::Number<0>, ck::Number<1>>;
+    constexpr ck::index_t vector_dim        = 1;
     constexpr ck::index_t scalar_per_vector = 4;
     ck::wrapper::copy<DimAccessOrder, vector_dim, scalar_per_vector>(input_local_partition,
                                                                      output_local_partition);
@@ -126,21 +124,25 @@ void PerformImageToColumnPad0(const ck::index_t G,
     const ck::index_t ZYXC = Z * Y * X * C;
     const ck::index_t GC   = G * C;
 
-    const auto shape = ck::make_tuple(G, ck::make_tuple(Wo, Ho, Do, N), ck::make_tuple(C, X, Y, Z));
-    const auto in_strides = ck::make_tuple(C,
-                                           ck::make_tuple(filter_strides[2] * GC,
-                                                          filter_strides[1] * Wi * GC,
-                                                          filter_strides[0] * Hi * Wi * GC,
-                                                          Di * Hi * Wi * GC),
-                                           ck::make_tuple(1,
-                                                          filter_dilations[2] * GC,
-                                                          filter_dilations[1] * Wi * GC,
-                                                          filter_dilations[0] * Hi * Wi * GC));
-    const auto in_layout  = ck::wrapper::make_layout(shape, in_strides);
+    // shape: (G, (Wo, Ho, Do, N)), (C, X, Y, Z))
+    const auto shape = ck::make_tuple(ck::make_tuple(G, ck::make_tuple(Wo, Ho, Do, N)),
+                                      ck::make_tuple(C, X, Y, Z));
+    const auto in_strides =
+        ck::make_tuple(ck::make_tuple(C,
+                                      ck::make_tuple(filter_strides[2] * GC,
+                                                     filter_strides[1] * Wi * GC,
+                                                     filter_strides[0] * Hi * Wi * GC,
+                                                     Di * Hi * Wi * GC)),
+                       ck::make_tuple(1,
+                                      filter_dilations[2] * GC,
+                                      filter_dilations[1] * Wi * GC,
+                                      filter_dilations[0] * Hi * Wi * GC));
+    const auto in_layout = ck::wrapper::make_layout(shape, in_strides);
 
     const auto out_strides = ck::make_tuple(
-        ZYXC,
-        ck::make_tuple(ZYXC * G, Wo * ZYXC * G, Ho * Wo * ZYXC * G, Do * Ho * Wo * ZYXC * G),
+        ck::make_tuple(
+            ZYXC,
+            ck::make_tuple(ZYXC * G, Wo * ZYXC * G, Ho * Wo * ZYXC * G, Do * Ho * Wo * ZYXC * G)),
         ck::make_tuple(1, C, X * C, Y * X * C));
     const auto out_layout = ck::wrapper::make_layout(shape, out_strides);
 
@@ -155,21 +157,19 @@ void PerformImageToColumnPad0(const ck::index_t G,
     in_buf.ToDevice(input_data.data());
     out_buf.SetZero();
 
-    const auto thread_layout = ck::make_tuple(ck::Number<1>{}, ck::Number<8>{}, ck::Number<16>{});
-    const auto tile_shape    = ck::make_tuple(ck::Number<1>{}, ck::Number<32>{}, ck::Number<64>{});
+    const auto thread_layout = ck::make_tuple(ck::Number<8>{}, ck::Number<16>{});
+    const auto tile_shape    = ck::make_tuple(ck::Number<32>{}, ck::Number<64>{});
 
     // Create tensors for global memory
-    const auto input_tensor_global = ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Global>(
+    auto input_tensor_global = ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Global>(
         static_cast<const DataType*>(in_buf.GetDeviceBuffer()), in_layout);
     auto output_tensor_global = ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Global>(
         static_cast<DataType*>(out_buf.GetDeviceBuffer()), out_layout);
 
-    const ck::index_t grid_size_x = ck::math::integer_divide_ceil(ck::wrapper::size<0>(in_layout),
-                                                                  ck::wrapper::size<0>(tile_shape));
-    const ck::index_t grid_size_y = ck::math::integer_divide_ceil(ck::wrapper::size<1>(in_layout),
-                                                                  ck::wrapper::size<1>(tile_shape));
-    const ck::index_t grid_size_z = ck::math::integer_divide_ceil(ck::wrapper::size<2>(in_layout),
-                                                                  ck::wrapper::size<2>(tile_shape));
+    const ck::index_t grid_size = ck::math::integer_divide_ceil(ck::wrapper::size<0>(in_layout),
+                                                                ck::wrapper::size<0>(tile_shape)) *
+                                  ck::math::integer_divide_ceil(ck::wrapper::size<1>(in_layout),
+                                                                ck::wrapper::size<1>(tile_shape));
 
     const auto kernel    = DeviceImageToColumnPad0<decltype(input_tensor_global),
                                                 decltype(output_tensor_global),
@@ -177,7 +177,7 @@ void PerformImageToColumnPad0(const ck::index_t G,
                                                 decltype(thread_layout)>;
     const float avg_time = launch_and_time_kernel(StreamConfig{nullptr, true},
                                                   kernel,
-                                                  dim3(grid_size_x, grid_size_y, grid_size_z),
+                                                  dim3(grid_size),
                                                   dim3(ck::wrapper::size(thread_layout)),
                                                   0,
                                                   input_tensor_global,
