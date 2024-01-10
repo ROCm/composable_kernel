@@ -39,7 +39,7 @@ bool profile_groupnorm_bwd_gamma_beta_impl(int do_verification,
     index_t G = length[3];
     index_t C = length[4];
 
-    std::vector<index_t> reduce_dim        = {1, 2, 4};
+    std::vector<index_t> reduce_dim        = {0, 1, 2};
     std::vector<index_t> gamma_beta_length = {G, C};
 
     Tensor<DYDataType> dy(length);
@@ -56,7 +56,8 @@ bool profile_groupnorm_bwd_gamma_beta_impl(int do_verification,
 
     std::vector<index_t> strideDy =
         std::vector<ck::index_t>{dy.mDesc.GetStrides().begin(), dy.mDesc.GetStrides().end()};
-    std::vector<index_t> strideX = strideDy;
+    std::vector<index_t> strideX =
+        std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()};
 
     std::vector<index_t> strideDGamma{dgamma.mDesc.GetStrides().begin(),
                                       dgamma.mDesc.GetStrides().end()};
