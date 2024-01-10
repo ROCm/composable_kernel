@@ -71,9 +71,9 @@ struct AddReluAdd
     __host__ __device__ constexpr void operator()<bhalf_t, float, bhalf_t, bhalf_t>(
         bhalf_t& y, const float& x0, const bhalf_t& x1, const bhalf_t& x2) const
     {
-        float a = x0 + x1;
+        float a = x0 + x1.data;
         float b = a > 0 ? a : 0;
-        float c = b + x2;
+        float c = b + x2.data;
         y       = c;
     }
 
