@@ -69,7 +69,7 @@ llvm_amdgcn_raw_buffer_load_i8x4(int32x4_t srsrc,
                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v4i8");
 
 // buffer load i16
-__device__ bhalf_t
+__device__ bhalf_t::data_type
 llvm_amdgcn_raw_buffer_load_i16(int32x4_t srsrc,
                                 index_t voffset,
                                 index_t soffset,
@@ -805,7 +805,7 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
 
     vector_t tmp = amd_buffer_load_impl<scalar_t, vector_size, coherence>(
         src_wave_buffer_resource, src_thread_addr_offset, 0);
-    return src_thread_element_valid ? tmp : vector_t(0);
+    return src_thread_element_valid ? tmp : vector_t{};
 #endif
 }
 
