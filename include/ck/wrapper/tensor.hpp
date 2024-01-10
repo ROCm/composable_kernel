@@ -12,21 +12,18 @@ namespace wrapper {
 
 /**
  * \brief Tensor wrapper that performs static and dynamic buffer logic.
+ * The tensor is based on a descriptor stored in the Layout. Additionally,
+ * tensor can be sliced or shifted using multi index offset.
  *
  * \tparam BufferAddressSpace Memory type (Generic, Global, LDS, VGPR, SGPR).
  * \tparam ElementType Element data type.
  * \tparam Shape Tensor shape (layout component).
- * \tparam UnnestedDescriptorType Unnested descriptor (layout component).
- * \tparam NumVectors Number of vectors (only for VGPR, SGPR).
- * \tparam ScalarPerVector Scalars per vector (only for VGPR, SGPR).
+ * \tparam UnnestedDescriptorType Flatten descriptor (layout component).
  */
 template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename UnnestedDescriptorType,
-          index_t NumVectors,     // param for Register memory
-          index_t ScalarPerVector // param for Register memory
-          >
+          typename UnnestedDescriptorType>
 struct Tensor
 {
     private:
@@ -117,7 +114,7 @@ struct Tensor
                 {
 
                     const auto from  = idx.At(num_i).from_;
-                    const auto dim   = shape.At(num_i);
+                    const auto dim   = size<num_i>(shape);
                     const auto range = idx.At(num_i).range(dim);
                     return make_slice_transform(range, from, from + range);
                 }
@@ -200,15 +197,19 @@ struct Tensor
                                               BufferAddressSpace == MemoryTypeEnum ::Vgpr);
 
     __host__ __device__ Tensor() = delete;
-    __host__ __device__ Tensor(ElementType* pointer,
-                               const Layout<Shape, UnnestedDescriptorType>& layout)
+    __host__ __device__ constexpr Tensor(ElementType* pointer,
+                                         const Layout<Shape, UnnestedDescriptorType>& layout)
         : layout_(layout),
-          buffer_(make_dynamic_buffer<BufferAddressSpace>(pointer, layout.GetElementSpaceSize()))
+          buffer_(make_dynamic_buffer<BufferAddressSpace>(pointer, layout.GetElementSpaceSize())),
+          multi_idx_offsets_(make_zero_multi_index<Shape::Size()>()),
+          calculated_logical_multi_idx_offset_(0)
     {
     }
 
-    __host__ __device__ Tensor(const Layout<Shape, UnnestedDescriptorType>& layout)
-        : layout_(layout)
+    __host__ __device__ constexpr Tensor(const Layout<Shape, UnnestedDescriptorType>& layout)
+        : layout_(layout),
+          multi_idx_offsets_(make_zero_multi_index<Shape::Size()>()),
+          calculated_logical_multi_idx_offset_(0)
     {
         static_assert(!IsDynamicBuffer, "Wrong BufferAddressSpace for register.");
     }
@@ -220,7 +221,7 @@ struct Tensor
 
     // Getter for new sliced tensor
     template <typename... Ts, enable_if_t<IsSlicing(Tuple<Ts...>{}), bool> = false>
-    __host__ __device__ auto operator[](const Tuple<Ts...>& idx) const
+    __host__ __device__ auto operator[](const Tuple<Ts...>& idx)
     {
         static_assert(IsDynamicBuffer, "Register slice is not supported");
         const auto& shape = layout_.GetShape();
@@ -230,17 +231,19 @@ struct Tensor
         auto new_desc            = GetDescriptorFromSlicedTensor(idx, shape, flatten_desc);
         const auto new_layout =
             Layout<decltype(new_shape), decltype(new_desc)>(new_shape, new_desc);
+        // Update embed offset
+        calculated_logical_multi_idx_offset_ -= new_layout(make_tuple(Number<0>{}));
         return make_tensor<BufferAddressSpace>(buffer_.p_data_, new_layout);
     }
 
     template <typename... Ts, enable_if_t<IsSlicing(Tuple<Ts...>{}), bool> = false>
-    __host__ __device__ auto operator()(const Tuple<Ts...>& idx) const
+    __host__ __device__ auto operator()(const Tuple<Ts...>& idx)
     {
         return this->operator[](idx);
     }
 
     template <typename... Idxs, enable_if_t<IsSlicing(Tuple<Idxs...>{}), bool> = false>
-    __host__ __device__ auto operator()(Idxs... idxs) const
+    __host__ __device__ auto operator()(Idxs... idxs)
     {
         return this->operator[](make_tuple(idxs...));
     }
@@ -251,15 +254,19 @@ struct Tensor
     {
         if constexpr(IsDynamicBuffer)
         {
-            const index_t offset = layout_(idx);
+            const index_t offset = layout_(idx) + calculated_logical_multi_idx_offset_;
             return buffer_[offset];
         }
         else
         {
-            constexpr index_t offset = Layout<Shape, UnnestedDescriptorType>{
+            constexpr index_t local_offset = Layout<Shape, UnnestedDescriptorType>{
                 Shape{},
                 UnnestedDescriptorType{}}.template operator()<Tuple<Ts...>>();
-            return buffer_[Number<offset>{}];
+            // Apply embed offset (calculate in compiletime)
+            constexpr index_t calculated_logical_multi_idx_offset =
+                Layout<Shape, UnnestedDescriptorType>{Shape{}, UnnestedDescriptorType{}}
+                    .template operator()<MultiIndex<Shape::Size()>>();
+            return buffer_[Number<local_offset + calculated_logical_multi_idx_offset>{}];
         }
     }
 
@@ -281,15 +288,19 @@ struct Tensor
     {
         if constexpr(IsDynamicBuffer)
         {
-            const index_t offset = layout_(idx);
+            const index_t offset = layout_(idx) + calculated_logical_multi_idx_offset_;
             return buffer_(offset);
         }
         else
         {
-            constexpr index_t offset = Layout<Shape, UnnestedDescriptorType>{
+            constexpr index_t local_offset = Layout<Shape, UnnestedDescriptorType>{
                 Shape{},
                 UnnestedDescriptorType{}}.template operator()<Tuple<Ts...>>();
-            return buffer_(Number<offset>{});
+            // Apply embed offset (calculate in compiletime)
+            constexpr index_t calculated_logical_multi_idx_offset =
+                Layout<Shape, UnnestedDescriptorType>{Shape{}, UnnestedDescriptorType{}}
+                    .template operator()<MultiIndex<Shape::Size()>>();
+            return buffer_(Number<local_offset + calculated_logical_multi_idx_offset>{});
         }
     }
 
@@ -312,22 +323,33 @@ struct Tensor
 
     __host__ __device__ ElementType* GetPointer() const { return buffer_.p_data_; }
 
+    __host__ __device__ constexpr auto& GetBuffer() { return buffer_; }
+    __host__ __device__ constexpr auto& GetBuffer() const { return buffer_; }
+
+    __host__ __device__ constexpr auto& GetMultiIdxOffsets() const { return multi_idx_offsets_; }
+    template <typename MultiIdxOffsets>
+    __host__ __device__ constexpr void ApplyMultiIdxOffsets(const MultiIdxOffsets multi_idx_offsets)
+    {
+        multi_idx_offsets_ = multi_idx_offsets;
+        calculated_logical_multi_idx_offset_ += layout_(multi_idx_offsets);
+    }
+
     private:
     using DynamicBufferType = DynamicBuffer<BufferAddressSpace,
                                             ElementType,
                                             ElementSpaceSize,
                                             true /*InvalidElementUseNumericalZeroValue*/>;
-    using StaticBufferType =
-        StaticBufferTupleOfVector<BufferAddressSpace,
-                                  ElementType,
-                                  NumVectors,
-                                  ScalarPerVector,
-                                  true /*InvalidElementUseNumericalZeroValue*/>;
+    using StaticBufferType  = StaticBuffer<BufferAddressSpace,
+                                          ElementType,
+                                          size(Shape{}),
+                                          true /*InvalidElementUseNumericalZeroValue*/>;
     // If register use static buffer, else use dynamic buffer
     using Buffer = std::conditional_t<IsDynamicBuffer, DynamicBufferType, StaticBufferType>;
 
     const Layout<Shape, UnnestedDescriptorType> layout_;
     Buffer buffer_;
+    MultiIndex<Shape::Size()> multi_idx_offsets_;
+    index_t calculated_logical_multi_idx_offset_;
 };
 
 } // namespace wrapper

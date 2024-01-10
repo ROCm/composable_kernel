@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -137,8 +137,22 @@ struct Layout
         const auto lower_dims    = make_tuple(MergeElemsSequence::Reverse());
         const auto upper_dims    = make_tuple(Sequence<0>{});
         // Merge to 1d
-        return transform_tensor_descriptor(
-            desc, make_tuple(make_merge_transform(merge_elems)), lower_dims, upper_dims);
+        if constexpr(!UnnestedDescriptorType::IsKnownAtCompileTime())
+        {
+            return transform_tensor_descriptor(
+                desc, make_tuple(make_merge_transform(merge_elems)), lower_dims, upper_dims);
+        }
+        else
+        {
+            // If compiletime descriptor use
+            // make_merge_transform_v1_carry_check because it doesn't use
+            // memcpy
+            return transform_tensor_descriptor(
+                desc,
+                make_tuple(make_merge_transform_v1_carry_check(merge_elems)),
+                lower_dims,
+                upper_dims);
+        }
     }
 
     // Merge nested shape dims when corresponding index is also nested.
@@ -160,7 +174,17 @@ struct Layout
                     // If shape element is tuple and idx element is Number, then merge
                     // Unroll and reverse tuple to traverse column-major
                     const auto merge_elems = TupleReverse(UnrollNestedTuple(shape.At(i)));
-                    return make_merge_transform(merge_elems);
+                    if constexpr(!UnnestedDescriptorType::IsKnownAtCompileTime())
+                    {
+                        return make_merge_transform(merge_elems);
+                    }
+                    else
+                    {
+                        // If compiletime descriptor use
+                        // make_merge_transform_v1_carry_check because it doesn't use
+                        // memcpy
+                        return make_merge_transform_v1_carry_check(merge_elems);
+                    }
                 }
                 else
                 {
@@ -188,6 +212,7 @@ struct Layout
         remove_cvref_t<decltype(MakeMerge1d(Shape{}, UnnestedDescriptorType{}))>;
     using DefaultIdxsTupleType = remove_cvref_t<decltype(GenerateDefaultIdxsTuple(Shape{}))>;
 
+    public:
     template <typename... ShapeDims, typename... IdxDims>
     __host__ __device__ constexpr static auto
     TransformDesc(const Tuple<ShapeDims...>& shape,
@@ -217,7 +242,6 @@ struct Layout
     using MergedNestsDescriptorType = remove_cvref_t<decltype(TransformDesc(
         Shape{}, DefaultIdxsTupleType{}, UnnestedDescriptorType{}))>;
 
-    public:
     __host__ __device__ constexpr auto GetElementSpaceSize() const
     {
         return unnested_descriptor_.GetElementSpaceSize();
@@ -357,6 +381,16 @@ struct Layout
     __host__ __device__ constexpr const MergedNestsDescriptorType& GetDefaultDescriptor() const
     {
         return merged_nests_descriptor_;
+    }
+
+    /**
+     * \brief Get 1D descriptor (all dims are merged).
+     *
+     * \return 1D descriptor.
+     */
+    __host__ __device__ constexpr const Descriptor1dType& Get1DDescriptor() const
+    {
+        return descriptor_1d_;
     }
 
     /**
