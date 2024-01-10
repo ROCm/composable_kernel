@@ -24,6 +24,7 @@ enum struct GemmDataType
     BF16_BF16_BF16, // 2
     INT8_INT8_INT8, // 3
     F8_F8_F8,       // 4
+    F16_INT8_F16    // 5
 };
 
 #define OP_NAME "gemm"
@@ -32,7 +33,7 @@ enum struct GemmDataType
 static void print_helper_msg()
 {
     std::cout << "arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n"
-              << "arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: fp8)\n"
+              << "arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: fp8; 5: fp16 & int8)\n"
               << "arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n"
               << "                     1: A[m, k] * B[n, k] = C[m, n];\n"
               << "                     2: A[k, m] * B[k, n] = C[m, n];\n"
@@ -173,6 +174,16 @@ int profile_gemm(int argc, char* argv[])
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
         return profile(Col{}, Col{}, Row{}, F16{}, F16{}, F32{}, F16{});
+    }
+#endif
+#if defined(CK_ENABLE_FP16) && defined(CK_ENABLE_INT8)
+    else if(data_type == GemmDataType::F16_INT8_F16 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        return profile(Row{}, Row{}, Row{}, F16{}, INT8{}, F32{}, F16{});
+    }
+    else if(data_type == GemmDataType::F16_INT8_F16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(Row{}, Col{}, Row{}, F16{}, INT8{}, F32{}, F16{});
     }
 #endif
 #ifdef CK_ENABLE_BF16
