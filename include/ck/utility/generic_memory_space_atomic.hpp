@@ -44,7 +44,7 @@ __device__ float2_t atomic_add<float2_t>(float2_t* p_dst, const float2_t& x)
     constexpr auto I1 = Number<1>{};
 
     const vector_type<float, 2> vx{x};
-    vector_type<float, 2> vy{0};
+    vector_type<float, 2> vy{};
 
     vy.template AsType<float>()(I0) =
         atomicAdd(c_style_pointer_cast<float*>(p_dst), vx.template AsType<float>()[I0]);
@@ -61,7 +61,7 @@ __device__ double2_t atomic_add<double2_t>(double2_t* p_dst, const double2_t& x)
     constexpr auto I1 = Number<1>{};
 
     const vector_type<double, 2> vx{x};
-    vector_type<double, 2> vy{0};
+    vector_type<double, 2> vy{};
 
     vy.template AsType<double>()(I0) =
         atomicAdd(c_style_pointer_cast<double*>(p_dst), vx.template AsType<double>()[I0]);
@@ -110,7 +110,7 @@ __device__ float2_t atomic_max<float2_t>(float2_t* p_dst, const float2_t& x)
     constexpr auto I1 = Number<1>{};
 
     const vector_type<float, 2> vx{x};
-    vector_type<float, 2> vy{0};
+    vector_type<float, 2> vy{};
 
     vy.template AsType<float>()(I0) =
         atomicMax(c_style_pointer_cast<float*>(p_dst), vx.template AsType<float>()[I0]);

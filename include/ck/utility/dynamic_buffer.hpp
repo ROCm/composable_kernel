@@ -109,7 +109,7 @@ struct DynamicBuffer
             {
                 if constexpr(InvalidElementUseNumericalZeroValue)
                 {
-                    return X{0};
+                    return X{};
                 }
                 else
                 {
