@@ -209,8 +209,16 @@ struct intrin_mfma_f32_32x32x8bf16_1k<32, 32>
     template <class FloatC>
     __device__ static void Run(const bhalf4_t& reg_a, const bhalf4_t& reg_b, FloatC& reg_c)
     {
-        reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(
-            reg_a, reg_b, reg_c.template AsType<float16_t>()[Number<0>{}], 0, 0, 0);
+        typedef ushort bhalf_vector4_t __attribute__((ext_vector_type(4)));
+        typedef float float_vector16_t __attribute__((ext_vector_type(16)));
+
+        bhalf_vector4_t a_vector4 = bit_cast<bhalf_vector4_t>(reg_a);
+        bhalf_vector4_t b_vector4 = bit_cast<bhalf_vector4_t>(reg_b);
+        float_vector16_t c_vector16 =
+            bit_cast<float_vector16_t>(reg_c.template AsType<float16_t>()[Number<0>{}]);
+
+        reg_c.template AsType<float16_t>()(Number<0>{}) = bit_cast<float16_t>(
+            __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(a_vector4, b_vector4, c_vector16, 0, 0, 0));
     }
 };
 
