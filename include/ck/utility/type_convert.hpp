@@ -41,7 +41,7 @@ inline __host__ __device__ constexpr float type_convert<float, bhalf_t>(bhalf_t 
     {
         uint32_t int32;
         float fp32;
-    } u = {uint32_t(x) << 16};
+    } u = {uint32_t(x.data) << 16};
 
     return u.fp32;
 }
