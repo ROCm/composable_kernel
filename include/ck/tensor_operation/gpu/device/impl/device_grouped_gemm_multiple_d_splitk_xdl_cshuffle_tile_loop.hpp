@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -254,7 +254,6 @@ template <typename ALayout,
           index_t ABlockTransferSrcVectorDim,
           index_t ABlockTransferSrcScalarPerVector,
           index_t ABlockTransferDstScalarPerVector_AK1,
-          bool AThreadTransferSrcResetCoordinateAfterRun,
           index_t ABlockLdsExtraM,
           typename BBlockTransferThreadClusterLengths_KBatch_BK0_N_BK1,
           typename BBlockTransferThreadClusterArrangeOrder,
@@ -262,14 +261,13 @@ template <typename ALayout,
           index_t BBlockTransferSrcVectorDim,
           index_t BBlockTransferSrcScalarPerVector,
           index_t BBlockTransferDstScalarPerVector_BK1,
-          bool BThreadTransferSrcResetCoordinateAfterRun,
           index_t BBlockLdsExtraN,
           index_t CShuffleMXdlPerWavePerShuffle,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEShuffleBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched     = make_default_loop_scheduler(),
           PipelineVersion PipelineVer = PipelineVersion::v1,
+          LoopScheduler LoopSched     = make_default_loop_scheduler(),
           typename ComputeDataType    = EDataType>
 struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
     : public DeviceGroupedGemmMultipleDSplitK<ALayout,
@@ -327,7 +325,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
         ABlockTransferSrcVectorDim,
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_AK1,
-        AThreadTransferSrcResetCoordinateAfterRun,
+        false, // AThreadTransferSrcResetCoordinateAfterRun,
         ABlockLdsExtraM,
         BBlockTransferThreadClusterLengths_KBatch_BK0_N_BK1,
         BBlockTransferThreadClusterArrangeOrder,
@@ -335,7 +333,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
         BBlockTransferSrcVectorDim,
         BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_BK1,
-        BThreadTransferSrcResetCoordinateAfterRun,
+        false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsExtraN,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
@@ -965,12 +963,16 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
         return str.str();
     }
 
-    static void SetDeviceKernelArgs(Argument& arg, const void* p_dev_kernel_args)
+    void SetDeviceKernelArgs(Argument& arg, void* p_dev_kernel_args) const
     {
         arg.p_dev_gemm_args_ = p_dev_kernel_args;
+        hip_check_error(hipMemcpy(p_dev_kernel_args,
+                                  arg.gemm_kernel_args_.data(),
+                                  GetDeviceKernelArgSize(&arg),
+                                  hipMemcpyHostToDevice));
     }
 
-    void SetDeviceKernelArgs(BaseArgument* p_arg, const void* p_dev_kernel_args) const override
+    void SetDeviceKernelArgs(BaseArgument* p_arg, void* p_dev_kernel_args) const override
     {
         return SetDeviceKernelArgs(*dynamic_cast<Argument*>(p_arg), p_dev_kernel_args);
     }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -119,7 +119,7 @@ struct DeviceGroupedGemmMultipleDSplitK : public DeviceGroupedGemm<ALayout,
     /// @param[in]  p_dev_kernel_args  The pointer to the device memory which contains kernel
     ///                                arguments.
     ///
-    virtual void SetDeviceKernelArgs(BaseArgument* p_arg, const void* p_dev_kernel_args) const = 0;
+    virtual void SetDeviceKernelArgs(BaseArgument* p_arg, void* p_dev_kernel_args) const = 0;
 
     //----------------------------------------------------------------------------------------------
     /// @brief      Gets the device kernel argument size.
