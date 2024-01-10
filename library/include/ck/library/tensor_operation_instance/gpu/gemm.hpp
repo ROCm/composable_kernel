@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -375,7 +375,7 @@ void add_device_gemm_xdl_c_shuffle_f16_int8_f16_mk_kn_mn_instances(
 
 void add_device_gemm_xdl_c_shuffle_f16_int8_f16_mk_nk_mn_instances(
     std::vector<std::unique_ptr<
-        DeviceGemm<Row, Row, Row, F16, I8, F16, PassThrough, PassThrough, PassThrough>>>&
+        DeviceGemm<Row, Col, Row, F16, I8, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 #endif
 
@@ -634,10 +634,11 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_xdl_c_shuffle_f16_int8_f16_mk_kn_mn_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                         is_same_v<CLayout, Row>)
+                              is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_c_shuffle_f16_int8_f16_mk_nk_mn_instances(op_ptrs);
             }
+        }
 #endif
         return op_ptrs;
     }

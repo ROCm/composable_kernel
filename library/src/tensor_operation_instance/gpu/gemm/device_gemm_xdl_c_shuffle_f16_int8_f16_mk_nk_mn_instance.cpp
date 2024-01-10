@@ -16,7 +16,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using I8 = int8_t
+using I8  = int8_t;
 using F16 = ck::half_t;
 using F32 = float;
 
