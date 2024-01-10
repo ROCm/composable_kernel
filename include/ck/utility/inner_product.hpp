@@ -99,7 +99,10 @@ __device__ void inner_product<half2_t, half2_t, float>(const half2_t& a, const h
                  : "=v"(c)
                  : "v"(a), "v"(b), "0"(c));
 #else
-    c = __builtin_amdgcn_fdot2(a, b, c, false);
+    typedef half_t half_vector2_t __attribute__((ext_vector_type(2)));
+    half_vector2_t a_vector2 = bit_cast<half_vector2_t>(a);
+    half_vector2_t b_vector2 = bit_cast<half_vector2_t>(b);
+    c                        = __builtin_amdgcn_fdot2(a_vector2, b_vector2, c, false);
 #endif
 #else
     const vector_type<half_t, 2> a_vector{a};

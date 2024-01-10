@@ -100,9 +100,12 @@ template <int SrcLaneIdx>
 __device__ void intrinsic_fdot2_impl(const half2_t& a, const half2_t& b, float& c)
 {
     constexpr int sel_mask = get_dpp_sel_mask_broadcast<SrcLaneIdx>();
-    const half2_t val_from_other_lane =
-        bit_cast<half2_t>(__builtin_amdgcn_mov_dpp8(bit_cast<int>(a), sel_mask));
-    c = __builtin_amdgcn_fdot2(val_from_other_lane, b, c, false);
+    typedef half_t half_vector2_t __attribute__((ext_vector_type(2)));
+    half_vector2_t a_vector2 = bit_cast<half_vector2_t>(a);
+    half_vector2_t b_vector2 = bit_cast<half_vector2_t>(b);
+    const half_vector2_t val_from_other_lane =
+        bit_cast<half_vector2_t>(__builtin_amdgcn_mov_dpp8(bit_cast<int>(a_vector2), sel_mask));
+    c = __builtin_amdgcn_fdot2(val_from_other_lane, b_vector2, c, false);
 }
 
 /**
