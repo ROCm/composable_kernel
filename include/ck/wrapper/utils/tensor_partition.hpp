@@ -83,7 +83,7 @@ make_local_partition(TensorType& tensor,
     auto& flatten_desc = layout(tensor).GetUnnestedDescriptor();
     const auto partition_layout =
         Layout<remove_reference_t<decltype(partition_shape)>, decltype(flatten_desc)>(
-            partition_shape, flatten_desc, false);
+            partition_shape, flatten_desc);
     auto partition_tensor =
         make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer(), partition_layout);
     // Apply offsets
@@ -135,8 +135,8 @@ make_local_tile(const TensorType& tensor, const BlockShapeTuple& tile_shape, con
         const auto offset_idxs = make_tuple(m_block_data_idx_on_grid, k_block_data_idx_on_grid);
         // Create new layout and tensor
         const auto tile_layout =
-            Layout<remove_reference_t<decltype(tile_shape)>, decltype(aligned_desc)>(
-                tile_shape, aligned_desc, false);
+            Layout<remove_reference_t<decltype(tile_shape)>, decltype(aligned_desc)>(tile_shape,
+                                                                                     aligned_desc);
         auto tile_tensor =
             make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer(), tile_layout);
         // Apply offsets
@@ -149,12 +149,15 @@ make_local_tile(const TensorType& tensor, const BlockShapeTuple& tile_shape, con
         constexpr auto block_lengths_seq =
             generate_sequence_v2([](auto I) { return size(BlockShapeTuple{}.At(I)); },
                                  Number<BlockShapeTuple::Size()>{});
+        constexpr auto block_cluster_desc_ = make_cluster_descriptor(block_lengths_seq);
+        const auto block_idxs =
+            block_cluster_desc_.CalculateBottomIndex(make_multi_index(block_id));
         const auto offset_idxs =
             CalculateNewOffsetIdxs(block_idxs, block_lengths_seq, tensor.GetMultiIdxOffsets());
         // Create new layout and tensor
         const auto tile_layout =
-            Layout<remove_reference_t<decltype(tile_shape)>, decltype(aligned_desc)>(
-                tile_shape, aligned_desc, false);
+            Layout<remove_reference_t<decltype(tile_shape)>, decltype(aligned_desc)>(tile_shape,
+                                                                                     aligned_desc);
         auto tile_tensor =
             make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer(), tile_layout);
         // Apply offsets

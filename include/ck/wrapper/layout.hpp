@@ -256,19 +256,15 @@ struct Layout
      * \param unnested_descriptor Descriptor
      */
     __host__ __device__ constexpr Layout(const Shape& shape,
-                                         const UnnestedDescriptorType& unnested_descriptor,
-                                         bool init_descriptors = true)
+                                         const UnnestedDescriptorType& unnested_descriptor)
         : unnested_descriptor_(unnested_descriptor), shape_(shape)
     {
         // Construct if runtime mode
         if constexpr(!remove_cvref_t<UnnestedDescriptorType>::IsKnownAtCompileTime())
         {
-            if(init_descriptors)
-            {
-                descriptor_1d_ = MakeMerge1d(shape_, unnested_descriptor_);
-                merged_nests_descriptor_ =
-                    TransformDesc(shape_, DefaultIdxsTupleType{}, unnested_descriptor_);
-            }
+            descriptor_1d_ = MakeMerge1d(shape_, unnested_descriptor_);
+            merged_nests_descriptor_ =
+                TransformDesc(shape_, DefaultIdxsTupleType{}, unnested_descriptor_);
         }
     }
 
