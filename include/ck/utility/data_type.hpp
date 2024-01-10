@@ -7,11 +7,22 @@
 
 namespace ck {
 
-using bhalf_t = ushort;
-using half_t  = _Float16;
-using int4_t  = _BitInt(4);
-using f8_t    = _BitInt(8);
-using bf8_t   = unsigned _BitInt(8);
+using half_t = _Float16;
+using int4_t = _BitInt(4);
+using f8_t   = _BitInt(8);
+using bf8_t  = unsigned _BitInt(8);
+
+struct bhalf_t
+{
+    using type      = bhalf_t;
+    using data_type = ushort;
+
+    ushort data;
+
+    __host__ __device__ bhalf_t() = default;
+
+    __host__ __device__ constexpr bhalf_t(ushort init) : data(init) {}
+};
 
 // vector_type
 template <typename T, index_t N>
@@ -88,6 +99,20 @@ struct scalar_type<vector_type<T, N>>
 {
     using type                           = T;
     static constexpr index_t vector_size = N;
+};
+
+template <>
+struct scalar_type<ck::Tuple<ck::bhalf_t,
+                             ck::bhalf_t,
+                             ck::bhalf_t,
+                             ck::bhalf_t,
+                             ck::bhalf_t,
+                             ck::bhalf_t,
+                             ck::bhalf_t,
+                             ck::bhalf_t>>
+{
+    using type                           = ck::bhalf_t;
+    static constexpr index_t vector_size = 8;
 };
 
 //
@@ -193,7 +218,7 @@ template <typename T>
 struct vector_type<T, 2>
 {
     using d1_t = T;
-    typedef T d2_t __attribute__((ext_vector_type(2)));
+    using d2_t = StaticallyIndexedArray<T, 2>;
 
     using type = d2_t;
 
@@ -204,7 +229,7 @@ struct vector_type<T, 2>
         StaticallyIndexedArray<d2_t, 1> d2x1_;
     } data_;
 
-    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
+    __host__ __device__ constexpr vector_type() : data_{type{0, 0}} {}
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
@@ -243,8 +268,8 @@ template <typename T>
 struct vector_type<T, 4>
 {
     using d1_t = T;
-    typedef T d2_t __attribute__((ext_vector_type(2)));
-    typedef T d4_t __attribute__((ext_vector_type(4)));
+    using d2_t = StaticallyIndexedArray<T, 2>;
+    using d4_t = StaticallyIndexedArray<T, 4>;
 
     using type = d4_t;
 
@@ -256,7 +281,7 @@ struct vector_type<T, 4>
         StaticallyIndexedArray<d4_t, 1> d4x1_;
     } data_;
 
-    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
+    __host__ __device__ constexpr vector_type() : data_{0, 0, 0, 0} {}
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
@@ -305,9 +330,9 @@ template <typename T>
 struct vector_type<T, 8>
 {
     using d1_t = T;
-    typedef T d2_t __attribute__((ext_vector_type(2)));
-    typedef T d4_t __attribute__((ext_vector_type(4)));
-    typedef T d8_t __attribute__((ext_vector_type(8)));
+    using d2_t = StaticallyIndexedArray<T, 2>;
+    using d4_t = StaticallyIndexedArray<T, 4>;
+    using d8_t = StaticallyIndexedArray<T, 8>;
 
     using type = d8_t;
 
@@ -320,7 +345,7 @@ struct vector_type<T, 8>
         StaticallyIndexedArray<d8_t, 1> d8x1_;
     } data_;
 
-    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
+    __host__ __device__ constexpr vector_type() : data_{type{0, 0, 0, 0, 0, 0, 0, 0}} {}
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
@@ -378,11 +403,11 @@ struct vector_type<T, 8>
 template <typename T>
 struct vector_type<T, 16>
 {
-    using d1_t = T;
-    typedef T d2_t __attribute__((ext_vector_type(2)));
-    typedef T d4_t __attribute__((ext_vector_type(4)));
-    typedef T d8_t __attribute__((ext_vector_type(8)));
-    typedef T d16_t __attribute__((ext_vector_type(16)));
+    using d1_t  = T;
+    using d2_t  = StaticallyIndexedArray<T, 2>;
+    using d4_t  = StaticallyIndexedArray<T, 4>;
+    using d8_t  = StaticallyIndexedArray<T, 8>;
+    using d16_t = StaticallyIndexedArray<T, 16>;
 
     using type = d16_t;
 
@@ -396,7 +421,10 @@ struct vector_type<T, 16>
         StaticallyIndexedArray<d16_t, 1> d16x1_;
     } data_;
 
-    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
+    __host__ __device__ constexpr vector_type()
+        : data_{type{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}
+    {
+    }
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
@@ -464,12 +492,12 @@ struct vector_type<T, 16>
 template <typename T>
 struct vector_type<T, 32>
 {
-    using d1_t = T;
-    typedef T d2_t __attribute__((ext_vector_type(2)));
-    typedef T d4_t __attribute__((ext_vector_type(4)));
-    typedef T d8_t __attribute__((ext_vector_type(8)));
-    typedef T d16_t __attribute__((ext_vector_type(16)));
-    typedef T d32_t __attribute__((ext_vector_type(32)));
+    using d1_t  = T;
+    using d2_t  = StaticallyIndexedArray<T, 2>;
+    using d4_t  = StaticallyIndexedArray<T, 4>;
+    using d8_t  = StaticallyIndexedArray<T, 8>;
+    using d16_t = StaticallyIndexedArray<T, 16>;
+    using d32_t = StaticallyIndexedArray<T, 32>;
 
     using type = d32_t;
 
@@ -560,13 +588,13 @@ struct vector_type<T, 32>
 template <typename T>
 struct vector_type<T, 64>
 {
-    using d1_t = T;
-    typedef T d2_t __attribute__((ext_vector_type(2)));
-    typedef T d4_t __attribute__((ext_vector_type(4)));
-    typedef T d8_t __attribute__((ext_vector_type(8)));
-    typedef T d16_t __attribute__((ext_vector_type(16)));
-    typedef T d32_t __attribute__((ext_vector_type(32)));
-    typedef T d64_t __attribute__((ext_vector_type(64)));
+    using d1_t  = T;
+    using d2_t  = StaticallyIndexedArray<T, 2>;
+    using d4_t  = StaticallyIndexedArray<T, 4>;
+    using d8_t  = StaticallyIndexedArray<T, 8>;
+    using d16_t = StaticallyIndexedArray<T, 16>;
+    using d32_t = StaticallyIndexedArray<T, 32>;
+    using d64_t = StaticallyIndexedArray<T, 64>;
 
     using type = d64_t;
 
@@ -668,14 +696,14 @@ struct vector_type<T, 64>
 template <typename T>
 struct vector_type<T, 128>
 {
-    using d1_t = T;
-    typedef T d2_t __attribute__((ext_vector_type(2)));
-    typedef T d4_t __attribute__((ext_vector_type(4)));
-    typedef T d8_t __attribute__((ext_vector_type(8)));
-    typedef T d16_t __attribute__((ext_vector_type(16)));
-    typedef T d32_t __attribute__((ext_vector_type(32)));
-    typedef T d64_t __attribute__((ext_vector_type(64)));
-    typedef T d128_t __attribute__((ext_vector_type(128)));
+    using d1_t   = T;
+    using d2_t   = StaticallyIndexedArray<T, 2>;
+    using d4_t   = StaticallyIndexedArray<T, 4>;
+    using d8_t   = StaticallyIndexedArray<T, 8>;
+    using d16_t  = StaticallyIndexedArray<T, 16>;
+    using d32_t  = StaticallyIndexedArray<T, 32>;
+    using d64_t  = StaticallyIndexedArray<T, 64>;
+    using d128_t = StaticallyIndexedArray<T, 128>;
 
     using type = d128_t;
 
@@ -786,15 +814,15 @@ struct vector_type<T, 128>
 template <typename T>
 struct vector_type<T, 256>
 {
-    using d1_t = T;
-    typedef T d2_t __attribute__((ext_vector_type(2)));
-    typedef T d4_t __attribute__((ext_vector_type(4)));
-    typedef T d8_t __attribute__((ext_vector_type(8)));
-    typedef T d16_t __attribute__((ext_vector_type(16)));
-    typedef T d32_t __attribute__((ext_vector_type(32)));
-    typedef T d64_t __attribute__((ext_vector_type(64)));
-    typedef T d128_t __attribute__((ext_vector_type(128)));
-    typedef T d256_t __attribute__((ext_vector_type(256)));
+    using d1_t   = T;
+    using d2_t   = StaticallyIndexedArray<T, 2>;
+    using d4_t   = StaticallyIndexedArray<T, 4>;
+    using d8_t   = StaticallyIndexedArray<T, 8>;
+    using d16_t  = StaticallyIndexedArray<T, 16>;
+    using d32_t  = StaticallyIndexedArray<T, 32>;
+    using d64_t  = StaticallyIndexedArray<T, 64>;
+    using d128_t = StaticallyIndexedArray<T, 128>;
+    using d256_t = StaticallyIndexedArray<T, 256>;
 
     using type = d256_t;
 
