@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
 #include "ck/host/stringutils.hpp"
@@ -30,8 +30,9 @@ static std::string GetGemmSpec(const std::size_t m,
     return "ck::tensor_operation::device::GemmSpecialization::" + spec + "Padding";
 }
 
-template <class F>
-std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(F f, Layout ALayout, Layout BLayout)
+static Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
+
+std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(const Problem& prob)
 {
     std::vector<Operation_Xdl_CShuffle> result;
 
@@ -161,9 +162,9 @@ std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(F f, Layout ALayout, La
     };
 
     const auto a_block_descriptions =
-        (ALayout == Layout::Row) ? a_block_descriptions_rowmajor : b_block_descriptions_rowmajor;
+        prob.TransA ? b_block_descriptions_rowmajor : a_block_descriptions_rowmajor;
     const auto b_block_descriptions =
-        (BLayout == Layout::Row) ? b_block_descriptions_rowmajor : a_block_descriptions_rowmajor;
+        prob.TransB ? a_block_descriptions_rowmajor : b_block_descriptions_rowmajor;
 
     assert(tile_descriptions.size() == a_block_descriptions.size());
     assert(tile_descriptions.size() == b_block_descriptions.size());
@@ -173,48 +174,43 @@ std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(F f, Layout ALayout, La
     for(std::size_t i = 0; i < tile_descriptions.size(); i++)
     {
         Operation_Xdl_CShuffle x;
-        x.tile_desc        = tile_descriptions[i];
-        x.a_block_transfer = a_block_descriptions[i];
-        x.b_block_transfer = b_block_descriptions[i];
-        x.cshuffle         = cshuffle_descriptions[i];
-        x.c_block_transfer = c_block_descriptions[i];
-        auto all           = f(x);
-        result.insert(result.end(), all.begin(), all.end());
+        x.tile_desc           = tile_descriptions[i];
+        x.a_block_transfer    = a_block_descriptions[i];
+        x.b_block_transfer    = b_block_descriptions[i];
+        x.cshuffle            = cshuffle_descriptions[i];
+        x.c_block_transfer    = c_block_descriptions[i];
+        x.A                   = TensorDesc{prob.ADataType, ToLayout(prob.TransA)};
+        x.B                   = TensorDesc{prob.BDataType, ToLayout(prob.TransB)};
+        x.E                   = TensorDesc{prob.EDataType, ToLayout(prob.TransE)};
+        x.Ds                  = Transform(prob.DsTrans, prob.DsDataType, [](auto trans, auto dt) {
+            return TensorDesc{dt, ToLayout(trans)};
+        });
+        x.a_elem_op           = prob.AElementOp;
+        x.b_elem_op           = prob.BElementOp;
+        x.cde_elem_op         = prob.CDEElementOp;
+        x.gemm_specialization = GetGemmSpec(prob.M,
+                                            prob.N,
+                                            prob.K,
+                                            x.tile_desc.m_per_block,
+                                            x.tile_desc.n_per_block,
+                                            x.tile_desc.k_per_block);
+        result.push_back(x);
     }
     return result;
 }
 
-static Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
-
-std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations()
+std::vector<std::vector<Operation_Xdl_CShuffle>> Operation_Xdl_CShuffle::CreateOperations()
 {
-    return CreateOperationsImpl([](auto x) -> std::vector<Operation_Xdl_CShuffle> { return {x}; },
-                                Layout::Column,
-                                Layout::Row);
-}
-std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(const Problem& prob)
-{
-    return CreateOperationsImpl(
-        [&](Operation_Xdl_CShuffle x) -> std::array<Operation_Xdl_CShuffle, 1> {
-            x.A           = TensorDesc{prob.ADataType, ToLayout(prob.TransA)};
-            x.B           = TensorDesc{prob.BDataType, ToLayout(prob.TransB)};
-            x.E           = TensorDesc{prob.EDataType, ToLayout(prob.TransE)};
-            x.Ds          = Transform(prob.DsTrans, prob.DsDataType, [](auto trans, auto dt) {
-                return TensorDesc{dt, ToLayout(trans)};
-            });
-            x.a_elem_op   = prob.AElementOp;
-            x.b_elem_op   = prob.BElementOp;
-            x.cde_elem_op = prob.CDEElementOp;
-            x.gemm_specialization = GetGemmSpec(prob.M,
-                                                prob.N,
-                                                prob.K,
-                                                x.tile_desc.m_per_block,
-                                                x.tile_desc.n_per_block,
-                                                x.tile_desc.k_per_block);
-            return {x};
-        },
-        ToLayout(prob.TransA),
-        ToLayout(prob.TransB));
+    std::vector<Problem> problems;
+    for(bool TransA : {true, false})
+        for(bool TransB : {true, false})
+        {
+            Problem prob;
+            prob.TransA = TransA;
+            prob.TransB = TransB;
+            problems.push_back(prob);
+        }
+    return Transform(problems, [](const Problem& p) { return CreateOperations(p); });
 }
 
 static const char* const DeviceGemmMultipleD_Xdl_CShuffleTemplate =

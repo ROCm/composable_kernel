@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,7 +16,7 @@ namespace device_gemm_multiple_d {
 
 struct Operation_Xdl_CShuffle
 {
-    static std::vector<Operation_Xdl_CShuffle> CreateOperations();
+    static std::vector<std::vector<Operation_Xdl_CShuffle>> CreateOperations();
     static std::vector<Operation_Xdl_CShuffle> CreateOperations(const Problem& prob);
     TensorDesc A{};
     TensorDesc B{};

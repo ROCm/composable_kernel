@@ -7,6 +7,8 @@
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
 #include "ck/host/stringutils.hpp"
 
+using ck::host::Transform;
+
 struct Emitters
 {
     std::unordered_map<std::string, std::function<std::vector<std::string>()>> m;
@@ -15,21 +17,25 @@ struct Emitters
     void Register(const std::string& name)
     {
         m[name] = [] {
-            auto ops = T::CreateOperations();
+            auto configs = T::CreateOperations();
 
-            return ck::host::Transform(
-                ops, [](const auto& op) { return op.ToSolution().ToTemplateString(); });
+            return Transform(configs, [](const auto& ops) { return ToTuple(ops); });
         };
     }
 
-    std::string Emit(const std::string& name)
+    template <class T>
+    static std::string ToTuple(const T& ops)
     {
-        return "std::tuple<\n" + ck::host::JoinStrings(m.at(name)(), ",\n") + ">";
+        auto templates = Transform(
+            ops, [](const auto& op) { return "    " + op.ToSolution().ToTemplateString(); });
+        return "std::tuple<\n" + ck::host::JoinStrings(templates, ",\n") + ">";
     }
+
+    std::string Emit(const std::string& name) { return ck::host::JoinStrings(m.at(name)(), "\n"); }
 
     std::vector<std::string> List() const
     {
-        return ck::host::Transform(m, [](auto&& p) { return p.first; });
+        return Transform(m, [](auto&& p) { return p.first; });
     }
 };
 
