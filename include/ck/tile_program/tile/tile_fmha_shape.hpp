@@ -39,6 +39,7 @@ struct TileFmhaShape
     static constexpr index_t kK0BlockLength =
         BlockTile::At(Number<5>{}); // total length of K0, used for pipeline that need load Q at
                                     // once (or repeately load Q as a whole tile)
+    static_assert(kK0BlockLength % kK0 == 0, "kK0BlockLength should be divisible by kK0");
 
     using VLayout = remove_cvref_t<VLayout_>; // rowmajor : seqlen*hdim, colmajor : hdim*seqlen
 };

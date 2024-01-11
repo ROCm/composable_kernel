@@ -55,6 +55,7 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
     static constexpr bool kM0NeedPadding   = Problem::kM0NeedPadding;
     static constexpr bool kN0K1NeedPadding = Problem::kN0K1NeedPadding;
+    static constexpr bool kK0N1NeedPadding = Problem::kK0N1NeedPadding;
     static constexpr bool kHasBias         = Problem::kHasBias;
 
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
@@ -189,6 +190,9 @@ struct BlockFmhaPipelineQRKSVS
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kK0BlockLength / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
+
+        static_assert(2 <= k0_loops);
+        static_assert(1 <= k1_loops);
         do
         {
             // STAGE 1, QK gemm

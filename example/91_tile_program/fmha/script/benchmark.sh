@@ -21,5 +21,12 @@ $EXE -prec=$prec -b=4  -h=32 -d=64 -s=4096  -iperm=$perm -operm=$perm -v=$VALID 
 $EXE -prec=$prec -b=2  -h=32 -d=64 -s=8192  -iperm=$perm -operm=$perm -v=$VALID ; sleep 3
 $EXE -prec=$prec -b=1  -h=32 -d=64 -s=16384 -iperm=$perm -operm=$perm -v=$VALID ; sleep 3
 
+$EXE -prec=$prec -b=32 -h=32 -d=32 -s=512   -iperm=$perm -operm=$perm -v=$VALID ; sleep 3
+$EXE -prec=$prec -b=16 -h=32 -d=32 -s=1024  -iperm=$perm -operm=$perm -v=$VALID ; sleep 3
+$EXE -prec=$prec -b=8  -h=32 -d=32 -s=2048  -iperm=$perm -operm=$perm -v=$VALID ; sleep 3
+$EXE -prec=$prec -b=4  -h=32 -d=32 -s=4096  -iperm=$perm -operm=$perm -v=$VALID ; sleep 3
+$EXE -prec=$prec -b=2  -h=32 -d=32 -s=8192  -iperm=$perm -operm=$perm -v=$VALID ; sleep 3
+$EXE -prec=$prec -b=1  -h=32 -d=32 -s=16384 -iperm=$perm -operm=$perm -v=$VALID ; sleep 3
+
 done
 done

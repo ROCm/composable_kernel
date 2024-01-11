@@ -20,6 +20,10 @@ template <typename TensorLengths,
           bool SnakeCurved = true> // # of scalars per access in each dimension
 struct SpaceFillingCurve
 {
+    static constexpr index_t TensorSize =
+        reduce_on_sequence(TensorLengths{}, math::multiplies{}, Number<1>{});
+    static_assert(0 < TensorSize, "SpaceFillingCurve should be used to access a non-empty tensor");
+
     static constexpr index_t nDim = TensorLengths::Size();
 
     using Index = MultiIndex<nDim>;
