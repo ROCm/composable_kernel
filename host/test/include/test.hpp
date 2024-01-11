@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,9 +24,11 @@
 
 #include <atomic>
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <chrono>
 #include <functional>
 #include <iostream>
 #include <sstream>
@@ -339,6 +341,8 @@ inline std::ostream& operator<<(std::ostream& os, const color& c)
     static const bool use_color = isatty(STDOUT_FILENO) != 0;
     if(use_color)
         return os << "\033[" << static_cast<std::size_t>(c) << "m";
+#else
+    (void)c;
 #endif
     return os;
 }
@@ -397,6 +401,52 @@ auto within_abs(T px, U py, double ptol = 1e-6f)
 {
     return make_function("near", [](auto x, auto y, auto tol) { return std::abs(x - y) < tol; })(
         px, py, ptol);
+}
+
+// This implements the basic globbing algorithm where `*` matches any number
+// of characters(including none) and `?` matches any single character. It
+// doesnt support character classes.
+//
+// This is a simple recursive implementation that scans the string where the
+// string and pattern matches. When a `*` is found in the pattern, the
+// `glob_match` function is called recursively to compare the rest of the
+// pattern to the rest of the string. If the recursive call returns true,
+// then we have a match. However, if it returns false, then we advance one
+// character and call the recusrsive call again. This is referred to as a
+// star-loop, which will consume zero or more characters.
+//
+// This simple recursive implementation works well for short string and
+// patterns with few stars. First, it is unlikely to use many stars to glob
+// test names. Secondly, using many stars is still signficantly faster than
+// using the equivalent std::regex, which has a much slower time complexity.
+template <class Iterator1, class Iterator2>
+bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterator2 pattern_last)
+{
+    std::tie(start, pattern_start) =
+        std::mismatch(start, last, pattern_start, pattern_last, [](auto c, auto m) {
+            if(m == '?')
+                return true;
+            // We need a loop for star, so bail and handle the loop below
+            if(m == '*')
+                return false;
+            return c == m;
+        });
+    // If there is no more pattern then return true if there is no more string to match
+    if(pattern_start == pattern_last)
+        return start == last;
+    // If the pattern is not a star then its a mismatch
+    if(*pattern_start != '*')
+        return false;
+    // Multiple stars are the same as a single star so skip over multiple stars
+    pattern_start = std::find_if(pattern_start, pattern_last, [](auto c) { return c != '*'; });
+    // If the star is at the end then return true
+    if(pattern_start == pattern_last)
+        return true;
+    // star-loop: match the rest of the pattern and text
+    while(not glob_match(start, last, pattern_start, pattern_last) and start != last)
+        start++;
+    // If the string is empty then it means a match was never found
+    return start != last;
 }
 
 using string_map = std::unordered_map<std::string, std::vector<std::string>>;
@@ -479,8 +529,31 @@ struct driver
         arguments.push_back(argument{flags, help, 0});
     }
 
+    static void wrap(std::ostream& os,
+                     const std::string& text,
+                     const std::string& prefix = "",
+                     unsigned int line_length  = 80)
+    {
+        std::istringstream iss(text);
+        std::string line = prefix;
+        do
+        {
+            std::string word;
+            iss >> word;
+            if(line.length() + word.length() > line_length)
+            {
+                os << line << std::endl;
+                line = prefix;
+            }
+            line += word + " ";
+        } while(iss);
+        if(not line.empty())
+            os << line << std::endl;
+    }
+
     void show_help(const std::string& exe) const
     {
+        const std::string prefix = "    ";
         std::cout << std::endl;
         std::cout << color::fg_yellow << "USAGE:" << color::reset << std::endl;
         std::cout << "    ";
@@ -491,22 +564,27 @@ struct driver
         std::cout << "    ";
         std::cout << color::fg_green << "<test-case>..." << color::reset;
         std::cout << std::endl;
-        std::cout << "        "
-                  << "Test case name to run" << std::endl;
+
+        wrap(std::cout,
+             "Test cases to run. A test case can be either the exact test case name or a glob. A "
+             "glob expression uses a '*' to select zero or more characters or a '?' to select any "
+             "single character.",
+             prefix + prefix);
+
         std::cout << std::endl;
         std::cout << color::fg_yellow << "OPTIONS:" << color::reset << std::endl;
         for(auto&& arg : arguments)
         {
-            std::string prefix = "    ";
             std::cout << color::fg_green;
+            std::string arg_prefix = prefix;
             for(const std::string& a : arg.flags)
             {
-                std::cout << prefix;
+                std::cout << arg_prefix;
                 std::cout << a;
-                prefix = ", ";
+                arg_prefix = ", ";
             }
             std::cout << color::reset << std::endl;
-            std::cout << "        " << arg.help << std::endl;
+            wrap(std::cout, arg.help, prefix + prefix);
         }
     }
 
@@ -581,12 +659,26 @@ struct driver
         return msg;
     }
 
+    static std::vector<std::pair<std::string, test_case>> glob_tests(const std::string& pattern)
+    {
+        std::vector<std::pair<std::string, test_case>> result;
+        std::copy_if(get_test_cases().begin(),
+                     get_test_cases().end(),
+                     std::back_inserter(result),
+                     [&](auto&& p) {
+                         return glob_match(
+                             p.first.begin(), p.first.end(), pattern.begin(), pattern.end());
+                     });
+        return result;
+    }
+
     void run_test_case(const std::string& name, const test_case& f, const string_map& args)
     {
         ran++;
         out() << color::fg_green << "[   RUN    ] " << color::reset << color::bold << name
               << color::reset << std::endl;
         std::string msg;
+        auto start = std::chrono::steady_clock::now();
         if(args.count("--continue") > 0)
         {
             msg = fork(name, args);
@@ -598,11 +690,15 @@ struct driver
                 failures() = 0;
                 f();
             }
-            // cppcheck-suppress EmptyCatchStatement
+            // cppcheck-suppress migraphx-EmptyCatchStatement
             catch(const failure_error&)
             {
             }
         }
+        auto finish = std::chrono::steady_clock::now();
+        auto elapsed_ms =
+            std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(finish - start)
+                .count();
         if(msg.empty() and failures() != 0)
         {
             if(failures() == 1)
@@ -612,15 +708,18 @@ struct driver
         }
         if(msg.empty())
         {
-            out() << color::fg_green << "[ COMPLETE ] " << color::reset << color::bold << name
-                  << color::reset << std::endl;
+            out() << color::fg_green << "[ COMPLETE ] " << color::reset;
         }
         else
         {
             failed.push_back(name);
-            out() << color::fg_red << "[  FAILED  ] " << color::reset << color::bold << name
-                  << color::reset << ": " << color::fg_yellow << msg << color::reset << std::endl;
+            out() << color::fg_red << "[  FAILED  ] " << color::reset;
         }
+        out() << color::bold << name << color::reset;
+        out() << color::fg_blue << " (" << elapsed_ms << "ms)" << color::reset;
+        if(not msg.empty())
+            out() << ": " << color::fg_yellow << msg << color::reset;
+        out() << std::endl;
     }
 
     void run(int argc, const char* argv[])
@@ -651,20 +750,30 @@ struct driver
         {
             std::unordered_map<std::string, test_case> m(get_test_cases().begin(),
                                                          get_test_cases().end());
+
             for(auto&& iname : cases)
             {
-                for(auto&& name : get_case_names(iname))
+                std::vector<std::pair<std::string, test_case>> found_cases;
+                for(auto&& pattern : get_case_names(iname))
                 {
-                    auto f = m.find(name);
+                    auto f = m.find(pattern);
                     if(f == m.end())
                     {
-                        out() << color::fg_red << "[  ERROR   ] Test case '" << name
-                              << "' not found." << color::reset << std::endl;
-                        failed.push_back(name);
+                        found_cases = glob_tests(pattern);
                     }
                     else
-                        run_test_case(name, f->second, args);
+                    {
+                        found_cases.push_back(*f);
+                    }
                 }
+                if(found_cases.empty())
+                {
+                    out() << color::fg_red << "[  ERROR   ] Test case '" << iname << "' not found."
+                          << color::reset << std::endl;
+                    failed.push_back(iname);
+                }
+                for(auto&& p : found_cases)
+                    run_test_case(p.first, p.second, args);
             }
         }
         out() << color::fg_green << "[==========] " << color::fg_yellow << ran << " tests ran"
