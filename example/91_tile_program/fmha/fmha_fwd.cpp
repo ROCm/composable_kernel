@@ -256,7 +256,7 @@ bool run(const ArgParser& arg_parser)
                       : get_lengths(i_perm, shape_batch, nhead_k, hdim_v, shape_seqlen_k));
     // use bias shape = [1, 1, shape_seqlen_q, shape_seqlen_k]. if use_bias=false, the bias_host
     // will not be used for verification at all (but will be copied to device anyway).
-    Tensor<KDataType> bias_host(
+    Tensor<BiasDataType> bias_host(
         use_bias ? get_lengths(i_perm, 1, 1, shape_seqlen_q, shape_seqlen_k)
                  : std::array<ck::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     Tensor<ODataType> o_host(get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
