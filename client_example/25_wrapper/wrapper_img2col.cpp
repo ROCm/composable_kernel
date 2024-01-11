@@ -47,18 +47,16 @@ __global__ void DeviceImageToColumnPad0(InputTensor input_tensor,
                                         const ThreadLayoutShape thread_layout)
 {
     const ck::index_t block_idx = static_cast<ck::index_t>(blockIdx.x);
-    // printf("XXX\n");
+
     // Get local tiles for global memory
     auto input_local_tile  = ck::wrapper::make_local_tile(input_tensor, tile_shape, block_idx);
     auto output_local_tile = ck::wrapper::make_local_tile(output_tensor, tile_shape, block_idx);
-    // printf("ZZZZ\n");
 
     // Get partition per thread
     const auto input_local_partition =
         ck::wrapper::make_local_partition(input_local_tile, thread_layout, threadIdx.x);
     auto output_local_partition =
         ck::wrapper::make_local_partition(output_local_tile, thread_layout, threadIdx.x);
-    // printf("YYYY\n");
 
     // Perform copy
     using DimAccessOrder                    = ck::Tuple<ck::Number<0>, ck::Number<1>>;
