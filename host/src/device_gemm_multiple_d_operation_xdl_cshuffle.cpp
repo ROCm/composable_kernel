@@ -42,21 +42,13 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
 //   Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per| Prefetch|
 //       |      |      |      |    |    |     |     | Wave| Wave|    Stage|
 //       |      |      |      |    |    |     |     |     |     |         |
-  {   256,   256,   128,    32,   8,   2,   32,   32,    4,    2,        1},
   {   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,        1},
-  {   256,   128,   256,    32,   8,   2,   32,   32,    2,    4,        1},
   {   256,   128,   256,    32,   8,   8,   32,   32,    2,    4,        1},
-  {   128,   128,   128,    32,   8,   2,   32,   32,    4,    2,        1},
   {   128,   128,   128,    32,   8,   8,   32,   32,    4,    2,        1},
-  {   256,   128,   128,    32,   8,   2,   32,   32,    2,    2,        1},
   {   256,   128,   128,    32,   8,   8,   32,   32,    2,    2,        1},
-  {   128,   128,    64,    32,   8,   2,   32,   32,    2,    2,        1},
   {   128,   128,    64,    32,   8,   8,   32,   32,    2,    2,        1},
-  {   128,    64,   128,    32,   8,   2,   32,   32,    2,    2,        1},
   {   128,    64,   128,    32,   8,   8,   32,   32,    2,    2,        1},
-  {   256,   128,    64,    32,   8,   2,   32,   32,    2,    1,        1},
   {   256,   128,    64,    32,   8,   8,   32,   32,    2,    1,        1},
-  {   256,    64,   128,    32,   8,   2,   32,   32,    1,    2,        1},
   {   256,    64,   128,    32,   8,   8,   32,   32,    1,    2,        1},
         // clang-format on
     };
@@ -69,45 +61,63 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
 //                |               |               |               |               |               |          |
   {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
   {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
-  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
   {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
   {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
   {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
-  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
-  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
-  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
-  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
-  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
-  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
-  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
-  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
   {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
   {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
         // clang-format on
     };
 
+    std::vector<operation::BlockTransferDesc> a_block_descriptions_colmajor = {
+        // clang-format off
+//  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|
+//   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|
+// Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          |
+//                |               |               |               |               |               |          |
+        // clang-format on
+        {S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 8, 1},
+        {S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 8, 1},
+        {S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 8, 1},
+        {S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 8, 1},
+        {S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 8, 1},
+        {S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 8, 1},
+        {S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 8, 1},
+        {S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 1, 8, 1},
+    };
+
     std::vector<operation::BlockTransferDesc> b_block_descriptions_rowmajor = {
         // clang-format off
-//  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|
-//   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|
-// Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |
-//                |               |               |              |               |               |          |
-  {    S<8, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
-  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1},
-  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
-  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              8,         1},
-  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
-  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              8,         1},
-  {    S<8, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
-  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1},
-  {    S<8, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
-  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1},
-  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
-  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              8,         1},
-  {    S<16,16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
-  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              8,         1},
-  {    S<8, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              2,         0},
-  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1},
+//  BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|
+//   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|
+// Lengths_K0_N_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          |
+//                |               |               |               |               |               |          |
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              8,         1},
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              8,         1},
+  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              8,         1},
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              8,         1},
+  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              8,         1},
+  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              8,         1},
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1},
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              8,         1},
+        // clang-format on
+    };
+
+    std::vector<operation::BlockTransferDesc> b_block_descriptions_colmajor = {
+        // clang-format off
+//  BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|
+//   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|
+// Lengths_K0_N_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          |
+//                |               |               |               |               |               |          |
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
         // clang-format on
     };
 
@@ -117,14 +127,6 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
 // MXdlPerWave| NXdlPerWave|
 //  PerShuffle|  PerShuffle|
 //            |            |
-  {          1,           1},
-  {          1,           1},
-  {          1,           1},
-  {          1,           1},
-  {          1,           1},
-  {          1,           1},
-  {          1,           1},
-  {          1,           1},
   {          1,           1},
   {          1,           1},
   {          1,           1},
@@ -144,27 +146,19 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
 //                             |                
   {              S<1, 32, 1, 8>,               8},
   {              S<1, 32, 1, 8>,               8},
-  {              S<1, 32, 1, 8>,               8},
-  {              S<1, 32, 1, 8>,               8},
   {              S<1, 16, 1, 8>,               8},
-  {              S<1, 16, 1, 8>,               8},
-  {              S<1, 32, 1, 8>,               8},
   {              S<1, 32, 1, 8>,               8},
   {              S<1, 32, 1, 4>,               8},
-  {              S<1, 32, 1, 4>,               8},
   {              S<1, 16, 1, 8>,               8},
-  {              S<1, 16, 1, 8>,               8},
-  {              S<1, 32, 1, 8>,               8},
-  {              S<1, 32, 1, 8>,               8},
   {              S<1, 32, 1, 8>,               8},
   {              S<1, 32, 1, 8>,               8},
         // clang-format on
     };
 
     const auto a_block_descriptions =
-        prob.TransA ? b_block_descriptions_rowmajor : a_block_descriptions_rowmajor;
+        prob.TransA ? a_block_descriptions_colmajor : a_block_descriptions_rowmajor;
     const auto b_block_descriptions =
-        prob.TransB ? a_block_descriptions_rowmajor : b_block_descriptions_rowmajor;
+        prob.TransB ? b_block_descriptions_colmajor : b_block_descriptions_rowmajor;
 
     assert(tile_descriptions.size() == a_block_descriptions.size());
     assert(tile_descriptions.size() == b_block_descriptions.size());
