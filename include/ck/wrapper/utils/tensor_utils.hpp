@@ -42,6 +42,12 @@ struct Slice
     __host__ __device__ constexpr Slice() : from_(), to_() {}
     __host__ __device__ constexpr Slice(FromType from, ToType to) : from_(from), to_(to) {}
 
+    /**
+     * \brief Calculate slice range.
+     *
+     * \param dim Dimension size.
+     * \return Slice range.
+     */
     template <typename T>
     __host__ __device__ constexpr auto range(const T& dim) const
     {
@@ -118,11 +124,7 @@ template <MemoryTypeEnum MemoryType,
           typename UnnestedDescriptorType>
 constexpr auto make_register_tensor(const Layout<Shape, UnnestedDescriptorType>& layout)
 {
-    return Tensor<
-        MemoryType,
-        ElementType,
-        Shape,
-        std::remove_const_t<remove_reference_t<decltype(layout.GetUnnestedDescriptor())>>>(layout);
+    return Tensor<MemoryType, ElementType, Shape, UnnestedDescriptorType>(layout);
 }
 
 /**

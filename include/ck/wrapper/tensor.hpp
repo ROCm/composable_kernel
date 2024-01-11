@@ -27,7 +27,11 @@ template <MemoryTypeEnum BufferAddressSpace,
 struct Tensor
 {
     private:
-    // Check if Tuple contains Slice object
+    /**
+     * \brief Check if Tuple contains Slice object
+     *
+     * \return True if tuple contains Slice object.
+     */
     template <typename T>
     __host__ __device__ constexpr static bool IsSlicing(T&&)
     {
@@ -39,7 +43,13 @@ struct Tensor
         return (IsSlicing(Ts{}) || ...);
     }
 
-    // Calculate new tensor shape after slice
+    /**
+     * \brief Calculate new tensor shape after slice
+     *
+     * \param idx Passed idx with slices.
+     * \param shape Tensor shape.
+     * \return New tensor shape.
+     */
     template <typename... Ts, typename ShapeTmpType>
     __host__ __device__ constexpr auto GetShapeFromSlicedTensor(const Tuple<Ts...>& idx,
                                                                 const ShapeTmpType& shape) const
@@ -80,7 +90,13 @@ struct Tensor
         return UnrollNestedTuple<0, 1>(new_shape);
     }
 
-    // Generate Freeze for each of nested shape
+    /**
+     * \brief Generate Freeze for each of nested shape.
+     *
+     * \param idx Passed start idx for slice.
+     * \param shape Tensor shape.
+     * \return Generated freeze transforms.
+     */
     template <typename T, typename ShapeTmpType>
     __host__ __device__ constexpr auto GenerateMultipleFreeze(T idx,
                                                               const ShapeTmpType& shape) const
@@ -97,6 +113,13 @@ struct Tensor
             Number<decltype(unrolled_shape)::Size()>{});
     }
 
+    /**
+     * \brief Generate transforms for slice tensor.
+     *
+     * \param idx Passed start idx for slice.
+     * \param shape Tensor shape.
+     * \return Generated transforms.
+     */
     template <typename... Ts, typename ShapeTmpType>
     __host__ __device__ constexpr auto
     GetTransformsFromSlicedTensor(const Tuple<Ts...>& idx, const ShapeTmpType& shape) const
@@ -129,10 +152,10 @@ struct Tensor
         return UnrollNestedTuple(transforms);
     }
 
-    // There is no output for Freeze transform
     template <index_t i, typename LowerIndex>
     __host__ __device__ constexpr auto GetSequenceVal(const ck::Freeze<LowerIndex>&) const
     {
+        // There is no output for Freeze transform
         return Sequence<>{};
     }
 
@@ -219,7 +242,12 @@ struct Tensor
         return layout_;
     }
 
-    // Getter for new sliced tensor
+    /**
+     * \brief Getter for new sliced tensor
+     *
+     * \param idx Passed indexes for slice/freeze.
+     * \return Sliced tensor.
+     */
     template <typename... Ts, enable_if_t<IsSlicing(Tuple<Ts...>{}), bool> = false>
     __host__ __device__ auto operator[](const Tuple<Ts...>& idx)
     {
@@ -248,7 +276,12 @@ struct Tensor
         return this->operator[](make_tuple(idxs...));
     }
 
-    // Getter for the const value
+    /**
+     * \brief Getter for the const value.
+     *
+     * \param idx Passed idx.
+     * \return Requested value.
+     */
     template <typename... Ts, enable_if_t<!IsSlicing(Tuple<Ts...>{}), bool> = false>
     __host__ __device__ const ElementType& operator[](const Tuple<Ts...>& idx) const
     {
@@ -282,7 +315,12 @@ struct Tensor
         return this->operator[](make_tuple(idxs...));
     }
 
-    // Getter for the value reference
+    /**
+     * \brief Getter for the reference.
+     *
+     * \param idx Passed idx.
+     * \return Requested value.
+     */
     template <typename... Ts, enable_if_t<!IsSlicing(Tuple<Ts...>{}), bool> = false>
     __host__ __device__ ElementType& operator[](const Tuple<Ts...>& idx)
     {
@@ -316,17 +354,38 @@ struct Tensor
         return this->operator[](make_tuple(idxs...));
     }
 
+    /**
+     * \brief Get default layout descriptor.
+     *
+     * \return Default layout descriptor.
+     */
     __host__ __device__ constexpr auto GetDefaultDescriptor()
     {
         return layout_.GetDefaultDescriptor();
     }
 
+    /**
+     * \brief Get pointer to the data.
+     *
+     * \return Pointer.
+     */
     __host__ __device__ ElementType* GetPointer() const { return buffer_.p_data_; }
 
     __host__ __device__ constexpr auto& GetBuffer() { return buffer_; }
     __host__ __device__ constexpr auto& GetBuffer() const { return buffer_; }
 
+    /**
+     * \brief Get multi index offset to the data.
+     *
+     * \return Multi index offset.
+     */
     __host__ __device__ constexpr auto& GetMultiIdxOffsets() const { return multi_idx_offsets_; }
+
+    /**
+     * \brief Apply multi index offset on the tensor.
+     *
+     * \param multi_idx_offsets Multi index offset.
+     */
     template <typename MultiIdxOffsets>
     __host__ __device__ constexpr void ApplyMultiIdxOffsets(const MultiIdxOffsets multi_idx_offsets)
     {

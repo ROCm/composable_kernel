@@ -42,6 +42,16 @@ __host__ __device__ void copy(const SrcTensorType& src_tensor, DstTensorType& ds
     }
 }
 
+/**
+ * \brief Perform optimized copy between two tensors. Tensors must have the
+ *  same size.
+ *
+ * \tparam DimAccessOrderTuple Tuple with dimension access order.
+ * \tparam VectorDim Dimension for vectorize read and write.
+ * \tparam ScalarPerVector Number of scalar per vectorize read and write.
+ * \param src_tensor Source tensor.
+ * \param dst_tensor Destination tensor.
+ */
 template <typename DimAccessOrderTuple,
           index_t VectorDim,
           index_t ScalarPerVector,

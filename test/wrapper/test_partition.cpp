@@ -49,11 +49,9 @@ TEST(TestPartition, LocalPartition)
 
 TEST(TestPartition, LocalTile)
 {
-    const auto shape =
-        ck::make_tuple(ck::make_tuple(ck::Number<16>{}, ck::Number<4>{}), ck::Number<4>{});
-    const auto strides =
-        ck::make_tuple(ck::make_tuple(ck::Number<1>{}, ck::Number<16>{}), ck::Number<64>{});
-    const auto layout = ck::wrapper::make_layout(shape, strides);
+    const auto shape   = ck::make_tuple(ck::Number<16>{}, ck::Number<4>{}, ck::Number<4>{});
+    const auto strides = ck::make_tuple(ck::Number<1>{}, ck::Number<16>{}, ck::Number<64>{});
+    const auto layout  = ck::wrapper::make_layout(shape, strides);
 
     std::vector<ck::index_t> data(ck::wrapper::size(layout));
     std::iota(data.begin(), data.end(), 0);
@@ -61,27 +59,31 @@ TEST(TestPartition, LocalTile)
     const auto tensor =
         ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Generic>(data.data(), layout);
 
-    const auto block_shape = ck::make_tuple(ck::Number<8>{}, ck::Number<2>{});
+    const auto block_shape = ck::make_tuple(ck::Number<2>{}, ck::Number<4>{}, ck::Number<2>{});
+    const auto num_blocks =
+        ck::make_tuple(ck::wrapper::size<0>(shape) / ck::wrapper::size<0>(block_shape),
+                       ck::wrapper::size<1>(shape) / ck::wrapper::size<1>(block_shape),
+                       ck::wrapper::size<2>(shape) / ck::wrapper::size<2>(block_shape));
+    std::vector<ck::index_t> block_idxs(ck::wrapper::size(num_blocks));
+    std::iota(block_idxs.begin(), block_idxs.end(), 0);
 
-    std::vector<ck::Tuple<ck::index_t, ck::index_t>> block_idxs;
-    for(ck::index_t x = 0; x < ck::wrapper::size<0>(block_shape); x++)
-    {
-        for(ck::index_t y = 0; y < ck::wrapper::size<1>(block_shape); y++)
-        {
-            block_idxs.emplace_back(x, y);
-        }
-    }
-
-    for(const auto& block_idx : block_idxs)
+    for(auto block_idx : block_idxs)
     {
         const auto packed_tile = ck::wrapper::make_local_tile(tensor, block_shape, block_idx);
 
         const auto expected_tile_size = ck::wrapper::size(block_shape);
-        const auto expected_tile_first_val =
-            ck::wrapper::size<0>(block_idx) * ck::wrapper::size<0>(block_shape) *
-                ck::wrapper::size<0, 0>(strides) +
-            ck::wrapper::size<1>(block_idx) * ck::wrapper::size<1>(block_shape) *
-                ck::wrapper::size<1>(strides);
+        auto expected_tile_first_val  = (block_idx % ck::wrapper::size<2>(num_blocks)) *
+                                       ck::wrapper::size<2>(block_shape) *
+                                       ck::wrapper::size<2>(strides);
+        block_idx /= ck::wrapper::size<2>(num_blocks);
+        expected_tile_first_val += (block_idx % ck::wrapper::size<1>(num_blocks)) *
+                                   ck::wrapper::size<1>(block_shape) *
+                                   ck::wrapper::size<1>(strides);
+        block_idx /= ck::wrapper::size<1>(num_blocks);
+        expected_tile_first_val += (block_idx % ck::wrapper::size<0>(num_blocks)) *
+                                   ck::wrapper::size<0>(block_shape) *
+                                   ck::wrapper::size<0>(strides);
+
         const auto expected_tile_second_val = expected_tile_first_val + 1;
         EXPECT_EQ(ck::wrapper::size(packed_tile), expected_tile_size);
         EXPECT_EQ(packed_tile(0), expected_tile_first_val);

@@ -31,13 +31,12 @@ __global__ void TestCopyDevice(const InputTensor input_tensor,
     const auto tensor_lds = ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Lds>(
         p_shared, ck::wrapper::make_layout(tile_shape));
 
-    const auto block_idxs = ck::make_tuple(ck::index_t{0}, static_cast<ck::index_t>(blockIdx.x));
+    const auto block_idx = static_cast<ck::index_t>(blockIdx.x);
 
     // Get local tiles for global memory
-    const auto input_local_tile =
-        ck::wrapper::make_local_tile(input_tensor, tile_shape, block_idxs);
+    const auto input_local_tile = ck::wrapper::make_local_tile(input_tensor, tile_shape, block_idx);
     const auto output_local_tile =
-        ck::wrapper::make_local_tile(output_tensor, tile_shape, block_idxs);
+        ck::wrapper::make_local_tile(output_tensor, tile_shape, block_idx);
 
     // Get partition per thread
     const auto input_local_partition =

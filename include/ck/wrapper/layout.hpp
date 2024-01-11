@@ -23,9 +23,15 @@ struct Layout
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
 
-    // Generate default idxs tuple (idx with all merged nested shapes)
+    /**
+     * \brief Generate default idxs tuple (idx with all merged nested shapes)
+     *
+     * \param shape Shape to align.
+     * \return Multi idx tuple with zeros.
+     */
     template <typename... Ts>
-    __host__ __device__ constexpr static auto GenerateDefaultIdxsTuple(const Tuple<Ts...>&)
+    __host__ __device__ constexpr static auto
+    GenerateDefaultIdxsTuple([[maybe_unused]] const Tuple<Ts...>& shape)
     {
         return generate_tuple(
             [&](auto) {
@@ -43,11 +49,18 @@ struct Layout
             Number<Tuple<Ts...>::Size()>{});
     }
 
-    // Generate LowerDims in Compile-time for MergeTrasform using passed Type
-    // If element of Tuple<Ts...> is also tuple, then merge (generate sequence for merge)
-    // If tuple is element, then pass through (sequence with one element)
+    /**
+     * \brief Generate LowerDims in Compile-time for MergeTrasform using
+     * passed Type. If element of Tuple<Ts...> is also tuple, then merge
+     * (generate sequence for merge). If tuple is element, then pass through
+     * (sequence with one element).
+     *
+     * \param shape Shape to align.
+     * \return LowerDims for MergeTrasform.
+     */
     template <typename Idx, typename... Ts>
-    __host__ __device__ constexpr static auto GenerateLowerDim(const Tuple<Ts...>&)
+    __host__ __device__ constexpr static auto
+    GenerateLowerDim([[maybe_unused]] const Tuple<Ts...>& shape)
     {
         if constexpr(Idx::value == 0)
         {
@@ -87,11 +100,17 @@ struct Layout
         }
     }
 
-    // Iterate over nested tuples in shape
-    // Unroll nested tuples to align Tuple<ShapeDims...> to Tuple<IdxDims...>
-    // Example idx:     (1,      1), 1,      1
-    // Example shape:   (2, (2, 2)), 2, (2, 2)
-    // Unrolled shape:  2,  (2, 2),  2, (2, 2)
+    /**
+     * \brief Iterate over nested tuples in shape.
+     * Unroll nested tuples to align Tuple<ShapeDims...> to Tuple<IdxDims...>
+     * Example idx:     (1,      1), 1,      1
+     * Example shape:   (2, (2, 2)), 2, (2, 2)
+     * Unrolled shape:  2,  (2, 2),  2, (2, 2)
+     *
+     * \param shape Layout shape.
+     * \param idx Idx to align.
+     * \return Algined shape.
+     */
     template <typename... ShapeDims, typename... IdxDims>
     __host__ __device__ constexpr static auto AlignShapeToIdx(const Tuple<ShapeDims...>& shape,
                                                               const Tuple<IdxDims...>& idx)
@@ -126,6 +145,13 @@ struct Layout
         }
     }
 
+    /**
+     * \brief Merge descriptor to 1D.
+     *
+     * \param shape Layout shape.
+     * \param desc Descriptor to merge.
+     * \return 1D descriptor.
+     */
     template <typename... ShapeDims, typename DescriptorToMerge>
     __host__ __device__ constexpr static auto MakeMerge1d(const Tuple<ShapeDims...>& shape,
                                                           const DescriptorToMerge& desc)
@@ -155,14 +181,23 @@ struct Layout
         }
     }
 
-    // Merge nested shape dims when corresponding index is also nested.
-    // Input desc shape: 2,  2,  2, 2,  2,  2
-    // Example idx:      1,      1, 1,      1
-    // Example shape:    2, (2, 2), 2, (2, 2)
-    // Merged shape:     2,      4, 2,      4
+    /**
+     * \brief Merge nested shape dims when corresponding index is also nested.
+     * Input desc shape: 2,  2,  2, 2,  2,  2
+     * Example idx:      1,      1, 1,      1
+     * Example shape:    2, (2, 2), 2, (2, 2)
+     * Merged shape:     2,      4, 2,      4
+     *
+     * \param shape Layout shape.
+     * \param idxs Indexes to align descriptor.
+     * \param desc Descriptor to merge.
+     * \return Aligned descriptor to idx.
+     */
     template <typename... ShapeDims, typename... IdxDims, typename DescriptorToMerge>
-    __host__ __device__ constexpr static auto CreateMergedDescriptor(
-        const Tuple<ShapeDims...>& shape, const Tuple<IdxDims...>&, DescriptorToMerge& desc)
+    __host__ __device__ constexpr static auto
+    CreateMergedDescriptor(const Tuple<ShapeDims...>& shape,
+                           [[maybe_unused]] const Tuple<IdxDims...>& idxs,
+                           DescriptorToMerge& desc)
     {
         const auto transforms = generate_tuple(
             [&](auto i) {
@@ -213,10 +248,18 @@ struct Layout
     using DefaultIdxsTupleType = remove_cvref_t<decltype(GenerateDefaultIdxsTuple(Shape{}))>;
 
     public:
+    /**
+     * \brief Transform descriptor to align to passed indexes.
+     *
+     * \param shape Layout shape.
+     * \param idxs Indexes to align descriptor.
+     * \param naive_descriptor Descriptor to merge.
+     * \return Aligned descriptor to idx.
+     */
     template <typename... ShapeDims, typename... IdxDims>
     __host__ __device__ constexpr static auto
     TransformDesc(const Tuple<ShapeDims...>& shape,
-                  const Tuple<IdxDims...>& idx,
+                  const Tuple<IdxDims...>& idxs,
                   const UnnestedDescriptorType& naive_descriptor)
     {
         if constexpr(Tuple<IdxDims...>::Size() == I1)
@@ -233,9 +276,9 @@ struct Layout
             static_assert(Tuple<ShapeDims...>::Size() == Tuple<IdxDims...>::Size(),
                           "Idx rank and Shape rank must be the same (except 1d).");
             // Unroll while IdxDims is nested
-            const auto aligned_shape = AlignShapeToIdx(shape, idx);
+            const auto aligned_shape = AlignShapeToIdx(shape, idxs);
             // Transform correct form of shape
-            return CreateMergedDescriptor(aligned_shape, UnrollNestedTuple(idx), naive_descriptor);
+            return CreateMergedDescriptor(aligned_shape, UnrollNestedTuple(idxs), naive_descriptor);
         }
     }
 

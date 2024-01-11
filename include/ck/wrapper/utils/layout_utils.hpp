@@ -29,7 +29,12 @@ template <typename T>
 using is_tuple = decltype(std::declval<T&>().IsTuple());
 
 namespace {
-// Generate packed (column-major) strides if not passed
+/**
+ * \brief Generate packed (column-major) strides if not passed
+ *
+ * \param shape Tensor shape.
+ * \return Generated column-major strides.
+ */
 template <typename... Ts>
 __host__ __device__ constexpr static auto
 GenerateColumnMajorPackedStrides(const Tuple<Ts...>& shape)
@@ -50,6 +55,13 @@ GenerateColumnMajorPackedStrides(const Tuple<Ts...>& shape)
         Number<decltype(unrolled_shape)::Size()>{});
 }
 
+/**
+ * \brief Create naive tensor descriptor from nested shape.
+ *
+ * \param shape Tensor shape.
+ * \param strides Tensor strides.
+ * \return Flatten descriptor
+ */
 template <typename LayoutShape, typename LayoutStrides>
 __host__ __device__ constexpr auto MakeFlattenDescriptor(const LayoutShape& shape,
                                                          const LayoutStrides& strides)
@@ -106,9 +118,13 @@ __host__ __device__ constexpr auto make_layout(const Shape& shape)
 
 // Layout helpers
 // get
-// Get dim (could be returned from get with empty Idxs)
+
 /**
  * \private
+ * \brief Get dim (could be returned from get with empty Idxs).
+ *
+ * \param dim Passed dimension.
+ * \return Returned the same dimension.
  */
 template <typename T>
 __host__ __device__ T constexpr get(const T& dim)
@@ -197,9 +213,12 @@ __host__ __device__ constexpr auto get(const T& elem)
 }
 
 // size
-// Get dim size (could be returned from get function)
 /**
  * \private
+ * \brief Get size (could be returned from get with empty Idxs).
+ *
+ * \param dim Passed size.
+ * \return Returned the same size.
  */
 template <typename T>
 __host__ __device__ T constexpr size(const T& dim)
@@ -302,6 +321,10 @@ __host__ __device__ constexpr auto rank([[maybe_unused]] const Tuple<Dims...>& t
 
 /**
  * \private
+ * \brief Rank for scalar
+ *
+ * \param dim Passed scalar.
+ * \return Returned 1.
  */
 template <index_t IDim>
 __host__ __device__ constexpr index_t rank(const Number<IDim>&)
@@ -311,6 +334,10 @@ __host__ __device__ constexpr index_t rank(const Number<IDim>&)
 
 /**
  * \private
+ * \brief Rank for scalar
+ *
+ * \param dim Passed scalar.
+ * \return Returned 1.
  */
 __host__ __device__ constexpr index_t rank(const index_t&) { return 1; }
 
@@ -355,6 +382,10 @@ __host__ __device__ constexpr auto depth(const Tuple<Dims...>& tuple)
 
 /**
  * \private
+ * \brief Depth for scalar
+ *
+ * \param dim Passed scalar.
+ * \return Returned 0.
  */
 template <index_t IDim>
 __host__ __device__ constexpr index_t depth(const Number<IDim>&)
@@ -364,6 +395,10 @@ __host__ __device__ constexpr index_t depth(const Number<IDim>&)
 
 /**
  * \private
+ * \brief Depth for scalar
+ *
+ * \param dim Passed scalar.
+ * \return Returned 0.
  */
 __host__ __device__ constexpr index_t depth(const index_t&) { return 0; }
 

@@ -13,8 +13,15 @@ namespace ck {
 namespace wrapper {
 
 namespace {
-// Calculate shape for partition based on number of threads per each dim and
-// previous shape
+
+/**
+ * \brief Calculate shape for partition based on number of threads per each dim and
+ * previous shape
+ *
+ * \param shape Base tensor shape.
+ * \param thread_lengths Tuple of thread lengths.
+ * \return Partition shape.
+ */
 template <typename... Ts, typename... Ls>
 __host__ __device__ constexpr auto CalculateLocalPartitionShape(const Tuple<Ts...>& shape,
                                                                 const Tuple<Ls...>& thread_lengths)
@@ -29,21 +36,37 @@ __host__ __device__ constexpr auto CalculateLocalPartitionShape(const Tuple<Ts..
         Number<Tuple<Ls...>::Size()>{});
 }
 
-// Calculate scaled offset for new partition/tile
+/**
+ * \brief Calculate total number of blocks.
+ *
+ * \param shape Base tensor shape.
+ * \param tile_shape Tile shape.
+ * \return Tuple with blocks number.
+ */
+template <typename... Ts, typename... Ls>
+__host__ __device__ constexpr auto CalculateGridSize(const Tuple<Ts...>& shape,
+                                                     const Tuple<Ls...>& tile_shape)
+{
+    static_assert(Tuple<Ts...>::Size() == Tuple<Ls...>::Size(), "Wrong thread_lengths shape.");
+    return generate_tuple([&](auto i) { return size<i>(shape) / size<i>(tile_shape); },
+                          Number<Tuple<Ls...>::Size()>{});
+}
+
+/**
+ * \brief Calculate scaled offset for new partition/tile.
+ *
+ * \param thread_idxs Thread 1d id.
+ * \param partition_lengths_seq Sequence of partition shape.
+ * \param old_offset_idxs Multi index offset from base tensor to shift values.
+ * \return Partition shape.
+ */
 template <typename ThreadIdxs, typename PartitionLengthsSeq, typename OldOffsetIdxs>
 __host__ __device__ constexpr auto
-CalculateNewOffsetIdxs(const ThreadIdxs& thread_idxs,
-                       const PartitionLengthsSeq& partition_lengths_seq,
-                       const OldOffsetIdxs& old_offset_idxs)
+CalculateOffsetMultiIdxs(const ThreadIdxs& thread_idxs,
+                         const PartitionLengthsSeq& partition_lengths_seq,
+                         const OldOffsetIdxs& old_offset_idxs)
 {
-    if constexpr(OldOffsetIdxs::Size() == 0)
-    {
-        return thread_idxs * partition_lengths_seq;
-    }
-    else
-    {
-        return thread_idxs * partition_lengths_seq + old_offset_idxs;
-    }
+    return thread_idxs * partition_lengths_seq + old_offset_idxs;
 }
 
 } // namespace
@@ -77,8 +100,8 @@ make_local_partition(TensorType& tensor,
     constexpr auto thread_cluster_desc_ = make_cluster_descriptor(thread_lengths_seq);
     // Calculate thread idxs and offsets
     const auto thread_idxs = thread_cluster_desc_.CalculateBottomIndex(make_multi_index(thread_id));
-    const auto offset_idxs =
-        CalculateNewOffsetIdxs(thread_idxs, partition_lengths_seq, tensor.GetMultiIdxOffsets());
+    const auto offset_multi_idxs =
+        CalculateOffsetMultiIdxs(thread_idxs, partition_lengths_seq, tensor.GetMultiIdxOffsets());
     // Create new layout and tensor
     auto& flatten_desc = layout(tensor).GetUnnestedDescriptor();
     const auto partition_layout =
@@ -87,7 +110,7 @@ make_local_partition(TensorType& tensor,
     auto partition_tensor =
         make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer(), partition_layout);
     // Apply offsets
-    partition_tensor.ApplyMultiIdxOffsets(to_multi_index(offset_idxs));
+    partition_tensor.ApplyMultiIdxOffsets(to_multi_index(offset_multi_idxs));
     return partition_tensor;
 }
 
@@ -128,11 +151,10 @@ make_local_tile(const TensorType& tensor, const BlockShapeTuple& tile_shape, con
             block_2_tile_map.CalculateBottomIndex(make_multi_index(block_id));
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I0] * size<0>(tile_shape));
-
         const index_t k_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * size<1>(tile_shape));
-
-        const auto offset_idxs = make_tuple(m_block_data_idx_on_grid, k_block_data_idx_on_grid);
+        const auto offset_multi_idxs =
+            make_tuple(m_block_data_idx_on_grid, k_block_data_idx_on_grid);
         // Create new layout and tensor
         const auto tile_layout =
             Layout<remove_reference_t<decltype(tile_shape)>, decltype(aligned_desc)>(tile_shape,
@@ -140,20 +162,23 @@ make_local_tile(const TensorType& tensor, const BlockShapeTuple& tile_shape, con
         auto tile_tensor =
             make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer(), tile_layout);
         // Apply offsets
-        tile_tensor.ApplyMultiIdxOffsets(to_multi_index(offset_idxs));
+        tile_tensor.ApplyMultiIdxOffsets(to_multi_index(offset_multi_idxs));
         return tile_tensor;
     }
     else
     {
         // Calculate offsets
-        constexpr auto block_lengths_seq =
+        // Sequence with data to process per block
+        constexpr auto tile_shape_seq =
             generate_sequence_v2([](auto I) { return size(BlockShapeTuple{}.At(I)); },
                                  Number<BlockShapeTuple::Size()>{});
-        constexpr auto block_cluster_desc_ = make_cluster_descriptor(block_lengths_seq);
+        // Tuple with number of blocks
+        const auto block_lengths           = CalculateGridSize(shape(tensor), tile_shape);
+        constexpr auto block_cluster_desc_ = make_cluster_descriptor(block_lengths);
         const auto block_idxs =
             block_cluster_desc_.CalculateBottomIndex(make_multi_index(block_id));
-        const auto offset_idxs =
-            CalculateNewOffsetIdxs(block_idxs, block_lengths_seq, tensor.GetMultiIdxOffsets());
+        const auto offset_multi_idxs =
+            CalculateOffsetMultiIdxs(block_idxs, tile_shape_seq, tensor.GetMultiIdxOffsets());
         // Create new layout and tensor
         const auto tile_layout =
             Layout<remove_reference_t<decltype(tile_shape)>, decltype(aligned_desc)>(tile_shape,
@@ -161,7 +186,7 @@ make_local_tile(const TensorType& tensor, const BlockShapeTuple& tile_shape, con
         auto tile_tensor =
             make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer(), tile_layout);
         // Apply offsets
-        tile_tensor.ApplyMultiIdxOffsets(to_multi_index(offset_idxs));
+        tile_tensor.ApplyMultiIdxOffsets(to_multi_index(offset_multi_idxs));
         return tile_tensor;
     }
 }
