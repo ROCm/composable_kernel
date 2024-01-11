@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <ostream>
+
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 
@@ -24,3 +26,14 @@ constexpr LoopScheduler make_default_loop_scheduler()
 }
 
 } // namespace ck
+
+inline std::ostream& operator<<(std::ostream& os, const ck::LoopScheduler& s)
+{
+    switch(s)
+    {
+    case ck::LoopScheduler::Default: os << "Default"; break;
+    case ck::LoopScheduler::Interwave: os << "Interwave"; break;
+    default: os << "";
+    }
+    return os;
+}

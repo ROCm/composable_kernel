@@ -49,7 +49,8 @@ struct GridwiseGemmPipeline_v2
                                const BBlockTransferStep& b_block_copy_step,
                                const BlockwiseGemm& blockwise_gemm,
                                CThreadBuffer& c_thread_buf,
-                               index_t num_loop)
+                               index_t num_loop,
+                               bool clear_c_thread_buf = true)
     {
         // global read 0
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
@@ -60,7 +61,8 @@ struct GridwiseGemmPipeline_v2
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
         // Initialize C
-        c_thread_buf.Clear();
+        if(clear_c_thread_buf)
+            c_thread_buf.Clear();
 
         // LDS write 0
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);

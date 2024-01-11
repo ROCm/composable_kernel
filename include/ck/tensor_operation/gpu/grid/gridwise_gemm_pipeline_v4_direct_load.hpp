@@ -68,7 +68,8 @@ struct GridwiseGemmPipeline_v4<1>
                                const BBlockTransferStep& b_block_copy_step,
                                const BlockwiseGemm& blockwise_gemm,
                                CThreadBuffer& c_thread_buf,
-                               index_t num_loop)
+                               index_t num_loop,
+                               bool clear_c_thread_buf = true)
     {
         static_assert(ABlockBuffers::Size() == 1 && BBlockBuffers::Size() == 1);
         auto& a_block_buf = a_block_bufs.At(I0);
@@ -81,7 +82,8 @@ struct GridwiseGemmPipeline_v4<1>
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
         // Initialize C
-        c_thread_buf.Clear();
+        if(clear_c_thread_buf)
+            c_thread_buf.Clear();
 
         // main body
         if constexpr(HasMainLoop)
@@ -164,7 +166,8 @@ struct GridwiseGemmPipeline_v4<2>
                                const BBlockTransferStep& b_block_copy_step,
                                const BlockwiseGemm& blockwise_gemm,
                                CThreadBuffer& c_thread_buf,
-                               index_t num_loop)
+                               index_t num_loop,
+                               bool clear_c_thread_buf = true)
     {
         static_assert(ABlockBuffers::Size() == 2 && BBlockBuffers::Size() == 2);
         auto& a_block_buf1 = a_block_bufs.At(I0);
@@ -179,7 +182,8 @@ struct GridwiseGemmPipeline_v4<2>
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
         // Initialize C
-        c_thread_buf.Clear();
+        if(clear_c_thread_buf)
+            c_thread_buf.Clear();
 
         // main body
         if constexpr(HasMainLoop)

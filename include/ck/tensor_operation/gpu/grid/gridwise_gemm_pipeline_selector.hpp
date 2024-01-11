@@ -50,3 +50,15 @@ constexpr auto GridwiseGemmPipeline_Selector()
 }
 
 } // namespace ck
+
+inline std::ostream& operator<<(std::ostream& os, const ck::PipelineVersion& p)
+{
+    switch(p)
+    {
+    case ck::PipelineVersion::v1: os << "PipelineVersion::v1"; break;
+    case ck::PipelineVersion::v2: os << "PipelineVersion::v2"; break;
+    case ck::PipelineVersion::v4: os << "PipelineVersion::v4"; break;
+    default: os << "";
+    }
+    return os;
+}
