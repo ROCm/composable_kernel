@@ -30,6 +30,19 @@ void add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_nk_mn_irregu
                                                   PassThrough,
                                                   PassThrough>>>& instances);
 
+void add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_kn_mn_irregular_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
+                                                  Row,
+                                                  Empty_Tuple,
+                                                  Row,
+                                                  F16,
+                                                  F16,
+                                                  Empty_Tuple,
+                                                  F16,
+                                                  PassThrough,
+                                                  PassThrough,
+                                                  PassThrough>>>& instances);
+
 template <typename ALayout,
           typename BLayout,
           typename ELayout,
@@ -74,6 +87,8 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<ELayout, Row>)
             {
+                add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_kn_mn_irregular_instances(
+                    op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                               is_same_v<ELayout, Row>)

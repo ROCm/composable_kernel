@@ -91,28 +91,28 @@ int profile_grouped_gemm_multiple_d_splitk(int argc, char* argv[])
     const auto StrideCs = argToIntArray(argv[13]);
     const int kbatch    = argc == 15 ? std::stoi(argv[14]) : 1;
 #ifdef CK_ENABLE_FP16
-    // if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
-    // {
-    //     ck::profiler::profile_ggemm_multid_splitk<ck::half_t,
-    //                                             ck::half_t,
-    //                                             ck::half_t,
-    //                                             float,
-    //                                             ck::tensor_layout::gemm::RowMajor,
-    //                                             ck::tensor_layout::gemm::RowMajor,
-    //                                             ck::tensor_layout::gemm::RowMajor>(do_verification,
-    //                                                                                init_method,
-    //                                                                                do_log,
-    //                                                                                time_kernel,
-    //                                                                                Ms,
-    //                                                                                Ns,
-    //                                                                                Ks,
-    //                                                                                StrideAs,
-    //                                                                                StrideBs,
-    //                                                                                StrideCs,
-    //                                                                                kbatch);
-    // }
-    // else
-    if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
+    if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        ck::profiler::profile_ggemm_multid_splitk<ck::half_t,
+                                                  ck::half_t,
+                                                  ck::half_t,
+                                                  float,
+                                                  ck::tensor_layout::gemm::RowMajor,
+                                                  ck::tensor_layout::gemm::RowMajor,
+                                                  ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            time_kernel,
+            Ms,
+            Ns,
+            Ks,
+            StrideAs,
+            StrideBs,
+            StrideCs,
+            kbatch);
+    }
+    else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
         ck::profiler::profile_ggemm_multid_splitk<ck::half_t,
                                                   ck::half_t,

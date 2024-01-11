@@ -956,7 +956,9 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
             << BBlockTransferSrcScalarPerVector << ", "
             << CShuffleMXdlPerWavePerShuffle << ", "
             << CShuffleNXdlPerWavePerShuffle << ", "
-            << getGemmSpecializationString(GemmSpec)
+            << getGemmSpecializationString(GemmSpec) << ", "
+            << PipelineVer << ", "
+            << LoopSched
             << ">";
         // clang-format on
 
