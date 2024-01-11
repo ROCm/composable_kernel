@@ -50,7 +50,7 @@ void write_buffer(const std::string& filename, const std::vector<char>& buffer)
 {
     write_buffer(filename, buffer.data(), buffer.size());
 }
-void write_string(const std::string& filename, const std::string& buffer)
+void write_string(const std::string& filename, const std::string_view& buffer)
 {
     write_buffer(filename, buffer.data(), buffer.size());
 }
