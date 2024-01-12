@@ -106,12 +106,9 @@ void PerformImageToColumnPad0(const ck::index_t G,
         ck::make_tuple(1, C, X * C, Y * X * C));
     const auto out_layout = ck::wrapper::make_layout(shape, out_strides);
 
-    // 0,1,2...size(shape) - 1
-    std::vector<DataType> input_data(N * Di * Hi * Wi * GC);
-    std::iota(input_data.begin(), input_data.end(), 0);
-
+    const ck::index_t input_size = N * Di * Hi * Wi * GC;
     // Global memory buffers
-    SimpleDeviceMem in_buf(input_data.size() * sizeof(DataType));
+    SimpleDeviceMem in_buf(input_size * sizeof(DataType));
     SimpleDeviceMem out_buf(ck::wrapper::size(out_layout) * sizeof(DataType));
 
     const auto thread_layout = ck::make_tuple(ck::Number<8>{}, ck::Number<16>{});
