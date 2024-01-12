@@ -56,7 +56,7 @@ Output::
 
 Advanced examples:
 
-* `Image to column <https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_img2col.cpp>`_.
+* `Image to column <https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_img2col.cpp>`_
 
 -------------------------------------
 Layout

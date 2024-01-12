@@ -327,7 +327,7 @@ __host__ __device__ constexpr auto rank([[maybe_unused]] const Tuple<Dims...>& t
  * \return Returned 1.
  */
 template <index_t IDim>
-__host__ __device__ constexpr index_t rank(const Number<IDim>&)
+__host__ __device__ constexpr index_t rank([[maybe_unused]] const Number<IDim>& dim)
 {
     return 1;
 }
@@ -339,7 +339,7 @@ __host__ __device__ constexpr index_t rank(const Number<IDim>&)
  * \param dim Passed scalar.
  * \return Returned 1.
  */
-__host__ __device__ constexpr index_t rank(const index_t&) { return 1; }
+__host__ __device__ constexpr index_t rank([[maybe_unused]] const index_t& dim) { return 1; }
 
 /**
  * \brief Hierarchical rank.
@@ -388,7 +388,7 @@ __host__ __device__ constexpr auto depth(const Tuple<Dims...>& tuple)
  * \return Returned 0.
  */
 template <index_t IDim>
-__host__ __device__ constexpr index_t depth(const Number<IDim>&)
+__host__ __device__ constexpr index_t depth([[maybe_unused]] const Number<IDim>& dim)
 {
     return 0;
 }
@@ -400,7 +400,7 @@ __host__ __device__ constexpr index_t depth(const Number<IDim>&)
  * \param dim Passed scalar.
  * \return Returned 0.
  */
-__host__ __device__ constexpr index_t depth(const index_t&) { return 0; }
+__host__ __device__ constexpr index_t depth([[maybe_unused]] const index_t& dim) { return 0; }
 
 /**
  * \brief Hierarchical depth.
