@@ -532,9 +532,11 @@ bool run(const ArgParser& arg_parser)
         const ck::index_t query_offset = (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
         const ck::index_t key_offset   = (mode == mode_enum::batch ? 0 : seqstart_k_host[wb]);
 
-        Tensor<OGradDataType> do_host_ref({nhead, real_seqlen_q, hdim_v});       // do_g_m_o
-        Tensor<AccDataType> ds_hp_host_ref({nhead, real_seqlen_q, real_seqlen_k}); // ds_g_m_n high precision
-        Tensor<GemmDataType> ds_lp_host_ref({nhead, real_seqlen_q, real_seqlen_k}); // ds_g_m_n low precision
+        Tensor<OGradDataType> do_host_ref({nhead, real_seqlen_q, hdim_v}); // do_g_m_o
+        Tensor<AccDataType> ds_hp_host_ref(
+            {nhead, real_seqlen_q, real_seqlen_k}); // ds_g_m_n high precision
+        Tensor<GemmDataType> ds_lp_host_ref(
+            {nhead, real_seqlen_q, real_seqlen_k}); // ds_g_m_n low precision
         Tensor<AccDataType> dp_hp_host_ref(
             {nhead, real_seqlen_q, real_seqlen_k}); // dp_hp_g_m_n high precision
         Tensor<BiasGradDataType> dbias_host_ref(
@@ -630,20 +632,20 @@ bool run(const ArgParser& arg_parser)
 
         auto [rtol, atol]   = get_elimit<DataType>(init_method);
         bool dq_cur_pass    = ck::utils::check_err(dq_host_result,
-                                                   dq_host_ref,
-                                                   std::string("Error: QGrad Incorrect results!"),
-                                                   rtol,
-                                                   atol);
+                                                dq_host_ref,
+                                                std::string("Error: QGrad Incorrect results!"),
+                                                rtol,
+                                                atol);
         bool dk_cur_pass    = ck::utils::check_err(dk_host_result,
-                                                   dk_host_ref,
-                                                   std::string("Error: KGrad Incorrect results!"),
-                                                   rtol,
-                                                   atol);
+                                                dk_host_ref,
+                                                std::string("Error: KGrad Incorrect results!"),
+                                                rtol,
+                                                atol);
         bool dv_cur_pass    = ck::utils::check_err(dv_host_result,
-                                                   dv_host_ref,
-                                                   std::string("Error: VGrad Incorrect results!"),
-                                                   rtol,
-                                                   atol);
+                                                dv_host_ref,
+                                                std::string("Error: VGrad Incorrect results!"),
+                                                rtol,
+                                                atol);
         bool dbias_cur_pass = [&](bool use_bias) {
             if(use_bias)
                 return ck::utils::check_err(dbias_host_result,
