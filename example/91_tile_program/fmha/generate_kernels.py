@@ -23,7 +23,7 @@ MODE_MAP = {
     "group" : "true"
 }
 
-HDIMS = [64, 128]
+HDIMS = [32, 64, 128]
 MASKS = ["no", "causal", "generic"]
 DIRECTIONS = ["fwd"]
 GEN_DIR = ""

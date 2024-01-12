@@ -171,14 +171,14 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
     }
 
     // read access
-    template <index_t I>
+    template <index_t I, typename = enable_if_t<(0 <= I) && (I < sizeof...(Xs))>>
     __host__ __device__ constexpr const auto& operator[](Number<I> i) const
     {
         return At(i);
     }
 
     // write access
-    template <index_t I>
+    template <index_t I, typename = enable_if_t<(0 <= I) && (I < sizeof...(Xs))>>
     __host__ __device__ constexpr auto& operator()(Number<I> i)
     {
         return At(i);

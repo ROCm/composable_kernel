@@ -45,7 +45,7 @@ struct MagicDivision32BitRange
     }
 
     // integral_constant<uint32_t, .>
-    template <uint32_t Divisor>
+    template <uint32_t Divisor, typename = std::enable_if_t<(0 < Divisor)>>
     __host__ __device__ static constexpr auto
         CalculateMagicNumbers(integral_constant<uint32_t, Divisor>)
     {

@@ -14,6 +14,8 @@ template <AddressSpaceEnum AddressSpace,
           bool InvalidElementUseNumericalZeroValue> // TODO remove this bool, no longer needed
 struct StaticBuffer : public StaticallyIndexedArray<remove_cvref_t<S_>, N>
 {
+    static_assert(0 < N, "StaticBuffer should not be empty");
+
     using S    = remove_cvref_t<S_>;
     using type = S;
     using base = StaticallyIndexedArray<S, N>;

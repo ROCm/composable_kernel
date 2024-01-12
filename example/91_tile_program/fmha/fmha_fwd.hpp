@@ -63,10 +63,15 @@ struct FmhaMasks
 
 inline constexpr bool kM0NeedPadding   = false;
 inline constexpr bool kN0K1NeedPadding = false;
+inline constexpr bool kK0N1NeedPadding = false;
 
 template <ck::index_t HDim>
 struct FmhaBlockTile;
 
+template <>
+struct FmhaBlockTile</* HDim = */ 32> : ck::Sequence<128, 64, 16, 32, 32, 32>
+{
+};
 template <>
 struct FmhaBlockTile</* HDim = */ 64> : ck::Sequence<128, 64, 32, 64, 32, 64>
 {
@@ -80,6 +85,16 @@ using FmhaWarpTile   = ck::Sequence<32, 32, 16>;
 
 template <ck::index_t HDim>
 struct FmhaShape;
+
+template <>
+struct FmhaShape</* HDim = */ 32> : ck::tile_program::TileFmhaShape<FmhaBlockTile</* HDim = */ 32>,
+                                                                    ck::Sequence<2, 1, 1>,
+                                                                    FmhaWarpTile,
+                                                                    ck::Sequence<2, 1, 1>,
+                                                                    FmhaWarpTile,
+                                                                    VLayout>
+{
+};
 
 template <>
 struct FmhaShape</* HDim = */ 64> : ck::tile_program::TileFmhaShape<FmhaBlockTile</* HDim = */ 64>,
@@ -105,6 +120,7 @@ struct FmhaShape</* HDim = */ 128>
 template <ck::index_t HDim, bool kHasBias>
 using FmhaTraits = ck::tile_program::TileFmhaTraits<kM0NeedPadding,
                                                     kN0K1NeedPadding,
+                                                    kK0N1NeedPadding,
                                                     kHasBias,
                                                     HDim == 64 ? /* occupancy = */ 3 : 2>;
 
@@ -119,7 +135,7 @@ using FmhaPipelineProblem = ck::tile_program::block::BlockFmhaPipelineProblem<
     typename FmhaFwdTypeConfig<DataType>::PDataType,
     typename FmhaFwdTypeConfig<DataType>::OaccDataType,
     typename FmhaFwdTypeConfig<DataType>::ODataType,
-    /* BlockSize = */ 256,
+    /* BlockSize = */ HDim == 32 ? 128 : 256,
     FmhaShape<HDim>,
     kIsGroupMode,
     FmhaMask,

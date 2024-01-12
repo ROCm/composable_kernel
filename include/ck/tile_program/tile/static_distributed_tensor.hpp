@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_adaptor_coordinate.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
@@ -177,30 +178,40 @@ __host__ __device__ constexpr auto make_static_distributed_tensor(const StaticTi
                                    remove_cvref_t<StaticTileDistribution>>{};
 }
 
+// get X indices from tuple of TileDistributedIndex<>
+template <typename StaticTileDistribution, typename DistributedIndices>
+__host__ __device__ constexpr auto
+get_x_indices_from_distributed_indices(StaticTileDistribution tile_distribution,
+                                       DistributedIndices distributed_indices)
+{
+    const auto partition_index = detail::get_partition_index(tile_distribution);
+    constexpr auto y_indices =
+        tile_distribution.GetYIndicesFromDistributedIndices(distributed_indices);
+
+    const auto x_coord = make_tensor_adaptor_coordinate(
+        tile_distribution.GetPsYs2XsAdaptor(),
+        container_concat(partition_index, to_array<ck::index_t, y_indices.Size()>(y_indices)));
+
+    return x_coord.GetBottomIndex();
+}
+
 template <typename DataType, typename StaticTileDistribution, typename XIndicesPredicate>
 __host__ __device__ void
 set_tile_if(StaticDistributedTensor<DataType, StaticTileDistribution>& out_tensor,
             DataType value,
             XIndicesPredicate predicate)
 {
-
-    StaticTileDistribution tile_distribution;
-    const auto partition_index = detail::get_partition_index(tile_distribution);
-
     constexpr auto out_spans =
         StaticDistributedTensor<DataType, StaticTileDistribution>::GetDistributedSpans();
     sweep_tile_span(out_spans[Number<0>{}], [&](auto idx0) {
         sweep_tile_span(out_spans[Number<1>{}], [&](auto idx1) {
-            constexpr auto i_j_idx = make_tuple(idx0, idx1);
-            constexpr auto y_idx   = tile_distribution.GetYIndicesFromDistributedIndices(i_j_idx);
+            constexpr auto distributed_indices = make_tuple(idx0, idx1);
+            const auto x_indices = get_x_indices_from_distributed_indices(StaticTileDistribution{},
+                                                                          distributed_indices);
 
-            const auto coord = make_tensor_adaptor_coordinate(
-                tile_distribution.GetPsYs2XsAdaptor(),
-                container_concat(partition_index, to_array<ck::index_t, y_idx.Size()>(y_idx)));
-
-            if(predicate(coord.GetBottomIndex()))
+            if(predicate(x_indices))
             {
-                out_tensor(i_j_idx) = value;
+                out_tensor(distributed_indices) = value;
             }
         });
     });
