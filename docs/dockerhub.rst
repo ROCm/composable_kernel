@@ -1,28 +1,50 @@
-===================
+.. meta::
+  :description: Composable Kernel documentation and API reference library
+  :keywords: composable kernel, CK, ROCm, API, documentation
+
+.. _docker-hub:
+
+********************************************************************
 CK Docker Hub
+********************************************************************
+
+Why do I need this?
 ===================
 
--------------------------------------
-Why do I need this?
--------------------------------------
+To make things simpler, and bring Composable Kernel and its dependencies together, 
+docker images can be found on `Docker Hub <https://hub.docker.com/r/rocm/composable_kernel/tags>`_. Docker images provide a complete image of the OS, the Composable Kernel library, and its dependencies in a single downloadable file. 
 
-To make our lives easier and bring Composable Kernel dependencies together, we recommend using
-docker images that can be found on `Docker Hub <https://hub.docker.com/r/rocm/composable_kernel>`_.
+Refer to `Docker Overview <https://docs.docker.com/get-started/overview/>`_ for more information on Docker images and containers.
 
--------------------------------------
-So what is Composable Kernel?
--------------------------------------
+Which image is right for me?
+============================
 
-Composable Kernel (CK) library aims to provide a programming model for writing performance critical
-kernels for machine learning workloads across multiple architectures including GPUs, CPUs, etc,
-through general purpose kernel languages, like HIP C++.
+The image naming includes information related to the docker image. 
+For example ``ck_ub20.04_rocm6.0`` indicates the following:
 
-To get the CK library::
+* ``ck`` - made for running Composable Kernel;
+* ``ub20.04`` - based on Ubuntu 20.04;
+* ``rocm6.0`` - ROCm platform version 6.0.
 
-    git clone https://github.com/ROCmSoftwarePlatform/composable_kernel.git
+Download a docker image suitable for your OS and ROCm release, run or start the docker container, and then resume the tutorial from this point. Use the ``docker pull`` command to download the file::
+
+    docker pull rocm/composable_kernel:ck_ub20.04_rocm6.0
 
 
-run a docker container::
+What is inside the image?
+-------------------------
+
+The docker images have everything you need for running CK including:
+
+* `ROCm <https://www.amd.com/en/graphics/servers-solutions-rocm>`_
+* `CMake <https://cmake.org/getting-started/>`_
+* `Compiler <https://github.com/RadeonOpenCompute/llvm-project>`_
+* `Composable Kernel library <https://github.com/ROCm/composable_kernel>`_
+
+Running the docker container
+============================
+
+After downloading the docker image, you can start the container using one of a number of commands. Start with the ``docker run`` command as shown below::
 
     docker run                                                            \
     -it                                                                   \
@@ -30,70 +52,50 @@ run a docker container::
     --group-add sudo                                                      \
     -w /root/workspace                                                    \
     -v ${PATH_TO_LOCAL_WORKSPACE}:/root/workspace                         \
-    rocm/composable_kernel:ck_ub20.04_rocm5.6                             \
+    rocm/composable_kernel:ck_ub20.04_rocm6.0                             \
     /bin/bash
 
-and build the CK::
+After starting the bash shell, the docker container current folder is `~/workspace`. The library path is ``~/workspace/composable_kernel``. Navigate to the library to begin the tutorial as explained in :ref:`hello-world`:
 
-    mkdir build && cd build
-    # Need to specify target ID, example below is for gfx908 and gfx90a
-    cmake                                                                                             \
-    -D CMAKE_PREFIX_PATH=/opt/rocm                                                                    \
-    -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                         \
-    -D CMAKE_CXX_FLAGS="-O3"                                                                          \
-    -D CMAKE_BUILD_TYPE=Release                                                                       \
-    -D GPU_TARGETS="gfx908;gfx90a"                                                                    \
-    ..
+.. note::
 
-and::
+    If your current folder is different from `${HOME}`, adjust the line ``-v ${HOME}:/root/workspace`` in the ``docker run`` command to fit your folder structure.
 
-    make -j examples tests
+Stop and restart the docker image
+=================================
 
-To run all the test cases including tests and examples run::
+After finishing the tutorial, or just when you have completed your work session, you can close the docker container, or stop the docker container to restart it at another time. Closing the docker container means that it is still in the active state, and can be resumed from where you left it. Stopping the container closes it, and returns the image to its initial state. 
 
-    make test
+Use the ``Ctrl-D`` option to exit the container, while leaving it active, so you can return to the container in its current state to resume the tutorial, or pickup your project where you left off. 
 
-We can also run specific examples or tests like::
+To restart the active container use the ``docker exec`` command to specify the container name and options as follows::
 
-    ./bin/example_gemm_xdl_fp16
-    ./bin/test_gemm_fp16
+    docker exec -it <container_name> bash
 
-For more details visit `CK github repository <https://github.com/ROCmSoftwarePlatform/composable_kernel>`_,
-`CK examples <https://github.com/ROCmSoftwarePlatform/composable_kernel/tree/develop/example)>`_,
-`even more CK examples <https://github.com/ROCmSoftwarePlatform/composable_kernel/tree/develop/client_example>`_.
+Where: 
 
--------------------------------------
-And what is inside?
--------------------------------------
+* `exec` is the docker command
+* `-it` is the interactive option for `exec`
+* `<container_name>` specifies an active container on the system
+* `bash` specifies the command to run in the interactive shell
 
-The docker images have everything you need for running CK including:
+.. note::
 
-* `ROCm <https://www.amd.com/en/graphics/servers-solutions-rocm>`_
-* `CMake <https://cmake.org/>`_
-* `Compiler <https://github.com/RadeonOpenCompute/llvm-project>`_
+    You can use the ``docker container ls`` command to list the active containers on the system.
 
--------------------------------------
-Which image is right for me?
--------------------------------------
+To start a container from the image, use the ``docker start`` command::
 
-Let's take a look at the image naming, for example ``ck_ub20.04_rocm5.6``. The image specs are:
+    docker start <container_name>
 
-* ``ck`` - made for running Composable Kernel;
-* ``ub20.04`` - based on Ubuntu 20.04;
-* ``rocm5.6`` - ROCm platform version 5.6.
+Then use the docker exec command as shown above to start the bash shell. 
 
-So just pick the right image for your project dependencies and you're all set.
+Use the ``docker stop`` command to stop the container and restore the image to its initial state::
 
--------------------------------------
-DIY starts here
--------------------------------------
+    docker stop <container_name>
+    
+Editing the docker image
+=======================
 
-If you need to customize a docker image or just can't stop tinkering, feel free to adjust the
+If you want to customize the docker image, edit the
 `Dockerfile <https://github.com/ROCmSoftwarePlatform/composable_kernel/blob/develop/Dockerfile>`_
-for your needs.
-
--------------------------------------
-License
--------------------------------------
-
-CK is released under the MIT `license <https://github.com/ROCmSoftwarePlatform/composable_kernel/blob/develop/LICENSE>`_.
+from the GitHub repository to suit your needs.
