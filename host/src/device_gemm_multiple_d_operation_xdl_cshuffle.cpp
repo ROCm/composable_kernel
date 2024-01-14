@@ -35,10 +35,14 @@ static std::string GetGemmSpec(const std::size_t m,
 }
 
 template <class F>
-std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(F f, Layout ALayout, Layout BLayout)
+std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(nlohmann::json &inst, F f, Layout ALayout, Layout BLayout)
 {
+    std::cout << "Start of function: " << inst.type_name() << " size: " << inst.size() << std::endl;
+    //std::cout << "Address at funtion start: " << inst << std::endl;
     std::vector<Operation_Xdl_CShuffle> result;
-
+    
+    //for (int i = 0 ; i < 10; i++) {
+//	    std::cout << "inst data " << i << " " << (int)(int *)(inst + i) 
     std::vector<operation::TileDesc> tile_descriptions = {
         // clang-format off
 //  Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl| NumGemmK|
@@ -168,9 +172,16 @@ std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(F f, Layout ALayout, La
     assert(tile_descriptions.size() == cshuffle_descriptions.size());
     assert(tile_descriptions.size() == c_block_descriptions.size());
 
+    std::cout << "initial object" << std::endl;
+    std::cout << inst.type_name() << std::endl;
+    std::cout << "size in function: "<< inst.size() << std::endl;
+    //inst["instances"] = nlohmann::json::object();
+    std::cout << "obj set" << std::endl;
+    std::string prob_spec = "";
     for(std::size_t i = 0; i < tile_descriptions.size(); i++)
     {
         Operation_Xdl_CShuffle x;
+	prob_spec = ToString(x.A.layout) + "_" + ToString(x.B.layout) + "_"+ ToString(x.E.layout) + "_"+ ToString(x.A.element) + "_"+ ToString(x.B.element) + "_"+ ToString(x.acc) + "_"+ ToString(x.cs_type)+ "_" + ToString(x.E.element) + "_" + x.a_elem_op + "_" + x.b_elem_op + "_" + x.cde_elem_op + "_" + x.gemm_specialization;
         x.tile_desc        = tile_descriptions[i];
         x.a_block_transfer = a_block_descriptions[i];
         x.b_block_transfer = b_block_descriptions[i];
@@ -179,22 +190,29 @@ std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(F f, Layout ALayout, La
         auto all           = f(x);
         result.insert(result.end(), all.begin(), all.end());
     }
+    //inst = {"instances",{prob_spec, {"0", "0"}}};
+    inst["instances"][prob_spec] =  nlohmann::json::object();
+
     return result;
 }
 
 static Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
 
-std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations()
+std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(nlohmann::json &inst)
 {
-    return CreateOperationsImpl([](auto x) -> std::vector<Operation_Xdl_CShuffle> { return {x}; },
+	std::cout << inst.type_name() << std::endl;
+	std::cout << "size in wrapper: " << inst.size() << std::endl;
+	//std::cout << "Address at wrapper: " << inst << std::endl;
+    return CreateOperationsImpl(inst, 
+		    		[](auto x) -> std::vector<Operation_Xdl_CShuffle> { return {x}; },
                                 Layout::Column,
                                 Layout::Row);
 }
-std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(const Problem& prob)
+std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(const Problem& prob, nlohmann::json &inst)
 {
-    return CreateOperationsImpl(
+    return CreateOperationsImpl(inst,
         [&](Operation_Xdl_CShuffle x) -> std::array<Operation_Xdl_CShuffle, 1> {
-            x.A           = TensorDesc{prob.ADataType, ToLayout(prob.TransA)};
+	    x.A           = TensorDesc{prob.ADataType, ToLayout(prob.TransA)};
             x.B           = TensorDesc{prob.BDataType, ToLayout(prob.TransB)};
             x.E           = TensorDesc{prob.EDataType, ToLayout(prob.TransE)};
             x.Ds          = Transform(prob.DsTrans, prob.DsDataType, [](auto trans, auto dt) {

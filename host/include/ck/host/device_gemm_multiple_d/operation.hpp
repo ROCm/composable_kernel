@@ -9,6 +9,7 @@
 #include "ck/host/types.hpp"
 #include "ck/host/operation/gemm.hpp"
 #include "ck/host/device_gemm_multiple_d/problem.hpp"
+#include <nlohmann/json.hpp>
 
 namespace ck {
 namespace host {
@@ -16,8 +17,8 @@ namespace device_gemm_multiple_d {
 
 struct Operation_Xdl_CShuffle
 {
-    static std::vector<Operation_Xdl_CShuffle> CreateOperations();
-    static std::vector<Operation_Xdl_CShuffle> CreateOperations(const Problem& prob);
+    static std::vector<Operation_Xdl_CShuffle> CreateOperations(nlohmann::json &inst);
+    static std::vector<Operation_Xdl_CShuffle> CreateOperations(const Problem& prob, nlohmann::json &inst);
     TensorDesc A{};
     TensorDesc B{};
     DataType acc               = DataType::Float;
