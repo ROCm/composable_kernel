@@ -74,13 +74,18 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-#Install latest version of cmake
+#Install ninja build tracing tools
 RUN wget -qO /usr/local/bin/ninja.gz https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip
 RUN gunzip /usr/local/bin/ninja.gz
 RUN chmod a+x /usr/local/bin/ninja
 RUN git clone https://github.com/nico/ninjatracing.git
 # Update the cmake to the latest version
 RUN pip install --upgrade cmake==3.27.5
+
+#Install latest cppcheck
+RUN git clone https://github.com/danmar/cppcheck.git && \
+    cd cppcheck && mkdir build && cd build && cmake .. && cmake --build .
+WORKDIR /
 
 # Setup ubsan environment to printstacktrace
 RUN ln -s /usr/bin/llvm-symbolizer-3.8 /usr/local/bin/llvm-symbolizer
