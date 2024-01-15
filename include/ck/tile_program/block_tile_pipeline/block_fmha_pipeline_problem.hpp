@@ -95,12 +95,16 @@ struct BlockFmhaBwdPipelineProblem
     using FmhaMask         = remove_cvref_t<FmhaMask_>;
     using Traits           = remove_cvref_t<Traits_>;
 
+    static_assert(0 < kBlockSize_ && kBlockSize_ % get_warp_size() == 0,
+                  "kBlockSize should be divisible by get_warp_size()");
+
     static constexpr index_t kBlockSize = kBlockSize_;
     static constexpr bool kIsGroupMode  = kIsGroupMode_;
 
     // attributes from traits
     static constexpr bool kM0NeedPadding   = Traits::kM0NeedPadding;
     static constexpr bool kN0K1NeedPadding = Traits::kN0K1NeedPadding;
+    static constexpr bool kK0N1NeedPadding = Traits::kK0N1NeedPadding;
     static constexpr bool kHasBias         = Traits::kHasBias;
     static constexpr index_t kBlockPerCu   = Traits::kBlockPerCu;
 };

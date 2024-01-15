@@ -71,6 +71,7 @@ struct FmhaMasks
 
 inline constexpr bool kM0NeedPadding   = false;
 inline constexpr bool kN0K1NeedPadding = false;
+inline constexpr bool kK0N1NeedPadding = false;
 
 template <ck::index_t HDim>
 struct FmhaBlockTile;
@@ -175,25 +176,26 @@ struct FmhaShape</* HDim = */ 128>
 {};
 
 template <bool kHasBias>
-using FmhaTraits = ck::tile_program::TileFmhaTraits<kM0NeedPadding, kN0K1NeedPadding, kHasBias, 1>;
+using FmhaTraits = ck::tile_program::
+    TileFmhaTraits<kM0NeedPadding, kN0K1NeedPadding, kK0N1NeedPadding, kHasBias, 1>;
 
 template <ck::index_t HDim, typename DataType, bool kIsGroupMode, typename FmhaMask, bool kHasBias>
 using FmhaPipelineProblem = ck::tile_program::block::BlockFmhaBwdPipelineProblem<
-    typename FmhaFwdTypeConfig<DataType>::QDataType,
-    typename FmhaFwdTypeConfig<DataType>::KDataType,
-    typename FmhaFwdTypeConfig<DataType>::VDataType,
-    typename FmhaFwdTypeConfig<DataType>::GemmDataType,
-    typename FmhaFwdTypeConfig<DataType>::LSEDataType,
-    typename FmhaFwdTypeConfig<DataType>::AccDataType,
-    typename FmhaFwdTypeConfig<DataType>::DDataType,
-    typename FmhaFwdTypeConfig<DataType>::ZDataType,
-    typename FmhaFwdTypeConfig<DataType>::BiasDataType,
-    typename FmhaFwdTypeConfig<DataType>::ODataType,
-    typename FmhaFwdTypeConfig<DataType>::OGradDataType,
-    typename FmhaFwdTypeConfig<DataType>::QGradDataType,
-    typename FmhaFwdTypeConfig<DataType>::KGradDataType,
-    typename FmhaFwdTypeConfig<DataType>::VGradDataType,
-    typename FmhaFwdTypeConfig<DataType>::BiasGradDataType,
+    typename FmhaBwdTypeConfig<DataType>::QDataType,
+    typename FmhaBwdTypeConfig<DataType>::KDataType,
+    typename FmhaBwdTypeConfig<DataType>::VDataType,
+    typename FmhaBwdTypeConfig<DataType>::GemmDataType,
+    typename FmhaBwdTypeConfig<DataType>::LSEDataType,
+    typename FmhaBwdTypeConfig<DataType>::AccDataType,
+    typename FmhaBwdTypeConfig<DataType>::DDataType,
+    typename FmhaBwdTypeConfig<DataType>::ZDataType,
+    typename FmhaBwdTypeConfig<DataType>::BiasDataType,
+    typename FmhaBwdTypeConfig<DataType>::ODataType,
+    typename FmhaBwdTypeConfig<DataType>::OGradDataType,
+    typename FmhaBwdTypeConfig<DataType>::QGradDataType,
+    typename FmhaBwdTypeConfig<DataType>::KGradDataType,
+    typename FmhaBwdTypeConfig<DataType>::VGradDataType,
+    typename FmhaBwdTypeConfig<DataType>::BiasGradDataType,
     /* BlockSize = */ 256,
     FmhaShape<HDim>,
     kIsGroupMode,
@@ -207,9 +209,9 @@ using FmhaPipeline = ck::tile_program::block::BlockFmhaBwdPipelineDispatcher<
 
 template <typename DataType>
 using FmhaEpilogue =
-    FmhaBwdEpilogue<FmhaBwdEpilogueProblem<typename FmhaFwdTypeConfig<DataType>::AccDataType,
-                                           typename FmhaFwdTypeConfig<DataType>::KGradDataType,
-                                           typename FmhaFwdTypeConfig<DataType>::VGradDataType>>;
+    FmhaBwdEpilogue<FmhaBwdEpilogueProblem<typename FmhaBwdTypeConfig<DataType>::AccDataType,
+                                           typename FmhaBwdTypeConfig<DataType>::KGradDataType,
+                                           typename FmhaBwdTypeConfig<DataType>::VGradDataType>>;
 
 template <ck::index_t HDim, typename DataType, bool kIsGroupMode, typename FmhaMask, bool kHasBias>
 using FmhaBwdKernelSelector =
@@ -217,7 +219,7 @@ using FmhaBwdKernelSelector =
                   FmhaPipeline<HDim, DataType, kIsGroupMode, FmhaMask, kHasBias>,
                   FmhaEpilogue<DataType>>;
 
-using FmhaBwdOGradDotOTilePartitioner = FmhaBwdOGradDotOTilePartitioner</* BlockSize = */ 256>;
+using FmhaOGradDotOTilePartitioner = FmhaBwdOGradDotOTilePartitioner</* BlockSize = */ 256>;
 
 template <ck::index_t HDim, typename DataType, bool kIsGroupMode, typename FmhaMask, bool kHasBias>
 using FmhaBwdOGradDotO = ck::tile_program::block::BlockFmhaBwdOGradDotO<
@@ -225,7 +227,7 @@ using FmhaBwdOGradDotO = ck::tile_program::block::BlockFmhaBwdOGradDotO<
 
 template <ck::index_t HDim, typename DataType, bool kIsGroupMode, typename FmhaMask, bool kHasBias>
 using FmhaBwdOGradDotOKernelSelector =
-    FmhaBwdOGradDotOKernel<FmhaBwdOGradDotOTilePartitioner</* BlockSize = */ 256>,
+    FmhaBwdOGradDotOKernel<FmhaOGradDotOTilePartitioner,
                            FmhaBwdOGradDotO<HDim, DataType, kIsGroupMode, FmhaMask, kHasBias>>;
 
 // Kernel API
@@ -252,7 +254,7 @@ auto fmha_bwd_create_kargs_and_grids(const void* q_ptr,
                                      ck::index_t seqlen_k,
                                      ck::index_t hdim_q,
                                      ck::index_t hdim_v,
-                                     ck::index_t max_seqlen_q,
+                                     ck::index_t max_seqlen_k,
                                      float scale,
                                      bool i_perm,
                                      bool o_perm,
@@ -264,16 +266,173 @@ auto fmha_bwd_create_kargs_and_grids(const void* q_ptr,
     ///       seqlen_k] in this example, hence both the 'batch_stride_bias' & 'nhead_stride_bias'
     ///       are 0.
     // setup stride_* arguments
-    const ck::index_t stride_q    = (i_perm ? hdim_q : nhead * hdim_q);
-    const ck::index_t stride_k    = (i_perm ? hdim_q : nhead_k * hdim_q);
-    const ck::index_t stride_v    = (i_perm ? hdim_v : nhead_k * hdim_v);
-    const ck::index_t stride_bias = (i_perm ? seqlen_k : 1 * seqlen_k);
-    const ck::index_t stride_o    = (o_perm ? hdim_v : nhead * hdim_v);
-
+    const ck::index_t stride_q     = (i_perm ? hdim_q : nhead * hdim_q);
+    const ck::index_t stride_k     = (i_perm ? hdim_q : nhead_k * hdim_q);
+    const ck::index_t stride_v     = (i_perm ? hdim_v : nhead_k * hdim_v);
+    const ck::index_t stride_bias  = (i_perm ? seqlen_k : 1 * seqlen_k);
+    const ck::index_t stride_do    = (o_perm ? hdim_v : nhead * hdim_v);
+    const ck::index_t stride_dk    = (i_perm ? hdim_q : nhead * hdim_q);
+    const ck::index_t stride_dv    = (i_perm ? hdim_v : nhead * hdim_v);
+    const ck::index_t stride_dbias = (i_perm ? seqlen_k : nhead * seqlen_k);
     // setup nhead_stride_* arguments
-    const ck::index_t nhead_stride_q = (i_perm ? seqlen_q * hdim_q : hdim_q);
-    const ck::index_t nhead_stride_k = (i_perm ? seqlen_k * hdim_q : hdim_q);
-    const ck::index_t nhead_stride_k = (i_perm ? seqlen_k * hdim_q : hdim_q);
+    const ck::index_t nhead_stride_q     = (i_perm ? seqlen_q * hdim_q : hdim_q);
+    const ck::index_t nhead_stride_k     = (i_perm ? seqlen_k * hdim_q : hdim_q);
+    const ck::index_t nhead_stride_v     = (i_perm ? seqlen_k * hdim_v : hdim_v);
+    const ck::index_t nhead_stride_bias  = (i_perm ? 0 * seqlen_q * seqlen_k : 0 * seqlen_k);
+    const ck::index_t nhead_stride_do    = (o_perm ? seqlen_q * hdim_v : hdim_v);
+    const ck::index_t nhead_stride_lsed  = (seqlen_q);
+    const ck::index_t nhead_stride_dbias = (i_perm ? seqlen_q * seqlen_k : seqlen_k);
+    // setup batch_stride_* arguments
+    const ck::index_t batch_stride_q     = (nhead * seqlen_q * hdim_q);
+    const ck::index_t batch_stride_k     = (nhead_k * seqlen_k * hdim_q);
+    const ck::index_t batch_stride_v     = (nhead_k * seqlen_k * hdim_v);
+    const ck::index_t batch_stride_bias  = (0 * nhead * seqlen_q * seqlen_k);
+    const ck::index_t batch_stride_do    = (nhead * seqlen_q * hdim_v);
+    const ck::index_t batch_stride_lsed  = (nhead * seqlen_q);
+    const ck::index_t batch_stride_dk    = (nhead * seqlen_k * hdim_q);
+    const ck::index_t batch_stride_dv    = (nhead * seqlen_k * hdim_v);
+    const ck::index_t batch_stride_dbias = (nhead * seqlen_q * seqlen_k);
+
+    auto kargs = [&] {
+        // create group mode kernel arguments
+        if constexpr(FmhaKernel::kIsGroupMode)
+        {
+            return FmhaKernel::MakeKargs(q_ptr,
+                                         k_ptr,
+                                         v_ptr,
+                                         bias_ptr,
+                                         lse_ptr,
+                                         do_ptr,
+                                         d_ptr,
+                                         dq_ptr,
+                                         dk_ptr,
+                                         dv_ptr,
+                                         dbias_ptr,
+                                         seqstart_q_ptr,
+                                         seqstart_k_ptr,
+                                         seqlen_k_ptr,
+                                         hdim_q,
+                                         hdim_v,
+                                         nhead / nhead_k,
+                                         scale,
+                                         stride_q,
+                                         stride_k,
+                                         stride_v,
+                                         stride_bias,
+                                         stride_do,
+                                         stride_dk,
+                                         stride_dv,
+                                         stride_dbias,
+                                         nhead_stride_q,
+                                         nhead_stride_k,
+                                         nhead_stride_v,
+                                         nhead_stride_bias,
+                                         nhead_stride_do,
+                                         nhead_stride_lsed,
+                                         nhead_stride_dbias,
+                                         mask_y,
+                                         mask_x);
+        }
+        else
+        { // create batch mode kernel arguments
+            return FmhaKernel::MakeKargs(q_ptr,
+                                         k_ptr,
+                                         v_ptr,
+                                         bias_ptr,
+                                         lse_ptr,
+                                         do_ptr,
+                                         d_ptr,
+                                         dq_ptr,
+                                         dk_ptr,
+                                         dv_ptr,
+                                         dbias_ptr,
+                                         seqlen_q,
+                                         seqlen_k,
+                                         hdim_q,
+                                         hdim_v,
+                                         nhead / nhead_k,
+                                         scale,
+                                         stride_q,
+                                         stride_k,
+                                         stride_v,
+                                         stride_bias,
+                                         stride_do,
+                                         stride_dk,
+                                         stride_dv,
+                                         stride_dbias,
+                                         nhead_stride_q,
+                                         nhead_stride_k,
+                                         nhead_stride_v,
+                                         nhead_stride_bias,
+                                         nhead_stride_do,
+                                         nhead_stride_lsed,
+                                         nhead_stride_dbias,
+                                         batch_stride_q,
+                                         batch_stride_k,
+                                         batch_stride_v,
+                                         batch_stride_bias,
+                                         batch_stride_do,
+                                         batch_stride_lsed,
+                                         batch_stride_dk,
+                                         batch_stride_dv,
+                                         batch_stride_dbias,
+                                         mask_y,
+                                         mask_x);
+        }
+    }();
+
+    dim3 grids = FmhaKernel::GridSize(batch, nhead, max_seqlen_k);
+    return ck::make_tuple(kargs, grids);
+}
+
+template <typename FmhaOGradDotOKernel>
+auto fmha_bwd_dot_do_o_create_kargs_and_grids(const void* o_ptr,
+                                              const void* do_ptr,
+                                              void* d_ptr,
+                                              const void* seqstart_q_ptr,
+                                              ck::index_t batch,
+                                              ck::index_t nhead,
+                                              ck::index_t seqlen_q,
+                                              ck::index_t hdim_v,
+                                              ck::index_t max_seqlen_q,
+                                              bool o_perm)
+{
+    const ck::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
+    const ck::index_t nhead_stride_o = (o_perm ? seqlen_q * hdim_v : hdim_v);
+    const ck::index_t nhead_stride_d = (seqlen_q);
+    const ck::index_t batch_stride_o = (nhead * seqlen_q * hdim_v);
+    const ck::index_t batch_stride_d = (nhead * seqlen_q);
+
+    auto kargs = [&] {
+        // create group mode kernel arguments
+        if constexpr(FmhaOGradDotOKernel::kIsGroupMode)
+        {
+            return FmhaOGradDotOKernel::MakeKargs(o_ptr,
+                                                  do_ptr,
+                                                  d_ptr,
+                                                  seqstart_q_ptr,
+                                                  hdim_v,
+                                                  stride_o,
+                                                  nhead_stride_o,
+                                                  nhead_stride_d);
+        }
+        else
+        { // create batch mode kernel arguments
+            return FmhaOGradDotOKernel::MakeKargs(o_ptr,
+                                                  do_ptr,
+                                                  d_ptr,
+                                                  seqlen_q,
+                                                  hdim_v,
+                                                  stride_o,
+                                                  nhead_stride_o,
+                                                  nhead_stride_d,
+                                                  batch_stride_o,
+                                                  batch_stride_d);
+        }
+    }();
+
+    dim3 grids = FmhaOGradDotOKernel::GridSize(batch, nhead, max_seqlen_q);
+    return ck::make_tuple(kargs, grids);
 }
 
 // will instantiate this function across different source file
@@ -283,6 +442,19 @@ float fmha_bwd_run(const StreamConfig&, typename FmhaKernel::Kargs, dim3);
 #define FMHA_BWD_KERNEL_DEFINE(KERNEL_)                                                          \
     template <>                                                                                  \
     float fmha_bwd_run<KERNEL_>(                                                                 \
+        const StreamConfig& stream, typename KERNEL_::Kargs kargs, dim3 grids)                   \
+    {                                                                                            \
+        constexpr dim3 blocks             = KERNEL_::BlockSize();                                \
+        constexpr ck::index_t kBlockPerCu = KERNEL_::kBlockPerCu;                                \
+        return launch_kernel<blocks.x, kBlockPerCu>(stream, KERNEL_{}, grids, blocks, 0, kargs); \
+    }
+
+template <typename FmhaOGradDotOKernel>
+float fmha_bwd_dot_do_o_run(const StreamConfig&, typename FmhaOGradDotOKernel::Kargs, dim3);
+
+#define FMHA_BWD_OGradDotO_KERNEL_DEFINE(KERNEL_)                                                \
+    template <>                                                                                  \
+    float fmha_bwd_dot_do_o_run<KERNEL_>(                                                        \
         const StreamConfig& stream, typename KERNEL_::Kargs kargs, dim3 grids)                   \
     {                                                                                            \
         constexpr dim3 blocks             = KERNEL_::BlockSize();                                \
