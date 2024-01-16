@@ -35,14 +35,10 @@ static std::string GetGemmSpec(const std::size_t m,
 }
 
 template <class F>
-std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(nlohmann::json &inst, F f, Layout ALayout, Layout BLayout)
+std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(F f, Layout ALayout, Layout BLayout)
 {
-    std::cout << "Start of function: " << inst.type_name() << " size: " << inst.size() << std::endl;
-    //std::cout << "Address at funtion start: " << inst << std::endl;
     std::vector<Operation_Xdl_CShuffle> result;
-    
-    //for (int i = 0 ; i < 10; i++) {
-//	    std::cout << "inst data " << i << " " << (int)(int *)(inst + i) 
+
     std::vector<operation::TileDesc> tile_descriptions = {
         // clang-format off
 //  Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl| NumGemmK|
@@ -172,16 +168,9 @@ std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(nlohmann::json &inst, F
     assert(tile_descriptions.size() == cshuffle_descriptions.size());
     assert(tile_descriptions.size() == c_block_descriptions.size());
 
-    std::cout << "initial object" << std::endl;
-    std::cout << inst.type_name() << std::endl;
-    std::cout << "size in function: "<< inst.size() << std::endl;
-    //inst["instances"] = nlohmann::json::object();
-    std::cout << "obj set" << std::endl;
-    std::string prob_spec = "";
     for(std::size_t i = 0; i < tile_descriptions.size(); i++)
     {
         Operation_Xdl_CShuffle x;
-	prob_spec = ToString(x.A.layout) + "_" + ToString(x.B.layout) + "_"+ ToString(x.E.layout) + "_"+ ToString(x.A.element) + "_"+ ToString(x.B.element) + "_"+ ToString(x.acc) + "_"+ ToString(x.cs_type)+ "_" + ToString(x.E.element) + "_" + x.a_elem_op + "_" + x.b_elem_op + "_" + x.cde_elem_op + "_" + x.gemm_specialization;
         x.tile_desc        = tile_descriptions[i];
         x.a_block_transfer = a_block_descriptions[i];
         x.b_block_transfer = b_block_descriptions[i];
@@ -190,29 +179,23 @@ std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(nlohmann::json &inst, F
         auto all           = f(x);
         result.insert(result.end(), all.begin(), all.end());
     }
-    //inst = {"instances",{prob_spec, {"0", "0"}}};
-    inst["instances"][prob_spec] =  nlohmann::json::object();
 
     return result;
 }
 
 static Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
 
-std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(nlohmann::json &inst)
+std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations()
 {
-	std::cout << inst.type_name() << std::endl;
-	std::cout << "size in wrapper: " << inst.size() << std::endl;
-	//std::cout << "Address at wrapper: " << inst << std::endl;
-    return CreateOperationsImpl(inst, 
-		    		[](auto x) -> std::vector<Operation_Xdl_CShuffle> { return {x}; },
+    return CreateOperationsImpl([](auto x) -> std::vector<Operation_Xdl_CShuffle> { return {x}; },
                                 Layout::Column,
                                 Layout::Row);
 }
-std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(const Problem& prob, nlohmann::json &inst)
+std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(const Problem& prob)
 {
-    return CreateOperationsImpl(inst,
+    return CreateOperationsImpl(
         [&](Operation_Xdl_CShuffle x) -> std::array<Operation_Xdl_CShuffle, 1> {
-	    x.A           = TensorDesc{prob.ADataType, ToLayout(prob.TransA)};
+            x.A           = TensorDesc{prob.ADataType, ToLayout(prob.TransA)};
             x.B           = TensorDesc{prob.BDataType, ToLayout(prob.TransB)};
             x.E           = TensorDesc{prob.EDataType, ToLayout(prob.TransE)};
             x.Ds          = Transform(prob.DsTrans, prob.DsDataType, [](auto trans, auto dt) {
@@ -233,26 +216,103 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
         ToLayout(prob.TransB));
 }
 
-static const char* const DeviceGemmMultipleD_Xdl_CShuffleTemplate =
-    "ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle<${LayoutA}, ${LayoutB}, "
-    "${LayoutDs}, ${LayoutE}, ${ADataType}, ${BDataType}, ${AccDataType}, ${CShuffleDataType}, "
-    "${DsDataType}, ${EDataType}, ${AElementwiseOperation}, ${BElementwiseOperation}, "
-    "${CDEElementwiseOperation}, ${GemmSpecialization}, ${NumGemmkPrefetchStage}, ${BlockSize}, "
-    "${MPerBlock}, ${NPerBlock}, ${KPerBlock}, ${AK1}, ${BK1}, ${MPerXDL}, ${NPerXDL}, "
-    "${MXdlPerWave}, ${NXdlPerWave}, ${ABlockTransferThreadClusterLengths_AK0_M_AK1}, "
-    "${ABlockTransferThreadClusterArrangeOrder}, ${ABlockTransferSrcAccessOrder}, "
-    "${ABlockTransferSrcVectorDim}, ${ABlockTransferSrcScalarPerVector}, "
-    "${ABlockTransferDstScalarPerVector_AK1}, ${ABlockLdsExtraM}, "
-    "${BBlockTransferThreadClusterLengths_BK0_N_BK1}, ${BBlockTransferThreadClusterArrangeOrder}, "
-    "${BBlockTransferSrcAccessOrder}, ${BBlockTransferSrcVectorDim}, "
-    "${BBlockTransferSrcScalarPerVector}, ${BBlockTransferDstScalarPerVector_BK1}, "
-    "${BBlockLdsExtraN}, ${CShuffleMXdlPerWavePerShuffle}, ${CShuffleNXdlPerWavePerShuffle}, "
-    "${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, "
-    "${CDEBlockTransferScalarPerVector_NPerBlock}>";
+static const char* const DeviceGemmMultipleD_Xdl_CShuffleTemplate = R"(
+ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle<${LayoutA}, ${LayoutB}, ${LayoutDs}, ${LayoutE}, ${ADataType}, ${BDataType}, ${AccDataType}, ${CShuffleDataType}, ${DsDataType}, ${EDataType}, ${AElementwiseOperation}, ${BElementwiseOperation}, ${CDEElementwiseOperation}, ${GemmSpecialization}, ${NumGemmkPrefetchStage}, ${BlockSize}, ${MPerBlock}, ${NPerBlock}, ${KPerBlock}, ${AK1}, ${BK1}, ${MPerXDL}, ${NPerXDL}, ${MXdlPerWave}, ${NXdlPerWave}, ${ABlockTransferThreadClusterLengths_AK0_M_AK1}, ${ABlockTransferThreadClusterArrangeOrder}, ${ABlockTransferSrcAccessOrder}, ${ABlockTransferSrcVectorDim}, ${ABlockTransferSrcScalarPerVector}, ${ABlockTransferDstScalarPerVector_AK1}, ${ABlockLdsExtraM}, ${BBlockTransferThreadClusterLengths_BK0_N_BK1}, ${BBlockTransferThreadClusterArrangeOrder}, ${BBlockTransferSrcAccessOrder}, ${BBlockTransferSrcVectorDim}, ${BBlockTransferSrcScalarPerVector}, ${BBlockTransferDstScalarPerVector_BK1}, ${BBlockLdsExtraN}, ${CShuffleMXdlPerWavePerShuffle}, ${CShuffleNXdlPerWavePerShuffle}, ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, ${CDEBlockTransferScalarPerVector_NPerBlock}>
+
+// GridwiseGemm
+using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
+        ${ADataType},
+        ${BDataType},
+        ${ComputeDataType},
+        ${AccDataType},
+        ${CShuffleDataType},
+        ${DsDataType},
+        ${EDataType},
+        ${AElementwiseOperation},
+        ${BElementwiseOperation},
+        ${CDEElementwiseOperation},
+        InMemoryDataOperationEnum::Set,
+        ${NumGemmkPrefetchStage},
+        ${BlockSize},
+        ${MPerBlock},
+        ${NPerBlock},
+        ${KPerBlock},
+        ${AK1},
+        ${BK1},
+        ${MPerXDL},
+        ${NPerXDL},
+        ${MXdlPerWave},
+        ${NXdlPerWave},
+        ${ABlockTransferThreadClusterLengths_AK0_M_AK1},
+        ${ABlockTransferThreadClusterArrangeOrder},
+        ${ABlockTransferSrcAccessOrder},
+        ${ABlockTransferSrcVectorDim},
+        ${ABlockTransferSrcScalarPerVector},
+        ${ABlockTransferDstScalarPerVector_AK1},
+        false,
+        ${ABlockLdsExtraM},
+        ${BBlockTransferThreadClusterLengths_BK0_N_BK1},
+        ${BBlockTransferThreadClusterArrangeOrder},
+        ${BBlockTransferSrcAccessOrder},
+        ${BBlockTransferSrcVectorDim},
+        ${BBlockTransferSrcScalarPerVector},
+        ${BBlockTransferDstScalarPerVector_BK1},
+        false,
+        ${BBlockLdsExtraN},
+        ${CShuffleMXdlPerWavePerShuffle},
+        ${CShuffleNXdlPerWavePerShuffle},
+        ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock},
+        ${CDEBlockTransferScalarPerVector_NPerBlock},
+        LoopSched = make_default_loop_scheduler(), //will need to replace function
+        PipelineVer = PipelineVersion::v1>;
+
+run_${name}(void *input, void *output)
+{
+    const auto kernel = kernel_gemm_multiple_d_xdl_cshuffle<
+                    GridwiseGemm,
+                    ${ADataType}, // TODO: distiguish A/B datatype
+                    ${BDataType}, // TODO: distiguish A/B datatype
+                    typename GridwiseGemm::DsGridPointer,
+                    ${EDataType},
+                    ${AElementwiseOperation},
+                    ${BElementwiseOperation},
+                    ${CDEElementwiseOperation},
+                    DeviceOp::AGridDesc_AK0_M_AK1,
+                    DeviceOp::BGridDesc_BK0_N_BK1,
+                    DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                    DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                    DeviceOp::Block2ETileMap,
+                    has_main_loop>;
+
+                return launch_and_time_kernel(stream_config,
+                                              kernel,
+                                              dim3(grid_size),
+                                              dim3(${BlockSize}),
+					      0,
+					      arg.p_a_grid_,
+					      arg.p_b_grid_,
+					      arg.p_ds_grid_,
+					      arg.p_e_grid_,
+					      arg.a_element_op_,
+					      arg.b_element_op_,
+					      arg.cde_element_op_,
+					      arg.a_grid_desc_ak0_m_ak1_,
+					      arg.b_grid_desc_bk0_n_bk1_,
+					      arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+					      arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+					      arg.block_2_etile_map_);
+}
+extern "C" {
+	bool run_${name}_op(void *input, void *output)
+	{
+		run_${name}(input, output);
+	}
+})";
 
 Solution Operation_Xdl_CShuffle::ToSolution() const
 {
     std::unordered_map<std::string, std::string> values = {
+        {"name", ToString(this->A.layout)},
         {"LayoutA", ToString(this->A.layout)},
         {"LayoutB", ToString(this->B.layout)},
         {"LayoutDs",
@@ -260,6 +320,7 @@ Solution Operation_Xdl_CShuffle::ToSolution() const
         {"LayoutE", ToString(this->E.layout)},
         {"ADataType", ToString(this->A.element)},
         {"BDataType", ToString(this->B.element)},
+        {"ComputeDataType", ToString(this->E.element)},
         {"AccDataType", ToString(this->acc)},
         {"CShuffleDataType", ToString(this->cs_type)},
         {"DsDataType",

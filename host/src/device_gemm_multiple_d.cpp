@@ -16,7 +16,7 @@ std::string Problem::GetIncludeHeader() const
     return "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle.hpp";
 }
 
-/**std::vector<Solution> Problem::GetSolutions(const std::string& arch) const
+std::vector<Solution> Problem::GetSolutions(const std::string& arch) const
 {
     if(get_xdlop_archs().count(arch) == 0)
         return {};
@@ -26,7 +26,7 @@ std::string Problem::GetIncludeHeader() const
         return op.ToSolution();
     });
     return result;
-}**/
+}
 
 } // namespace device_gemm_multiple_d
 } // namespace host
