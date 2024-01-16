@@ -218,8 +218,7 @@ bool profile_layernorm_bwd_gamma_beta_impl(int do_verification,
             bool pass =
                 ck::utils::check_err(dgamma, host_dgamma, "Error: Incorrect dgamma", 1e-3, 1e-3);
 
-            pass &= ck::utils::check_err(dbeta, host_dbeta, "Error: Incorrect dbeta", 1e-3,
-            1e-3);
+            pass &= ck::utils::check_err(dbeta, host_dbeta, "Error: Incorrect dbeta", 1e-3, 1e-3);
 
             if(do_log)
             {
