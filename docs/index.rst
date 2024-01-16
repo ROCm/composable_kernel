@@ -34,6 +34,6 @@ The CK documentation is structured as follows:
 
   * :ref:`contributing-to`
 
-To contribute to the documentation refer to `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/index.md>`_.
+To contribute to the documentation refer to `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/index.html>`_.
 
-You can find licensing information at the `Licensing <https://rocm.docs.amd.com/en/latest/about/license.md>`_ page.
+You can find licensing information on the `Licensing <https://rocm.docs.amd.com/en/latest/about/license.html>`_ page.
