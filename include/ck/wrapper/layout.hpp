@@ -416,11 +416,11 @@ struct Layout
     }
 
     /**
-     * \brief Get default descriptor (with the same size as Shape)
+     * \brief Get merged nests descriptor (with the same size as Shape)
      *
-     * \return Default descriptor.
+     * \return Merged nests descriptor.
      */
-    __host__ __device__ constexpr const MergedNestsDescriptorType& GetDefaultDescriptor() const
+    __host__ __device__ constexpr const MergedNestsDescriptorType& GetMergedNestsDescriptor() const
     {
         return merged_nests_descriptor_;
     }

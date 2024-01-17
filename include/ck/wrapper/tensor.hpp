@@ -31,12 +31,12 @@ __host__ __device__ constexpr static bool HasSlice(Tuple<Ts...>&&)
 /**
  * \brief Calculate new shape after slice from parent shape.
  *
- * \param idx Tuple of indices with slices.
+ * \param idxs Tuple of indexes defining slice ranges.
  * \param shape Shape which will be sliced.
  * \return New tensor shape.
  */
 template <typename... Ts, typename SlicedShape>
-__host__ __device__ constexpr auto GetSlicedShape(const Tuple<Ts...>& idx,
+__host__ __device__ constexpr auto GetSlicedShape(const Tuple<Ts...>& idxs,
                                                   const SlicedShape& shape) const
 {
     // Pack each value in tuple to remove empty tuples after generation
@@ -53,14 +53,14 @@ __host__ __device__ constexpr auto GetSlicedShape(const Tuple<Ts...>& idx,
                 else
                 {
                     // if tuple then recurrence
-                    return make_tuple(GetSlicedShape(idx.At(num_i), shape.At(num_i)));
+                    return make_tuple(GetSlicedShape(idxs.At(num_i), shape.At(num_i)));
                 }
             }
             else if constexpr(is_detected<is_slice, tuple_element_t<i.value, Tuple<Ts...>>>::value)
             {
                 // calculate new dimension
                 const auto& dim = size(shape.At(num_i));
-                const auto val  = idx.At(num_i).range(dim);
+                const auto val  = idxs.At(num_i).range(dim);
                 return make_tuple(val);
             }
             else
@@ -240,9 +240,9 @@ struct Tensor
     }
 
     /**
-     * \brief Get the new sliced tensor
+     * \brief Get the new sliced tensor.
      *
-     * \param idx Tuple of indices for slice/freeze.
+     * \param idx Tuple of indices: slice(from,to) or scalar.
      * \return Sliced tensor.
      */
     template <typename... Ts, enable_if_t<detail::HasSlice(Tuple<Ts...>{}), bool> = false>
@@ -274,7 +274,7 @@ struct Tensor
     }
 
     /**
-     * \brief Get the const value.
+     * \brief Getter for the const value.
      *
      * \param idx Tuple of indices.
      * \return Requested value.
@@ -292,7 +292,7 @@ struct Tensor
             constexpr index_t index_offset = Layout<Shape, UnrolledDescriptorType>{
                 Shape{},
                 UnrolledDescriptorType{}}.template operator()<Tuple<Ts...>>();
-            // Apply embed offset (calculate in compiletime)
+            // Calculate and apply base offset in compile-time
             constexpr index_t base_offset = Layout<Shape, UnrolledDescriptorType>{
                 Shape{},
                 UnrolledDescriptorType{}}.template operator()<MultiIndex<Shape::Size()>>();
@@ -313,7 +313,7 @@ struct Tensor
     }
 
     /**
-     * \brief Get the reference.
+     * \brief Getter of tensor value reference.
      *
      * \param idx Tuple of indices.
      * \return Requested value.
@@ -356,9 +356,9 @@ struct Tensor
      *
      * \return Default layout descriptor.
      */
-    __host__ __device__ constexpr auto GetDefaultDescriptor()
+    __host__ __device__ constexpr auto GetMergedNestsDescriptor()
     {
-        return layout_.GetDefaultDescriptor();
+        return layout_.GetMergedNestsDescriptor();
     }
 
     /**
@@ -384,7 +384,7 @@ struct Tensor
      * \param multi_idx_offset Multi index offset.
      */
     template <typename MultiIdxOffsets>
-    __host__ __device__ constexpr void ApplyMultiIdxOffsets(const MultiIdxOffsets multi_idx_offset)
+    __host__ __device__ constexpr void ShiftMultiIdxOffset(const MultiIdxOffsets multi_idx_offset)
     {
         multi_idx_offset_ = multi_idx_offset;
         base_offset_ += layout_(multi_idx_offset);

@@ -110,7 +110,7 @@ make_local_partition(TensorType& tensor,
     auto partition_tensor =
         make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer(), partition_layout);
     // Apply offsets
-    partition_tensor.ApplyMultiIdxOffsets(to_multi_index(offset_multi_idxs));
+    partition_tensor.ShiftMultiIdxOffset(to_multi_index(offset_multi_idxs));
     return partition_tensor;
 }
 
@@ -138,7 +138,7 @@ make_local_tile(const TensorType& tensor, const BlockShapeTuple& tile_shape, con
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
 
-    auto& aligned_desc = layout(tensor).GetDefaultDescriptor();
+    auto& aligned_desc = layout(tensor).GetMergedNestsDescriptor();
 
     if constexpr(BlockShapeTuple::Size() == I2)
     {
@@ -162,7 +162,7 @@ make_local_tile(const TensorType& tensor, const BlockShapeTuple& tile_shape, con
         auto tile_tensor =
             make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer(), tile_layout);
         // Apply offsets
-        tile_tensor.ApplyMultiIdxOffsets(to_multi_index(offset_multi_idxs));
+        tile_tensor.ShiftMultiIdxOffset(to_multi_index(offset_multi_idxs));
         return tile_tensor;
     }
     else
@@ -186,7 +186,7 @@ make_local_tile(const TensorType& tensor, const BlockShapeTuple& tile_shape, con
         auto tile_tensor =
             make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer(), tile_layout);
         // Apply offsets
-        tile_tensor.ApplyMultiIdxOffsets(to_multi_index(offset_multi_idxs));
+        tile_tensor.ShiftMultiIdxOffset(to_multi_index(offset_multi_idxs));
         return tile_tensor;
     }
 }
