@@ -20,6 +20,12 @@ struct is_known_at_compile_time<index_t>
 };
 
 template <>
+struct is_known_at_compile_time<unsigned int>
+{
+    static constexpr bool value = false;
+};
+
+template <>
 struct is_known_at_compile_time<long_index_t>
 {
     static constexpr bool value = false;
