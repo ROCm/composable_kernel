@@ -18,12 +18,12 @@ namespace {
  * \return True if tuple contains Slice object.
  */
 template <typename T>
-__host__ __device__ constexpr static bool HasSlice(T&&)
+__host__ __device__ constexpr bool HasSlice(T&&)
 {
     return is_detected<is_slice, T>::value;
 }
 template <typename... Ts>
-__host__ __device__ constexpr static bool HasSlice(Tuple<Ts...>&&)
+__host__ __device__ constexpr bool HasSlice(Tuple<Ts...>&&)
 {
     return (HasSlice(Ts{}) || ...);
 }
@@ -37,7 +37,7 @@ __host__ __device__ constexpr static bool HasSlice(Tuple<Ts...>&&)
  */
 template <typename... Ts, typename SlicedShape>
 __host__ __device__ constexpr auto GetSlicedShape(const Tuple<Ts...>& idxs,
-                                                  const SlicedShape& shape) const
+                                                  const SlicedShape& shape)
 {
     // Pack each value in tuple to remove empty tuples after generation
     auto new_shape = generate_tuple(
@@ -82,7 +82,7 @@ __host__ __device__ constexpr auto GetSlicedShape(const Tuple<Ts...>& idxs,
  * \return Generated freeze transforms.
  */
 template <typename T, typename Shape>
-__host__ __device__ constexpr auto GenerateMultipleFreeze(T idx, const Shape& shape) const
+__host__ __device__ constexpr auto GenerateMultipleFreeze(T idx, const Shape& shape)
 {
     const auto unrolled_shape = UnrollNestedTuple(shape);
     return generate_tuple(
@@ -105,7 +105,7 @@ __host__ __device__ constexpr auto GenerateMultipleFreeze(T idx, const Shape& sh
  */
 template <typename... Ts, typename Shape>
 __host__ __device__ constexpr auto GenerateSliceTransforms(const Tuple<Ts...>& idx,
-                                                           const Shape& shape) const
+                                                           const Shape& shape)
 {
     // Pack each value in tuple to remove empty tuples after generation
     auto transforms = generate_tuple(
@@ -135,27 +135,26 @@ __host__ __device__ constexpr auto GenerateSliceTransforms(const Tuple<Ts...>& i
 }
 
 template <index_t i, typename LowerIndex>
-__host__ __device__ constexpr auto GetSequenceVal(const ck::Freeze<LowerIndex>&) const
+__host__ __device__ constexpr auto GetSequenceVal(const ck::Freeze<LowerIndex>&)
 {
     // There is no output for Freeze transform
     return Sequence<>{};
 }
 
 template <index_t i, typename LowLength, typename SliceBegin, typename SliceEnd>
-__host__ __device__ constexpr auto
-GetSequenceVal(const ck::Slice<LowLength, SliceBegin, SliceEnd>&) const
+__host__ __device__ constexpr auto GetSequenceVal(const ck::Slice<LowLength, SliceBegin, SliceEnd>&)
 {
     return Sequence<i>{};
 }
 
 template <index_t i>
-__host__ __device__ constexpr auto GenerateUpperDims(const Tuple<>&) const
+__host__ __device__ constexpr auto GenerateUpperDims(const Tuple<>&)
 {
     return Tuple<>{};
 }
 
 template <index_t i, typename... Transforms>
-__host__ __device__ constexpr auto GenerateUpperDims(const Tuple<Transforms...>& transforms) const
+__host__ __device__ constexpr auto GenerateUpperDims(const Tuple<Transforms...>& transforms)
 {
     constexpr auto num_transforms = Tuple<Transforms...>::Size();
     // Deduce Sequence element for specific transform
@@ -174,8 +173,9 @@ __host__ __device__ constexpr auto GenerateUpperDims(const Tuple<Transforms...>&
 }
 
 template <typename... Ts, typename Shape, typename FlattenDescriptor>
-__host__ __device__ constexpr auto GenerateSlicedDescriptor(
-    const Tuple<Ts...>& idx, const Shape& shape, const FlattenDescriptor& flatten_desc) const
+__host__ __device__ constexpr auto GenerateSlicedDescriptor(const Tuple<Ts...>& idx,
+                                                            const Shape& shape,
+                                                            const FlattenDescriptor& flatten_desc)
 {
     constexpr auto old_shape_dims = decltype(UnrollNestedTuple(shape))::Size();
 
