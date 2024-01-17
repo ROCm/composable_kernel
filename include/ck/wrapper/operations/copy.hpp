@@ -14,8 +14,8 @@ namespace ck {
 namespace wrapper {
 
 /**
- * \brief Perform generic copy between two tensors. Tensors must have the
- *  same size.
+ * \brief Perform generic copy between two tensors partitions (threadwise copy).
+ *  Tensors must have the same size.
  *
  * \param src_tensor Source tensor.
  * \param dst_tensor Destination tensor.
@@ -43,12 +43,12 @@ __host__ __device__ void copy(const SrcTensorType& src_tensor, DstTensorType& ds
 }
 
 /**
- * \brief Perform optimized copy between two tensors. Tensors must have the
- *  same size.
+ * \brief Perform optimized copy between two tensors partitions (threadwise copy).
+ * Tensors must have the same size.
  *
  * \tparam DimAccessOrderTuple Tuple with dimension access order.
- * \tparam VectorDim Dimension for vectorize read and write.
- * \tparam ScalarPerVector Number of scalar per vectorize read and write.
+ * \tparam VectorDim Dimension for vectorized read and write.
+ * \tparam ScalarPerVector Number of scalar per vectorized read and write.
  * \param src_tensor Source tensor.
  * \param dst_tensor Destination tensor.
  */
@@ -63,8 +63,8 @@ __device__ void copy(const SrcTensorType& src_tensor, DstTensorType& dst_tensor)
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
 
-    const auto& in_grid_desc  = layout(src_tensor).GetUnnestedDescriptor();
-    const auto& out_grid_desc = layout(dst_tensor).GetUnnestedDescriptor();
+    const auto& in_grid_desc  = layout(src_tensor).GetUnrolledDescriptor();
+    const auto& out_grid_desc = layout(dst_tensor).GetUnrolledDescriptor();
 
     using SrcShapeType         = remove_cvref_t<decltype(shape(src_tensor))>;
     constexpr index_t num_dims = SrcShapeType::Size();
@@ -76,7 +76,7 @@ __device__ void copy(const SrcTensorType& src_tensor, DstTensorType& dst_tensor)
 
     if constexpr(SrcTensorType::IsDynamicBuffer && DstTensorType::IsDynamicBuffer)
     {
-        // Perform copy between DynamicBuffers
+        // Perform a copy between DynamicBuffers
         auto transfer = ThreadwiseTensorSliceTransfer_v7<
             Tuple<typename SrcTensorType::TensorElementType>,
             Tuple<typename DstTensorType::TensorElementType>,
@@ -119,7 +119,7 @@ __device__ void copy(const SrcTensorType& src_tensor, DstTensorType& dst_tensor)
                                                InMemoryDataOperationEnum::Set,
                                                I1,
                                                true>{out_grid_desc,
-                                                     dst_tensor.GetMultiIdxOffsets(), // todo remove
+                                                     dst_tensor.GetMultiIdxOffsets(),
                                                      tensor_operation::element_wise::PassThrough{}};
 
         transfer.Run(in_grid_desc,

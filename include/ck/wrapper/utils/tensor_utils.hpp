@@ -28,12 +28,12 @@ using MemoryTypeEnum = AddressSpaceEnum;
 // Disable from doxygen docs generation
 /// @cond
 // forward declarations
-template <typename Shape, typename UnnestedDescriptorType>
+template <typename Shape, typename UnrolledDescriptorType>
 struct Layout;
 template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename UnnestedDescriptorType>
+          typename UnrolledDescriptorType>
 struct Tensor;
 
 template <typename FromType, typename ToType>
@@ -54,7 +54,10 @@ struct Slice
         if constexpr(is_same_v<FromType, index_t> || is_same_v<ToType, index_t> ||
                      is_same_v<T, index_t>)
         {
-            assert(dim >= to_ && from_ >= 0 && (to_ < 0 || to_ > from_) && "Invalid range");
+            if(!(dim >= to_ && from_ >= 0 && (to_ < 0 || to_ > from_)))
+            {
+                throw std::runtime_error("Invalid range");
+            }
             if(to_ < 0)
             {
                 return dim - from_ + to_ + 1;
@@ -104,11 +107,11 @@ using is_tuple = decltype(std::declval<T&>().IsTuple());
 template <MemoryTypeEnum MemoryType,
           typename ElementType,
           typename Shape,
-          typename UnnestedDescriptorType>
+          typename UnrolledDescriptorType>
 constexpr auto make_tensor(ElementType* pointer,
-                           const Layout<Shape, UnnestedDescriptorType>& layout)
+                           const Layout<Shape, UnrolledDescriptorType>& layout)
 {
-    return Tensor<MemoryType, ElementType, Shape, UnnestedDescriptorType>(pointer, layout);
+    return Tensor<MemoryType, ElementType, Shape, UnrolledDescriptorType>(pointer, layout);
 }
 
 /**
@@ -121,10 +124,10 @@ constexpr auto make_tensor(ElementType* pointer,
 template <MemoryTypeEnum MemoryType,
           typename ElementType,
           typename Shape,
-          typename UnnestedDescriptorType>
-constexpr auto make_register_tensor(const Layout<Shape, UnnestedDescriptorType>& layout)
+          typename UnrolledDescriptorType>
+constexpr auto make_register_tensor(const Layout<Shape, UnrolledDescriptorType>& layout)
 {
-    return Tensor<MemoryType, ElementType, Shape, UnnestedDescriptorType>(layout);
+    return Tensor<MemoryType, ElementType, Shape, UnrolledDescriptorType>(layout);
 }
 
 /**
@@ -136,9 +139,9 @@ constexpr auto make_register_tensor(const Layout<Shape, UnnestedDescriptorType>&
 template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename UnnestedDescriptorType>
+          typename UnrolledDescriptorType>
 __host__ __device__ constexpr const auto&
-layout(const Tensor<BufferAddressSpace, ElementType, Shape, UnnestedDescriptorType>& tensor)
+layout(const Tensor<BufferAddressSpace, ElementType, Shape, UnrolledDescriptorType>& tensor)
 {
     return tensor.GetLayout();
 }
@@ -154,9 +157,9 @@ template <index_t... Idxs,
           MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename UnnestedDescriptorType>
+          typename UnrolledDescriptorType>
 __host__ __device__ constexpr auto
-size(const Tensor<BufferAddressSpace, ElementType, Shape, UnnestedDescriptorType>& tensor)
+size(const Tensor<BufferAddressSpace, ElementType, Shape, UnrolledDescriptorType>& tensor)
 {
     return size<Idxs...>(tensor.GetLayout());
 }
@@ -172,9 +175,9 @@ template <index_t... Idxs,
           MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename UnnestedDescriptorType>
+          typename UnrolledDescriptorType>
 __host__ __device__ constexpr auto
-rank(const Tensor<BufferAddressSpace, ElementType, Shape, UnnestedDescriptorType>& tensor)
+rank(const Tensor<BufferAddressSpace, ElementType, Shape, UnrolledDescriptorType>& tensor)
 {
     return rank<Idxs...>(tensor.GetLayout());
 }
@@ -190,9 +193,9 @@ template <index_t... Idxs,
           MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename UnnestedDescriptorType>
+          typename UnrolledDescriptorType>
 __host__ __device__ constexpr auto
-depth(const Tensor<BufferAddressSpace, ElementType, Shape, UnnestedDescriptorType>& tensor)
+depth(const Tensor<BufferAddressSpace, ElementType, Shape, UnrolledDescriptorType>& tensor)
 {
     return depth<Idxs...>(tensor.GetLayout());
 }
@@ -206,9 +209,9 @@ depth(const Tensor<BufferAddressSpace, ElementType, Shape, UnnestedDescriptorTyp
 template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename UnnestedDescriptorType>
+          typename UnrolledDescriptorType>
 __host__ __device__ constexpr const auto&
-shape(const Tensor<BufferAddressSpace, ElementType, Shape, UnnestedDescriptorType>& tensor)
+shape(const Tensor<BufferAddressSpace, ElementType, Shape, UnrolledDescriptorType>& tensor)
 {
     return shape(tensor.GetLayout());
 }

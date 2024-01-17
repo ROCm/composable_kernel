@@ -111,10 +111,13 @@ void PerformImageToColumnPad0(const ck::index_t G,
     SimpleDeviceMem in_buf(input_size * sizeof(DataType));
     SimpleDeviceMem out_buf(ck::wrapper::size(out_layout) * sizeof(DataType));
 
+    // User can choose appropriate number of threads and sizes per block
     const auto thread_layout = ck::make_tuple(ck::Number<8>{}, ck::Number<16>{});
-    const auto tile_shape    = ck::make_tuple(ck::Number<32>{}, ck::Number<64>{});
+    // This example doesn't support padding, user should select tile sizes
+    // which divides the shape completely
+    const auto tile_shape = ck::make_tuple(ck::Number<32>{}, ck::Number<64>{});
 
-    // Create tensors for global memory
+    // Create buffers for global memory
     auto input_tensor_global = ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Global>(
         static_cast<const DataType*>(in_buf.GetDeviceBuffer()), in_layout);
     auto output_tensor_global = ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Global>(
@@ -147,7 +150,7 @@ void PerformImageToColumnPad0(const ck::index_t G,
 
 int main(int argc, char* argv[])
 {
-    constexpr ck::index_t G  = 4;
+    constexpr ck::index_t G  = 4;  // number of groups
     constexpr ck::index_t N  = 32; // batch
     constexpr ck::index_t C  = 64; // input channel (per group)
     constexpr ck::index_t Z  = 3;  // filter D

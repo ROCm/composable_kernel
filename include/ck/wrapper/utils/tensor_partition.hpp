@@ -103,7 +103,7 @@ make_local_partition(TensorType& tensor,
     const auto offset_multi_idxs =
         CalculateOffsetMultiIdxs(thread_idxs, partition_lengths_seq, tensor.GetMultiIdxOffsets());
     // Create new layout and tensor
-    auto& flatten_desc = layout(tensor).GetUnnestedDescriptor();
+    auto& flatten_desc = layout(tensor).GetUnrolledDescriptor();
     const auto partition_layout =
         Layout<remove_reference_t<decltype(partition_shape)>, decltype(flatten_desc)>(
             partition_shape, flatten_desc);
