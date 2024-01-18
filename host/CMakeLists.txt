@@ -27,8 +27,9 @@ file(GLOB SOURCES CONFIGURE_DEPENDS src/*.cpp)
 add_library(ck_host STATIC ${SOURCES})
 target_link_libraries(ck_host PRIVATE ck_headers)
 
-# TODO: Set -fPIC
-set_target_properties(ck_host PROPERTIES LINKER_LANGUAGE CXX)
+set_target_properties(ck_host PROPERTIES 
+    LINKER_LANGUAGE CXX
+    POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(ck_host PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
