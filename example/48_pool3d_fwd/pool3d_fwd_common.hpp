@@ -33,7 +33,7 @@ std::vector<ck::index_t> f_tensor_strides_ncdhw(ck::index_t N_,
     else if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NDHWC>::value)
         return {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_};
     throw std::runtime_error("Pool3d_fwd: problem with layout. ");
-    return 0;
+    return {0, 0, 0, 0, 0};
 };
 
 template <typename TensorLayout>
