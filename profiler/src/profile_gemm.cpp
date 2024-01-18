@@ -42,12 +42,15 @@ static void print_helper_msg()
               << "arg6: print tensor value (0: no; 1: yes)\n"
               << "arg7: time kernel (0: no, 1: yes)\n"
               << "arg8 to 13: M, N, K, StrideA, StrideB, StrideC\n"
+              << "optional:\n"
+              << "arg14: number of warm-up cycles (default 1)\n"
+              << "arg15: number of iterations (default 10)\n"
               << std::endl;
 }
 
 int profile_gemm(int argc, char* argv[])
 {
-    if(argc != 14)
+    if(argc != 14 && argc != 16)
     {
         print_helper_msg();
         exit(1);
@@ -68,6 +71,13 @@ int profile_gemm(int argc, char* argv[])
     const int StrideB = std::stoi(argv[12]);
     const int StrideC = std::stoi(argv[13]);
 
+    int n_warmup = 1;
+    int n_iter   = 10;
+    if(argc == 16)
+    {
+        n_warmup = std::stoi(argv[14]);
+        n_iter   = std::stoi(argv[15]);
+    }
     using F32 = float;
     using F16 = ck::half_t;
 #ifdef CK_ENABLE_BF16
@@ -120,7 +130,9 @@ int profile_gemm(int argc, char* argv[])
                                                        K,
                                                        (StrideA < 0) ? DefaultStrideA : StrideA,
                                                        (StrideB < 0) ? DefaultStrideB : StrideB,
-                                                       (StrideC < 0) ? DefaultStrideC : StrideC);
+                                                       (StrideC < 0) ? DefaultStrideC : StrideC,
+                                                       n_warmup,
+                                                       n_iter);
 
         return pass ? 0 : 1;
     };

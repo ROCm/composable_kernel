@@ -42,7 +42,9 @@ int profile_gemm_impl(int do_verification,
                       int K,
                       int StrideA,
                       int StrideB,
-                      int StrideC)
+                      int StrideC,
+                      int n_warmup,
+                      int n_iter)
 {
     bool pass = true;
 
@@ -165,8 +167,8 @@ int profile_gemm_impl(int do_verification,
 
             std::string op_name = op_ptr->GetTypeString();
 
-            float avg_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, 10, 50});
+            float avg_time = invoker_ptr->Run(
+                argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
 
             std::size_t flop = std::size_t(2) * M * N * K;
 

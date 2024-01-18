@@ -42,7 +42,9 @@ bool profile_gemm_splitk_impl(int do_verification,
                               int StrideA,
                               int StrideB,
                               int StrideC,
-                              int KBatch)
+                              int KBatch,
+                              int n_warmup,
+                              int n_iter)
 {
     bool pass = true;
 
@@ -177,7 +179,8 @@ bool profile_gemm_splitk_impl(int do_verification,
                 // re-init C to zero before profiling next kernel
                 c_device_buf.SetZero();
 
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
+                invoker_ptr->Run(argument_ptr.get(),
+                                 StreamConfig{nullptr, false, 0, n_warmup, n_iter});
 
                 if(do_verification)
                 {
@@ -200,8 +203,8 @@ bool profile_gemm_splitk_impl(int do_verification,
 
                 std::string op_name = op_ptr->GetTypeString();
 
-                float ave_time =
-                    invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+                float ave_time = invoker_ptr->Run(
+                    argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
 
                 std::size_t flop = std::size_t(2) * M * N * K;
 
