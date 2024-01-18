@@ -107,12 +107,13 @@ struct check_all
     rtc::buffer<T> data{};
     bool operator()(const rtc::buffer<T>& x)
     {
-        // Check for nans or all zeros
         if(data.empty())
         {
             data = x;
             return true;
         }
+        if(std::any_of(x.begin(), x.end(), [](auto y) { return std::isnan(y); }))
+            return false;
         return allclose(data, x);
     }
 };
