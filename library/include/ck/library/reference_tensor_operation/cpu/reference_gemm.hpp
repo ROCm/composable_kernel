@@ -63,8 +63,8 @@ struct ReferenceGemm : public device::BaseOperator
                 const int K = arg.a_m_k_.mDesc.GetLengths()[1];
 
                 AccDataType v_acc = 0;
-                ComputeTypeA v_a = 0;
-                ComputeTypeB v_b = 0;
+                ComputeTypeA v_a  = 0;
+                ComputeTypeB v_b  = 0;
 
                 for(int k = 0; k < K; ++k)
                 {
