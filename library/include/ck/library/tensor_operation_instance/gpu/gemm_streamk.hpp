@@ -114,9 +114,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmSt
         return op_ptrs;
     }
 };
-
+#endif
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

@@ -137,8 +137,6 @@ int profile_gemm(int argc, char* argv[])
         return pass ? 0 : 1;
     };
 
-    if(false)
-        ;
 #ifdef CK_ENABLE_FP32
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
