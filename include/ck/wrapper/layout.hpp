@@ -416,17 +416,24 @@ struct Layout
     }
 
     /**
-     * \brief Get merged nests descriptor (with the same size as Shape)
+     * \brief Get descriptor with all nested dimensions merged.
+     * Example, shape: ((2, 2), 2)
+     * Descriptor lengths: (4, 2)
+     *
+     * \note The size of merged descriptor is the same as Layout's shape.
      *
      * \return Merged nests descriptor.
      */
-    __host__ __device__ constexpr const MergedNestsDescriptorType& GetMergedNestsDescriptor() const
+    __host__ __device__ constexpr const MergedNestsDescriptorType&
+    GetMergedNestingDescriptor() const
     {
         return merged_nests_descriptor_;
     }
 
     /**
-     * \brief Get 1D descriptor (all dims are merged).
+     * \brief Get descriptor with all dimensions are merged (1D).
+     * Example, shape: ((2, 2), 2)
+     * Descriptor lengths: (8)
      *
      * \return 1D descriptor.
      */
@@ -437,8 +444,10 @@ struct Layout
 
     /**
      * \brief Get unnested descriptor (with unrolled dims)
+     * Example, shape: ((2, 2), 2)
+     * Descriptor lengths: (2, 2, 2)
      *
-     * \return Flatten descriptor.
+     * \return Flattened descriptor.
      */
     __host__ __device__ constexpr const UnrolledDescriptorType& GetUnrolledDescriptor() const
     {
@@ -450,7 +459,7 @@ struct Layout
     UnrolledDescriptorType unrolled_descriptor_;
     // 1D descriptor
     Descriptor1dType descriptor_1d_;
-    // All nests are merged
+    // All nesting are merged
     MergedNestsDescriptorType merged_nests_descriptor_;
     // Example, shape: ((2, 2), 2)
     // UnrolledDescriptorType lengths: (2, 2, 2)

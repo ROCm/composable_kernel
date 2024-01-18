@@ -274,7 +274,7 @@ struct Tensor
     }
 
     /**
-     * \brief Getter for the const value.
+     * \brief Getter of the tensor's const value reference.
      *
      * \param idx Tuple of indices.
      * \return Requested value.
@@ -352,13 +352,13 @@ struct Tensor
     }
 
     /**
-     * \brief Get default layout descriptor.
+     * \brief Get descriptor with all nested dimensions merged.
      *
-     * \return Default layout descriptor.
+     * \return Merged nests descriptor.
      */
-    __host__ __device__ constexpr auto GetMergedNestsDescriptor()
+    __host__ __device__ constexpr auto GetMergedNestingDescriptor()
     {
-        return layout_.GetMergedNestsDescriptor();
+        return layout_.GetMergedNestingDescriptor();
     }
 
     /**
@@ -384,7 +384,7 @@ struct Tensor
      * \param multi_idx_offset Multi index offset.
      */
     template <typename MultiIdxOffsets>
-    __host__ __device__ constexpr void ShiftMultiIdxOffset(const MultiIdxOffsets multi_idx_offset)
+    __host__ __device__ constexpr void SetMultiIdxOffset(const MultiIdxOffsets multi_idx_offset)
     {
         multi_idx_offset_ = multi_idx_offset;
         base_offset_ += layout_(multi_idx_offset);
@@ -406,10 +406,10 @@ struct Tensor
     Buffer buffer_;
     // We use multi_idx_offset_ to enable the creation of a descriptor in
     // compile time for partitions or tiles if tile shape and thread layout
-    // is known compile time (We can use the same descriptor for each thread).
-    // Additionally, the copy between the static and dynamic buffer requires
-    // a descriptor known at compile time, so we can shift data using such
-    // multi_idx_offset_.
+    // is known at compile time (We can use the same descriptor for each
+    // thread). Additionally, the copy between the static and dynamic buffer
+    // requires a descriptor known at compile time, so we can shift data using
+    // such multi_idx_offset_.
     MultiIndex<Shape::Size()> multi_idx_offset_;
     // Base offset and multi index offset are corresponding to exactly the
     // same element in tensor ( and in physical memory ). Multi index offset
