@@ -164,10 +164,6 @@ void add_device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances(
     add_device_operation_instances(
         instances, device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances<GemmMNKPadding>{});
 
-    add_device_operation_instances(
-        instances,
-        device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_irregular_instances<GemmMNKPadding>{});
-
     add_device_operation_instances(instances,
                                    device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_irregular_instances<
                                        GemmDefault,
