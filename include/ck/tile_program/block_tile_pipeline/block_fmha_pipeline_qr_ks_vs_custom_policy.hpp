@@ -686,7 +686,7 @@ struct BlockFmhaPipelineQRKSVSCustomPolicy
                                      TileGemmShape<Problem::BlockFmhaShape::kM0,
                                                    Problem::BlockFmhaShape::kN0,
                                                    Problem::BlockFmhaShape::kK0>>;
-        
+
         constexpr auto warp_gemm = []() {
             if constexpr(is_same_v<typename Problem::QDataType, half_t> &&
                          is_same_v<typename Problem::KDataType, half_t> &&

@@ -314,7 +314,7 @@ struct BlockFmhaPipelineQKVS
             });
         });
 
-        return o_acc;
+        return ck::make_tuple(o_acc, m, l);
     }
 
     template <typename QDramBlockWindowTmp,

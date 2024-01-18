@@ -17,6 +17,7 @@ template <typename QDataType_,
           typename SaccDataType_,
           typename SMPLComputeDataType_,
           typename BiasDataType_,
+          typename LSEDataType_,
           typename PDataType_,
           typename OaccDataType_,
           typename ODataType_,
@@ -33,6 +34,7 @@ struct BlockFmhaPipelineProblem
     using SaccDataType        = remove_cvref_t<SaccDataType_>;
     using SMPLComputeDataType = remove_cvref_t<SMPLComputeDataType_>;
     using BiasDataType        = remove_cvref_t<BiasDataType_>;
+    using LSEDataType         = remove_cvref_t<LSEDataType_>;
     using PDataType           = remove_cvref_t<PDataType_>;
     using OaccDataType        = remove_cvref_t<OaccDataType_>;
     using ODataType           = remove_cvref_t<ODataType_>;
@@ -51,6 +53,7 @@ struct BlockFmhaPipelineProblem
     static constexpr bool kN0K1NeedPadding = Traits::kN0K1NeedPadding;
     static constexpr bool kK0N1NeedPadding = Traits::kK0N1NeedPadding;
     static constexpr bool kHasBias         = Traits::kHasBias;
+    static constexpr bool kStoreLSE        = Traits::kStoreLSE;
     static constexpr index_t kBlockPerCu   = Traits::kBlockPerCu;
 };
 

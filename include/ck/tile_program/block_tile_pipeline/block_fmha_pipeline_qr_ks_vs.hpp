@@ -33,6 +33,7 @@ struct BlockFmhaPipelineQRKSVS
     using SaccDataType        = remove_cvref_t<typename Problem::SaccDataType>;
     using SMPLComputeDataType = remove_cvref_t<typename Problem::SMPLComputeDataType>;
     using BiasDataType        = remove_cvref_t<typename Problem::BiasDataType>;
+    using LSEDataType         = remove_cvref_t<typename Problem::LSEDataType>;
     using PDataType           = remove_cvref_t<typename Problem::PDataType>;
     using OaccDataType        = remove_cvref_t<typename Problem::OaccDataType>;
     using ODataType           = remove_cvref_t<typename Problem::ODataType>;
@@ -57,6 +58,7 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr bool kN0K1NeedPadding = Problem::kN0K1NeedPadding;
     static constexpr bool kK0N1NeedPadding = Problem::kK0N1NeedPadding;
     static constexpr bool kHasBias         = Problem::kHasBias;
+    static constexpr bool kStoreLSE        = Problem::kStoreLSE;
 
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
@@ -67,10 +69,12 @@ struct BlockFmhaPipelineQRKSVS
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
+              typename LSEDramBlockWindowTmp,
               typename QElementFunction,
               typename KElementFunction,
               typename VElementFunction,
-              typename BiasElementFunction>
+              typename BiasElementFunction,
+              typename LSEElementFunction>
     __host__ __device__ auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
@@ -80,6 +84,8 @@ struct BlockFmhaPipelineQRKSVS
                const VElementFunction& v_element_func,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                const BiasElementFunction& bias_element_func,
+               LSEDramBlockWindowTmp& lse_dram_window_tmp, // M0*1 tile
+               const LSEElementFunction& lse_element_func,
                FmhaMask mask,
                float scale,
                void* smem_ptr) const
@@ -432,6 +438,31 @@ struct BlockFmhaPipelineQRKSVS
             }
         } while(++i_total_loops < num_total_loop);
 
+        // store lse
+        if constexpr(kStoreLSE)
+        {
+            auto lse = make_static_distributed_tensor<LSEDataType>(m.GetTileDistribution());
+
+            constexpr auto lse_spans = decltype(lse)::GetDistributedSpans();
+            sweep_tile_span(lse_spans[Number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+#if CK_FMHA_FWD_FAST_EXP2
+                if constexpr(is_null_tile_window(bias_dram_window))
+                {
+                    lse(i_idx) = m_[i_idx] * scale / C_LOG2E + math::log(l_[i_idx]);
+                }
+                else
+                {
+                    lse(i_idx) = m_[i_idx] / C_LOG2E + math::log(l_[i_idx]);
+                }
+#else
+                lse(i_idx) = m_[i_idx] + math::log(l_[i_idx]);
+#endif
+            });
+
+            store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
+        }
+
         // finally, O
         constexpr auto o_spans = decltype(o_acc)::GetDistributedSpans();
 
@@ -457,12 +488,14 @@ struct BlockFmhaPipelineQRKSVS
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
-              typename BiasDramBlockWindowTmp>
+              typename BiasDramBlockWindowTmp,
+              typename LSEDramBlockWindowTmp>
     __host__ __device__ auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
+               LSEDramBlockWindowTmp& lse_dram_block_window_tmp,         // M0*1 tile
                FmhaMask mask,
                float scale,
                void* smem_ptr) const
@@ -474,6 +507,8 @@ struct BlockFmhaPipelineQRKSVS
                           v_dram_block_window_tmp,
                           identity{},
                           bias_dram_block_window_tmp,
+                          identity{},
+                          lse_dram_block_window_tmp,
                           identity{},
                           mask,
                           scale,

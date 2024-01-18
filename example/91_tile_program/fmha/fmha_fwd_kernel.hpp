@@ -28,6 +28,7 @@ struct FmhaFwdKernel
     using KDataType    = ck::remove_cvref_t<typename FmhaPipeline::KDataType>;
     using VDataType    = ck::remove_cvref_t<typename FmhaPipeline::VDataType>;
     using BiasDataType = ck::remove_cvref_t<typename FmhaPipeline::BiasDataType>;
+    using LSEDataType  = ck::remove_cvref_t<typename FmhaPipeline::LSEDataType>;
     using ODataType    = ck::remove_cvref_t<typename FmhaPipeline::ODataType>;
 
     using VLayout = ck::remove_cvref_t<typename FmhaPipeline::VLayout>;
@@ -37,6 +38,7 @@ struct FmhaFwdKernel
     static constexpr bool kN0K1NeedPadding = FmhaPipeline::kN0K1NeedPadding;
     static constexpr bool kK0N1NeedPadding = FmhaPipeline::kK0N1NeedPadding;
     static constexpr bool kHasBias         = FmhaPipeline::kHasBias;
+    static constexpr bool kStoreLSE        = FmhaPipeline::kStoreLSE;
     using FmhaMask                         = ck::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask         = FmhaMask::IsMasking;
 
@@ -93,10 +95,22 @@ struct FmhaFwdKernel
         ck::index_t mask_y, mask_x;
     };
 
+    struct FmhaFwdCommonLSEKargs
+    {
+        void* lse_ptr                = nullptr;
+        ck::index_t nhead_stride_lse = 0;
+    };
+
+    struct FmhaFwdBatchModeLSEKargs : FmhaFwdCommonLSEKargs
+    {
+        ck::index_t batch_stride_lse = 0;
+    };
+
     struct FmhaFwdBatchModeKargs
         : FmhaFwdCommonKargs,
           std::conditional_t<kHasBias, FmhaFwdBatchModeBiasKargs, FmhaFwdEmptyKargs<0>>,
-          std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>
+          std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
+          std::conditional_t<kStoreLSE, FmhaFwdBatchModeLSEKargs, FmhaFwdEmptyKargs<2>>
     {
         ck::index_t batch_stride_q;
         ck::index_t batch_stride_k;
@@ -107,7 +121,8 @@ struct FmhaFwdKernel
     struct FmhaFwdGroupModeKargs
         : FmhaFwdCommonKargs,
           std::conditional_t<kHasBias, FmhaFwdCommonBiasKargs, FmhaFwdEmptyKargs<0>>,
-          std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>
+          std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
+          std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
@@ -121,6 +136,7 @@ struct FmhaFwdKernel
                                                                       const void* k_ptr,
                                                                       const void* v_ptr,
                                                                       const void* bias_ptr,
+                                                                      void* lse_ptr,
                                                                       void* o_ptr,
                                                                       ck::index_t seqlen_q,
                                                                       ck::index_t seqlen_k,
@@ -137,11 +153,13 @@ struct FmhaFwdKernel
                                                                       ck::index_t nhead_stride_k,
                                                                       ck::index_t nhead_stride_v,
                                                                       ck::index_t nhead_stride_bias,
+                                                                      ck::index_t nhead_stride_lse,
                                                                       ck::index_t nhead_stride_o,
                                                                       ck::index_t batch_stride_q,
                                                                       ck::index_t batch_stride_k,
                                                                       ck::index_t batch_stride_v,
                                                                       ck::index_t batch_stride_bias,
+                                                                      ck::index_t batch_stride_lse,
                                                                       ck::index_t batch_stride_o,
                                                                       ck::index_t mask_y,
                                                                       ck::index_t mask_x)
@@ -170,6 +188,7 @@ struct FmhaFwdKernel
                      nhead_stride_o}, // args for common karg
                     {},               // placeholder for bias
                     {},               // placeholder for mask
+                    {},               // placeholder for lse
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v,
@@ -188,6 +207,12 @@ struct FmhaFwdKernel
             kargs.mask_y = mask_y;
             kargs.mask_x = mask_x;
         }
+        if constexpr(kStoreLSE)
+        {
+            kargs.lse_ptr          = lse_ptr;
+            kargs.nhead_stride_lse = nhead_stride_lse;
+            kargs.batch_stride_lse = batch_stride_lse;
+        }
 
         return kargs;
     }
@@ -197,6 +222,7 @@ struct FmhaFwdKernel
                                                                       const void* k_ptr,
                                                                       const void* v_ptr,
                                                                       const void* bias_ptr,
+                                                                      void* lse_ptr,
                                                                       void* o_ptr,
                                                                       const void* seqstart_q_ptr,
                                                                       const void* seqstart_k_ptr,
@@ -214,6 +240,7 @@ struct FmhaFwdKernel
                                                                       ck::index_t nhead_stride_k,
                                                                       ck::index_t nhead_stride_v,
                                                                       ck::index_t nhead_stride_bias,
+                                                                      ck::index_t nhead_stride_lse,
                                                                       ck::index_t nhead_stride_o,
                                                                       ck::index_t mask_y,
                                                                       ck::index_t mask_x)
@@ -242,6 +269,7 @@ struct FmhaFwdKernel
                      nhead_stride_o}, // args for common karg
                     {},               // placeholder for bias
                     {},               // placeholder for mask
+                    {},               // placeholder for lse
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
@@ -256,6 +284,11 @@ struct FmhaFwdKernel
         {
             kargs.mask_y = mask_y;
             kargs.mask_x = mask_x;
+        }
+        if constexpr(kStoreLSE)
+        {
+            kargs.lse_ptr          = lse_ptr;
+            kargs.nhead_stride_lse = nhead_stride_lse;
         }
 
         return kargs;
@@ -296,6 +329,7 @@ struct FmhaFwdKernel
         long_index_t batch_offset_k    = 0;
         long_index_t batch_offset_v    = 0;
         long_index_t batch_offset_bias = 0;
+        long_index_t batch_offset_lse  = 0;
         long_index_t batch_offset_o    = 0;
 
         if constexpr(kIsGroupMode)
@@ -321,6 +355,10 @@ struct FmhaFwdKernel
             else
             {
                 batch_offset_bias = key_start;
+            }
+            if constexpr(kStoreLSE)
+            {
+                batch_offset_lse = query_start;
             }
             batch_offset_o = query_start * kargs.stride_o;
 
@@ -353,6 +391,10 @@ struct FmhaFwdKernel
             if constexpr(kHasBias)
             {
                 batch_offset_bias = static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;
+            }
+            if constexpr(kStoreLSE)
+            {
+                batch_offset_lse = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse;
             }
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
         }
@@ -542,6 +584,35 @@ struct FmhaFwdKernel
             }
         }();
 
+        // lse
+        auto lse_dram_window = [&, i_nhead_ = i_nhead]() {
+            constexpr auto lse_dram_window_lengths = make_tuple(Number<FmhaPipeline::kM0>{});
+            if constexpr(kStoreLSE)
+            {
+                LSEDataType* lse_ptr =
+                    reinterpret_cast<LSEDataType*>(kargs.lse_ptr) +
+                    static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_lse + batch_offset_lse;
+
+                const auto lse_dram = [&]() {
+                    const auto lse_dram_naive =
+                        make_naive_tensor_view<AddressSpaceEnum::Global>(lse_ptr,
+                                                                         make_tuple(kargs.seqlen_q),
+                                                                         make_tuple(1),
+                                                                         Number<1>{},
+                                                                         Number<1>{});
+
+                    return pad_tensor_view(
+                        lse_dram_naive, lse_dram_window_lengths, Sequence<kM0NeedPadding>{});
+                }();
+
+                return make_tile_window(lse_dram, lse_dram_window_lengths, {i_m0});
+            }
+            else
+            {
+                return make_null_tile_window(lse_dram_window_lengths);
+            }
+        }();
+
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
                 return FmhaMask{kargs.mask_y, kargs.mask_x, kargs.seqlen_q, kargs.seqlen_k};
@@ -554,6 +625,7 @@ struct FmhaFwdKernel
                            k_dram_window,
                            v_dram_window,
                            bias_dram_window,
+                           lse_dram_window,
                            mask,
                            kargs.scale,
                            // ck::math::integer_divide_ceil(kargs.seqlen_k, FmhaPipeline::kN0),
