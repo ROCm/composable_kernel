@@ -30,6 +30,7 @@ auto fill(OutputRange&& range, const T& init)
     std::fill(std::begin(std::forward<OutputRange>(range)),
               std::end(std::forward<OutputRange>(range)),
               init);
+    return 0;
 }
 
 template <typename InputRange, typename OutputIterator, typename UnaryOperation>

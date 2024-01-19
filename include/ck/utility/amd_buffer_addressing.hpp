@@ -400,6 +400,11 @@ amd_buffer_load_impl_raw(int32x4_t src_wave_buffer_resource,
 
         return bit_cast<int8x64_t>(tmp);
     }
+    else
+    {
+        throw std::runtime_error("amd_buffer_load_impl_raw: wrong number of bits N. ");
+        return 1;
+    }
 }
 
 template <typename T,
