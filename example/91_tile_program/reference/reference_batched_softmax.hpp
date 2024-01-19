@@ -3,11 +3,15 @@
 
 #pragma once
 
+#include <optional>
 #include "ck/utility/common_header.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 
 template <typename ADataType, typename CompDataType, typename BDataType>
-void reference_batched_softmax(const Tensor<ADataType>& a_b_m_n, Tensor<BDataType>& b_b_m_n)
+void reference_batched_softmax(
+    const Tensor<ADataType>& a_b_m_n,
+    Tensor<BDataType>& b_b_m_n,
+    std::optional<std::reference_wrapper<Tensor<CompDataType>>> lse_b_m = std::nullopt)
 {
     const int N = a_b_m_n.mDesc.GetLengths()[2];
 
@@ -42,6 +46,11 @@ void reference_batched_softmax(const Tensor<ADataType>& a_b_m_n, Tensor<BDataTyp
 
             b_b_m_n(batch, m, n) =
                 ck::type_convert<BDataType>(ck::math::exp(v_a - v_max) * inv_sum);
+        }
+        // lse
+        if(lse_b_m)
+        {
+            lse_b_m->get()(batch, m) = v_max + ck::math::log(v_exp_sum);
         }
     };
 
