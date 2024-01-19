@@ -2,7 +2,21 @@
 
 Full documentation for Composable Kernel is not yet available.
 
-## (Unreleased) CK for ROCm 6.0.0
+## (Unreleased) CK
+
+### Fixes
+None
+
+### Optimizations
+None
+
+### Additions
+- Introduce wrapper sublibrary (limited functionality). (#1071, #1098, #1108, #1126)
+
+### Changes
+None
+
+## CK for ROCm 6.0.0
 
 ### Fixes
  - Fixed a hazard associated with inline v_dot (#808)
@@ -19,7 +33,6 @@ None
 - Support for NHWGC (2D and 3D) grouped convolution backward weight (#769 #804)
 - Support for bf16/f32/f16 and NHWGC (2D and 3D) grouped convolution backward data (#757 #799)
 - Support for Batched Gemm DL (#732)
-- Introduce wrapper sublibrary (limited functionality). (#1071, #1098, #1108)
 
 ### Changes
  - Changed the grouped convolution API to maintain consistency with other convolution kernels (#817)
