@@ -10,8 +10,8 @@ namespace tile_program {
 namespace block {
 
 // This pipeline is qkv all located in LDS
-using BlockFmhaPipelineQRKSVSDefaultPolicy =
-    BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
+using BlockFmhaPipelineQSKSVSDefaultPolicy =
+    BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ false,
                                         /* AsyncCopyK = */ false,
                                         /* AsyncCopyV = */ false,
                                         /* NumPrefetchK = */ 1,

@@ -28,7 +28,7 @@ LSE_MAP = {
     "store" : "true"
 }
 
-HDIMS = [32, 64, 128]
+HDIMS = [32, 64, 128, 256]
 MASKS = ["no", "causal", "generic"]
 DIRECTIONS = ["fwd"]
 GEN_DIR = ""
