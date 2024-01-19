@@ -177,6 +177,37 @@ struct BlockGemmASmemBSmemCRegV1
         });
     }
 
+    __device__ constexpr auto MakeCBlockTile() const
+    {
+        constexpr index_t MPerBlock = BlockGemmShape::kM;
+        constexpr index_t NPerBlock = BlockGemmShape::kN;
+
+        constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+
+        using WG = remove_cvref_t<decltype(config.template At<0>())>;
+
+        constexpr index_t MWarp = config.template At<1>();
+        constexpr index_t NWarp = config.template At<2>();
+
+        constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
+        constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WG::kN);
+        // constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
+
+        constexpr auto c_block_outer_dstr_encoding = StaticTileDistributionEncoding<
+            Sequence<>,
+            Tuple<Sequence<MIterPerWarp, MWarp>, Sequence<NIterPerWarp, NWarp>>,
+            Tuple<Sequence<1, 2>>,
+            Tuple<Sequence<1, 1>>,
+            Sequence<1, 2>,
+            Sequence<0, 0>>{};
+
+        constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
+        constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
+        auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
+        return c_block_tensor;
+    }
+
     // C = A * B
     template <typename ABlockWindowTmp, typename BBlockWindowTmp>
     __device__ auto operator()(const ABlockWindowTmp& a_block_window_tmp,

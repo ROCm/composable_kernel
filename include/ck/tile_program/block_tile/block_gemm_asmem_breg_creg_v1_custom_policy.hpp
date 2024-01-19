@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,20 +11,18 @@
 #include "ck/tile_program/tile/tile_distribution.hpp"
 #include "ck/tile_program/tile/tile_elementwise.hpp"
 #include "ck/tile_program/tile/tile_gemm_shape.hpp"
-#include "ck/tile_program/warp_tile/warp_gemm_dispatcher.hpp"
+#include "ck/tile_program/warp_tile/warp_gemm.hpp"
 
 namespace ck {
 namespace tile_program {
 namespace block {
 
-// Default policy for BlockGemmASmemBSmemCRegV1
-// Default policy class should not be templated, put template on member functions instead
 template <typename AType_,
           typename BType_,
           typename CType_,
           typename BlockWarps_,
           typename WarpGemm_>
-struct BlockGemmASmemBSmemCRegV1CustomPolicy
+struct BlockGemmASmemBRegCRegV1CustomPolicy
 {
     using AType = remove_cvref_t<AType_>;
     using BType = remove_cvref_t<BType_>;

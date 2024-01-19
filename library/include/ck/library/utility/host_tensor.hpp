@@ -449,6 +449,34 @@ struct Tensor
         return mData[mDesc.GetOffsetFromMultiIndex(idx)];
     }
 
+    Tensor<T> Transpose(std::vector<size_t> axes = {}) const
+    {
+        if(axes.empty())
+        {
+            axes.resize(this->GetNumOfDimension());
+            std::iota(axes.rbegin(), axes.rend(), 0);
+        }
+        if(axes.size() != mDesc.GetNumOfDimension())
+        {
+            throw std::runtime_error(
+                "Tensor::Transpose(): size of axes must match tensor dimension");
+        }
+        std::vector<size_t> tlengths, tstrides;
+        for(const auto& axis : axes)
+        {
+            tlengths.push_back(GetLengths()[axis]);
+            tstrides.push_back(GetStrides()[axis]);
+        }
+        Tensor<T> ret(*this);
+        ret.mDesc = HostTensorDescriptor(tlengths, tstrides);
+        return ret;
+    }
+
+    Tensor<T> Transpose(std::vector<size_t> axes = {})
+    {
+        return const_cast<Tensor<T> const*>(this)->Transpose(axes);
+    }
+
     typename Data::iterator begin() { return mData.begin(); }
 
     typename Data::iterator end() { return mData.end(); }
