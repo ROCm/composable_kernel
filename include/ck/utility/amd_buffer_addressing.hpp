@@ -402,7 +402,7 @@ amd_buffer_load_impl_raw(int32x4_t src_wave_buffer_resource,
     }
     else
     {
-        throw std::runtime_error("amd_buffer_load_impl_raw: wrong number of bits N. ");
+        std::cout << "amd_buffer_load_impl_raw: wrong number of bits N. \n";
         return 1;
     }
 }
@@ -525,6 +525,11 @@ amd_buffer_store_impl_raw(const typename vector_type<int8_t, N>::type src_thread
                                            dst_thread_addr_offset,
                                            dst_wave_addr_offset + sizeof(int32_t) * 12,
                                            static_cast<index_t>(coherence));
+    }
+    else
+    {
+        std::cout << "amd_buffer_store_impl_raw: wrong number of bits N. \n";
+        return 1;
     }
 }
 
