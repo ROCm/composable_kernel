@@ -492,7 +492,7 @@ bool run(const ArgParser& arg_parser)
             reference_batched_masking<AccDataType>(s_host_ref,
                 FmhaMasks::CausalMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
         }
-        reference_batched_softmax<AccDataType, AccDataType, AccDataType, LSEDataType>(s_host_ref, p_hp_host_ref, lse_host_ref);
+        reference_batched_softmax<AccDataType, LSEDataType, AccDataType>(s_host_ref, p_hp_host_ref, lse_host_ref);
 
         p_hp_host_ref.ForEach(
             [&](auto& self, auto idx) { p_lp_host_ref(idx) = ck::type_convert<GemmDataType>(self(idx)); });
