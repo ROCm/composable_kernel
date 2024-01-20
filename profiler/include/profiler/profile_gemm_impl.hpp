@@ -298,7 +298,7 @@ int profile_gemm_impl(int do_verification,
         }
     }
 
-    return pass ? 0 : 1;
+    return pass;
 }
 
 } // namespace profiler
