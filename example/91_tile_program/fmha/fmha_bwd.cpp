@@ -373,7 +373,20 @@ bool run(const ArgParser& arg_parser)
               << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
               << ", mask:" << mask << ", v:" << std::string(VLayout::name)[0] << std::flush;
 
-#define INVOKE_FMHA_KERNEL(hdim_)                                                                \
+#define INVOKE_FMHA_OGradDotO_KERNEL(hdim_)                                               \
+    fmha_bwd_dot_do_o_kernel_invoker<hdim_, DataType>{mode}(stream_config,                \
+                                                            o_buf.GetDeviceBuffer(),      \
+                                                            do_buf.GetDeviceBuffer(),     \
+                                                            d_buf.GetDeviceBuffer(),      \
+                                                            seqstart_q.GetDeviceBuffer(), \
+                                                            batch,                        \
+                                                            nhead,                        \
+                                                            shape_seqlen_q,               \
+                                                            hdim_v,                       \
+                                                            max_seqlen_q,                 \
+                                                            o_perm)
+
+#define INVOKE_FMHA_BWD_KERNEL(hdim_)                                                            \
     fmha_bwd_kernel_invoker<hdim_, DataType>{mode, use_bias, mask}(stream_config,                \
                                                                    q_buf.GetDeviceBuffer(),      \
                                                                    k_buf.GetDeviceBuffer(),      \
@@ -412,15 +425,18 @@ bool run(const ArgParser& arg_parser)
 
     if(check_hdims(hdim_q, hdim_v, 32))
     {
-        ave_time = INVOKE_FMHA_KERNEL(32);
+        ave_time = INVOKE_FMHA_OGradDotO_KERNEL(32);
+        ave_time += INVOKE_FMHA_BWD_KERNEL(32);
     }
     else if(check_hdims(hdim_q, hdim_v, 64))
     {
-        ave_time = INVOKE_FMHA_KERNEL(64);
+        ave_time = INVOKE_FMHA_OGradDotO_KERNEL(64);
+        ave_time += INVOKE_FMHA_BWD_KERNEL(64);
     }
     else if(check_hdims(hdim_q, hdim_v, 128))
     {
-        ave_time = INVOKE_FMHA_KERNEL(128);
+        ave_time = INVOKE_FMHA_OGradDotO_KERNEL(128);
+        ave_time += INVOKE_FMHA_BWD_KERNEL(128);
     }
     else
     {
@@ -547,15 +563,18 @@ bool run(const ArgParser& arg_parser)
 
     if(check_hdims(hdim_q, hdim_v, 32))
     {
-        INVOKE_FMHA_KERNEL(32);
+        INVOKE_FMHA_OGradDotO_KERNEL(32);
+        INVOKE_FMHA_BWD_KERNEL(32);
     }
     else if(check_hdims(hdim_q, hdim_v, 64))
     {
-        INVOKE_FMHA_KERNEL(64);
+        INVOKE_FMHA_OGradDotO_KERNEL(64);
+        INVOKE_FMHA_BWD_KERNEL(64);
     }
     else if(check_hdims(hdim_q, hdim_v, 128))
     {
-        INVOKE_FMHA_KERNEL(128);
+        INVOKE_FMHA_OGradDotO_KERNEL(128);
+        INVOKE_FMHA_BWD_KERNEL(128);
     }
 
     dq_buf.FromDevice(dq_host.data());
