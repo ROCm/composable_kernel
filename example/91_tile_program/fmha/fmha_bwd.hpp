@@ -219,16 +219,27 @@ using FmhaBwdKernelSelector =
                   FmhaPipeline<HDim, DataType, kIsGroupMode, FmhaMask, kHasBias>,
                   FmhaEpilogue<DataType>>;
 
-using FmhaOGradDotOTilePartitioner = FmhaBwdOGradDotOTilePartitioner</* BlockSize = */ 256>;
+using FmhaOGradDotOTraits =
+    ck::tile_program::TileFmhaOGradDotOTraits<kM0NeedPadding, kK0N1NeedPadding>;
 
-template <ck::index_t HDim, typename DataType, bool kIsGroupMode, typename FmhaMask, bool kHasBias>
+template <ck::index_t HDim, typename DataType, bool kIsGroupMode>
+using FmhaOGradDotOPipelineProblem = ck::tile_program::block::BlockFmhaBwdOGradDotOPipelineProblem<
+    typename FmhaBwdTypeConfig<DataType>::ODataType,
+    typename FmhaBwdTypeConfig<DataType>::OGradDataType,
+    typename FmhaBwdTypeConfig<DataType>::DDataType,
+    /* BlockSize = */ 256,
+    typename FmhaShape<HDim>::kVHeaddim,
+    kIsGroupMode,
+    FmhaOGradDotOTraits>;
+
+template <ck::index_t HDim, typename DataType, bool kIsGroupMode>
 using FmhaBwdOGradDotO = ck::tile_program::block::BlockFmhaBwdOGradDotO<
-    FmhaPipelineProblem<HDim, DataType, kIsGroupMode, FmhaMask, kHasBias>>;
+    FmhaOGradDotOPipelineProblem<HDim, DataType, kIsGroupMode>>;
 
-template <ck::index_t HDim, typename DataType, bool kIsGroupMode, typename FmhaMask, bool kHasBias>
+template <ck::index_t HDim, typename DataType, bool kIsGroupMode>
 using FmhaBwdOGradDotOKernelSelector =
-    FmhaBwdOGradDotOKernel<FmhaOGradDotOTilePartitioner,
-                           FmhaBwdOGradDotO<HDim, DataType, kIsGroupMode, FmhaMask, kHasBias>>;
+    FmhaBwdOGradDotOKernel<FmhaBwdOGradDotOTilePartitioner</* BlockSize = */ 256>,
+                           FmhaBwdOGradDotO<HDim, DataType, kIsGroupMode>>;
 
 // Kernel API
 template <typename FmhaKernel>

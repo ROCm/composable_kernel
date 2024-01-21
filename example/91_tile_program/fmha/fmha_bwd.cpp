@@ -70,6 +70,32 @@ auto create_args(int argc, char* argv[])
 }
 
 template <ck::index_t HDim_, typename DataType_>
+struct fmha_bwd_dot_do_o_kernel_invoker
+{
+    static constexpr ck::index_t HDim = HDim_;
+    using DataType                    = DataType_;
+    // this arg is used to select kernel.
+    // args that may passed as karg shoule use operator()
+    mode_enum mode;
+
+    fmha_bwd_dot_do_o_kernel_invoker(mode_enum mode_) : mode(mode_) {}
+
+    template <typename... Args>
+    float operator()(const StreamConfig& stream, Args&&... args)
+    {
+        float ave_time;
+        BOOL_SWITCH(mode == mode_enum::group, kIsGroupMode, [&] {
+            using Kernel = FmhaBwdOGradDotOKernelSelector<HDim, DataType, kIsGroupMode>;
+
+            auto [kargs, grids] =
+                fmha_bwd_dot_do_o_create_kargs_and_grids<Kernel>(std::forward<Args>(args)...);
+            ave_time = fmha_bwd_dot_do_o_run<Kernel>(stream, kargs, grids);
+        });
+        return ave_time;
+    }
+};
+
+template <ck::index_t HDim_, typename DataType_>
 struct fmha_bwd_kernel_invoker
 {
     static constexpr ck::index_t HDim = HDim_;

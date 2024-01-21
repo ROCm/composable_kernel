@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -109,6 +109,33 @@ struct BlockFmhaBwdPipelineProblem
     static constexpr bool kN0K1NeedPadding = Traits::kN0K1NeedPadding;
     static constexpr bool kK0N1NeedPadding = Traits::kK0N1NeedPadding;
     static constexpr bool kHasBias         = Traits::kHasBias;
+    static constexpr index_t kBlockPerCu   = Traits::kBlockPerCu;
+};
+
+template <typename ODataType_,
+          typename OGradDataType_,
+          typename DDataType_,
+          index_t kBlockSize_,
+          index_t kVHeaddim_,
+          bool kIsGroupMode_,
+          typename Traits_>
+struct BlockFmhaBwdOGradDotOPipelineProblem
+{
+    using ODataType     = remove_cvref_t<ODataType_>;
+    using OGradDataType = remove_cvref_t<OGradDataType_>;
+    using DDataType     = remove_cvref_t<DDataType_>;
+    using Traits        = remove_cvref_t<Traits_>;
+
+    static_assert(0 < kBlockSize_ && kBlockSize_ % get_warp_size() == 0,
+                  "kBlockSize should be divisible by get_warp_size()");
+
+    static constexpr index_t kBlockSize = kBlockSize_;
+    static constexpr index_t kVHeaddim  = kVHeaddim_;
+    static constexpr bool kIsGroupMode  = kIsGroupMode_;
+
+    // attributes from traits
+    static constexpr bool kM0NeedPadding   = Traits::kM0NeedPadding;
+    static constexpr bool kK0N1NeedPadding = Traits::kK0N1NeedPadding;
     static constexpr index_t kBlockPerCu   = Traits::kBlockPerCu;
 };
 

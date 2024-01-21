@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -30,10 +30,8 @@ struct BlockFmhaBwdOGradDotO
     using OGradDataType = remove_cvref_t<typename Problem::OGradDataType>;
     using DDataType     = remove_cvref_t<typename Problem::DDataType>;
 
-    using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
-
     static constexpr index_t kBlockSize = Problem::kBlockSize;
-    static constexpr index_t kVHeaddim  = BlockFmhaShape::kVHeaddim;
+    static constexpr index_t kVHeaddim  = Problem::kVHeaddim;
 
     __host__ __device__ static constexpr ck::index_t GetSmemSize() { return 0; }
 

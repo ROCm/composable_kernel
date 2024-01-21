@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -21,6 +21,16 @@ struct TileFmhaTraits
     static constexpr bool kK0N1NeedPadding = kK0N1NeedPadding_;
     static constexpr bool kHasBias         = kHasBias_;
     static constexpr bool kStoreLSE        = kStoreLSE_;
+    static constexpr index_t kBlockPerCu   = kBlockPerCu_;
+};
+
+template <bool kM0NeedPadding_ /* padding for seqlen_q */,
+          bool kK0N1NeedPadding_ /* paddding for hdim_q / hdim_v */,
+          index_t kBlockPerCu_ = 2 /* hint to occupancy */>
+struct TileFmhaOGradDotOTraits
+{
+    static constexpr bool kM0NeedPadding   = kM0NeedPadding_;
+    static constexpr bool kK0N1NeedPadding = kK0N1NeedPadding_;
     static constexpr index_t kBlockPerCu   = kBlockPerCu_;
 };
 

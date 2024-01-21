@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -184,7 +184,7 @@ struct GenericAttentionMask
 
     // if current tile is at the edge, means need per-pixel mask check.
     // otherwise no need to check per-pixel
-    // Attention! assume the idex passed in this function is with in range of GetTileRangeAlongX()
+    // Attention! assume the idex passed in this function is with in range of GetTileRangeAlongX/Y()
     // can be used as a fast-path to decide if do per-pixel check or not
     template <index_t YTile, index_t XTile>
     __host__ __device__ constexpr auto
