@@ -1,0 +1,317 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
+
+#include "../utils/tensor_utils.hpp"
+
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
+
+namespace ck {
+namespace wrapper {
+
+namespace {
+namespace detail {
+template <index_t K1, typename ATileLayout>
+__device__ constexpr auto GetABlockDescriptor_K0PerBlock_MPerBlock_K1()
+{
+    using TileLayoutShape      = typename ATileLayout::LayoutShape;
+    using TileLayoutDescriptor = typename ATileLayout::LayoutUnrolledDescriptorType;
+
+    constexpr auto K0PerBlock = Number<size<1>(TileLayoutShape{})>{} / Number<K1>{};
+    constexpr auto MPerBlock  = Number<size<0>(TileLayoutShape{})>{};
+
+    constexpr auto a_block_desc_k0_m_k1 = transform_tensor_descriptor(
+        TileLayoutDescriptor{},
+        make_tuple(make_unmerge_transform(make_tuple(K0PerBlock, Number<K1>{})),
+                   make_pass_through_transform(MPerBlock)),
+        make_tuple(Sequence<1>{}, Sequence<0>{}),
+        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+    return a_block_desc_k0_m_k1;
+}
+
+template <index_t K1, typename BTileLayout>
+__device__ constexpr auto GetBBlockDescriptor_K0PerBlock_NPerBlock_K1()
+{
+    using TileLayoutShape      = typename BTileLayout::LayoutShape;
+    using TileLayoutDescriptor = typename BTileLayout::LayoutUnrolledDescriptorType;
+
+    constexpr auto K0PerBlock = Number<size<0>(TileLayoutShape{})>{} / Number<K1>{};
+    constexpr auto NPerBlock  = Number<size<1>(TileLayoutShape{})>{};
+
+    constexpr auto b_block_desc_k0_n_k1 = transform_tensor_descriptor(
+        TileLayoutDescriptor{},
+        make_tuple(make_unmerge_transform(make_tuple(K0PerBlock, Number<K1>{})),
+                   make_pass_through_transform(NPerBlock)),
+        make_tuple(Sequence<0>{}, Sequence<1>{}),
+        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+    return b_block_desc_k0_n_k1;
+}
+
+} // namespace detail
+} // namespace
+
+/**
+ * \brief Perform blockwise gemm xdl.
+ *
+ *
+ * \tparam DataType Input data types.
+ * \tparam ATileLayout A tensor layout.
+ * \tparam BTileLayout B tensor layout.
+ * \tparam BlockSize Tensor to pad.
+ * \tparam MPerXDL M per Xdl.
+ * \tparam NPerXDL N per Xdl.
+ * \tparam MXdlPerWave M Xdl Per Wave
+ * \tparam NXdlPerWave N Xdl Per Wave
+ * \tparam K1 K1
+ * \param a_local_tile_tensor A tensor in LDS memory for blockwise gemm
+ * (MPerBlock, KPerBlock) layout.
+ * \param b_local_tile_tensor B tensor in LDS memory for blockwise gemm
+ * (KPerBlock, NPerBlock) layout.
+ * \param c_reg_tensor C tensor VGPR memory for blockwise gemm.
+ */
+template <typename DataType,
+          typename ATileLayout,
+          typename BTileLayout,
+          index_t BlockSize,
+          index_t MPerXDL,
+          index_t NPerXDL,
+          index_t MXdlPerWave,
+          index_t NXdlPerWave,
+          index_t K1,
+          typename ATensorType,
+          typename BTensorType,
+          typename CTensorType>
+__device__ void blockwise_gemm_xdl(const ATensorType& a_local_tile_tensor,
+                                   const BTensorType& b_local_tile_tensor,
+                                   CTensorType& c_reg_tensor)
+{
+    static_assert(ATensorType::TensorBufferAddressSpace == MemoryTypeEnum::Lds);
+    static_assert(BTensorType::TensorBufferAddressSpace == MemoryTypeEnum::Lds);
+    static_assert(CTensorType::TensorBufferAddressSpace == MemoryTypeEnum::Vgpr);
+    static_assert(is_same_v<DataType, typename ATensorType::TensorElementType>);
+    static_assert(is_same_v<DataType, typename BTensorType::TensorElementType>);
+
+    using GemmAccDataType = std::
+        conditional_t<is_same_v<typename ATensorType::TensorElementType, int8_t>, int32_t, float>;
+
+    using ABlockDesc_K0_M_K1_Type =
+        decltype(detail::GetABlockDescriptor_K0PerBlock_MPerBlock_K1<K1, ATileLayout>());
+    using BBlockDesc_K0_N_K1_Type =
+        decltype(detail::GetBBlockDescriptor_K0PerBlock_NPerBlock_K1<K1, BTileLayout>());
+
+    BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
+                                                        typename ATensorType::TensorElementType,
+                                                        typename BTensorType::TensorElementType,
+                                                        GemmAccDataType,
+                                                        ABlockDesc_K0_M_K1_Type,
+                                                        BBlockDesc_K0_N_K1_Type,
+                                                        MPerXDL,
+                                                        NPerXDL,
+                                                        MXdlPerWave,
+                                                        NXdlPerWave,
+                                                        K1>
+        blockwise_gemm_xdl_op{};
+
+    blockwise_gemm_xdl_op.Run(
+        a_local_tile_tensor.GetBuffer(), b_local_tile_tensor.GetBuffer(), c_reg_tensor.GetBuffer());
+}
+
+/**
+ * \brief Create local partition per thread for C tensor.
+ *
+ *
+ * \tparam DataType Input data types.
+ * \tparam ATileLayout A tensor layout.
+ * \tparam BTileLayout B tensor layout.
+ * \tparam BlockSize Tensor to pad.
+ * \tparam MPerXDL M per Xdl.
+ * \tparam NPerXDL N per Xdl.
+ * \tparam MXdlPerWave M Xdl Per Wave
+ * \tparam NXdlPerWave N Xdl Per Wave
+ * \tparam K1 K1
+ * \param c_local_tile_tensor C tensor in LDS memory for blockwise gemm
+ * (MPerBlock, NPerBlock) layout.
+ *
+ * \return Partition c tensor for blockwise gemm.
+ */
+template <typename DataType,
+          typename ATileLayout,
+          typename BTileLayout,
+          index_t BlockSize,
+          index_t MPerXDL,
+          index_t NPerXDL,
+          index_t MXdlPerWave,
+          index_t NXdlPerWave,
+          index_t K1,
+          typename CTensorType>
+__host__ __device__ constexpr auto
+make_blockwise_gemm_xdl_c_local_partition(CTensorType& c_local_tile_tensor)
+{
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+    constexpr auto I2 = Number<2>{};
+    constexpr auto I3 = Number<3>{};
+    constexpr auto I4 = Number<4>{};
+    constexpr auto I5 = Number<5>{};
+    constexpr auto I6 = Number<6>{};
+    constexpr auto I7 = Number<7>{};
+
+    using GemmAccDataType = std::conditional_t<is_same_v<DataType, int8_t>, int32_t, float>;
+
+    using ABlockDesc_K0_M_K1_Type =
+        decltype(detail::GetABlockDescriptor_K0PerBlock_MPerBlock_K1<K1, ATileLayout>());
+    using BBlockDesc_K0_N_K1_Type =
+        decltype(detail::GetBBlockDescriptor_K0PerBlock_NPerBlock_K1<K1, BTileLayout>());
+
+    using BlockwiseGemmXdlops =
+        BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
+                                                            DataType,
+                                                            DataType,
+                                                            GemmAccDataType,
+                                                            ABlockDesc_K0_M_K1_Type,
+                                                            BBlockDesc_K0_N_K1_Type,
+                                                            MPerXDL,
+                                                            NPerXDL,
+                                                            MXdlPerWave,
+                                                            NXdlPerWave,
+                                                            K1>;
+
+    constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
+        BlockwiseGemmXdlops::GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+    constexpr auto M0 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I0);
+    constexpr auto N0 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I1);
+    constexpr auto M1 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I2);
+    constexpr auto N1 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I3);
+    constexpr auto M2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I4);
+    constexpr auto M3 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I5);
+    constexpr auto M4 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I6);
+    constexpr auto N2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I7);
+
+    // Calculate offset on grid
+    const auto c_thread_mtx_on_block =
+        BlockwiseGemmXdlops::CalculateCThreadOriginDataIndex(I0, I0, I0, I0);
+
+    const index_t m_thread_data_on_grid =
+        c_local_tile_tensor.GetMultiIdxOffsets()[I0] + c_thread_mtx_on_block[I0];
+
+    const index_t n_thread_data_on_grid =
+        c_local_tile_tensor.GetMultiIdxOffsets()[I1] + c_thread_mtx_on_block[I1];
+
+    const auto m_thread_data_on_grid_to_m0_m1_m2_m3_m4_adaptor = make_single_stage_tensor_adaptor(
+        make_tuple(make_merge_transform(make_tuple(M0, M1, M2, M3, M4))),
+        make_tuple(Sequence<0, 1, 2, 3, 4>{}),
+        make_tuple(Sequence<0>{}));
+
+    const auto m_thread_data_on_grid_idx =
+        m_thread_data_on_grid_to_m0_m1_m2_m3_m4_adaptor.CalculateBottomIndex(
+            make_multi_index(m_thread_data_on_grid));
+
+    const auto n_thread_data_on_grid_to_n0_n1_n2_adaptor =
+        make_single_stage_tensor_adaptor(make_tuple(make_merge_transform(make_tuple(N0, N1, N2))),
+                                         make_tuple(Sequence<0, 1, 2>{}),
+                                         make_tuple(Sequence<0>{}));
+
+    const auto n_thread_data_on_grid_idx =
+        n_thread_data_on_grid_to_n0_n1_n2_adaptor.CalculateBottomIndex(
+            make_multi_index(n_thread_data_on_grid));
+    // Create partition shape based on descriptor dims.
+    const auto partition_shape = make_tuple(M0, N0, I1, I1, M2, I1, M4, I1);
+
+    const auto partition_desc = BlockwiseGemmXdlops::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(
+        layout(c_local_tile_tensor).GetUnrolledDescriptor());
+    const auto partition_layout =
+        Layout<remove_reference_t<decltype(partition_shape)>, decltype(partition_desc)>(
+            partition_shape, partition_desc);
+    auto partition_tensor = make_tensor<CTensorType::TensorBufferAddressSpace>(
+        c_local_tile_tensor.GetPointer(), partition_layout);
+    partition_tensor.SetMultiIdxOffset(make_multi_index(m_thread_data_on_grid_idx[I0],
+                                                        n_thread_data_on_grid_idx[I0],
+                                                        m_thread_data_on_grid_idx[I1],
+                                                        n_thread_data_on_grid_idx[I1],
+                                                        m_thread_data_on_grid_idx[I2],
+                                                        m_thread_data_on_grid_idx[I3],
+                                                        m_thread_data_on_grid_idx[I4],
+                                                        n_thread_data_on_grid_idx[I2]));
+    return partition_tensor;
+}
+
+/**
+ * \brief Create local partition per thread for C tensor.
+ *
+ *
+ * \tparam DataType Input data types.
+ * \tparam ATileLayout A tensor layout.
+ * \tparam BTileLayout B tensor layout.
+ * \tparam BlockSize Tensor to pad.
+ * \tparam MPerXDL M per Xdl.
+ * \tparam NPerXDL N per Xdl.
+ * \tparam MXdlPerWave M Xdl Per Wave
+ * \tparam NXdlPerWave N Xdl Per Wave
+ * \tparam K1 K1
+ *
+ * \return Vgpr c tensor for blockwise gemm.
+ */
+template <typename DataType,
+          typename ATileLayout,
+          typename BTileLayout,
+          index_t BlockSize,
+          index_t MPerXDL,
+          index_t NPerXDL,
+          index_t MXdlPerWave,
+          index_t NXdlPerWave,
+          index_t K1>
+__host__ __device__ constexpr auto make_blockwise_gemm_xdl_c_vgpr()
+{
+    constexpr auto I0     = Number<0>{};
+    constexpr auto I1     = Number<1>{};
+    constexpr auto I2     = Number<2>{};
+    constexpr auto I3     = Number<3>{};
+    constexpr auto I4     = Number<4>{};
+    constexpr auto I5     = Number<5>{};
+    constexpr auto I6     = Number<6>{};
+    constexpr auto I7     = Number<7>{};
+    using GemmAccDataType = std::conditional_t<is_same_v<DataType, int8_t>, int32_t, float>;
+
+    using ABlockDesc_K0_M_K1_Type =
+        decltype(detail::GetABlockDescriptor_K0PerBlock_MPerBlock_K1<K1, ATileLayout>());
+    using BBlockDesc_K0_N_K1_Type =
+        decltype(detail::GetBBlockDescriptor_K0PerBlock_NPerBlock_K1<K1, BTileLayout>());
+
+    using BlockwiseGemmXdlops =
+        BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
+                                                            DataType,
+                                                            DataType,
+                                                            GemmAccDataType,
+                                                            ABlockDesc_K0_M_K1_Type,
+                                                            BBlockDesc_K0_N_K1_Type,
+                                                            MPerXDL,
+                                                            NPerXDL,
+                                                            MXdlPerWave,
+                                                            NXdlPerWave,
+                                                            K1>;
+    // Calcualte descriptor, shape and layout
+    constexpr auto vgpr_desc = BlockwiseGemmXdlops::GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+    const auto vgpr_shape    = make_tuple(vgpr_desc.GetLengths()[I0],
+                                       vgpr_desc.GetLengths()[I1],
+                                       vgpr_desc.GetLengths()[I2],
+                                       vgpr_desc.GetLengths()[I3],
+                                       vgpr_desc.GetLengths()[I4],
+                                       vgpr_desc.GetLengths()[I5],
+                                       vgpr_desc.GetLengths()[I6],
+                                       vgpr_desc.GetLengths()[I7]);
+    const auto vgpr_layout = Layout<remove_reference_t<decltype(vgpr_shape)>, decltype(vgpr_desc)>(
+        vgpr_shape, vgpr_desc);
+    // Get vector type for Vgpr
+    using BlockwiseGemmCThreadBufferType =
+        remove_reference_t<decltype(BlockwiseGemmXdlops{}.GetCThreadBuffer())>;
+    using VgprVectorType = typename BlockwiseGemmCThreadBufferType::V;
+    return ck::wrapper::make_register_tensor<ck::wrapper::MemoryTypeEnum::Vgpr, VgprVectorType>(
+        vgpr_layout);
+}
+
+} // namespace wrapper
+} // namespace ck
