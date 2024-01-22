@@ -278,7 +278,8 @@ struct vector_type<T, 4>
         {
             return data_.d4x1_;
         }
-        else{
+        else
+        {
             return 0;
         }
     }
@@ -301,7 +302,8 @@ struct vector_type<T, 4>
         {
             return data_.d4x1_;
         }
-        else{
+        else
+        {
             return 0;
         }
     }
@@ -353,7 +355,8 @@ struct vector_type<T, 8>
         {
             return data_.d8x1_;
         }
-        else{
+        else
+        {
             return 0;
         }
     }
