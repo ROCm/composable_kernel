@@ -154,9 +154,9 @@ __global__ void grouped_gemm_naive_strided_tile_loop_reduce(const GemmArgDesc* p
 
             // Accumulate partial results. We can have different # of workgroups to reduce, thus we
             // read actual flag value.
-            const index_t flag_v = __builtin_amdgcn_readfirstlane(
+            const uint32_t flag_v = __builtin_amdgcn_readfirstlane(
                 work_scheduler.GetFlagValue(k_batch, output_tile_idx, output_tile_idx_offset));
-            for(index_t i = 1; i < flag_v; ++i)
+            for(uint32_t i = 1; i < flag_v; ++i)
             {
                 partial_result += p_workspace[(get_block_1d_id()) * MPerBlock * NPerBlock +
                                               i * MPerBlock * NPerBlock + get_thread_local_1d_id()];
@@ -174,7 +174,7 @@ __global__ void grouped_gemm_naive_strided_tile_loop_reduce(const GemmArgDesc* p
             p_C[(C_m_tile_offset + C_thread_tile_m_idx) * stride_c + C_n_tile_offset +
                 C_thread_tile_n_idx] = partial_result;
         }
-        else
+        else if(work_scheduler.HasTile())
         {
             work_scheduler.WaitForReduction(k_batch, output_tile_idx, output_tile_idx_offset);
         }
@@ -284,10 +284,11 @@ struct GroupedGemmStridedTileLoopReduce
 
         DeviceMem gemm_workspace, gemm_flags;
 
-        const index_t tiles_per_block = (tile_count + grid_size - 1) / grid_size;
+        // const index_t tiles_per_block = (tile_count + grid_size - 1) / grid_size;
         // This is the number of MN-output tiles which we cover with workgroups.
         // We launch k_batch / tiles_per_block workgroups for each output tile.
-        const index_t flag_count = (grid_size * tiles_per_block + k_batch - 1) / k_batch;
+        // const index_t flag_count = (grid_size * tiles_per_block + k_batch - 1) / k_batch;
+        const index_t flag_count = tile_count / k_batch;
 
         gemm_workspace.Realloc(grid_size * MPerBlock * NPerBlock * sizeof(float));
         gemm_flags.Realloc(flag_count * sizeof(uint32_t));

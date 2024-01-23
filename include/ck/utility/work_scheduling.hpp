@@ -51,7 +51,7 @@ class StridedReductionTileLoop
     {
         tile_id_++;
         block_tile_idx_++;
-        return tile_id_ < tile_count_ && block_tile_idx_ < tiles_per_block_;
+        return HasTile();
     }
 
     __device__ index_t GetFlagCount(index_t k_tiles) const
@@ -75,11 +75,12 @@ class StridedReductionTileLoop
     ///
     /// @return     The workgroup flag index.
     ///
-    __device__ uint32_t GetWorkgroupFlagIdx(index_t k_tiles,
+    __device__ uint32_t GetWorkgroupFlagIdx([[maybe_unused]] index_t k_tiles,
                                             index_t output_tile_idx,
                                             index_t output_tile_idx_offset) const
     {
-        return (output_tile_idx + output_tile_idx_offset) % GetFlagCount(k_tiles);
+        // return (output_tile_idx + output_tile_idx_offset) % GetFlagCount(k_tiles);
+        return output_tile_idx + output_tile_idx_offset;
     }
 
     ///
@@ -92,7 +93,7 @@ class StridedReductionTileLoop
     __device__ void
     FlagFinished(index_t k_tiles, index_t output_tile_idx, index_t output_tile_idx_offset)
     {
-        const auto fidx = GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset);
+        /* [[maybe_unused]]  */const auto fidx = GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset);
         finished_block_flags_.inc(fidx);
     }
 
@@ -111,8 +112,10 @@ class StridedReductionTileLoop
         // We use < because for some cases we may have +1 more workgroups per dim.
         // Ie when k_tiles = 5, tiles_per_block = 3.
         finished_block_flags_.wait_lt(
-            GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset),
+        GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset),
             workgroups_per_dim);
+
+        // [[maybe_unused]] const auto fidx = GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset);
     }
 
     ///
@@ -128,6 +131,8 @@ class StridedReductionTileLoop
         // Wait untill the counter has been reset.
         finished_block_flags_.wait_eq(
             GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset), 0);
+
+        // [[maybe_unused]] const auto fidx = GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset);
     }
 
     ///
@@ -141,6 +146,8 @@ class StridedReductionTileLoop
     {
         finished_block_flags_.reset(
             GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset));
+
+        // [[maybe_unused]] const auto fidx = GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset);
     }
 
     ///

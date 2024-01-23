@@ -103,14 +103,17 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
                block_dim.y,
                block_dim.z);
 
-        printf("Warm up 1 time\n");
+        printf("Warm up %d times\n", stream_config.cold_niters_);
 #endif
         // warm up
-        preprocess();
-        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
-        hip_check_error(hipGetLastError());
+        for(int i = 0; i < stream_config.cold_niters_; ++i)
+        {
+            preprocess();
+            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+            hip_check_error(hipGetLastError());
+        }
 
-        const int nrepeat = 10;
+        const int nrepeat = stream_config.nrepeat_;
 #if DEBUG_LOG
         printf("Start running %d times...\n", nrepeat);
 #endif
