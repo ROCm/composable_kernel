@@ -189,6 +189,7 @@ struct vector_type<T, 1>
     }
 };
 
+int static err = 0;
 template <typename T>
 struct vector_type<T, 2>
 {
@@ -223,7 +224,7 @@ struct vector_type<T, 2>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 
@@ -242,7 +243,7 @@ struct vector_type<T, 2>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 };
@@ -288,7 +289,7 @@ struct vector_type<T, 4>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 
@@ -312,7 +313,7 @@ struct vector_type<T, 4>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 };
@@ -365,7 +366,7 @@ struct vector_type<T, 8>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 
@@ -394,7 +395,7 @@ struct vector_type<T, 8>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 };
@@ -454,7 +455,7 @@ struct vector_type<T, 16>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 
@@ -488,7 +489,7 @@ struct vector_type<T, 16>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 };
@@ -554,7 +555,7 @@ struct vector_type<T, 32>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 
@@ -592,7 +593,7 @@ struct vector_type<T, 32>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 };
@@ -665,7 +666,7 @@ struct vector_type<T, 64>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 
@@ -708,7 +709,7 @@ struct vector_type<T, 64>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 };
@@ -787,7 +788,7 @@ struct vector_type<T, 128>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 
@@ -834,7 +835,7 @@ struct vector_type<T, 128>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 };
