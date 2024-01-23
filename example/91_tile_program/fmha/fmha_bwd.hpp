@@ -127,10 +127,10 @@ using FmhaWarpTile1   = ck::Sequence<16, 16, 16>;
 //       G1&G3 -> GdKV
 //       G4    -> GdQ
 template <ck::index_t HDim>
-struct FmhaShape;
+struct FmhaBwdShape;
 
 template <>
-struct FmhaShape</* HDim = */ 32>
+struct FmhaBwdShape</* HDim = */ 32>
     : ck::tile_program::TileFmhaBwdShape<FmhaBlockTile</* HDim = */ 32>,
                                          FmhaLoadStrategy</* HDim = */ 32>,
                                          FmhaBlockWarps0,
@@ -145,7 +145,7 @@ struct FmhaShape</* HDim = */ 32>
                                          FmhaWarpTile0>;
 {};
 template <>
-struct FmhaShape</* HDim = */ 64>
+struct FmhaBwdShape</* HDim = */ 64>
     : ck::tile_program::TileFmhaBwdShape<FmhaBlockTile</* HDim = */ 64>,
                                          FmhaLoadStrategy</* HDim = */ 64>,
                                          FmhaBlockWarps0,
@@ -160,7 +160,7 @@ struct FmhaShape</* HDim = */ 64>
                                          FmhaWarpTile0>;
 {};
 template <>
-struct FmhaShape</* HDim = */ 128>
+struct FmhaBwdShape</* HDim = */ 128>
     : ck::tile_program::TileFmhaBwdShape<FmhaBlockTile</* HDim = */ 128>,
                                          FmhaLoadStrategy</* HDim = */ 128>,
                                          FmhaBlockWarps0,
@@ -176,11 +176,11 @@ struct FmhaShape</* HDim = */ 128>
 {};
 
 template <bool kHasBias>
-using FmhaTraits = ck::tile_program::
+using FmhaBwdTraits = ck::tile_program::
     TileFmhaTraits<kM0NeedPadding, kN0K1NeedPadding, kK0N1NeedPadding, kHasBias, 1>;
 
 template <ck::index_t HDim, typename DataType, bool kIsGroupMode, typename FmhaMask, bool kHasBias>
-using FmhaPipelineProblem = ck::tile_program::block::BlockFmhaBwdPipelineProblem<
+using FmhaBwdPipelineProblem = ck::tile_program::block::BlockFmhaBwdPipelineProblem<
     typename FmhaBwdTypeConfig<DataType>::QDataType,
     typename FmhaBwdTypeConfig<DataType>::KDataType,
     typename FmhaBwdTypeConfig<DataType>::VDataType,
@@ -197,15 +197,15 @@ using FmhaPipelineProblem = ck::tile_program::block::BlockFmhaBwdPipelineProblem
     typename FmhaBwdTypeConfig<DataType>::VGradDataType,
     typename FmhaBwdTypeConfig<DataType>::BiasGradDataType,
     /* BlockSize = */ 256,
-    FmhaShape<HDim>,
+    FmhaBwdShape<HDim>,
     kIsGroupMode,
     FmhaMask,
-    FmhaTraits<kHasBias>>;
+    FmhaBwdTraits<kHasBias>>;
 
 template <ck::index_t HDim, typename DataType, bool kIsGroupMode, typename FmhaMask, bool kHasBias>
-using FmhaPipeline = ck::tile_program::block::BlockFmhaBwdPipelineDispatcher<
+using FmhaBwdPipeline = ck::tile_program::block::BlockFmhaBwdPipelineDispatcher<
     FmhaLoadStrategy<HDim>,
-    FmhaPipelineProblem<HDim, DataType, kIsGroupMode, FmhaMask, kHasBias>>::BlockPipeline;
+    FmhaBwdPipelineProblem<HDim, DataType, kIsGroupMode, FmhaMask, kHasBias>>::BlockPipeline;
 
 template <typename DataType>
 using FmhaEpilogue =
@@ -215,26 +215,27 @@ using FmhaEpilogue =
 
 template <ck::index_t HDim, typename DataType, bool kIsGroupMode, typename FmhaMask, bool kHasBias>
 using FmhaBwdKernelSelector =
-    FmhaBwdKernel<FmhaBwdTilePartitioner<FmhaShape<HDim>>,
-                  FmhaPipeline<HDim, DataType, kIsGroupMode, FmhaMask, kHasBias>,
+    FmhaBwdKernel<FmhaBwdTilePartitioner<FmhaBwdShape<HDim>>,
+                  FmhaBwdPipeline<HDim, DataType, kIsGroupMode, FmhaMask, kHasBias>,
                   FmhaEpilogue<DataType>>;
 
-using FmhaOGradDotOTraits =
-    ck::tile_program::TileFmhaOGradDotOTraits<kM0NeedPadding, kK0N1NeedPadding>;
+using FmhaBwdOGradDotOTraits =
+    ck::tile_program::TileFmhaBwdOGradDotOTraits<kM0NeedPadding, kK0N1NeedPadding>;
 
 template <ck::index_t HDim, typename DataType, bool kIsGroupMode>
-using FmhaOGradDotOPipelineProblem = ck::tile_program::block::BlockFmhaBwdOGradDotOPipelineProblem<
-    typename FmhaBwdTypeConfig<DataType>::ODataType,
-    typename FmhaBwdTypeConfig<DataType>::OGradDataType,
-    typename FmhaBwdTypeConfig<DataType>::DDataType,
-    /* BlockSize = */ 256,
-    typename FmhaShape<HDim>::kVHeaddim,
-    kIsGroupMode,
-    FmhaOGradDotOTraits>;
+using FmhaBwdOGradDotOPipelineProblem =
+    ck::tile_program::block::BlockFmhaBwdOGradDotOPipelineProblem<
+        typename FmhaBwdTypeConfig<DataType>::ODataType,
+        typename FmhaBwdTypeConfig<DataType>::OGradDataType,
+        typename FmhaBwdTypeConfig<DataType>::DDataType,
+        /* BlockSize = */ 256,
+        typename FmhaBwdShape<HDim>::kVHeaddim,
+        kIsGroupMode,
+        FmhaBwdOGradDotOTraits>;
 
 template <ck::index_t HDim, typename DataType, bool kIsGroupMode>
 using FmhaBwdOGradDotO = ck::tile_program::block::BlockFmhaBwdOGradDotO<
-    FmhaOGradDotOPipelineProblem<HDim, DataType, kIsGroupMode>>;
+    FmhaBwdOGradDotOPipelineProblem<HDim, DataType, kIsGroupMode>>;
 
 template <ck::index_t HDim, typename DataType, bool kIsGroupMode>
 using FmhaBwdOGradDotOKernelSelector =
@@ -242,7 +243,7 @@ using FmhaBwdOGradDotOKernelSelector =
                            FmhaBwdOGradDotO<HDim, DataType, kIsGroupMode>>;
 
 // Kernel API
-template <typename FmhaKernel>
+template <typename FmhaBwdKernel>
 auto fmha_bwd_create_kargs_and_grids(const void* q_ptr,
                                      const void* k_ptr,
                                      const void* v_ptr,
@@ -306,97 +307,97 @@ auto fmha_bwd_create_kargs_and_grids(const void* q_ptr,
 
     auto kargs = [&] {
         // create group mode kernel arguments
-        if constexpr(FmhaKernel::kIsGroupMode)
+        if constexpr(FmhaBwdKernel::kIsGroupMode)
         {
-            return FmhaKernel::MakeKargs(q_ptr,
-                                         k_ptr,
-                                         v_ptr,
-                                         bias_ptr,
-                                         lse_ptr,
-                                         do_ptr,
-                                         d_ptr,
-                                         dq_ptr,
-                                         dk_ptr,
-                                         dv_ptr,
-                                         dbias_ptr,
-                                         seqstart_q_ptr,
-                                         seqstart_k_ptr,
-                                         seqlen_k_ptr,
-                                         hdim_q,
-                                         hdim_v,
-                                         nhead / nhead_k,
-                                         scale,
-                                         stride_q,
-                                         stride_k,
-                                         stride_v,
-                                         stride_bias,
-                                         stride_do,
-                                         stride_dk,
-                                         stride_dv,
-                                         stride_dbias,
-                                         nhead_stride_q,
-                                         nhead_stride_k,
-                                         nhead_stride_v,
-                                         nhead_stride_bias,
-                                         nhead_stride_do,
-                                         nhead_stride_lsed,
-                                         nhead_stride_dbias,
-                                         mask_y,
-                                         mask_x);
+            return FmhaBwdKernel::MakeKargs(q_ptr,
+                                            k_ptr,
+                                            v_ptr,
+                                            bias_ptr,
+                                            lse_ptr,
+                                            do_ptr,
+                                            d_ptr,
+                                            dq_ptr,
+                                            dk_ptr,
+                                            dv_ptr,
+                                            dbias_ptr,
+                                            seqstart_q_ptr,
+                                            seqstart_k_ptr,
+                                            seqlen_k_ptr,
+                                            hdim_q,
+                                            hdim_v,
+                                            nhead / nhead_k,
+                                            scale,
+                                            stride_q,
+                                            stride_k,
+                                            stride_v,
+                                            stride_bias,
+                                            stride_do,
+                                            stride_dk,
+                                            stride_dv,
+                                            stride_dbias,
+                                            nhead_stride_q,
+                                            nhead_stride_k,
+                                            nhead_stride_v,
+                                            nhead_stride_bias,
+                                            nhead_stride_do,
+                                            nhead_stride_lsed,
+                                            nhead_stride_dbias,
+                                            mask_y,
+                                            mask_x);
         }
         else
         { // create batch mode kernel arguments
-            return FmhaKernel::MakeKargs(q_ptr,
-                                         k_ptr,
-                                         v_ptr,
-                                         bias_ptr,
-                                         lse_ptr,
-                                         do_ptr,
-                                         d_ptr,
-                                         dq_ptr,
-                                         dk_ptr,
-                                         dv_ptr,
-                                         dbias_ptr,
-                                         seqlen_q,
-                                         seqlen_k,
-                                         hdim_q,
-                                         hdim_v,
-                                         nhead / nhead_k,
-                                         scale,
-                                         stride_q,
-                                         stride_k,
-                                         stride_v,
-                                         stride_bias,
-                                         stride_do,
-                                         stride_dk,
-                                         stride_dv,
-                                         stride_dbias,
-                                         nhead_stride_q,
-                                         nhead_stride_k,
-                                         nhead_stride_v,
-                                         nhead_stride_bias,
-                                         nhead_stride_do,
-                                         nhead_stride_lsed,
-                                         nhead_stride_dbias,
-                                         batch_stride_q,
-                                         batch_stride_k,
-                                         batch_stride_v,
-                                         batch_stride_bias,
-                                         batch_stride_do,
-                                         batch_stride_lsed,
-                                         batch_stride_dk,
-                                         batch_stride_dv,
-                                         batch_stride_dbias,
-                                         mask_y,
-                                         mask_x);
+            return FmhaBwdKernel::MakeKargs(q_ptr,
+                                            k_ptr,
+                                            v_ptr,
+                                            bias_ptr,
+                                            lse_ptr,
+                                            do_ptr,
+                                            d_ptr,
+                                            dq_ptr,
+                                            dk_ptr,
+                                            dv_ptr,
+                                            dbias_ptr,
+                                            seqlen_q,
+                                            seqlen_k,
+                                            hdim_q,
+                                            hdim_v,
+                                            nhead / nhead_k,
+                                            scale,
+                                            stride_q,
+                                            stride_k,
+                                            stride_v,
+                                            stride_bias,
+                                            stride_do,
+                                            stride_dk,
+                                            stride_dv,
+                                            stride_dbias,
+                                            nhead_stride_q,
+                                            nhead_stride_k,
+                                            nhead_stride_v,
+                                            nhead_stride_bias,
+                                            nhead_stride_do,
+                                            nhead_stride_lsed,
+                                            nhead_stride_dbias,
+                                            batch_stride_q,
+                                            batch_stride_k,
+                                            batch_stride_v,
+                                            batch_stride_bias,
+                                            batch_stride_do,
+                                            batch_stride_lsed,
+                                            batch_stride_dk,
+                                            batch_stride_dv,
+                                            batch_stride_dbias,
+                                            mask_y,
+                                            mask_x);
         }
     }();
 
-    dim3 grids = FmhaKernel::GridSize(batch, nhead, max_seqlen_k);
+    dim3 grids = FmhaBwdKernel::GridSize(batch, nhead, max_seqlen_k);
     return ck::make_tuple(kargs, grids);
 }
 
-template <typename FmhaOGradDotOKernel>
+template <typename FmhaBwdOGradDotOKernel>
 auto fmha_bwd_dot_do_o_create_kargs_and_grids(const void* o_ptr,
                                               const void* do_ptr,
                                               void* d_ptr,
@@ -416,39 +417,39 @@ auto fmha_bwd_dot_do_o_create_kargs_and_grids(const void* o_ptr,
 
     auto kargs = [&] {
         // create group mode kernel arguments
-        if constexpr(FmhaOGradDotOKernel::kIsGroupMode)
+        if constexpr(FmhaBwdOGradDotOKernel::kIsGroupMode)
         {
-            return FmhaOGradDotOKernel::MakeKargs(o_ptr,
-                                                  do_ptr,
-                                                  d_ptr,
-                                                  seqstart_q_ptr,
-                                                  hdim_v,
-                                                  stride_o,
-                                                  nhead_stride_o,
-                                                  nhead_stride_d);
+            return FmhaBwdOGradDotOKernel::MakeKargs(o_ptr,
+                                                     do_ptr,
+                                                     d_ptr,
+                                                     seqstart_q_ptr,
+                                                     hdim_v,
+                                                     stride_o,
+                                                     nhead_stride_o,
+                                                     nhead_stride_d);
         }
         else
         { // create batch mode kernel arguments
-            return FmhaOGradDotOKernel::MakeKargs(o_ptr,
-                                                  do_ptr,
-                                                  d_ptr,
-                                                  seqlen_q,
-                                                  hdim_v,
-                                                  stride_o,
-                                                  nhead_stride_o,
-                                                  nhead_stride_d,
-                                                  batch_stride_o,
-                                                  batch_stride_d);
+            return FmhaBwdOGradDotOKernel::MakeKargs(o_ptr,
+                                                     do_ptr,
+                                                     d_ptr,
+                                                     seqlen_q,
+                                                     hdim_v,
+                                                     stride_o,
+                                                     nhead_stride_o,
+                                                     nhead_stride_d,
+                                                     batch_stride_o,
+                                                     batch_stride_d);
         }
     }();
 
-    dim3 grids = FmhaOGradDotOKernel::GridSize(batch, nhead, max_seqlen_q);
+    dim3 grids = FmhaBwdOGradDotOKernel::GridSize(batch, nhead, max_seqlen_q);
     return ck::make_tuple(kargs, grids);
 }
 
 // will instantiate this function across different source file
-template <typename FmhaKernel>
-float fmha_bwd_run(const StreamConfig&, typename FmhaKernel::Kargs, dim3);
+template <typename FmhaBwdKernel>
+float fmha_bwd_run(const StreamConfig&, typename FmhaBwdKernel::Kargs, dim3);
 
 #define FMHA_BWD_KERNEL_DEFINE(KERNEL_)                                                          \
     template <>                                                                                  \
@@ -460,8 +461,8 @@ float fmha_bwd_run(const StreamConfig&, typename FmhaKernel::Kargs, dim3);
         return launch_kernel<blocks.x, kBlockPerCu>(stream, KERNEL_{}, grids, blocks, 0, kargs); \
     }
 
-template <typename FmhaOGradDotOKernel>
-float fmha_bwd_dot_do_o_run(const StreamConfig&, typename FmhaOGradDotOKernel::Kargs, dim3);
+template <typename FmhaBwdOGradDotOKernel>
+float fmha_bwd_dot_do_o_run(const StreamConfig&, typename FmhaBwdOGradDotOKernel::Kargs, dim3);
 
 #define FMHA_BWD_OGradDotO_KERNEL_DEFINE(KERNEL_)                                                \
     template <>                                                                                  \

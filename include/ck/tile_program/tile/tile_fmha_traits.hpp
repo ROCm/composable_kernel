@@ -27,7 +27,7 @@ struct TileFmhaTraits
 template <bool kM0NeedPadding_ /* padding for seqlen_q */,
           bool kK0N1NeedPadding_ /* paddding for hdim_q / hdim_v */,
           index_t kBlockPerCu_ = 2 /* hint to occupancy */>
-struct TileFmhaOGradDotOTraits
+struct TileFmhaBwdOGradDotOTraits
 {
     static constexpr bool kM0NeedPadding   = kM0NeedPadding_;
     static constexpr bool kK0N1NeedPadding = kK0N1NeedPadding_;

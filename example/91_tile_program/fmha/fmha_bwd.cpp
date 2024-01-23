@@ -373,7 +373,7 @@ bool run(const ArgParser& arg_parser)
               << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
               << ", mask:" << mask << ", v:" << std::string(VLayout::name)[0] << std::flush;
 
-#define INVOKE_FMHA_OGradDotO_KERNEL(hdim_)                                               \
+#define INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(hdim_)                                            \
     fmha_bwd_dot_do_o_kernel_invoker<hdim_, DataType>{mode}(stream_config,                \
                                                             o_buf.GetDeviceBuffer(),      \
                                                             do_buf.GetDeviceBuffer(),     \
@@ -425,17 +425,17 @@ bool run(const ArgParser& arg_parser)
 
     if(check_hdims(hdim_q, hdim_v, 32))
     {
-        ave_time = INVOKE_FMHA_OGradDotO_KERNEL(32);
+        ave_time = INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(32);
         ave_time += INVOKE_FMHA_BWD_KERNEL(32);
     }
     else if(check_hdims(hdim_q, hdim_v, 64))
     {
-        ave_time = INVOKE_FMHA_OGradDotO_KERNEL(64);
+        ave_time = INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(64);
         ave_time += INVOKE_FMHA_BWD_KERNEL(64);
     }
     else if(check_hdims(hdim_q, hdim_v, 128))
     {
-        ave_time = INVOKE_FMHA_OGradDotO_KERNEL(128);
+        ave_time = INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(128);
         ave_time += INVOKE_FMHA_BWD_KERNEL(128);
     }
     else
@@ -563,17 +563,17 @@ bool run(const ArgParser& arg_parser)
 
     if(check_hdims(hdim_q, hdim_v, 32))
     {
-        INVOKE_FMHA_OGradDotO_KERNEL(32);
+        INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(32);
         INVOKE_FMHA_BWD_KERNEL(32);
     }
     else if(check_hdims(hdim_q, hdim_v, 64))
     {
-        INVOKE_FMHA_OGradDotO_KERNEL(64);
+        INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(64);
         INVOKE_FMHA_BWD_KERNEL(64);
     }
     else if(check_hdims(hdim_q, hdim_v, 128))
     {
-        INVOKE_FMHA_OGradDotO_KERNEL(128);
+        INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(128);
         INVOKE_FMHA_BWD_KERNEL(128);
     }
 
@@ -598,7 +598,7 @@ bool run(const ArgParser& arg_parser)
         Tensor<GemmDataType> ds_lp_host_ref(
             {nhead, real_seqlen_q, real_seqlen_k}); // ds_g_m_n low precision
         Tensor<AccDataType> dp_hp_host_ref(
-            {nhead, real_seqlen_q, real_seqlen_k}); // dp_hp_g_m_n high precision
+            {nhead, real_seqlen_q, real_seqlen_k}); // dp_g_m_n high precision
         Tensor<BiasGradDataType> dbias_host_ref(
             {nhead, real_seqlen_q, real_seqlen_k});                        // dbias_g_m_n
         Tensor<QGradDataType> dq_host_ref({nhead, real_seqlen_q, hdim_q}); // dq_g_m_k

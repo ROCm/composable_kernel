@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <type_traits>
+
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor/tensor_view.hpp"
 #include "ck/tile_program/tile/tile_window.hpp"
@@ -36,6 +38,14 @@ struct FmhaBwdKernel
     using KGradDataType    = ck::remove_cvref_t<typename FmhaPipeline::KGradDataType>;
     using VGradDataType    = ck::remove_cvref_t<typename FmhaPipeline::VGradDataType>;
     using BiasGradDataType = ck::remove_cvref_t<typename FmhaPipeline::BiasGradDataType>;
+
+    static constexpr bool kIsGroupMode     = FmhaPipeline::kIsGroupMode;
+    static constexpr bool kM0NeedPadding   = FmhaPipeline::kM0NeedPadding;
+    static constexpr bool kN0K1NeedPadding = FmhaPipeline::kN0K1NeedPadding;
+    static constexpr bool kK0N1NeedPadding = FmhaPipeline::kK0N1NeedPadding;
+    static constexpr bool kHasBias         = FmhaPipeline::kHasBias;
+    using FmhaMask                         = ck::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
+    static constexpr bool kHasMask         = FmhaMask::IsMasking;
 
     template <ck::index_t I> // to avoid duplicated base class prblem, introduce an template arg
     struct FmhaBwdEmptyKargs
@@ -1045,21 +1055,21 @@ struct FmhaBwdKernel
     }
 };
 
-template <typename TilePartitioner_, typename FmhaOGradDotO_>
+template <typename TilePartitioner_, typename FmhaBwdOGradDotO_>
 struct FmhaBwdOGradDotOKernel
 {
-    using TilePartitioner = ck::remove_cvref_t<TilePartitioner_>;
-    using FmhaOGradDotO   = ck::remove_cvref_t<FmhaOGradDotO_>;
+    using TilePartitioner  = ck::remove_cvref_t<TilePartitioner_>;
+    using FmhaBwdOGradDotO = ck::remove_cvref_t<FmhaBwdOGradDotO_>;
 
-    using DDataType     = ck::remove_cvref_t<typename FmhaOGradDotO::DDataType>;
-    using ODataType     = ck::remove_cvref_t<typename FmhaOGradDotO::ODataType>;
-    using OGradDataType = ck::remove_cvref_t<typename FmhaOGradDotO::OGradDataType>;
+    using DDataType     = ck::remove_cvref_t<typename FmhaBwdOGradDotO::DDataType>;
+    using ODataType     = ck::remove_cvref_t<typename FmhaBwdOGradDotO::ODataType>;
+    using OGradDataType = ck::remove_cvref_t<typename FmhaBwdOGradDotO::OGradDataType>;
 
-    static constexpr ck::index_t kBlockSize  = FmhaOGradDotO::kBlockSize;
+    static constexpr ck::index_t kBlockSize  = FmhaBwdOGradDotO::kBlockSize;
     static constexpr ck::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
 
     static constexpr ck::index_t kM0       = kBlockSize;
-    static constexpr ck::index_t kVHeaddim = FmhaOGradDotO::kVHeaddim;
+    static constexpr ck::index_t kVHeaddim = FmhaBwdOGradDotO::kVHeaddim;
 
     // kargs use aggregate initializer, so no constructor will provided
     // use inheritance to minimize karg size
@@ -1243,6 +1253,6 @@ struct FmhaBwdOGradDotOKernel
 
         auto d_dram_window = make_tile_window(d_dram, make_tuple(Number<kM0>{}), {i_m0});
 
-        FmhaOGradDotO{}(o_dram_window, do_dram_window, d_dram_window);
+        FmhaBwdOGradDotO{}(o_dram_window, do_dram_window, d_dram_window);
     }
 };
