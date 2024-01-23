@@ -221,6 +221,10 @@ struct vector_type<T, 2>
         {
             return data_.d2x1_;
         }
+        else
+        {
+            return constexpr 0;
+        }
     }
 
     template <typename X>
@@ -235,6 +239,10 @@ struct vector_type<T, 2>
         else if constexpr(is_same<X, d2_t>::value)
         {
             return data_.d2x1_;
+        }
+        else
+        {
+            return constexpr 0;
         }
     }
 };
@@ -280,7 +288,7 @@ struct vector_type<T, 4>
         }
         else
         {
-            return 0;
+            return constexpr 0;
         }
     }
 
@@ -304,7 +312,7 @@ struct vector_type<T, 4>
         }
         else
         {
-            return 0;
+            return constexpr 0;
         }
     }
 };
@@ -357,7 +365,7 @@ struct vector_type<T, 8>
         }
         else
         {
-            return 0;
+            return constexpr 0;
         }
     }
 
@@ -386,7 +394,7 @@ struct vector_type<T, 8>
         }
         else
         {
-            return 0;
+            return constexpr 0;
         }
     }
 };
@@ -446,7 +454,7 @@ struct vector_type<T, 16>
         }
         else
         {
-            return 0;
+            return constexpr 0;
         }
     }
 
@@ -480,7 +488,7 @@ struct vector_type<T, 16>
         }
         else
         {
-            return 0;
+            return constexpr 0;
         }
     }
 };
@@ -546,7 +554,7 @@ struct vector_type<T, 32>
         }
         else
         {
-            return 0;
+            return constexpr 0;
         }
     }
 
@@ -584,7 +592,7 @@ struct vector_type<T, 32>
         }
         else
         {
-            return 0;
+            return constexpr 0;
         }
     }
 };
@@ -657,7 +665,7 @@ struct vector_type<T, 64>
         }
         else
         {
-            return 0;
+            return constexpr 0;
         }
     }
 
@@ -700,7 +708,7 @@ struct vector_type<T, 64>
         }
         else
         {
-            return 0;
+            return constexpr 0;
         }
     }
 };
@@ -779,7 +787,7 @@ struct vector_type<T, 128>
         }
         else
         {
-            return 0;
+            return constexpr 0;
         }
     }
 
@@ -826,7 +834,7 @@ struct vector_type<T, 128>
         }
         else
         {
-            return 0;
+            return constexpr 0;
         }
     }
 };
@@ -911,7 +919,7 @@ struct vector_type<T, 256>
         }
         else
         {
-            return 0;
+            return constexpr 0;
         }
     }
 
@@ -962,7 +970,7 @@ struct vector_type<T, 256>
         }
         else
         {
-            return 0;
+            return constexpr 0;
         }
     }
 };

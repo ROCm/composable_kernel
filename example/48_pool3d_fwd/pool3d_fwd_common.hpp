@@ -55,6 +55,8 @@ HostTensorDescriptor f_host_tensor_descriptor(std::size_t N_,
         return HostTensorDescriptor({N_, C_, D, H, W},
                                     {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_});
     }
+    throw std::runtime_error("Pool3d_fwd: problem with layout. ");
+    return HostTensorDescriptor({0, 0, 0, 0, 0}, {0, 0, 0, 0, 0});
 };
 
 template <typename DevicePoolFwdInstance,
