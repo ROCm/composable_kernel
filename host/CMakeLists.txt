@@ -16,15 +16,16 @@ include(ROCMTest)
 list(APPEND CMAKE_MODULE_PATH ${CK_ROOT}/cmake)
 include(Embed)
 file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS
-    ${CK_ROOT}/include/ck/*.hpp)
+	${CK_ROOT}/include/ck/*.hpp ${CK_ROOT}/parse/include/*.hpp)
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 message(STATUS "RELATIVE: ${CK_ROOT}/include")
-add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include)
+add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include ${CK_ROOT}/parse/include)
 
 add_definitions(-std=c++17)
 
-file(GLOB SOURCES CONFIGURE_DEPENDS src/*.cpp)
+file(GLOB SOURCES CONFIGURE_DEPENDS src/*.cpp parse/src/*.cpp)
 # TODO: Use object library
+message(STATUS "SOURCES: ${SOURCES}")
 add_library(ck_host STATIC ${SOURCES})
 target_link_libraries(ck_host PRIVATE ck_headers)
 add_library(nlohmann_json INTERFACE IMPORTED GLOBAL)
@@ -37,7 +38,7 @@ target_include_directories(ck_host PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 
-add_executable(ck-template-driver driver/main.cpp)
+add_executable(ck-template-driver driver/main.cpp build/CMakeFiles/ck_host.dir/parse/src/op.cpp.o)
 target_link_libraries(ck-template-driver ck_host)
 
 rocm_install(
