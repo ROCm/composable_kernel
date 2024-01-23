@@ -284,35 +284,17 @@ run_${name}(void *input, void *output)
                     DeviceOp::Block2ETileMap,
                     has_main_loop>;
 
-                return launch_and_time_kernel(stream_config,
-                                              kernel,
-                                              dim3(grid_size),
-                                              dim3(${BlockSize}),
-					      0,
-					      arg.p_a_grid_,
-					      arg.p_b_grid_,
-					      arg.p_ds_grid_,
-					      arg.p_e_grid_,
-					      arg.a_element_op_,
-					      arg.b_element_op_,
-					      arg.cde_element_op_,
-					      arg.a_grid_desc_ak0_m_ak1_,
-					      arg.b_grid_desc_bk0_n_bk1_,
-					      arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-					      arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
-					      arg.block_2_etile_map_);
 }
-extern "C" {
-	bool run_${name}_op(void *input, void *output)
+extern "C" __global__ void run_${name}_op(void *input, void *output)
 	{
 		run_${name}(input, output);
 	}
-})";
+)";
 
 Solution Operation_Xdl_CShuffle::ToSolution() const
 {
     std::unordered_map<std::string, std::string> values = {
-        {"name", ToString(this->A.layout)},
+        {"name", std::to_string(this->tile_desc.block_size) + "_" + std::to_string(this->tile_desc.m_per_block) + "_" + std::to_string(this->tile_desc.n_per_block) + "_" + std::to_string(this->tile_desc.k_per_block) + "_" + std::to_string(this->tile_desc.ak1)},
         {"LayoutA", ToString(this->A.layout)},
         {"LayoutB", ToString(this->B.layout)},
         {"LayoutDs",

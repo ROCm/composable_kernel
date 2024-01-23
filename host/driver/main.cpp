@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <vector>
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
+#include "../parse/include/op.hpp"
 #include "ck/host/stringutils.hpp"
 #include <iomanip>
 #include <fstream>
@@ -61,15 +62,10 @@ struct Emitters
         std::string inc = get_includes();
         inst["include"] = inc;
 
-        // prologue and epilogue
-        inst["fusion"] = {{"prologue", "using Prologue = BaseOp;"},
-                          {"epilogue", "using Epilogue = BaseOp;"}};
-
-        // std::cout << "made it here" << std::endl;
-        // std::cout << inst.type_name() << std::endl;
-        // std::cout << "size before function: " << inst.size() << std::endl;
-        // std::cout << "Address before: " << &inst << std::endl;
-        // std::cout << inst.dump() << std::endl;
+        // prologue and epilogue TODO: change names to CK symbols and make specific
+        inst["fusion"] = {{"base", " struct BaseOperator: add in base operator code from CK here" },
+			  {"prologue", "using CDEElementOp = BaseOperator;"},
+                          {"epilogue", "using Epilogue = BaseOperator;"}};
 
         m[name] = [&] {
             auto ops = T::CreateOperations();
@@ -78,9 +74,6 @@ struct Emitters
                 ops, [](const auto& op) { return op.ToSolution().ToTemplateString(); });
         };
         m.at(name)();
-        // std::cout << "left lambda" << std::endl;
-        // std::cout << "size after function: " << inst.size() << std::endl;
-        // std::cout << "Address after: " << &inst << std::endl;
         std::string prob = "";
         for(const auto& item : inst.items())
         {
@@ -97,8 +90,7 @@ struct Emitters
         std::cout << prob << std::endl;
 
         // add instances
-        // TODO: separate problem and tuning parameters to nest further
-        std::string prob_spec = "fp16";
+        std::string prob_spec = "fp16fp16fp16fp16RowRowRowRow"; //TODO: find a good way to hand in keys for instances
         std::cout << "starting" << std::endl;
         for(int x = 0; x < m[name]().size(); x++)
         {
@@ -110,15 +102,6 @@ struct Emitters
 
         out << std::setw(4) << inst;
     }
-
-    // add instance
-    // TODO: separate problem and tuning parameters to nest further
-    /**data["instances"] = nlohmann::json::object();
-    for(int x = 0; x < m[name]().size(); x++)
-    {
-           std::string tmp        = std::to_string(x);
-           data["instances"][tmp] = m[name]()[x];
-    }**/
 
     std::string Emit(const std::string& name)
     {
@@ -158,6 +141,50 @@ int main(int argc, const char* argv[])
 
     // for(auto name : args)
     //  std::cout << e.Emit(name) << std::endl;
+    //
+
+    ck::host::CKGenOp_Xdl_CShuffle op;
+    std::string op_key = op.CKGenSetOp(op,
+                                       ck::host::DataType_fe::Half,
+                                       ck::host::DataType_fe::Half,
+                                       ck::host::DataType_fe::Half,
+                                       ck::host::DataType_fe::Half,
+                                       ck::host::Layout_fe::Row,
+                                       ck::host::Layout_fe::Row,
+                                       ck::host::Layout_fe::Row,
+                                       ck::host::Layout_fe::Row,
+                                       8,
+                                       8,
+                                       8);
+    std::cout << op_key << std::endl;
+    nlohmann::json data;
+    data = op.CKGenGetOpParams();
+    std::cout << "got data" << std::endl;
+    std::cout << "check 1 - retrieving original JSON: "
+              << data["fusion"]["prologue"].get<std::string>() << std::endl;
+    std::string tmp = R"(struct AlphaBetaAdd
+{
+    AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta){};
+
+    template <typename E, typename C, typename D>
+    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, float, ck::half_t>(
+        ck::half_t& e, const float& c, const ck::half_t& d) const
+    {
+        e = ck::type_convert<ck::half_t>(alpha_ * c + beta_ * ck::type_convert<float>(d));
+    };
+
+    float alpha_;
+    float beta_;
+};
+using CDEElementOp = AlphaBetaAdd;)";
+    op.CKGenSetOpFusion(tmp);
+    data = op.CKGenGetOpParams();
+    std::cout << "check 2 - retrieving updated JSON: "
+              << data["fusion"]["prologue"].get<std::string>() << std::endl;
+    op.CKGenGetBuffer(op, op_key);
 
     return 0;
 }
