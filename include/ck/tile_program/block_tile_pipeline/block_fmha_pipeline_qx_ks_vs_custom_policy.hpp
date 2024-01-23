@@ -94,6 +94,17 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
             {
                 return warp::WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
             }
+            else if constexpr(Problem::kIsFp8)
+            {
+                constexpr index_t swizzle_factor = 4; // TODO: hard coded here
+                return warp::WarpGemmImpl<
+                    warp::WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
+                        warp::WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<
+                            typename Problem::QDataType,
+                            typename Problem::KDataType>,
+                        2,
+                        swizzle_factor>>{};
+            }
         }();
 
         using BlockGemmPolicy =
@@ -200,6 +211,17 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
                               is_same_v<typename Problem::SaccDataType, float>)
             {
                 return warp::WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
+            }
+            else if constexpr(Problem::kIsFp8)
+            {
+                constexpr index_t swizzle_factor = 4; // TODO: hard coded here
+                return warp::WarpGemmImpl<
+                    warp::WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
+                        warp::WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<
+                            typename Problem::QDataType,
+                            typename Problem::KDataType>,
+                        2,
+                        swizzle_factor>>{};
             }
         }();
 
@@ -747,6 +769,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             constexpr index_t N2 = get_warp_size() / K0;
             constexpr index_t N1 = kBlockSize / get_warp_size();
             constexpr index_t N0 = kNPerBlock / (N2 * N1);
+            static_assert(N0 != 0);
 
             return make_static_tile_distribution(
                 StaticTileDistributionEncoding<Sequence<1>,
@@ -849,14 +872,35 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                                                    Problem::BlockFmhaShape::kN1,
                                                    Problem::BlockFmhaShape::kK1>>;
 
-        using WarpGemm = ck::tile_program::warp::WarpGemmMfmaDispatcher<
-            typename Problem::PDataType,
-            typename Problem::VDataType,
-            typename Problem::OaccDataType,
-            Problem::BlockFmhaShape::Gemm1WarpTile::At(Number<0>{}),
-            Problem::BlockFmhaShape::Gemm1WarpTile::At(Number<1>{}),
-            Problem::BlockFmhaShape::Gemm1WarpTile::At(Number<2>{}),
-            true>;
+        auto warp_gemm = [&]() {
+            if constexpr(Problem::kIsFp8)
+            {
+                return warp::WarpGemmImpl<
+                    warp::WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution<
+                        warp::WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<
+                            typename Problem::PDataType,
+                            typename Problem::VDataType>,
+                        2>>{};
+                // return
+                // warp::WarpGemmImpl<warp::WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
+                //         warp::WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename
+                //         Problem::PDataType, typename Problem::VDataType>>>{};
+            }
+            else
+            {
+                return ck::tile_program::warp::WarpGemmMfmaDispatcher<
+                    typename Problem::PDataType,
+                    typename Problem::VDataType,
+                    typename Problem::OaccDataType,
+                    Problem::BlockFmhaShape::Gemm1WarpTile::At(Number<0>{}),
+                    Problem::BlockFmhaShape::Gemm1WarpTile::At(Number<1>{}),
+                    Problem::BlockFmhaShape::Gemm1WarpTile::At(Number<2>{}),
+                    true>{};
+            }
+        }();
+
+        using WarpGemm = remove_cvref_t<decltype(warp_gemm)>;
+
         using BlockGemmPolicy =
             BlockGemmARegBSmemCRegV2CustomPolicy<typename Problem::PDataType,
                                                  typename Problem::VDataType,

@@ -16,7 +16,7 @@ template <typename BlockTile_, // Sequence<...
           typename Gemm0WarpTile_,
           typename Gemm1BlockWarps_,
           typename Gemm1WarpTile_,
-          typename VLayout_ = ck::tensor_layout::gemm::RowMajor>
+          bool IsVLayoutRowMajor_>
 struct TileFmhaShape
 {
     using BlockTile       = remove_cvref_t<BlockTile_>;
@@ -41,7 +41,11 @@ struct TileFmhaShape
                                     // once (or repeately load Q as a whole tile)
     static_assert(kK0BlockLength % kK0 == 0, "kK0BlockLength should be divisible by kK0");
 
-    using VLayout = remove_cvref_t<VLayout_>; // rowmajor : seqlen*hdim, colmajor : hdim*seqlen
+    // v, rowmajor : seqlen*hdim, colmajor : hdim*seqlen
+    static constexpr bool IsVLayoutRowMajor = IsVLayoutRowMajor_;
+    using VLayout                           = std::conditional_t<IsVLayoutRowMajor,
+                                       ck::tensor_layout::gemm::RowMajor,
+                                       ck::tensor_layout::gemm::ColumnMajor>;
 };
 
 } // namespace tile_program

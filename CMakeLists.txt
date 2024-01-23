@@ -21,7 +21,7 @@ set(version 1.1.0)
 # Check support for CUDA/HIP in Cmake
 project(composable_kernel VERSION ${version})
 
-find_package(Python3 3.5 COMPONENTS Interpreter REQUIRED)
+find_package(Python3 3.7 COMPONENTS Interpreter REQUIRED)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 

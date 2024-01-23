@@ -1,23 +1,23 @@
 # generate a list of kernels, but not actually emit files at config stage
 execute_process(
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate_kernels.py
-  --list_kernels ${CMAKE_CURRENT_BINARY_DIR}/kernel_list.txt
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
+  --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/blob_list.txt
 )
 
-# NOTE: for cmake, the FMHA_FWD_GEN_KERNELS files must be in the same directory
+# NOTE: for cmake, the FMHA_FWD_GEN_BLOBS files must be in the same directory
 #       as current cmake list, otherwise will not figure out the dependency properly
-file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/kernel_list.txt FMHA_FWD_GEN_KERNELS)
+file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/blob_list.txt FMHA_FWD_GEN_BLOBS)
 
 add_custom_command(
-  OUTPUT ${FMHA_FWD_GEN_KERNELS}
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate_kernels.py
+  OUTPUT ${FMHA_FWD_GEN_BLOBS}
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --output_dir ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 set(EXAMPLE_FMHA_FWD "example_fmha_fwd")
 add_example_executable(${EXAMPLE_FMHA_FWD} fmha_fwd.cpp)
 target_include_directories(${EXAMPLE_FMHA_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_sources(${EXAMPLE_FMHA_FWD} PRIVATE ${FMHA_FWD_GEN_KERNELS})
+target_sources(${EXAMPLE_FMHA_FWD} PRIVATE ${FMHA_FWD_GEN_BLOBS})
 
 # NOTE: this is dangerous since will change the whole kernel to flush denormals
 #       WIP with compiler team for an exp2 intrinsic..., then remove this
