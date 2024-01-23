@@ -433,7 +433,7 @@ struct BlockFmhaPipelineQRKSVSCustomPolicy
     }
 
     template <typename Problem>
-    __host__ __device__ static constexpr ck::index_t GetSmemSize()
+    __host__ __device__ static constexpr ck::index_t GetSmemSizeKV()
     {
         // TODO: assume Q is in register
         // TODO: assume K/V has same data type
@@ -441,6 +441,12 @@ struct BlockFmhaPipelineQRKSVSCustomPolicy
             GetSingleSmemElementSpaceSize<Problem>() * sizeof(typename Problem::KDataType);
 
         return single_smem_size * math::max(NumPrefetchK, NumPrefetchV);
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr ck::index_t GetSmemSize()
+    {
+        return GetSmemSizeKV<Problem>() + 128 * 32;
     }
 
     template <typename Problem, typename BlockGemm>
@@ -739,6 +745,67 @@ struct BlockFmhaPipelineQRKSVSCustomPolicy
                                                  typename Problem::BlockFmhaShape::Gemm1BlockWarps,
                                                  WarpGemm>;
         return BlockGemmARegBSmemCRegV2<BlockGemmProblem, BlockGemmPolicy>{};
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto MakeZLdsBlockDescriptor()
+    {
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kNPerStep  = 32;
+        constexpr index_t kN0_1      = 4;
+        constexpr index_t kN0_0      = kNPerStep / kN0_1;
+        static_assert(kNPerBlock % kNPerStep == 0,
+                      "kNPerStep must be evenly divided by kNPerBlock");
+
+        constexpr auto z_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(Number<kN0_0>{}, Number<kMPerBlock>{}, Number<kN0_1>{}),
+            make_tuple(Number<kMPerBlock * kN0_1>{}, Number<kN0_1>{}, Number<1>{}),
+            Number<kN0_1>{},
+            Number<1>{});
+
+        constexpr auto z_lds_block_desc = transform_tensor_descriptor(
+            z_lds_block_desc_0,
+            make_tuple(make_pass_through_transform(Number<kMPerBlock>{}),
+                       make_merge_transform(make_tuple(Number<kN0_0>{}, Number<kN0_1>{}))),
+            make_tuple(Sequence<1>{}, Sequence<0, 2>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        return z_lds_block_desc;
+    }
+
+    template <typename Problem, typename BlockGemm>
+    __host__ __device__ static constexpr auto MakeZSramTileDistribution()
+    {
+        constexpr index_t MPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t NPerBlock = Problem::BlockFmhaShape::kN0;
+
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+
+        using WG = remove_cvref_t<decltype(config.template At<0>())>;
+
+        constexpr index_t kNPerStep = WG::kN;
+        constexpr index_t kN0_1     = 4;
+        constexpr index_t kN0_0     = kNPerStep / kN0_1;
+
+        constexpr index_t kM2 = 16 / kN0_1;
+        constexpr index_t kM1 = get_warp_size() / kN0_0;
+        constexpr index_t kM0 = MPerBlock / (kM1 * kM2);
+
+        static_assert(NPerBlock % kNPerStep == 0, "kNPerStep must be evenly divided by NPerBlock");
+
+        // Construct Z-Block-Tensor
+        constexpr auto z_block_dstr_encoding =
+            StaticTileDistributionEncoding<Sequence<>,
+                                           Tuple<Sequence<kM0, kM1, kM2>, Sequence<kN0_0, kN0_1>>,
+                                           Tuple<Sequence<1>, Sequence<1, 2>>,
+                                           Tuple<Sequence<0>, Sequence<1, 0>>,
+                                           Sequence<1, 2>,
+                                           Sequence<2, 1>>{};
+
+        constexpr auto z_block_dstr = make_static_tile_distribution(z_block_dstr_encoding);
+
+        return z_block_dstr;
     }
 };
 

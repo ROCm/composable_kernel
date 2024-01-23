@@ -18,6 +18,7 @@
 #include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qr_ks_vs_async_default_policy.hpp"
 #include "ck/tile_program/block_tile/block_reduce.hpp"
 #include "ck/tile_program/tile/shuffle_distributed_tensor.hpp"
+#include "ck/tile_program/tile/generate_random.hpp"
 
 namespace ck {
 namespace tile_program {
@@ -59,6 +60,7 @@ struct BlockFmhaPipelineQRKSVSAsync
     static constexpr bool kK0N1NeedPadding = Problem::kK0N1NeedPadding;
     static constexpr bool kHasBias         = Problem::kHasBias;
     static constexpr bool kStoreLSE        = Problem::kStoreLSE;
+    static constexpr bool kUseDropout      = true;
 
 #if CK_FMHA_FWD_FAST_EXP2
     static constexpr auto R_LOG2E = 1.0 / math::log2e_v<SaccDataType>;
@@ -92,7 +94,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                const LSEElementFunction& lse_element_func,
                FmhaMask mask,
                float scale,
-               void* smem_ptr) const
+               void* smem_ptr,
+               int start_m0_idx) const
     {
         static_assert(
             is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -109,6 +112,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                           kN0 == BiasDramBlockWindowTmp{}.GetWindowLengths()[Number<1>{}],
                       "wrong!");
 
+        ck::philox ph(7777, 0, 8888);
         constexpr auto LdsSeq = Policy::template GetLdsBufferSequence<Problem>();
 
         // K tile in LDS
@@ -450,6 +454,58 @@ struct BlockFmhaPipelineQRKSVSAsync
 
             const auto p = cast_tile<PDataType>(p_compute);
 
+            if constexpr(kUseDropout)
+            {
+                // Z tile in LDS
+                auto z_lds = make_tensor_view<AddressSpaceEnum::Lds>(
+                    reinterpret_cast<uint8_t*>(smem_ptr) +
+                        Policy::template GetSmemSizeKV<Problem>(),
+                    Policy::template MakeZLdsBlockDescriptor<Problem>());
+
+                auto z_lds_window = make_tile_window(
+                    z_lds,
+                    Policy::template MakeZLdsBlockDescriptor<Problem>().GetLengths(),
+                    {0, 0});
+
+                // register distribute
+                auto z_dropout = make_static_distributed_tensor<uint8_t>(
+                    Policy::template MakeZSramTileDistribution<Problem, decltype(gemm_0)>());
+
+                constexpr auto config =
+                    decltype(gemm_0)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+                using WG                    = remove_cvref_t<decltype(config.template At<0>())>;
+                constexpr index_t kNPerStep = WG::kN;
+                const index_t start_n0_idx  = i_total_loops * kN0;
+
+                static_for<0, kN0, kNPerStep>{}([&](auto i_n0) {
+                    auto line_idx             = threadIdx.x * 4;
+                    auto idx_n                = line_idx % kNPerStep + start_n0_idx + i_n0;
+                    auto idx_m                = line_idx / kNPerStep + start_m0_idx;
+                    auto element_global_1d_id = idx_m * kK0BlockLength + idx_n;
+
+                    // generate random number
+                    uint8_t tmp[16];
+                    ph.get_random_16x8(tmp, element_global_1d_id);
+
+                    constexpr auto z_spans = decltype(z_dropout)::GetDistributedSpans();
+                    int i_random_idx       = 0;
+                    sweep_tile_span(z_spans[Number<0>{}], [&](auto idx0) {
+                        sweep_tile_span(z_spans[Number<1>{}], [&](auto idx1) {
+                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                            z_dropout(i_j_idx)     = tmp[i_random_idx++];
+                        });
+                    });
+                    // save to LDS
+                    store_tile(z_lds_window, z_dropout);
+                    // read form LDS to register
+                    auto dropout =
+                        make_static_distributed_tensor<uint8_t>(p_compute.GetTileDistribution());
+
+                    // dropout
+
+                    ignore = dropout;
+                });
+            }
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
             {
@@ -579,7 +635,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                LSEDramBlockWindowTmp& lse_dram_block_window_tmp,         // M0*1 tile
                FmhaMask mask,
                float scale,
-               void* smem_ptr) const
+               void* smem_ptr,
+               int start_m_idx) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -593,7 +650,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                           identity{},
                           mask,
                           scale,
-                          smem_ptr);
+                          smem_ptr,
+                          start_m_idx);
     }
 };
 

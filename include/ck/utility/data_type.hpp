@@ -143,6 +143,13 @@ struct scalar_type<int8_t>
     static constexpr index_t vector_size = 1;
 };
 
+template <>
+struct scalar_type<uint8_t>
+{
+    using type                           = uint8_t;
+    static constexpr index_t vector_size = 1;
+};
+
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 template <>
 struct scalar_type<int4_t>

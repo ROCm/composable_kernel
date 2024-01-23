@@ -322,8 +322,9 @@ struct FmhaFwdKernel
         const auto [i_tile_m, i_tile_n, i_nhead, i_batch] =
             TilePartitioner{}(kargs.seqlen_q, kargs.hdim_v);
 
-        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
-        const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
+        const index_t i_m0       = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
+        const index_t i_n1       = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
+        const index_t i_total_m0 = __builtin_amdgcn_readfirstlane(i_m0 * i_nhead * i_batch);
 
         long_index_t batch_offset_q    = 0;
         long_index_t batch_offset_k    = 0;
@@ -630,7 +631,8 @@ struct FmhaFwdKernel
                            kargs.scale,
                            // ck::math::integer_divide_ceil(kargs.seqlen_k, FmhaPipeline::kN0),
                            // ck::math::integer_divide_ceil(kargs.hdim_q, FmhaPipeline::kK0),
-                           smem_ptr);
+                           smem_ptr,
+                           i_total_m0);
 
         // O DRAM and O DRAM window
         auto o_dram = [&]() {
