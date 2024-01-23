@@ -920,7 +920,7 @@ struct vector_type<T, 256>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 
@@ -971,7 +971,7 @@ struct vector_type<T, 256>
         }
         else
         {
-            return constexpr 0;
+            return err;
         }
     }
 };
