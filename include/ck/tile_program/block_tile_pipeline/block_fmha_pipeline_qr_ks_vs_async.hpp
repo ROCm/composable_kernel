@@ -113,7 +113,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                       "wrong!");
 
         ck::philox ph(7777, 0, 8888);
-        constexpr auto LdsSeq = Policy::template GetLdsBufferSequence<Problem>();
+        uint8_t p_dropout_in_uint8_t = 255;
+        float p_dropout_rescale      = 1.0f;
+        constexpr auto LdsSeq        = Policy::template GetLdsBufferSequence<Problem>();
 
         // K tile in LDS
         auto k_lds_ptr   = reinterpret_cast<KDataType*>(smem_ptr);
@@ -507,7 +509,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                     sweep_tile_span(drop_spans[Number<0>{}], [&](auto idx0) {
                         sweep_tile_span(drop_spans[Number<1>{}], [&](auto idx1) {
                             constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                            p_compute(i_j_idx) = dropout[i_j_idx] > 100 ? 0 : p_compute[i_j_idx];
+                            p_compute(i_j_idx)     = dropout[i_j_idx] <= p_dropout_in_uint8_t
+                                                         ? p_compute[i_j_idx] * p_dropout_rescale
+                                                         : float(0);
                         });
                     });
                 });

@@ -446,7 +446,15 @@ struct BlockFmhaPipelineQRKSVSCustomPolicy
     template <typename Problem>
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
-        return GetSmemSizeKV<Problem>() + 128 * 32;
+        return GetSmemSizeKV<Problem>() + GetSmemSizeDropout<Problem>();
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr ck::index_t GetSmemSizeDropout()
+    {
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kNPerStep  = 32;
+        return kMPerBlock * kNPerStep;
     }
 
     template <typename Problem, typename BlockGemm>
