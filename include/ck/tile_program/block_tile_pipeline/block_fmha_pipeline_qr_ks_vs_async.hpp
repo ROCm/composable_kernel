@@ -477,10 +477,10 @@ struct BlockFmhaPipelineQRKSVSAsync
                 constexpr index_t kNPerStep = WG::kN;
                 const index_t start_n0_idx  = i_total_loops * kN0;
 
-                static_for<0, kN0, kNPerStep>{}([&](auto i_n0) {
-                    auto line_idx             = threadIdx.x * 4;
-                    auto idx_n                = line_idx % kNPerStep + start_n0_idx + i_n0;
-                    auto idx_m                = line_idx / kNPerStep + start_m0_idx;
+                static_for<0, kN0 / kNPerStep, 1>{}([&](auto i_n0) {
+                    auto line_idx = threadIdx.x * 4;
+                    auto idx_n    = line_idx % kNPerStep + start_n0_idx + i_n0 * kNPerStep;
+                    auto idx_m    = line_idx / kNPerStep + start_m0_idx;
                     auto element_global_1d_id = idx_m * kK0BlockLength + idx_n;
 
                     // generate random number
@@ -498,20 +498,25 @@ struct BlockFmhaPipelineQRKSVSAsync
                     // save to LDS
                     store_tile(z_lds_window, z_dropout);
                     // read form LDS to register
-                    auto droput_dram_window = make_tile_window(z_lds_window.GetBottomTensorView(),
-                                                               z_lds_window.GetWindowLengths(),
-                                                               z_lds_window.GetWindowOrigin(),
-                                                               p_compute.GetTileDistribution());
+                    auto droput_dram_window = make_tile_window(
+                        z_lds_window.GetBottomTensorView(),
+                        z_lds_window.GetWindowLengths(),
+                        z_lds_window.GetWindowOrigin(),
+                        Policy::template MakeZSramPartTileDistribution<Problem,
+                                                                       decltype(gemm_0)>());
 
                     auto dropout = load_tile(droput_dram_window);
                     // dropout
                     constexpr auto drop_spans = decltype(dropout)::GetDistributedSpans();
                     sweep_tile_span(drop_spans[Number<0>{}], [&](auto idx0) {
                         sweep_tile_span(drop_spans[Number<1>{}], [&](auto idx1) {
-                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                            p_compute(i_j_idx)     = dropout[i_j_idx] <= p_dropout_in_uint8_t
-                                                         ? p_compute[i_j_idx] * p_dropout_rescale
-                                                         : float(0);
+                            constexpr auto second_ =
+                                TileDistributedIndex<i_n0, idx1.impl_.At(1), idx1.impl_.At(2)>{};
+                            constexpr auto p_idx = make_tuple(idx0, second_);
+                            constexpr auto d_idx = make_tuple(idx0, idx1);
+                            p_compute(p_idx)     = dropout[d_idx] <= p_dropout_in_uint8_t
+                                                       ? p_compute[p_idx] * p_dropout_rescale
+                                                       : float(0);
                         });
                     });
                 });

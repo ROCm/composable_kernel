@@ -815,6 +815,32 @@ struct BlockFmhaPipelineQRKSVSCustomPolicy
 
         return z_block_dstr;
     }
+
+    template <typename Problem, typename BlockGemm>
+    __host__ __device__ static constexpr auto MakeZSramPartTileDistribution()
+    {
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+
+        using WG                = remove_cvref_t<decltype(config.template At<0>())>;
+        constexpr index_t MWarp = config.template At<1>();
+        constexpr index_t NWarp = config.template At<2>();
+
+        constexpr index_t MIterPerWarp = 1;
+        constexpr index_t NIterPerWarp = 1;
+
+        constexpr auto c_block_outer_part_dstr_encoding = StaticTileDistributionEncoding<
+            Sequence<>,
+            Tuple<Sequence<MIterPerWarp, MWarp>, Sequence<NIterPerWarp, NWarp>>,
+            Tuple<Sequence<1, 2>>,
+            Tuple<Sequence<1, 1>>,
+            Sequence<1, 2>,
+            Sequence<0, 0>>{};
+
+        constexpr auto c_block_part_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            c_block_outer_part_dstr_encoding, typename WG::CWarpDstrEncoding{});
+
+        return make_static_tile_distribution(c_block_part_dstr_encode);
+    }
 };
 
 } // namespace block
