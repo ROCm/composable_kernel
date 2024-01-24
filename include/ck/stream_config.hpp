@@ -11,6 +11,6 @@ struct StreamConfig
     hipStream_t stream_id_ = nullptr;
     bool time_kernel_      = false;
     int log_level_         = 0;
-    int cold_niters_       = 1;
-    int nrepeat_           = 10;
+    int cold_niters_       = 5;
+    int nrepeat_           = 50;
 };

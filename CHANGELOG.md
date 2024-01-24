@@ -2,7 +2,21 @@
 
 Full documentation for Composable Kernel is not yet available.
 
-## (Unreleased) CK for ROCm 6.0.0
+## (Unreleased) CK
+
+### Fixes
+None
+
+### Optimizations
+None
+
+### Additions
+- Introduce wrapper sublibrary (limited functionality). (#1071, #1098, #1108, #1126)
+
+### Changes
+None
+
+## CK for ROCm 6.0.0
 
 ### Fixes
  * Fixed a hazard associated with inline v_dot (#808)

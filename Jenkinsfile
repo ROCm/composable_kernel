@@ -304,7 +304,7 @@ def buildHipClangJob(Map conf=[:]){
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-                timeout(time: 5, unit: 'HOURS')
+                timeout(time: 20, unit: 'HOURS')
                 {
                     cmake_build(conf)
                 }
@@ -709,6 +709,10 @@ pipeline {
             name: "USE_SCCACHE",
             defaultValue: true,
             description: "Use the sccache for building CK (default: ON)")
+        booleanParam(
+            name: "RUN_CPPCHECK",
+            defaultValue: false,
+            description: "Run the cppcheck static analysis (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -735,7 +739,35 @@ pipeline {
         }
         stage("Static checks") {
             parallel{
+                stage('Clang Format and Cppcheck') {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CPPCHECK.toBoolean() }
+                    }
+                    agent{ label rocmnode("nogpu") }
+                    environment{
+                        execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
+                                -o -not -path \'*.git*\' -iname \'*.hpp\' \
+                                -o -not -path \'*.git*\' -iname \'*.cpp\' \
+                                -o -iname \'*.h.in\' \
+                                -o -iname \'*.hpp.in\' \
+                                -o -iname \'*.cpp.in\' \
+                                -o -iname \'*.cl\' \
+                                | grep -v 'build/' \
+                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-12 -style=file {} | diff - {}\' && \
+                                /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include --file-filter=*.cpp --enable=all --output-file=ck_cppcheck.log"
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        archiveArtifacts "build/ck_cppcheck.log"
+                        cleanWs()
+                    }
+                }
                 stage('Clang Format') {
+                    when {
+                        beforeAgent true
+                        expression { !params.RUN_CPPCHECK.toBoolean() }
+                    }
                     agent{ label rocmnode("nogpu") }
                     environment{
                         execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
