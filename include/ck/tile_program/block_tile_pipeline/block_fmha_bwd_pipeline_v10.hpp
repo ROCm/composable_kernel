@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -30,19 +30,23 @@ struct BlockFmhaBwdPipelineV10
     using KDataType    = remove_cvref_t<typename Problem::KDataType>;
     using VDataType    = remove_cvref_t<typename Problem::VDataType>;
     using GemmDataType = remove_cvref_t<typename Problem::GemmDataType>;
+    using BiasDataType = remove_cvref_t<typename Problem::BiasDataType>;
     using LSEDataType  = remove_cvref_t<typename Problem::LSEDataType>;
     using AccDataType  = remove_cvref_t<typename Problem::AccDataType>;
     using DDataType    = remove_cvref_t<typename Problem::DDataType>;
     // using ZDataType        = remove_cvref_t<typename Problem::ZDataType>;
-    using ODataType     = remove_cvref_t<typename Problem::ODataType>;
-    using OGradDataType = remove_cvref_t<typename Problem::OGradDataType>;
-    using QGradDataType = remove_cvref_t<typename Problem::QGradDataType>;
-    using KGradDataType = remove_cvref_t<typename Problem::KGradDataType>;
-    using VGradDataType = remove_cvref_t<typename Problem::VGradDataType>;
+    using ODataType        = remove_cvref_t<typename Problem::ODataType>;
+    using OGradDataType    = remove_cvref_t<typename Problem::OGradDataType>;
+    using QGradDataType    = remove_cvref_t<typename Problem::QGradDataType>;
+    using KGradDataType    = remove_cvref_t<typename Problem::KGradDataType>;
+    using VGradDataType    = remove_cvref_t<typename Problem::VGradDataType>;
+    using BiasGradDataType = remove_cvref_t<typename Problem::BiasGradDataType>;
+    using FmhaMask         = remove_cvref_t<typename Problem::FmhaMask>;
 
     using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
 
-    static constexpr index_t kBlockSize = Problem::kBlockSize;
+    static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
+    static constexpr index_t kBlockSize  = Problem::kBlockSize;
 
     static constexpr index_t kM0        = BlockFmhaShape::kM0;
     static constexpr index_t kN0        = BlockFmhaShape::kN0;
@@ -62,6 +66,12 @@ struct BlockFmhaBwdPipelineV10
     static constexpr bool kOGradLoadOnce  = BlockFmhaShape::kOGradLoadOnce;
     static constexpr bool kOGradTLoadOnce = BlockFmhaShape::kOGradTLoadOnce;
 
+    static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
+    static constexpr bool kM0NeedPadding   = Problem::kM0NeedPadding;
+    static constexpr bool kN0K1NeedPadding = Problem::kN0K1NeedPadding;
+    static constexpr bool kK0N1NeedPadding = Problem::kK0N1NeedPadding;
+    static constexpr bool kHasBias         = Problem::kHasBias;
+
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
@@ -72,24 +82,29 @@ struct BlockFmhaBwdPipelineV10
               typename KDramBlockWindowTmp,
               typename KTDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
+              typename BiasDramBlockWindowTmp,
               typename OGradDramBlockWindowTmp,
               typename OGradTDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp,
               typename DDramBlockWindowTmp,
-              typename QGradDramBlockWindowTmp>
-    __host__ __device__ auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
-                                        const QTDramBlockWindowTmp& qt_dram_block_window_tmp,
-                                        const KDramBlockWindowTmp& k_dram_block_window_tmp,
-                                        const KTDramBlockWindowTmp& kt_dram_block_window_tmp,
-                                        const VDramBlockWindowTmp& v_dram_block_window_tmp,
-                                        const OGradDramBlockWindowTmp& do_dram_block_window_tmp,
-                                        const OGradTDramBlockWindowTmp& dot_dram_block_window_tmp,
-                                        const LSEDramBlockWindowTmp& lse_dram_block_window_tmp,
-                                        const DDramBlockWindowTmp& d_dram_block_window_tmp,
-                                        const QGradDramBlockWindowTmp& dq_dram_block_window_tmp,
-                                        float scale,
-                                        index_t num_total_loop,
-                                        void* smem_ptr) const
+              typename QGradDramBlockWindowTmp,
+              typename BiasGradDramBlockWindowTmp>
+    __host__ __device__ auto
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
+               const QTDramBlockWindowTmp& qt_dram_block_window_tmp,
+               const KDramBlockWindowTmp& k_dram_block_window_tmp,
+               const KTDramBlockWindowTmp& kt_dram_block_window_tmp,
+               const VDramBlockWindowTmp& v_dram_block_window_tmp,
+               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
+               const OGradDramBlockWindowTmp& do_dram_block_window_tmp,
+               const OGradTDramBlockWindowTmp& dot_dram_block_window_tmp,
+               const LSEDramBlockWindowTmp& lse_dram_block_window_tmp,
+               const DDramBlockWindowTmp& d_dram_block_window_tmp,
+               const QGradDramBlockWindowTmp& dq_dram_block_window_tmp,
+               const BiasGradDramBlockWindowTmp& dbias_dram_block_window_tmp,
+               FmhaMask mask,
+               float scale,
+               void* smem_ptr) const
     {
         static_assert(
             is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -106,10 +121,14 @@ struct BlockFmhaBwdPipelineV10
         static_assert(kM0 == QDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
                           kN0 == KDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
                           kN0 == VDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
+                          kM0 == BiasDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
+                          kN0 == BiasDramBlockWindowTmp{}.GetWindowLengths()[Number<1>{}] &&
                           kM0 == OGradDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
                           kM0 == LSEDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
                           kM0 == DDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
-                          kM0 == QGradDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}],
+                          kM0 == QGradDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
+                          kM0 == BiasGradDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
+                          kN0 == BiasGradDramBlockWindowTmp{}.GetWindowLengths()[Number<1>{}],
                       "wrong!");
 
         // Q tile in LDS
@@ -200,8 +219,8 @@ struct BlockFmhaBwdPipelineV10
         auto dv_acc = decltype(gemm_1.MakeCBlockTile()){};
         auto dk_acc = decltype(gemm_3.MakeCBlockTile()){};
 
-        tile_elementwise_inout([](auto& e) { e = 0; }, dv_acc);
-        tile_elementwise_inout([](auto& e) { e = 0; }, dk_acc);
+        clear_tile(dv_acc);
+        clear_tile(dk_acc);
 
         auto k_dram_block_window = k_dram_block_window_tmp;
 
@@ -212,6 +231,24 @@ struct BlockFmhaBwdPipelineV10
             Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
                                                                     // load
 
+        __builtin_amdgcn_sched_barrier(0);
+        const auto k_origin = k_dram_window.GetWindowOrigin();
+        const auto [seqlen_q_start, seqlen_q_end] =
+            mask.GetTileRangeAlongY(k_origin.At(Number<0>{}), Number<kM0>{}, Number<kN0>{});
+
+        const auto num_total_loop = math::integer_divide_ceil(seqlen_q_end - seqlen_q_start, kM0);
+
+        // check early exit if masked and no work to do.
+        if constexpr(FmhaMask::IsMasking)
+        {
+            if(num_total_loop <= 0)
+            {
+                // Note: here dk_acc&dv_acc are all cleard, return it
+                // Note: v loaded but no fence, ignore it.
+                return ck::make_tuple(dk_acc, dv_acc);
+            }
+        }
+
         auto k_block_tile = load_tile(k_dram_window);
 
         store_tile(k_lds_window, k_block_tile); // // persistent K in LDS
@@ -220,9 +257,20 @@ struct BlockFmhaBwdPipelineV10
         ignore = kt_dram_block_window_tmp;
         ignore = dot_dram_block_window_tmp;
 
-        auto q_dram_block_window  = q_dram_block_window_tmp;
-        auto do_dram_block_window = do_dram_block_window_tmp;
-        auto dq_dram_block_window = dq_dram_block_window_tmp;
+        auto q_dram_block_window = make_tile_window(q_dram_block_window_tmp.GetBottomTensorView(),
+                                                    q_dram_block_window_tmp.GetWindowLengths(),
+                                                    {seqlen_q_start, 0});
+
+        auto do_dram_block_window = make_tile_window(do_dram_block_window_tmp.GetBottomTensorView(),
+                                                     do_dram_block_window_tmp.GetWindowLengths(),
+                                                     {seqlen_q_start, 0});
+
+        auto dq_dram_block_window = make_tile_window(dq_dram_block_window_tmp.GetBottomTensorView(),
+                                                     dq_dram_block_window_tmp.GetWindowLengths(),
+                                                     {seqlen_q_start, 0});
+
+        ignore = bias_dram_block_window_tmp;
+        ignore = dbias_dram_block_window_tmp;
 
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kQKHeaddim / kK0;
@@ -250,8 +298,8 @@ struct BlockFmhaBwdPipelineV10
             auto st_acc = SPTBlockTileType{};
 
             auto q_block_tile = load_tile(q_dram_window);
-            tile_elementwise_inout([](auto& c) { c = 0; }, st_acc); // Initialize S^T
-            store_tile(q_lds_window, q_block_tile);                 // LDS write
+            clear_tile(st_acc);                     // Initialize S^T
+            store_tile(q_lds_window, q_block_tile); // LDS write
 
             if constexpr(k0_loops > 1)
             {
@@ -281,8 +329,28 @@ struct BlockFmhaBwdPipelineV10
                 block_sync_lds();
             }
 
-            // STAGE 2, Scale & Softmax
+            // STAGE 2, Scale, Add bias, Mask, Softmax
+#if !CK_FMHA_FWD_FAST_EXP2
             tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, st_acc);
+#endif
+
+            if constexpr(kN0K1NeedPadding || FmhaMask::IsMasking)
+            {
+                const auto q_origin      = q_dram_block_window.GetWindowOrigin();
+                bool need_perpixel_check = mask.IsEdgeTile(q_origin.At(Number<0>{}),
+                                                           k_origin.At(Number<0>{}),
+                                                           Number<kM0>{},
+                                                           Number<kN0>{});
+                if(need_perpixel_check)
+                {
+                    set_tile_if(
+                        st_acc, -NumericLimits<AccDataType>::Infinity(), [&](auto tile_idx) {
+                            const auto row = q_origin.At(Number<0>{}) + tile_idx.At(Number<0>{});
+                            const auto col = k_origin.At(Number<0>{}) + tile_idx.At(Number<1>{});
+                            return mask.IsOutOfBound(row, col);
+                        });
+                }
+            }
 
             const auto lse = load_tile(lse_dram_window);
 
@@ -290,9 +358,16 @@ struct BlockFmhaBwdPipelineV10
             constexpr auto pt_spans = decltype(pt)::GetDistributedSpans();
             sweep_tile_span(pt_spans[Number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
+#if CK_FMHA_FWD_FAST_EXP2
+                auto row_lse = scale * lse[i_idx];
+#endif
                 sweep_tile_span(pt_spans[Number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    pt(i_j_idx)            = math::exp(st_acc[i_j_idx] - lse[i_idx]);
+#if CK_FMHA_FWD_FAST_EXP2
+                    pt(i_j_idx) = math::exp2(scale * st_acc[i_j_idx] - row_lse);
+#else
+                    pt(i_j_idx) = math::exp(st_acc[i_j_idx] - lse[i_idx]);
+#endif
                 });
             });
 
@@ -315,7 +390,7 @@ struct BlockFmhaBwdPipelineV10
 
             // STAGE 4, OGrad@V Gemm2
             auto dpt_acc = SPGradTBlockTileType{};
-            tile_elementwise_inout([](auto& c) { c = 0; }, dpt_acc); // Initialize PGrad^T
+            clear_tile(dpt_acc); // Initialize PGrad^T
 
             static_for<0, k2_loops, 1>{}([&](auto i_k2) {
                 block_sync_lds();
@@ -361,7 +436,7 @@ struct BlockFmhaBwdPipelineV10
 
             auto dq_acc = QGradBlockTileType{};
 
-            tile_elementwise_inout([](auto& c) { c = 0; }, dq_acc); // Initialize QGrad
+            clear_tile(dq_acc); // Initialize QGrad
 
             static_for<0, k4_loops, 1>{}([&](auto i_k4) {
                 block_sync_lds();
