@@ -83,7 +83,7 @@ bool profile_layernorm_bwd_gamma_beta_impl(int do_verification,
         dy.GenerateTensorValue(GeneratorTensor_2<DYDataType>{-5, 5});
         x.GenerateTensorValue(GeneratorTensor_2<XDataType>{-5, 5});
         mean.GenerateTensorValue(GeneratorTensor_2<MeanInvStdDataType>{-5, 5});
-        inv_std.GenerateTensorValue(GeneratorTensor_2<MeanInvStdDataType>{-5, 5});
+        inv_std.GenerateTensorValue(GeneratorTensor_2<MeanInvStdDataType>{0, 5});
         dgamma.GenerateTensorValue(GeneratorTensor_2<DGammaDataType>{-5, 5});
         dbeta.GenerateTensorValue(GeneratorTensor_2<DBetaDataType>{-5, 5});
         break;
@@ -91,7 +91,7 @@ bool profile_layernorm_bwd_gamma_beta_impl(int do_verification,
         dy.GenerateTensorValue(GeneratorTensor_3<DYDataType>{0, 1});
         x.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1});
         mean.GenerateTensorValue(GeneratorTensor_3<MeanInvStdDataType>{-0.5, 0.5});
-        inv_std.GenerateTensorValue(GeneratorTensor_3<MeanInvStdDataType>{-0.5, 0.5});
+        inv_std.GenerateTensorValue(GeneratorTensor_3<MeanInvStdDataType>{0, 0.5});
         dgamma.GenerateTensorValue(GeneratorTensor_3<DGammaDataType>{-0.5, 0.5});
         dbeta.GenerateTensorValue(GeneratorTensor_3<DBetaDataType>{-0.5, 0.5});
     }
