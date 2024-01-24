@@ -72,6 +72,10 @@ int main(int argc, char* argv[])
     // profile device operation instances
     std::cout << "Run all instances and do timing" << std::endl;
 
+    std::size_t num_bytes = sizeof(DYDataType) * M * N + sizeof(XDataType) * M * N +
+                            sizeof(MeanInvStdDataType) * M * 2 + sizeof(DGammaDataType) * N +
+                            sizeof(DBetaDataType) * N;
+
     for(int i = 0; i < op_ptrs.size(); ++i)
     {
         auto& op_ptr = op_ptrs[i];
@@ -102,13 +106,8 @@ int main(int argc, char* argv[])
             SimpleDeviceMem workspace(workspace_sz);
             op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace.GetDeviceBuffer());
 
-            float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
-
-            std::size_t num_byte = sizeof(DYDataType) * M * N + sizeof(XDataType) * M * N +
-                                   sizeof(MeanInvStdDataType) * M * 2 + sizeof(DGammaDataType) * N +
-                                   sizeof(DBetaDataType) * N;
-
-            float gb_per_sec = num_byte / 1.E6 / ave_time;
+            float ave_time   = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
+            float gb_per_sec = num_bytes / 1.E6 / ave_time;
 
             std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << gb_per_sec << " GB/s, "
                       << op_name << std::endl;

@@ -146,6 +146,13 @@ bool profile_groupnorm_bwd_gamma_beta_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
+    std::size_t num_bytes = dy.mDesc.GetElementSize() * sizeof(DYDataType) +
+                            x.mDesc.GetElementSize() * sizeof(XDataType) +
+                            mean.mDesc.GetElementSize() * sizeof(MeanInvStdDataType) +
+                            inv_std.mDesc.GetElementSize() * sizeof(MeanInvStdDataType) +
+                            dgamma.mDesc.GetElementSize() * sizeof(DGammaDataType) +
+                            dbeta.mDesc.GetElementSize() * sizeof(DBetaDataType);
+
     int num_kernel = 0;
 
     for(auto& inst_ptr : instance_ptrs)
@@ -188,13 +195,6 @@ bool profile_groupnorm_bwd_gamma_beta_impl(int do_verification,
         auto invoker_ptr = inst_ptr->MakeInvokerPointer();
 
         float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
-
-        std::size_t num_bytes = dy.mDesc.GetElementSize() * sizeof(DYDataType) +
-                                x.mDesc.GetElementSize() * sizeof(XDataType) +
-                                mean.mDesc.GetElementSize() * sizeof(MeanInvStdDataType) +
-                                inv_std.mDesc.GetElementSize() * sizeof(MeanInvStdDataType) +
-                                dgamma.mDesc.GetElementSize() * sizeof(DGammaDataType) +
-                                dbeta.mDesc.GetElementSize() * sizeof(DBetaDataType);
 
         float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
