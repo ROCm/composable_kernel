@@ -129,6 +129,23 @@ constexpr auto make_register_tensor(const Layout<Shape, UnrolledDescriptorType>&
 }
 
 /**
+ * \brief Clear tensor. (Only for Vpgr/Sgpr)
+ *
+ * \param tensor Tensor to be cleared.
+ */
+template <MemoryTypeEnum BufferAddressSpace,
+          typename ElementType,
+          typename Shape,
+          typename UnrolledDescriptorType>
+__host__ __device__ void
+clear(Tensor<BufferAddressSpace, ElementType, Shape, UnrolledDescriptorType>& tensor)
+{
+    static_assert(
+        !Tensor<BufferAddressSpace, ElementType, Shape, UnrolledDescriptorType>::IsDynamicBuffer);
+    return tensor.GetBuffer().Clear();
+}
+
+/**
  * \brief Get Tensor Layout.
  *
  * \param tensor Tensor to get layout of.

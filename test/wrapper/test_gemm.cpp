@@ -54,11 +54,7 @@ void CheckResult(std::vector<DataType>& a_data,
 }
 
 template <typename DataType,
-          ck::index_t MPerXDL,
-          ck::index_t NPerXDL,
-          ck::index_t MXdlPerWave,
-          ck::index_t NXdlPerWave,
-          ck::index_t K1,
+          typename GemmTraits,
           ck::index_t scalar_per_vector,
           typename BlockShape,
           typename ThreadLayoutShape>
@@ -78,14 +74,14 @@ __global__ void DeviceGemm(const void* p_a,
     const auto a_global_layout =
         ck::wrapper::make_layout(ck::make_tuple(M, K), ck::make_tuple(K, 1));
     const auto b_global_layout =
-        ck::wrapper::make_layout(ck::make_tuple(K, N), ck::make_tuple(1, K));
+        ck::wrapper::make_layout(ck::make_tuple(N, K), ck::make_tuple(K, 1));
     const auto c_global_layout =
         ck::wrapper::make_layout(ck::make_tuple(M, N), ck::make_tuple(N, 1));
 
     constexpr auto a_tile_layout = ck::wrapper::make_layout(
         ck::make_tuple(MPerBlock, KPerBlock), ck::make_tuple(KPerBlock, ck::Number<1>{}));
     constexpr auto b_tile_layout = ck::wrapper::make_layout(
-        ck::make_tuple(KPerBlock, NPerBlock), ck::make_tuple(ck::Number<1>{}, KPerBlock));
+        ck::make_tuple(NPerBlock, KPerBlock), ck::make_tuple(KPerBlock, ck::Number<1>{}));
     constexpr auto c_tile_layout = ck::wrapper::make_layout(
         ck::make_tuple(MPerBlock, NPerBlock), ck::make_tuple(NPerBlock, ck::Number<1>{}));
 
@@ -99,22 +95,18 @@ __global__ void DeviceGemm(const void* p_a,
     auto a_padded_global_tensor = ck::wrapper::pad(a_global_tensor, shape(a_tile_layout));
     auto b_padded_global_tensor = ck::wrapper::pad(b_global_tensor, shape(b_tile_layout));
     auto c_padded_global_tensor = ck::wrapper::pad(c_global_tensor, shape(c_tile_layout));
-    const ck::index_t M_padded  = ck::wrapper::size<0>(c_padded_global_tensor);
-    const ck::index_t N_padded  = ck::wrapper::size<1>(c_padded_global_tensor);
 
-    __shared__ DataType lds_b[ck::wrapper::size(a_tile_layout)];
-    __shared__ DataType lds_a[ck::wrapper::size(b_tile_layout)];
+    __shared__ DataType lds_a[ck::wrapper::size(a_tile_layout)];
+    __shared__ DataType lds_b[ck::wrapper::size(b_tile_layout)];
 
     auto a_lds_tensor = ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Lds>(
         static_cast<DataType*>(lds_a), a_tile_layout);
     auto b_lds_tensor = ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Lds>(
         static_cast<DataType*>(lds_b), b_tile_layout);
 
-    const ck::index_t block_idx        = static_cast<ck::index_t>(blockIdx.x);
-    using DimAccessOrderA              = ck::Tuple<ck::Number<0>, ck::Number<1>>;
-    using DimAccessOrderB              = ck::Tuple<ck::Number<1>, ck::Number<0>>;
-    constexpr ck::index_t a_vector_dim = 1;
-    constexpr ck::index_t b_vector_dim = 0;
+    const ck::index_t block_idx      = static_cast<ck::index_t>(blockIdx.x);
+    using DimAccessOrder             = ck::Tuple<ck::Number<0>, ck::Number<1>>;
+    constexpr ck::index_t vector_dim = 1;
 
     auto c_global_local_tile = ck::wrapper::make_local_tile(
         c_padded_global_tensor,
@@ -126,20 +118,13 @@ __global__ void DeviceGemm(const void* p_a,
                                                                decltype(a_tile_layout),
                                                                decltype(b_tile_layout),
                                                                ck::wrapper::size(thread_layout),
-                                                               MPerXDL,
-                                                               NPerXDL,
-                                                               MXdlPerWave,
-                                                               NXdlPerWave,
-                                                               K1>(c_global_local_tile);
+                                                               GemmTraits>(c_global_local_tile);
     auto c_vgpr_reg = ck::wrapper::make_blockwise_gemm_xdl_c_vgpr<DataType,
                                                                   decltype(a_tile_layout),
                                                                   decltype(b_tile_layout),
                                                                   ck::wrapper::size(thread_layout),
-                                                                  MPerXDL,
-                                                                  NPerXDL,
-                                                                  MXdlPerWave,
-                                                                  NXdlPerWave,
-                                                                  K1>();
+                                                                  GemmTraits>();
+    ck::wrapper::clear(c_vgpr_reg);
 
     const ck::index_t num_loop = ck::math::integer_divide_ceil(K, KPerBlock);
     ck::index_t i              = 0;
@@ -147,32 +132,25 @@ __global__ void DeviceGemm(const void* p_a,
     {
         const auto k_slice = ck::wrapper::slice(i * KPerBlock, (i + 1) * KPerBlock);
         auto a_padded_global_tensor_k_slice = a_padded_global_tensor(ck::wrapper::slice(), k_slice);
-        auto b_padded_global_tensor_k_slice = b_padded_global_tensor(k_slice, ck::wrapper::slice());
+        auto b_padded_global_tensor_k_slice = b_padded_global_tensor(ck::wrapper::slice(), k_slice);
         auto a_global_local_tile            = ck::wrapper::make_local_tile(
             a_padded_global_tensor_k_slice,
-            ck::make_tuple(MPerBlock, NPerBlock, KPerBlock),
+            tile_shape,
             block_idx,
-            make_tuple(ck::Number<1>{}, ck::wrapper::slice(N_padded), ck::Number<1>{}));
+            make_tuple(ck::Number<1>{}, ck::wrapper::slice(N), ck::Number<1>{}));
         auto b_global_local_tile = ck::wrapper::make_local_tile(
             b_padded_global_tensor_k_slice,
-            ck::make_tuple(MPerBlock, KPerBlock, NPerBlock),
+            tile_shape,
             block_idx,
-            make_tuple(ck::wrapper::slice(M_padded), ck::Number<1>{}, ck::Number<1>{}));
+            make_tuple(ck::wrapper::slice(M), ck::Number<1>{}, ck::Number<1>{}));
 
-        ck::wrapper::blockwise_copy<DimAccessOrderA, a_vector_dim, scalar_per_vector>(
+        ck::wrapper::blockwise_copy<DimAccessOrder, vector_dim, scalar_per_vector>(
             a_global_local_tile, a_lds_tensor, thread_layout);
-        ck::wrapper::blockwise_copy<DimAccessOrderB, b_vector_dim, scalar_per_vector>(
+        ck::wrapper::blockwise_copy<DimAccessOrder, vector_dim, scalar_per_vector>(
             b_global_local_tile, b_lds_tensor, thread_layout);
         ck::block_sync_lds();
-        ck::wrapper::blockwise_gemm_xdl<DataType,
-                                        decltype(a_tile_layout),
-                                        decltype(b_tile_layout),
-                                        ck::wrapper::size(thread_layout),
-                                        MPerXDL,
-                                        NPerXDL,
-                                        MXdlPerWave,
-                                        NXdlPerWave,
-                                        K1>(a_lds_tensor, b_lds_tensor, c_vgpr_reg);
+        ck::wrapper::blockwise_gemm_xdl<DataType, ck::wrapper::size(thread_layout), GemmTraits>(
+            a_lds_tensor, b_lds_tensor, c_vgpr_reg);
 
         ++i;
     } while(i < num_loop);
@@ -181,11 +159,7 @@ __global__ void DeviceGemm(const void* p_a,
 }
 
 template <typename DataType,
-          ck::index_t MPerXDL,
-          ck::index_t NPerXDL,
-          ck::index_t MXdlPerWave,
-          ck::index_t NXdlPerWave,
-          ck::index_t K1,
+          typename GemmTraits,
           ck::index_t scalar_per_vector,
           typename BlockShape,
           typename ThreadLayoutShape>
@@ -213,15 +187,8 @@ void PerformGemm(const ck::index_t M,
         ck::math::integer_divide_ceil(M, ck::wrapper::size<0>(tile_shape)) *
         ck::math::integer_divide_ceil(N, ck::wrapper::size<1>(tile_shape));
 
-    const auto kernel = DeviceGemm<DataType,
-                                   MPerXDL,
-                                   NPerXDL,
-                                   MXdlPerWave,
-                                   NXdlPerWave,
-                                   K1,
-                                   scalar_per_vector,
-                                   BlockShape,
-                                   ThreadLayoutShape>;
+    const auto kernel =
+        DeviceGemm<DataType, GemmTraits, scalar_per_vector, BlockShape, ThreadLayoutShape>;
     launch_and_time_kernel(StreamConfig{nullptr},
                            kernel,
                            dim3(grid_size),
@@ -245,36 +212,47 @@ void PerformGemm(const ck::index_t M,
 TEST(TestGemm, Float)
 {
     using DataType           = float;
-    const auto thread_layout = ck::make_tuple(ck::Number<8>{}, ck::Number<8>{});
+    const auto thread_layout = ck::make_tuple(ck::Number<16>{}, ck::Number<16>{});
     const auto tile_shape = ck::make_tuple(ck::Number<128>{}, ck::Number<128>{}, ck::Number<64>{});
-    PerformGemm<DataType, 32, 32, 4, 4, 8, 4>(512, 512, 128, tile_shape, thread_layout);
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_2x2XdlPerWave_4K1, 4>(
+        512, 512, 128, tile_shape, thread_layout);
     // Irregular case
-    PerformGemm<DataType, 32, 32, 4, 4, 8, 1>(129, 129, 67, tile_shape, thread_layout);
-}
-
-TEST(TestGemm, FloatBlock128)
-{
-    using DataType           = float;
-    const auto thread_layout = ck::make_tuple(ck::Number<16>{}, ck::Number<8>{});
-    const auto tile_shape = ck::make_tuple(ck::Number<128>{}, ck::Number<128>{}, ck::Number<64>{});
-    PerformGemm<DataType, 32, 32, 4, 2, 8, 4>(512, 512, 128, tile_shape, thread_layout);
-    PerformGemm<DataType, 32, 32, 4, 2, 8, 1>(129, 129, 67, tile_shape, thread_layout);
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_2x2XdlPerWave_4K1, 1>(
+        129, 129, 67, tile_shape, thread_layout);
 }
 
 TEST(TestGemm, Int8)
 {
     using DataType           = int8_t;
-    const auto thread_layout = ck::make_tuple(ck::Number<8>{}, ck::Number<8>{});
+    const auto thread_layout = ck::make_tuple(ck::Number<16>{}, ck::Number<16>{});
     const auto tile_shape = ck::make_tuple(ck::Number<128>{}, ck::Number<128>{}, ck::Number<64>{});
-    PerformGemm<DataType, 32, 32, 4, 4, 8, 8>(512, 512, 128, tile_shape, thread_layout);
-    PerformGemm<DataType, 32, 32, 4, 4, 8, 1>(129, 129, 67, tile_shape, thread_layout);
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_2x2XdlPerWave_4K1, 4>(
+        512, 512, 128, tile_shape, thread_layout);
+    // Irregular case
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_2x2XdlPerWave_4K1, 1>(
+        129, 129, 67, tile_shape, thread_layout);
 }
 
 TEST(TestGemm, Half)
 {
     using DataType           = ck::half_t;
-    const auto thread_layout = ck::make_tuple(ck::Number<8>{}, ck::Number<8>{});
+    const auto thread_layout = ck::make_tuple(ck::Number<16>{}, ck::Number<16>{});
     const auto tile_shape = ck::make_tuple(ck::Number<128>{}, ck::Number<128>{}, ck::Number<64>{});
-    PerformGemm<DataType, 32, 32, 4, 4, 8, 8>(512, 512, 128, tile_shape, thread_layout);
-    PerformGemm<DataType, 32, 32, 4, 4, 8, 1>(129, 129, 67, tile_shape, thread_layout);
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_2x2XdlPerWave_4K1, 4>(
+        512, 512, 128, tile_shape, thread_layout);
+    // Irregular case
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_2x2XdlPerWave_4K1, 1>(
+        129, 129, 67, tile_shape, thread_layout);
+}
+
+TEST(TestGemm, Float_2x4_4x2_XdlPerWave)
+{
+    using DataType                            = float;
+    const auto thread_layout_4x2_xdl_per_wave = ck::make_tuple(ck::Number<16>{}, ck::Number<8>{});
+    const auto thread_layout_2x4_xdl_per_wave = ck::make_tuple(ck::Number<8>{}, ck::Number<16>{});
+    const auto tile_shape = ck::make_tuple(ck::Number<128>{}, ck::Number<128>{}, ck::Number<64>{});
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_4x2XdlPerWave_4K1, 4>(
+        512, 512, 128, tile_shape, thread_layout_4x2_xdl_per_wave);
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_2x4XdlPerWave_4K1, 4>(
+        512, 512, 128, tile_shape, thread_layout_2x4_xdl_per_wave);
 }

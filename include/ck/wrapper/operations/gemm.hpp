@@ -3,7 +3,8 @@
 
 #pragma once
 
-#include "../utils/tensor_utils.hpp"
+#include "ck/wrapper/utils/tensor_utils.hpp"
+#include "ck/wrapper/traits/blockwise_gemm_xdl_traits.hpp"
 
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
@@ -13,42 +14,35 @@ namespace wrapper {
 
 namespace {
 namespace detail {
-template <index_t K1, typename ATileLayout>
-__device__ constexpr auto GetABlockDescriptor_K0PerBlock_MPerBlock_K1()
+/**
+ * \brief Create block descriptor (K0, MPerBlock or NPerBlock, K1).
+ *
+ *
+ * \tparam K1 K1
+ * \tparam TileLayout Tensor tile layout
+ *
+ * \return Block descriptor (K0, MPerBlock or NPerBlock, K1)
+ */
+template <index_t K1, typename TileLayout>
+__device__ constexpr auto GetBlockDescriptor()
 {
-    using TileLayoutShape      = typename ATileLayout::LayoutShape;
-    using TileLayoutDescriptor = typename ATileLayout::LayoutUnrolledDescriptorType;
+    //
+
+    using TileLayoutShape      = typename TileLayout::LayoutShape;
+    using TileLayoutDescriptor = typename TileLayout::LayoutUnrolledDescriptorType;
 
     constexpr auto K0PerBlock = Number<size<1>(TileLayoutShape{})>{} / Number<K1>{};
-    constexpr auto MPerBlock  = Number<size<0>(TileLayoutShape{})>{};
+    // MPerBlock or NPerBlock
+    constexpr auto Dim0 = Number<size<0>(TileLayoutShape{})>{};
 
     constexpr auto a_block_desc_k0_m_k1 = transform_tensor_descriptor(
         TileLayoutDescriptor{},
         make_tuple(make_unmerge_transform(make_tuple(K0PerBlock, Number<K1>{})),
-                   make_pass_through_transform(MPerBlock)),
+                   make_pass_through_transform(Dim0)),
         make_tuple(Sequence<1>{}, Sequence<0>{}),
         make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
     return a_block_desc_k0_m_k1;
-}
-
-template <index_t K1, typename BTileLayout>
-__device__ constexpr auto GetBBlockDescriptor_K0PerBlock_NPerBlock_K1()
-{
-    using TileLayoutShape      = typename BTileLayout::LayoutShape;
-    using TileLayoutDescriptor = typename BTileLayout::LayoutUnrolledDescriptorType;
-
-    constexpr auto K0PerBlock = Number<size<0>(TileLayoutShape{})>{} / Number<K1>{};
-    constexpr auto NPerBlock  = Number<size<1>(TileLayoutShape{})>{};
-
-    constexpr auto b_block_desc_k0_n_k1 = transform_tensor_descriptor(
-        TileLayoutDescriptor{},
-        make_tuple(make_unmerge_transform(make_tuple(K0PerBlock, Number<K1>{})),
-                   make_pass_through_transform(NPerBlock)),
-        make_tuple(Sequence<0>{}, Sequence<1>{}),
-        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-    return b_block_desc_k0_n_k1;
 }
 
 } // namespace detail
@@ -59,29 +53,17 @@ __device__ constexpr auto GetBBlockDescriptor_K0PerBlock_NPerBlock_K1()
  *
  *
  * \tparam DataType Input data types.
- * \tparam ATileLayout A tensor layout.
- * \tparam BTileLayout B tensor layout.
  * \tparam BlockSize Tensor to pad.
- * \tparam MPerXDL M per Xdl.
- * \tparam NPerXDL N per Xdl.
- * \tparam MXdlPerWave M Xdl Per Wave
- * \tparam NXdlPerWave N Xdl Per Wave
- * \tparam K1 K1
+ * \tparam GemmTraits Traits of gemm xdl operation.
  * \param a_local_tile_tensor A tensor in LDS memory for blockwise gemm
  * (MPerBlock, KPerBlock) layout.
  * \param b_local_tile_tensor B tensor in LDS memory for blockwise gemm
- * (KPerBlock, NPerBlock) layout.
+ * (NPerBlock, KPerBlock) layout.
  * \param c_reg_tensor C tensor VGPR memory for blockwise gemm.
  */
 template <typename DataType,
-          typename ATileLayout,
-          typename BTileLayout,
           index_t BlockSize,
-          index_t MPerXDL,
-          index_t NPerXDL,
-          index_t MXdlPerWave,
-          index_t NXdlPerWave,
-          index_t K1,
+          typename GemmTraits,
           typename ATensorType,
           typename BTensorType,
           typename CTensorType>
@@ -98,10 +80,13 @@ __device__ void blockwise_gemm_xdl(const ATensorType& a_local_tile_tensor,
     using GemmAccDataType = std::
         conditional_t<is_same_v<typename ATensorType::TensorElementType, int8_t>, int32_t, float>;
 
+    using ATileLayout = remove_cvref_t<decltype(layout(a_local_tile_tensor))>;
+    using BTileLayout = remove_cvref_t<decltype(layout(b_local_tile_tensor))>;
+
     using ABlockDesc_K0_M_K1_Type =
-        decltype(detail::GetABlockDescriptor_K0PerBlock_MPerBlock_K1<K1, ATileLayout>());
+        decltype(detail::GetBlockDescriptor<GemmTraits::K1_, ATileLayout>());
     using BBlockDesc_K0_N_K1_Type =
-        decltype(detail::GetBBlockDescriptor_K0PerBlock_NPerBlock_K1<K1, BTileLayout>());
+        decltype(detail::GetBlockDescriptor<GemmTraits::K1_, BTileLayout>());
 
     BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                         typename ATensorType::TensorElementType,
@@ -109,11 +94,11 @@ __device__ void blockwise_gemm_xdl(const ATensorType& a_local_tile_tensor,
                                                         GemmAccDataType,
                                                         ABlockDesc_K0_M_K1_Type,
                                                         BBlockDesc_K0_N_K1_Type,
-                                                        MPerXDL,
-                                                        NPerXDL,
-                                                        MXdlPerWave,
-                                                        NXdlPerWave,
-                                                        K1>
+                                                        GemmTraits::MPerXDL_,
+                                                        GemmTraits::NPerXDL_,
+                                                        GemmTraits::MXdlPerWave_,
+                                                        GemmTraits::NXdlPerWave_,
+                                                        GemmTraits::K1_>
         blockwise_gemm_xdl_op{};
 
     blockwise_gemm_xdl_op.Run(
@@ -128,11 +113,7 @@ __device__ void blockwise_gemm_xdl(const ATensorType& a_local_tile_tensor,
  * \tparam ATileLayout A tensor layout.
  * \tparam BTileLayout B tensor layout.
  * \tparam BlockSize Tensor to pad.
- * \tparam MPerXDL M per Xdl.
- * \tparam NPerXDL N per Xdl.
- * \tparam MXdlPerWave M Xdl Per Wave
- * \tparam NXdlPerWave N Xdl Per Wave
- * \tparam K1 K1
+ * \tparam GemmTraits Traits of gemm xdl operation.
  * \param c_local_tile_tensor C tensor in LDS memory for blockwise gemm
  * (MPerBlock, NPerBlock) layout.
  *
@@ -142,11 +123,7 @@ template <typename DataType,
           typename ATileLayout,
           typename BTileLayout,
           index_t BlockSize,
-          index_t MPerXDL,
-          index_t NPerXDL,
-          index_t MXdlPerWave,
-          index_t NXdlPerWave,
-          index_t K1,
+          typename GemmTraits,
           typename CTensorType>
 __host__ __device__ constexpr auto
 make_blockwise_gemm_xdl_c_local_partition(CTensorType& c_local_tile_tensor)
@@ -163,9 +140,9 @@ make_blockwise_gemm_xdl_c_local_partition(CTensorType& c_local_tile_tensor)
     using GemmAccDataType = std::conditional_t<is_same_v<DataType, int8_t>, int32_t, float>;
 
     using ABlockDesc_K0_M_K1_Type =
-        decltype(detail::GetABlockDescriptor_K0PerBlock_MPerBlock_K1<K1, ATileLayout>());
+        decltype(detail::GetBlockDescriptor<GemmTraits::K1_, ATileLayout>());
     using BBlockDesc_K0_N_K1_Type =
-        decltype(detail::GetBBlockDescriptor_K0PerBlock_NPerBlock_K1<K1, BTileLayout>());
+        decltype(detail::GetBlockDescriptor<GemmTraits::K1_, BTileLayout>());
 
     using BlockwiseGemmXdlops =
         BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
@@ -174,11 +151,11 @@ make_blockwise_gemm_xdl_c_local_partition(CTensorType& c_local_tile_tensor)
                                                             GemmAccDataType,
                                                             ABlockDesc_K0_M_K1_Type,
                                                             BBlockDesc_K0_N_K1_Type,
-                                                            MPerXDL,
-                                                            NPerXDL,
-                                                            MXdlPerWave,
-                                                            NXdlPerWave,
-                                                            K1>;
+                                                            GemmTraits::MPerXDL_,
+                                                            GemmTraits::NPerXDL_,
+                                                            GemmTraits::MXdlPerWave_,
+                                                            GemmTraits::NXdlPerWave_,
+                                                            GemmTraits::K1_>;
 
     constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
         BlockwiseGemmXdlops::GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
@@ -247,11 +224,7 @@ make_blockwise_gemm_xdl_c_local_partition(CTensorType& c_local_tile_tensor)
  * \tparam ATileLayout A tensor layout.
  * \tparam BTileLayout B tensor layout.
  * \tparam BlockSize Tensor to pad.
- * \tparam MPerXDL M per Xdl.
- * \tparam NPerXDL N per Xdl.
- * \tparam MXdlPerWave M Xdl Per Wave
- * \tparam NXdlPerWave N Xdl Per Wave
- * \tparam K1 K1
+ * \tparam GemmTraits Traits of gemm xdl operation.
  *
  * \return Vgpr c tensor for blockwise gemm.
  */
@@ -259,11 +232,7 @@ template <typename DataType,
           typename ATileLayout,
           typename BTileLayout,
           index_t BlockSize,
-          index_t MPerXDL,
-          index_t NPerXDL,
-          index_t MXdlPerWave,
-          index_t NXdlPerWave,
-          index_t K1>
+          typename GemmTraits>
 __host__ __device__ constexpr auto make_blockwise_gemm_xdl_c_vgpr()
 {
     constexpr auto I0     = Number<0>{};
@@ -277,9 +246,9 @@ __host__ __device__ constexpr auto make_blockwise_gemm_xdl_c_vgpr()
     using GemmAccDataType = std::conditional_t<is_same_v<DataType, int8_t>, int32_t, float>;
 
     using ABlockDesc_K0_M_K1_Type =
-        decltype(detail::GetABlockDescriptor_K0PerBlock_MPerBlock_K1<K1, ATileLayout>());
+        decltype(detail::GetBlockDescriptor<GemmTraits::K1_, ATileLayout>());
     using BBlockDesc_K0_N_K1_Type =
-        decltype(detail::GetBBlockDescriptor_K0PerBlock_NPerBlock_K1<K1, BTileLayout>());
+        decltype(detail::GetBlockDescriptor<GemmTraits::K1_, BTileLayout>());
 
     using BlockwiseGemmXdlops =
         BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
@@ -288,11 +257,11 @@ __host__ __device__ constexpr auto make_blockwise_gemm_xdl_c_vgpr()
                                                             GemmAccDataType,
                                                             ABlockDesc_K0_M_K1_Type,
                                                             BBlockDesc_K0_N_K1_Type,
-                                                            MPerXDL,
-                                                            NPerXDL,
-                                                            MXdlPerWave,
-                                                            NXdlPerWave,
-                                                            K1>;
+                                                            GemmTraits::MPerXDL_,
+                                                            GemmTraits::NPerXDL_,
+                                                            GemmTraits::MXdlPerWave_,
+                                                            GemmTraits::NXdlPerWave_,
+                                                            GemmTraits::K1_>;
     // Calcualte descriptor, shape and layout
     constexpr auto vgpr_desc = BlockwiseGemmXdlops::GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
     const auto vgpr_shape    = make_tuple(vgpr_desc.GetLengths()[I0],

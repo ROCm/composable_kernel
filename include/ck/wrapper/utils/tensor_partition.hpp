@@ -211,10 +211,10 @@ make_local_partition(TensorType& tensor,
     const auto offset_multi_idxs     = detail::CalculateOffsetMultiIdxs(
         projected_thread_idxs, partition_shape_seq, tensor.GetMultiIdxOffsets());
     // Create new layout and tensor
-    auto& flatten_desc = layout(tensor).GetUnrolledDescriptor();
+    auto& unrolled_desc = layout(tensor).GetUnrolledDescriptor();
     const auto partition_layout =
-        Layout<remove_reference_t<decltype(partition_shape)>, decltype(flatten_desc)>(
-            partition_shape, flatten_desc);
+        Layout<remove_reference_t<decltype(partition_shape)>, decltype(unrolled_desc)>(
+            partition_shape, unrolled_desc);
     auto partition_tensor =
         make_tensor<TensorType::TensorBufferAddressSpace>(tensor.GetPointer(), partition_layout);
     // Apply offsets
@@ -362,13 +362,13 @@ __host__ __device__ constexpr auto pad(const TensorType& tensor, const TileLengt
 {
     const auto& tensor_shape = shape(tensor);
     using TensorShapeType    = remove_reference_t<decltype(tensor_shape)>;
-    auto& flatten_desc       = layout(tensor).GetUnrolledDescriptor();
+    auto& unrolled_desc      = layout(tensor).GetUnrolledDescriptor();
     // Generate sequence with ones to mark that all dims will be padded
     constexpr auto do_pads_seq =
         generate_sequence_v2([](auto) { return Number<1>{}; }, Number<TensorShapeType::Size()>{});
     // Create descriptor with padding
     auto padded_desc =
-        tensor_operation::device::PadTensorDescriptor(flatten_desc, tile_lengths, do_pads_seq);
+        tensor_operation::device::PadTensorDescriptor(unrolled_desc, tile_lengths, do_pads_seq);
     // Generate padded shape
     const auto padded_shape = generate_tuple(
         [&](auto i) {
