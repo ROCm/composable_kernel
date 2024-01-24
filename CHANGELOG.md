@@ -49,7 +49,7 @@ None
 ### Additions
 * New CMake flags:
   * "DL_KERNELS"-* Must be set to "ON" in order to build the gemm_dl and batched_gemm_multi_d_dl instances
-  - "DTYPES" -- Can be set to any subset of "fp64;fp32;fp16;fp8;bf16;int8" to build an instance of the specified data types
+  * "DTYPES" -- Can be set to any subset of "fp64;fp32;fp16;fp8;bf16;int8" to build an instance of the specified data types
   * "INSTANCES_ONLY" -- Only builds CK library and instances without tests, examples, or profiler
 * New feature: if GPU_TARGETS is not set in the CMake command line, CK will be built for all targets supported by the compiler
 * Support for MI300A/MI300X
