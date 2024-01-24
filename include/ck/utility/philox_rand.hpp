@@ -8,7 +8,7 @@ namespace ck {
 class philox
 {
     public:
-    __device__ inline philox(unsigned long long seed,
+    __host__  __device__ inline philox(unsigned long long seed,
                              unsigned long long subsequence,
                              unsigned long long offset)
         : h_seed(reinterpret_cast<const uint2&>(seed))
@@ -19,7 +19,7 @@ class philox
         tmp->y    = subsequence;
     }
 
-    __device__ inline uint4 get_philox_4x32()
+    __host__  __device__ inline uint4 get_philox_4x32()
     {
 
         uint4 counter_ = counter;
@@ -38,7 +38,7 @@ class philox
         return output;
     }
 
-    __device__ inline uint4 get_philox_4x32(const unsigned long long subsequence)
+    __host__  __device__ inline uint4 get_philox_4x32(const unsigned long long subsequence)
     {
 
         uint4 counter_ = counter;
@@ -58,7 +58,7 @@ class philox
         return output;
     }
 
-    __device__ void get_random_8x16(ushort* out)
+    __host__  __device__ void get_random_8x16(ushort* out)
     {
         uint4 tmp_ph;
         tmp_ph = get_philox_4x32();
@@ -71,7 +71,7 @@ class philox
         out_tmp[3] = tmp_ph.w;
     }
 
-    __device__ void get_random_8x16(ushort* out, const unsigned long long subsequence)
+    __host__  __device__ void get_random_8x16(ushort* out, const unsigned long long subsequence)
     {
         uint4 tmp_ph;
         tmp_ph = get_philox_4x32(subsequence);
@@ -84,7 +84,7 @@ class philox
         out_tmp[3] = tmp_ph.w;
     }
 
-    __device__ void get_random_16x8(uint8_t* out, const unsigned long long subsequence)
+    __host__  __device__ void get_random_16x8(uint8_t* out, const unsigned long long subsequence)
     {
         uint4 tmp_ph;
         tmp_ph = get_philox_4x32(subsequence);
@@ -97,7 +97,7 @@ class philox
         out_tmp[3] = tmp_ph.w;
     }
 
-    __device__ void get_random_4x16(ushort* out, const unsigned long long subsequence)
+    __host__  __device__ void get_random_4x16(ushort* out, const unsigned long long subsequence)
     {
         uint4 tmp_ph;
         tmp_ph = get_philox_4x32(subsequence);
@@ -117,7 +117,7 @@ class philox
     uint4 counter;
     const uint2 h_seed;
 
-    __device__ uint4 incr(uint4 ctr)
+    __host__  __device__ uint4 incr(uint4 ctr)
     {
 
         uint4 res;
@@ -128,9 +128,9 @@ class philox
         return res;
     }
 
-    __device__ inline void incr() { counter = incr(counter); }
+    __host__  __device__ inline void incr() { counter = incr(counter); }
 
-    __device__ uint2 u32_high_low_multi(const unsigned int a, const unsigned int b)
+    __host__  __device__ uint2 u32_high_low_multi(const unsigned int a, const unsigned int b)
     {
         uint2* res;
         unsigned long long tmp;
@@ -139,7 +139,7 @@ class philox
         return *res;
     }
 
-    __device__ inline uint4 single_loop(const uint4 ctr, const uint2 i_key)
+    __host__  __device__ inline uint4 single_loop(const uint4 ctr, const uint2 i_key)
     {
 
         uint2 res0 = u32_high_low_multi(kPhiloxSA, ctr.x);
