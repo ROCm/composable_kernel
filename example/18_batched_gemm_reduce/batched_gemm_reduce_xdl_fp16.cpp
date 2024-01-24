@@ -272,15 +272,14 @@ int main(int argc, char* argv[])
         {
             for(int m = 0; m < M; ++m)
             {
-                auto reduce0_acc = reduce0_op.GetIdentityValue<ReduceAccDataType>();
-                auto reduce1_acc = reduce1_op.GetIdentityValue<ReduceAccDataType>();
-
+                auto reduce0_acc         = reduce0_op.GetIdentityValue<ReduceAccDataType>();
+                auto reduce1_acc         = reduce1_op.GetIdentityValue<ReduceAccDataType>();
+                ReduceAccDataType d0_val = 0;
+                ReduceAccDataType d1_val = 0;
                 for(int n = 0; n < N; ++n)
                 {
                     auto c_val =
                         ck::type_convert<ReduceAccDataType>(c_g_m_n_host_result(batch, m, n));
-                    ReduceAccDataType d0_val;
-                    ReduceAccDataType d1_val;
 
                     UnaryIdenticElementOp{}(d0_val, c_val);
                     UnarySquareElementOp{}(d1_val, c_val);
