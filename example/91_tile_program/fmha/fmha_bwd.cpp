@@ -219,15 +219,15 @@ bool run(const ArgParser& arg_parser)
 
     using TypeConfig = FmhaBwdTypeConfig<DataType>;
 
-    using QDataType        = typename TypeConfig::QDataType;
-    using KDataType        = typename TypeConfig::KDataType;
-    using VDataType        = typename TypeConfig::VDataType;
-    using GemmDataType     = typename TypeConfig::GemmDataType;
-    using BiasDataType     = typename TypeConfig::BiasDataType;
-    using LSEDataType      = typename TypeConfig::LSEDataType;
-    using AccDataType      = typename TypeConfig::AccDataType;
-    using DDataType        = typename TypeConfig::DDataType;
-    using ZDataType        = typename TypeConfig::ZDataType;
+    using QDataType    = typename TypeConfig::QDataType;
+    using KDataType    = typename TypeConfig::KDataType;
+    using VDataType    = typename TypeConfig::VDataType;
+    using GemmDataType = typename TypeConfig::GemmDataType;
+    using BiasDataType = typename TypeConfig::BiasDataType;
+    using LSEDataType  = typename TypeConfig::LSEDataType;
+    using AccDataType  = typename TypeConfig::AccDataType;
+    using DDataType    = typename TypeConfig::DDataType;
+    // using ZDataType        = typename TypeConfig::ZDataType;
     using ODataType        = typename TypeConfig::ODataType;
     using OGradDataType    = typename TypeConfig::OGradDataType;
     using QGradDataType    = typename TypeConfig::QGradDataType;
@@ -371,7 +371,7 @@ bool run(const ArgParser& arg_parser)
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
               << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
-              << ", mask:" << mask << ", v:" << std::string(VLayout::name)[0] << std::flush;
+              << ", mask:" << mask << std::flush;
 
 #define INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(hdim_)                                            \
     fmha_bwd_dot_do_o_kernel_invoker<hdim_, DataType>{mode}(stream_config,                \
@@ -690,34 +690,34 @@ bool run(const ArgParser& arg_parser)
         }
         // clang-format on
 
-        auto [rtol, atol]   = get_elimit<DataType>(init_method);
-        bool dq_cur_pass    = ck::utils::check_err(dq_host_result,
+        auto [rtol, atol] = get_elimit<DataType>(init_method);
+        bool dq_cur_pass  = ck::utils::check_err(dq_host_result,
                                                 dq_host_ref,
                                                 std::string("Error: QGrad Incorrect results!"),
                                                 rtol,
                                                 atol);
-        bool dk_cur_pass    = ck::utils::check_err(dk_host_result,
+        bool dk_cur_pass  = ck::utils::check_err(dk_host_result,
                                                 dk_host_ref,
                                                 std::string("Error: KGrad Incorrect results!"),
                                                 rtol,
                                                 atol);
-        bool dv_cur_pass    = ck::utils::check_err(dv_host_result,
+        bool dv_cur_pass  = ck::utils::check_err(dv_host_result,
                                                 dv_host_ref,
                                                 std::string("Error: VGrad Incorrect results!"),
                                                 rtol,
                                                 atol);
-        bool dbias_cur_pass = [&](bool use_bias) {
-            if(use_bias)
-                return ck::utils::check_err(dbias_host_result,
-                                            dbias_host_ref,
-                                            std::string("Error: BiasGrad Incorrect results!"),
-                                            rtol,
-                                            atol);
-            else
-                return true;
-        };
+
+        bool dbias_cur_pass = true;
+        if(use_bias)
+        {
+            dbias_cur_pass = ck::utils::check_err(dbias_host_result,
+                                                  dbias_host_ref,
+                                                  std::string("Error: BiasGrad Incorrect results!"),
+                                                  rtol,
+                                                  atol);
+        }
         pass &= (dq_cur_pass & dk_cur_pass & dv_cur_pass & dbias_cur_pass);
-        if(!cur_pass)
+        if(!(dq_cur_pass & dk_cur_pass & dv_cur_pass & dbias_cur_pass))
         {
             std::cerr << "mismatch found at batch: " << wb << std::endl
                       << "\tseqlen_q: " << real_seqlen_q << std::endl

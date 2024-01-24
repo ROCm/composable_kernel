@@ -762,7 +762,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         using ODataType = remove_cvref_t<typename Problem::ODataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kVHeaddim;
+        constexpr index_t kKPerBlock = Problem::kVHeaddim;
 
         constexpr index_t K1 = 16 / sizeof(ODataType);
         constexpr index_t K0 = kKPerBlock / K1;
@@ -785,7 +785,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         using OGradDataType = remove_cvref_t<typename Problem::OGradDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kVHeaddim;
+        constexpr index_t kKPerBlock = Problem::kVHeaddim;
 
         constexpr index_t K1 = 16 / sizeof(OGradDataType);
         constexpr index_t K0 = kKPerBlock / K1;
@@ -1031,16 +1031,27 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                                    Problem::BlockFmhaShape::kN0,
                                                    Problem::BlockFmhaShape::kK0>>;
 
-        using WarpGemm = warp::WarpGemmImpl<warp::WarpGemmAtrributeMfmaIterateK_SwizzleA<
-            warp::WarpGemmAttributeMfmaImplF16F16F32M32N32K8,
-            2>>;
+        constexpr auto warp_gemm = []() {
+            if constexpr(is_same_v<typename Problem::QDataType, half_t> &&
+                         is_same_v<typename Problem::KDataType, half_t> &&
+                         is_same_v<typename Problem::AccDataType, float>)
+            {
+                return warp::WarpGemmMfmaF16F16F32M32N32K16SwizzleA{};
+            }
+            else if constexpr(is_same_v<typename Problem::QDataType, bhalf_t> &&
+                              is_same_v<typename Problem::KDataType, bhalf_t> &&
+                              is_same_v<typename Problem::AccDataType, float>)
+            {
+                return warp::WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleA{};
+            }
+        }();
 
         using BlockGemmPolicy =
             BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::QDataType,
                                                   typename Problem::KDataType,
                                                   typename Problem::AccDataType,
                                                   typename Problem::BlockFmhaShape::Gemm0BlockWarps,
-                                                  WarpGemm>;
+                                                  decltype(warp_gemm)>;
 
         return BlockGemmASmemBSmemCRegV1<BlockGemmProblem, BlockGemmPolicy>{};
     }
@@ -1086,16 +1097,27 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                                    Problem::BlockFmhaShape::kN0,
                                                    Problem::BlockFmhaShape::kK2>>;
 
-        using WarpGemm = warp::WarpGemmImpl<warp::WarpGemmAtrributeMfmaIterateK_SwizzleA<
-            warp::WarpGemmAttributeMfmaImplF16F16F32M32N32K8,
-            2>>;
+        constexpr auto warp_gemm = []() {
+            if constexpr(is_same_v<typename Problem::OGradDataType, half_t> &&
+                         is_same_v<typename Problem::VDataType, half_t> &&
+                         is_same_v<typename Problem::AccDataType, float>)
+            {
+                return warp::WarpGemmMfmaF16F16F32M32N32K16SwizzleA{};
+            }
+            else if constexpr(is_same_v<typename Problem::OGradDataType, bhalf_t> &&
+                              is_same_v<typename Problem::VDataType, bhalf_t> &&
+                              is_same_v<typename Problem::AccDataType, float>)
+            {
+                return warp::WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleA{};
+            }
+        }();
 
         using BlockGemmPolicy =
             BlockGemmASmemBRegCRegV1CustomPolicy<typename Problem::OGradDataType,
                                                  typename Problem::VDataType,
                                                  typename Problem::AccDataType,
                                                  typename Problem::BlockFmhaShape::Gemm2BlockWarps,
-                                                 WarpGemm>;
+                                                 decltype(warp_gemm)>;
 
         return BlockGemmASmemBRegCRegV1<BlockGemmProblem, BlockGemmPolicy>{};
     }
@@ -1111,10 +1133,20 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     //                                  TileGemmShape<Problem::BlockFmhaShape::kM0,
     //                                                Problem::BlockFmhaShape::kN0,
     //                                                Problem::BlockFmhaShape::kK2>>;
-    //     using WarpGemm =
-    //         warp::WarpGemmImpl<warp::WarpGemmAtrributeMfmaIterateK_SwizzleA<
-    //             warp::WarpGemmAttributeMfmaImplF16F16F32M32N32K8,
-    //             2>>;
+    //     constexpr auto warp_gemm = []() {
+    //         if constexpr(is_same_v<typename Problem::OGradDataType, half_t> &&
+    //                      is_same_v<typename Problem::VDataType, half_t> &&
+    //                      is_same_v<typename Problem::AccDataType, float>)
+    //         {
+    //             return warp::WarpGemmMfmaF16F16F32M32N32K16SwizzleA{};
+    //         }
+    //         else if constexpr(is_same_v<typename Problem::OGradDataType, bhalf_t> &&
+    //                           is_same_v<typename Problem::VDataType, bhalf_t> &&
+    //                           is_same_v<typename Problem::AccDataType, float>)
+    //         {
+    //             return warp::WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleA{};
+    //         }
+    //     }();
 
     //     using BlockGemmPolicy =
     //         BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::OGradDataType,
@@ -1122,7 +1154,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     //                                               typename Problem::AccDataType,
     //                                               typename
     //                                               Problem::BlockFmhaShape::Gemm2BlockWarps,
-    //                                               WarpGemm>;
+    //                                               decltype(warp_gemm)>;
 
     //     return BlockGemmASmemBSmemCRegV1<BlockGemmProblem, BlockGemmPolicy>{};
     // }

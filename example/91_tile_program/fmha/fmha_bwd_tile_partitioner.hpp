@@ -18,7 +18,7 @@ struct FmhaBwdTilePartitioner
     GridSize(ck::index_t batch_size_, ck::index_t nhead_, ck::index_t seqlen_k_)
     {
         // TODO: this may need tuning
-        return dim3(ck::math::integer_divide_ceil(seqlen_k_ / kN0), nhead_, batch_size_);
+        return dim3(ck::math::integer_divide_ceil(seqlen_k_, kN0), nhead_, batch_size_);
     }
 
     __device__ auto operator()(ck::index_t /*seqlen_k*/)
@@ -40,7 +40,7 @@ struct FmhaBwdOGradDotOTilePartitioner
     GridSize(ck::index_t batch_size_, ck::index_t nhead_, ck::index_t seqlen_q_)
     {
         // TODO: this may need tuning
-        return dim3(ck::math::integer_divide_ceil(seqlen_q_ / kBlockSize), nhead_, batch_size_);
+        return dim3(ck::math::integer_divide_ceil(seqlen_q_, kBlockSize), nhead_, batch_size_);
     }
 
     __device__ auto operator()(ck::index_t /*seqlen_q*/)

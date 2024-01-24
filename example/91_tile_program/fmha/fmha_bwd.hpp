@@ -104,15 +104,17 @@ struct FmhaLoadStrategy;
 // clang-format off
 // ######################################################| QLoadOnce| QTLoadOnce| KLoadOnce| KTLoadOnce| VLoadOnce| OGradLoadOnce| OGradTLoadOnce|
 template <>
-struct FmhaLoadStrategy</* HDim = */ 32>   : ck::Sequence<     false,      false,      true,       true,      true,         false,          false>; // 9
+struct FmhaLoadStrategy</* HDim = */ 32>   : ck::Sequence<      true,      false,      true,      false,      true,          true,          false> // 10
+// struct FmhaLoadStrategy</* HDim = */ 32>   : ck::Sequence<     false,      false,      true,       true,      true,         false,          false> // 9
 {
 };
 template <>
-struct FmhaLoadStrategy</* HDim = */ 64>   : ck::Sequence<      true,      false,      true,      false,      true,          true,          false>; // 10
+struct FmhaLoadStrategy</* HDim = */ 64>   : ck::Sequence<     false,      false,      true,       true,      true,         false,          false> // 9
+// struct FmhaLoadStrategy</* HDim = */ 64>   : ck::Sequence<      true,      false,      true,      false,      true,          true,          false> // 10
 {
 };
 template <>
-struct FmhaLoadStrategy</* HDim = */ 128>  : ck::Sequence<     false,      false,      true,      false,      true,         false,          false>; // 13
+struct FmhaLoadStrategy</* HDim = */ 128>  : ck::Sequence<     false,      false,      true,      false,      true,         false,          false> // 13
 {
 };
 // clang-format on
@@ -142,8 +144,9 @@ struct FmhaBwdShape</* HDim = */ 32>
                                          FmhaBlockWarps1,
                                          FmhaWarpTile0,
                                          FmhaBlockWarps1,
-                                         FmhaWarpTile0>;
-{};
+                                         FmhaWarpTile0>
+{
+};
 template <>
 struct FmhaBwdShape</* HDim = */ 64>
     : ck::tile_program::TileFmhaBwdShape<FmhaBlockTile</* HDim = */ 64>,
@@ -157,8 +160,9 @@ struct FmhaBwdShape</* HDim = */ 64>
                                          FmhaBlockWarps1,
                                          FmhaWarpTile0,
                                          FmhaBlockWarps2,
-                                         FmhaWarpTile0>;
-{};
+                                         FmhaWarpTile0>
+{
+};
 template <>
 struct FmhaBwdShape</* HDim = */ 128>
     : ck::tile_program::TileFmhaBwdShape<FmhaBlockTile</* HDim = */ 128>,
@@ -172,8 +176,9 @@ struct FmhaBwdShape</* HDim = */ 128>
                                          FmhaBlockWarps1,
                                          FmhaWarpTile0,
                                          FmhaBlockWarps2,
-                                         FmhaWarpTile0>;
-{};
+                                         FmhaWarpTile0>
+{
+};
 
 template <bool kHasBias>
 using FmhaBwdTraits = ck::tile_program::
@@ -203,7 +208,7 @@ using FmhaBwdPipelineProblem = ck::tile_program::block::BlockFmhaBwdPipelineProb
     FmhaBwdTraits<kHasBias>>;
 
 template <ck::index_t HDim, typename DataType, bool kIsGroupMode, typename FmhaMask, bool kHasBias>
-using FmhaBwdPipeline = ck::tile_program::block::BlockFmhaBwdPipelineDispatcher<
+using FmhaBwdPipeline = typename ck::tile_program::block::BlockFmhaBwdPipelineDispatcher<
     FmhaLoadStrategy<HDim>,
     FmhaBwdPipelineProblem<HDim, DataType, kIsGroupMode, FmhaMask, kHasBias>>::BlockPipeline;
 
@@ -229,7 +234,7 @@ using FmhaBwdOGradDotOPipelineProblem =
         typename FmhaBwdTypeConfig<DataType>::OGradDataType,
         typename FmhaBwdTypeConfig<DataType>::DDataType,
         /* BlockSize = */ 256,
-        typename FmhaBwdShape<HDim>::kVHeaddim,
+        FmhaBwdShape<HDim>::kVHeaddim,
         kIsGroupMode,
         FmhaBwdOGradDotOTraits>;
 
@@ -464,7 +469,7 @@ float fmha_bwd_run(const StreamConfig&, typename FmhaBwdKernel::Kargs, dim3);
 template <typename FmhaBwdOGradDotOKernel>
 float fmha_bwd_dot_do_o_run(const StreamConfig&, typename FmhaBwdOGradDotOKernel::Kargs, dim3);
 
-#define FMHA_BWD_OGradDotO_KERNEL_DEFINE(KERNEL_)                                                \
+#define FMHA_BWD_DOT_DO_O_KERNEL_DEFINE(KERNEL_)                                                 \
     template <>                                                                                  \
     float fmha_bwd_dot_do_o_run<KERNEL_>(                                                        \
         const StreamConfig& stream, typename KERNEL_::Kargs kargs, dim3 grids)                   \

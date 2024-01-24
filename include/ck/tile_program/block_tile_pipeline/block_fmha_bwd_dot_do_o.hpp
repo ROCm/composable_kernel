@@ -30,8 +30,13 @@ struct BlockFmhaBwdOGradDotO
     using OGradDataType = remove_cvref_t<typename Problem::OGradDataType>;
     using DDataType     = remove_cvref_t<typename Problem::DDataType>;
 
-    static constexpr index_t kBlockSize = Problem::kBlockSize;
-    static constexpr index_t kVHeaddim  = Problem::kVHeaddim;
+    static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
+    static constexpr index_t kBlockSize  = Problem::kBlockSize;
+    static constexpr index_t kVHeaddim   = Problem::kVHeaddim;
+
+    static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
+    static constexpr bool kM0NeedPadding   = Problem::kM0NeedPadding;
+    static constexpr bool kK0N1NeedPadding = Problem::kK0N1NeedPadding;
 
     __host__ __device__ static constexpr ck::index_t GetSmemSize() { return 0; }
 

@@ -89,7 +89,7 @@ struct FmhaBwdKernel
         ck::index_t nhead_stride_v;
         ck::index_t nhead_stride_do;
         ck::index_t nhead_stride_lsed;
-    }
+    };
 
     struct FmhaBwdCommonBiasKargs
     {
@@ -459,10 +459,10 @@ struct FmhaBwdKernel
                                 static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_q +
                                 batch_offset_q;
         KGradDataType* dk_ptr = reinterpret_cast<KGradDataType*>(kargs.dk_ptr) +
-                                static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_dk +
+                                static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_k +
                                 batch_offset_dk;
         VGradDataType* dv_ptr = reinterpret_cast<VGradDataType*>(kargs.dv_ptr) +
-                                static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_dv +
+                                static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_v +
                                 batch_offset_dv;
 
         // Q/K/V/LSE/D/dO/dQ/dK/dV DRAM and DRAM window
@@ -495,66 +495,62 @@ struct FmhaBwdKernel
                                              make_pass_through_transform(kargs.seqlen_q)),
                                   make_tuple(Sequence<1>{}, Sequence<0>{}),
                                   make_tuple(Sequence<0>{}, Sequence<1>{}));
-        const auto qt_dram =
-            [&]() {
-                /// FIXME: The return value of xx_dram_naive.GetTensorDescriptor().GetLength() is
-                /// same as
-                ///   xx_dram_transposed.GetTensorDescriptor().GetLength(). Replace following
-                ///   if-clause by pad_tensor_view() call after fixing this issue.
-                if constexpr(kK0N1NeedPadding || kM0NeedPadding)
-                {
-                    const auto transform_m = [&] {
-                        if constexpr(kM0NeedPadding)
-                        {
-                            const index_t m_pad_length =
-                                [&]() {
-                                    if constexpr(FmhaPipeline::kQTLoadOnce)
-                                    {
-                                        return FmhaPipeline::kM0 *
-                                                   ck::math::integer_divide_ceil(
-                                                       kargs.seqlen_q, FmhaPipeline::kM0) -
-                                               kargs.seqlen_q;
-                                    }
-                                    else
-                                    {
-                                        return FmhaPipeline::kK3 *
-                                                   ck::math::integer_divide_ceil(
-                                                       kargs.seqlen_q, FmhaPipeline::kK3) -
-                                               kargs.seqlen_q;
-                                    }
-                                }
+        const auto qt_dram = [&]() {
+            /// FIXME: The return value of xx_dram_naive.GetTensorDescriptor().GetLength() is
+            /// same as
+            ///   xx_dram_transposed.GetTensorDescriptor().GetLength(). Replace following
+            ///   if-clause by pad_tensor_view() call after fixing this issue.
+            if constexpr(kK0N1NeedPadding || kM0NeedPadding)
+            {
+                const auto transform_m = [&] {
+                    if constexpr(kM0NeedPadding)
+                    {
+                        const index_t m_pad_length = [&]() {
+                            if constexpr(FmhaPipeline::kQTLoadOnce)
+                            {
+                                return FmhaPipeline::kM0 * ck::math::integer_divide_ceil(
+                                                               kargs.seqlen_q, FmhaPipeline::kM0) -
+                                       kargs.seqlen_q;
+                            }
+                            else
+                            {
+                                return FmhaPipeline::kK3 * ck::math::integer_divide_ceil(
+                                                               kargs.seqlen_q, FmhaPipeline::kK3) -
+                                       kargs.seqlen_q;
+                            }
+                        }();
 
-                            return make_right_pad_transform(kargs.seqlen_q, m_pad_length);
-                        }
-                        else
-                        {
-                            return make_pass_through_transform(kargs.seqlen_q);
-                        }
-                    }();
+                        return make_right_pad_transform(kargs.seqlen_q, m_pad_length);
+                    }
+                    else
+                    {
+                        return make_pass_through_transform(kargs.seqlen_q);
+                    }
+                }();
 
-                    const auto transform_k = [&] {
-                        if constexpr(kK0N1NeedPadding)
-                        {
-                            const index_t k_pad_length = FmhaPipeline::kQKHeaddim - kargs.hdim_q;
+                const auto transform_k = [&] {
+                    if constexpr(kK0N1NeedPadding)
+                    {
+                        const index_t k_pad_length = FmhaPipeline::kQKHeaddim - kargs.hdim_q;
 
-                            return make_right_pad_transform(kargs.hdim_q, k_pad_length);
-                        }
-                        else
-                        {
-                            return make_pass_through_transform(kargs.hdim_q);
-                        }
-                    }();
+                        return make_right_pad_transform(kargs.hdim_q, k_pad_length);
+                    }
+                    else
+                    {
+                        return make_pass_through_transform(kargs.hdim_q);
+                    }
+                }();
 
-                    return transform_tensor_view(qt_dram_naive,
-                                                 make_tuple(transform_k, transform_m),
-                                                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                                 make_tuple(Sequence<0>{}, Sequence<1>{}));
-                }
-                else
-                {
-                    return qt_dram_naive;
-                }
+                return transform_tensor_view(qt_dram_naive,
+                                             make_tuple(transform_k, transform_m),
+                                             make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                             make_tuple(Sequence<0>{}, Sequence<1>{}));
             }
+            else
+            {
+                return qt_dram_naive;
+            }
+        }();
         // const auto qt_dram = [&]() {
         //     if constexpr(FmhaPipeline::kQTLoadOnce)
         //     {
@@ -601,66 +597,62 @@ struct FmhaBwdKernel
                                              make_pass_through_transform(kargs.seqlen_k)),
                                   make_tuple(Sequence<1>{}, Sequence<0>{}),
                                   make_tuple(Sequence<0>{}, Sequence<1>{}));
-        const auto kt_dram =
-            [&]() {
-                /// FIXME: The return value of xx_dram_naive.GetTensorDescriptor().GetLength() is
-                /// same as
-                ///   xx_dram_transposed.GetTensorDescriptor().GetLength(). Replace following
-                ///   if-clause by pad_tensor_view() call after fixing this issue.
-                if constexpr(kK0N1NeedPadding || kN0K1NeedPadding)
-                {
-                    const auto transform_n = [&] {
-                        if constexpr(kN0K1NeedPadding)
-                        {
-                            const index_t n_pad_length =
-                                [&]() {
-                                    if constexpr(FmhaPipeline::kKTLoadOnce)
-                                    {
-                                        return FmhaPipeline::kN0 *
-                                                   ck::math::integer_divide_ceil(
-                                                       kargs.seqlen_k, FmhaPipeline::kN0) -
-                                               kargs.seqlen_k;
-                                    }
-                                    else
-                                    {
-                                        return FmhaPipeline::kK4 *
-                                                   ck::math::integer_divide_ceil(
-                                                       kargs.seqlen_q, FmhaPipeline::kK4) -
-                                               kargs.seqlen_k;
-                                    }
-                                }
+        const auto kt_dram = [&]() {
+            /// FIXME: The return value of xx_dram_naive.GetTensorDescriptor().GetLength() is
+            /// same as
+            ///   xx_dram_transposed.GetTensorDescriptor().GetLength(). Replace following
+            ///   if-clause by pad_tensor_view() call after fixing this issue.
+            if constexpr(kK0N1NeedPadding || kN0K1NeedPadding)
+            {
+                const auto transform_n = [&] {
+                    if constexpr(kN0K1NeedPadding)
+                    {
+                        const index_t n_pad_length = [&]() {
+                            if constexpr(FmhaPipeline::kKTLoadOnce)
+                            {
+                                return FmhaPipeline::kN0 * ck::math::integer_divide_ceil(
+                                                               kargs.seqlen_k, FmhaPipeline::kN0) -
+                                       kargs.seqlen_k;
+                            }
+                            else
+                            {
+                                return FmhaPipeline::kK4 * ck::math::integer_divide_ceil(
+                                                               kargs.seqlen_q, FmhaPipeline::kK4) -
+                                       kargs.seqlen_k;
+                            }
+                        }();
 
-                            return make_right_pad_transform(kargs.seqlen_k, n_pad_length);
-                        }
-                        else
-                        {
-                            return make_pass_through_transform(kargs.seqlen_k);
-                        }
-                    }();
+                        return make_right_pad_transform(kargs.seqlen_k, n_pad_length);
+                    }
+                    else
+                    {
+                        return make_pass_through_transform(kargs.seqlen_k);
+                    }
+                }();
 
-                    const auto transform_k = [&] {
-                        if constexpr(kK0N1NeedPadding)
-                        {
-                            const index_t k_pad_length = FmhaPipeline::kQKHeaddim - kargs.hdim_q;
+                const auto transform_k = [&] {
+                    if constexpr(kK0N1NeedPadding)
+                    {
+                        const index_t k_pad_length = FmhaPipeline::kQKHeaddim - kargs.hdim_q;
 
-                            return make_right_pad_transform(kargs.hdim_q, k_pad_length);
-                        }
-                        else
-                        {
-                            return make_pass_through_transform(kargs.hdim_q);
-                        }
-                    }();
+                        return make_right_pad_transform(kargs.hdim_q, k_pad_length);
+                    }
+                    else
+                    {
+                        return make_pass_through_transform(kargs.hdim_q);
+                    }
+                }();
 
-                    return transform_tensor_view(qt_dram_naive,
-                                                 make_tuple(transform_k, transform_n),
-                                                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                                 make_tuple(Sequence<0>{}, Sequence<1>{}));
-                }
-                else
-                {
-                    return qt_dram_naive;
-                }
+                return transform_tensor_view(kt_dram_naive,
+                                             make_tuple(transform_k, transform_n),
+                                             make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                             make_tuple(Sequence<0>{}, Sequence<1>{}));
             }
+            else
+            {
+                return kt_dram_naive;
+            }
+        }();
         // const auto kt_dram = [&]() {
         //     if constexpr(FmhaPipeline::kKTLoadOnce)
         //     {
@@ -719,7 +711,7 @@ struct FmhaBwdKernel
         const auto do_dram_naive = make_naive_tensor_view<AddressSpaceEnum::Global>(
             do_ptr,
             make_tuple(kargs.seqlen_q, kargs.hdim_v),
-            make_tuple(kargs.stride_o, 1),
+            make_tuple(kargs.stride_do, 1),
             Number<32>{},
             Number<1>{});
         const auto do_dram = [&]() {
@@ -745,66 +737,62 @@ struct FmhaBwdKernel
                                              make_pass_through_transform(kargs.seqlen_q)),
                                   make_tuple(Sequence<1>{}, Sequence<0>{}),
                                   make_tuple(Sequence<0>{}, Sequence<1>{}));
-        const auto dot_dram =
-            [&]() {
-                /// FIXME: The return value of xx_dram_naive.GetTensorDescriptor().GetLength() is
-                /// same as
-                ///   xx_dram_transposed.GetTensorDescriptor().GetLength(). Replace following
-                ///   if-clause by pad_tensor_view() call after fixing this issue.
-                if constexpr(kK0N1NeedPadding || kM0NeedPadding)
-                {
-                    const auto transform_m = [&] {
-                        if constexpr(kM0NeedPadding)
-                        {
-                            const index_t m_pad_length =
-                                [&]() {
-                                    if constexpr(FmhaPipeline::kQTLoadOnce)
-                                    {
-                                        return FmhaPipeline::kM0 *
-                                                   ck::math::integer_divide_ceil(
-                                                       kargs.seqlen_q, FmhaPipeline::kM0) -
-                                               kargs.seqlen_q;
-                                    }
-                                    else
-                                    {
-                                        return FmhaPipeline::kK1 *
-                                                   ck::math::integer_divide_ceil(
-                                                       kargs.seqlen_q, FmhaPipeline::kK1) -
-                                               kargs.seqlen_q;
-                                    }
-                                }
+        const auto dot_dram = [&]() {
+            /// FIXME: The return value of xx_dram_naive.GetTensorDescriptor().GetLength() is
+            /// same as
+            ///   xx_dram_transposed.GetTensorDescriptor().GetLength(). Replace following
+            ///   if-clause by pad_tensor_view() call after fixing this issue.
+            if constexpr(kK0N1NeedPadding || kM0NeedPadding)
+            {
+                const auto transform_m = [&] {
+                    if constexpr(kM0NeedPadding)
+                    {
+                        const index_t m_pad_length = [&]() {
+                            if constexpr(FmhaPipeline::kQTLoadOnce)
+                            {
+                                return FmhaPipeline::kM0 * ck::math::integer_divide_ceil(
+                                                               kargs.seqlen_q, FmhaPipeline::kM0) -
+                                       kargs.seqlen_q;
+                            }
+                            else
+                            {
+                                return FmhaPipeline::kK1 * ck::math::integer_divide_ceil(
+                                                               kargs.seqlen_q, FmhaPipeline::kK1) -
+                                       kargs.seqlen_q;
+                            }
+                        }();
 
-                            return make_right_pad_transform(kargs.seqlen_q, m_pad_length);
-                        }
-                        else
-                        {
-                            return make_pass_through_transform(kargs.seqlen_q);
-                        }
-                    }();
+                        return make_right_pad_transform(kargs.seqlen_q, m_pad_length);
+                    }
+                    else
+                    {
+                        return make_pass_through_transform(kargs.seqlen_q);
+                    }
+                }();
 
-                    const auto transform_k = [&] {
-                        if constexpr(kK0N1NeedPadding)
-                        {
-                            const index_t k_pad_length = FmhaPipeline::kVHeaddim - kargs.hdim_v;
+                const auto transform_k = [&] {
+                    if constexpr(kK0N1NeedPadding)
+                    {
+                        const index_t k_pad_length = FmhaPipeline::kVHeaddim - kargs.hdim_v;
 
-                            return make_right_pad_transform(kargs.hdim_v, k_pad_length);
-                        }
-                        else
-                        {
-                            return make_pass_through_transform(kargs.hdim_v);
-                        }
-                    }();
+                        return make_right_pad_transform(kargs.hdim_v, k_pad_length);
+                    }
+                    else
+                    {
+                        return make_pass_through_transform(kargs.hdim_v);
+                    }
+                }();
 
-                    return transform_tensor_view(dot_dram_naive,
-                                                 make_tuple(transform_k, transform_m),
-                                                 make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                                 make_tuple(Sequence<0>{}, Sequence<1>{}));
-                }
-                else
-                {
-                    return dot_dram_naive;
-                }
+                return transform_tensor_view(dot_dram_naive,
+                                             make_tuple(transform_k, transform_m),
+                                             make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                             make_tuple(Sequence<0>{}, Sequence<1>{}));
             }
+            else
+            {
+                return dot_dram_naive;
+            }
+        }();
         // const auto dot_dram = [&]() {
         //     if constexpr(FmhaPipeline::kOGradTLoadOnce)
         //     {
@@ -1058,18 +1046,20 @@ struct FmhaBwdKernel
 template <typename TilePartitioner_, typename FmhaBwdOGradDotO_>
 struct FmhaBwdOGradDotOKernel
 {
-    using TilePartitioner  = ck::remove_cvref_t<TilePartitioner_>;
-    using FmhaBwdOGradDotO = ck::remove_cvref_t<FmhaBwdOGradDotO_>;
+    using TilePartitioner                    = ck::remove_cvref_t<TilePartitioner_>;
+    using FmhaBwdOGradDotO                   = ck::remove_cvref_t<FmhaBwdOGradDotO_>;
+    static constexpr ck::index_t kBlockSize  = FmhaBwdOGradDotO::kBlockSize;
+    static constexpr ck::index_t kBlockPerCu = FmhaBwdOGradDotO::kBlockPerCu;
+    static constexpr ck::index_t kM0         = kBlockSize;
+    static constexpr ck::index_t kVHeaddim   = FmhaBwdOGradDotO::kVHeaddim;
 
     using DDataType     = ck::remove_cvref_t<typename FmhaBwdOGradDotO::DDataType>;
     using ODataType     = ck::remove_cvref_t<typename FmhaBwdOGradDotO::ODataType>;
     using OGradDataType = ck::remove_cvref_t<typename FmhaBwdOGradDotO::OGradDataType>;
 
-    static constexpr ck::index_t kBlockSize  = FmhaBwdOGradDotO::kBlockSize;
-    static constexpr ck::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
-
-    static constexpr ck::index_t kM0       = kBlockSize;
-    static constexpr ck::index_t kVHeaddim = FmhaBwdOGradDotO::kVHeaddim;
+    static constexpr bool kIsGroupMode     = FmhaBwdOGradDotO::kIsGroupMode;
+    static constexpr bool kM0NeedPadding   = FmhaBwdOGradDotO::kM0NeedPadding;
+    static constexpr bool kK0N1NeedPadding = FmhaBwdOGradDotO::kK0N1NeedPadding;
 
     // kargs use aggregate initializer, so no constructor will provided
     // use inheritance to minimize karg size
@@ -1087,7 +1077,7 @@ struct FmhaBwdOGradDotOKernel
 
         ck::index_t nhead_stride_o;
         ck::index_t nhead_stride_d;
-    }
+    };
 
     struct FmhaBwdOGradDotOBatchModeKargs : FmhaBwdOGradDotOCommonKargs
     {
@@ -1115,16 +1105,10 @@ struct FmhaBwdOGradDotOKernel
                                                                       ck::index_t batch_stride_o,
                                                                       ck::index_t batch_stride_d)
     {
-        Kargs kargs{{o_ptr,
-                     do_ptr,
-                     d_ptr,
-                     seqlen_q,
-                     hdim_v,
-                     stride_o,
-                     nhead_stride_o,
-                     nhead_stride_d,
-                     batch_stride_o,
-                     batch_stride_d}};
+        Kargs kargs{
+            {o_ptr, do_ptr, d_ptr, seqlen_q, hdim_v, stride_o, nhead_stride_o, nhead_stride_d},
+            batch_stride_o,
+            batch_stride_d};
 
         return kargs;
     }
@@ -1133,21 +1117,20 @@ struct FmhaBwdOGradDotOKernel
     __host__ static constexpr std::enable_if_t<Cond, Kargs> MakeKargs(const void* o_ptr,
                                                                       const void* do_ptr,
                                                                       void* d_ptr,
-                                                                      ck::index_t seqlen_q,
+                                                                      const void* seqstart_q_ptr,
                                                                       ck::index_t hdim_v,
                                                                       ck::index_t stride_o,
                                                                       ck::index_t nhead_stride_o,
-                                                                      ck::index_t nhead_stride_d,
-                                                                      const void* seqstart_q_ptr)
+                                                                      ck::index_t nhead_stride_d)
     {
-        Kargs kargs{o_ptr,
-                    do_ptr,
-                    d_ptr,
-                    -1, // seqlen will be updated by another pointer
-                    hdim_v,
-                    stride_o,
-                    nhead_stride_o,
-                    nhead_stride_d,
+        Kargs kargs{{o_ptr,
+                     do_ptr,
+                     d_ptr,
+                     -1, // seqlen will be updated by another pointer
+                     hdim_v,
+                     stride_o,
+                     nhead_stride_o,
+                     nhead_stride_d},
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr)};
 
         return kargs;
