@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifndef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-#error Should compile this file with ck::int4_t support
-#endif
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
 #include <cstdlib>
 #include <iostream>
@@ -120,3 +118,4 @@ static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
 #endif
 
 int main(int argc, char* argv[]) { return run_grouped_conv_conv_fwd_example(argc, argv) ? 0 : 1; }
+#endif
