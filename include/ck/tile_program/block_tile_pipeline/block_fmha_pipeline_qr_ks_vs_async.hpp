@@ -452,8 +452,6 @@ struct BlockFmhaPipelineQRKSVSAsync
                 });
             });
 
-            const auto p = cast_tile<PDataType>(p_compute);
-
             if constexpr(kUseDropout)
             {
                 // Z tile in LDS
@@ -498,14 +496,25 @@ struct BlockFmhaPipelineQRKSVSAsync
                     // save to LDS
                     store_tile(z_lds_window, z_dropout);
                     // read form LDS to register
-                    auto dropout =
-                        make_static_distributed_tensor<uint8_t>(p_compute.GetTileDistribution());
+                    auto droput_dram_window = make_tile_window(z_lds_window.GetBottomTensorView(),
+                                                               z_lds_window.GetWindowLengths(),
+                                                               z_lds_window.GetWindowOrigin(),
+                                                               p_compute.GetTileDistribution());
 
+                    auto dropout = load_tile(droput_dram_window);
                     // dropout
-
-                    ignore = dropout;
+                    constexpr auto drop_spans = decltype(dropout)::GetDistributedSpans();
+                    sweep_tile_span(drop_spans[Number<0>{}], [&](auto idx0) {
+                        sweep_tile_span(drop_spans[Number<1>{}], [&](auto idx1) {
+                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                            p_compute(i_j_idx) = dropout[i_j_idx] > 100 ? 0 : p_compute[i_j_idx];
+                        });
+                    });
                 });
             }
+
+            const auto p = cast_tile<PDataType>(p_compute);
+
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
             {
