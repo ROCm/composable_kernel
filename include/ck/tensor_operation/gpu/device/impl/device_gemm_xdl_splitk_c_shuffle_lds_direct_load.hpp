@@ -42,18 +42,14 @@ template <typename ADataType,
           ck::index_t MXdlPerWave,
           ck::index_t NXdlPerWave,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
-          //   typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
           ck::index_t ABlockTransferSrcVectorDim,
-          ck::index_t ABlockTransferSrcScalarPerVector,
-          //   ck::index_t ABlockTransferDstScalarPerVector_K1,
+          ck::index_t ABlockTransferScalarPerVector,
           bool ABlockLdsAddExtraM,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
-          //   typename BBlockTransferThreadClusterArrangeOrder,
           typename BBlockTransferSrcAccessOrder,
           ck::index_t BBlockTransferSrcVectorDim,
-          ck::index_t BBlockTransferSrcScalarPerVector,
-          //   ck::index_t BBlockTransferDstScalarPerVector_K1,
+          ck::index_t BBlockTransferScalarPerVector,
           bool BBlockLdsAddExtraN,
           index_t CShuffleMRepeatPerShuffle,
           index_t CShuffleNRepeatPerShuffle,
@@ -79,7 +75,7 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-    using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_splitk_lds_direct_load<
+    using GridwiseGemm = GridwiseGemm_xdlops_splitk_lds_direct_load<
         BlockSize,
         ADataType,
         BDataType,
@@ -102,20 +98,12 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
         MXdlPerWave,
         NXdlPerWave,
         ABlockTransferThreadClusterLengths_K0_M_K1,
-        // ABlockTransferThreadClusterArrangeOrder,
-        ABlockTransferSrcAccessOrder,
         ABlockTransferSrcVectorDim,
-        ABlockTransferSrcScalarPerVector,
-        // ABlockTransferDstScalarPerVector_K1,
-        false, // AThreadTransferSrcResetCoordinateAfterRun,
+        ABlockTransferScalarPerVector,
         ABlockLdsAddExtraM,
         BBlockTransferThreadClusterLengths_K0_N_K1,
-        // BBlockTransferThreadClusterArrangeOrder,
-        BBlockTransferSrcAccessOrder,
         BBlockTransferSrcVectorDim,
-        BBlockTransferSrcScalarPerVector,
-        // BBlockTransferDstScalarPerVector_K1,
-        false, // BThreadTransferSrcResetCoordinateAfterRun,
+        BBlockTransferScalarPerVector,
         BBlockLdsAddExtraN,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
@@ -397,11 +385,34 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
         std::map<LoopScheduler, std::string> LoopSchedToString{
             {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
 
-        std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
-                                                                       {PipelineVersion::v2, "v2"}};
+        std::map<PipelineVersion, std::string> PipelineVersionToString{
+            {PipelineVersion::v1, "v1"}, {PipelineVersion::v2, "v2"}, {PipelineVersion::v4, "v4"}};
 
-        str << GridwiseGemm::GetTypeString() << " LoopScheduler: " << LoopSchedToString[LoopSched]
-            << ", PipelineVersion: " << PipelineVersionToString[PipelineVer];
+        // clang-format off
+        str << "DeviceGemmXdlSplitKCShuffle_LdsDirectLoad"
+            << "<"
+            << BlockSize << ", "
+            << MPerBlock << ", "
+            << NPerBlock << ", "
+            << K0PerBlock << ", "
+            << K1 << ", "
+            << MPerXDL << ", "
+            << NPerXDL << ", "
+            << MXdlPerWave << ", "
+            << NXdlPerWave << ", "
+            << ABlockTransferScalarPerVector << ", "
+            << BBlockTransferScalarPerVector << ", "
+            << CShuffleMRepeatPerShuffle << ", "
+            << CShuffleNRepeatPerShuffle << ", "
+            << getGemmSpecializationString(GemmSpec)
+            << ">"
+            << " LoopScheduler: "
+            << LoopSchedToString[LoopSched] << ", "
+            << "PipelineVersion: "
+            << PipelineVersionToString[PipelineVer] << ", "
+            << "Prefetch: "
+            << NumGemmKPrefetchStage;
+        // clang-format on
 
         return str.str();
     }

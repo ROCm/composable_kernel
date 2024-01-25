@@ -77,25 +77,21 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
-          typename ABlockTransferSrcAccessOrder,
           index_t ABlockTransferSrcVectorDim,
           index_t ABlockTransferSrcScalarPerVector,
-          bool AThreadTransferSrcResetCoordinateAfterRun,
           bool ABlockLdsExtraM,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
-          typename BBlockTransferSrcAccessOrder,
           index_t BBlockTransferSrcVectorDim,
           index_t BBlockTransferSrcScalarPerVector,
-          bool BThreadTransferSrcResetCoordinateAfterRun,
           bool BBlockLdsExtraN,
           index_t CShuffleMRepeatPerShuffle,
           index_t CShuffleNRepeatPerShuffle,
           index_t CBlockTransferScalarPerVector_NWaveNPerXDL,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           LoopScheduler LoopSched     = make_default_loop_scheduler(),
-          PipelineVersion PipelineVer = PipelineVersion::v1,
+          PipelineVersion PipelineVer = PipelineVersion::v4,
           typename ComputeType        = FloatC>
-struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_splitk_lds_direct_load
+struct GridwiseGemm_xdlops_splitk_lds_direct_load
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -524,15 +520,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_splitk_lds_direct_load
                        make_unmerge_transform(make_tuple(NBlock, Number<NPerBlock>{}))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
-    }
-
-    // return block_id to C matrix tile idx (m0, n0) mapping
-    template <typename CGridDesc>
-    __host__ __device__ static constexpr auto MakeCBlockClusterAdaptor(
-        const CGridDesc& c_m_n_grid_desc, index_t /* M01 */, index_t /* N01 */, index_t KBatch)
-    {
-        return BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc>(
-            c_m_n_grid_desc, 8, KBatch);
     }
 
     __host__ __device__ static constexpr auto
@@ -969,30 +956,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_splitk_lds_direct_load
                 }
             });
         }
-    }
-
-    static std::string GetTypeString()
-    {
-        auto str = std::stringstream();
-
-        // clang-format off
-        str << "GemmXdlSplitKCShuffle_LdsDirectLoad_"
-            << getGemmSpecializationString(GemmSpec) << "_"
-            << std::string(ALayout::name)[0]
-            << std::string(BLayout::name)[0]
-            << std::string(CLayout::name)[0]
-            << "_"
-            << "B" << BlockSize << "_"
-            << "Vec" << ABlockTransferSrcScalarPerVector << "x"
-            << BBlockTransferSrcScalarPerVector << "x"
-            << CBlockTransferScalarPerVector_NWaveNPerXDL << "_"
-            << MPerBlock << "x"
-            << NPerBlock << "x"
-            << K0PerBlock << "x"
-            << K1 ;
-        // clang-format on
-
-        return str.str();
     }
 };
 
