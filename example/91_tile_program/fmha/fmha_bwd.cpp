@@ -239,6 +239,8 @@ bool run(const ArgParser& arg_parser)
     std::size_t flop = 0, num_byte = 0;
     auto max_seqlen_q =
         std::numeric_limits<int32_t>::min(); // we will use max seqlen to decide grid size
+    auto max_seqlen_k =
+        std::numeric_limits<int32_t>::min(); // we will use max seqlen to decide grid size
     {
         for(ck::index_t wb = 0; wb < batch; ++wb)
         {
@@ -248,6 +250,11 @@ bool run(const ArgParser& arg_parser)
             if(max_seqlen_q < real_seqlen_q)
             {
                 max_seqlen_q = real_seqlen_q;
+            }
+
+            if(max_seqlen_k < real_seqlen_k)
+            {
+                max_seqlen_k = real_seqlen_k;
             }
 
             using namespace ck::literals;
@@ -409,7 +416,7 @@ bool run(const ArgParser& arg_parser)
                                                                    shape_seqlen_k,               \
                                                                    hdim_q,                       \
                                                                    hdim_v,                       \
-                                                                   max_seqlen_q,                 \
+                                                                   max_seqlen_k,                 \
                                                                    scale,                        \
                                                                    i_perm,                       \
                                                                    o_perm,                       \
