@@ -189,6 +189,7 @@ struct vector_type<T, 1>
     }
 };
 
+int static err = 0;
 template <typename T>
 struct vector_type<T, 2>
 {
@@ -221,6 +222,10 @@ struct vector_type<T, 2>
         {
             return data_.d2x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -235,6 +240,10 @@ struct vector_type<T, 2>
         else if constexpr(is_same<X, d2_t>::value)
         {
             return data_.d2x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -278,6 +287,10 @@ struct vector_type<T, 4>
         {
             return data_.d4x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -297,6 +310,10 @@ struct vector_type<T, 4>
         else if constexpr(is_same<X, d4_t>::value)
         {
             return data_.d4x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -347,6 +364,10 @@ struct vector_type<T, 8>
         {
             return data_.d8x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -371,6 +392,10 @@ struct vector_type<T, 8>
         else if constexpr(is_same<X, d8_t>::value)
         {
             return data_.d8x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -428,6 +453,10 @@ struct vector_type<T, 16>
         {
             return data_.d16x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -457,6 +486,10 @@ struct vector_type<T, 16>
         else if constexpr(is_same<X, d16_t>::value)
         {
             return data_.d16x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -520,6 +553,10 @@ struct vector_type<T, 32>
         {
             return data_.d32x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -553,6 +590,10 @@ struct vector_type<T, 32>
         else if constexpr(is_same<X, d32_t>::value)
         {
             return data_.d32x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -623,6 +664,10 @@ struct vector_type<T, 64>
         {
             return data_.d64x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -661,6 +706,10 @@ struct vector_type<T, 64>
         else if constexpr(is_same<X, d64_t>::value)
         {
             return data_.d64x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -737,6 +786,10 @@ struct vector_type<T, 128>
         {
             return data_.d128x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -779,6 +832,10 @@ struct vector_type<T, 128>
         else if constexpr(is_same<X, d128_t>::value)
         {
             return data_.d128x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -861,6 +918,10 @@ struct vector_type<T, 256>
         {
             return data_.d256x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -907,6 +968,10 @@ struct vector_type<T, 256>
         else if constexpr(is_same<X, d256_t>::value)
         {
             return data_.d256x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
