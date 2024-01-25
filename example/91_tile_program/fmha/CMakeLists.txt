@@ -1,22 +1,23 @@
 # generate a list of kernels, but not actually emit files at config stage
 execute_process(
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate_kernels.py
-  --list_kernels ${CMAKE_CURRENT_BINARY_DIR}/kernel_list.txt
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
+  --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/blob_list.txt
 )
 
-# NOTE: for cmake, the FMHA_FWD_GEN_KERNELS files must be in the same directory
+# NOTE: for cmake, the FMHA_FWD_GEN_BLOBS files must be in the same directory
 #       as current cmake list, otherwise will not figure out the dependency properly
-file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/kernel_list.txt FMHA_FWD_GEN_KERNELS)
+file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/blob_list.txt FMHA_FWD_GEN_BLOBS)
 
 add_custom_command(
-  OUTPUT ${FMHA_FWD_GEN_KERNELS}
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate_kernels.py
+  OUTPUT ${FMHA_FWD_GEN_BLOBS}
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --output_dir ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-add_example_executable(example_fmha_fwd fmha_fwd.cpp)
-target_include_directories(example_fmha_fwd PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_sources(example_fmha_fwd PRIVATE ${FMHA_FWD_GEN_KERNELS})
+set(EXAMPLE_FMHA_FWD "example_fmha_fwd")
+add_example_executable(${EXAMPLE_FMHA_FWD} fmha_fwd.cpp)
+target_include_directories(${EXAMPLE_FMHA_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_sources(${EXAMPLE_FMHA_FWD} PRIVATE ${FMHA_FWD_GEN_BLOBS})
 
 # NOTE: this is dangerous since will change the whole kernel to flush denormals
 #       WIP with compiler team for an exp2 intrinsic..., then remove this
@@ -24,10 +25,14 @@ if(NOT DEFINED FMHA_FWD_FAST_EXP2)
     set(FMHA_FWD_FAST_EXP2 true)
 endif()
 
+set(EXAMPLE_FMHA_FWD_COMPILE_OPTIONS)
+
 # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
 #       ... because they are auto-generated
 if(FMHA_FWD_FAST_EXP2)
-target_compile_options(example_fmha_fwd PRIVATE "-Wno-undefined-func-template;-DCK_FMHA_FWD_FAST_EXP2=1;-fgpu-flush-denormals-to-zero")
+list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_FMHA_FWD_FAST_EXP2=1 -fgpu-flush-denormals-to-zero)
 else()
-target_compile_options(example_fmha_fwd PRIVATE "-Wno-undefined-func-template;-DCK_FMHA_FWD_FAST_EXP2=0")
+list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_FMHA_FWD_FAST_EXP2=0)
 endif()
+
+target_compile_options(${EXAMPLE_FMHA_FWD} PRIVATE ${EXAMPLE_FMHA_FWD_COMPILE_OPTIONS})

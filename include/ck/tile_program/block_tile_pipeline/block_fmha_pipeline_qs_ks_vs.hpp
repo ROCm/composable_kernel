@@ -15,7 +15,7 @@
 #include "ck/tile_program/tile/tile_gemm_shape.hpp"
 #include "ck/tile_program/tile/slice_tile.hpp"
 #include "ck/tile_program/warp_tile/warp_gemm.hpp"
-#include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qr_ks_vs_default_policy.hpp"
+#include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qs_ks_vs_default_policy.hpp"
 #include "ck/tile_program/block_tile/block_reduce.hpp"
 #include "ck/tile_program/tile/shuffle_distributed_tensor.hpp"
 
@@ -24,8 +24,8 @@ namespace tile_program {
 namespace block {
 
 // This pipeline is qkv all located in LDS
-template <typename Problem, typename Policy = BlockFmhaPipelineQRKSVSDefaultPolicy>
-struct BlockFmhaPipelineQRKSVS
+template <typename Problem, typename Policy = BlockFmhaPipelineQSKSVSDefaultPolicy>
+struct BlockFmhaPipelineQSKSVS
 {
     using QDataType           = remove_cvref_t<typename Problem::QDataType>;
     using KDataType           = remove_cvref_t<typename Problem::KDataType>;
@@ -41,9 +41,8 @@ struct BlockFmhaPipelineQRKSVS
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
-    static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
+    static constexpr bool kQLoadOnce = false;
     static_assert(kQLoadOnce == Policy::QLoadOnce);
-    static constexpr bool kIsFp8 = Problem::kIsFp8;
 
     static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
     static constexpr index_t kBlockSize  = Problem::kBlockSize;
@@ -65,6 +64,11 @@ struct BlockFmhaPipelineQRKSVS
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
+    }
+
+    __host__ __device__ static constexpr ck::index_t GetSmemSizeQ()
+    {
+        return Policy::template GetSmemSizeQ<Problem>();
     }
 
     template <typename QDramBlockWindowTmp,
@@ -107,6 +111,13 @@ struct BlockFmhaPipelineQRKSVS
                           kN0 == BiasDramBlockWindowTmp{}.GetWindowLengths()[Number<1>{}],
                       "wrong!");
 
+        // Q tile in LDS
+        auto q_lds = make_tensor_view<AddressSpaceEnum::Lds>(
+            reinterpret_cast<QDataType*>(smem_ptr),
+            Policy::template MakeQLdsBlockDescriptor<Problem>());
+        auto q_lds_window =
+            make_tile_window(q_lds, make_tuple(Number<kM0>{}, Number<kK0>{}), {0, 0});
+
         // K tile in LDS
         KDataType* k_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
             static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeQ<Problem>()));
@@ -125,14 +136,6 @@ struct BlockFmhaPipelineQRKSVS
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
-
-        auto q_dram_window = make_tile_window(
-            q_dram_block_window_tmp.GetBottomTensorView(),
-            q_dram_block_window_tmp.GetWindowLengths(),
-            q_dram_block_window_tmp.GetWindowOrigin(),
-            Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
-
-        auto q = load_tile(q_dram_window);
 
         using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
         auto s_acc              = SaccBlockTileType{};
@@ -158,7 +161,7 @@ struct BlockFmhaPipelineQRKSVS
         set_tile(m, NumericLimits<SMPLComputeDataType>::Lowest());
         clear_tile(l);
 
-        const auto q_origin = q_dram_window.GetWindowOrigin();
+        const auto q_origin = q_dram_block_window_tmp.GetWindowOrigin();
         const auto [seqlen_k_start, seqlen_k_end] =
             mask.GetTileRangeAlongX(q_origin.At(Number<0>{}), Number<kM0>{}, Number<kN0>{});
 
@@ -192,8 +195,6 @@ struct BlockFmhaPipelineQRKSVS
                              {0, seqlen_k_start}, // TODO: hdim split?
                              Policy::template MakeVDramTileDistribution<Problem>());
 
-        auto q_tile = tile_elementwise_in(q_element_func, q);
-
         // prefetch K tile
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kK0BlockLength / kK0;
@@ -204,17 +205,29 @@ struct BlockFmhaPipelineQRKSVS
         do
         {
             // STAGE 1, QK gemm
-            auto k_dram_window = make_tile_window(
-                k_dram_block_window.GetBottomTensorView(),
-                k_dram_block_window.GetWindowLengths(),
-                k_dram_block_window.GetWindowOrigin(),
-                Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
-                                                                        // load
+            auto q_dram_window =
+                make_tile_window(q_dram_block_window_tmp.GetBottomTensorView(),
+                                 q_dram_block_window_tmp.GetWindowLengths(),
+                                 q_dram_block_window_tmp.GetWindowOrigin(),
+                                 Policy::template MakeQDramTileDistribution<Problem>());
 
+            auto k_dram_window =
+                make_tile_window(k_dram_block_window.GetBottomTensorView(),
+                                 k_dram_block_window.GetWindowLengths(),
+                                 k_dram_block_window.GetWindowOrigin(),
+                                 Policy::template MakeKDramTileDistribution<Problem>());
+
+            auto q_block_tile = load_tile(q_dram_window);
             auto k_block_tile = load_tile(k_dram_window);
             {
+                move_tile_window(q_dram_window, {0, kK0});
                 move_tile_window(k_dram_window, {0, kK0});
+
                 clear_tile(s_acc); // Initialize C
+
+                store_tile(q_lds_window, tile_elementwise_in(q_element_func, q_block_tile));
+                q_block_tile = load_tile(q_dram_window);
+
                 store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
                 k_block_tile = load_tile(k_dram_window);
             }
@@ -233,15 +246,18 @@ struct BlockFmhaPipelineQRKSVS
 
             if constexpr(k0_loops > 2)
             {
-                static_for<0, k0_loops - 2, 1>{}([&](auto i_k0) {
+                static_for<0, k0_loops - 2, 1>{}([&](auto) {
                     block_sync_lds();
-                    gemm_0(s_acc,
-                           get_slice_tile(q_tile,
-                                          Sequence<0, i_k0 * kK0>{},
-                                          Sequence<kM0, (i_k0 + 1) * kK0>{}),
-                           k_lds_window);
+                    gemm_0(s_acc, q_lds_window, k_lds_window);
                     block_sync_lds();
+
+                    move_tile_window(q_dram_window, {0, kK0});
                     move_tile_window(k_dram_window, {0, kK0});
+
+                    store_tile(
+                        q_lds_window,
+                        tile_elementwise_in(q_element_func, q_block_tile)); // LDS write i + 1
+                    q_block_tile = load_tile(q_dram_window);                // global read i + 2
 
                     store_tile(
                         k_lds_window,
@@ -253,21 +269,14 @@ struct BlockFmhaPipelineQRKSVS
             const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
             {                                                 // tail
                 block_sync_lds();
-                gemm_0(s_acc,
-                       get_slice_tile(q_tile,
-                                      Sequence<0, (k0_loops - 2) * kK0>{},
-                                      Sequence<kM0, (k0_loops - 1) * kK0>{}),
-                       k_lds_window);
+                gemm_0(s_acc, q_lds_window, k_lds_window);
                 block_sync_lds();
 
+                store_tile(q_lds_window, tile_elementwise_in(q_element_func, q_block_tile));
                 store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
                 block_sync_lds();
 
-                gemm_0(s_acc,
-                       get_slice_tile(q_tile,
-                                      Sequence<0, (k0_loops - 1) * kK0>{},
-                                      Sequence<kM0, k0_loops * kK0>{}),
-                       k_lds_window);
+                gemm_0(s_acc, q_lds_window, k_lds_window);
             }
 
             // STAGE 2, scale, add bias, mask, softmax

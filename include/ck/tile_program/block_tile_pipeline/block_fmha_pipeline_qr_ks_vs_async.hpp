@@ -43,6 +43,8 @@ struct BlockFmhaPipelineQRKSVSAsync
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
+    static_assert(kQLoadOnce == Policy::QLoadOnce);
+    static constexpr bool kIsFp8     = Problem::kIsFp8;
 
     static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
     static constexpr index_t kBlockSize  = Problem::kBlockSize;

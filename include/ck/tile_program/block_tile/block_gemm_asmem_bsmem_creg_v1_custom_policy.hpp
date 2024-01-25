@@ -23,34 +23,26 @@ template <typename AType_,
           typename BType_,
           typename CType_,
           typename BlockWarps_,
-          typename WarpTile_,
-          bool TranposeC_>
+          typename WarpGemm_>
 struct BlockGemmASmemBSmemCRegV1CustomPolicy
 {
     using AType = remove_cvref_t<AType_>;
     using BType = remove_cvref_t<BType_>;
     using CType = remove_cvref_t<CType_>;
 
-    using BlockWarps                     = remove_cvref_t<BlockWarps_>;
-    using WarpTile                       = remove_cvref_t<WarpTile_>;
-    static constexpr index_t BlockMWarps = BlockWarps::At(Number<0>{});
-    static constexpr index_t BlockNWarps = BlockWarps::At(Number<1>{});
-    static constexpr index_t BlockKWarps = BlockWarps::At(Number<2>{});
+    using BlockWarps = remove_cvref_t<BlockWarps_>;
 
-    static constexpr index_t MPerWarp = WarpTile::At(Number<0>{});
-    static constexpr index_t NPerWarp = WarpTile::At(Number<1>{});
-    static constexpr index_t KPerWarp = WarpTile::At(Number<2>{});
+    static constexpr index_t kMWarps = BlockWarps::At(Number<0>{});
+    static constexpr index_t kNWarps = BlockWarps::At(Number<1>{});
+    static constexpr index_t kKWarps = BlockWarps::At(Number<2>{});
 
-    static constexpr bool TranposeC = TranposeC_;
-
-    using WarpGemm = ck::tile_program::warp::
-        WarpGemmMfmaDispatcher<AType, BType, CType, MPerWarp, NPerWarp, KPerWarp, TranposeC>;
+    using WarpGemm = remove_cvref_t<WarpGemm_>;
 
     template <typename Problem>
     __host__ __device__ static constexpr auto GetWarpGemmMWarpNWarp()
     {
         using namespace ck::tile_program::warp;
-        return make_tuple(WarpGemm{}, BlockMWarps, BlockNWarps);
+        return make_tuple(WarpGemm{}, kMWarps, kNWarps);
     }
 };
 

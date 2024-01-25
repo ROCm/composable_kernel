@@ -153,6 +153,17 @@ class ArgParser
         return value;
     }
 
+    bool get_bool(const std::string& name) const
+    {
+        auto v = input_map.at(name).value;
+        if(v.compare("t") == 0 || v.compare("true") == 0)
+            return true;
+        if(v.compare("f") == 0 || v.compare("false") == 0)
+            return false;
+        int value = atoi(v.c_str());
+        return value == 0 ? false : true;
+    }
+
     float get_float(const std::string& name) const
     {
         double value = atof(input_map.at(name).value.c_str());

@@ -17,6 +17,8 @@
 #include "ck/tile_program/block_tile/block_gemm_areg_bsmem_creg_v1_custom_policy.hpp"
 #include "ck/tile_program/block_tile/block_gemm_areg_bsmem_creg_v2.hpp"
 #include "ck/tile_program/block_tile/block_gemm_areg_bsmem_creg_v2_custom_policy.hpp"
+#include "ck/tile_program/block_tile/block_gemm_asmem_bsmem_creg_v1.hpp"
+#include "ck/tile_program/block_tile/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
 // TODO: remove this
@@ -26,15 +28,229 @@ namespace ck {
 namespace tile_program {
 namespace block {
 
-// This pipeline is qkv all located in LDS
-template <bool AsyncCopyK_, bool AsyncCopyV_, index_t NumPrefetchK_, index_t NumPrefetchV_>
-struct BlockFmhaPipelineQRKSVSCustomPolicy
+template <bool QLoadOnce_>
+struct BlockFmhaPipelineQXCustomPolicy;
+
+template <>
+struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
 {
-    static constexpr index_t AsyncCopyK = AsyncCopyK_;
-    static constexpr index_t AsyncCopyV = AsyncCopyV_; // TODO: this not supported yet
+    static constexpr bool QLoadOnce = true;
+
+    template <typename Problem>
+    __host__ __device__ static constexpr ck::index_t GetSmemSizeQ()
+    {
+        return 0;
+    }
+
+    template <typename Problem, typename BlockGemm>
+    __host__ __device__ static constexpr auto MakeQDramTileDistribution()
+    {
+        constexpr auto config   = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG                = remove_cvref_t<decltype(config.template At<0>())>;
+        constexpr index_t MWarp = config.template At<1>();
+
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0BlockLength;
+
+        constexpr index_t K2 = WG::kK / WG::WarpGemmAttribute::Impl::kABKLane;
+        constexpr index_t K1 = WG::WarpGemmAttribute::Impl::kABKLane;
+        constexpr index_t K0 = kKPerBlock / (K1 * K2);
+
+        constexpr index_t M2 = WG::WarpGemmAttribute::Impl::kAMLane;
+        constexpr index_t M1 = MWarp;
+        constexpr index_t M0 = kMPerBlock / (M2 * M1);
+
+        return make_static_tile_distribution(
+            StaticTileDistributionEncoding<Sequence<1>,
+                                           Tuple<Sequence<M0, M1, M2>, Sequence<K0, K1, K2>>,
+                                           Tuple<Sequence<1>, Sequence<2, 1>>,
+                                           Tuple<Sequence<1>, Sequence<1, 2>>,
+                                           Sequence<1, 2, 2>,
+                                           Sequence<0, 0, 2>>{});
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetQKBlockGemm()
+    {
+        using BlockGemmProblem =
+            BlockGemmPipelineProblem<typename Problem::QDataType,
+                                     typename Problem::KDataType,
+                                     typename Problem::SaccDataType,
+                                     Problem::kBlockSize,
+                                     TileGemmShape<Problem::BlockFmhaShape::kM0,
+                                                   Problem::BlockFmhaShape::kN0,
+                                                   Problem::BlockFmhaShape::kK0>>;
+
+        constexpr auto warp_gemm = []() {
+            if constexpr(is_same_v<typename Problem::QDataType, half_t> &&
+                         is_same_v<typename Problem::KDataType, half_t> &&
+                         is_same_v<typename Problem::SaccDataType, float>)
+            {
+                return warp::WarpGemmMfmaF16F16F32M16N16K32SwizzleBTransposedCDistribution{};
+            }
+            else if constexpr(is_same_v<typename Problem::QDataType, bhalf_t> &&
+                              is_same_v<typename Problem::KDataType, bhalf_t> &&
+                              is_same_v<typename Problem::SaccDataType, float>)
+            {
+                return warp::WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
+            }
+            else if constexpr(Problem::kIsFp8)
+            {
+                constexpr index_t swizzle_factor = 4; // TODO: hard coded here
+                return warp::WarpGemmImpl<
+                    warp::WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
+                        warp::WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<
+                            typename Problem::QDataType,
+                            typename Problem::KDataType>,
+                        2,
+                        swizzle_factor>>{};
+            }
+        }();
+
+        using BlockGemmPolicy =
+            BlockGemmARegBSmemCRegV2CustomPolicy<typename Problem::QDataType,
+                                                 typename Problem::KDataType,
+                                                 typename Problem::SaccDataType,
+                                                 typename Problem::BlockFmhaShape::Gemm0BlockWarps,
+                                                 decltype(warp_gemm)>;
+
+        return BlockGemmARegBSmemCRegV2<BlockGemmProblem, BlockGemmPolicy>{};
+    }
+};
+
+template <>
+struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
+{
+    static constexpr bool QLoadOnce = false;
+
+    template <typename Problem>
+    __host__ __device__ static constexpr ck::index_t GetSmemSizeQ()
+    {
+        constexpr index_t lds_alignment = 16; // optional
+        constexpr index_t q_smem_size =
+            ck::math::integer_divide_ceil(
+                sizeof(typename Problem::QDataType) *
+                    MakeQLdsBlockDescriptor<Problem>().GetElementSpaceSize(),
+                lds_alignment) *
+            lds_alignment;
+        return q_smem_size;
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto MakeQDramTileDistribution()
+    {
+        using QDataType = remove_cvref_t<typename Problem::QDataType>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+
+        constexpr index_t K1 = 16 / sizeof(QDataType); // use dwordx4. TODO: change this
+        constexpr index_t K0 = kKPerBlock / K1;
+        constexpr index_t M2 = get_warp_size() / K0;
+        constexpr index_t M1 = kBlockSize / get_warp_size();
+        constexpr index_t M0 = kMPerBlock / (M2 * M1);
+
+        return make_static_tile_distribution(
+            StaticTileDistributionEncoding<Sequence<1>,
+                                           Tuple<Sequence<M0, M1, M2>, Sequence<K0, K1>>,
+                                           Tuple<Sequence<1>, Sequence<1, 2>>,
+                                           Tuple<Sequence<1>, Sequence<2, 0>>,
+                                           Sequence<1, 2>,
+                                           Sequence<0, 1>>{});
+    }
+
+    // 3d + padding
+    template <typename Problem>
+    __host__ __device__ static constexpr auto MakeQLdsBlockDescriptor()
+    {
+        using QDataType = remove_cvref_t<typename Problem::QDataType>;
+
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kKPack     = 16 / sizeof(QDataType);
+
+        constexpr auto q_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(Number<kKPerBlock / kKPack>{}, Number<kMPerBlock>{}, Number<kKPack>{}),
+            make_tuple(Number<(kMPerBlock + 1) * kKPack>{}, Number<kKPack>{}, Number<1>{}),
+            Number<8>{},
+            Number<1>{});
+
+        constexpr auto q_lds_block_desc = transform_tensor_descriptor(
+            q_lds_block_desc_0,
+            make_tuple(make_pass_through_transform(kMPerBlock),
+                       make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
+            make_tuple(Sequence<1>{}, Sequence<0, 2>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        return q_lds_block_desc;
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetQKBlockGemm()
+    {
+        using BlockGemmProblem =
+            BlockGemmPipelineProblem<typename Problem::QDataType,
+                                     typename Problem::KDataType,
+                                     typename Problem::SaccDataType,
+                                     Problem::kBlockSize,
+                                     TileGemmShape<Problem::BlockFmhaShape::kM0,
+                                                   Problem::BlockFmhaShape::kN0,
+                                                   Problem::BlockFmhaShape::kK0>>;
+
+        constexpr auto warp_gemm = []() {
+            if constexpr(is_same_v<typename Problem::QDataType, half_t> &&
+                         is_same_v<typename Problem::KDataType, half_t> &&
+                         is_same_v<typename Problem::SaccDataType, float>)
+            {
+                return warp::WarpGemmMfmaF16F16F32M16N16K32SwizzleBTransposedCDistribution{};
+            }
+            else if constexpr(is_same_v<typename Problem::QDataType, bhalf_t> &&
+                              is_same_v<typename Problem::KDataType, bhalf_t> &&
+                              is_same_v<typename Problem::SaccDataType, float>)
+            {
+                return warp::WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
+            }
+            else if constexpr(Problem::kIsFp8)
+            {
+                constexpr index_t swizzle_factor = 4; // TODO: hard coded here
+                return warp::WarpGemmImpl<
+                    warp::WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
+                        warp::WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<
+                            typename Problem::QDataType,
+                            typename Problem::KDataType>,
+                        2,
+                        swizzle_factor>>{};
+            }
+        }();
+
+        using BlockGemmPolicy =
+            BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::QDataType,
+                                                  typename Problem::KDataType,
+                                                  typename Problem::SaccDataType,
+                                                  typename Problem::BlockFmhaShape::Gemm0BlockWarps,
+                                                  decltype(warp_gemm)>;
+
+        return BlockGemmASmemBSmemCRegV1<BlockGemmProblem, BlockGemmPolicy>{};
+    }
+};
+
+// This pipeline is qkv all located in LDS
+template <bool QLoadOnce_,
+          bool AsyncCopyK_,
+          bool AsyncCopyV_,
+          index_t NumPrefetchK_,
+          index_t NumPrefetchV_>
+struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLoadOnce_>
+{
+    static constexpr bool AsyncCopyK = AsyncCopyK_;
+    static constexpr bool AsyncCopyV = AsyncCopyV_; // TODO: this not supported yet
 
     static constexpr index_t NumPrefetchK = NumPrefetchK_;
     static constexpr index_t NumPrefetchV = NumPrefetchK_;
+
+    using QXPolicy = BlockFmhaPipelineQXCustomPolicy<QLoadOnce_>;
 
     template <index_t k_prefetches_, index_t v_prefetches_, index_t k_loops_, index_t v_loops_>
     struct LdsBufferSequence
@@ -427,12 +643,6 @@ struct BlockFmhaPipelineQRKSVSCustomPolicy
     }
 
     template <typename Problem>
-    __host__ __device__ static constexpr ck::index_t GetSmemSizeQ()
-    {
-        return 0;
-    }
-
-    template <typename Problem>
     __host__ __device__ static constexpr ck::index_t GetSmemSizeKV()
     {
         // TODO: assume Q is in register
@@ -440,7 +650,8 @@ struct BlockFmhaPipelineQRKSVSCustomPolicy
         constexpr index_t single_smem_size =
             GetSingleSmemElementSpaceSize<Problem>() * sizeof(typename Problem::KDataType);
 
-        return single_smem_size * math::max(NumPrefetchK, NumPrefetchV);
+        return QXPolicy::template GetSmemSizeQ<Problem>() +
+               single_smem_size * math::max(NumPrefetchK, NumPrefetchV);
     }
 
     template <typename Problem>
@@ -455,33 +666,6 @@ struct BlockFmhaPipelineQRKSVSCustomPolicy
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kNPerStep  = 32;
         return kMPerBlock * kNPerStep;
-    }
-
-    template <typename Problem, typename BlockGemm>
-    __host__ __device__ static constexpr auto MakeQDramTileDistribution()
-    {
-        constexpr auto config   = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-        using WG                = remove_cvref_t<decltype(config.template At<0>())>;
-        constexpr index_t MWarp = config.template At<1>();
-
-        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0BlockLength;
-
-        constexpr index_t K2 = WG::kK / WG::WarpGemmAttribute::Impl::kABKLane;
-        constexpr index_t K1 = WG::WarpGemmAttribute::Impl::kABKLane;
-        constexpr index_t K0 = kKPerBlock / (K1 * K2);
-
-        constexpr index_t M2 = WG::WarpGemmAttribute::Impl::kAMLane;
-        constexpr index_t M1 = MWarp;
-        constexpr index_t M0 = kMPerBlock / (M2 * M1);
-
-        return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<1>,
-                                           Tuple<Sequence<M0, M1, M2>, Sequence<K0, K1, K2>>,
-                                           Tuple<Sequence<1>, Sequence<2, 1>>,
-                                           Tuple<Sequence<1>, Sequence<1, 2>>,
-                                           Sequence<1, 2, 2>,
-                                           Sequence<0, 0, 2>>{});
     }
 
     template <typename Problem>
@@ -599,6 +783,7 @@ struct BlockFmhaPipelineQRKSVSCustomPolicy
             constexpr index_t N2 = get_warp_size() / K0;
             constexpr index_t N1 = kBlockSize / get_warp_size();
             constexpr index_t N0 = kNPerBlock / (N2 * N1);
+            static_assert(N0 != 0);
 
             return make_static_tile_distribution(
                 StaticTileDistributionEncoding<Sequence<1>,
@@ -690,43 +875,6 @@ struct BlockFmhaPipelineQRKSVSCustomPolicy
     }
 
     template <typename Problem>
-    __host__ __device__ static constexpr auto GetQKBlockGemm()
-    {
-        using BlockGemmProblem =
-            BlockGemmPipelineProblem<typename Problem::QDataType,
-                                     typename Problem::KDataType,
-                                     typename Problem::SaccDataType,
-                                     Problem::kBlockSize,
-                                     TileGemmShape<Problem::BlockFmhaShape::kM0,
-                                                   Problem::BlockFmhaShape::kN0,
-                                                   Problem::BlockFmhaShape::kK0>>;
-
-        constexpr auto warp_gemm = []() {
-            if constexpr(is_same_v<typename Problem::QDataType, half_t> &&
-                         is_same_v<typename Problem::KDataType, half_t> &&
-                         is_same_v<typename Problem::SaccDataType, float>)
-            {
-                return warp::WarpGemmMfmaF16F16F32M16N16K32SwizzleBTransposedCDistribution{};
-            }
-            else if constexpr(is_same_v<typename Problem::QDataType, bhalf_t> &&
-                              is_same_v<typename Problem::KDataType, bhalf_t> &&
-                              is_same_v<typename Problem::SaccDataType, float>)
-            {
-                return warp::WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
-            }
-        }();
-
-        using BlockGemmPolicy =
-            BlockGemmARegBSmemCRegV2CustomPolicy<typename Problem::QDataType,
-                                                 typename Problem::KDataType,
-                                                 typename Problem::SaccDataType,
-                                                 typename Problem::BlockFmhaShape::Gemm0BlockWarps,
-                                                 decltype(warp_gemm)>;
-
-        return BlockGemmARegBSmemCRegV2<BlockGemmProblem, BlockGemmPolicy>{};
-    }
-
-    template <typename Problem>
     __host__ __device__ static constexpr auto GetKVBlockGemm()
     {
         using BlockGemmProblem =
@@ -738,14 +886,35 @@ struct BlockFmhaPipelineQRKSVSCustomPolicy
                                                    Problem::BlockFmhaShape::kN1,
                                                    Problem::BlockFmhaShape::kK1>>;
 
-        using WarpGemm = ck::tile_program::warp::WarpGemmMfmaDispatcher<
-            typename Problem::PDataType,
-            typename Problem::VDataType,
-            typename Problem::OaccDataType,
-            Problem::BlockFmhaShape::Gemm1WarpTile::At(Number<0>{}),
-            Problem::BlockFmhaShape::Gemm1WarpTile::At(Number<1>{}),
-            Problem::BlockFmhaShape::Gemm1WarpTile::At(Number<2>{}),
-            true>;
+        auto warp_gemm = [&]() {
+            if constexpr(Problem::kIsFp8)
+            {
+                return warp::WarpGemmImpl<
+                    warp::WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution<
+                        warp::WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<
+                            typename Problem::PDataType,
+                            typename Problem::VDataType>,
+                        2>>{};
+                // return
+                // warp::WarpGemmImpl<warp::WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
+                //         warp::WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename
+                //         Problem::PDataType, typename Problem::VDataType>>>{};
+            }
+            else
+            {
+                return ck::tile_program::warp::WarpGemmMfmaDispatcher<
+                    typename Problem::PDataType,
+                    typename Problem::VDataType,
+                    typename Problem::OaccDataType,
+                    Problem::BlockFmhaShape::Gemm1WarpTile::At(Number<0>{}),
+                    Problem::BlockFmhaShape::Gemm1WarpTile::At(Number<1>{}),
+                    Problem::BlockFmhaShape::Gemm1WarpTile::At(Number<2>{}),
+                    true>{};
+            }
+        }();
+
+        using WarpGemm = remove_cvref_t<decltype(warp_gemm)>;
+
         using BlockGemmPolicy =
             BlockGemmARegBSmemCRegV2CustomPolicy<typename Problem::PDataType,
                                                  typename Problem::VDataType,

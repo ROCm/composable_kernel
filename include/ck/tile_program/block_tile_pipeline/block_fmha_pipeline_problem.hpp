@@ -6,6 +6,7 @@
 #include "ck/ck.hpp"
 #include "ck/utility/get_id.hpp"
 #include "ck/utility/type.hpp"
+#include "ck/utility/data_type.hpp"
 
 namespace ck {
 namespace tile_program {
@@ -21,7 +22,6 @@ template <typename QDataType_,
           typename PDataType_,
           typename OaccDataType_,
           typename ODataType_,
-          index_t kBlockSize_,
           typename BlockFmhaShape_,
           bool kIsGroupMode_,
           typename FmhaMask_,
@@ -42,10 +42,7 @@ struct BlockFmhaPipelineProblem
     using FmhaMask            = remove_cvref_t<FmhaMask_>;
     using Traits              = remove_cvref_t<Traits_>;
 
-    static_assert(0 < kBlockSize_ && kBlockSize_ % get_warp_size() == 0,
-                  "kBlockSize should be divisible by get_warp_size()");
-
-    static constexpr index_t kBlockSize = kBlockSize_;
+    static constexpr index_t kBlockSize = BlockFmhaShape::NumWarps * get_warp_size();
     static constexpr bool kIsGroupMode  = kIsGroupMode_;
 
     // attributes from traits
@@ -55,6 +52,13 @@ struct BlockFmhaPipelineProblem
     static constexpr bool kHasBias         = Traits::kHasBias;
     static constexpr bool kStoreLSE        = Traits::kStoreLSE;
     static constexpr index_t kBlockPerCu   = Traits::kBlockPerCu;
+    static constexpr bool kIsFp8 =
+        (is_same_v<QDataType, f8_t> || is_same_v<QDataType, bf8_t>)&&(
+            is_same_v<KDataType, f8_t> ||
+            is_same_v<KDataType, bf8_t>)&&(is_same_v<VDataType, f8_t> ||
+                                           is_same_v<VDataType, bf8_t>)&&is_same_v<SaccDataType,
+                                                                                   float> &&
+        is_same_v<OaccDataType, float>;
 };
 
 } // namespace block
