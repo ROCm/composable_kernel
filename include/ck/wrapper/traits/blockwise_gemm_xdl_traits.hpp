@@ -11,11 +11,11 @@ namespace wrapper {
 /**
  * \brief Traits for blockwise gemm xdl.
  *
- * \tparam MPerXDL M per Xdl.
- * \tparam NPerXDL N per Xdl.
- * \tparam MXdlPerWave M Xdl Per Wave
- * \tparam NXdlPerWave N Xdl Per Wave
- * \tparam K1 K1
+ * \tparam MPerXDL M size per XDL instruction needs to compute.
+ * \tparam NPerXDL N size per XDL instruction needs to compute.
+ * \tparam MXdlPerWave Wave number needs to repeat the computation of MPerXdl.
+ * \tparam NXdlPerWave Wave number needs to repeat the computation of NPerXdl.
+ * \tparam K1 Number of Ks are packed together.
  */
 template <index_t MPerXDL, index_t NPerXDL, index_t MXdlPerWave, index_t NXdlPerWave, index_t K1>
 struct BlockwisGemmXdlTraits

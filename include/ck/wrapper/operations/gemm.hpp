@@ -18,7 +18,7 @@ namespace detail {
  * \brief Create block descriptor (K0, MPerBlock or NPerBlock, K1).
  *
  *
- * \tparam K1 K1
+ * \tparam K1 Number of Ks are packed together.
  * \tparam TileLayout Tensor tile layout
  *
  * \return Block descriptor (K0, MPerBlock or NPerBlock, K1)
@@ -26,8 +26,6 @@ namespace detail {
 template <index_t K1, typename TileLayout>
 __device__ constexpr auto GetBlockDescriptor()
 {
-    //
-
     using TileLayoutShape      = typename TileLayout::LayoutShape;
     using TileLayoutDescriptor = typename TileLayout::LayoutUnrolledDescriptorType;
 
