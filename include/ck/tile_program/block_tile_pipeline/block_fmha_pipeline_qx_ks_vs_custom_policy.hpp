@@ -930,14 +930,14 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
         constexpr index_t kNPerStep  = 32;
-        constexpr index_t kN0_1      = 4;
+        constexpr index_t kN0_1      = 8;
         constexpr index_t kN0_0      = kNPerStep / kN0_1;
         static_assert(kNPerBlock % kNPerStep == 0,
                       "kNPerStep must be evenly divided by kNPerBlock");
 
         constexpr auto z_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(Number<kN0_0>{}, Number<kMPerBlock>{}, Number<kN0_1>{}),
-            make_tuple(Number<kMPerBlock * kN0_1>{}, Number<kN0_1>{}, Number<1>{}),
+            make_tuple(Number<(kMPerBlock + 1) * kN0_1>{}, Number<kN0_1>{}, Number<1>{}),
             Number<kN0_1>{},
             Number<1>{});
 
@@ -962,23 +962,24 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         using WG = remove_cvref_t<decltype(config.template At<0>())>;
 
         constexpr index_t kNPerStep = WG::kN;
-        constexpr index_t kN0_1     = 4;
+        constexpr index_t kN0_1     = 1;
         constexpr index_t kN0_0     = kNPerStep / kN0_1;
 
-        constexpr index_t kM2 = 16 / kN0_1;
-        constexpr index_t kM1 = get_warp_size() / kN0_0;
-        constexpr index_t kM0 = MPerBlock / (kM1 * kM2);
+        constexpr index_t kM3 = 8;
+        constexpr index_t kM2 = get_warp_size() / kN0_0;
+        constexpr index_t kM1 = 2;
+        constexpr index_t kM0 = MPerBlock / (kM1 * kM2 * kM3);
 
         static_assert(NPerBlock % kNPerStep == 0, "kNPerStep must be evenly divided by NPerBlock");
 
         // Construct Z-Block-Tensor
         constexpr auto z_block_dstr_encoding =
             StaticTileDistributionEncoding<Sequence<>,
-                                           Tuple<Sequence<kM0, kM1, kM2>, Sequence<kN0_0, kN0_1>>,
+                                           Tuple<Sequence<kM0, kM1, kM2, kM3>, Sequence<kN0_0, kN0_1>>,
                                            Tuple<Sequence<1>, Sequence<1, 2>>,
-                                           Tuple<Sequence<0>, Sequence<1, 0>>,
-                                           Sequence<1, 2>,
-                                           Sequence<2, 1>>{};
+                                           Tuple<Sequence<0>, Sequence<2, 0>>,
+                                           Sequence<1, 1, 2>,
+                                           Sequence<1, 3, 1>>{};
 
         constexpr auto z_block_dstr = make_static_tile_distribution(z_block_dstr_encoding);
 
