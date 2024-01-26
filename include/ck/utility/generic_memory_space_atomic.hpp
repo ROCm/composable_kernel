@@ -118,6 +118,23 @@ __device__ bhalf2_t atomic_add<bhalf2_t>(bhalf2_t* p_dst, const bhalf2_t& x)
     return x;
 }
 
+template <>
+__device__ bhalf4_t atomic_add<bhalf4_t>(bhalf4_t* p_dst, const bhalf4_t& x)
+{
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+
+    const vector_type<bhalf_t, 4> vx{x};
+    vector_type<bhalf_t, 4> vy{0};
+
+    vy.template AsType<bhalf2_t>()(I0) =
+        atomic_add(c_style_pointer_cast<bhalf2_t*>(p_dst), vx.template AsType<bhalf2_t>()[I0]);
+    vy.template AsType<bhalf2_t>()(I1) =
+        atomic_add(c_style_pointer_cast<bhalf2_t*>(p_dst) + 1, vx.template AsType<bhalf2_t>()[I1]);
+
+    return vy.template AsType<bhalf4_t>()[I0];
+}
+
 // Caution: DO NOT REMOVE
 // intentionally have only declaration but no definition to cause compilation failure when trying to
 // instantiate this template. The purpose is to make the implementation of atomic_max explicit for
