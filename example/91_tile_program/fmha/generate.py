@@ -71,6 +71,7 @@ using fmha_trait_{F_idx} = ck::tile_program::TileFmhaTraits<{F_m0pad},
                                                     {F_k0n1pad},
                                                     {F_bias},
                                                     {F_lse},
+                                                    {F_drop},
                                                     {F_occupancy}>;
 using fmha_mask_{F_idx} = {F_mask};
 
@@ -102,7 +103,7 @@ using fmha_kernel_{F_idx} =
                   fmha_pipeline_{F_idx},
                   fmha_epilogue_{F_idx}>;
 
-using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_vlayout}, fmha_mask_{F_idx}, {F_bias}, {F_lse}>;
+using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_vlayout}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_drop}>;
 
 template<>
 float fmha_fwd_<trait_{F_idx}>(const StreamConfig& s, fmha_fwd_args a)
@@ -143,8 +144,8 @@ MASK_CHECK_MAP = {
     "generic" : "t.mask_type == mask_enum::window_generic",
 }
 
-FMHA_FWD_API_INNER_DISPATCH="""                {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.has_bias == {F_bias}) && (t.has_lse == {F_lse})) {{
-                    using trait_ = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_vlayout}, {F_mask}, {F_bias}, {F_lse}>;
+FMHA_FWD_API_INNER_DISPATCH="""                {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.has_bias == {F_bias}) && (t.has_lse == {F_lse}) && (t.has_drop == {F_drop})) {{
+                    using trait_ = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_vlayout}, {F_mask}, {F_bias}, {F_lse}, {F_drop}>;
                     return fmha_fwd_<trait_>(s, a);
                 }}
 """
@@ -159,10 +160,11 @@ class FmhaFwdApiTrait:
     mask      : str
     bias      : str  # true/false
     lse       : str  #
+    drop      : str  # true/false
 
     @property
     def name(self) -> str:
-        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.vlayout}-{self.mask}-{self.bias}-{self.lse}'
+        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.vlayout}-{self.mask}-{self.bias}-{self.lse}-{self.drop}'
 
 class FmhaFwdApiPool:
     def __init__(self):
@@ -188,7 +190,7 @@ class FmhaFwdApiPool:
                 for j, trait in enumerate(traits):
                     if0 = 'if' if j == 0 else 'else if'
                     inners = inners + FMHA_FWD_API_INNER_DISPATCH.format(F_if=if0, F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout], F_mask=MASK_MAP[trait.mask],
-                                   F_mask_check=MASK_CHECK_MAP[trait.mask], F_bias=BOOL_MAP[trait.bias], F_lse=BOOL_MAP[trait.lse], F_hdim=hdim, F_dtype=DTYPE_MAP[dtype])
+                                   F_mask_check=MASK_CHECK_MAP[trait.mask], F_bias=BOOL_MAP[trait.bias], F_lse=BOOL_MAP[trait.lse], F_drop=BOOL_MAP[trait.drop], F_hdim=hdim, F_dtype=DTYPE_MAP[dtype])
             
                 per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_hdim=hdim, F_inner_dispatch=inners)
             if1 = 'if' if i == 0 else 'else if'
@@ -229,6 +231,7 @@ class FmhaFwdKernel:
     F_k0n1pad   : str  # 
     F_bias      : str  # true/false
     F_lse       : str  #
+    F_drop      : str  #
     F_mask      : str  # value from MASK_MAP
     F_mode      : str  # value from MODE_MAP
     F_pipeline  : str  # value from PIPIELINE_MAP
@@ -258,6 +261,7 @@ class FmhaFwdKernel:
                 F_k0n1pad   = BOOL_MAP[self.F_k0n1pad],
                 F_bias      = BOOL_MAP[self.F_bias],
                 F_lse       = BOOL_MAP[self.F_lse],
+                F_drop      = BOOL_MAP[self.F_drop],
                 F_occupancy = self.F_tile.F_occupancy ,
                 F_mask      = MASK_MAP[self.F_mask],
                 F_mode      = MODE_MAP[self.F_mode],
@@ -268,7 +272,7 @@ class FmhaFwdKernel:
         # TODO: we don't encode idx here
         return f"fmha_{self.direction}_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + self.F_tile.name + f"_v{self.F_vlayout[0]}" +\
             f"_p{BOOL_MAP[self.F_m0pad][0]}{BOOL_MAP[self.F_m0k1pad][0]}{BOOL_MAP[self.F_k0n1pad][0]}_{BOOL_MAP[self.F_bias][0]}"  +\
-            f"_m{self.F_mask[0]}_l{BOOL_MAP[self.F_lse][0]}_{self.F_pipeline}"
+            f"_m{self.F_mask[0]}_l{BOOL_MAP[self.F_lse][0]}_d{BOOL_MAP[self.F_drop][0]}_{self.F_pipeline}"
 
     @property
     def filename(self) -> str:
@@ -281,7 +285,8 @@ class FmhaFwdKernel:
                 vlayout=self.F_vlayout,
                 mask=self.F_mask,
                 bias=self.F_bias,
-                lse=self.F_lse)
+                lse=self.F_lse,
+                drop=self.F_drop)
 
 # TODO: design a more practical way to do it
 # this is current supported tile size.
@@ -333,14 +338,14 @@ def get_blobs() -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
         d = get_fmha_fwd_tile_dict_from_dtype(direction, dtype)
         if d == None:
             continue
-        for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
+        for hdim_str, mode, mask, bias, lse, drop in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"]):
             tile = d[hdim_str]
             hdim = int(hdim_str)
             if dtype in ['fp8', 'bf8'] and lse == "t":
                 continue
             k = FmhaFwdKernel(direction=direction, F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile, F_vlayout=get_vlayout(dtype, hdim),
                                 F_m0pad=get_pad(dtype, hdim), F_m0k1pad=get_pad(dtype, hdim), F_k0n1pad=get_pad(dtype, hdim),
-                                F_bias=bias, F_lse=lse, F_mask=mask, F_mode=mode, F_pipeline=get_pipeline(dtype, hdim))
+                                F_bias=bias, F_lse=lse, F_drop=drop, F_mask=mask, F_mode=mode, F_pipeline=get_pipeline(dtype, hdim))
             api_pool.register_traits(k.api_trait())
             gen.append(k)
 

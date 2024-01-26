@@ -68,6 +68,7 @@ auto create_args(int argc, char* argv[])
                 "'g:y,x', generic attention mask coordinate with y/x size\n")
         .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
         .insert("lse", "0", "0 not store lse, 1 store lse")
+        .insert("p_drop", "0.0", "0~1 probability of dropout")
         .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float");
 
     bool result = arg_parser.parse(argc, argv);
@@ -141,6 +142,12 @@ bool run(const ArgParser& arg_parser)
     std::string vlayout = arg_parser.get_str("vlayout");
     bool use_bias       = arg_parser.get_uint32("bias");
     bool lse            = arg_parser.get_uint32("lse");
+    float p_drop        = arg_parser.get_float("p_drop");
+    if(p_drop < 0.0f || p_drop > 1.0f)
+    {
+        std::cerr << "The value of p_drop should be 0~1" << std::endl;
+        return false;
+    }
 
     mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
 
@@ -287,9 +294,15 @@ bool run(const ArgParser& arg_parser)
               << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
               << ", lse:" << lse << ", mask:" << mask << ", v:" << vlayout << std::flush;
 
-    auto fmha_traits = fmha_fwd_traits{
-        hdim_q, data_type, mode == mode_enum::group, is_v_rowmajor, mask.type, use_bias, lse};
-    auto fmha_args = fmha_fwd_args{q_buf.GetDeviceBuffer(),
+    auto fmha_traits = fmha_fwd_traits{hdim_q,
+                                       data_type,
+                                       mode == mode_enum::group,
+                                       is_v_rowmajor,
+                                       mask.type,
+                                       use_bias,
+                                       lse,
+                                       p_drop > 0.0f};
+    auto fmha_args   = fmha_fwd_args{q_buf.GetDeviceBuffer(),
                                    k_buf.GetDeviceBuffer(),
                                    v_buf.GetDeviceBuffer(),
                                    bias_buf.GetDeviceBuffer(),
