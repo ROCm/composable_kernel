@@ -973,13 +973,13 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         static_assert(NPerBlock % kNPerStep == 0, "kNPerStep must be evenly divided by NPerBlock");
 
         // Construct Z-Block-Tensor
-        constexpr auto z_block_dstr_encoding =
-            StaticTileDistributionEncoding<Sequence<>,
-                                           Tuple<Sequence<kM0, kM1, kM2, kM3>, Sequence<kN0_0, kN0_1>>,
-                                           Tuple<Sequence<1>, Sequence<1, 2>>,
-                                           Tuple<Sequence<0>, Sequence<2, 0>>,
-                                           Sequence<1, 1, 2>,
-                                           Sequence<1, 3, 1>>{};
+        constexpr auto z_block_dstr_encoding = StaticTileDistributionEncoding<
+            Sequence<>,
+            Tuple<Sequence<kM0, kM1, kM2, kM3>, Sequence<kN0_0, kN0_1>>,
+            Tuple<Sequence<1>, Sequence<1, 2>>,
+            Tuple<Sequence<0>, Sequence<2, 0>>,
+            Sequence<1, 1, 2>,
+            Sequence<1, 3, 1>>{};
 
         constexpr auto z_block_dstr = make_static_tile_distribution(z_block_dstr_encoding);
 

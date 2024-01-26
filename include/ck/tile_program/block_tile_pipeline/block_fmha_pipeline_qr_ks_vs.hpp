@@ -411,9 +411,10 @@ struct BlockFmhaPipelineQRKSVS
                 const index_t start_n0_idx  = i_total_loops * kN0;
 
                 static_for<0, kN0 / kNPerStep, 1>{}([&](auto i_n0) {
-                    auto line_idx = threadIdx.x;
-                    auto idx_n    = line_idx % kNPerStep + start_n0_idx + i_n0 * kNPerStep;
-                    auto idx_m    = (line_idx / kNPerStep) * 8 + start_m0_idx;
+                    auto warp_id  = get_warp_id();
+                    auto lane_idx = get_lane_id();
+                    auto idx_n    = lane_idx % kNPerStep + i_n0 * kNPerStep + start_n0_idx;
+                    auto idx_m    = (lane_idx / kNPerStep) * 8 + warp_id * 32 + start_m0_idx;
                     auto element_global_1d_id = idx_m * kK0BlockLength + idx_n;
 
                     // generate random number
