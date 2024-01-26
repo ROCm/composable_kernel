@@ -304,7 +304,7 @@ def buildHipClangJob(Map conf=[:]){
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-                timeout(time: 20, unit: 'HOURS')
+                timeout(time: 48, unit: 'HOURS')
                 {
                     cmake_build(conf)
                 }
@@ -560,7 +560,7 @@ def Build_CK(Map conf=[:]){
                             sh """#!/bin/bash
                                 mkdir -p build
                                 ls -ltr
-                                CC=hipcc CXX=hipcc cmake -Bbuild . -D CMAKE_PREFIX_PATH="/opt/rocm;${env.WORKSPACE}/install"
+                                CC=hipcc CXX=hipcc cmake -Bbuild . -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install"
                                 cmake --build build -- -j
                             """
                         }
@@ -755,7 +755,11 @@ pipeline {
                                 -o -iname \'*.cl\' \
                                 | grep -v 'build/' \
                                 | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-12 -style=file {} | diff - {}\' && \
-                                /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include --file-filter=*.cpp --enable=all --output-file=ck_cppcheck.log"
+                                /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include \
+                                -D CK_ENABLE_FP64 -D CK_ENABLE_FP32 -D CK_ENABLE_FP16 -D CK_ENABLE_FP8 -D CK_ENABLE_BF16 -D CK_ENABLE_BF8 -D CK_ENABLE_INT8 -D DL_KERNELS \
+                                -D __gfx908__ -D __gfx90a__ -D __gfx940__ -D __gfx941__ -D __gfx942__ -D __gfx1030__ -D __gfx1100__ -D __gfx1101__ -D __gfx1102__ \
+                                -U __gfx803__ -U __gfx900__ -U __gfx906__ -U CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4 \
+                                --file-filter=*.cpp --force --enable=all --output-file=ck_cppcheck.log"
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
