@@ -405,7 +405,7 @@ struct Tensor
                      size(Shape{}),
                      true /*InvalidElementUseNumericalZeroValue*/>,
         StaticBufferTupleOfVector<BufferAddressSpace,
-                                  typename scalar_type<std::remove_const_t<ElementType>>::type,
+                                  TensorElementType,
                                   size(Shape{}) /
                                       scalar_type<std::remove_const_t<ElementType>>::vector_size,
                                   scalar_type<std::remove_const_t<ElementType>>::vector_size,

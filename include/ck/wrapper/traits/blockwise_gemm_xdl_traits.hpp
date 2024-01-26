@@ -11,29 +11,36 @@ namespace wrapper {
 /**
  * \brief Traits for blockwise gemm xdl.
  *
- * \tparam MPerXDL M size per XDL instruction needs to compute.
- * \tparam NPerXDL N size per XDL instruction needs to compute.
- * \tparam MXdlPerWave Wave number needs to repeat the computation of MPerXdl.
- * \tparam NXdlPerWave Wave number needs to repeat the computation of NPerXdl.
- * \tparam K1 Number of Ks are packed together.
+ * \tparam MPerXDLValue The MFMA instruction size in M dimension.
+ * \tparam NPerXDLValue The MFMA instruction size in N dimension.
+ * \tparam MXdlPerWaveValue  The number of MFMA instructions run by single
+ * wave in M dimension.
+ * \tparam NXdlPerWaveValue  The number of MFMA instructions run by single
+ * wave in N dimension.
+ * \tparam K1Value The number of K-dim elements that are packed together as
+ * a separate logical dimension. Usually aligns with vector load size.
  */
-template <index_t MPerXDL, index_t NPerXDL, index_t MXdlPerWave, index_t NXdlPerWave, index_t K1>
+template <index_t MPerXDLValue,
+          index_t NPerXDLValue,
+          index_t MXdlPerWaveValue,
+          index_t NXdlPerWaveValue,
+          index_t K1Value>
 struct BlockwisGemmXdlTraits
 {
-    static constexpr index_t MPerXDL_     = MPerXDL;
-    static constexpr index_t NPerXDL_     = NPerXDL;
-    static constexpr index_t MXdlPerWave_ = MXdlPerWave;
-    static constexpr index_t NXdlPerWave_ = NXdlPerWave;
-    static constexpr index_t K1_          = K1;
+    static constexpr index_t MPerXDL     = MPerXDLValue;
+    static constexpr index_t NPerXDL     = NPerXDLValue;
+    static constexpr index_t MXdlPerWave = MXdlPerWaveValue;
+    static constexpr index_t NXdlPerWave = NXdlPerWaveValue;
+    static constexpr index_t K1          = K1Value;
 };
 
-struct BlockwisGemmXdlTraits_32x32PerXdl_4x2XdlPerWave_4K1 : BlockwisGemmXdlTraits<32, 32, 4, 2, 4>
+struct BlockwisGemmXdlTraits_32x32Xdl_4x2XdlPerWave_4K1 : BlockwisGemmXdlTraits<32, 32, 4, 2, 4>
 {
 };
-struct BlockwisGemmXdlTraits_32x32PerXdl_2x4XdlPerWave_4K1 : BlockwisGemmXdlTraits<32, 32, 2, 4, 4>
+struct BlockwisGemmXdlTraits_32x32Xdl_2x4XdlPerWave_4K1 : BlockwisGemmXdlTraits<32, 32, 2, 4, 4>
 {
 };
-struct BlockwisGemmXdlTraits_32x32PerXdl_2x2XdlPerWave_4K1 : BlockwisGemmXdlTraits<32, 32, 2, 2, 4>
+struct BlockwisGemmXdlTraits_32x32Xdl_2x2XdlPerWave_4K1 : BlockwisGemmXdlTraits<32, 32, 2, 2, 4>
 {
 };
 

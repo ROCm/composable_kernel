@@ -8,7 +8,6 @@
 #include <vector>
 #include <gtest/gtest.h>
 
-#include "ck/library/reference_tensor_operation/cpu/reference_image_to_column.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
@@ -26,8 +25,8 @@
 #include "ck/wrapper/operations/gemm.hpp"
 
 template <typename DataType>
-void CheckResult(std::vector<DataType>& a_data,
-                 std::vector<DataType>& b_data,
+void CheckResult(const std::vector<DataType>& a_data,
+                 const std::vector<DataType>& b_data,
                  std::vector<DataType>& c_m_n_device_result,
                  const ck::index_t M,
                  const ck::index_t N,
@@ -214,34 +213,34 @@ TEST(TestGemm, Float)
     using DataType           = float;
     const auto thread_layout = ck::make_tuple(ck::Number<16>{}, ck::Number<16>{});
     const auto tile_shape = ck::make_tuple(ck::Number<128>{}, ck::Number<128>{}, ck::Number<64>{});
-    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_2x2XdlPerWave_4K1, 4>(
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32Xdl_2x2XdlPerWave_4K1, 4>(
         512, 512, 128, tile_shape, thread_layout);
     // Irregular case
-    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_2x2XdlPerWave_4K1, 1>(
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32Xdl_2x2XdlPerWave_4K1, 1>(
         129, 129, 67, tile_shape, thread_layout);
 }
 
 TEST(TestGemm, Int8)
 {
     using DataType           = int8_t;
-    const auto thread_layout = ck::make_tuple(ck::Number<16>{}, ck::Number<16>{});
+    const auto thread_layout = ck::make_tuple(ck::Number<64>{}, ck::Number<4>{});
     const auto tile_shape = ck::make_tuple(ck::Number<128>{}, ck::Number<128>{}, ck::Number<64>{});
-    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_2x2XdlPerWave_4K1, 4>(
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32Xdl_2x2XdlPerWave_4K1, 16>(
         512, 512, 128, tile_shape, thread_layout);
     // Irregular case
-    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_2x2XdlPerWave_4K1, 1>(
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32Xdl_2x2XdlPerWave_4K1, 1>(
         129, 129, 67, tile_shape, thread_layout);
 }
 
 TEST(TestGemm, Half)
 {
     using DataType           = ck::half_t;
-    const auto thread_layout = ck::make_tuple(ck::Number<16>{}, ck::Number<16>{});
+    const auto thread_layout = ck::make_tuple(ck::Number<32>{}, ck::Number<8>{});
     const auto tile_shape = ck::make_tuple(ck::Number<128>{}, ck::Number<128>{}, ck::Number<64>{});
-    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_2x2XdlPerWave_4K1, 4>(
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32Xdl_2x2XdlPerWave_4K1, 8>(
         512, 512, 128, tile_shape, thread_layout);
     // Irregular case
-    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_2x2XdlPerWave_4K1, 1>(
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32Xdl_2x2XdlPerWave_4K1, 1>(
         129, 129, 67, tile_shape, thread_layout);
 }
 
@@ -251,8 +250,8 @@ TEST(TestGemm, Float_2x4_4x2_XdlPerWave)
     const auto thread_layout_4x2_xdl_per_wave = ck::make_tuple(ck::Number<16>{}, ck::Number<8>{});
     const auto thread_layout_2x4_xdl_per_wave = ck::make_tuple(ck::Number<8>{}, ck::Number<16>{});
     const auto tile_shape = ck::make_tuple(ck::Number<128>{}, ck::Number<128>{}, ck::Number<64>{});
-    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_4x2XdlPerWave_4K1, 4>(
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32Xdl_4x2XdlPerWave_4K1, 4>(
         512, 512, 128, tile_shape, thread_layout_4x2_xdl_per_wave);
-    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32PerXdl_2x4XdlPerWave_4K1, 4>(
+    PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32Xdl_2x4XdlPerWave_4K1, 4>(
         512, 512, 128, tile_shape, thread_layout_2x4_xdl_per_wave);
 }

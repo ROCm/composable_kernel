@@ -119,8 +119,9 @@ __host__ __device__ constexpr auto CalculateShapeWithProjection(const Tuple<Ts..
  *
  * \param shape Base tensor shape.
  * \param tile_shape Tile shape.
- * \param projection Projection to remove selected dim from partitioning.
- * slice(X) to remove, where X is dim size, Number<1>{} to keep.
+ * \param projection Projection is used to remove selected dim from
+ * partitioning. Use `slice(X)` to remove dimension, where X is dim
+ * size. Use `Number<1>{}` to keep it.
  * \return Tuple with blocks number.
  */
 template <typename... Ts, typename... Ls, typename... Ps>
@@ -177,8 +178,9 @@ GenerateDefaultProjection([[maybe_unused]] const TileShape tile_shape)
  * \param tensor Tensor for partition.
  * \param thread_lengths Layout of threads (could not be nested).
  * \param thread_id Thread index represented as integer.
- * \param projection Projection to remove selected dim from partitioning.
- * slice(X) to remove, where X is dim size, Number<1>{} to keep.
+ * \param projection Projection is used to remove selected dim from
+ * partitioning. Use `slice(X)` to remove dimension, where X is dim
+ * size. Use `Number<1>{}` to keep it.
  * \return Partition tensor.
  */
 template <typename TensorType, typename ThreadLengthsTuple, typename ProjectionTuple>
@@ -332,9 +334,7 @@ __host__ __device__ constexpr auto make_local_tile(const TensorType& tensor,
  * \brief Create local tile for thread block. (At now only packed tile
  * is supported).
  *
- * \note Temporary to gain the best performance use 2d
- * tile_shape.
- *
+ * \note Currently to get the best performance please use 2d shape.
  *
  * \param tensor Tensor for partition.
  * \param tile_shape Shapes of requested tile.
