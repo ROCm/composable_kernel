@@ -112,7 +112,7 @@ struct check_all
             data = x;
             return true;
         }
-        if(std::any_of(x.begin(), x.end(), [](auto y) { return std::isnan(y); }))
+        if(std::any_of(x.begin(), x.end(), [](double y) { return std::isnan(y); }))
             return false;
         return allclose(data, x);
     }
