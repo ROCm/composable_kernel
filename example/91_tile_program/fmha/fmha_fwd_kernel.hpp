@@ -388,6 +388,14 @@ struct FmhaFwdKernel
         long_index_t batch_offset_lse  = 0;
         long_index_t batch_offset_o    = 0;
 
+        float rp_dropout             = 1;
+        uint8_t p_dropout_in_uint8_t = 255;
+        if constexpr(kHasDropout)
+        {
+            rp_dropout           = kargs.rp_dropout;
+            p_dropout_in_uint8_t = kargs.p_dropout_in_uint8_t;
+        }
+
         if constexpr(kIsGroupMode)
         {
             // get starting offset for each batch
@@ -646,7 +654,9 @@ struct FmhaFwdKernel
                                       kargs.descale_qk,
                                       kargs.descale_sv,
                                       smem_ptr,
-                                      i_total_m0);
+                                      i_total_m0,
+                                      rp_dropout,
+                                      p_dropout_in_uint8_t);
             }
             else
             {
@@ -658,7 +668,9 @@ struct FmhaFwdKernel
                                       mask,
                                       kargs.scale,
                                       smem_ptr,
-                                      i_total_m0);
+                                      i_total_m0,
+                                      rp_dropout,
+                                      p_dropout_in_uint8_t);
             }
         }();
 

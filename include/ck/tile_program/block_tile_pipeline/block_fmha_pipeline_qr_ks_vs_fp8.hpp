@@ -84,7 +84,9 @@ struct BlockFmhaPipelineQRKSVSFp8
                float descale_qk,
                float descale_sv,
                void* smem_ptr,
-               int start_m0_idx) const
+               int start_m0_idx,
+               float p_dropout_rescale,
+               uint8_t p_dropout_in_uint8_t) const
     {
         static_assert(
             is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -102,8 +104,6 @@ struct BlockFmhaPipelineQRKSVSFp8
                       "wrong!");
 
         ck::philox ph(7777, 0, 8888);
-        uint8_t p_dropout_in_uint8_t = 255;
-        float p_dropout_rescale      = 1.0f;
 
         // K tile in LDS
         KDataType* k_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
