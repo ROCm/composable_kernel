@@ -325,7 +325,8 @@ bool run(const ArgParser& arg_parser)
                                    i_perm,
                                    o_perm,
                                    mask.y,
-                                   mask.x};
+                                   mask.x,
+                                   p_drop};
 
     float ave_time = fmha_fwd(fmha_traits, fmha_args, stream_config);
 

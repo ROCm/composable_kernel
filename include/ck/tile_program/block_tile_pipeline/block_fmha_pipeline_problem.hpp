@@ -51,6 +51,7 @@ struct BlockFmhaPipelineProblem
     static constexpr bool kK0N1NeedPadding = Traits::kK0N1NeedPadding;
     static constexpr bool kHasBias         = Traits::kHasBias;
     static constexpr bool kStoreLSE        = Traits::kStoreLSE;
+    static constexpr bool kHasDropout      = Traits::kHasDropout;
     static constexpr index_t kBlockPerCu   = Traits::kBlockPerCu;
     static constexpr bool kIsFp8 =
         (is_same_v<QDataType, f8_t> || is_same_v<QDataType, bf8_t>)&&(

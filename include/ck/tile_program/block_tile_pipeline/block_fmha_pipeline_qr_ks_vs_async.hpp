@@ -62,7 +62,7 @@ struct BlockFmhaPipelineQRKSVSAsync
     static constexpr bool kK0N1NeedPadding = Problem::kK0N1NeedPadding;
     static constexpr bool kHasBias         = Problem::kHasBias;
     static constexpr bool kStoreLSE        = Problem::kStoreLSE;
-    static constexpr bool kUseDropout      = true;
+    static constexpr bool kHasDropout      = Problem::kHasDropout;
 
 #if CK_FMHA_FWD_FAST_EXP2
     static constexpr auto R_LOG2E = 1.0 / math::log2e_v<SaccDataType>;
@@ -456,7 +456,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                 });
             });
 
-            if constexpr(kUseDropout)
+            if constexpr(kHasDropout)
             {
                 // Z tile in LDS
                 auto z_lds = make_tensor_view<AddressSpaceEnum::Lds>(

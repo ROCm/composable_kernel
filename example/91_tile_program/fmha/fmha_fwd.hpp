@@ -117,7 +117,8 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                      bool i_perm,
                                      bool o_perm,
                                      ck::index_t mask_y,
-                                     ck::index_t mask_x)
+                                     ck::index_t mask_x,
+                                     float p_drop)
 {
     constexpr bool is_v_rowmajor =
         ck::is_same_v<typename FmhaKernel::VLayout, ck::tensor_layout::gemm::RowMajor>;
@@ -188,7 +189,8 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          mask_y,
                                          mask_x,
                                          descale_qk,
-                                         descale_sv);
+                                         descale_sv,
+                                         p_drop);
         }
         else
         { // create batch mode kernel arguments
@@ -224,7 +226,8 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          mask_y,
                                          mask_x,
                                          descale_qk,
-                                         descale_sv);
+                                         descale_sv,
+                                         p_drop);
         }
     }();
 
@@ -259,6 +262,7 @@ struct fmha_fwd_args
     bool o_perm;
     ck::index_t mask_y;
     ck::index_t mask_x;
+    float p_drop;
 };
 
 template <typename FmhaKernel>
@@ -287,7 +291,8 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                                        args.i_perm,
                                                        args.o_perm,
                                                        args.mask_y,
-                                                       args.mask_x);
+                                                       args.mask_x,
+                                                       args.p_drop);
 }
 
 // this is internal API, will be generated across different files to speedup compile

@@ -40,6 +40,7 @@ struct FmhaFwdKernel
     static constexpr bool kK0N1NeedPadding = FmhaPipeline::kK0N1NeedPadding;
     static constexpr bool kHasBias         = FmhaPipeline::kHasBias;
     static constexpr bool kStoreLSE        = FmhaPipeline::kStoreLSE;
+    static constexpr bool kHasDropout      = FmhaPipeline::kHasDropout;
     using FmhaMask                         = ck::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask         = FmhaMask::IsMasking;
 
@@ -114,12 +115,26 @@ struct FmhaFwdKernel
         ck::index_t batch_stride_lse = 0;
     };
 
+    struct FmhaFwdDropoutKargs
+    {
+        FmhaFwdDropoutKargs() : rp_dropout(1.0), p_dropout_in_uint8_t(255) {}
+        void init_dropout(float p_drop)
+        {
+            float p_dropout      = 1.0 - p_drop;
+            p_dropout_in_uint8_t = uint8_t(std::floor(p_dropout * 255.0));
+            rp_dropout           = 1.0 / p_dropout;
+        }
+        float rp_dropout;
+        uint8_t p_dropout_in_uint8_t;
+    };
+
     struct FmhaFwdBatchModeKargs
         : FmhaFwdCommonKargs,
           std::conditional_t<kHasBias, FmhaFwdBatchModeBiasKargs, FmhaFwdEmptyKargs<0>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           std::conditional_t<kStoreLSE, FmhaFwdBatchModeLSEKargs, FmhaFwdEmptyKargs<2>>,
-          std::conditional_t<kIsFp8, FmhaFwdFP8Kargs, FmhaFwdEmptyKargs<3>>
+          std::conditional_t<kIsFp8, FmhaFwdFP8Kargs, FmhaFwdEmptyKargs<3>>,
+          std::conditional_t<kHasDropout, FmhaFwdDropoutKargs, FmhaFwdEmptyKargs<4>>
     {
         ck::index_t batch_stride_q;
         ck::index_t batch_stride_k;
@@ -132,7 +147,8 @@ struct FmhaFwdKernel
           std::conditional_t<kHasBias, FmhaFwdCommonBiasKargs, FmhaFwdEmptyKargs<0>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
-          std::conditional_t<kIsFp8, FmhaFwdFP8Kargs, FmhaFwdEmptyKargs<3>>
+          std::conditional_t<kIsFp8, FmhaFwdFP8Kargs, FmhaFwdEmptyKargs<3>>,
+          std::conditional_t<kHasDropout, FmhaFwdDropoutKargs, FmhaFwdEmptyKargs<4>>
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
@@ -174,7 +190,8 @@ struct FmhaFwdKernel
                                                                       ck::index_t mask_y,
                                                                       ck::index_t mask_x,
                                                                       float descale_qk,
-                                                                      float descale_sv)
+                                                                      float descale_sv,
+                                                                      float p_drop)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -202,6 +219,7 @@ struct FmhaFwdKernel
                     {},               // placeholder for mask
                     {},               // placeholder for lse
                     {},               // placeholder for fp8 args
+                    {},               // placeholder for dropout
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v,
@@ -229,6 +247,11 @@ struct FmhaFwdKernel
         {
             kargs.descale_qk = descale_qk;
             kargs.descale_sv = descale_sv;
+        }
+
+        if constexpr(kHasDropout)
+        {
+            kargs.init_dropout(p_drop);
         }
 
         return kargs;
@@ -262,7 +285,8 @@ struct FmhaFwdKernel
                                                                       ck::index_t mask_y,
                                                                       ck::index_t mask_x,
                                                                       float descale_qk,
-                                                                      float descale_sv)
+                                                                      float descale_sv,
+                                                                      float p_drop)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -290,6 +314,7 @@ struct FmhaFwdKernel
                     {},               // placeholder for mask
                     {},               // placeholder for lse
                     {},               // placeholder for fp8 args
+                    {},               // placeholder for dropout
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
@@ -314,6 +339,11 @@ struct FmhaFwdKernel
         {
             kargs.descale_qk = descale_qk;
             kargs.descale_sv = descale_sv;
+        }
+
+        if constexpr(kHasDropout)
+        {
+            kargs.init_dropout(p_drop);
         }
 
         return kargs;

@@ -61,7 +61,7 @@ struct BlockFmhaPipelineQRKSVSFp8
     static constexpr bool kK0N1NeedPadding = Problem::kK0N1NeedPadding;
     static constexpr bool kHasBias         = Problem::kHasBias;
     static constexpr bool kStoreLSE        = Problem::kStoreLSE;
-    static constexpr bool kUseDropout      = true;
+    static constexpr bool kHasDropout      = Problem::kHasDropout;
 
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
@@ -381,7 +381,7 @@ struct BlockFmhaPipelineQRKSVSFp8
                 });
             });
 
-            if constexpr(kUseDropout)
+            if constexpr(kHasDropout)
             {
                 // Z tile in LDS
                 auto z_lds = make_tensor_view<AddressSpaceEnum::Lds>(
