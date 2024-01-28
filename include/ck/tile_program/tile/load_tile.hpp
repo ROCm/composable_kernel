@@ -42,6 +42,20 @@ __device__ auto load_tile_raw(const TileWindowWithStaticDistribution<BottomTenso
     return tile_window.Load(bool_constant<true>{});
 }
 
+template <typename T,
+          typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          index_t NumCoord>
+__device__ auto load_tile_raw(T& tile,
+                              const TileWindowWithStaticDistribution<BottomTensorView_,
+                                                                     WindowLengths_,
+                                                                     TileDistribution_,
+                                                                     NumCoord>& tile_window)
+{
+    tile_window.LoadRaw(tile);
+}
+
 template <typename LdsTileWindow_,
           typename BottomTensorView_,
           typename WindowLengths_,

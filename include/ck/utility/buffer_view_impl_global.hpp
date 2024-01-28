@@ -135,10 +135,11 @@ struct BufferView<AddressSpaceEnum::Global,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
+              bool use_buffer_load_if        = true,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
                                  bool>::type = false>
-    __device__ constexpr auto GetRaw(remove_cvref_t<X>& dst, index_t i) const
+    __device__ constexpr auto GetRaw(remove_cvref_t<X>& dst, index_t i, bool is_valid_element) const
     {
         constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
 
@@ -149,7 +150,8 @@ struct BufferView<AddressSpaceEnum::Global,
 
         constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
-        amd_buffer_load_raw<remove_cvref_t<T>, t_per_x, Coherence>(dst, p_data_, i, buffer_size_);
+        amd_buffer_load_raw<remove_cvref_t<T>, t_per_x, Coherence, use_buffer_load_if>(
+            dst, p_data_, i, buffer_size_, is_valid_element);
     }
 
     // i is offset of T, not X. i should be aligned to X
@@ -244,6 +246,27 @@ struct BufferView<AddressSpaceEnum::Global,
 #endif
             }
         }
+    }
+
+    // i is offset of T, not X. i should be aligned to X
+    template <typename X,
+              bool use_buffer_store_if,
+              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                 bool>::type = false>
+    __device__ void SetRaw(index_t i, bool is_valid_element, const X& x)
+    {
+        // X contains multiple T
+        constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
+
+        constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
+
+        static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
+                      "wrong! X should contain multiple T");
+
+        constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+        amd_buffer_store_raw<remove_cvref_t<T>, t_per_x, Coherence, use_buffer_store_if>(
+            x, p_data_, i, is_valid_element, buffer_size_);
     }
 
     template <typename X,

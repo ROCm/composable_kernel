@@ -29,6 +29,7 @@ struct FmhaFwdEpilogue
         using namespace ck;
         using namespace ck::tile_program;
 
-        store_tile(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tile));
+        store_tile_raw(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tile));
+        buffer_store_fence();
     }
 };

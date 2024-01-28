@@ -43,7 +43,7 @@ struct BlockFmhaPipelineQRKSVSAsync
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
     static_assert(kQLoadOnce == Policy::QLoadOnce);
-    static constexpr bool kIsFp8     = Problem::kIsFp8;
+    static constexpr bool kIsFp8 = Problem::kIsFp8;
 
     static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
     static constexpr index_t kBlockSize  = Problem::kBlockSize;
@@ -164,7 +164,10 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         // TODO: we use async Copy for K, which is inline asm
         // a side effect is we have to use inline asm for q as well
-        auto q = load_tile_raw(q_dram_window);
+        auto q = decltype(load_tile(q_dram_window)){};
+        clear_tile(q);
+        load_tile_raw(q, q_dram_window);
+        // auto q = load_tile_raw(q_dram_window);
         __builtin_amdgcn_sched_barrier(0);
 
         using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());

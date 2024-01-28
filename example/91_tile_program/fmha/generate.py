@@ -289,15 +289,15 @@ def get_fmha_fwd_tile_dict_from_dtype(direction : str, dtype : str) -> Optional[
     if direction == 'fwd':
         if dtype == 'fp16' or dtype == 'bf16':
             return {
-                '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1, 32, 32, 16, 2),
-                '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1, 32, 32, 16, 3),
+        #        '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1, 32, 32, 16, 2),
+        #        '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1, 32, 32, 16, 3),
                 '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 16, 2),
-                '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 16, 1),
+        #        '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 16, 1),
             }
-        elif dtype == 'fp8' or dtype == 'bf8':
-            return {
-                '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, 2)
-            }
+        # elif dtype == 'fp8' or dtype == 'bf8':
+        #     return {
+        #         '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, 2)
+        #     }
         else:
             return None
     else:
@@ -339,7 +339,7 @@ def get_blobs() -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
             if dtype in ['fp8', 'bf8'] and lse == "t":
                 continue
             k = FmhaFwdKernel(direction=direction, F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile, F_vlayout=get_vlayout(dtype, hdim),
-                                F_m0pad=get_pad(dtype, hdim), F_m0k1pad=get_pad(dtype, hdim), F_k0n1pad=get_pad(dtype, hdim),
+                                F_m0pad='t', F_m0k1pad=get_pad(dtype, hdim), F_k0n1pad=get_pad(dtype, hdim),
                                 F_bias=bias, F_lse=lse, F_mask=mask, F_mode=mode, F_pipeline=get_pipeline(dtype, hdim))
             api_pool.register_traits(k.api_trait())
             gen.append(k)

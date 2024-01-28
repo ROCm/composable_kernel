@@ -38,5 +38,28 @@ store_tile(TileWindowWithStaticLengths<BottomTensorView_, WindowLengths_>& tile_
     tile_window.Store(dstr_tensor);
 }
 
+template <typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          typename DataType_>
+__device__ void
+store_tile_raw(TileWindowWithStaticLengths<BottomTensorView_, WindowLengths_>& tile_window_tmp,
+               const StaticDistributedTensor<DataType_, TileDistribution_>& dstr_tensor)
+{
+    using DataType = remove_cvref_t<typename BottomTensorView_::DataType>;
+    using TileDstr = remove_cvref_t<TileDistribution_>;
+
+    static_assert(is_same_v<remove_cvref_t<DataType_>, DataType>, "wrong!");
+
+    constexpr auto tile_dstr = TileDstr{};
+
+    auto tile_window = make_tile_window(tile_window_tmp.GetBottomTensorView(),
+                                        tile_window_tmp.GetWindowLengths(),
+                                        tile_window_tmp.GetWindowOrigin(),
+                                        tile_dstr);
+
+    tile_window.StoreRaw(dstr_tensor);
+}
+
 } // namespace tile_program
 } // namespace ck
