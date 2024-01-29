@@ -66,9 +66,10 @@ using fmha_shape_{F_idx} = ck::tile_program::TileFmhaShape<fmha_block_tile_{F_id
                                       fmha_warp_tile_{F_idx},
                                       {F_vlayout}>;
 
-using fmha_trait_{F_idx} = ck::tile_program::TileFmhaTraits<{F_m0pad},
-                                                    {F_m0k1pad},
-                                                    {F_k0n1pad},
+using fmha_trait_{F_idx} = ck::tile_program::TileFmhaTraits<{F_spad},
+                                                    {F_skpad},
+                                                    {F_dpad},
+                                                    {F_dvpad},
                                                     {F_bias},
                                                     {F_lse},
                                                     {F_drop},
@@ -226,9 +227,10 @@ class FmhaFwdKernel:
     F_dtype     : str  # data type
     F_tile      : FmhaFwdTileSize
     F_vlayout   : str  # row/col
-    F_m0pad     : str  # true/false
-    F_m0k1pad   : str  # 
-    F_k0n1pad   : str  # 
+    F_spad      : str  # true/false
+    F_skpad     : str  #
+    F_dpad      : str  #
+    F_dvpad     : str  #
     F_bias      : str  # true/false
     F_lse       : str  #
     F_drop      : str  #
@@ -256,9 +258,10 @@ class FmhaFwdKernel:
                 F_wn        = self.F_tile.F_wn,
                 F_wk        = self.F_tile.F_wk,
                 F_vlayout   = LAYOUT_MAP[self.F_vlayout],
-                F_m0pad     = BOOL_MAP[self.F_m0pad],
-                F_m0k1pad   = BOOL_MAP[self.F_m0k1pad],
-                F_k0n1pad   = BOOL_MAP[self.F_k0n1pad],
+                F_spad      = BOOL_MAP[self.F_spad],
+                F_skpad     = BOOL_MAP[self.F_skpad],
+                F_dpad      = BOOL_MAP[self.F_dpad],
+                F_dvpad     = BOOL_MAP[self.F_dvpad],
                 F_bias      = BOOL_MAP[self.F_bias],
                 F_lse       = BOOL_MAP[self.F_lse],
                 F_drop      = BOOL_MAP[self.F_drop],
@@ -271,8 +274,8 @@ class FmhaFwdKernel:
     def name(self) -> str:
         # TODO: we don't encode idx here
         return f"fmha_{self.direction}_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + self.F_tile.name + f"_v{self.F_vlayout[0]}" +\
-            f"_p{BOOL_MAP[self.F_m0pad][0]}{BOOL_MAP[self.F_m0k1pad][0]}{BOOL_MAP[self.F_k0n1pad][0]}_{BOOL_MAP[self.F_bias][0]}"  +\
-            f"_m{self.F_mask[0]}_l{BOOL_MAP[self.F_lse][0]}_d{BOOL_MAP[self.F_drop][0]}_{self.F_pipeline}"
+            f"_p{BOOL_MAP[self.F_spad][0]}{BOOL_MAP[self.F_skpad][0]}{BOOL_MAP[self.F_dpad][0]}{BOOL_MAP[self.F_dvpad][0]}" +\
+            f"_{BOOL_MAP[self.F_bias][0]}_m{self.F_mask[0]}_l{BOOL_MAP[self.F_lse][0]}_d{BOOL_MAP[self.F_drop][0]}_{self.F_pipeline}"
 
     @property
     def filename(self) -> str:
@@ -344,8 +347,9 @@ def get_blobs() -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
             if dtype in ['fp8', 'bf8'] and lse == "t":
                 continue
             k = FmhaFwdKernel(direction=direction, F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile, F_vlayout=get_vlayout(dtype, hdim),
-                                F_m0pad=get_pad(dtype, hdim), F_m0k1pad=get_pad(dtype, hdim), F_k0n1pad=get_pad(dtype, hdim),
-                                F_bias=bias, F_lse=lse, F_drop=drop, F_mask=mask, F_mode=mode, F_pipeline=get_pipeline(dtype, hdim))
+                                F_spad=get_pad(dtype, hdim), F_skpad=get_pad(dtype, hdim), F_dpad=get_pad(dtype, hdim),
+                                F_dvpad=get_pad(dtype, hdim), F_bias=bias, F_lse=lse, F_drop=drop, F_mask=mask, 
+                                F_mode=mode, F_pipeline=get_pipeline(dtype, hdim))
             api_pool.register_traits(k.api_trait())
             gen.append(k)
 
