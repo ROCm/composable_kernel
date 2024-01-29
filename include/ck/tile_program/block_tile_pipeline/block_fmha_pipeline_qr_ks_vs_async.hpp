@@ -43,7 +43,7 @@ struct BlockFmhaPipelineQRKSVSAsync
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
     static_assert(kQLoadOnce == Policy::QLoadOnce);
-    static constexpr bool kIsFp8     = Problem::kIsFp8;
+    static constexpr bool kIsFp8 = Problem::kIsFp8;
 
     static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
     static constexpr index_t kBlockSize  = Problem::kBlockSize;
@@ -188,7 +188,7 @@ struct BlockFmhaPipelineQRKSVSAsync
         auto l     = MLBlockTileType{};
 
         clear_tile(o_acc);
-        set_tile(m, NumericLimits<SMPLComputeDataType>::Lowest());
+        set_tile(m, -NumericLimits<SMPLComputeDataType>::Infinity());
         clear_tile(l);
 
         __builtin_amdgcn_sched_barrier(0);
@@ -352,7 +352,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                 s,
                 Sequence<1>{},
                 f_max,
-                NumericLimits<SMPLComputeDataType>::Lowest()); // m_local = rowmax(S{j})
+                -NumericLimits<SMPLComputeDataType>::Infinity()); // m_local = rowmax(S{j})
             block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
 
             const auto m_old = m; // m{j-1}
@@ -394,11 +394,24 @@ struct BlockFmhaPipelineQRKSVSAsync
             }
             __builtin_amdgcn_sched_barrier(0);
 
+            static const auto get_validated_m = [](SMPLComputeDataType raw_m) {
+                if constexpr(FmhaMask::IsMasking)
+                {
+                    return raw_m == -NumericLimits<SMPLComputeDataType>::Infinity()
+                               ? type_convert<SMPLComputeDataType>(0.f)
+                               : raw_m;
+                }
+                else
+                {
+                    return raw_m;
+                }
+            };
+
             constexpr auto p_spans = decltype(p_compute)::GetDistributedSpans();
             sweep_tile_span(p_spans[Number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_FMHA_FWD_FAST_EXP2
-                auto row_max = scale * m[i_idx];
+                auto row_max = scale * get_validated_m(m[i_idx]);
 #endif
                 sweep_tile_span(p_spans[Number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
@@ -409,10 +422,10 @@ struct BlockFmhaPipelineQRKSVSAsync
                     }
                     else
                     {
-                        p_compute(i_j_idx) = math::exp2(s[i_j_idx] - m[i_idx]);
+                        p_compute(i_j_idx) = math::exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
                     }
 #else
-                    p_compute(i_j_idx)     = math::exp(s[i_j_idx] - m[i_idx]);
+                    p_compute(i_j_idx)     = math::exp(s[i_j_idx] - get_validated_m(m[i_idx]));
 #endif
                 });
             });
@@ -429,16 +442,16 @@ struct BlockFmhaPipelineQRKSVSAsync
                 const auto tmp = [&]() {
                     if constexpr(is_null_tile_window(bias_dram_window))
                     {
-                        auto row_max = scale * m[i_idx];
+                        auto row_max = scale * get_validated_m(m[i_idx]);
                         return math::exp2(scale * m_old[i_idx] - row_max);
                     }
                     else
                     {
-                        return math::exp2(m_old[i_idx] - m[i_idx]);
+                        return math::exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
                     }
                 }();
 #else
-                const auto tmp       = math::exp(m_old[i_idx] - m[i_idx]);
+                const auto tmp = math::exp(m_old[i_idx] - get_validated_m(m[i_idx]));
 #endif
                 l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
                 sweep_tile_span(o_spans[Number<1>{}], [&](auto idx1) {
