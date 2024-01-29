@@ -69,6 +69,8 @@ auto create_args(int argc, char* argv[])
         .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
         .insert("lse", "0", "0 not store lse, 1 store lse")
         .insert("p_drop", "0.0", "0~1 probability of dropout")
+        .insert("seed", "1", "seed for random number maker")
+        .insert("offset", "0", "offset for random number maker")
         .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float");
 
     bool result = arg_parser.parse(argc, argv);
@@ -143,6 +145,8 @@ bool run(const ArgParser& arg_parser)
     bool use_bias       = arg_parser.get_uint32("bias");
     bool lse            = arg_parser.get_uint32("lse");
     float p_drop        = arg_parser.get_float("p_drop");
+    uint64_t seed       = arg_parser.get_uint64("seed");
+    uint64_t offset     = arg_parser.get_uint32("offset");
     if(p_drop < 0.0f || p_drop > 1.0f)
     {
         std::cerr << "The value of p_drop should be 0~1" << std::endl;
@@ -292,7 +296,8 @@ bool run(const ArgParser& arg_parser)
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
               << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
-              << ", lse:" << lse << ", mask:" << mask << ", v:" << vlayout << std::flush;
+              << ", lse:" << lse << ", p_drop:" << p_drop << ", mask:" << mask << ", v:" << vlayout
+              << std::flush;
 
     auto fmha_traits = fmha_fwd_traits{hdim_q,
                                        data_type,
@@ -326,7 +331,8 @@ bool run(const ArgParser& arg_parser)
                                    o_perm,
                                    mask.y,
                                    mask.x,
-                                   p_drop};
+                                   p_drop,
+                                   {seed, offset}};
 
     float ave_time = fmha_fwd(fmha_traits, fmha_args, stream_config);
 

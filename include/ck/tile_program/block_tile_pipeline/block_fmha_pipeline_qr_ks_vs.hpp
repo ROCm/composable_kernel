@@ -95,7 +95,8 @@ struct BlockFmhaPipelineQRKSVS
                void* smem_ptr,
                int start_m0_idx,
                float p_dropout_rescale,
-               uint8_t p_dropout_in_uint8_t) const
+               uint8_t p_dropout_in_uint8_t,
+               ck::philox& ph) const
     {
         static_assert(
             is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -112,7 +113,6 @@ struct BlockFmhaPipelineQRKSVS
                           kN0 == BiasDramBlockWindowTmp{}.GetWindowLengths()[Number<1>{}],
                       "wrong!");
 
-        ck::philox ph(7777, 0, 8888);
         // K tile in LDS
         KDataType* k_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
             static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeQ<Problem>()));
@@ -578,7 +578,8 @@ struct BlockFmhaPipelineQRKSVS
                void* smem_ptr,
                int start_m_idx,
                float rp_dropout,
-               uint8_t p_dropout_in_uint8_t) const
+               uint8_t p_dropout_in_uint8_t,
+               ck::philox& ph) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -595,7 +596,8 @@ struct BlockFmhaPipelineQRKSVS
                           smem_ptr,
                           start_m_idx,
                           rp_dropout,
-                          p_dropout_in_uint8_t);
+                          p_dropout_in_uint8_t,
+                          ph);
     }
 };
 

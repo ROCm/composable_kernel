@@ -118,14 +118,19 @@ struct FmhaFwdKernel
     struct FmhaFwdDropoutKargs
     {
         FmhaFwdDropoutKargs() : rp_dropout(1.0), p_dropout_in_uint8_t(255) {}
-        void init_dropout(float p_drop)
+        void init_dropout(float p_drop, std::tuple<uint64_t, uint64_t>& seeds)
         {
             float p_dropout      = 1.0 - p_drop;
             p_dropout_in_uint8_t = uint8_t(std::floor(p_dropout * 255.0));
             rp_dropout           = 1.0 / p_dropout;
+
+            seed   = std::get<0>(seeds);
+            offset = std::get<1>(seeds);
         }
         float rp_dropout;
         uint8_t p_dropout_in_uint8_t;
+        uint64_t seed;
+        uint64_t offset;
     };
 
     struct FmhaFwdBatchModeKargs
@@ -158,40 +163,42 @@ struct FmhaFwdKernel
     using Kargs = std::conditional_t<kIsGroupMode, FmhaFwdGroupModeKargs, FmhaFwdBatchModeKargs>;
 
     template <bool Cond = !kIsGroupMode>
-    __host__ static constexpr std::enable_if_t<Cond, Kargs> MakeKargs(const void* q_ptr,
-                                                                      const void* k_ptr,
-                                                                      const void* v_ptr,
-                                                                      const void* bias_ptr,
-                                                                      void* lse_ptr,
-                                                                      void* o_ptr,
-                                                                      ck::index_t seqlen_q,
-                                                                      ck::index_t seqlen_k,
-                                                                      ck::index_t hdim_q,
-                                                                      ck::index_t hdim_v,
-                                                                      ck::index_t nhead_ratio_qk,
-                                                                      float scale,
-                                                                      ck::index_t stride_q,
-                                                                      ck::index_t stride_k,
-                                                                      ck::index_t stride_v,
-                                                                      ck::index_t stride_bias,
-                                                                      ck::index_t stride_o,
-                                                                      ck::index_t nhead_stride_q,
-                                                                      ck::index_t nhead_stride_k,
-                                                                      ck::index_t nhead_stride_v,
-                                                                      ck::index_t nhead_stride_bias,
-                                                                      ck::index_t nhead_stride_lse,
-                                                                      ck::index_t nhead_stride_o,
-                                                                      ck::index_t batch_stride_q,
-                                                                      ck::index_t batch_stride_k,
-                                                                      ck::index_t batch_stride_v,
-                                                                      ck::index_t batch_stride_bias,
-                                                                      ck::index_t batch_stride_lse,
-                                                                      ck::index_t batch_stride_o,
-                                                                      ck::index_t mask_y,
-                                                                      ck::index_t mask_x,
-                                                                      float descale_qk,
-                                                                      float descale_sv,
-                                                                      float p_drop)
+    __host__ static constexpr std::enable_if_t<Cond, Kargs>
+    MakeKargs(const void* q_ptr,
+              const void* k_ptr,
+              const void* v_ptr,
+              const void* bias_ptr,
+              void* lse_ptr,
+              void* o_ptr,
+              ck::index_t seqlen_q,
+              ck::index_t seqlen_k,
+              ck::index_t hdim_q,
+              ck::index_t hdim_v,
+              ck::index_t nhead_ratio_qk,
+              float scale,
+              ck::index_t stride_q,
+              ck::index_t stride_k,
+              ck::index_t stride_v,
+              ck::index_t stride_bias,
+              ck::index_t stride_o,
+              ck::index_t nhead_stride_q,
+              ck::index_t nhead_stride_k,
+              ck::index_t nhead_stride_v,
+              ck::index_t nhead_stride_bias,
+              ck::index_t nhead_stride_lse,
+              ck::index_t nhead_stride_o,
+              ck::index_t batch_stride_q,
+              ck::index_t batch_stride_k,
+              ck::index_t batch_stride_v,
+              ck::index_t batch_stride_bias,
+              ck::index_t batch_stride_lse,
+              ck::index_t batch_stride_o,
+              ck::index_t mask_y,
+              ck::index_t mask_x,
+              float descale_qk,
+              float descale_sv,
+              float p_drop,
+              std::tuple<uint64_t, uint64_t>& seeds)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -251,42 +258,44 @@ struct FmhaFwdKernel
 
         if constexpr(kHasDropout)
         {
-            kargs.init_dropout(p_drop);
+            kargs.init_dropout(p_drop, seeds);
         }
 
         return kargs;
     }
 
     template <bool Cond = kIsGroupMode>
-    __host__ static constexpr std::enable_if_t<Cond, Kargs> MakeKargs(const void* q_ptr,
-                                                                      const void* k_ptr,
-                                                                      const void* v_ptr,
-                                                                      const void* bias_ptr,
-                                                                      void* lse_ptr,
-                                                                      void* o_ptr,
-                                                                      const void* seqstart_q_ptr,
-                                                                      const void* seqstart_k_ptr,
-                                                                      const void* seqlen_k_ptr,
-                                                                      ck::index_t hdim_q,
-                                                                      ck::index_t hdim_v,
-                                                                      ck::index_t nhead_ratio_qk,
-                                                                      float scale,
-                                                                      ck::index_t stride_q,
-                                                                      ck::index_t stride_k,
-                                                                      ck::index_t stride_v,
-                                                                      ck::index_t stride_bias,
-                                                                      ck::index_t stride_o,
-                                                                      ck::index_t nhead_stride_q,
-                                                                      ck::index_t nhead_stride_k,
-                                                                      ck::index_t nhead_stride_v,
-                                                                      ck::index_t nhead_stride_bias,
-                                                                      ck::index_t nhead_stride_lse,
-                                                                      ck::index_t nhead_stride_o,
-                                                                      ck::index_t mask_y,
-                                                                      ck::index_t mask_x,
-                                                                      float descale_qk,
-                                                                      float descale_sv,
-                                                                      float p_drop)
+    __host__ static constexpr std::enable_if_t<Cond, Kargs>
+    MakeKargs(const void* q_ptr,
+              const void* k_ptr,
+              const void* v_ptr,
+              const void* bias_ptr,
+              void* lse_ptr,
+              void* o_ptr,
+              const void* seqstart_q_ptr,
+              const void* seqstart_k_ptr,
+              const void* seqlen_k_ptr,
+              ck::index_t hdim_q,
+              ck::index_t hdim_v,
+              ck::index_t nhead_ratio_qk,
+              float scale,
+              ck::index_t stride_q,
+              ck::index_t stride_k,
+              ck::index_t stride_v,
+              ck::index_t stride_bias,
+              ck::index_t stride_o,
+              ck::index_t nhead_stride_q,
+              ck::index_t nhead_stride_k,
+              ck::index_t nhead_stride_v,
+              ck::index_t nhead_stride_bias,
+              ck::index_t nhead_stride_lse,
+              ck::index_t nhead_stride_o,
+              ck::index_t mask_y,
+              ck::index_t mask_x,
+              float descale_qk,
+              float descale_sv,
+              float p_drop,
+              std::tuple<uint64_t, uint64_t>& seeds)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -343,7 +352,7 @@ struct FmhaFwdKernel
 
         if constexpr(kHasDropout)
         {
-            kargs.init_dropout(p_drop);
+            kargs.init_dropout(p_drop, seeds);
         }
 
         return kargs;
@@ -390,11 +399,16 @@ struct FmhaFwdKernel
 
         float rp_dropout             = 1;
         uint8_t p_dropout_in_uint8_t = 255;
+        uint64_t seed                = 0;
+        uint64_t offset              = 0;
         if constexpr(kHasDropout)
         {
             rp_dropout           = kargs.rp_dropout;
             p_dropout_in_uint8_t = kargs.p_dropout_in_uint8_t;
+            seed                 = kargs.seed;
+            offset               = kargs.offset;
         }
+        ck::philox ph(seed, 0, offset);
 
         if constexpr(kIsGroupMode)
         {
@@ -656,7 +670,8 @@ struct FmhaFwdKernel
                                       smem_ptr,
                                       i_total_m0,
                                       rp_dropout,
-                                      p_dropout_in_uint8_t);
+                                      p_dropout_in_uint8_t,
+                                      ph);
             }
             else
             {
@@ -670,7 +685,8 @@ struct FmhaFwdKernel
                                       smem_ptr,
                                       i_total_m0,
                                       rp_dropout,
-                                      p_dropout_in_uint8_t);
+                                      p_dropout_in_uint8_t,
+                                      ph);
             }
         }();
 

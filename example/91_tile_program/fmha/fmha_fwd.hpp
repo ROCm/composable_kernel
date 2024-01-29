@@ -118,7 +118,8 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                      bool o_perm,
                                      ck::index_t mask_y,
                                      ck::index_t mask_x,
-                                     float p_drop)
+                                     float p_drop,
+                                     std::tuple<uint64_t, uint64_t>& seeds)
 {
     constexpr bool is_v_rowmajor =
         ck::is_same_v<typename FmhaKernel::VLayout, ck::tensor_layout::gemm::RowMajor>;
@@ -190,7 +191,8 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          mask_x,
                                          descale_qk,
                                          descale_sv,
-                                         p_drop);
+                                         p_drop,
+                                         seeds);
         }
         else
         { // create batch mode kernel arguments
@@ -227,7 +229,8 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          mask_x,
                                          descale_qk,
                                          descale_sv,
-                                         p_drop);
+                                         p_drop,
+                                         seeds);
         }
     }();
 
@@ -263,6 +266,7 @@ struct fmha_fwd_args
     ck::index_t mask_y;
     ck::index_t mask_x;
     float p_drop;
+    std::tuple<uint64_t, uint64_t> seeds;
 };
 
 template <typename FmhaKernel>
@@ -292,7 +296,8 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                                        args.o_perm,
                                                        args.mask_y,
                                                        args.mask_x,
-                                                       args.p_drop);
+                                                       args.p_drop,
+                                                       args.seeds);
 }
 
 // this is internal API, will be generated across different files to speedup compile
